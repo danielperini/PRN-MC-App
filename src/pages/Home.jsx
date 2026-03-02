@@ -34,8 +34,7 @@ export default function Home() {
             Gestão de Relatórios<br />dos Museus do Centro
           </h1>
           <p className="text-gray-500 text-lg leading-relaxed mb-10">
-            Plataforma centralizada para registro, acompanhamento e aprovação dos
-            relatórios mensais dos profissionais vinculados ao MHAB, MIS e MUMO.
+            Plataforma centralizada para registro, acompanhamento e aprovação de relatórios.
           </p>
           <Link to={createPageUrl('Dashboard')}>
             <Button size="lg" className="bg-black hover:bg-gray-800 text-white gap-2 px-8">
