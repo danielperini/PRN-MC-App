@@ -157,7 +157,7 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove }) {
           {isMeta && (
             <div className="p-4 border border-blue-100 bg-blue-50/30 rounded-xl space-y-4">
               <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Dados da Meta — 3º Termo Aditivo</p>
-              <Field label="Código da Meta" required>
+              <Field label="Código da Meta">
                 <Select value={atividade.meta_codigo || ''} onValueChange={v => onChange('meta_codigo', v)} disabled={!canEdit}>
                   <SelectTrigger><SelectValue placeholder="Selecione a meta" /></SelectTrigger>
                   <SelectContent>
