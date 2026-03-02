@@ -62,7 +62,9 @@ function exportCSV(reports) {
 
 function RelatoriosInner() {
   const { user: currentUser, isCoordenador } = useCurrentUser();
+  const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ mes: '', museu: '', equipe: '', status: '', classificacao: '' });
+  const [showFilters, setShowFilters] = useState(false);
 
   const { data: allReports = [], isLoading: loadingAll } = useQuery({
     queryKey: ['all-reports-list'],
