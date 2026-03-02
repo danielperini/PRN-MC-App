@@ -490,69 +490,42 @@ export default function ReportEditor() {
                 </Button>
               )}
             </div>
-            
             {formData.oportunidades?.length === 0 ? (
               <p className="text-gray-400 text-center py-8 border border-dashed rounded-xl">
                 Nenhuma oportunidade adicionada
               </p>
             ) : (
               <div className="space-y-4">
-                {formData.oportunidades?.map((oportunidade, index) => (
-                  <div key={index} className="p-5 border border-gray-100 rounded-xl">
+                {formData.oportunidades?.map((op, index) => (
+                  <div key={index} className="p-5 border border-[#E5E5E5] rounded-xl shadow-sm">
                     <div className="flex justify-between mb-3">
                       <span className="text-sm font-medium text-gray-500">Oportunidade {index + 1}</span>
                       {canEdit && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="text-red-500 h-auto p-1"
-                          onClick={() => removeOportunidade(index)}
-                        >
+                        <Button variant="ghost" size="sm" className="text-red-500 h-auto p-1"
+                          onClick={() => removeOportunidade(index)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       )}
                     </div>
                     <div className="space-y-3">
-                      <Input 
-                        placeholder="Título"
-                        value={oportunidade.titulo || ''}
-                        onChange={(e) => updateOportunidade(index, 'titulo', e.target.value)}
-                        disabled={!canEdit}
-                      />
-                      <Textarea 
-                        placeholder="Descrição"
-                        value={oportunidade.descricao || ''}
-                        onChange={(e) => updateOportunidade(index, 'descricao', e.target.value)}
-                        disabled={!canEdit}
-                      />
+                      <Textarea placeholder="Descrição da oportunidade"
+                        value={op.descricao || ''}
+                        onChange={e => updateOportunidade(index, 'descricao', e.target.value)}
+                        disabled={!canEdit} />
                       <div className="grid grid-cols-2 gap-3">
-                        <Select 
-                          value={oportunidade.tipo} 
-                          onValueChange={(v) => updateOportunidade(index, 'tipo', v)}
-                          disabled={!canEdit}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
+                        <Select value={op.categoria || ''} onValueChange={v => updateOportunidade(index, 'categoria', v)} disabled={!canEdit}>
+                          <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="MELHORIA">Melhoria</SelectItem>
-                            <SelectItem value="PARCERIA">Parceria</SelectItem>
-                            <SelectItem value="EVENTO">Evento</SelectItem>
-                            <SelectItem value="OUTRO">Outro</SelectItem>
+                            {['Programação','Parceria','Comunicação','Captação','Acessibilidade','Infraestrutura','Outro'].map(c =>
+                              <SelectItem key={c} value={c}>{c}</SelectItem>)}
                           </SelectContent>
                         </Select>
-                        <Select 
-                          value={oportunidade.prioridade} 
-                          onValueChange={(v) => updateOportunidade(index, 'prioridade', v)}
-                          disabled={!canEdit}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
+                        <Select value={op.impacto || ''} onValueChange={v => updateOportunidade(index, 'impacto', v)} disabled={!canEdit}>
+                          <SelectTrigger><SelectValue placeholder="Impacto" /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="BAIXA">Baixa</SelectItem>
-                            <SelectItem value="MEDIA">Média</SelectItem>
-                            <SelectItem value="ALTA">Alta</SelectItem>
+                            <SelectItem value="Baixo">Baixo</SelectItem>
+                            <SelectItem value="Médio">Médio</SelectItem>
+                            <SelectItem value="Alto">Alto</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
