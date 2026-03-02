@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { 
   Eye, CheckCircle, AlertCircle, ChevronRight, 
@@ -24,23 +24,12 @@ const STATUS_CONFIG = {
   IN_REVIEW: { label: 'Em Revisão', color: 'bg-yellow-100 text-yellow-700', icon: Eye },
 };
 
-export default function CoordReview() {
-  const navigate = useNavigate();
+function CoordReviewInner() {
   const queryClient = useQueryClient();
-  const [currentUser, setCurrentUser] = useState(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterMuseu, setFilterMuseu] = useState('all');
   const [returnDialog, setReturnDialog] = useState({ open: false, reportId: null, report: null });
   const [returnComment, setReturnComment] = useState('');
-
-  useEffect(() => {
-    base44.auth.me().then(u => {
-      setCurrentUser(u);
-      if (u?.role !== 'COORDENADOR' && u?.role !== 'ADMIN') {
-        navigate(createPageUrl('Dashboard'));
-      }
-    });
-  }, []);
 
   const { data: reports = [], isLoading } = useQuery({
     queryKey: ['review-reports'],
