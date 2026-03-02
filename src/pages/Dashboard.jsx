@@ -108,6 +108,9 @@ function DashboardInner() {
           <CoordDashboard reports={allReports} isLoading={loadingAll} />
         ) : (
           <>
+            {/* Filtros Avançados */}
+            <AdvancedFilters onFilterChange={setFilters} activeFilters={filters} />
+
             {/* Status Stats — profissional */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
               {stats.map(s => (
