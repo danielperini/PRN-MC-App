@@ -75,8 +75,7 @@ function CoordReviewInner() {
     setReturnComment('');
   };
 
-  return (
-    <div className="min-h-screen bg-white">
+  return (<div className="min-h-screen bg-white">
       <div className="max-w-6xl mx-auto px-6 py-10">
         <div className="mb-10">
           <h1 className="text-3xl font-semibold text-black tracking-tight">
