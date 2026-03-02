@@ -18,7 +18,10 @@ export default function RequireAuth({ children, requireRole }) {
       if (requireRole) {
         const user = await base44.auth.me();
         const roles = Array.isArray(requireRole) ? requireRole : [requireRole];
-        if (!roles.includes(user.role)) {
+        // also accept 'admin' and 'ADMIN' as equivalent to 'COORDENADOR'
+        const userRoles = [user.role, user.role === 'admin' ? 'COORDENADOR' : null, user.role === 'ADMIN' ? 'COORDENADOR' : null].filter(Boolean);
+        const allowed = roles.some(r => userRoles.includes(r));
+        if (!allowed) {
           setStatus('forbidden');
           return;
         }
