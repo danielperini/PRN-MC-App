@@ -26,13 +26,9 @@ const MESES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 
-const MUSEUS = [
-  'Museu da Cidade',
-  'Museu de Arte',
-  'Memorial',
-  'Casa de Cultura',
-  'Centro Cultural'
-];
+const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
+const EQUIPES = ['Comunicação', 'Coordenação', 'Administração', 'Educativo', 'Produção'];
+const FUNCOES = ['Educador', 'Produtor Cultural', 'Comunicador', 'Administrador', 'Coordenador', 'Outro'];
 
 export default function ReportEditor() {
   const navigate = useNavigate();

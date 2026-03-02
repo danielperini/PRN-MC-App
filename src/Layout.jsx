@@ -9,7 +9,8 @@ import {
   LogOut,
   Menu,
   X,
-  History
+  History,
+  Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -32,7 +33,9 @@ export default function Layout({ children, currentPageName }) {
   const isCoordenador = currentUser?.role === 'COORDENADOR' || currentUser?.role === 'ADMIN';
 
   const navItems = [
-    { name: 'Dashboard', icon: FileText, label: 'Relatórios', show: true },
+    { name: 'Dashboard', icon: FileText, label: 'Dashboard', show: true },
+    { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true },
+    { name: 'CoordReview', icon: Eye, label: 'Revisão', show: isCoordenador },
     { name: 'UserManagement', icon: Users, label: 'Usuários', show: isCoordenador },
     { name: 'AuditLog', icon: History, label: 'Auditoria', show: isCoordenador },
   ].filter(item => item.show);
