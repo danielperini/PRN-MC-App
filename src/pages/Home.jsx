@@ -76,7 +76,7 @@ export default function Home() {
         {/* Status badge */}
         <div className="mt-14 flex items-center gap-2 text-sm text-gray-400">
           <CheckCircle className="w-4 h-4 text-green-500" />
-          Sistema ativo · Versão 2026
+          Sistema ativo · Versão 1.0 · 2026
         </div>
       </main>
     </div>
