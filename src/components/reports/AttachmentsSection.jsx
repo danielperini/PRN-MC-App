@@ -18,6 +18,7 @@ import {
   X as XIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
