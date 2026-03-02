@@ -408,8 +408,9 @@ function ReportEditorInner() {
               </Field>
             </div>
           </section>
+          </TabsContent>
 
-        </div>
+        </Tabs>
 
         {/* Bottom save bar */}
         {canEdit && (
