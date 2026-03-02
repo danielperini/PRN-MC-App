@@ -374,15 +374,27 @@ function ReportEditorInner() {
             <section>
               <SectionTitle>Avaliação do Mês</SectionTitle>
               <div className="space-y-4">
-                <Field label="Pontos Positivos">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm text-gray-700">Pontos Positivos</Label>
+                    {canEdit && <AIAssistButton field="avaliacao_pontos_positivos" context={formData} onGenerate={t => set('avaliacao_pontos_positivos', t)} />}
+                  </div>
                   <Textarea placeholder="O que funcionou bem este mês..." value={formData.avaliacao_pontos_positivos || ''} onChange={e => set('avaliacao_pontos_positivos', e.target.value)} disabled={!canEdit} />
-                </Field>
-                <Field label="Dificuldades">
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm text-gray-700">Dificuldades</Label>
+                    {canEdit && <AIAssistButton field="avaliacao_desafios" context={formData} onGenerate={t => set('avaliacao_desafios', t)} />}
+                  </div>
                   <Textarea placeholder="Principais dificuldades enfrentadas..." value={formData.avaliacao_desafios || ''} onChange={e => set('avaliacao_desafios', e.target.value)} disabled={!canEdit} />
-                </Field>
-                <Field label="Sugestões">
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm text-gray-700">Sugestões</Label>
+                    {canEdit && <AIAssistButton field="avaliacao_sugestoes" context={formData} onGenerate={t => set('avaliacao_sugestoes', t)} />}
+                  </div>
                   <Textarea placeholder="Sugestões de melhoria..." value={formData.avaliacao_sugestoes || ''} onChange={e => set('avaliacao_sugestoes', e.target.value)} disabled={!canEdit} />
-                </Field>
+                </div>
               </div>
             </section>
           </TabsContent>
