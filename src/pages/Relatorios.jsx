@@ -193,6 +193,10 @@ function RelatoriosInner() {
   );
 }
 
+export default function Relatorios() {
+  return <RequireAuth><RelatoriosInner /></RequireAuth>;
+}
+
 function FilterSel({ placeholder, value, onChange, options }) {
   return (
     <Select value={value || 'all'} onValueChange={v => onChange(v === 'all' ? '' : v)}>
