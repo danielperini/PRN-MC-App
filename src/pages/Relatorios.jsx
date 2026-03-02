@@ -237,19 +237,27 @@ function RelatoriosInner() {
                     <p className="text-xs text-gray-400 mt-0.5">{report.museu}{report.equipe ? ` · ${report.equipe}` : ''}</p>
 
                     {/* Activity pills */}
-                    {totalAtiv > 0 && (
-                      <div className="flex gap-1.5 mt-4 flex-wrap">
-                        {nMeta > 0 && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>
-                        )}
-                        {nRot > 0 && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>
-                        )}
-                        {nExt > 0 && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>
-                        )}
-                      </div>
-                    )}
+                     {totalAtiv > 0 && (
+                       <div className="flex gap-1.5 mt-4 flex-wrap">
+                         {nMeta > 0 && (
+                           <span className="text-[11px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>
+                         )}
+                         {nRot > 0 && (
+                           <span className="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>
+                         )}
+                         {nExt > 0 && (
+                           <span className="text-[11px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>
+                         )}
+                       </div>
+                     )}
+
+                     {/* Attachments indicator */}
+                     {nAttachments > 0 && (
+                       <div className="flex items-center gap-1.5 mt-3 text-xs text-gray-500">
+                         <Paperclip className="w-3.5 h-3.5 text-gray-400" />
+                         <span>{nAttachments} arquivo{nAttachments > 1 ? 's' : ''}</span>
+                       </div>
+                     )}
 
                     {/* Return comment warning */}
                     {report.return_comment && report.status === 'RETURNED' && (
