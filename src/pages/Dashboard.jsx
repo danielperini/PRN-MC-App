@@ -132,9 +132,10 @@ function DashboardInner() {
                 recentReports.map(report => {
                   const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.DRAFT;
                   const StatusIcon = cfg.icon;
-                  const nMeta = (report.atividades || []).filter(a => a.classificacao === 'META').length;
-                  const nRot  = (report.atividades || []).filter(a => a.classificacao === 'ROTINA').length;
-                  const nExt  = (report.atividades || []).filter(a => a.classificacao === 'EXTRA').length;
+                  const atividades = Array.isArray(report.atividades) ? report.atividades : [];
+                  const nMeta = atividades.filter(a => a.classificacao === 'META').length;
+                  const nRot  = atividades.filter(a => a.classificacao === 'ROTINA').length;
+                  const nExt  = atividades.filter(a => a.classificacao === 'EXTRA').length;
                   return (
                     <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block group">
                       <div className={`h-full p-5 rounded-2xl border border-gray-100 hover:border-gray-300 hover:shadow-md transition-all ${cfg.cardBg}`}>
