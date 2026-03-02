@@ -138,65 +138,116 @@ function RelatoriosInner() {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-2 mb-6 p-4 border border-[#E5E5E5] rounded-xl">
-          <FilterSel placeholder="Mês" value={filters.mes} onChange={v => setFilter('mes', v)}
-            options={MESES.map(m => ({ value: m, label: m }))} />
-          <FilterSel placeholder="Museu" value={filters.museu} onChange={v => setFilter('museu', v)}
-            options={MUSEUS.map(m => ({ value: m, label: m }))} />
-          <FilterSel placeholder="Equipe" value={filters.equipe} onChange={v => setFilter('equipe', v)}
-            options={EQUIPES.map(e => ({ value: e, label: e }))} />
-          <FilterSel placeholder="Status" value={filters.status} onChange={v => setFilter('status', v)}
-            options={Object.entries(STATUS_CONFIG).map(([v, c]) => ({ value: v, label: c.label }))} />
-          <FilterSel placeholder="Classificação" value={filters.classificacao} onChange={v => setFilter('classificacao', v)}
-            options={['META','ROTINA','EXTRA'].map(c => ({ value: c, label: c }))} />
-          {hasFilters && (
-            <Button variant="ghost" size="sm" className="text-gray-400 gap-1" onClick={clearFilters}>
-              <X className="w-3 h-3" /> Limpar
+        {/* Search + Filter bar */}
+        <div className="mb-5 space-y-3">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Buscar por profissional, museu, mês, atividade..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-9 h-10 border-gray-200"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              className={`gap-2 h-10 ${showFilters ? 'border-black bg-gray-50' : 'border-gray-200'}`}
+              onClick={() => setShowFilters(p => !p)}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Filtros
+              {Object.values(filters).some(Boolean) && (
+                <span className="w-4 h-4 rounded-full bg-black text-white text-[10px] flex items-center justify-center">
+                  {Object.values(filters).filter(Boolean).length}
+                </span>
+              )}
             </Button>
+            {hasFilters && (
+              <Button variant="ghost" size="sm" className="text-gray-400 gap-1 h-10" onClick={clearFilters}>
+                <X className="w-3 h-3" /> Limpar
+              </Button>
+            )}
+          </div>
+
+          {showFilters && (
+            <div className="flex flex-wrap gap-2 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+              <FilterSel placeholder="Mês" value={filters.mes} onChange={v => setFilter('mes', v)}
+                options={MESES.map(m => ({ value: m, label: m }))} />
+              <FilterSel placeholder="Museu" value={filters.museu} onChange={v => setFilter('museu', v)}
+                options={MUSEUS.map(m => ({ value: m, label: m }))} />
+              <FilterSel placeholder="Equipe" value={filters.equipe} onChange={v => setFilter('equipe', v)}
+                options={EQUIPES.map(e => ({ value: e, label: e }))} />
+              <FilterSel placeholder="Status" value={filters.status} onChange={v => setFilter('status', v)}
+                options={Object.entries(STATUS_CONFIG).map(([v, c]) => ({ value: v, label: c.label }))} />
+              <FilterSel placeholder="Classificação" value={filters.classificacao} onChange={v => setFilter('classificacao', v)}
+                options={['META','ROTINA','EXTRA'].map(c => ({ value: c, label: c }))} />
+            </div>
           )}
         </div>
 
-        {/* List */}
-        <div className="space-y-3">
-          {(isLoading) ? (
-            <div className="text-center py-20 text-gray-400">Carregando relatórios...</div>
+        {/* Cards grid */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {isLoading ? (
+            <div className="col-span-full text-center py-20 text-gray-400">Carregando relatórios...</div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
+            <div className="col-span-full text-center py-20 border border-dashed border-gray-200 rounded-2xl">
               <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">Nenhum relatório encontrado</p>
+              {hasFilters && <p className="text-xs text-gray-400 mt-1">Tente ajustar os filtros ou a busca</p>}
             </div>
           ) : (
             filtered.map(report => {
               const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.DRAFT;
               const StatusIcon = cfg.icon;
+              const nMeta = (report.atividades || []).filter(a => a.classificacao === 'META').length;
+              const nRot  = (report.atividades || []).filter(a => a.classificacao === 'ROTINA').length;
+              const nExt  = (report.atividades || []).filter(a => a.classificacao === 'EXTRA').length;
+              const totalAtiv = (report.atividades || []).length;
               return (
-                <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block">
-                  <div className="p-5 border border-[#E5E5E5] rounded-xl shadow-sm hover:border-gray-300 transition-all group">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-gray-50 border border-[#E5E5E5] rounded-lg flex items-center justify-center">
-                          <FileText className="w-5 h-5 text-gray-400" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-black">{report.mes_referencia} {report.ano}</span>
-                            <Badge className={`${cfg.color} font-normal`}>
-                              <StatusIcon className="w-3 h-3 mr-1" />{cfg.label}
-                            </Badge>
-                            {(report.atividades || []).some(a => a.classificacao) && (
-                              <span className="text-xs text-gray-400 border border-gray-200 rounded px-1.5 py-0.5">
-                                {(report.atividades || []).filter(a => a.classificacao === 'META').length}M·{(report.atividades||[]).filter(a=>a.classificacao==='ROTINA').length}R·{(report.atividades||[]).filter(a=>a.classificacao==='EXTRA').length}E
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-500 mt-0.5">
-                            {report.museu} • {report.author_name}{report.equipe && ` • ${report.equipe}`}
-                          </p>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-gray-500 transition-colors" />
+                <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block group">
+                  <div className={`h-full p-5 rounded-2xl border border-gray-100 hover:border-gray-300 hover:shadow-md transition-all ${cfg.cardBg}`}>
+                    {/* Status badge */}
+                    <div className="flex items-center justify-between mb-4">
+                      <Badge className={`${cfg.color} font-normal gap-1`}>
+                        <StatusIcon className="w-3 h-3" />{cfg.label}
+                      </Badge>
+                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
                     </div>
+
+                    {/* Main info */}
+                    <h3 className="font-semibold text-black text-base leading-tight">
+                      {report.mes_referencia} {report.ano}
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1 truncate">{report.author_name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{report.museu}{report.equipe ? ` · ${report.equipe}` : ''}</p>
+
+                    {/* Activity pills */}
+                    {totalAtiv > 0 && (
+                      <div className="flex gap-1.5 mt-4 flex-wrap">
+                        {nMeta > 0 && (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>
+                        )}
+                        {nRot > 0 && (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>
+                        )}
+                        {nExt > 0 && (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Return comment warning */}
+                    {report.return_comment && report.status === 'RETURNED' && (
+                      <p className="mt-3 text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1.5 leading-relaxed line-clamp-2">
+                        {report.return_comment}
+                      </p>
+                    )}
                   </div>
                 </Link>
               );
