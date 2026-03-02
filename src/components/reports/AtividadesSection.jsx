@@ -66,17 +66,9 @@ const EMPTY_ATIVIDADE = {
 };
 
 export function validateAtividade(ativ) {
+  // Apenas a classificação é obrigatória; todos os demais campos são opcionais
   const errors = [];
   if (!ativ.classificacao) errors.push('Classificação é obrigatória');
-  if (!ativ.nome) errors.push('Nome da atividade é obrigatório');
-  if (ativ.classificacao === 'META') {
-    if (!ativ.meta_codigo) errors.push('Código da meta é obrigatório');
-    if (!ativ.indicador_previsto) errors.push('Indicador previsto é obrigatório');
-    if (!ativ.status_meta) errors.push('Status da meta é obrigatório');
-  }
-  if (ativ.classificacao === 'ROTINA' || ativ.classificacao === 'EXTRA') {
-    if (!ativ.justificativa_tecnica) errors.push('Justificativa técnica é obrigatória');
-  }
   return errors;
 }
 
