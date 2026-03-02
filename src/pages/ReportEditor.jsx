@@ -177,6 +177,9 @@ function ReportEditorInner() {
           </div>
 
           <div className="flex gap-2 flex-wrap">
+            {reportId && (
+              <ExportPDF report={formData} reportId={reportId} />
+            )}
             {canEdit && (
               <>
                 <Button variant="outline" onClick={() => saveMutation.mutate(formData)} disabled={saveMutation.isPending}>
