@@ -77,7 +77,8 @@ export default function AttachmentsSection({ reportId, canEdit }) {
     onSuccess: () => {
       queryClient.invalidateQueries(['attachments', reportId]);
       toast.success('Anexo removido');
-    }
+    },
+    onError: () => toast.error('Erro ao remover anexo'),
   });
 
   const handleFiles = async (files) => {
