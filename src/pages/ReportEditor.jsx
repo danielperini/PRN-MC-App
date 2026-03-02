@@ -109,6 +109,10 @@ function ReportEditorInner() {
 
   const submitMutation = useMutation({
     mutationFn: () => {
+      if (!declaracaoAceita) {
+        toast.error('Você deve aceitar a declaração de responsabilidade antes de enviar.');
+        throw new Error('Declaração não aceita');
+      }
       // Validate all activities before submitting
       const atividades = formData.atividades || [];
       const allErrors = atividades.flatMap((a, i) =>
