@@ -50,12 +50,12 @@
 import AuditLog from './pages/AuditLog';
 import CoordReview from './pages/CoordReview';
 import Dashboard from './pages/Dashboard';
+import GestorArquivos from './pages/GestorArquivos';
 import Home from './pages/Home';
+import PlataformaAdmin from './pages/PlataformaAdmin';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
-import PlataformaAdmin from './pages/PlataformaAdmin';
-import GestorArquivos from './pages/GestorArquivos';
 import __Layout from './Layout.jsx';
 
 
@@ -63,12 +63,12 @@ export const PAGES = {
     "AuditLog": AuditLog,
     "CoordReview": CoordReview,
     "Dashboard": Dashboard,
+    "GestorArquivos": GestorArquivos,
     "Home": Home,
+    "PlataformaAdmin": PlataformaAdmin,
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
-    "PlataformaAdmin": PlataformaAdmin,
-    "GestorArquivos": GestorArquivos,
 }
 
 export const pagesConfig = {

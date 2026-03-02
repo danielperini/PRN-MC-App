@@ -120,7 +120,7 @@ function RelatoriosInner() {
       <div className="max-w-6xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-semibold text-black tracking-tight">Relatórios</h1>
+            <h1 className="text-3xl font-semibold text-black tracking-tight">Gestão de Relatórios Museus Centro</h1>
             <p className="text-gray-500 mt-1">
               {filtered.length} de {baseReports.length} relatório(s)
             </p>
