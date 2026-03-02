@@ -178,7 +178,7 @@ function ReportEditorInner() {
       };
       toast.success(msgs[action] || 'Status atualizado.');
     },
-    onError: () => toast.error('Erro ao atualizar status. Tente novamente.'),
+    onError: (e) => toast.error('Erro ao atualizar status: ' + (e?.message || 'tente novamente')),
   });
 
   // Oportunidades helpers
