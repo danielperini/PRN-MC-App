@@ -5,7 +5,7 @@ import { useCurrentUser } from '../components/auth/useCurrentUser';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { ArrowLeft, Save, Send, Plus, Trash2, CheckCircle, AlertCircle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Save, Send, Plus, Trash2, CheckCircle, AlertCircle, RotateCcw, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
