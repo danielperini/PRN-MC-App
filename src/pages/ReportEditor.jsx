@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import AtividadesSection from '../components/reports/AtividadesSection';
+import AtividadesSection, { validateAtividade } from '../components/reports/AtividadesSection';
 import ExportPDF from '../components/reports/ExportPDF';
 
 const MESES = [
