@@ -233,7 +233,7 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove }) {
                 disabled={!canEdit}
               />
             </Field>
-            <Field label="Equipe responsável" required>
+            <Field label="Equipe responsável">
               <Select value={atividade.equipe_responsavel || ''} onValueChange={v => onChange('equipe_responsavel', v)} disabled={!canEdit}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
