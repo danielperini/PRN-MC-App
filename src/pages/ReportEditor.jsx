@@ -375,8 +375,10 @@ function ReportEditorInner() {
               </div>
             )}
           </section>
+          </TabsContent>
 
           {/* ── Avaliação ─────────────────────────────────── */}
+          <TabsContent value="avaliacao">
           <section>
             <SectionTitle>Avaliação do Mês</SectionTitle>
             <div className="space-y-4">
