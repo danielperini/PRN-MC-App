@@ -172,6 +172,11 @@ function GestorArquivosInner() {
                         {report.author_name} · {report.mes_referencia} {report.ano}
                       </p>
                       <p className="text-xs text-gray-400">{report.museu}</p>
+                      {att.activity_id && (
+                        <p className="text-xs text-blue-500 mt-0.5">
+                          Atividade {att.activity_id.replace('activity_', '#')}
+                        </p>
+                      )}
                     </div>
                   )}
 
