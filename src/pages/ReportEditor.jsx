@@ -83,13 +83,19 @@ function ReportEditorInner() {
   }, [currentUser, reportId]);
 
   // Load existing report
-  const { isLoading } = useQuery({
+  const { isLoading, data: reportData } = useQuery({
     queryKey: ['report', reportId],
-    queryFn: () => base44.entities.Report.filter({ id: reportId }),
+    queryFn: async () => {
+      const results = await base44.entities.Report.filter({ id: reportId });
+      return results[0] || null;
+    },
     enabled: !!reportId,
-    select: data => data[0],
-    onSuccess: data => { if (data) setFormData(data); },
+    staleTime: 30_000,
   });
+
+  useEffect(() => {
+    if (reportData) setFormData(reportData);
+  }, [reportData]);
 
   const saveMutation = useMutation({
     mutationFn: data =>
