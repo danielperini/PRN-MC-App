@@ -241,7 +241,6 @@ function UserManagementInner() {
                 <SelectContent>
                   <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
                   <SelectItem value="COORDENADOR">Coordenador</SelectItem>
-                  <SelectItem value="ADMIN">Administrador</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -256,11 +255,10 @@ function UserManagementInner() {
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Museu da Cidade">Museu da Cidade</SelectItem>
-                  <SelectItem value="Museu de Arte">Museu de Arte</SelectItem>
-                  <SelectItem value="Memorial">Memorial</SelectItem>
-                  <SelectItem value="Casa de Cultura">Casa de Cultura</SelectItem>
-                  <SelectItem value="Centro Cultural">Centro Cultural</SelectItem>
+                  <SelectItem value="MHAB">MHAB</SelectItem>
+                  <SelectItem value="MIS">MIS</SelectItem>
+                  <SelectItem value="MUMO">MUMO</SelectItem>
+                  <SelectItem value="Atuação Geral">Atuação Geral</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -312,4 +310,8 @@ function UserManagementInner() {
       </Dialog>
     </div>
   );
+}
+
+export default function UserManagement() {
+  return <RequireAuth requireRole="COORDENADOR"><UserManagementInner /></RequireAuth>;
 }
