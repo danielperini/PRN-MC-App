@@ -26,6 +26,7 @@ const STATUS_CONFIG = {
 function DashboardInner() {
   const { user: currentUser, isCoordenador } = useCurrentUser();
   const [view, setView] = React.useState('coordenador'); // 'coordenador' | 'profissional'
+  const [filters, setFilters] = React.useState({ museu: '', status: '' });
 
   const { data: myReports = [], isLoading: loadingMy } = useQuery({
     queryKey: ['my-reports', currentUser?.email],
@@ -40,7 +41,16 @@ function DashboardInner() {
   });
 
   const showCoordView = isCoordenador && view === 'coordenador';
-  const displayReports = showCoordView ? allReports : myReports;
+  let displayReports = showCoordView ? allReports : myReports;
+
+  // Aplicar filtros
+  if (filters.museu) {
+    displayReports = displayReports.filter(r => r.museu === filters.museu);
+  }
+  if (filters.status) {
+    displayReports = displayReports.filter(r => r.status === filters.status);
+  }
+
   const recentReports = displayReports.slice(0, 8);
   const isLoading = showCoordView ? loadingAll : loadingMy;
 
