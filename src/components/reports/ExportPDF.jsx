@@ -403,9 +403,9 @@ export default function ExportPDF({ report, reportId }) {
         doc.setFont('helvetica', 'normal');
       }
 
-      // Audit log
+      // Audit log — usa action válido do enum
       await base44.entities.AuditLog.create({
-        action: 'pdf_export',
+        action: 'UPDATE',
         entity_type: 'REPORT',
         entity_id: reportId || '',
         actor_email: report.created_by || '',
