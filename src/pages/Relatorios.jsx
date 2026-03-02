@@ -63,18 +63,21 @@ function RelatoriosInner() {
   const { user: currentUser, isCoordenador } = useCurrentUser();
   const [filters, setFilters] = useState({ mes: '', museu: '', equipe: '', status: '', classificacao: '' });
 
-  const { data: allReports = [], isLoading } = useQuery({
+  const { data: allReports = [], isLoading: loadingAll } = useQuery({
     queryKey: ['all-reports-list'],
-    queryFn: () => base44.entities.Report.list('-created_date'),
-    enabled: !!currentUser,
+    queryFn: () => base44.entities.Report.list('-created_date', 200),
+    enabled: !!currentUser && isCoordenador,
+    staleTime: 30_000,
   });
 
-  const { data: myReports = [] } = useQuery({
+  const { data: myReports = [], isLoading: loadingMy } = useQuery({
     queryKey: ['my-reports-list', currentUser?.email],
     queryFn: () => base44.entities.Report.filter({ created_by: currentUser?.email }, '-created_date'),
     enabled: !!currentUser?.email && !isCoordenador,
+    staleTime: 30_000,
   });
 
+  const isLoading = isCoordenador ? loadingAll : loadingMy;
   const baseReports = isCoordenador ? allReports : myReports;
 
   const filtered = baseReports.filter(r => {
