@@ -11,7 +11,11 @@ import {
   FileAudio,
   File,
   ExternalLink,
-  Loader2
+  Loader2,
+  Download,
+  Edit2,
+  Check,
+  X as XIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
