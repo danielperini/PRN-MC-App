@@ -126,7 +126,8 @@ function ReportEditorInner() {
         toast.error('Aceite a declaração de responsabilidade antes de enviar.');
         throw new Error('Declaração não aceita');
       }
-      const data = { ...formData, status: 'SUBMITTED' };
+      const { id, created_date, updated_date, created_by, ...payload } = formData;
+      const data = { ...payload, status: 'SUBMITTED' };
       return reportId
         ? base44.entities.Report.update(reportId, data)
         : base44.entities.Report.create(data);
