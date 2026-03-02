@@ -117,11 +117,11 @@ function DashboardInner() {
               </Link>
             </div>
 
-            <div className="space-y-3">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {isLoading ? (
-                <div className="text-center py-20 text-gray-400">Carregando...</div>
+                <div className="col-span-full text-center py-20 text-gray-400">Carregando...</div>
               ) : recentReports.length === 0 ? (
-                <div className="text-center py-16 border border-dashed border-gray-200 rounded-2xl">
+                <div className="col-span-full text-center py-16 border border-dashed border-gray-200 rounded-2xl">
                   <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-500">Nenhum relatório encontrado</p>
                   <Link to={createPageUrl('ReportEditor')}>
@@ -132,28 +132,30 @@ function DashboardInner() {
                 recentReports.map(report => {
                   const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.DRAFT;
                   const StatusIcon = cfg.icon;
+                  const nMeta = (report.atividades || []).filter(a => a.classificacao === 'META').length;
+                  const nRot  = (report.atividades || []).filter(a => a.classificacao === 'ROTINA').length;
+                  const nExt  = (report.atividades || []).filter(a => a.classificacao === 'EXTRA').length;
                   return (
-                    <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block">
-                      <div className="p-5 border border-gray-100 rounded-xl hover:border-gray-300 transition-all group">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-lg flex items-center justify-center">
-                              <FileText className="w-5 h-5 text-gray-400" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-medium text-black">{report.mes_referencia} {report.ano}</span>
-                                <Badge className={`${cfg.color} font-normal`}>
-                                  <StatusIcon className="w-3 h-3 mr-1" />{cfg.label}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-gray-500 mt-0.5">
-                                {report.museu} • {report.author_name}
-                              </p>
-                            </div>
-                          </div>
-                          <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-gray-500 transition-colors" />
+                    <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block group">
+                      <div className={`h-full p-5 rounded-2xl border border-gray-100 hover:border-gray-300 hover:shadow-md transition-all ${cfg.cardBg}`}>
+                        <div className="flex items-center justify-between mb-4">
+                          <Badge className={`${cfg.color} font-normal gap-1`}>
+                            <StatusIcon className="w-3 h-3" />{cfg.label}
+                          </Badge>
+                          <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
                         </div>
+                        <h3 className="font-semibold text-black text-base leading-tight">
+                          {report.mes_referencia} {report.ano}
+                        </h3>
+                        <p className="text-sm text-gray-500 mt-1 truncate">{report.author_name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{report.museu}</p>
+                        {(nMeta + nRot + nExt) > 0 && (
+                          <div className="flex gap-1.5 mt-4 flex-wrap">
+                            {nMeta > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>}
+                            {nRot > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>}
+                            {nExt > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>}
+                          </div>
+                        )}
                       </div>
                     </Link>
                   );
