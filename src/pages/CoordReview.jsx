@@ -228,3 +228,7 @@ function CoordReviewInner() {
     </div>
   );
 }
+
+export default function CoordReview() {
+  return <RequireAuth requireRole="COORDENADOR"><CoordReviewInner /></RequireAuth>;
+}
