@@ -92,12 +92,21 @@ function RelatoriosInner() {
       const hasClass = (r.atividades || []).some(a => a.classificacao === filters.classificacao);
       if (!hasClass) return false;
     }
+    if (search) {
+      const q = search.toLowerCase();
+      const matchName = r.author_name?.toLowerCase().includes(q);
+      const matchMuseu = r.museu?.toLowerCase().includes(q);
+      const matchMes = r.mes_referencia?.toLowerCase().includes(q);
+      const matchEquipe = r.equipe?.toLowerCase().includes(q);
+      const matchAtiv = (r.atividades || []).some(a => a.titulo?.toLowerCase().includes(q));
+      if (!matchName && !matchMuseu && !matchMes && !matchEquipe && !matchAtiv) return false;
+    }
     return true;
   });
 
-  const hasFilters = Object.values(filters).some(Boolean);
+  const hasFilters = Object.values(filters).some(Boolean) || !!search;
   const setFilter = (k, v) => setFilters(p => ({ ...p, [k]: v }));
-  const clearFilters = () => setFilters({ mes: '', museu: '', equipe: '', status: '', classificacao: '' });
+  const clearFilters = () => { setFilters({ mes: '', museu: '', equipe: '', status: '', classificacao: '' }); setSearch(''); };
 
   return (
     <div className="min-h-screen bg-white">
