@@ -382,27 +382,43 @@ export default function AttachmentsSection({ reportId, canEdit }) {
           <div className="space-y-2">
             {attachments.map(attachment => {
               const Icon = getFileIcon(attachment.file_type);
+              const isImage = attachment.file_type?.startsWith('image/');
               return (
                 <div
                   key={attachment.id}
-                  className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl"
+                  className="flex flex-col gap-2 p-3 border border-gray-100 rounded-xl"
                 >
-                  <div className="w-9 h-9 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Icon className="w-4 h-4 text-gray-500" />
+                  <div className="flex items-start gap-3">
+                    {isImage ? (
+                      <img
+                        src={attachment.file_url}
+                        alt={attachment.file_name}
+                        className="w-12 h-12 rounded-lg object-cover flex-shrink-0 bg-gray-100"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Icon className="w-5 h-5 text-gray-500" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-black truncate">{attachment.file_name}</p>
+                      <p className="text-xs text-gray-400">{formatBytes(attachment.file_size)}</p>
+                    </div>
+                    <a
+                      href={attachment.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <ExternalLink className="w-3.5 h-3.5 text-gray-500" />
+                      </Button>
+                    </a>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-black truncate">{attachment.file_name}</p>
-                    <p className="text-xs text-gray-400">{formatBytes(attachment.file_size)}</p>
-                  </div>
-                  <a
-                    href={attachment.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <ExternalLink className="w-3.5 h-3.5 text-gray-500" />
-                    </Button>
-                  </a>
+                  {attachment.description && (
+                    <div className="text-xs text-gray-600 pt-2 border-t border-gray-100">
+                      {attachment.description}
+                    </div>
+                  )}
                 </div>
               );
             })}
