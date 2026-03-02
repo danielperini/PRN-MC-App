@@ -45,7 +45,8 @@ function UserManagementInner() {
 
   const inviteMutation = useMutation({
     mutationFn: async (data) => {
-      await base44.users.inviteUser(data.email, data.role === 'COORDENADOR' ? 'admin' : 'user');
+      const base44Role = ['COORDENADOR', 'ADMIN'].includes(data.role) ? 'admin' : 'user';
+      await base44.users.inviteUser(data.email, base44Role);
       // Try to update extra fields after invite
       const allUsers = await base44.entities.User.list();
       const newUser = allUsers.find(u => u.email === data.email);
