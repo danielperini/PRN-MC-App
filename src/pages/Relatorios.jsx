@@ -59,15 +59,9 @@ function exportCSV(reports) {
   URL.revokeObjectURL(url);
 }
 
-export default function Relatorios() {
-  const [currentUser, setCurrentUser] = useState(null);
+function RelatoriosInner() {
+  const { user: currentUser, isCoordenador } = useCurrentUser();
   const [filters, setFilters] = useState({ mes: '', museu: '', equipe: '', status: '', classificacao: '' });
-
-  useEffect(() => {
-    base44.auth.me().then(setCurrentUser);
-  }, []);
-
-  const isCoordenador = currentUser?.role === 'COORDENADOR' || currentUser?.role === 'ADMIN';
 
   const { data: allReports = [], isLoading } = useQuery({
     queryKey: ['all-reports-list'],
