@@ -62,7 +62,8 @@ function CoordReviewInner() {
         ARCHIVED: 'Relatório arquivado',
       };
       toast.success(msgs[vars.status] || 'Status atualizado');
-    }
+    },
+    onError: (err) => toast.error('Erro ao atualizar relatório: ' + (err?.message || 'tente novamente')),
   });
 
   const handleReturn = () => {
