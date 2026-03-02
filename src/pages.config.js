@@ -52,6 +52,8 @@ import Dashboard from './pages/Dashboard';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
 import AuditLog from './pages/AuditLog';
+import CoordReview from './pages/CoordReview';
+import Relatorios from './pages/Relatorios';
 import __Layout from './Layout.jsx';
 
 
@@ -61,6 +63,8 @@ export const PAGES = {
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
     "AuditLog": AuditLog,
+    "CoordReview": CoordReview,
+    "Relatorios": Relatorios,
 }
 
 export const pagesConfig = {
