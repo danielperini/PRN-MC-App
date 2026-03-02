@@ -265,11 +265,13 @@ function UserManagementInner() {
 
             <div>
               <Label>Equipe</Label>
-              <Input 
-                placeholder="Ex: Educativo, Acervo..."
-                value={formData.equipe}
-                onChange={(e) => setFormData({...formData, equipe: e.target.value})}
-              />
+              <Select value={formData.equipe} onValueChange={v => setFormData({...formData, equipe: v})}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {['Comunicação','Coordenação','Administração','Educativo','Produção'].map(e =>
+                    <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
