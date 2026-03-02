@@ -158,8 +158,11 @@ function ReportEditorInner() {
 
   const workflowMutation = useMutation({
     mutationFn: ({ action, comment }) => {
+      if (!reportId) throw new Error('Salve o relatório antes de alterar o status.');
       const statusMap = { start_review: 'IN_REVIEW', return: 'RETURNED', approve: 'APPROVED', archive: 'ARCHIVED', reopen: 'DRAFT' };
-      const update = { status: statusMap[action] };
+      const newStatus = statusMap[action];
+      if (!newStatus) throw new Error(`Ação desconhecida: ${action}`);
+      const update = { status: newStatus };
       if (comment) update.return_comment = comment;
       return base44.entities.Report.update(reportId, update);
     },
