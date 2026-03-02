@@ -110,7 +110,7 @@ function ReportEditorInner() {
   const submitMutation = useMutation({
     mutationFn: () => {
       if (!declaracaoAceita) {
-        toast.error('Você deve aceitar a declaração de responsabilidade antes de enviar.');
+        toast.error('Aceite a declaração de responsabilidade antes de enviar.');
         throw new Error('Declaração não aceita');
       }
       const data = { ...formData, status: 'SUBMITTED' };
@@ -120,9 +120,10 @@ function ReportEditorInner() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['my-reports']);
-      toast.success('Relatório enviado para revisão');
+      toast.success('Relatório enviado para revisão!', { description: 'O coordenador será notificado.' });
       navigate(createPageUrl('Dashboard'));
     },
+    onError: (e) => { if (e.message !== 'Declaração não aceita') toast.error('Erro ao enviar o relatório. Tente novamente.'); },
   });
 
   const workflowMutation = useMutation({
