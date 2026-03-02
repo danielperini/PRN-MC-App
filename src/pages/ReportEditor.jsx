@@ -150,7 +150,10 @@ function ReportEditorInner() {
       toast.success('Relatório enviado para revisão!', { description: 'O coordenador será notificado.' });
       navigate(createPageUrl('Dashboard'));
     },
-    onError: (e) => { if (e.message !== 'Declaração não aceita') toast.error('Erro ao enviar o relatório. Tente novamente.'); },
+    onError: (e) => {
+      const silentErrors = ['Declaração não aceita', 'Mês obrigatório', 'Nome obrigatório', 'Museu obrigatório'];
+      if (!silentErrors.includes(e.message)) toast.error('Erro ao enviar o relatório. Tente novamente.');
+    },
   });
 
   const workflowMutation = useMutation({
