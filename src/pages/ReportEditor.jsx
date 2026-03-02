@@ -349,6 +349,7 @@ function ReportEditorInner() {
               atividades={formData.atividades || []}
               canEdit={canEdit}
               onChange={list => set('atividades', list)}
+              reportId={reportId}
             />
           </TabsContent>
 
