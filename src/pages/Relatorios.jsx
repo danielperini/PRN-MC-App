@@ -147,7 +147,7 @@ function RelatoriosInner() {
 
         {/* List */}
         <div className="space-y-3">
-          {isLoading ? (
+          {(isLoading) ? (
             <div className="text-center py-20 text-gray-400">Carregando relatórios...</div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
