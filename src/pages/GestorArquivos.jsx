@@ -63,6 +63,8 @@ function GestorArquivosInner() {
   // Filter attachments based on user role and filters
   const visible = attachments.filter(att => {
     const report = reportMap[att.report_id];
+    // skip orphan attachments for non-coordinators
+    if (!report) return isCoordenador;
     // professionals only see their own
     if (!isCoordenador && report?.created_by !== currentUser?.email) return false;
     // museu filter
