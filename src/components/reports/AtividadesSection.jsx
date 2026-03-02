@@ -299,13 +299,22 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId
               </div>
             </div>
           </div>
+
+          {/* Anexos vinculados a esta atividade */}
+          {reportId && (
+            <ActivityAttachments
+              reportId={reportId}
+              activityIndex={index}
+              canEdit={canEdit}
+            />
+          )}
         </div>
       )}
     </div>
   );
 }
 
-export default function AtividadesSection({ atividades = [], canEdit, onChange }) {
+export default function AtividadesSection({ atividades = [], canEdit, onChange, reportId }) {
   const add = () => onChange([...atividades, { ...EMPTY_ATIVIDADE }]);
   const remove = (i) => onChange(atividades.filter((_, idx) => idx !== i));
   const update = (i, field, value) =>
