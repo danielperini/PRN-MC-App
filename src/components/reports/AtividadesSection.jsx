@@ -78,12 +78,10 @@ const CLASSIF_BADGE = {
   EXTRA:  'bg-orange-100 text-orange-700',
 };
 
-function Field({ label, required, children }) {
+function Field({ label, children }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-sm text-gray-700">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </Label>
+      <Label className="text-sm text-gray-700">{label}</Label>
       {children}
     </div>
   );
