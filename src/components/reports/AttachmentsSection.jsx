@@ -258,49 +258,77 @@ export default function AttachmentsSection({ reportId, canEdit }) {
           ) : (
             <div className="space-y-2">
               {attachments.map(attachment => {
-                const Icon = getFileIcon(attachment.file_type);
-                return (
-                  <div
-                    key={attachment.id}
-                    className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl group hover:border-gray-200 transition-all"
-                  >
-                    <div className="w-9 h-9 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Icon className="w-4 h-4 text-gray-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-black truncate">
-                        {attachment.file_name}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        {formatBytes(attachment.file_size)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <a
-                        href={attachment.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <ExternalLink className="w-3.5 h-3.5 text-gray-500" />
-                        </Button>
-                      </a>
-                      {canEdit && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => deleteMutation.mutate(attachment.id)}
-                          disabled={deleteMutation.isPending}
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                 const Icon = getFileIcon(attachment.file_type);
+                 const isImage = attachment.file_type?.startsWith('image/');
+                 const isEditing = editingId === attachment.id;
+                 return (
+                   <div
+                     key={attachment.id}
+                     className="flex flex-col gap-2 p-3 border border-gray-100 rounded-xl group hover:border-gray-200 transition-all"
+                   >
+                     <div className="flex items-start gap-3">
+                       {/* Thumbnail */}
+                       {isImage ? (
+                         <img
+                           src={attachment.file_url}
+                           alt={attachment.file_name}
+                           className="w-12 h-12 rounded-lg object-cover flex-shrink-0 bg-gray-100"
+                         />
+                       ) : (
+                         <div className="w-12 h-12 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                           <Icon className="w-5 h-5 text-gray-500" />
+                         </div>
+                       )}
+
+                       <div className="flex-1 min-w-0">
+                         <p className="text-sm font-medium text-black truncate">
+                           {attachment.file_name}
+                         </p>
+                         <p className="text-xs text-gray-400">
+                           {formatBytes(attachment.file_size)}
+                         </p>
+                       </div>
+
+                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <a
+                           href={attachment.file_url}
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           onClick={(e) => e.stopPropagation()}
+                         >
+                           <Button variant="ghost" size="icon" className="h-8 w-8">
+                             <ExternalLink className="w-3.5 h-3.5 text-gray-500" />
+                           </Button>
+                         </a>
+                         {canEdit && (
+                           <>
+                             <Button
+                               variant="ghost"
+                               size="icon"
+                               className="h-8 w-8"
+                               onClick={() => {
+                                 setEditingId(attachment.id);
+                                 setEditDesc(attachment.description || '');
+                               }}
+                             >
+                               <Edit2 className="w-3.5 h-3.5 text-gray-500" />
+                             </Button>
+                             <Button
+                               variant="ghost"
+                               size="icon"
+                               className="h-8 w-8"
+                               onClick={() => deleteMutation.mutate(attachment.id)}
+                               disabled={deleteMutation.isPending}
+                             >
+                               <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                             </Button>
+                           </>
+                         )}
+                       </div>
+                     </div>
+                   </div>
+                 );
+               })}
             </div>
           )}
         </div>
