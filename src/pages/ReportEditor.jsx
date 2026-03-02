@@ -32,13 +32,13 @@ const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const EQUIPES = ['Comunicação', 'Coordenação', 'Administração', 'Educativo', 'Produção'];
 const FUNCOES = ['Educador', 'Produtor Cultural', 'Comunicador', 'Administrador', 'Coordenador', 'Outro'];
 
-export default function ReportEditor() {
+function ReportEditorInner() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user: currentUser, isCoordenador } = useCurrentUser();
   const urlParams = new URLSearchParams(window.location.search);
   const reportId = urlParams.get('id');
 
-  const [currentUser, setCurrentUser] = useState(null);
   const [formData, setFormData] = useState({
     author_name: '',
     author_role: 'PROFISSIONAL',
