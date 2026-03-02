@@ -591,11 +591,11 @@ export default function ReportEditor() {
                 />
               </div>
               <div>
-                <Label>Próximos Passos</Label>
+                <Label>Sugestões</Label>
                 <Textarea 
-                  placeholder="Planos para o próximo mês..."
-                  value={formData.avaliacao_proximos_passos || ''}
-                  onChange={(e) => setFormData({...formData, avaliacao_proximos_passos: e.target.value})}
+                  placeholder="Sugestões para melhoria..."
+                  value={formData.avaliacao_sugestoes || ''}
+                  onChange={(e) => setFormData({...formData, avaliacao_sugestoes: e.target.value})}
                   disabled={!canEdit}
                 />
               </div>
