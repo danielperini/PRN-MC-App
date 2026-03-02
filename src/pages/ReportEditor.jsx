@@ -307,8 +307,19 @@ function ReportEditorInner() {
               disabled={!canEdit}
             />
           </section>
+          </TabsContent>
+
+          {/* ── Atividades ───────────────────────────────── */}
+          <TabsContent value="atividades">
+            <AtividadesSection
+              atividades={formData.atividades || []}
+              canEdit={canEdit}
+              onChange={list => set('atividades', list)}
+            />
+          </TabsContent>
 
           {/* ── Oportunidades ─────────────────────────────── */}
+          <TabsContent value="oportunidades">
           <section>
             <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
               <h2 className="text-base font-semibold text-black">Oportunidades Identificadas</h2>
