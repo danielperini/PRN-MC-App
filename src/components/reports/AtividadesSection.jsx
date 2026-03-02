@@ -225,7 +225,7 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove }) {
 
           {/* Dados básicos */}
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Nome da atividade" required>
+            <Field label="Nome da atividade">
               <Input
                 placeholder="Nome"
                 value={atividade.nome || ''}
