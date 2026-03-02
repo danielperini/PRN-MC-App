@@ -235,9 +235,16 @@ function ReportEditorInner() {
           </div>
         )}
 
-        <div className="space-y-10">
+        <Tabs defaultValue="identificacao" className="w-full">
+          <TabsList className="mb-8 flex flex-wrap h-auto gap-1 bg-gray-100 p-1 rounded-xl">
+            <TabsTrigger value="identificacao">Identificação</TabsTrigger>
+            <TabsTrigger value="atividades">Atividades</TabsTrigger>
+            <TabsTrigger value="oportunidades">Oportunidades</TabsTrigger>
+            <TabsTrigger value="avaliacao">Avaliação</TabsTrigger>
+          </TabsList>
 
           {/* ── Identificação ─────────────────────────────── */}
+          <TabsContent value="identificacao">
           <section>
             <SectionTitle>Identificação</SectionTitle>
             <div className="grid md:grid-cols-2 gap-4">
