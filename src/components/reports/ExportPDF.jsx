@@ -404,7 +404,7 @@ export default function ExportPDF({ report, reportId }) {
         action: 'UPDATE',
         entity_type: 'REPORT',
         entity_id: reportId || '',
-        actor_email: report.created_by || '',
+        actor_email: report.created_by || report.author_name || 'sistema',
         actor_name: report.author_name || '',
         details: `PDF exportado — ${report.mes_referencia || '?'} ${report.ano || 2026} — ${atividades.length} atividade(s) — ${attachments.length} anexo(s) — Status: ${docStatus}`,
       });
