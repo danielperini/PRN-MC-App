@@ -210,7 +210,7 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove }) {
           {/* Campos condicionais: ROTINA / EXTRA */}
           {isRotinaOrExtra && (
             <div className="p-4 border border-green-100 bg-green-50/20 rounded-xl">
-              <Field label="Justificativa Técnica" required>
+              <Field label="Justificativa Técnica">
                 <Textarea
                   placeholder="Explique por que esta atividade é de rotina/extra e como se relaciona ao projeto/museu."
                   value={atividade.justificativa_tecnica || ''}
