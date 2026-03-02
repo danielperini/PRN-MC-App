@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import {
   FileText, Plus, Clock, CheckCircle, AlertCircle,
-  Send, Eye, Archive, ChevronRight, Download, X, Search, SlidersHorizontal
+  Send, Eye, Archive, ChevronRight, Download, X, Search, SlidersHorizontal, Paperclip
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
