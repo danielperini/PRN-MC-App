@@ -169,28 +169,46 @@ export default function AttachmentsSection({ reportId, canEdit }) {
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-medium text-black">Anexos</h2>
           <span className="text-sm text-gray-400">
             {attachments.length}/{MAX_FILES_PER_REPORT}
           </span>
         </div>
-        {canEdit && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading || attachments.length >= MAX_FILES_PER_REPORT}
-          >
-            {uploading ? (
-              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-            ) : (
-              <Upload className="w-4 h-4 mr-1" />
-            )}
-            {uploading ? 'Enviando...' : 'Adicionar'}
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {attachments.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => downloadAllMutation.mutate()}
+              disabled={downloadAllMutation.isPending}
+              className="gap-1"
+            >
+              {downloadAllMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              Baixar Tudo
+            </Button>
+          )}
+          {canEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || attachments.length >= MAX_FILES_PER_REPORT}
+            >
+              {uploading ? (
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4 mr-1" />
+              )}
+              {uploading ? 'Enviando...' : 'Adicionar'}
+            </Button>
+          )}
+        </div>
         <input
           ref={fileInputRef}
           type="file"
