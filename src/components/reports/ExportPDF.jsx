@@ -76,11 +76,7 @@ export default function ExportPDF({ report, reportId }) {
 
   const handleExport = async () => {
     // Validation
-    const atividades = report.atividades || [];
-    if (atividades.length === 0) {
-      toast.error('Inclua pelo menos 1 atividade antes de exportar o PDF.');
-      return;
-    }
+    const atividades = Array.isArray(report.atividades) ? report.atividades : [];
 
     setLoading(true);
     try {
