@@ -109,12 +109,12 @@ function CoordReviewInner() {
           </Select>
         </div>
 
-        {/* List */}
-        <div className="space-y-3">
+        {/* Cards grid */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {isLoading ? (
-            <div className="text-center py-20 text-gray-400">Carregando...</div>
+            <div className="col-span-full text-center py-20 text-gray-400">Carregando...</div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
+            <div className="col-span-full text-center py-20 border border-dashed border-gray-200 rounded-2xl">
               <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">Nenhum relatório pendente de revisão</p>
             </div>
@@ -122,75 +122,53 @@ function CoordReviewInner() {
             filtered.map(report => {
               const cfg = STATUS_CONFIG[report.status];
               const Icon = cfg?.icon || FileText;
+              const nAtiv = (report.atividades || []).length;
               return (
-                <div key={report.id} className="p-5 border border-[#E5E5E5] rounded-xl shadow-sm">
-                  <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-gray-50 border border-[#E5E5E5] rounded-lg flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-gray-400" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-black">
-                            {report.mes_referencia} {report.ano}
-                          </span>
-                          {cfg && (
-                            <Badge className={`${cfg.color} font-normal`}>
-                              <Icon className="w-3 h-3 mr-1" />
-                              {cfg.label}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-500 mt-0.5">
-                          {report.museu} • {report.author_name}
-                          {report.equipe && ` • ${report.equipe}`}
-                        </p>
-                      </div>
-                    </div>
+                <div key={report.id} className={`p-5 rounded-2xl border border-gray-100 hover:border-gray-300 hover:shadow-md transition-all ${cfg?.cardBg || 'bg-white'}`}>
+                  {/* Status + date */}
+                  <div className="flex items-center justify-between mb-4">
+                    {cfg && (
+                      <Badge className={`${cfg.color} font-normal gap-1`}>
+                        <Icon className="w-3 h-3" />{cfg.label}
+                      </Badge>
+                    )}
+                    <span className="text-xs text-gray-400">{report.mes_referencia} {report.ano}</span>
+                  </div>
 
-                    <div className="flex gap-2 flex-wrap">
-                      <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
-                        <Button variant="outline" size="sm" className="border-black">
-                          <Eye className="w-3.5 h-3.5 mr-1" />
-                          Ver
+                  {/* Info */}
+                  <h3 className="font-semibold text-black text-base leading-tight">{report.author_name}</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">{report.museu}{report.equipe ? ` · ${report.equipe}` : ''}</p>
+                  {nAtiv > 0 && (
+                    <p className="text-xs text-gray-400 mt-1">{nAtiv} atividade{nAtiv > 1 ? 's' : ''}</p>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex gap-2 mt-4 flex-wrap">
+                    <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
+                      <Button variant="outline" size="sm" className="gap-1">
+                        <Eye className="w-3.5 h-3.5" />Ver
+                      </Button>
+                    </Link>
+                    {report.status === 'SUBMITTED' && (
+                      <Button size="sm" variant="outline" className="border-black gap-1"
+                        onClick={() => workflowMutation.mutate({ id: report.id, status: 'IN_REVIEW' })}
+                        disabled={workflowMutation.isPending}>
+                        Assumir Revisão
+                      </Button>
+                    )}
+                    {report.status === 'IN_REVIEW' && (
+                      <>
+                        <Button size="sm" variant="outline" className="border-red-300 text-red-600 gap-1"
+                          onClick={() => setReturnDialog({ open: true, reportId: report.id, report })}>
+                          <AlertCircle className="w-3.5 h-3.5" />Devolver
                         </Button>
-                      </Link>
-
-                      {report.status === 'SUBMITTED' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-black"
-                          onClick={() => workflowMutation.mutate({ id: report.id, status: 'IN_REVIEW' })}
-                          disabled={workflowMutation.isPending}
-                        >
-                          Assumir Revisão
+                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                          onClick={() => workflowMutation.mutate({ id: report.id, status: 'APPROVED' })}
+                          disabled={workflowMutation.isPending}>
+                          <CheckCircle className="w-3.5 h-3.5" />Aprovar
                         </Button>
-                      )}
-
-                      {report.status === 'IN_REVIEW' && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-red-300 text-red-600"
-                            onClick={() => setReturnDialog({ open: true, reportId: report.id, report })}
-                          >
-                            <AlertCircle className="w-3.5 h-3.5 mr-1" />
-                            Devolver
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="bg-black hover:bg-gray-800 text-white"
-                            onClick={() => workflowMutation.mutate({ id: report.id, status: 'APPROVED' })}
-                            disabled={workflowMutation.isPending}
-                          >
-                            <CheckCircle className="w-3.5 h-3.5 mr-1" />
-                            Aprovar
-                          </Button>
-                        </>
-                      )}
-                    </div>
+                      </>
+                    )}
                   </div>
                 </div>
               );
