@@ -88,7 +88,7 @@ function Field({ label, children }) {
   );
 }
 
-function AtividadeCard({ atividade, index, canEdit, onChange, onRemove }) {
+function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId }) {
   const [expanded, setExpanded] = useState(true);
   const errors = canEdit ? validateAtividade(atividade) : [];
   const isMeta = atividade.classificacao === 'META';
