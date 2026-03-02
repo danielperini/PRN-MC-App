@@ -59,23 +59,41 @@ function DashboardInner() {
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-semibold text-black tracking-tight">
-              {isCoordenador ? 'Painel da Coordenação' : 'Meu Painel'}
+              {showCoordView ? 'Painel da Coordenação' : 'Meu Painel'}
             </h1>
             <p className="text-gray-500 mt-1 text-sm">
-              {isCoordenador
+              {showCoordView
                 ? 'Visão consolidada de todos os relatórios e atividades'
                 : `Olá, ${currentUser?.full_name || ''}! Gerencie seus relatórios mensais.`}
             </p>
           </div>
-          <Link to={createPageUrl('ReportEditor')}>
-            <Button className="bg-black hover:bg-gray-800 text-white gap-2">
-              <Plus className="w-4 h-4" />Novo Relatório
-            </Button>
-          </Link>
+          <div className="flex items-center gap-3">
+            {isCoordenador && (
+              <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setView('coordenador')}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === 'coordenador' ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />Coordenação
+                </button>
+                <button
+                  onClick={() => setView('profissional')}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === 'profissional' ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <User className="w-3.5 h-3.5" />Meus Relatórios
+                </button>
+              </div>
+            )}
+            <Link to={createPageUrl('ReportEditor')}>
+              <Button className="bg-black hover:bg-gray-800 text-white gap-2">
+                <Plus className="w-4 h-4" />Novo Relatório
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Coordenador: dashboard completo */}
-        {isCoordenador ? (
+        {showCoordView ? (
           <CoordDashboard reports={allReports} isLoading={loadingAll} />
         ) : (
           <>
