@@ -204,7 +204,6 @@ function ReportEditorInner() {
   };
 
   const canEdit = formData.status === 'DRAFT' || formData.status === 'RETURNED';
-  const isCoordenador = currentUser?.role === 'COORDENADOR' || currentUser?.role === 'ADMIN';
 
   if (isLoading && reportId) {
     return (
