@@ -215,7 +215,7 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove }) {
                   onChange={e => onChange('justificativa_tecnica', e.target.value)}
                   disabled={!canEdit}
                   rows={4}
-                  className={!atividade.justificativa_tecnica && canEdit ? 'border-red-300' : ''}
+
                 />
               </Field>
             </div>
