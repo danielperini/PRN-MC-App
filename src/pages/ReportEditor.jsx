@@ -406,13 +406,40 @@ function ReportEditorInner() {
           </TabsContent>
         </Tabs>
 
+        {/* Declaração de responsabilidade */}
+        {canEdit && (
+          <div className="mt-10 p-5 border border-gray-200 rounded-xl bg-gray-50">
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="declaracao"
+                checked={declaracaoAceita}
+                onCheckedChange={v => setDeclaracaoAceita(!!v)}
+                className="mt-0.5"
+              />
+              <label htmlFor="declaracao" className="text-sm text-gray-700 leading-relaxed cursor-pointer">
+                <span className="flex items-center gap-1.5 font-semibold text-black mb-1">
+                  <ShieldCheck className="w-4 h-4 text-green-600" />
+                  Declaração de Responsabilidade
+                </span>
+                Declaro que as informações registradas neste relatório são verdadeiras, completas e de minha inteira responsabilidade. 
+                Estou ciente de que o envio deste documento implica comprometimento formal com os dados informados, nos termos do contrato de gestão com a Fundação Municipal de Cultura de Belo Horizonte (FMC/PBH).
+              </label>
+            </div>
+          </div>
+        )}
+
         {/* Bottom save bar */}
         {canEdit && (
-          <div className="mt-12 pt-6 border-t border-gray-100 flex justify-end gap-3">
+          <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end gap-3">
             <Button variant="outline" onClick={() => saveMutation.mutate(formData)} disabled={saveMutation.isPending}>
               <Save className="w-4 h-4 mr-2" />Salvar Rascunho
             </Button>
-            <Button className="bg-black hover:bg-gray-800 text-white" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
+            <Button
+              className="bg-black hover:bg-gray-800 text-white"
+              onClick={() => submitMutation.mutate()}
+              disabled={submitMutation.isPending || !declaracaoAceita}
+              title={!declaracaoAceita ? 'Aceite a declaração de responsabilidade para enviar' : ''}
+            >
               <Send className="w-4 h-4 mr-2" />Enviar para Revisão
             </Button>
           </div>
