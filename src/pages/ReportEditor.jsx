@@ -102,10 +102,13 @@ function ReportEditorInner() {
   }, [reportData]);
 
   const saveMutation = useMutation({
-    mutationFn: data =>
-      reportId
-        ? base44.entities.Report.update(reportId, data)
-        : base44.entities.Report.create(data),
+    mutationFn: data => {
+      // Strip internal fields that should not be sent to the API
+      const { id, created_date, updated_date, created_by, ...payload } = data;
+      return reportId
+        ? base44.entities.Report.update(reportId, payload)
+        : base44.entities.Report.create(payload);
+    },
     onSuccess: (saved) => {
       queryClient.invalidateQueries(['report', reportId]);
       queryClient.invalidateQueries(['my-reports']);
