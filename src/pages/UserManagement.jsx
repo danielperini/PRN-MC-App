@@ -229,9 +229,15 @@ function UserManagementInner() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
-                  <SelectItem value="COORDENADOR">Coordenador</SelectItem>
+                  <SelectItem value="COORDENADOR">Coordenação Geral</SelectItem>
+                  <SelectItem value="ADMIN">Administração</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-gray-400 mt-1">
+                {formData.role === 'COORDENADOR' && 'Pode revisar, aprovar e arquivar relatórios.'}
+                {formData.role === 'ADMIN' && 'Pode gerenciar usuários e visualizar todos os relatórios.'}
+                {formData.role === 'PROFISSIONAL' && 'Cria e envia seus próprios relatórios mensais.'}
+              </p>
             </div>
 
             <div>
