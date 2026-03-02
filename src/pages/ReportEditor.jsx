@@ -283,7 +283,17 @@ function ReportEditorInner() {
                 </div>
               </section>
               <section>
-                <SectionTitle>Resumo Executivo</SectionTitle>
+                <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
+                  <h2 className="text-base font-semibold text-black">Resumo Executivo</h2>
+                  {canEdit && (
+                    <AIAssistButton
+                      field="resumo_executivo"
+                      context={formData}
+                      onGenerate={text => set('resumo_executivo', text)}
+                      placeholder="Resumo das principais atividades e resultados do mês"
+                    />
+                  )}
+                </div>
                 <Textarea
                   placeholder="Descreva sucintamente as atividades realizadas no mês..."
                   value={formData.resumo_executivo || ''}
