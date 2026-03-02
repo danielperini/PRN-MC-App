@@ -43,34 +43,7 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* Feature cards */}
-        <div className="grid md:grid-cols-3 gap-5 mt-20 max-w-4xl w-full">
-          {[
-            {
-              icon: FileText,
-              title: 'Relatórios Mensais',
-              desc: 'Registre atividades, oportunidades e avaliações de cada mês de forma estruturada e organizada.',
-            },
-            {
-              icon: Users,
-              title: 'Fluxo de Aprovação',
-              desc: 'Submissão, revisão pelo coordenador e aprovação com rastreabilidade e histórico completo.',
-            },
-            {
-              icon: Building2,
-              title: 'Multi-Museu',
-              desc: 'Suporte para MHAB, MIS e MUMO com gestão unificada e relatórios individuais por profissional.',
-            },
-          ].map(item => (
-            <div key={item.title} className="text-left p-6 border border-gray-100 rounded-2xl bg-white hover:border-gray-200 hover:shadow-sm transition-all">
-              <div className="w-9 h-9 bg-black rounded-lg flex items-center justify-center mb-4">
-                <item.icon className="w-4 h-4 text-white" />
-              </div>
-              <h3 className="text-sm font-semibold text-black mb-2">{item.title}</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">{item.desc}</p>
-            </div>
-          ))}
-        </div>
+
 
         {/* Status badge */}
         <div className="mt-14 flex items-center gap-2 text-sm text-gray-400">
