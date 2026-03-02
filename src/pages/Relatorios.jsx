@@ -80,6 +80,13 @@ function RelatoriosInner() {
     staleTime: 30_000,
   });
 
+  const { data: allAttachments = [] } = useQuery({
+    queryKey: ['all-attachments-list'],
+    queryFn: () => base44.entities.Attachment.list('-created_date', 500),
+    enabled: !!currentUser,
+    staleTime: 30_000,
+  });
+
   const isLoading = isCoordenador ? loadingAll : loadingMy;
   const baseReports = isCoordenador ? allReports : myReports;
 
