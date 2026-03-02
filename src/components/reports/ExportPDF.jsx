@@ -406,7 +406,7 @@ export default function ExportPDF({ report, reportId }) {
         entity_id: reportId || '',
         actor_email: report.created_by || '',
         actor_name: report.author_name || '',
-        details: `PDF exportado — ${report.mes_referencia} ${report.ano} — ${atividades.length} atividade(s) — ${attachments.length} anexo(s) — Status: ${docStatus}`,
+        details: `PDF exportado — ${report.mes_referencia || '?'} ${report.ano || 2026} — ${atividades.length} atividade(s) — ${attachments.length} anexo(s) — Status: ${docStatus}`,
       });
 
       const safeName = (report.author_name || 'profissional').replace(/\s+/g, '_').toUpperCase();
