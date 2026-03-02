@@ -576,3 +576,7 @@ function ReportEditorInner() {
     </div>
   );
 }
+
+export default function ReportEditor() {
+  return <RequireAuth><ReportEditorInner /></RequireAuth>;
+}
