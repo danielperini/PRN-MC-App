@@ -31,7 +31,7 @@ export default function Home() {
             Relatório Mensal Individual · 2026
           </div>
           <h1 className="text-4xl md:text-5xl font-semibold text-black tracking-tight leading-tight mb-5">
-            Gestão de Relatórios<br />Museus do Centro
+            Museu Centro
           </h1>
           <p className="text-gray-500 text-lg leading-relaxed mb-10">
             Plataforma centralizada para registro, acompanhamento e aprovação de relatórios.
