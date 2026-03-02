@@ -70,6 +70,8 @@ export default function AttachmentsSection({ reportId, canEdit }) {
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editDesc, setEditDesc] = useState('');
 
   const { data: attachments = [], isLoading } = useQuery({
     queryKey: ['attachments', reportId],
