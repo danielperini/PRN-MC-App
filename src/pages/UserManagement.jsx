@@ -18,13 +18,15 @@ import { toast } from 'sonner';
 const EQUIPES = ['Comunicação', 'Coordenação', 'Administração', 'Educativo', 'Produção'];
 
 const ROLE_LABELS = {
-  COORDENADOR: 'Coordenador',
+  COORDENADOR: 'Coordenação Geral',
   PROFISSIONAL: 'Profissional',
+  ADMIN: 'Administração',
 };
 
 const ROLE_COLORS = {
   COORDENADOR: 'bg-black text-white',
   PROFISSIONAL: 'bg-gray-100 text-gray-700',
+  ADMIN: 'bg-blue-100 text-blue-700',
 };
 
 const EMPTY_FORM = { email: '', role: 'PROFISSIONAL', equipe: '' };
