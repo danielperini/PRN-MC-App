@@ -91,7 +91,14 @@ function ReportEditorInner() {
   });
 
   useEffect(() => {
-    if (reportData) setFormData(reportData);
+    if (reportData) {
+      setFormData({
+        ...EMPTY_FORM,
+        ...reportData,
+        atividades: Array.isArray(reportData.atividades) ? reportData.atividades : [],
+        oportunidades: Array.isArray(reportData.oportunidades) ? reportData.oportunidades : [],
+      });
+    }
   }, [reportData]);
 
   const saveMutation = useMutation({
