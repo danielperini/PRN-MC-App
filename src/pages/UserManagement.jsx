@@ -35,7 +35,7 @@ const ROLE_LABELS = {
   ADMIN: 'Administrador',
 };
 
-export default function UserManagement() {
+function UserManagementInner() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
