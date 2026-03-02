@@ -327,12 +327,48 @@ export default function AttachmentsSection({ reportId, canEdit }) {
                        </div>
                      </div>
                    </div>
+
+                 {/* Description edit mode */}
+                 {isEditing && (
+                   <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
+                     <Input
+                       value={editDesc}
+                       onChange={(e) => setEditDesc(e.target.value)}
+                       placeholder="Adicione uma descrição..."
+                       className="text-sm h-8"
+                     />
+                     <Button
+                       size="icon"
+                       className="h-8 w-8 bg-green-600 hover:bg-green-700"
+                       onClick={() => updateMutation.mutate({ id: attachment.id, description: editDesc })}
+                       disabled={updateMutation.isPending}
+                     >
+                       <Check className="w-3.5 h-3.5" />
+                     </Button>
+                     <Button
+                       size="icon"
+                       variant="outline"
+                       className="h-8 w-8"
+                       onClick={() => setEditingId(null)}
+                     >
+                       <XIcon className="w-3.5 h-3.5" />
+                     </Button>
+                   </div>
+                 )}
+
+                 {/* Description display */}
+                 {attachment.description && !isEditing && (
+                   <div className="text-xs text-gray-600 mt-1 pt-2 border-t border-gray-100">
+                     {attachment.description}
+                   </div>
+                 )}
+                 </div>
                  );
-               })}
-            </div>
-          )}
-        </div>
-      )}
+                 })}
+                 </div>
+                 )}
+                 </div>
+                 )}
 
       {/* Read-only list (no edit) */}
       {!canEdit && (
