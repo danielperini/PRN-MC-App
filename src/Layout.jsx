@@ -37,8 +37,10 @@ export default function Layout({ children, currentPageName }) {
   const navItems = [
     { name: 'Dashboard', icon: FileText, label: 'Dashboard', show: true },
     { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true },
+    { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: true },
     { name: 'CoordReview', icon: Eye, label: 'Revisão', show: isCoordenador },
     { name: 'UserManagement', icon: Users, label: 'Usuários', show: isCoordenador },
+    { name: 'PlataformaAdmin', icon: Settings, label: 'Plataforma', show: isCoordenador },
     { name: 'AuditLog', icon: History, label: 'Auditoria', show: isCoordenador },
   ].filter(item => item.show);
 
