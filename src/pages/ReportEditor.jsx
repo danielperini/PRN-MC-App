@@ -133,11 +133,19 @@ function ReportEditorInner() {
       if (comment) update.return_comment = comment;
       return base44.entities.Report.update(reportId, update);
     },
-    onSuccess: () => {
+    onSuccess: (_, { action }) => {
       queryClient.invalidateQueries(['report', reportId]);
       queryClient.invalidateQueries(['my-reports']);
-      toast.success('Status atualizado');
+      const msgs = {
+        start_review: 'Revisão iniciada.',
+        return: 'Relatório devolvido ao profissional.',
+        approve: 'Relatório aprovado com sucesso!',
+        archive: 'Relatório arquivado.',
+        reopen: 'Relatório reaberto como rascunho.',
+      };
+      toast.success(msgs[action] || 'Status atualizado.');
     },
+    onError: () => toast.error('Erro ao atualizar status. Tente novamente.'),
   });
 
   // Oportunidades helpers
