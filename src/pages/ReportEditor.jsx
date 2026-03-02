@@ -67,6 +67,7 @@ function ReportEditorInner() {
   const reportId = urlParams.get('id');
 
   const [formData, setFormData] = useState(EMPTY_FORM);
+  const [declaracaoAceita, setDeclaracaoAceita] = useState(false);
   const set = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
 
   // Pre-fill author from logged user on new reports
