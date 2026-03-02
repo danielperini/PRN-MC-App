@@ -216,6 +216,8 @@ function RelatoriosInner() {
               const nRot  = (report.atividades || []).filter(a => a.classificacao === 'ROTINA').length;
               const nExt  = (report.atividades || []).filter(a => a.classificacao === 'EXTRA').length;
               const totalAtiv = (report.atividades || []).length;
+              const attachments = allAttachments.filter(att => att.report_id === report.id);
+              const nAttachments = attachments.length;
               return (
                 <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block group">
                   <div className={`h-full p-5 rounded-2xl border border-gray-100 hover:border-gray-300 hover:shadow-md transition-all ${cfg.cardBg}`}>
