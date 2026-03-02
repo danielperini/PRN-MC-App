@@ -126,6 +126,19 @@ function ReportEditorInner() {
         toast.error('Aceite a declaração de responsabilidade antes de enviar.');
         throw new Error('Declaração não aceita');
       }
+      // Validate required fields
+      if (!formData.mes_referencia) {
+        toast.error('Selecione o mês de referência antes de enviar.');
+        throw new Error('Mês obrigatório');
+      }
+      if (!formData.author_name) {
+        toast.error('Informe o nome do profissional antes de enviar.');
+        throw new Error('Nome obrigatório');
+      }
+      if (!formData.museu) {
+        toast.error('Selecione o museu antes de enviar.');
+        throw new Error('Museu obrigatório');
+      }
       const { id, created_date, updated_date, created_by, ...payload } = formData;
       const data = { ...payload, status: 'SUBMITTED' };
       return reportId
