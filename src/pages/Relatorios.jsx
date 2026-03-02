@@ -44,7 +44,7 @@ function exportCSV(reports) {
       atividades.forEach(a => {
         rows.push([
           r.id, r.author_name, r.museu, r.equipe||'', r.mes_referencia, r.ano, r.status,
-          a.titulo||'', a.classificacao||'', a.publico_estimado||0,
+          (a.nome || a.titulo || ''), a.classificacao||'', a.publico_estimado||0,
           a.equipe_responsavel||'', a.acessibilidade||'', a.parceria||''
         ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(';'));
       });
