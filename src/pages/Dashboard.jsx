@@ -21,19 +21,13 @@ const STATUS_CONFIG = {
   ARCHIVED:  { label: 'Arquivado',  color: 'bg-purple-100 text-purple-700', icon: Archive },
 };
 
-export default function Dashboard() {
-  const [currentUser, setCurrentUser] = useState(null);
-
-  useEffect(() => {
-    base44.auth.me().then(setCurrentUser);
-  }, []);
-
-  const isCoordenador = currentUser?.role === 'COORDENADOR' || currentUser?.role === 'ADMIN';
+function DashboardInner() {
+  const { user: currentUser, isCoordenador } = useCurrentUser();
 
   const { data: myReports = [], isLoading: loadingMy } = useQuery({
     queryKey: ['my-reports', currentUser?.email],
     queryFn: () => base44.entities.Report.filter({ created_by: currentUser?.email }, '-created_date'),
-    enabled: !!currentUser?.email,
+    enabled: !!currentUser?.email && !isCoordenador,
   });
 
   const { data: allReports = [], isLoading: loadingAll } = useQuery({
