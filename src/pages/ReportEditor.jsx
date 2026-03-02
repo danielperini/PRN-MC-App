@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AtividadesSection, { validateAtividade } from '../components/reports/AtividadesSection';
 import ExportPDF from '../components/reports/ExportPDF';
+import AIAssistButton from '../components/reports/AIAssistButton';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
