@@ -48,13 +48,23 @@
  * The mainPage value must match a key in the PAGES object exactly.
  */
 import Home from './pages/Home';
+import Dashboard from './pages/Dashboard';
+import ReportEditor from './pages/ReportEditor';
+import UserManagement from './pages/UserManagement';
+import AuditLog from './pages/AuditLog';
+import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
     "Home": Home,
+    "Dashboard": Dashboard,
+    "ReportEditor": ReportEditor,
+    "UserManagement": UserManagement,
+    "AuditLog": AuditLog,
 }
 
 export const pagesConfig = {
     mainPage: "Home",
     Pages: PAGES,
+    Layout: __Layout,
 };
