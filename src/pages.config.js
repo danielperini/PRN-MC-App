@@ -54,6 +54,8 @@ import Home from './pages/Home';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
+import PlataformaAdmin from './pages/PlataformaAdmin';
+import GestorArquivos from './pages/GestorArquivos';
 import __Layout from './Layout.jsx';
 
 
@@ -65,6 +67,8 @@ export const PAGES = {
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
+    "PlataformaAdmin": PlataformaAdmin,
+    "GestorArquivos": GestorArquivos,
 }
 
 export const pagesConfig = {
