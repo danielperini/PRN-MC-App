@@ -178,40 +178,23 @@ function ReportEditorInner() {
           <div className="flex gap-2 flex-wrap">
             {canEdit && (
               <>
-                <Button
-                  variant="outline"
-                  onClick={() => saveMutation.mutate(formData)}
-                  disabled={saveMutation.isPending}
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Salvar Rascunho
+                <Button variant="outline" onClick={() => saveMutation.mutate(formData)} disabled={saveMutation.isPending}>
+                  <Save className="w-4 h-4 mr-2" />Salvar Rascunho
                 </Button>
-                <Button
-                  className="bg-black hover:bg-gray-800 text-white"
-                  onClick={() => submitMutation.mutate()}
-                  disabled={submitMutation.isPending}
-                >
-                  <Send className="w-4 h-4 mr-2" />
-                  Enviar para Revisão
+                <Button className="bg-black hover:bg-gray-800 text-white" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
+                  <Send className="w-4 h-4 mr-2" />Enviar para Revisão
                 </Button>
               </>
             )}
             {isCoordenador && formData.status === 'SUBMITTED' && (
-              <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'start_review' })}>
-                Iniciar Revisão
-              </Button>
+              <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'start_review' })}>Iniciar Revisão</Button>
             )}
             {isCoordenador && formData.status === 'IN_REVIEW' && (
               <>
-                <Button variant="outline" className="text-red-600 border-red-200"
-                  onClick={() => {
-                    const comment = prompt('Motivo da devolução:');
-                    if (comment) workflowMutation.mutate({ action: 'return', comment });
-                  }}>
+                <Button variant="outline" className="text-red-600 border-red-200" onClick={() => { const c = prompt('Motivo da devolução:'); if (c) workflowMutation.mutate({ action: 'return', comment: c }); }}>
                   <AlertCircle className="w-4 h-4 mr-2" />Devolver
                 </Button>
-                <Button className="bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => workflowMutation.mutate({ action: 'approve' })}>
+                <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={() => workflowMutation.mutate({ action: 'approve' })}>
                   <CheckCircle className="w-4 h-4 mr-2" />Aprovar
                 </Button>
               </>
@@ -243,73 +226,61 @@ function ReportEditorInner() {
             <TabsTrigger value="avaliacao">Avaliação</TabsTrigger>
           </TabsList>
 
-          {/* ── Identificação ─────────────────────────────── */}
           <TabsContent value="identificacao">
-          <section>
-            <SectionTitle>Identificação</SectionTitle>
-            <div className="grid md:grid-cols-2 gap-4">
-              <Field label="Mês de Referência">
-                <Select value={formData.mes_referencia || ''} onValueChange={v => set('mes_referencia', v)} disabled={!canEdit}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o mês" /></SelectTrigger>
-                  <SelectContent>
-                    {MESES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field label="Ano">
-                <Input
-                  type="number"
-                  value={formData.ano || 2026}
-                  onChange={e => set('ano', parseInt(e.target.value) || 2026)}
+            <div className="space-y-8">
+              <section>
+                <SectionTitle>Identificação</SectionTitle>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <Field label="Mês de Referência">
+                    <Select value={formData.mes_referencia || ''} onValueChange={v => set('mes_referencia', v)} disabled={!canEdit}>
+                      <SelectTrigger><SelectValue placeholder="Selecione o mês" /></SelectTrigger>
+                      <SelectContent>
+                        {MESES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Ano">
+                    <Input type="number" value={formData.ano || 2026} onChange={e => set('ano', parseInt(e.target.value) || 2026)} disabled={!canEdit} />
+                  </Field>
+                  <Field label="Nome do Profissional">
+                    <Input
+                      value={formData.author_name || ''}
+                      onChange={e => set('author_name', e.target.value)}
+                      disabled={!isCoordenador && !canEdit}
+                      className={!isCoordenador ? 'bg-gray-50' : ''}
+                    />
+                  </Field>
+                  <Field label="Função">
+                    <Select value={formData.funcao || ''} onValueChange={v => set('funcao', v)} disabled={!canEdit}>
+                      <SelectTrigger><SelectValue placeholder="Selecione a função" /></SelectTrigger>
+                      <SelectContent>
+                        {FUNCOES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Museu Principal">
+                    <Select value={formData.museu || ''} onValueChange={v => set('museu', v)} disabled={!canEdit}>
+                      <SelectTrigger><SelectValue placeholder="Selecione o museu" /></SelectTrigger>
+                      <SelectContent>
+                        {MUSEUS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+              </section>
+              <section>
+                <SectionTitle>Resumo Executivo</SectionTitle>
+                <Textarea
+                  placeholder="Descreva sucintamente as atividades realizadas no mês..."
+                  value={formData.resumo_executivo || ''}
+                  onChange={e => set('resumo_executivo', e.target.value)}
+                  className="min-h-[120px]"
                   disabled={!canEdit}
                 />
-              </Field>
-
-              <Field label="Nome do Profissional">
-                <Input
-                  value={formData.author_name || ''}
-                  onChange={e => set('author_name', e.target.value)}
-                  disabled={!isCoordenador && !canEdit}
-                  readOnly={!isCoordenador && canEdit === false}
-                  className={!isCoordenador ? 'bg-gray-50' : ''}
-                />
-              </Field>
-
-              <Field label="Função">
-                <Select value={formData.funcao || ''} onValueChange={v => set('funcao', v)} disabled={!canEdit}>
-                  <SelectTrigger><SelectValue placeholder="Selecione a função" /></SelectTrigger>
-                  <SelectContent>
-                    {FUNCOES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field label="Museu Principal">
-                <Select value={formData.museu || ''} onValueChange={v => set('museu', v)} disabled={!canEdit}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o museu" /></SelectTrigger>
-                  <SelectContent>
-                    {MUSEUS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Field>
+              </section>
             </div>
-          </section>
-
-          {/* ── Resumo Executivo ───────────────────────────── */}
-          <section>
-            <SectionTitle>Resumo Executivo</SectionTitle>
-            <Textarea
-              placeholder="Descreva sucintamente as atividades realizadas no mês..."
-              value={formData.resumo_executivo || ''}
-              onChange={e => set('resumo_executivo', e.target.value)}
-              className="min-h-[120px]"
-              disabled={!canEdit}
-            />
-          </section>
           </TabsContent>
 
-          {/* ── Atividades ───────────────────────────────── */}
           <TabsContent value="atividades">
             <AtividadesSection
               atividades={formData.atividades || []}
@@ -318,118 +289,89 @@ function ReportEditorInner() {
             />
           </TabsContent>
 
-          {/* ── Oportunidades ─────────────────────────────── */}
           <TabsContent value="oportunidades">
-          <section>
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
-              <h2 className="text-base font-semibold text-black">Oportunidades Identificadas</h2>
-              {canEdit && (
-                <Button variant="outline" size="sm" onClick={addOp}>
-                  <Plus className="w-4 h-4 mr-1" />Adicionar
-                </Button>
-              )}
-            </div>
-
-            {(formData.oportunidades || []).length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-8 border border-dashed rounded-xl">
-                Nenhuma oportunidade adicionada
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {(formData.oportunidades || []).map((op, i) => (
-                  <div key={i} className="p-5 border border-gray-100 rounded-xl">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Oportunidade {i + 1}</span>
-                      {canEdit && (
-                        <Button variant="ghost" size="icon" className="text-red-400 h-7 w-7" onClick={() => removeOp(i)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <div className="space-y-3">
-                      <Textarea
-                        placeholder="Descrição da oportunidade"
-                        value={op.descricao || ''}
-                        onChange={e => updateOp(i, 'descricao', e.target.value)}
-                        disabled={!canEdit}
-                      />
-                      <div className="grid grid-cols-2 gap-3">
-                        <Select value={op.categoria || ''} onValueChange={v => updateOp(i, 'categoria', v)} disabled={!canEdit}>
-                          <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
-                          <SelectContent>
-                            {CATEGORIAS_OP.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <Select value={op.impacto || ''} onValueChange={v => updateOp(i, 'impacto', v)} disabled={!canEdit}>
-                          <SelectTrigger><SelectValue placeholder="Impacto" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Baixo">Baixo</SelectItem>
-                            <SelectItem value="Médio">Médio</SelectItem>
-                            <SelectItem value="Alto">Alto</SelectItem>
-                          </SelectContent>
-                        </Select>
+            <section>
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
+                <h2 className="text-base font-semibold text-black">Oportunidades Identificadas</h2>
+                {canEdit && (
+                  <Button variant="outline" size="sm" onClick={addOp}>
+                    <Plus className="w-4 h-4 mr-1" />Adicionar
+                  </Button>
+                )}
+              </div>
+              {(formData.oportunidades || []).length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8 border border-dashed rounded-xl">
+                  Nenhuma oportunidade adicionada
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {(formData.oportunidades || []).map((op, i) => (
+                    <div key={i} className="p-5 border border-gray-100 rounded-xl">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Oportunidade {i + 1}</span>
+                        {canEdit && (
+                          <Button variant="ghost" size="icon" className="text-red-400 h-7 w-7" onClick={() => removeOp(i)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        <Textarea
+                          placeholder="Descrição da oportunidade"
+                          value={op.descricao || ''}
+                          onChange={e => updateOp(i, 'descricao', e.target.value)}
+                          disabled={!canEdit}
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                          <Select value={op.categoria || ''} onValueChange={v => updateOp(i, 'categoria', v)} disabled={!canEdit}>
+                            <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
+                            <SelectContent>
+                              {CATEGORIAS_OP.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <Select value={op.impacto || ''} onValueChange={v => updateOp(i, 'impacto', v)} disabled={!canEdit}>
+                            <SelectTrigger><SelectValue placeholder="Impacto" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Baixo">Baixo</SelectItem>
+                              <SelectItem value="Médio">Médio</SelectItem>
+                              <SelectItem value="Alto">Alto</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+                  ))}
+                </div>
+              )}
+            </section>
           </TabsContent>
 
-          {/* ── Avaliação ─────────────────────────────────── */}
           <TabsContent value="avaliacao">
-          <section>
-            <SectionTitle>Avaliação do Mês</SectionTitle>
-            <div className="space-y-4">
-              <Field label="Pontos Positivos">
-                <Textarea
-                  placeholder="O que funcionou bem este mês..."
-                  value={formData.avaliacao_pontos_positivos || ''}
-                  onChange={e => set('avaliacao_pontos_positivos', e.target.value)}
-                  disabled={!canEdit}
-                />
-              </Field>
-              <Field label="Dificuldades">
-                <Textarea
-                  placeholder="Principais dificuldades enfrentadas..."
-                  value={formData.avaliacao_desafios || ''}
-                  onChange={e => set('avaliacao_desafios', e.target.value)}
-                  disabled={!canEdit}
-                />
-              </Field>
-              <Field label="Sugestões">
-                <Textarea
-                  placeholder="Sugestões de melhoria..."
-                  value={formData.avaliacao_sugestoes || ''}
-                  onChange={e => set('avaliacao_sugestoes', e.target.value)}
-                  disabled={!canEdit}
-                />
-              </Field>
-            </div>
-          </section>
+            <section>
+              <SectionTitle>Avaliação do Mês</SectionTitle>
+              <div className="space-y-4">
+                <Field label="Pontos Positivos">
+                  <Textarea placeholder="O que funcionou bem este mês..." value={formData.avaliacao_pontos_positivos || ''} onChange={e => set('avaliacao_pontos_positivos', e.target.value)} disabled={!canEdit} />
+                </Field>
+                <Field label="Dificuldades">
+                  <Textarea placeholder="Principais dificuldades enfrentadas..." value={formData.avaliacao_desafios || ''} onChange={e => set('avaliacao_desafios', e.target.value)} disabled={!canEdit} />
+                </Field>
+                <Field label="Sugestões">
+                  <Textarea placeholder="Sugestões de melhoria..." value={formData.avaliacao_sugestoes || ''} onChange={e => set('avaliacao_sugestoes', e.target.value)} disabled={!canEdit} />
+                </Field>
+              </div>
+            </section>
           </TabsContent>
-
         </Tabs>
 
         {/* Bottom save bar */}
         {canEdit && (
           <div className="mt-12 pt-6 border-t border-gray-100 flex justify-end gap-3">
-            <Button
-              variant="outline"
-              onClick={() => saveMutation.mutate(formData)}
-              disabled={saveMutation.isPending}
-            >
-              <Save className="w-4 h-4 mr-2" />
-              Salvar Rascunho
+            <Button variant="outline" onClick={() => saveMutation.mutate(formData)} disabled={saveMutation.isPending}>
+              <Save className="w-4 h-4 mr-2" />Salvar Rascunho
             </Button>
-            <Button
-              className="bg-black hover:bg-gray-800 text-white"
-              onClick={() => submitMutation.mutate()}
-              disabled={submitMutation.isPending}
-            >
-              <Send className="w-4 h-4 mr-2" />
-              Enviar para Revisão
+            <Button className="bg-black hover:bg-gray-800 text-white" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
+              <Send className="w-4 h-4 mr-2" />Enviar para Revisão
             </Button>
           </div>
         )}
