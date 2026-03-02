@@ -174,7 +174,7 @@ export default function ExportPDF({ report, reportId }) {
         y = checkPageBreak(doc, y, 5);
         doc.setFont('helvetica', 'normal');
         const code = `A${String(idx + 1).padStart(2, '0')}`;
-        const row = `${code} — ${a.nome || 'Sem nome'} — ${a.data_inicio || '—'} — ${a.museu || '—'} — ${a.equipe_responsavel || '—'}`;
+        const row = `${code} — ${a.nome || a.titulo || 'Sem nome'} — ${a.data_inicio || '—'} — ${a.museu || '—'} — ${a.equipe_responsavel || '—'}`;
         y = addWrappedText(doc, row, margin + 2, y, contentWidth - 4, 4.5);
       });
 
