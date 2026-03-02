@@ -24,11 +24,12 @@ const STATUS_CONFIG = {
 
 function DashboardInner() {
   const { user: currentUser, isCoordenador } = useCurrentUser();
+  const [view, setView] = React.useState('coordenador'); // 'coordenador' | 'profissional'
 
   const { data: myReports = [], isLoading: loadingMy } = useQuery({
     queryKey: ['my-reports', currentUser?.email],
     queryFn: () => base44.entities.Report.filter({ created_by: currentUser?.email }, '-created_date'),
-    enabled: !!currentUser?.email && !isCoordenador,
+    enabled: !!currentUser?.email,
   });
 
   const { data: allReports = [], isLoading: loadingAll } = useQuery({
@@ -37,9 +38,10 @@ function DashboardInner() {
     enabled: isCoordenador,
   });
 
-  const displayReports = isCoordenador ? allReports : myReports;
+  const showCoordView = isCoordenador && view === 'coordenador';
+  const displayReports = showCoordView ? allReports : myReports;
   const recentReports = displayReports.slice(0, 8);
-  const isLoading = isCoordenador ? loadingAll : loadingMy;
+  const isLoading = showCoordView ? loadingAll : loadingMy;
 
   const stats = [
     { label: 'Total',       value: displayReports.length },
