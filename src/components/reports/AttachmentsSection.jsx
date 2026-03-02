@@ -106,7 +106,8 @@ export default function AttachmentsSection({ reportId, canEdit }) {
       queryClient.invalidateQueries(['attachments', reportId]);
       toast.success(`${fileList.length} arquivo(s) enviado(s) com sucesso`);
     } catch (err) {
-      toast.error('Erro ao enviar arquivo');
+      console.error('Upload error:', err);
+      toast.error('Erro ao enviar arquivo: ' + (err?.message || 'tente novamente'));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
