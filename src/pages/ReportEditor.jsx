@@ -99,12 +99,12 @@ function ReportEditorInner() {
     onSuccess: (saved) => {
       queryClient.invalidateQueries(['report', reportId]);
       queryClient.invalidateQueries(['my-reports']);
-      toast.success('Rascunho salvo');
-      // Navigate to editor with id if new
+      toast.success('Relatório salvo com sucesso!', { description: 'Seu rascunho foi salvo.' });
       if (!reportId && saved?.id) {
         navigate(createPageUrl(`ReportEditor?id=${saved.id}`), { replace: true });
       }
     },
+    onError: () => toast.error('Erro ao salvar o relatório. Tente novamente.'),
   });
 
   const submitMutation = useMutation({
