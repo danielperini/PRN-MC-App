@@ -59,20 +59,16 @@ function ReportEditorInner() {
   });
 
   useEffect(() => {
-    const loadUser = async () => {
-      const user = await base44.auth.me();
-      setCurrentUser(user);
-      if (!reportId) {
-        setFormData(prev => ({
-          ...prev,
-          author_name: user.full_name || '',
-          author_role: user.role || 'PROFISSIONAL',
-          museu: user.museu || ''
-        }));
-      }
-    };
-    loadUser();
-  }, [reportId]);
+    if (currentUser && !reportId) {
+      setFormData(prev => ({
+        ...prev,
+        author_name: currentUser.full_name || '',
+        author_role: currentUser.role || 'PROFISSIONAL',
+        museu: currentUser.museu || '',
+        equipe: currentUser.equipe || ''
+      }));
+    }
+  }, [currentUser, reportId]);
 
   const { data: report, isLoading } = useQuery({
     queryKey: ['report', reportId],
