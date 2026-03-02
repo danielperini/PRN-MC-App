@@ -40,7 +40,10 @@ export default function ReportEditor() {
   const [formData, setFormData] = useState({
     author_name: '',
     author_role: 'PROFISSIONAL',
+    funcao: '',
     museu: '',
+    museu_secundario: '',
+    equipe: '',
     mes_referencia: '',
     ano: 2026,
     resumo_executivo: '',
@@ -48,7 +51,7 @@ export default function ReportEditor() {
     oportunidades: [],
     avaliacao_pontos_positivos: '',
     avaliacao_desafios: '',
-    avaliacao_proximos_passos: '',
+    avaliacao_sugestoes: '',
     status: 'DRAFT',
     return_comment: ''
   });
