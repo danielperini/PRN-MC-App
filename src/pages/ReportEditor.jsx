@@ -12,6 +12,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import AtividadesSection from '../components/reports/AtividadesSection';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -28,6 +30,7 @@ const EMPTY_FORM = {
   mes_referencia: '',
   ano: 2026,
   resumo_executivo: '',
+  atividades: [],
   oportunidades: [],
   avaliacao_pontos_positivos: '',
   avaliacao_desafios: '',
