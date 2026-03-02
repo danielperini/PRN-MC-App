@@ -183,6 +183,10 @@ function DashboardInner() {
   );
 }
 
+export default function Dashboard() {
+  return <RequireAuth><DashboardInner /></RequireAuth>;
+}
+
 function IndicatorCard({ icon, label, value, sub, highlight, action }) {
   return (
     <div className={`p-4 border rounded-xl shadow-sm ${highlight ? 'border-black' : 'border-[#E5E5E5]'}`}>
