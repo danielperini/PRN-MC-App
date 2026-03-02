@@ -193,7 +193,7 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove }) {
                   />
                 </Field>
               </div>
-              <Field label="Status da Meta" required>
+              <Field label="Status da Meta">
                 <Select value={atividade.status_meta || ''} onValueChange={v => onChange('status_meta', v)} disabled={!canEdit}>
                   <SelectTrigger><SelectValue placeholder="Selecione o status" /></SelectTrigger>
                   <SelectContent>
