@@ -359,6 +359,7 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
               canEdit={canEdit}
               onChange={(field, value) => update(i, field, value)}
               onRemove={() => remove(i)}
+              reportId={reportId}
             />
           ))}
           {canEdit && (
