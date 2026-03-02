@@ -98,7 +98,7 @@ function RelatoriosInner() {
       const matchMuseu = r.museu?.toLowerCase().includes(q);
       const matchMes = r.mes_referencia?.toLowerCase().includes(q);
       const matchEquipe = r.equipe?.toLowerCase().includes(q);
-      const matchAtiv = (r.atividades || []).some(a => a.titulo?.toLowerCase().includes(q));
+      const matchAtiv = (r.atividades || []).some(a => (a.nome || a.titulo || '').toLowerCase().includes(q));
       if (!matchName && !matchMuseu && !matchMes && !matchEquipe && !matchAtiv) return false;
     }
     return true;
