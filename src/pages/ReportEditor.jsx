@@ -113,15 +113,6 @@ function ReportEditorInner() {
         toast.error('Você deve aceitar a declaração de responsabilidade antes de enviar.');
         throw new Error('Declaração não aceita');
       }
-      // Validate all activities before submitting
-      const atividades = formData.atividades || [];
-      const allErrors = atividades.flatMap((a, i) =>
-        validateAtividade(a).map(e => `Atividade ${i + 1}: ${e}`)
-      );
-      if (allErrors.length > 0) {
-        toast.error(allErrors[0], { description: `${allErrors.length} problema(s) encontrado(s) nas atividades.` });
-        throw new Error('Validação falhou');
-      }
       const data = { ...formData, status: 'SUBMITTED' };
       return reportId
         ? base44.entities.Report.update(reportId, data)
