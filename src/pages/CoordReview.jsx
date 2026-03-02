@@ -20,8 +20,8 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
 const STATUS_CONFIG = {
-  SUBMITTED: { label: 'Enviado', color: 'bg-blue-100 text-blue-700', icon: Send },
-  IN_REVIEW: { label: 'Em Revisão', color: 'bg-yellow-100 text-yellow-700', icon: Eye },
+  SUBMITTED: { label: 'Enviado',    color: 'bg-blue-100 text-blue-700',   cardBg: 'bg-blue-50/40',   icon: Send },
+  IN_REVIEW: { label: 'Em Revisão', color: 'bg-amber-100 text-amber-700', cardBg: 'bg-amber-50/40',  icon: Eye },
 };
 
 function CoordReviewInner() {
