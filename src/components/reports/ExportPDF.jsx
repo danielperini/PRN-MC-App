@@ -232,7 +232,7 @@ export default function ExportPDF({ report, reportId }) {
         doc.rect(margin, y - 5, contentWidth, 8, 'F');
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
-        doc.text(`${code} — ${ativ.nome || 'Sem nome'}`, margin + 2, y);
+        doc.text(`${code} — ${ativ.nome || ativ.titulo || 'Sem nome'}`, margin + 2, y);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         if (ativ.classificacao) {
