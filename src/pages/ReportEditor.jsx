@@ -323,43 +323,78 @@ export default function ReportEditor() {
 
         {/* Form */}
         <div className="space-y-10">
-          {/* Info Básica */}
+          {/* Identificação */}
           <section>
-            <h2 className="text-lg font-medium text-black mb-4">Informações Básicas</h2>
+            <h2 className="text-lg font-medium text-black mb-4">Identificação</h2>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <Label>Museu</Label>
-                <Select 
-                  value={formData.museu} 
-                  onValueChange={(v) => setFormData({...formData, museu: v})}
-                  disabled={!canEdit}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o museu" />
-                  </SelectTrigger>
+                <Label>Nome do Profissional</Label>
+                <Input
+                  value={formData.author_name || ''}
+                  onChange={e => setFormData({...formData, author_name: e.target.value})}
+                  disabled={!canEdit && !isCoordenador}
+                />
+              </div>
+              <div>
+                <Label>Função</Label>
+                <Select value={formData.funcao || ''} onValueChange={v => setFormData({...formData, funcao: v})} disabled={!canEdit}>
+                  <SelectTrigger><SelectValue placeholder="Selecione a função" /></SelectTrigger>
                   <SelectContent>
-                    {MUSEUS.map(m => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
-                    ))}
+                    {FUNCOES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Mês de Referência</Label>
-                <Select 
-                  value={formData.mes_referencia} 
-                  onValueChange={(v) => setFormData({...formData, mes_referencia: v})}
-                  disabled={!canEdit}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o mês" />
-                  </SelectTrigger>
+                <Label>Museu Principal</Label>
+                <Select value={formData.museu || ''} onValueChange={v => setFormData({...formData, museu: v})} disabled={!canEdit}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o museu" /></SelectTrigger>
                   <SelectContent>
-                    {MESES.map(m => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
-                    ))}
+                    {MUSEUS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label>Equipe</Label>
+                <Select value={formData.equipe || ''} onValueChange={v => setFormData({...formData, equipe: v})} disabled={!canEdit}>
+                  <SelectTrigger><SelectValue placeholder="Selecione a equipe" /></SelectTrigger>
+                  <SelectContent>
+                    {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Atuou em outro museu?</Label>
+                <Select value={formData.museu_secundario ? 'sim' : 'nao'} onValueChange={v => setFormData({...formData, museu_secundario: v === 'nao' ? '' : formData.museu_secundario})} disabled={!canEdit}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nao">Não</SelectItem>
+                    <SelectItem value="sim">Sim</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {formData.museu_secundario !== '' && (
+                <div>
+                  <Label>Qual museu?</Label>
+                  <Select value={formData.museu_secundario || ''} onValueChange={v => setFormData({...formData, museu_secundario: v})} disabled={!canEdit}>
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {MUSEUS.filter(m => m !== formData.museu).map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div>
+                <Label>Mês de Referência</Label>
+                <Select value={formData.mes_referencia || ''} onValueChange={v => setFormData({...formData, mes_referencia: v})} disabled={!canEdit}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o mês" /></SelectTrigger>
+                  <SelectContent>
+                    {MESES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Ano</Label>
+                <Input type="number" value={formData.ano || 2026} onChange={e => setFormData({...formData, ano: parseInt(e.target.value)})} disabled={!canEdit} />
               </div>
             </div>
           </section>
