@@ -529,6 +529,11 @@ export default function ReportEditor() {
             )}
           </section>
 
+          {/* Anexos — só exibe se relatório já foi salvo */}
+          {reportId && (
+            <AttachmentsSection reportId={reportId} canEdit={canEdit} />
+          )}
+
           {/* Avaliação */}
           <section>
             <h2 className="text-lg font-medium text-black mb-4">Avaliação do Mês</h2>
