@@ -1,90 +1,82 @@
 import React from 'react';
-import { FileText, Users, Building2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+import { FileText, Users, Building2, ArrowRight, CheckCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
-      <header className="border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-6 py-8">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
-              <Building2 className="w-6 h-6 text-white" />
+      <header className="border-b border-gray-100 bg-white">
+        <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-black rounded-lg flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-white" />
             </div>
-            <div>
-              <h1 className="text-2xl font-semibold text-black tracking-tight">
-                Museus Centro
-              </h1>
-              <p className="text-sm text-gray-500">
-                Relatório Mensal Individual 2026
-              </p>
-            </div>
+            <span className="font-semibold text-black text-base">Museus Centro</span>
           </div>
+          <Link to={createPageUrl('Dashboard')}>
+            <Button className="bg-black hover:bg-gray-800 text-white gap-2 text-sm">
+              Acessar sistema <ArrowRight className="w-4 h-4" />
+            </Button>
+          </Link>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-6 py-16">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl font-light text-black mb-4">
-            Sistema de Relatórios
-          </h2>
-          <p className="text-gray-500 text-lg max-w-2xl mx-auto">
-            Plataforma para gestão de relatórios mensais dos profissionais 
-            vinculados aos museus do Centro Cultural.
+      {/* Hero */}
+      <main className="flex-1 flex flex-col items-center justify-center px-6 py-20 text-center">
+        <div className="max-w-2xl">
+          <div className="inline-block bg-gray-100 text-gray-700 text-xs font-medium px-3 py-1.5 rounded-full mb-6 tracking-wide uppercase">
+            Relatório Mensal Individual · 2026
+          </div>
+          <h1 className="text-4xl md:text-5xl font-semibold text-black tracking-tight leading-tight mb-5">
+            Gestão de Relatórios<br />dos Museus do Centro
+          </h1>
+          <p className="text-gray-500 text-lg leading-relaxed mb-10">
+            Plataforma centralizada para registro, acompanhamento e aprovação dos
+            relatórios mensais dos profissionais vinculados ao MHAB, MIS e MUMO.
           </p>
+          <Link to={createPageUrl('Dashboard')}>
+            <Button size="lg" className="bg-black hover:bg-gray-800 text-white gap-2 px-8">
+              Acessar meu painel <ArrowRight className="w-4 h-4" />
+            </Button>
+          </Link>
         </div>
 
-        {/* Feature Cards */}
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="p-8 border border-gray-100 rounded-2xl hover:border-gray-200 transition-colors">
-            <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center mb-6">
-              <FileText className="w-5 h-5 text-black" />
+        {/* Feature cards */}
+        <div className="grid md:grid-cols-3 gap-5 mt-20 max-w-4xl w-full">
+          {[
+            {
+              icon: FileText,
+              title: 'Relatórios Mensais',
+              desc: 'Registre atividades, oportunidades e avaliações de cada mês de forma estruturada e organizada.',
+            },
+            {
+              icon: Users,
+              title: 'Fluxo de Aprovação',
+              desc: 'Submissão, revisão pelo coordenador e aprovação com rastreabilidade e histórico completo.',
+            },
+            {
+              icon: Building2,
+              title: 'Multi-Museu',
+              desc: 'Suporte para MHAB, MIS e MUMO com gestão unificada e relatórios individuais por profissional.',
+            },
+          ].map(item => (
+            <div key={item.title} className="text-left p-6 border border-gray-100 rounded-2xl bg-white hover:border-gray-200 hover:shadow-sm transition-all">
+              <div className="w-9 h-9 bg-black rounded-lg flex items-center justify-center mb-4">
+                <item.icon className="w-4 h-4 text-white" />
+              </div>
+              <h3 className="text-sm font-semibold text-black mb-2">{item.title}</h3>
+              <p className="text-gray-500 text-sm leading-relaxed">{item.desc}</p>
             </div>
-            <h3 className="text-lg font-medium text-black mb-2">
-              Relatórios Mensais
-            </h3>
-            <p className="text-gray-500 text-sm leading-relaxed">
-              Registre atividades, oportunidades e avaliações de cada mês 
-              de forma estruturada.
-            </p>
-          </div>
-
-          <div className="p-8 border border-gray-100 rounded-2xl hover:border-gray-200 transition-colors">
-            <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center mb-6">
-              <Users className="w-5 h-5 text-black" />
-            </div>
-            <h3 className="text-lg font-medium text-black mb-2">
-              Workflow de Aprovação
-            </h3>
-            <p className="text-gray-500 text-sm leading-relaxed">
-              Fluxo completo de submissão, revisão e aprovação com 
-              rastreabilidade total.
-            </p>
-          </div>
-
-          <div className="p-8 border border-gray-100 rounded-2xl hover:border-gray-200 transition-colors">
-            <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center mb-6">
-              <Building2 className="w-5 h-5 text-black" />
-            </div>
-            <h3 className="text-lg font-medium text-black mb-2">
-              Multi-Museu
-            </h3>
-            <p className="text-gray-500 text-sm leading-relaxed">
-              Suporte para múltiplos museus com gestão centralizada 
-              pelo coordenador.
-            </p>
-          </div>
+          ))}
         </div>
 
-        {/* Status */}
-        <div className="mt-20 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-full">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-sm text-gray-600">
-              Sistema em construção — Etapa 1 concluída
-            </span>
-          </div>
+        {/* Status badge */}
+        <div className="mt-14 flex items-center gap-2 text-sm text-gray-400">
+          <CheckCircle className="w-4 h-4 text-green-500" />
+          Sistema ativo · Versão 2026
         </div>
       </main>
     </div>
