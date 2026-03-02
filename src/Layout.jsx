@@ -30,7 +30,7 @@ export default function Layout({ children, currentPageName }) {
     loadUser();
   }, []);
 
-  const isCoordenador = currentUser?.role === 'COORDENADOR' || currentUser?.role === 'ADMIN';
+  const isCoordenador = ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
 
   const navItems = [
     { name: 'Dashboard', icon: FileText, label: 'Dashboard', show: true },
