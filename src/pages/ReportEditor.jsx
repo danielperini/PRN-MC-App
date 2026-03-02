@@ -210,12 +210,8 @@ function ReportEditorInner() {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <p className="text-gray-400">Carregando...</p>
       </div>
-      );
-      }
-
-      export default function ReportEditor() {
-      return <RequireAuth><ReportEditorInner /></RequireAuth>;
-      }
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
