@@ -48,6 +48,7 @@ function CoordReviewInner() {
 
   const workflowMutation = useMutation({
     mutationFn: async ({ id, status, comment }) => {
+      if (!id) throw new Error('ID do relatório inválido');
       const update = { status };
       if (comment) update.return_comment = comment;
       return base44.entities.Report.update(id, update);
