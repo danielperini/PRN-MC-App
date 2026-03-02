@@ -167,7 +167,7 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove }) {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Indicador Previsto" required>
+              <Field label="Indicador Previsto">
                 <Input
                   placeholder="Ex: Nº de ações educativas realizadas"
                   value={atividade.indicador_previsto || ''}
