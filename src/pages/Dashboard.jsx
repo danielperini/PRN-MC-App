@@ -33,13 +33,14 @@ function DashboardInner() {
    const [filters, setFilters] = React.useState({ museu: '', status: '' });
 
    const { data: myReports = [], isLoading: loadingMy } = useQuery({
-     queryKey: ['my-reports', currentUser?.email],
-     queryFn: async () => {
-       if (!currentUser?.email) return [];
-       return await base44.entities.Report.filter({ created_by: currentUser.email }, '-created_date');
-     },
-     enabled: !!currentUser?.email && !userLoading,
-   });
+      queryKey: ['my-reports', currentUser?.email],
+      queryFn: async () => {
+        if (!currentUser?.email) return [];
+        const data = await base44.entities.Report.filter({ created_by: currentUser.email }, '-created_date');
+        return Array.isArray(data) ? data : [];
+      },
+      enabled: !!currentUser?.email && !userLoading,
+    });
 
    const { data: allReports = [], isLoading: loadingAll } = useQuery({
      queryKey: ['all-reports'],
