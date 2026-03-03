@@ -20,6 +20,8 @@ import AIAssistButton from '../components/reports/AIAssistButton';
 import ReportGenerator from '../components/reports/ReportGenerator';
 import ExecutiveSummaryAI from '../components/reports/ExecutiveSummaryAI';
 import TrendAnalysisAI from '../components/reports/TrendAnalysisAI';
+import ReportComments from '../components/reports/ReportComments';
+import ReportTimeline from '../components/reports/ReportTimeline';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -327,6 +329,8 @@ function ReportEditorInner() {
             <TabsTrigger value="atividades">Atividades</TabsTrigger>
             <TabsTrigger value="oportunidades">Oportunidades</TabsTrigger>
             <TabsTrigger value="avaliacao">Avaliação</TabsTrigger>
+            <TabsTrigger value="comentarios">Comentários</TabsTrigger>
+            <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
 
           <TabsContent value="identificacao">
@@ -516,6 +520,24 @@ function ReportEditorInner() {
                 </div>
               </div>
             </section>
+          </TabsContent>
+
+          {/* COMENTÁRIOS */}
+          <TabsContent value="comentarios" className="space-y-6">
+            {reportId ? (
+              <ReportComments reportId={reportId} userRole={currentUser?.role} />
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">Salve o relatório para adicionar comentários</p>
+            )}
+          </TabsContent>
+
+          {/* HISTÓRICO */}
+          <TabsContent value="historico" className="space-y-6">
+            {reportId ? (
+              <ReportTimeline reportId={reportId} />
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">Salve o relatório para visualizar o histórico</p>
+            )}
           </TabsContent>
         </Tabs>
 
