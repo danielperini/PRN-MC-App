@@ -339,13 +339,13 @@ function UserManagementInner() {
           <TabsContent value="usuarios">
             {/* Table header */}
              {!isLoading && users.length > 0 && (
-               <div className="grid grid-cols-12 gap-4 px-4 mb-2 text-xs font-medium text-gray-400 uppercase tracking-wide">
-                 <span className="col-span-3">Nome / Email</span>
+               <div className={`grid gap-4 px-4 mb-2 text-xs font-medium text-gray-400 uppercase tracking-wide ${canViewReportStatus ? 'grid-cols-12' : 'grid-cols-10'}`}>
+                 <span className={canViewReportStatus ? 'col-span-3' : 'col-span-3'}>Nome / Email</span>
                  <span className="col-span-2">Papel</span>
                  <span className="col-span-2">Equipe</span>
                  <span className="col-span-2">Acesso</span>
-                 <span className="col-span-2">Relatório</span>
-                 <span className="col-span-1 text-right">Ações</span>
+                 {canViewReportStatus && <span className="col-span-2">Relatório</span>}
+                 <span className={`${canViewReportStatus ? 'col-span-1' : 'col-span-1'} text-right`}>Ações</span>
                </div>
              )}
             <div className="space-y-2">
