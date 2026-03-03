@@ -104,7 +104,7 @@ function ReportEditorInner() {
   });
 
   useEffect(() => {
-    if (reportData) {
+    if (reportData && reportData.id) {
       setFormData({
         ...EMPTY_FORM,
         ...reportData,
