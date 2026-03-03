@@ -471,6 +471,15 @@ function ReportEditorInner() {
           <TabsContent value="avaliacao">
             <section>
               <SectionTitle>Avaliação do Mês</SectionTitle>
+
+              {/* Análise de Tendências */}
+              {reportId && formData.museu && (
+                <div className="mb-6 p-4 border border-gray-100 rounded-xl bg-gray-50">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Análise de Tendências Históricas</p>
+                  <TrendAnalysisAI museu={formData.museu} disabled={false} />
+                </div>
+              )}
+
               {(formData.atividades || []).length === 0 && (
                 <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
