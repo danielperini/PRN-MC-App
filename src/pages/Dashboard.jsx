@@ -49,7 +49,11 @@ function DashboardInner() {
 
   const showCoordView = isCoordenador && view === 'coordenador';
   const showDedicatedProfView = !isCoordenador;
-  let displayReports = showCoordView ? allReports : myReports;
+  const displayReports = React.useMemo(() => {
+    let reports = showCoordView ? allReports : myReports;
+    if (!Array.isArray(reports)) return [];
+    return reports;
+  }, [showCoordView, allReports, myReports]);
 
   // Aplicar filtros
   if (filters.museu) {
