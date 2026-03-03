@@ -58,6 +58,10 @@ function GestorArquivosInner() {
   const [viewMode, setViewMode] = useState('auto'); // auto, gallery, list
   const [fullscreenFile, setFullscreenFile] = useState(null);
   const [fullscreenZoom, setFullscreenZoom] = useState(1);
+  const [filterType, setFilterType] = useState('all');
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
+  const [filterReport, setFilterReport] = useState('all');
 
   const deleteMutation = useMutation({
     mutationFn: (att) => base44.entities.Attachment.delete(att.id),
