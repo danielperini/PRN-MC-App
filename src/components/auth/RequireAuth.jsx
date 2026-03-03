@@ -12,7 +12,10 @@ export default function RequireAuth({ children, requireRole }) {
     const check = async () => {
       const isAuth = await base44.auth.isAuthenticated();
       if (!isAuth) {
-        base44.auth.redirectToLogin(window.location.href);
+        // Avoid passing a login URL as the redirect target (would cause infinite loop)
+        const currentPath = window.location.pathname + window.location.search;
+        const safeRedirect = currentPath.includes('/login') ? undefined : window.location.href;
+        base44.auth.redirectToLogin(safeRedirect);
         return;
       }
       if (requireRole) {
