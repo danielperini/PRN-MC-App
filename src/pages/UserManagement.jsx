@@ -716,24 +716,66 @@ function UserManagementInner() {
              </div>
 
             <div>
-              <Label>Equipe</Label>
-              <Select value={formData.equipe} onValueChange={v => setFormData({ ...formData, equipe: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+               <Label>Equipe</Label>
+               <Select value={formData.equipe} onValueChange={v => setFormData({ ...formData, equipe: v })}>
+                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                 <SelectContent>
+                   {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                 </SelectContent>
+               </Select>
+             </div>
 
-          <DialogFooter className="mt-6">
-            <Button variant="outline" onClick={() => setShowDialog(false)}>Cancelar</Button>
-            <Button className="bg-black hover:bg-gray-800 text-white" onClick={handleSubmit} disabled={isPending}>
-              {editingUser ? 'Salvar' : 'Convidar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+             {editingUser && editingUserPerm && (
+               <div className="space-y-3 pt-4 border-t border-gray-200">
+                 <h3 className="text-sm font-semibold text-black">Permissões</h3>
+                 <div className="flex items-center gap-2">
+                   <input
+                     type="checkbox"
+                     id="must_submit"
+                     checked={permissionsForm.must_submit_monthly_report}
+                     onChange={e => setPermissionsForm({ ...permissionsForm, must_submit_monthly_report: e.target.checked })}
+                     className="rounded border-gray-300"
+                   />
+                   <Label htmlFor="must_submit" className="text-sm font-normal cursor-pointer">
+                     Obrigado a enviar relatório mensal
+                   </Label>
+                 </div>
+                 <div className="flex items-center gap-2">
+                   <input
+                     type="checkbox"
+                     id="can_review"
+                     checked={permissionsForm.can_review_reports}
+                     onChange={e => setPermissionsForm({ ...permissionsForm, can_review_reports: e.target.checked })}
+                     className="rounded border-gray-300"
+                   />
+                   <Label htmlFor="can_review" className="text-sm font-normal cursor-pointer">
+                     Pode revisar relatórios
+                   </Label>
+                 </div>
+                 <div className="flex items-center gap-2">
+                   <input
+                     type="checkbox"
+                     id="can_manage"
+                     checked={permissionsForm.can_manage_users}
+                     onChange={e => setPermissionsForm({ ...permissionsForm, can_manage_users: e.target.checked })}
+                     className="rounded border-gray-300"
+                   />
+                   <Label htmlFor="can_manage" className="text-sm font-normal cursor-pointer">
+                     Pode gerenciar usuários
+                   </Label>
+                 </div>
+               </div>
+             )}
+            </div>
+
+            <DialogFooter className="mt-6">
+             <Button variant="outline" onClick={() => { setShowDialog(false); setEditingUserPerm(null); }}>Cancelar</Button>
+             <Button className="bg-black hover:bg-gray-800 text-white" onClick={handleSubmit} disabled={isPending}>
+               {editingUser ? 'Salvar' : 'Convidar'}
+             </Button>
+            </DialogFooter>
+            </DialogContent>
+            </Dialog>
 
       {/* Delete Confirm */}
       <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
