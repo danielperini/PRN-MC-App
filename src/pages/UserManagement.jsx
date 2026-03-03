@@ -316,6 +316,59 @@ function UserManagementInner() {
         </Tabs>
       </div>
 
+      {/* Review Registration Dialog */}
+      <Dialog open={!!reviewingReg} onOpenChange={o => !o && setReviewingReg(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {reviewingReg?.action === 'aprovar' ? 'Aprovar solicitação' : 'Rejeitar solicitação'}
+            </DialogTitle>
+          </DialogHeader>
+          {reviewingReg && (
+            <div className="space-y-4 mt-2">
+              <div className="p-3 bg-gray-50 rounded-lg text-sm space-y-1">
+                <p><strong>{reviewingReg.full_name}</strong> — {reviewingReg.email}</p>
+                <p className="text-gray-500">{reviewingReg.funcao} · {reviewingReg.museu}{reviewingReg.equipe ? ` · ${reviewingReg.equipe}` : ''}</p>
+              </div>
+              {reviewingReg.action === 'aprovar' && (
+                <p className="text-sm text-gray-500">
+                  O usuário receberá um convite por e-mail com acesso como <strong>Profissional</strong>. Você poderá ajustar o papel e equipe posteriormente.
+                </p>
+              )}
+              <div>
+                <Label>Observação {reviewingReg.action === 'rejeitar' ? '(motivo)' : '(opcional)'}</Label>
+                <Textarea
+                  placeholder={reviewingReg.action === 'aprovar' ? 'Mensagem de boas-vindas ou observação...' : 'Informe o motivo da rejeição...'}
+                  value={regNote}
+                  onChange={e => setRegNote(e.target.value)}
+                  className="min-h-[80px] mt-1"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setReviewingReg(null)}>Cancelar</Button>
+            {reviewingReg?.action === 'aprovar' ? (
+              <Button
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => approveRegMutation.mutate(reviewingReg)}
+                disabled={approveRegMutation.isPending}
+              >
+                {approveRegMutation.isPending ? 'Aprovando...' : 'Confirmar aprovação'}
+              </Button>
+            ) : (
+              <Button
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={() => rejectRegMutation.mutate(reviewingReg)}
+                disabled={rejectRegMutation.isPending}
+              >
+                {rejectRegMutation.isPending ? 'Rejeitando...' : 'Confirmar rejeição'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Create / Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>
