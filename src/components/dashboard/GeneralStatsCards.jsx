@@ -74,12 +74,12 @@ const GENERAL_STATS = [
   }
 ];
 
-export default function GeneralStatsCards({ reports }) {
-  const [visibleCards, setVisibleCards] = useState(
-    GENERAL_STATS.map(s => s.id).slice(0, 3)
-  );
+export default function GeneralStatsCards({ reports = [] }) {
+   const [visibleCards, setVisibleCards] = useState(
+     GENERAL_STATS.map(s => s.id).slice(0, 3)
+   );
 
-  const data = { allReports: reports };
+   const data = { allReports: Array.isArray(reports) ? reports : [] };
 
   const toggleCard = (id) => {
     setVisibleCards(prev => 
