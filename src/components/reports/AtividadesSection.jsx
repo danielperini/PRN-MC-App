@@ -12,6 +12,7 @@ import ActivityClassificationAI from './ActivityClassificationAI';
 import { base44 } from '@/api/base44Client';
 
 const MUSEUS_ATIV = ['MHAB', 'MIS', 'MUMO', 'Externo'];
+const EQUIPES = ['Comunicação', 'Administração', 'Educativo', 'Produção', 'Outra'];
 const TIPOS_ACAO = [
   'Visita Mediada', 'Oficina', 'Exposição', 'Evento', 'Palestra',
   'Reunião', 'Formação', 'Produção de Conteúdo', 'Manutenção', 'Outro'
