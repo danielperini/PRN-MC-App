@@ -677,6 +677,14 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
               </div>
               </div>
 
+          {/* Clipping Automático */}
+          {canEdit && (
+            <ClippingAutomatico
+              atividade={atividade}
+              onUpdate={(field, value) => onChange(field, value)}
+            />
+          )}
+
           {/* Anexos vinculados a esta atividade */}
           {reportId && (
             <ActivityAttachments
@@ -687,11 +695,11 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
               canEdit={canEdit}
             />
           )}
-        </div>
-      )}
-    </div>
-  );
-}
+          </div>
+          )}
+          </div>
+          );
+          }
 
 async function verificarDuplicata(novaAtiv, atividades) {
   if (!novaAtiv.nome && !novaAtiv.descricao_executado) return null;
