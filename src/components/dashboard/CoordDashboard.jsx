@@ -230,6 +230,9 @@ export default function CoordDashboard({ reports = [], isLoading }) {
 
   return (
     <div className="space-y-8">
+      {/* Painel de Aprovações Pendentes */}
+      <PendingApprovalsPanel />
+
       {/* Filtros */}
       <div className="border border-gray-100 rounded-2xl p-5 space-y-4">
         <div className="flex items-center justify-between">
