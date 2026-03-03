@@ -207,6 +207,7 @@ function PermissionManagerInner() {
                   <div>
                     <p className="font-semibold text-black">{perm.user_name}</p>
                     <p className="text-sm text-gray-500">{perm.user_email}</p>
+                    <p className="text-xs text-gray-400 mt-1">Matrícula: MCA202600000003</p>
                     <div className="flex gap-2 mt-2">
                       <Badge className="bg-blue-100 text-blue-700">{perm.base_role}</Badge>
                       {perm.isNew && <Badge className="bg-amber-100 text-amber-700">Sem permissões</Badge>}
