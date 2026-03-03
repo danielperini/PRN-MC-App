@@ -390,10 +390,16 @@ function UserManagementInner() {
             <h1 className="text-3xl font-semibold text-black tracking-tight">Usuários</h1>
             <p className="text-gray-500 mt-1">Gerencie os profissionais e seus perfis de acesso</p>
           </div>
-          <Button className="bg-black hover:bg-gray-800 text-white gap-2" onClick={() => setShowInviteLink(true)}>
-            <Plus className="w-4 h-4" />
-            Convidar Usuário
-          </Button>
+          <div className="flex gap-2">
+            <Button className="bg-black hover:bg-gray-800 text-white gap-2" onClick={() => setShowCreateDirect(true)}>
+              <Plus className="w-4 h-4" />
+              Cadastrar com Senha
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={() => setShowInviteLink(true)}>
+              <Plus className="w-4 h-4" />
+              Convidar Usuário
+            </Button>
+          </div>
         </div>
 
         {(() => {
