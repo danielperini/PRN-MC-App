@@ -28,21 +28,24 @@ const STATUS_CONFIG = {
 };
 
 function DashboardInner() {
-  const { user: currentUser, isCoordenador } = useCurrentUser();
-  const [view, setView] = React.useState('coordenador'); // 'coordenador' | 'profissional'
-  const [filters, setFilters] = React.useState({ museu: '', status: '' });
+  const { user: currentUser, isLoading: userLoading, isCoordenador } = useCurrentUser();
+   const [view, setView] = React.useState('coordenador'); 
+   const [filters, setFilters] = React.useState({ museu: '', status: '' });
 
-  const { data: myReports = [], isLoading: loadingMy } = useQuery({
-    queryKey: ['my-reports', currentUser?.email],
-    queryFn: () => base44.entities.Report.filter({ created_by: currentUser?.email }, '-created_date'),
-    enabled: !!currentUser?.email,
-  });
+   const { data: myReports = [], isLoading: loadingMy } = useQuery({
+     queryKey: ['my-reports', currentUser?.email],
+     queryFn: async () => {
+       if (!currentUser?.email) return [];
+       return await base44.entities.Report.filter({ created_by: currentUser.email }, '-created_date');
+     },
+     enabled: !!currentUser?.email && !userLoading,
+   });
 
-  const { data: allReports = [], isLoading: loadingAll } = useQuery({
-    queryKey: ['all-reports'],
-    queryFn: () => base44.entities.Report.list('-created_date', 200),
-    enabled: isCoordenador,
-  });
+   const { data: allReports = [], isLoading: loadingAll } = useQuery({
+     queryKey: ['all-reports'],
+     queryFn: async () => base44.entities.Report.list('-created_date', 200),
+     enabled: isCoordenador,
+   });
 
   const showCoordView = isCoordenador && view === 'coordenador';
   const showDedicatedProfView = !isCoordenador;
