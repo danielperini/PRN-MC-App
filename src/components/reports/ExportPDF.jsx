@@ -673,9 +673,7 @@ export default function ExportPDF({ report, reportId }) {
         doc.text(`${report.reviewer_name || ''}${report.reviewer_email ? '  <' + report.reviewer_email + '>' : ''}`, M + 4, y + 12);
       }
 
-      // ── RODAPÉ ─────────────────────────────────────────────────────────────
-      const totalPages = doc.internal.getNumberOfPages();
-      addFooter(doc, report, reportId, geradoEm, totalPages, docStatus, statusColor);
+      // rodapé adicionado após instrução de assinatura
 
       // Audit log
       await base44.entities.AuditLog.create({
