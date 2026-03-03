@@ -2,17 +2,22 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import {
-  Paperclip, FileText, Search, Download, Eye, Filter,
-  Image, File, FileVideo, Music, Archive
+  Paperclip, FileText, Search, Download, Eye,
+  Image, File, FileVideo, Music, Archive, Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
