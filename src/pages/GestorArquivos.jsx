@@ -114,28 +114,32 @@ function GestorArquivosInner() {
   // Build a report map for quick lookup
   const reportMap = Object.fromEntries(reports.map(r => [r.id, r]));
 
+  const isComunicacao = currentUser?.role === 'COORD_COMUNICACAO';
+
   // Filter attachments based on user role and filters
-  const visible = attachments.filter(att => {
-    const report = reportMap[att.report_id];
-    // skip orphan attachments for non-coordinators
-    if (!report) return isCoordenador;
-    // professionals only see their own
-    if (!isCoordenador && report?.created_by !== currentUser?.email) return false;
-    // museu filter
-    if (filterMuseu !== 'all' && report?.museu !== filterMuseu) return false;
-    // mes filter
-    if (filterMes !== 'all' && report?.mes_referencia !== filterMes) return false;
-    // search
-    if (search) {
-      const q = search.toLowerCase();
-      if (
-        !att.file_name?.toLowerCase().includes(q) &&
-        !report?.author_name?.toLowerCase().includes(q) &&
-        !report?.museu?.toLowerCase().includes(q)
-      ) return false;
-    }
-    return true;
-  });
+   const visible = attachments.filter(att => {
+     const report = reportMap[att.report_id];
+     // skip orphan attachments for non-coordinators
+     if (!report) return isCoordenador;
+     // professionals only see their own
+     if (!isCoordenador && report?.created_by !== currentUser?.email) return false;
+     // COORD_COMUNICACAO only sees Comunicador reports
+     if (isComunicacao && report?.funcao !== 'Comunicador') return false;
+     // museu filter
+     if (filterMuseu !== 'all' && report?.museu !== filterMuseu) return false;
+     // mes filter
+     if (filterMes !== 'all' && report?.mes_referencia !== filterMes) return false;
+     // search
+     if (search) {
+       const q = search.toLowerCase();
+       if (
+         !att.file_name?.toLowerCase().includes(q) &&
+         !report?.author_name?.toLowerCase().includes(q) &&
+         !report?.museu?.toLowerCase().includes(q)
+       ) return false;
+     }
+     return true;
+   });
 
   const isLoading = loadingReports || loadingAttachments;
 

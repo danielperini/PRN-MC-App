@@ -68,16 +68,17 @@ function Field({ label, children }) {
 
 function ReportEditorInner() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { user: currentUser, isCoordenador } = useCurrentUser();
-  const urlParams = new URLSearchParams(window.location.search);
-  const reportId = urlParams.get('id');
+   const queryClient = useQueryClient();
+   const { user: currentUser, isCoordenador } = useCurrentUser();
+   const isComunicacao = currentUser?.role === 'COORD_COMUNICACAO';
+   const urlParams = new URLSearchParams(window.location.search);
+   const reportId = urlParams.get('id');
 
-  const [formData, setFormData] = useState(EMPTY_FORM);
-  const [declaracaoAceita, setDeclaracaoAceita] = useState(false);
-  const [currentTab, setCurrentTab] = useState('identificacao');
-  const [autoSaveTimer, setAutoSaveTimer] = useState(null);
-  const set = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
+   const [formData, setFormData] = useState(EMPTY_FORM);
+   const [declaracaoAceita, setDeclaracaoAceita] = useState(false);
+   const [currentTab, setCurrentTab] = useState('identificacao');
+   const [autoSaveTimer, setAutoSaveTimer] = useState(null);
+   const set = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
 
   // Pre-fill author from logged user on new reports
   useEffect(() => {
@@ -222,7 +223,8 @@ function ReportEditorInner() {
     oportunidades: prev.oportunidades.filter((_, idx) => idx !== i)
   }));
 
-  const canEdit = formData.status === 'DRAFT' || formData.status === 'RETURNED';
+  const canEdit = (formData.status === 'DRAFT' || formData.status === 'RETURNED') && (!isComunicacao || (isComunicacao && formData.funcao === 'Comunicador'));
+  const canReview = isCoordenador && (!isComunicacao || (isComunicacao && formData.funcao === 'Comunicador'));
 
   // Auto-save ao mudar de aba
   const handleTabChange = (newTab) => {
@@ -291,27 +293,27 @@ function ReportEditorInner() {
             ) || (
               <span className="text-xs text-gray-400">Salve o relatório para exportar dados</span>
             )}
-            {isCoordenador && formData.status === 'SUBMITTED' && (
-              <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'start_review' })}>Iniciar Revisão</Button>
-            )}
-            {isCoordenador && formData.status === 'IN_REVIEW' && (
-              <>
-                <Button variant="outline" className="text-red-600 border-red-200" onClick={() => { const c = prompt('Motivo da devolução:'); if (c) workflowMutation.mutate({ action: 'return', comment: c }); }}>
-                  <AlertCircle className="w-4 h-4 mr-2" />Devolver
-                </Button>
-                <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={() => workflowMutation.mutate({ action: 'approve' })}>
-                  <CheckCircle className="w-4 h-4 mr-2" />Aprovar
-                </Button>
-              </>
-            )}
-            {isCoordenador && formData.status === 'APPROVED' && (
-              <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'archive' })}>Arquivar</Button>
-            )}
-            {isCoordenador && ['ARCHIVED', 'APPROVED'].includes(formData.status) && (
-              <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'reopen' })}>
-                <RotateCcw className="w-4 h-4 mr-2" />Reabrir
-              </Button>
-            )}
+            {canReview && formData.status === 'SUBMITTED' && (
+               <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'start_review' })}>Iniciar Revisão</Button>
+             )}
+             {canReview && formData.status === 'IN_REVIEW' && (
+               <>
+                 <Button variant="outline" className="text-red-600 border-red-200" onClick={() => { const c = prompt('Motivo da devolução:'); if (c) workflowMutation.mutate({ action: 'return', comment: c }); }}>
+                   <AlertCircle className="w-4 h-4 mr-2" />Devolver
+                 </Button>
+                 <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={() => workflowMutation.mutate({ action: 'approve' })}>
+                   <CheckCircle className="w-4 h-4 mr-2" />Aprovar
+                 </Button>
+               </>
+             )}
+             {canReview && formData.status === 'APPROVED' && (
+               <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'archive' })}>Arquivar</Button>
+             )}
+             {canReview && ['ARCHIVED', 'APPROVED'].includes(formData.status) && (
+               <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'reopen' })}>
+                 <RotateCcw className="w-4 h-4 mr-2" />Reabrir
+               </Button>
+             )}
           </div>
         </div>
 

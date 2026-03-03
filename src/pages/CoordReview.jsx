@@ -190,31 +190,34 @@ function AuditEntry({ log }) {
 }
 
 function CoordReviewInner() {
-  const queryClient = useQueryClient();
-  const { user } = useCurrentUser();
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterMuseu, setFilterMuseu]   = useState('all');
-  const [returnDialog, setReturnDialog] = useState({ open: false, report: null });
-  const [approveDialog, setApproveDialog] = useState({ open: false, report: null });
+   const queryClient = useQueryClient();
+   const { user } = useCurrentUser();
+   const [filterStatus, setFilterStatus] = useState('all');
+   const [filterMuseu, setFilterMuseu]   = useState('all');
+   const [returnDialog, setReturnDialog] = useState({ open: false, report: null });
+   const [approveDialog, setApproveDialog] = useState({ open: false, report: null });
 
-  const { data: reports = [], isLoading } = useQuery({
-    queryKey: ['review-reports'],
-    queryFn: () => base44.entities.Report.list('-created_date'),
-  });
+   const isComunicacao = user?.role === 'COORD_COMUNICACAO';
 
-  const { data: auditLogs = [], isLoading: logsLoading } = useQuery({
-    queryKey: ['audit-approvals'],
-    queryFn: () => base44.entities.AuditLog.filter({ entity_type: 'REPORT' }, '-created_date', 100),
-  });
+   const { data: reports = [], isLoading } = useQuery({
+     queryKey: ['review-reports'],
+     queryFn: () => base44.entities.Report.list('-created_date'),
+   });
 
-  const pending = reports.filter(r => ['SUBMITTED', 'IN_REVIEW'].includes(r.status));
-  const museus  = [...new Set(pending.map(r => r.museu).filter(Boolean))];
+   const { data: auditLogs = [], isLoading: logsLoading } = useQuery({
+     queryKey: ['audit-approvals'],
+     queryFn: () => base44.entities.AuditLog.filter({ entity_type: 'REPORT' }, '-created_date', 100),
+   });
 
-  const filtered = pending.filter(r => {
-    if (filterStatus !== 'all' && r.status !== filterStatus) return false;
-    if (filterMuseu !== 'all' && r.museu !== filterMuseu) return false;
-    return true;
-  });
+   const pending = reports.filter(r => ['SUBMITTED', 'IN_REVIEW'].includes(r.status));
+   const museus  = [...new Set(pending.map(r => r.museu).filter(Boolean))];
+
+   const filtered = pending.filter(r => {
+     if (filterStatus !== 'all' && r.status !== filterStatus) return false;
+     if (filterMuseu !== 'all' && r.museu !== filterMuseu) return false;
+     if (isComunicacao && !['Comunicador'].includes(r.funcao)) return false;
+     return true;
+   });
 
   const workflowMutation = useMutation({
     mutationFn: async ({ id, status, returnComments, approvalNote }) => {

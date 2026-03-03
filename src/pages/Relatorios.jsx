@@ -70,14 +70,15 @@ function exportCSV(reports) {
 }
 
 function RelatoriosInner() {
-  const { user: currentUser, isCoordenador } = useCurrentUser();
-  const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [filters, setFilters] = useState({ mes: '', museu: '', equipe: '', status: '', classificacao: '' });
-  const [showFilters, setShowFilters] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [filteredActivities, setFilteredActivities] = useState([]);
-  const [activityFilters, setActivityFilters] = useState({ team: '', museum: '', dateStart: '', dateEnd: '' });
+   const { user: currentUser, isCoordenador } = useCurrentUser();
+   const isComunicacao = currentUser?.role === 'COORD_COMUNICACAO';
+   const queryClient = useQueryClient();
+   const [search, setSearch] = useState('');
+   const [filters, setFilters] = useState({ mes: '', museu: '', equipe: '', status: '', classificacao: '' });
+   const [showFilters, setShowFilters] = useState(false);
+   const [deleteTarget, setDeleteTarget] = useState(null);
+   const [filteredActivities, setFilteredActivities] = useState([]);
+   const [activityFilters, setActivityFilters] = useState({ team: '', museum: '', dateStart: '', dateEnd: '' });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Report.delete(id),
@@ -145,6 +146,7 @@ function RelatoriosInner() {
   const uniqueTeams = Array.from(new Set(allActivities.map(a => a.equipe_responsavel).filter(Boolean))).sort();
 
   const filtered = baseReports.filter(r => {
+    if (isComunicacao && r.funcao !== 'Comunicador') return false;
     if (filters.mes && r.mes_referencia !== filters.mes) return false;
     if (filters.museu && r.museu !== filters.museu) return false;
     if (filters.equipe && r.equipe !== filters.equipe) return false;
@@ -321,7 +323,7 @@ function RelatoriosInner() {
               const totalAtiv = (report.atividades || []).length;
               const attachments = allAttachments.filter(att => att.report_id === report.id);
               const nAttachments = attachments.length;
-              const canDelete = report.created_by === currentUser?.email;
+              const canDelete = report.created_by === currentUser?.email && (!isComunicacao || report.funcao === 'Comunicador');
               return (
                 <div key={report.id} className="block group relative">
                   <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
