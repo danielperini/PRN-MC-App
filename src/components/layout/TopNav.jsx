@@ -4,7 +4,7 @@ import { LogOut, UserCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
-import NotificationPanel from '@/components/notifications/NotificationPanel';
+import NotificationBell from '@/components/notifications/NotificationBell';
 import GlobalSearch from './GlobalSearch';
 
 export default function TopNav({ userEmail, userName, userRole }) {
@@ -17,7 +17,7 @@ export default function TopNav({ userEmail, userName, userRole }) {
 
       {/* Right side */}
       <div className="flex items-center gap-4 ml-auto">
-        {userEmail && <NotificationPanel userEmail={userEmail} />}
+        {userEmail && <NotificationBell userEmail={userEmail} />}
         
         <Link to={createPageUrl('Perfil')}>
           <Button variant="ghost" size="icon" className="text-black hover:bg-gray-100 h-11 w-11">
