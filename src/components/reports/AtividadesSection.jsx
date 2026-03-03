@@ -94,11 +94,100 @@ function Field({ label, children }) {
   );
 }
 
+function UserPicker({ value = [], onChange, disabled }) {
+  const [users, setUsers] = useState([]);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    base44.entities.User.list().then(setUsers).catch(() => {});
+  }, []);
+
+  const selected = Array.isArray(value) ? value : (value ? value.split(',').map(s => s.trim()).filter(Boolean) : []);
+
+  const toggle = (email) => {
+    if (selected.includes(email)) {
+      onChange(selected.filter(e => e !== email));
+    } else {
+      onChange([...selected, email]);
+    }
+  };
+
+  const filtered = users.filter(u =>
+    (u.full_name || u.email).toLowerCase().includes(search.toLowerCase())
+  );
+
+  const selectedUsers = users.filter(u => selected.includes(u.email));
+
+  return (
+    <div className="space-y-2">
+      {/* Selected badges */}
+      {selectedUsers.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selectedUsers.map(u => (
+            <Badge key={u.email} className="gap-1 bg-gray-100 text-gray-800 hover:bg-gray-200 pr-1">
+              {u.full_name || u.email}
+              {!disabled && (
+                <button onClick={() => toggle(u.email)} className="ml-1 text-gray-500 hover:text-red-500">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </Badge>
+          ))}
+        </div>
+      )}
+      {!disabled && (
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <input
+            type="text"
+            placeholder="Buscar usuário..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full px-3 py-2 text-sm border-b border-gray-100 outline-none"
+          />
+          <div className="max-h-36 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 px-3 py-2">Nenhum usuário encontrado</p>
+            ) : filtered.map(u => (
+              <div
+                key={u.email}
+                onClick={() => toggle(u.email)}
+                className={`flex items-center gap-2 px-3 py-2 cursor-pointer text-sm hover:bg-gray-50 ${selected.includes(u.email) ? 'bg-gray-50 font-medium' : ''}`}
+              >
+                <div className={`w-3 h-3 rounded-sm border flex items-center justify-center ${selected.includes(u.email) ? 'bg-black border-black' : 'border-gray-300'}`}>
+                  {selected.includes(u.email) && <span className="text-white text-[8px] leading-none">✓</span>}
+                </div>
+                <span>{u.full_name || u.email}</span>
+                <span className="text-gray-400 text-xs ml-auto">{u.role}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId }) {
   const [expanded, setExpanded] = useState(true);
+  const [aiLoading, setAiLoading] = useState(false);
   const errors = canEdit ? validateAtividade(atividade) : [];
   const isMeta = atividade.classificacao === 'META';
   const isRotinaOrExtra = atividade.classificacao === 'ROTINA' || atividade.classificacao === 'EXTRA';
+
+  const handleAiResultados = async () => {
+    setAiLoading(true);
+    const prompt = `Com base na seguinte atividade de museu, escreva um parágrafo conciso sobre Resultados e Impactos (máximo 4 linhas):
+Nome: ${atividade.nome || ''}
+Descrição do executado: ${atividade.descricao_executado || ''}
+Objetivo: ${atividade.objetivo || ''}
+Público estimado: ${atividade.publico_estimado || ''}
+Tipo de ação: ${atividade.tipo_acao || ''}
+Produto: ${atividade.produto_realizado || ''}
+Escreva em português do Brasil, de forma objetiva e profissional.`;
+    const result = await base44.integrations.Core.InvokeLLM({ prompt });
+    onChange('resultados_impactos', result);
+    setAiLoading(false);
+  };
 
   return (
     <div className={`border rounded-xl overflow-hidden ${errors.length > 0 ? 'border-red-200' : 'border-gray-200'}`}>
