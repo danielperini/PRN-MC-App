@@ -598,11 +598,33 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
             <Field label="Quantidade de produtos gerados">
               <Input type="number" placeholder="Ex: 10 posts, 5 oficinas" value={atividade.quantidade_produto || ''} onChange={e => onChange('quantidade_produto', e.target.value)} disabled={!canEdit} />
             </Field>
-          </div>
+            </div>
 
+            {/* Seção de Mobilização (condicional) */}
+            {atividade.eh_mobilizacao && (
+            <div className="p-4 border border-purple-100 bg-purple-50/20 rounded-xl space-y-4">
+              <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Dados de Mobilização/Divulgação</p>
+              <Field label="Tipo de mobilização">
+                <Select value={atividade.tipo_mobilizacao || ''} onValueChange={v => onChange('tipo_mobilizacao', v)} disabled={!canEdit}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
+                  <SelectContent>
+                    {TIPOS_MOBILIZACAO.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Descrição da ação de mobilização/divulgação">
+                <Textarea 
+                  placeholder="Descreva em detalhes a ação de mobilização (ex: quantidade de pessoas contatadas, conteúdo compartilhado, resultado da ação)..."
+                  value={atividade.descricao_mobilizacao || ''} 
+                  onChange={e => onChange('descricao_mobilizacao', e.target.value)} 
+                  disabled={!canEdit}
+                  rows={3}
+                />
+              </Field>
+            </div>
+            )}
 
-
-          {/* Registro detalhado */}
+            {/* Registro detalhado */}
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Registro Detalhado</p>
             <div className="space-y-3">
