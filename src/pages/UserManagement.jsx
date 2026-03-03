@@ -1028,6 +1028,79 @@ function UserManagementInner() {
         </DialogContent>
       </Dialog>
 
+      {/* Change Password Dialog */}
+      <Dialog open={!!editPasswordUser} onOpenChange={o => !o && setEditPasswordUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="w-5 h-5 text-blue-600" />
+              Alterar senha
+            </DialogTitle>
+            <DialogDescription>
+              Atualize a senha de <strong>{editPasswordUser?.full_name || editPasswordUser?.email}</strong>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg flex gap-3">
+              <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700">
+                A nova senha será enviada ao usuário. Certifique-se de que ele está ciente da alteração.
+              </p>
+            </div>
+
+            <div>
+              <Label>Nova senha <span className="text-red-500">*</span></Label>
+              <Input
+                type="password"
+                placeholder="Digite a nova senha"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+              />
+              <p className="text-xs text-gray-400 mt-1">Mínimo 8 caracteres</p>
+            </div>
+
+            <div>
+              <Label>Confirmar senha <span className="text-red-500">*</span></Label>
+              <Input
+                type="password"
+                placeholder="Confirme a nova senha"
+                value={newPasswordConfirm}
+                onChange={e => setNewPasswordConfirm(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="mt-6">
+            <Button variant="outline" onClick={() => setEditPasswordUser(null)}>Cancelar</Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => {
+                if (!newPassword || !newPasswordConfirm) {
+                  toast.error('Preencha ambas as senhas');
+                  return;
+                }
+                if (newPassword !== newPasswordConfirm) {
+                  toast.error('As senhas não coincidem');
+                  return;
+                }
+                if (newPassword.length < 8) {
+                  toast.error('Senha deve ter no mínimo 8 caracteres');
+                  return;
+                }
+                changePasswordMutation.mutate({ 
+                  target_user_email: editPasswordUser.email,
+                  new_password: newPassword 
+                });
+              }}
+              disabled={changePasswordMutation.isPending}
+            >
+              {changePasswordMutation.isPending ? 'Alterando...' : 'Alterar Senha'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirm */}
       <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
