@@ -270,6 +270,9 @@ function UserManagementInner() {
                       <div className="min-w-0">
                         <p className="font-medium text-black truncate">{user.full_name || '–'}</p>
                         <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                        {user.matricula && (
+                          <p className="text-xs font-mono text-gray-400 truncate">{user.matricula}</p>
+                        )}
                       </div>
                     </div>
                     <div className="col-span-3">
