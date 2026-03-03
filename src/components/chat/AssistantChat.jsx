@@ -60,18 +60,13 @@ export default function AssistantChat() {
     setLoading(true);
     if (!input.trim()) return;
 
-    const userMessage = input;
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-    setLoading(true);
-
     try {
       const context = reportContext?.length > 0
         ? `Contexto: Relatórios recentes: ${reportContext.map(r => `${r.numero_protocolo} - ${r.author_name}`).join(', ')}`
         : '';
 
       const response = await base44.integrations.Core.InvokeLLM({
-        prompt: `${systemPrompt}\n\n${context}\n\nPergunta do usuário: ${userMessage}`,
+        prompt: `${systemPrompt}\n\n${context}\n\nPergunta do usuário: ${textToSend}`,
         add_context_from_internet: false,
       });
 
