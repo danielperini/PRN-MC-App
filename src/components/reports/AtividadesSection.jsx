@@ -445,7 +445,7 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
     <section>
       <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
         <div className="flex items-center gap-2">
-          <h2 className="text-base font-semibold text-black">Atividades Executadas</h2>
+          <h2 className="text-base font-semibold text-black">Atividades Executadas / Produtos</h2>
           {totalErrors > 0 && (
             <span className="flex items-center gap-1 text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
               <AlertCircle className="w-3 h-3" />{totalErrors} pendência(s)
