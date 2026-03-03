@@ -285,9 +285,19 @@ function RelatoriosInner() {
                         {report.return_comment}
                       </p>
                     )}
-                  </div>
-                </Link>
-              );
+                    </div>
+                    </Link>
+                    {canDelete && (
+                    <button
+                     onClick={e => { e.preventDefault(); setDeleteTarget(report); }}
+                     className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg bg-white border border-gray-200 hover:bg-red-50 hover:border-red-200 text-gray-400 hover:text-red-500"
+                     title="Excluir relatório"
+                    >
+                     <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    )}
+                    </div>
+                    );
             })
           )}
         </div>
