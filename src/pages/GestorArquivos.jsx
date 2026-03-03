@@ -168,63 +168,78 @@ function GestorArquivosInner() {
             {visible.map(att => {
               const report = reportMap[att.report_id];
               const IconComp = fileIcon(att.file_type);
+              const isImage = att.file_type?.startsWith('image/');
               return (
                 <div
                   key={att.id}
-                  className="p-4 border border-gray-100 rounded-xl hover:border-gray-300 transition-all group"
+                  className="flex flex-col h-full p-4 border border-gray-100 rounded-xl hover:border-gray-300 hover:shadow-lg transition-all group bg-white"
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <IconComp className="w-5 h-5 text-gray-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-black text-sm truncate" title={att.file_name}>
-                        {att.file_name}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-0.5">{formatSize(att.file_size)}</p>
-                    </div>
+                  {/* File Preview */}
+                  <div className="mb-3">
+                    {isImage ? (
+                      <img
+                        src={att.file_url}
+                        alt={att.file_name}
+                        className="w-full h-32 object-cover rounded-lg bg-gray-100"
+                      />
+                    ) : (
+                      <div className="w-full h-32 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg flex items-center justify-center">
+                        <IconComp className="w-10 h-10 text-gray-400" />
+                      </div>
+                    )}
                   </div>
 
-                  {report && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-xs text-gray-500">
-                        {report.author_name} · {report.mes_referencia} {report.ano}
-                      </p>
-                      <p className="text-xs text-gray-400">{report.museu}</p>
-                      {att.activity_id && (
-                        <p className="text-xs text-blue-500 mt-0.5">
-                          Atividade {att.activity_id.replace('activity_', '#')}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <div className="flex-1">
+                    <p className="font-semibold text-black text-sm truncate" title={att.file_name}>
+                      {att.file_name}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">{formatSize(att.file_size)}</p>
 
-                  <div className="mt-3 flex gap-2">
+                    {report && (
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <p className="text-xs text-gray-600">
+                          <span className="font-medium">{report.author_name}</span>
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {report.mes_referencia} {report.ano} · {report.museu}
+                        </p>
+                        {att.activity_id && (
+                          <div className="mt-1.5 inline-block">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+                              Atividade #{att.activity_id.replace('activity_', '')}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex gap-2 pt-3 border-t border-gray-100">
                     <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full gap-1 text-xs">
-                        <Eye className="w-3 h-3" />Ver
+                      <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs hover:bg-blue-50 hover:border-blue-300">
+                        <Eye className="w-3.5 h-3.5" />Ver
                       </Button>
                     </a>
                     <a href={att.file_url} download={att.file_name} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full gap-1 text-xs">
-                        <Download className="w-3 h-3" />Baixar
+                      <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs hover:bg-green-50 hover:border-green-300">
+                        <Download className="w-3.5 h-3.5" />Baixar
                       </Button>
                     </a>
                     {report && (
-                      <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
-                        <Button variant="ghost" size="sm" className="gap-1 text-xs px-2">
-                          <FileText className="w-3 h-3" />
+                      <Link to={createPageUrl(`ReportEditor?id=${report.id}`)} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs hover:bg-amber-50 hover:border-amber-300">
+                          <FileText className="w-3.5 h-3.5" />Editar
                         </Button>
                       </Link>
                     )}
                     {(isCoordenador || att.created_by === currentUser?.email) && (
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="gap-1 text-xs px-2 text-red-400 hover:text-red-600 hover:bg-red-50"
+                        className="text-red-600 hover:bg-red-50 hover:border-red-300"
                         onClick={() => setDeleteTarget(att)}
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     )}
                   </div>
