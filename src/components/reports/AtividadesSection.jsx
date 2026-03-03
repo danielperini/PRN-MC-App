@@ -200,7 +200,7 @@ function UserPicker({ value = [], onChange, disabled }) {
   );
 }
 
-function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId, hasDupWarning }) {
+function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId, hasDupWarning, isSelected, onSelect, hasAttachments }) {
   const [expanded, setExpanded] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiMetaLoading, setAiMetaLoading] = useState(false);
