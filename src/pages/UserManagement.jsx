@@ -347,52 +347,58 @@ function UserManagementInner() {
                 </div>
               ) : (
                 users.map(user => {
-                  const userReg = allRegistrations.find(r => r.email === user.email);
-                  const approvalStatus = userReg?.status;
+                   const userReg = allRegistrations.find(r => r.email === user.email);
+                   const approvalStatus = userReg?.status;
+                   const reportStatus = getReportStatus(user.email);
 
-                  return (
-                    <div
-                      key={user.id}
-                      className="grid grid-cols-12 gap-4 items-center p-4 border border-gray-100 rounded-xl hover:border-gray-200 transition-all"
-                    >
-                      <div className="col-span-4 flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-sm font-medium text-gray-600">
-                            {(user.full_name || user.email || '?')[0].toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-black truncate">{user.full_name || '–'}</p>
-                          <p className="text-xs text-gray-400 truncate">{user.email}</p>
-                          {user.matricula && (
-                            <p className="text-xs font-mono text-gray-400 truncate">{user.matricula}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="col-span-2">
-                        <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700'} font-normal text-xs`}>
-                          {ROLE_LABELS[user.role] || user.role || '–'}
-                        </Badge>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-sm text-gray-600">{user.equipe || '–'}</span>
-                      </div>
-                      <div className="col-span-2">
-                        {approvalStatus === 'APROVADO' ? (
-                          <Badge className="bg-green-100 text-green-700 text-xs font-normal">
-                            <CheckCircle className="w-3 h-3 mr-1" />Aprovado
-                          </Badge>
-                        ) : approvalStatus === 'REJEITADO' ? (
-                          <Badge className="bg-red-100 text-red-700 text-xs font-normal">
-                            <XCircle className="w-3 h-3 mr-1" />Rejeitado
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-amber-100 text-amber-700 text-xs font-normal">
-                            <Clock className="w-3 h-3 mr-1" />Pendente
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="col-span-2 flex justify-end gap-1">
+                   return (
+                     <div
+                       key={user.id}
+                       className="grid grid-cols-12 gap-4 items-center p-4 border border-gray-100 rounded-xl hover:border-gray-200 transition-all"
+                     >
+                       <div className="col-span-3 flex items-center gap-3 min-w-0">
+                         <div className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                           <span className="text-sm font-medium text-gray-600">
+                             {(user.full_name || user.email || '?')[0].toUpperCase()}
+                           </span>
+                         </div>
+                         <div className="min-w-0">
+                           <p className="font-medium text-black truncate">{user.full_name || '–'}</p>
+                           <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                           {user.matricula && (
+                             <p className="text-xs font-mono text-gray-400 truncate">{user.matricula}</p>
+                           )}
+                         </div>
+                       </div>
+                       <div className="col-span-2">
+                         <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700'} font-normal text-xs`}>
+                           {ROLE_LABELS[user.role] || user.role || '–'}
+                         </Badge>
+                       </div>
+                       <div className="col-span-2">
+                         <span className="text-sm text-gray-600">{user.equipe || '–'}</span>
+                       </div>
+                       <div className="col-span-2">
+                         {approvalStatus === 'APROVADO' ? (
+                           <Badge className="bg-green-100 text-green-700 text-xs font-normal">
+                             <CheckCircle className="w-3 h-3 mr-1" />Aprovado
+                           </Badge>
+                         ) : approvalStatus === 'REJEITADO' ? (
+                           <Badge className="bg-red-100 text-red-700 text-xs font-normal">
+                             <XCircle className="w-3 h-3 mr-1" />Rejeitado
+                           </Badge>
+                         ) : (
+                           <Badge className="bg-amber-100 text-amber-700 text-xs font-normal">
+                             <Clock className="w-3 h-3 mr-1" />Pendente
+                           </Badge>
+                         )}
+                       </div>
+                       <div className="col-span-2">
+                         <Badge className={`${reportStatus.color} text-xs font-normal`}>
+                           {reportStatus.label}
+                         </Badge>
+                       </div>
+                       <div className="col-span-1 flex justify-end gap-1">
                         {approvalStatus === 'PENDENTE' && (
                           <>
                             <Button
