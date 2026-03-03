@@ -340,12 +340,12 @@ function UserManagementInner() {
                           <XCircle className="w-4 h-4 mr-1" />Rejeitar
                         </Button>
                         <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                          onClick={() => { setReviewingReg({ ...reg, action: 'aprovar' }); setRegNote(''); }}
-                        >
-                          <CheckCircle className="w-4 h-4 mr-1" />Aprovar
-                        </Button>
+                           size="sm"
+                           className="bg-green-600 hover:bg-green-700 text-white"
+                           onClick={() => { setReviewingReg({ ...reg, action: 'aprovar' }); setRegNote(''); setRegRole('PROFISSIONAL'); }}
+                         >
+                           <CheckCircle className="w-4 h-4 mr-1" />Aprovar
+                         </Button>
                       </div>
                     </div>
                   </div>
