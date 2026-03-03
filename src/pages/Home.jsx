@@ -6,7 +6,8 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Building2, ArrowRight, CheckCircle, UserPlus,
   FileText, Users, Paperclip, Clock, Eye, Bell,
-  TrendingUp, LayoutDashboard, History, Settings
+  TrendingUp, LayoutDashboard, History, Settings,
+  PersonStanding, Activity, Award, MapPin, BarChart2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
