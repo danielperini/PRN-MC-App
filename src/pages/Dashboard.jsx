@@ -70,13 +70,13 @@ function DashboardInner() {
    const recentReports = filteredReports.slice(0, 8);
    const isLoading = showCoordView ? loadingAll : loadingMy || userLoading;
 
-  const stats = [
-    { label: 'Total',       value: displayReports.length },
-    { label: 'Rascunhos',   value: displayReports.filter(r => r.status === 'DRAFT').length },
-    { label: 'Enviados',    value: displayReports.filter(r => r.status === 'SUBMITTED').length },
-    { label: 'Em Revisão',  value: displayReports.filter(r => r.status === 'IN_REVIEW').length },
-    { label: 'Aprovados',   value: displayReports.filter(r => r.status === 'APPROVED').length },
-  ];
+  const stats = React.useMemo(() => [
+    { label: 'Total',       value: filteredReports.length },
+    { label: 'Rascunhos',   value: filteredReports.filter(r => r.status === 'DRAFT').length },
+    { label: 'Enviados',    value: filteredReports.filter(r => r.status === 'SUBMITTED').length },
+    { label: 'Em Revisão',  value: filteredReports.filter(r => r.status === 'IN_REVIEW').length },
+    { label: 'Aprovados',   value: filteredReports.filter(r => r.status === 'APPROVED').length },
+  ], [filteredReports]);
 
   return (
     <div className="min-h-screen bg-white">
