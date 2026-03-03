@@ -218,9 +218,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     return Array.from(set).sort();
   }, [allAtivRaw]);
 
-  const temFiltrosAtivos = useMemo(() => {
-    return filterDataInicio || filterDataFim || filterMuseu || filterClasse || filterTipoAtiv;
-  }, [filterDataInicio, filterDataFim, filterMuseu, filterClasse, filterTipoAtiv]);
+  const temFiltrosAtivos = filterDataInicio || filterDataFim || filterMuseu || filterClasse || filterTipoAtiv;
 
   const limparFiltros = () => {
     setFilterDataInicio('');
