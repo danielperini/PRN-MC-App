@@ -248,49 +248,47 @@ export default function CoordDashboard({ reports = [], isLoading }) {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600">Data Inicial</label>
-            <Input type="date" value={filterDataInicio} onChange={e => setFilterDataInicio(e.target.value)} className="text-sm" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600">Data Final</label>
-            <Input type="date" value={filterDataFim} onChange={e => setFilterDataFim(e.target.value)} className="text-sm" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600">Museu</label>
-            <Select value={filterMuseu} onValueChange={setFilterMuseu}>
-              <SelectTrigger className="text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={null}>Todos</SelectItem>
-                {museusUnicos.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600">Classificação</label>
-            <Select value={filterClasse} onValueChange={setFilterClasse}>
-              <SelectTrigger className="text-sm"><SelectValue placeholder="Todas" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={null}>Todas</SelectItem>
-                <SelectItem value="META">META</SelectItem>
-                <SelectItem value="ROTINA">ROTINA</SelectItem>
-                <SelectItem value="EXTRA">EXTRA</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {filterShowMore && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-600">Tipo de Atividade</label>
-              <Select value={filterTipoAtiv} onValueChange={setFilterTipoAtiv}>
-                <SelectTrigger className="text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={null}>Todos</SelectItem>
-                  {tiposUnicos.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
+           <div className="space-y-1">
+             <label className="text-xs font-medium text-gray-600">Data Inicial</label>
+             <Input type="date" value={filterDataInicio} onChange={e => setFilterDataInicio(e.target.value)} className="text-sm" />
+           </div>
+           <div className="space-y-1">
+             <label className="text-xs font-medium text-gray-600">Data Final</label>
+             <Input type="date" value={filterDataFim} onChange={e => setFilterDataFim(e.target.value)} className="text-sm" />
+           </div>
+           <div className="space-y-1">
+             <label className="text-xs font-medium text-gray-600">Museu</label>
+             <Select value={filterMuseu} onValueChange={setFilterMuseu}>
+               <SelectTrigger className="text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
+               <SelectContent>
+                 <SelectItem value={null}>Todos</SelectItem>
+                 {museusUnicos.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+               </SelectContent>
+             </Select>
+           </div>
+           <div className="space-y-1">
+             <label className="text-xs font-medium text-gray-600">Classificação</label>
+             <Select value={filterClasse} onValueChange={setFilterClasse}>
+               <SelectTrigger className="text-sm"><SelectValue placeholder="Todas" /></SelectTrigger>
+               <SelectContent>
+                 <SelectItem value={null}>Todas</SelectItem>
+                 <SelectItem value="META">META</SelectItem>
+                 <SelectItem value="ROTINA">ROTINA</SelectItem>
+                 <SelectItem value="EXTRA">EXTRA</SelectItem>
+               </SelectContent>
+             </Select>
+           </div>
+           <div className={`space-y-1 ${!filterShowMore ? 'hidden' : ''}`}>
+             <label className="text-xs font-medium text-gray-600">Tipo de Atividade</label>
+             <Select value={filterTipoAtiv} onValueChange={setFilterTipoAtiv}>
+               <SelectTrigger className="text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
+               <SelectContent>
+                 <SelectItem value={null}>Todos</SelectItem>
+                 {tiposUnicos.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+               </SelectContent>
+             </Select>
+           </div>
+         </div>
 
         {!filterShowMore && tiposUnicos.length > 0 && (
           <Button size="sm" variant="ghost" onClick={() => setFilterShowMore(true)} className="text-xs text-gray-500">
