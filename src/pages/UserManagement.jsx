@@ -558,10 +558,10 @@ function UserManagementInner() {
                                  className="text-xs"
                                  onClick={() => setEditingUserMode(editingUserMode === `${user.id}-info` ? null : `${user.id}-info`)}
                                >
-                                 {editUser === 'info' ? 'Salvar' : 'Editar'}
-                               </Button>
-                             </div>
-                             {editUser === 'info' ? (
+                                 {editingUserMode === `${user.id}-info` ? 'Salvar' : 'Editar'}
+                                 </Button>
+                                 </div>
+                                 {editingUserMode === `${user.id}-info` ? (
                                <div className="space-y-3 bg-white p-3 rounded-lg border border-gray-200">
                                  <div>
                                    <Label className="text-xs">Cargo</Label>
