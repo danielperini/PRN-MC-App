@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import BatchPDFExport from '../components/reports/BatchPDFExport';
 import AdvancedActivitySearch from '../components/reports/AdvancedActivitySearch';
+import ActivityFilters from '../components/reports/ActivityFilters';
+import ActivitySummary from '../components/reports/ActivitySummary';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -75,6 +77,7 @@ function RelatoriosInner() {
   const [showFilters, setShowFilters] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [filteredActivities, setFilteredActivities] = useState([]);
+  const [activityFilters, setActivityFilters] = useState({ team: '', museum: '', dateStart: '', dateEnd: '' });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Report.delete(id),
@@ -124,9 +127,22 @@ function RelatoriosInner() {
       report_id: report.id,
       author_name: report.author_name,
       mes_referencia: report.mes_referencia,
-      ano: report.ano
+      ano: report.ano,
+      museu: report.museu
     }))
   );
+
+  // Apply activity filters
+  const filteredActivityList = allActivities.filter(activity => {
+    if (activityFilters.team && activity.equipe_responsavel !== activityFilters.team) return false;
+    if (activityFilters.museum && activity.museu !== activityFilters.museum) return false;
+    if (activityFilters.dateStart && (!activity.data_inicio || activity.data_inicio < activityFilters.dateStart)) return false;
+    if (activityFilters.dateEnd && (!activity.data_inicio || activity.data_inicio > activityFilters.dateEnd)) return false;
+    return true;
+  });
+
+  // Get unique teams from activities
+  const uniqueTeams = Array.from(new Set(allActivities.map(a => a.equipe_responsavel).filter(Boolean))).sort();
 
   const filtered = baseReports.filter(r => {
     if (filters.mes && r.mes_referencia !== filters.mes) return false;
@@ -239,36 +255,51 @@ function RelatoriosInner() {
            )}
          </div>
 
+         {/* Activity Filters & Summary */}
+          <div className="mb-8 space-y-4">
+            <ActivityFilters 
+              teams={uniqueTeams}
+              onFilter={setActivityFilters}
+              onClear={() => setActivityFilters({ team: '', museum: '', dateStart: '', dateEnd: '' })}
+            />
+            {filteredActivityList.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Resumo do Período</p>
+                <ActivitySummary activities={filteredActivityList} />
+              </div>
+            )}
+          </div>
+
          {/* Advanced activity search */}
-         <div className="mb-8 p-6 bg-blue-50 border border-blue-100 rounded-xl">
-           <h2 className="text-sm font-semibold text-blue-900 mb-4 uppercase tracking-wide">
-             🔍 Busca Avançada de Atividades
-           </h2>
-           <AdvancedActivitySearch
-             activities={allActivities}
-             onFilteredActivities={setFilteredActivities}
-             users={allUsers}
-           />
-           {filteredActivities.length > 0 && (
-             <div className="mt-6 pt-4 border-t border-blue-100 space-y-3">
-               <p className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
-                 Atividades encontradas ({filteredActivities.length})
-               </p>
-               <div className="space-y-2 max-h-96 overflow-y-auto">
-                 {filteredActivities.map((activity, idx) => (
-                   <div key={idx} className="p-3 bg-white border border-blue-100 rounded-lg text-xs">
-                     <div className="font-medium text-black">{activity.nome || 'Sem nome'}</div>
-                     <div className="text-gray-600 mt-1">{activity.author_name} • {activity.mes_referencia} {activity.ano}</div>
-                     <div className="text-gray-500 mt-1 line-clamp-2">{activity.descricao_executado || activity.objetivo || '—'}</div>
-                     {activity.co_responsavel_email && (
-                       <div className="text-blue-700 mt-1">Co-responsável: {activity.co_responsavel_email}</div>
-                     )}
-                   </div>
-                 ))}
-               </div>
-             </div>
-           )}
-         </div>
+          <div className="mb-8 p-6 bg-blue-50 border border-blue-100 rounded-xl">
+            <h2 className="text-sm font-semibold text-blue-900 mb-4 uppercase tracking-wide">
+              🔍 Busca Avançada de Atividades
+            </h2>
+            <AdvancedActivitySearch
+              activities={allActivities}
+              onFilteredActivities={setFilteredActivities}
+              users={allUsers}
+            />
+            {filteredActivities.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-blue-100 space-y-3">
+                <p className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
+                  Atividades encontradas ({filteredActivities.length})
+                </p>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {filteredActivities.map((activity, idx) => (
+                    <div key={idx} className="p-3 bg-white border border-blue-100 rounded-lg text-xs">
+                      <div className="font-medium text-black">{activity.nome || 'Sem nome'}</div>
+                      <div className="text-gray-600 mt-1">{activity.author_name} • {activity.mes_referencia} {activity.ano}</div>
+                      <div className="text-gray-500 mt-1 line-clamp-2">{activity.descricao_executado || activity.objetivo || '—'}</div>
+                      {activity.co_responsavel_email && (
+                        <div className="text-blue-700 mt-1">Co-responsável: {activity.co_responsavel_email}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
         {/* Cards grid */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">

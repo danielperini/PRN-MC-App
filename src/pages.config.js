@@ -54,11 +54,11 @@ import Dashboard from './pages/Dashboard';
 import GestorArquivos from './pages/GestorArquivos';
 import Home from './pages/Home';
 import Perfil from './pages/Perfil';
+import PermissionManager from './pages/PermissionManager';
 import PlataformaAdmin from './pages/PlataformaAdmin';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
-import PermissionManager from './pages/PermissionManager';
 import __Layout from './Layout.jsx';
 
 
@@ -70,11 +70,11 @@ export const PAGES = {
     "GestorArquivos": GestorArquivos,
     "Home": Home,
     "Perfil": Perfil,
+    "PermissionManager": PermissionManager,
     "PlataformaAdmin": PlataformaAdmin,
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
-    "PermissionManager": PermissionManager,
 }
 
 export const pagesConfig = {
