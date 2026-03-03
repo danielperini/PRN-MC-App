@@ -11,9 +11,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { toast } from 'sonner';
 
 const TIPOS_FUNCAO = {
-  ADMINISTRATIVA: { label: 'Administrativa', color: 'bg-blue-50 border-blue-200' },
-  COORDENACAO: { label: 'Coordenação', color: 'bg-purple-50 border-purple-200' },
-  OPERACIONAL: { label: 'Operacional', color: 'bg-green-50 border-green-200' }
+  'Administrativa': { label: 'Administrativa', color: 'bg-blue-50 border-blue-200' },
+  'Coordenação Geral': { label: 'Coordenação Geral', color: 'bg-purple-50 border-purple-200' },
+  'Administração': { label: 'Administração', color: 'bg-indigo-50 border-indigo-200' },
+  'Comunicação': { label: 'Comunicação', color: 'bg-pink-50 border-pink-200' },
+  'Coordenação de Comunicação': { label: 'Coordenação de Comunicação', color: 'bg-rose-50 border-rose-200' },
+  'Educativo': { label: 'Educativo', color: 'bg-green-50 border-green-200' },
+  'Produção': { label: 'Produção', color: 'bg-amber-50 border-amber-200' }
 };
 
 export default function EquipeManager() {
@@ -82,9 +86,17 @@ export default function EquipeManager() {
 
   // Organizar equipes por tipo de função e depois por museu
   const equipesPorFuncao = Object.keys(TIPOS_FUNCAO).reduce((acc, tipo) => {
-    acc[tipo] = equipes
+    const equipesDoTipo = equipes
       .filter(e => e.tipo_funcao === tipo)
       .sort((a, b) => (getMuseuNome(a.museu_id) || '').localeCompare(getMuseuNome(b.museu_id) || ''));
+    
+    // Agrupar por museu
+    acc[tipo] = equipesDoTipo.reduce((museuAcc, equipe) => {
+      const museuNome = getMuseuNome(equipe.museu_id) || 'Sem museu';
+      if (!museuAcc[museuNome]) museuAcc[museuNome] = [];
+      museuAcc[museuNome].push(equipe);
+      return museuAcc;
+    }, {});
     return acc;
   }, {});
 
@@ -98,36 +110,49 @@ export default function EquipeManager() {
       </div>
 
       <div className="space-y-6">
-        {Object.entries(TIPOS_FUNCAO).map(([tipoKey, tipoConfig]) => (
-          <div key={tipoKey} className={`border rounded-lg p-4 ${tipoConfig.color}`}>
-            <h4 className="font-semibold text-sm mb-3 text-black">{tipoConfig.label}</h4>
-            {equipesPorFuncao[tipoKey]?.length === 0 ? (
-              <p className="text-xs text-gray-400">Nenhuma equipe registrada</p>
-            ) : (
-              <div className="space-y-2">
-                {equipesPorFuncao[tipoKey].map((equipe) => (
-                  <div key={equipe.id} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg hover:shadow-sm transition-shadow">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm text-black">{equipe.nome}</p>
-                      <p className="text-xs text-gray-500">
-                        {getMuseuNome(equipe.museu_id) && `${getMuseuNome(equipe.museu_id)}`}
-                        {getCoordenadorNome(equipe.coordenador_email) && ` • Coord: ${getCoordenadorNome(equipe.coordenador_email)}`}
-                      </p>
-                    </div>
-                    <div className="flex gap-1.5">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(equipe)}>
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => deleteMutation.mutate(equipe.id)}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+        {Object.entries(TIPOS_FUNCAO).map(([tipoKey, tipoConfig]) => {
+          const equipesDoTipo = equipesPorFuncao[tipoKey] || {};
+          const temEquipes = Object.values(equipesDoTipo).some(list => list.length > 0);
+          
+          return (
+            <div key={tipoKey} className={`border rounded-lg p-4 ${tipoConfig.color}`}>
+              <h4 className="font-semibold text-sm mb-4 text-black">{tipoConfig.label}</h4>
+              {!temEquipes ? (
+                <p className="text-xs text-gray-400">Nenhuma equipe registrada</p>
+              ) : (
+                <div className="space-y-3">
+                  {Object.entries(equipesDoTipo).map(([museuNome, equipesMuseu]) => 
+                    equipesMuseu.length > 0 && (
+                      <div key={museuNome}>
+                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">{museuNome}</p>
+                        <div className="space-y-2 ml-2">
+                          {equipesMuseu.map((equipe) => (
+                            <div key={equipe.id} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg hover:shadow-sm transition-shadow">
+                              <div className="flex-1">
+                                <p className="font-medium text-sm text-black">{equipe.nome}</p>
+                                {getCoordenadorNome(equipe.coordenador_email) && (
+                                  <p className="text-xs text-gray-500">Coord: {getCoordenadorNome(equipe.coordenador_email)}</p>
+                                )}
+                              </div>
+                              <div className="flex gap-1.5">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(equipe)}>
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => deleteMutation.mutate(equipe.id)}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
