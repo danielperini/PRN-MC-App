@@ -687,9 +687,38 @@ export default function ExportPDF({ report, reportId }) {
         details: `PDF exportado — ${report.mes_referencia || '?'} ${report.ano || 2026} — ${atividades.length} atividade(s) — ${attachments.length} anexo(s)`,
       });
 
+      // ── INSTRUÇÃO DE ASSINATURA ─────────────────────────────────────────────
+      y = checkBreak(doc, y, 40);
+      y += 8;
+      doc.setFillColor(255, 251, 235);
+      doc.setDrawColor(217, 180, 60);
+      doc.rect(M, y, CW, 36, 'F');
+      doc.rect(M, y, CW, 36, 'S');
+
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(120, 80, 0);
+      doc.text('✦  COMO TORNAR ESTE DOCUMENTO VÁLIDO', M + 4, y + 8);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(60, 40, 0);
+      doc.text('Opção 1 — Impressão e assinatura manual:', M + 4, y + 15);
+      doc.setTextColor(40, 40, 40);
+      doc.text('Imprima este PDF, assine à mão nos campos acima e entregue ao coordenador para rubrica e arquivo físico.', M + 4, y + 20);
+
+      doc.setTextColor(60, 40, 0);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Opção 2 — Assinatura digital (recomendado):', M + 4, y + 27);
+      doc.setTextColor(40, 40, 40);
+      doc.text('Abra o PDF em Adobe Acrobat, Foxit ou similar e adicione sua assinatura digital certificada (ICP-Brasil ou GOV.BR).', M + 4, y + 32);
+
+      const totalPages = doc.internal.getNumberOfPages();
+      addFooter(doc, report, reportId, geradoEm, totalPages, docStatus, statusColor);
+
       const safeName = (report.author_name || 'profissional').replace(/\s+/g, '_').toUpperCase();
       doc.save(`MC_RELATORIO_${report.ano || 2026}_${(report.mes_referencia || 'MES').toUpperCase()}_${safeName}_${reportId || 'NOVO'}.pdf`);
-      toast.success('PDF exportado com sucesso!');
+      toast.success('PDF exportado! Para validade formal, imprima e assine à mão ou adicione assinatura digital (Adobe Acrobat / GOV.BR).', { duration: 8000 });
     } catch (err) {
       console.error(err);
       toast.error('Erro ao gerar PDF: ' + err.message);
