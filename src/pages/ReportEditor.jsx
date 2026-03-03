@@ -138,12 +138,12 @@ function ReportEditorInner() {
     onSuccess: (saved) => {
       queryClient.invalidateQueries(['report', reportId]);
       queryClient.invalidateQueries(['my-reports']);
-      toast.success('Relatório salvo com sucesso!', { description: 'Seu rascunho foi salvo.' });
+      toast.success('Rascunho salvo', { description: '✓ Suas alterações foram gravadas com sucesso.' });
       if (!reportId && saved?.id) {
         navigate(createPageUrl(`ReportEditor?id=${saved.id}`), { replace: true });
       }
     },
-    onError: () => toast.error('Erro ao salvar o relatório. Tente novamente.'),
+    onError: () => toast.error('Erro ao salvar rascunho', { description: 'Não foi possível gravar as alterações. Tente novamente.' }),
   });
 
   const submitMutation = useMutation({
