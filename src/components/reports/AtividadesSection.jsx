@@ -19,6 +19,18 @@ const TIPOS_ACAO = [
   'Reunião', 'Formação', 'Produção de Conteúdo', 'Manutenção', 'Outro'
 ];
 
+const TIPOS_MOBILIZACAO = [
+  'Visita a Escolas',
+  'Visita a Instituições',
+  'Panfletagem',
+  'Reunião Comunitária',
+  'Ativação de Redes Sociais',
+  'Envio em Grupos de WhatsApp',
+  'Contatos Telefônicos',
+  'Chat',
+  'Outro'
+];
+
 const PRODUTOS_OPCOES = [
   'Catálogo', 'Folder', 'Vídeo', 'Cobertura de Vídeo', 'Cobertura Fotográfica',
   'Texto', 'Design', 'Design de Catálogo', 'Identidade Visual', 'Logomarca',
