@@ -36,11 +36,19 @@ export default function Home() {
           <p className="text-gray-500 text-lg leading-relaxed mb-10">
             Plataforma centralizada para registro, acompanhamento e aprovação de relatórios.
           </p>
-          <Link to={createPageUrl('Dashboard')}>
-            <Button size="lg" className="bg-black hover:bg-gray-800 text-white gap-2 px-8">
-              Acessar meu painel <ArrowRight className="w-4 h-4" />
-            </Button>
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link to={createPageUrl('Dashboard')}>
+              <Button size="lg" className="bg-black hover:bg-gray-800 text-white gap-2 px-8">
+                Acessar meu painel <ArrowRight className="w-4 h-4" />
+              </Button>
+            </Link>
+            <Link to={createPageUrl('Cadastro')}>
+              <Button size="lg" variant="outline" className="gap-2 px-8 border-gray-300">
+                <UserPlus className="w-4 h-4" />
+                Solicitar acesso
+              </Button>
+            </Link>
+          </div>
         </div>
 
 
