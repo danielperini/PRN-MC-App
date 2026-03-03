@@ -711,9 +711,6 @@ export default function ExportPDF({ report, reportId }) {
       doc.setTextColor(40, 40, 40);
       doc.text('Abra o PDF em Adobe Acrobat, Foxit ou similar e adicione sua assinatura digital certificada (ICP-Brasil ou GOV.BR).', M + 4, y + 32);
 
-      const totalPages = doc.internal.getNumberOfPages();
-      addFooter(doc, report, reportId, geradoEm, totalPages, docStatus, statusColor);
-
       const safeName = (report.author_name || 'profissional').replace(/\s+/g, '_').toUpperCase();
       doc.save(`MC_RELATORIO_${report.ano || 2026}_${(report.mes_referencia || 'MES').toUpperCase()}_${safeName}_${reportId || 'NOVO'}.pdf`);
       toast.success('PDF exportado! Para validade formal, imprima e assine à mão ou adicione assinatura digital (Adobe Acrobat / GOV.BR).', { duration: 8000 });
