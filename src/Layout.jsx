@@ -24,7 +24,7 @@ export default function Layout({ children, currentPageName }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       {/* Sidebar */}
       <Sidebar 
         currentPageName={currentPageName} 
@@ -42,7 +42,7 @@ export default function Layout({ children, currentPageName }) {
         />
 
         {/* Content */}
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto bg-white">
           {children}
         </main>
       </div>
