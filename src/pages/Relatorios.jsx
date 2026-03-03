@@ -9,6 +9,7 @@ import {
   FileText, Plus, Clock, CheckCircle, AlertCircle,
   Send, Eye, Archive, ChevronRight, Download, X, Search, SlidersHorizontal, Paperclip, Trash2
 } from 'lucide-react';
+import BatchPDFExport from '../components/reports/BatchPDFExport';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -143,16 +144,19 @@ function RelatoriosInner() {
               {filtered.length} de {baseReports.length} relatório(s)
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {isCoordenador && (
-              <Button
-                variant="outline"
-                className="border-black gap-2"
-                onClick={() => exportCSV(filtered)}
-              >
-                <Download className="w-4 h-4" />
-                Exportar CSV
-              </Button>
+              <>
+                <BatchPDFExport reports={filtered} />
+                <Button
+                  variant="outline"
+                  className="border-black gap-2"
+                  onClick={() => exportCSV(filtered)}
+                >
+                  <Download className="w-4 h-4" />
+                  Exportar CSV
+                </Button>
+              </>
             )}
             <Link to={createPageUrl('ReportEditor')}>
               <Button className="bg-black hover:bg-gray-800 text-white gap-2">
