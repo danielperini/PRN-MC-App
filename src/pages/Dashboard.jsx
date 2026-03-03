@@ -126,7 +126,7 @@ function DashboardInner() {
 
          {/* Summary Cards — visível para todos */}
          <div className="mb-10">
-           <SummaryCards reports={displayReports} />
+           <SummaryCards reports={filteredReports} />
          </div>
 
          {/* General Stats Cards — visível para todos */}
