@@ -149,6 +149,16 @@ function UserManagementInner() {
       // Invite the user to the platform
       const base44Role = ['COORDENADOR', 'ADMIN'].includes(regRole) ? 'admin' : 'user';
       await base44.users.inviteUser(reg.email, base44Role);
+
+      // Get invite URL and send email
+      const inviteUrl = `${window.location.origin}/app/${window.location.pathname.split('/')[2] || ''}/`;
+      await base44.functions.invoke('sendInviteEmail', {
+        email: reg.email,
+        full_name: reg.full_name,
+        role: regRole,
+        inviteUrl
+      });
+
       // Try to update extra fields after invite
       const allUsers = await base44.entities.User.list();
       const newUser = allUsers.find(u => u.email === reg.email);
@@ -196,6 +206,16 @@ function UserManagementInner() {
       const matricula = await gerarMatricula();
       const base44Role = ['COORDENADOR', 'ADMIN'].includes(data.role) ? 'admin' : 'user';
       await base44.users.inviteUser(data.email, base44Role);
+
+      // Send email with configured sender
+      const inviteUrl = `${window.location.origin}/app/${window.location.pathname.split('/')[2] || ''}/`;
+      await base44.functions.invoke('sendInviteEmail', {
+        email: data.email,
+        full_name: data.full_name || data.email,
+        role: base44Role,
+        inviteUrl
+      });
+
       // Try to update extra fields after invite
       const allUsers = await base44.entities.User.list();
       const newUser = allUsers.find(u => u.email === data.email);
