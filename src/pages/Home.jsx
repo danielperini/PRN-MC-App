@@ -158,25 +158,25 @@ function AuthenticatedHome({ user }) {
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Números do Projeto</h2>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="rounded-2xl bg-black text-white p-5 flex flex-col gap-1">
-              <PersonStanding className="w-5 h-5 text-gray-300 mb-1" />
-              <p className="text-3xl font-bold leading-none">{totalPublico.toLocaleString('pt-BR')}</p>
-              <p className="text-sm text-gray-300">Público total alcançado</p>
+            <div className="rounded-2xl bg-black text-white p-6 flex flex-col gap-1">
+              <PersonStanding className="w-7 h-7 text-black mb-2" />
+              <p className="text-5xl font-bold leading-none">{totalPublico.toLocaleString('pt-BR')}</p>
+              <p className="text-base text-gray-300">Público total alcançado</p>
             </div>
-            <div className="rounded-2xl bg-white border border-gray-100 p-5 flex flex-col gap-1">
-              <Activity className="w-5 h-5 text-gray-400 mb-1" />
-              <p className="text-3xl font-bold text-black leading-none">{totalAtividades.toLocaleString('pt-BR')}</p>
-              <p className="text-sm text-gray-500">Atividades realizadas</p>
+            <div className="rounded-2xl bg-white border border-gray-100 p-6 flex flex-col gap-1">
+              <Activity className="w-7 h-7 text-black mb-2" />
+              <p className="text-5xl font-bold text-black leading-none">{totalAtividades.toLocaleString('pt-BR')}</p>
+              <p className="text-base text-gray-500">Atividades realizadas</p>
             </div>
-            <div className="rounded-2xl bg-white border border-gray-100 p-5 flex flex-col gap-1">
-              <Award className="w-5 h-5 text-gray-400 mb-1" />
-              <p className="text-3xl font-bold text-black leading-none">{aprovados}</p>
-              <p className="text-sm text-gray-500">Relatórios aprovados</p>
+            <div className="rounded-2xl bg-white border border-gray-100 p-6 flex flex-col gap-1">
+              <Award className="w-7 h-7 text-black mb-2" />
+              <p className="text-5xl font-bold text-black leading-none">{aprovados}</p>
+              <p className="text-base text-gray-500">Relatórios aprovados</p>
             </div>
-            <div className="rounded-2xl bg-white border border-gray-100 p-5 flex flex-col gap-1">
-              <MapPin className="w-5 h-5 text-gray-400 mb-1" />
-              <p className="text-3xl font-bold text-black leading-none">3</p>
-              <p className="text-sm text-gray-500">Museus ativos</p>
+            <div className="rounded-2xl bg-white border border-gray-100 p-6 flex flex-col gap-1">
+              <MapPin className="w-7 h-7 text-black mb-2" />
+              <p className="text-5xl font-bold text-black leading-none">3</p>
+              <p className="text-base text-gray-500">Museus ativos</p>
             </div>
           </div>
         </div>
