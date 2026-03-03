@@ -2,24 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
-import { 
-  BarChart3, 
-  FileText, 
-  Users, 
+import {
+  Building2,
+  FileText,
+  Users,
   Eye,
   Paperclip,
   Settings,
   Shield,
+  HelpCircle,
+  BarChart3,
   History,
   ChevronLeft,
-  ChevronRight,
-  Building2
+  ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export default function Sidebar({ currentPageName, collapsed = false, onToggle }) {
+export default function Sidebar({ currentPageName, collapsed, onToggle }) {
   const [currentUser, setCurrentUser] = useState(null);
-  const [isCoordenador, setIsCoordenador] = useState(false);
   const [customPerms, setCustomPerms] = useState(null);
 
   useEffect(() => {
@@ -28,22 +28,28 @@ export default function Sidebar({ currentPageName, collapsed = false, onToggle }
       if (isAuth) {
         const user = await base44.auth.me();
         setCurrentUser(user);
-        const isCord = ['COORDENADOR', 'ADMIN', 'admin'].includes(user?.role);
-        setIsCoordenador(isCord);
-        
-        if (isCord && user?.email) {
-          base44.entities.UserPermission.filter({ user_email: user.email }).then(perms => {
+
+        // Carregar permissões customizadas se coordenador
+        const isCoordenador = ['COORDENADOR', 'ADMIN', 'admin'].includes(user?.role);
+        if (isCoordenador && user?.email) {
+          try {
+            const perms = await base44.entities.UserPermission.filter({ user_email: user.email });
             if (perms.length > 0) setCustomPerms(perms[0]);
-          }).catch(() => {});
+          } catch (e) {
+            // Se erro, mostrar tudo
+            setCustomPerms(null);
+          }
         }
       }
     };
     loadUser();
   }, []);
 
+  const isCoordenador = currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
+
   const canViewMenu = (requiredPerm) => {
     if (!isCoordenador) return true;
-    if (!customPerms) return true;
+    if (!customPerms) return true; // Se não tem perms customizadas, mostra tudo
     return customPerms[requiredPerm] !== false;
   };
 
@@ -51,7 +57,7 @@ export default function Sidebar({ currentPageName, collapsed = false, onToggle }
     { name: 'Dashboard', icon: BarChart3, label: 'Dashboard', show: true },
     { name: 'DashboardProfissional', icon: FileText, label: 'Painel Profissional', show: !isCoordenador },
     { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true },
-    { name: 'ActivityLog', icon: History, label: 'Atividades', show: true },
+    { name: 'AssistentePlanejamento', icon: HelpCircle, label: 'Assistente', show: true },
     { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: isCoordenador && canViewMenu('can_manage_files') },
     { name: 'CoordReview', icon: Eye, label: 'Revisão', show: isCoordenador && canViewMenu('can_review_reports') },
     { name: 'AdminUsers', icon: Users, label: 'Usuários', show: isCoordenador && canViewMenu('can_manage_users') },
@@ -59,34 +65,42 @@ export default function Sidebar({ currentPageName, collapsed = false, onToggle }
     { name: 'PermissionManager', icon: Shield, label: 'Permissões', show: isCoordenador && canViewMenu('can_manage_users') },
     { name: 'PlataformaAdmin', icon: Settings, label: 'Plataforma', show: isCoordenador && canViewMenu('can_manage_platform') },
     { name: 'AuditLog', icon: History, label: 'Auditoria', show: isCoordenador && canViewMenu('can_view_audit_log') },
+    { name: 'ActivityLog', icon: History, label: 'Atividades', show: true },
   ].filter(item => item.show);
 
   return (
-    <aside className={`${
-      collapsed ? 'w-20' : 'w-64'
-    } bg-gray-900 text-white h-screen flex flex-col fixed left-0 top-0 z-40 transition-all duration-300 border-r border-gray-800`}>
+    <aside
+      className={`fixed left-0 top-0 h-screen bg-white border-r border-gray-200 transition-all duration-300 z-40 ${
+        collapsed ? 'w-20' : 'w-64'
+      }`}
+    >
       {/* Logo */}
-      <div className={`flex items-center justify-between h-16 px-4 border-b border-gray-800 ${collapsed ? 'flex-col gap-2' : ''}`}>
+      <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
         {!collapsed && (
           <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-              <Building2 className="w-4 h-4 text-gray-900" />
+            <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
+              <Building2 className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-sm">Museus</span>
+            <span className="font-semibold text-black text-sm">MC</span>
           </Link>
+        )}
+        {collapsed && (
+          <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
+            <Building2 className="w-4 h-4 text-white" />
+          </div>
         )}
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-gray-400 hover:text-white"
+          className="h-8 w-8"
           onClick={onToggle}
         >
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </Button>
       </div>
 
-      {/* Nav Items */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-1">
         {navItems.map(item => {
           const Icon = item.icon;
           const isActive = currentPageName === item.name;
@@ -94,11 +108,9 @@ export default function Sidebar({ currentPageName, collapsed = false, onToggle }
             <Link key={item.name} to={createPageUrl(item.name)}>
               <Button
                 variant="ghost"
-                className={`w-full justify-start gap-3 h-10 ${
-                  isActive
-                    ? 'bg-gray-800 text-white'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
-                } ${collapsed ? 'px-2 justify-center' : 'px-3'}`}
+                className={`w-full justify-start gap-3 ${
+                  isActive ? 'bg-gray-100 text-black' : 'text-gray-600 hover:text-black hover:bg-gray-50'
+                }`}
                 title={collapsed ? item.label : ''}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
@@ -109,10 +121,10 @@ export default function Sidebar({ currentPageName, collapsed = false, onToggle }
         })}
       </nav>
 
-      {/* User Info */}
+      {/* User info */}
       {currentUser && !collapsed && (
-        <div className="border-t border-gray-800 p-4">
-          <p className="text-xs font-medium text-gray-300 truncate">{currentUser.full_name}</p>
+        <div className="p-4 border-t border-gray-200">
+          <p className="text-xs font-medium text-gray-700 truncate">{currentUser.full_name}</p>
           <p className="text-xs text-gray-500 truncate">{currentUser.role}</p>
         </div>
       )}
