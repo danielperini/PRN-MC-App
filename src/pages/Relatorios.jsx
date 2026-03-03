@@ -61,8 +61,7 @@ function exportCSV(reports) {
 }
 
 function RelatoriosInner() {
-  const { user: currentUser, isCoordenador, isLoading: isLoadingUser } = useCurrentUser();
-  const isLoading_user = isLoadingUser;
+  const { user: currentUser, isCoordenador, isLoading } = useCurrentUser();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ mes: '', museu: '', equipe: '', status: '', classificacao: '' });
   const [showFilters, setShowFilters] = useState(false);
