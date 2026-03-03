@@ -158,6 +158,8 @@ function PlataformaAdminInner() {
         <Tabs defaultValue="usuarios">
           <TabsList className="mb-6 bg-gray-100 p-1 rounded-xl">
             <TabsTrigger value="usuarios" className="gap-2"><Users className="w-3.5 h-3.5" />Usuários</TabsTrigger>
+            <TabsTrigger value="museus" className="gap-2"><Building2 className="w-3.5 h-3.5" />Museus</TabsTrigger>
+            <TabsTrigger value="equipes" className="gap-2"><Users2 className="w-3.5 h-3.5" />Equipes</TabsTrigger>
             <TabsTrigger value="relatorios" className="gap-2"><FileText className="w-3.5 h-3.5" />Relatórios</TabsTrigger>
             <TabsTrigger value="auditoria" className="gap-2"><History className="w-3.5 h-3.5" />Auditoria</TabsTrigger>
             <TabsTrigger value="metadados" className="gap-2"><Database className="w-3.5 h-3.5" />Metadados</TabsTrigger>
