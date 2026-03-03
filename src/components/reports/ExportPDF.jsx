@@ -148,8 +148,20 @@ function isImageType(fileType) {
 
 export default function ExportPDF({ report, reportId }) {
   const [loading, setLoading] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
+  const [periodoMode, setPeriodoMode] = useState('mes'); // 'mes' | 'custom'
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
+
+  const openDialog = () => {
+    setPeriodoMode('mes');
+    setDataInicio('');
+    setDataFim('');
+    setShowDialog(true);
+  };
 
   const handleExport = async () => {
+    setShowDialog(false);
     setLoading(true);
     try {
       const atividades = Array.isArray(report.atividades) ? report.atividades : [];
@@ -157,6 +169,11 @@ export default function ExportPDF({ report, reportId }) {
       if (reportId) {
         attachments = await base44.entities.Attachment.filter({ report_id: reportId }, '-created_date');
       }
+
+      // Period label for the PDF
+      const periodoLabel = periodoMode === 'custom' && dataInicio && dataFim
+        ? `${dataInicio} a ${dataFim}`
+        : `${report.mes_referencia || '—'} / ${report.ano || 2026}`;
 
       const isOfficial = ['APPROVED', 'ARCHIVED'].includes(report.status);
       const docStatus = isOfficial ? 'DOCUMENTO OFICIAL' : 'RASCUNHO';
