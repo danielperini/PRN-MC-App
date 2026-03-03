@@ -43,6 +43,27 @@ function UserManagementInner() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [reviewingReg, setReviewingReg] = useState(null);
   const [regNote, setRegNote] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [showInviteLink, setShowInviteLink] = useState(false);
+
+  const cadastroUrl = (() => {
+    const parts = window.location.pathname.split('/');
+    const appIdx = parts.indexOf('app');
+    const appId = appIdx !== -1 ? parts[appIdx + 1] : '';
+    return appId
+      ? `${window.location.origin}/app/${appId}/Cadastro`
+      : `${window.location.origin}/Cadastro`;
+  })();
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(cadastroUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const whatsappText = encodeURIComponent(
+    `Olá! Você foi convidado(a) para acessar a plataforma de relatórios dos Museus Centro.\n\nPara solicitar seu acesso, preencha o formulário neste link:\n${cadastroUrl}\n\nApós o envio, sua solicitação será analisada e você receberá um e-mail com as instruções de acesso.`
+  );
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
