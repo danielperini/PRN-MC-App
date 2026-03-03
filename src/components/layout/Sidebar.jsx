@@ -74,32 +74,32 @@ export default function Sidebar({ currentPageName, collapsed, onToggle }) {
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen bg-white border-r border-gray-200 transition-all duration-300 z-40 ${
+      className={`fixed left-0 top-0 h-screen bg-black border-r border-black transition-all duration-300 z-40 ${
         collapsed ? 'w-20' : 'w-64'
       }`}
     >
       {/* Logo */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
+      <div className="h-16 flex items-center justify-between px-4 border-b border-gray-800">
         {!collapsed && (
           <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-              <Building2 className="w-4 h-4 text-white" />
+            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-black" />
             </div>
-            <span className="font-semibold text-black text-sm">MC</span>
+            <span className="font-bold text-white text-lg">MC</span>
           </Link>
         )}
         {collapsed && (
-          <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-            <Building2 className="w-4 h-4 text-white" />
+          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
+            <Building2 className="w-5 h-5 text-black" />
           </div>
         )}
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className="h-8 w-8 text-white hover:bg-gray-900"
           onClick={onToggle}
         >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
         </Button>
       </div>
 
@@ -112,13 +112,13 @@ export default function Sidebar({ currentPageName, collapsed, onToggle }) {
             <Link key={item.name} to={createPageUrl(item.name)}>
               <Button
                 variant="ghost"
-                className={`w-full justify-start gap-3 ${
-                  isActive ? 'bg-gray-100 text-black' : 'text-gray-600 hover:text-black hover:bg-gray-50'
+                className={`w-full justify-start gap-3 h-11 ${
+                  isActive ? 'bg-white text-black' : 'text-gray-400 hover:text-white hover:bg-gray-900'
                 }`}
                 title={collapsed ? item.label : ''}
               >
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                {!collapsed && <span className="text-sm">{item.label}</span>}
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
               </Button>
             </Link>
           );
@@ -127,9 +127,9 @@ export default function Sidebar({ currentPageName, collapsed, onToggle }) {
 
       {/* User info */}
       {currentUser && !collapsed && (
-        <div className="p-4 border-t border-gray-200">
-          <p className="text-xs font-medium text-gray-700 truncate">{currentUser.full_name}</p>
-          <p className="text-xs text-gray-500 truncate">{currentUser.role}</p>
+        <div className="p-4 border-t border-gray-800">
+          <p className="text-sm font-semibold text-white truncate">{currentUser.full_name}</p>
+          <p className="text-xs text-gray-400 truncate">{currentUser.role}</p>
         </div>
       )}
     </aside>
