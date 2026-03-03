@@ -703,23 +703,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
               </div>
               </div>
 
-          {/* Template */}
-          {canEdit && (
-            <div className="p-3 bg-purple-50 border border-purple-100 rounded-lg flex items-center justify-between">
-              <div>
-                <Label className="text-sm text-purple-700 font-medium">Salvar como modelo</Label>
-                <p className="text-xs text-purple-600 mt-0.5">Reutilize essa atividade em futuros relatórios</p>
-              </div>
-              <Button
-                size="sm"
-                variant={atividade.is_template ? 'default' : 'outline'}
-                className={atividade.is_template ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'border-purple-200 text-purple-600 hover:bg-purple-50'}
-                onClick={() => onChange('is_template', !atividade.is_template)}
-              >
-                {atividade.is_template ? '✓ Modelo' : 'Salvar como modelo'}
-              </Button>
-            </div>
-          )}
+
 
           {/* Clipping Automático */}
           {canEdit && (
