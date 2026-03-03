@@ -883,41 +883,130 @@ function UserManagementInner() {
              {editingUser && editingUserPerm && (
                <div className="space-y-3 pt-4 border-t border-gray-200">
                  <h3 className="text-sm font-semibold text-black">Permissões</h3>
-                 <div className="flex items-center gap-2">
-                   <input
-                     type="checkbox"
-                     id="must_submit"
-                     checked={permissionsForm.must_submit_monthly_report}
-                     onChange={e => setPermissionsForm({ ...permissionsForm, must_submit_monthly_report: e.target.checked })}
-                     className="rounded border-gray-300"
-                   />
-                   <Label htmlFor="must_submit" className="text-sm font-normal cursor-pointer">
-                     Obrigado a enviar relatório mensal
-                   </Label>
-                 </div>
-                 <div className="flex items-center gap-2">
-                   <input
-                     type="checkbox"
-                     id="can_review"
-                     checked={permissionsForm.can_review_reports}
-                     onChange={e => setPermissionsForm({ ...permissionsForm, can_review_reports: e.target.checked })}
-                     className="rounded border-gray-300"
-                   />
-                   <Label htmlFor="can_review" className="text-sm font-normal cursor-pointer">
-                     Pode revisar relatórios
-                   </Label>
-                 </div>
-                 <div className="flex items-center gap-2">
-                   <input
-                     type="checkbox"
-                     id="can_manage"
-                     checked={permissionsForm.can_manage_users}
-                     onChange={e => setPermissionsForm({ ...permissionsForm, can_manage_users: e.target.checked })}
-                     className="rounded border-gray-300"
-                   />
-                   <Label htmlFor="can_manage" className="text-sm font-normal cursor-pointer">
-                     Pode gerenciar usuários
-                   </Label>
+                 
+                 <div className="space-y-3 bg-gray-50 p-3 rounded-lg">
+                   {/* Relatórios */}
+                   <div className="space-y-2">
+                     <p className="text-xs font-semibold text-gray-600 uppercase">Relatórios</p>
+                     <div className="flex items-center gap-2">
+                       <input
+                         type="checkbox"
+                         id="can_view_all"
+                         checked={permissionsForm.can_view_all_reports !== false}
+                         onChange={e => setPermissionsForm({ ...permissionsForm, can_view_all_reports: e.target.checked })}
+                         className="rounded border-gray-300"
+                       />
+                       <Label htmlFor="can_view_all" className="text-sm font-normal cursor-pointer">
+                         Visualizar todos os relatórios
+                       </Label>
+                     </div>
+                     <div className="flex items-center gap-2">
+                       <input
+                         type="checkbox"
+                         id="can_review"
+                         checked={permissionsForm.can_review_reports}
+                         onChange={e => setPermissionsForm({ ...permissionsForm, can_review_reports: e.target.checked })}
+                         className="rounded border-gray-300"
+                       />
+                       <Label htmlFor="can_review" className="text-sm font-normal cursor-pointer">
+                         Revisar e aprovar relatórios
+                       </Label>
+                     </div>
+                     <div className="flex items-center gap-2">
+                       <input
+                         type="checkbox"
+                         id="must_submit"
+                         checked={permissionsForm.must_submit_monthly_report}
+                         onChange={e => setPermissionsForm({ ...permissionsForm, must_submit_monthly_report: e.target.checked })}
+                         className="rounded border-gray-300"
+                       />
+                       <Label htmlFor="must_submit" className="text-sm font-normal cursor-pointer">
+                         Obrigado a enviar relatório mensal
+                       </Label>
+                     </div>
+                   </div>
+
+                   {/* Gerenciamento */}
+                   <div className="space-y-2">
+                     <p className="text-xs font-semibold text-gray-600 uppercase">Gerenciamento</p>
+                     <div className="flex items-center gap-2">
+                       <input
+                         type="checkbox"
+                         id="can_manage_users"
+                         checked={permissionsForm.can_manage_users}
+                         onChange={e => setPermissionsForm({ ...permissionsForm, can_manage_users: e.target.checked })}
+                         className="rounded border-gray-300"
+                       />
+                       <Label htmlFor="can_manage_users" className="text-sm font-normal cursor-pointer">
+                         Gerenciar usuários
+                       </Label>
+                     </div>
+                     <div className="flex items-center gap-2">
+                       <input
+                         type="checkbox"
+                         id="can_manage_files"
+                         checked={permissionsForm.can_manage_files}
+                         onChange={e => setPermissionsForm({ ...permissionsForm, can_manage_files: e.target.checked })}
+                         className="rounded border-gray-300"
+                       />
+                       <Label htmlFor="can_manage_files" className="text-sm font-normal cursor-pointer">
+                         Gerenciar arquivos
+                       </Label>
+                     </div>
+                     <div className="flex items-center gap-2">
+                       <input
+                         type="checkbox"
+                         id="can_manage_museus"
+                         checked={permissionsForm.can_manage_museus}
+                         onChange={e => setPermissionsForm({ ...permissionsForm, can_manage_museus: e.target.checked })}
+                         className="rounded border-gray-300"
+                       />
+                       <Label htmlFor="can_manage_museus" className="text-sm font-normal cursor-pointer">
+                         Gerenciar museus
+                       </Label>
+                     </div>
+                     <div className="flex items-center gap-2">
+                       <input
+                         type="checkbox"
+                         id="can_manage_equipes"
+                         checked={permissionsForm.can_manage_equipes}
+                         onChange={e => setPermissionsForm({ ...permissionsForm, can_manage_equipes: e.target.checked })}
+                         className="rounded border-gray-300"
+                       />
+                       <Label htmlFor="can_manage_equipes" className="text-sm font-normal cursor-pointer">
+                         Gerenciar equipes
+                       </Label>
+                     </div>
+                   </div>
+
+                   {/* Auditoria */}
+                   <div className="space-y-2">
+                     <p className="text-xs font-semibold text-gray-600 uppercase">Sistema</p>
+                     <div className="flex items-center gap-2">
+                       <input
+                         type="checkbox"
+                         id="can_view_audit"
+                         checked={permissionsForm.can_view_audit_log}
+                         onChange={e => setPermissionsForm({ ...permissionsForm, can_view_audit_log: e.target.checked })}
+                         className="rounded border-gray-300"
+                       />
+                       <Label htmlFor="can_view_audit" className="text-sm font-normal cursor-pointer">
+                         Visualizar auditoria
+                       </Label>
+                     </div>
+                     <div className="flex items-center gap-2">
+                       <input
+                         type="checkbox"
+                         id="can_manage_platform"
+                         checked={permissionsForm.can_manage_platform}
+                         onChange={e => setPermissionsForm({ ...permissionsForm, can_manage_platform: e.target.checked })}
+                         className="rounded border-gray-300"
+                       />
+                       <Label htmlFor="can_manage_platform" className="text-sm font-normal cursor-pointer">
+                         Gerenciar plataforma
+                       </Label>
+                     </div>
+                   </div>
                  </div>
                </div>
              )}
