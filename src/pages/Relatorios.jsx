@@ -236,8 +236,10 @@ function RelatoriosInner() {
               const totalAtiv = (report.atividades || []).length;
               const attachments = allAttachments.filter(att => att.report_id === report.id);
               const nAttachments = attachments.length;
+              const canDelete = isCoordenador || report.created_by === currentUser?.email;
               return (
-                <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block group">
+                <div key={report.id} className="block group relative">
+                  <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
                   <div className={`h-full p-5 rounded-2xl border border-gray-100 hover:border-gray-300 hover:shadow-md transition-all ${cfg.cardBg}`}>
                     {/* Status badge */}
                     <div className="flex items-center justify-between mb-4">
