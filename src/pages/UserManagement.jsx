@@ -327,15 +327,16 @@ function UserManagementInner() {
           {/* ── ABA USUÁRIOS ── */}
           <TabsContent value="usuarios">
             {/* Table header */}
-            {!isLoading && users.length > 0 && (
-              <div className="grid grid-cols-12 gap-4 px-4 mb-2 text-xs font-medium text-gray-400 uppercase tracking-wide">
-                <span className="col-span-4">Nome / Email</span>
-                <span className="col-span-2">Papel</span>
-                <span className="col-span-2">Equipe</span>
-                <span className="col-span-2">Status</span>
-                <span className="col-span-2 text-right">Ações</span>
-              </div>
-            )}
+             {!isLoading && users.length > 0 && (
+               <div className="grid grid-cols-12 gap-4 px-4 mb-2 text-xs font-medium text-gray-400 uppercase tracking-wide">
+                 <span className="col-span-3">Nome / Email</span>
+                 <span className="col-span-2">Papel</span>
+                 <span className="col-span-2">Equipe</span>
+                 <span className="col-span-2">Acesso</span>
+                 <span className="col-span-2">Relatório</span>
+                 <span className="col-span-1 text-right">Ações</span>
+               </div>
+             )}
             <div className="space-y-2">
               {isLoading ? (
                 <div className="text-center py-20 text-gray-400">Carregando usuários...</div>
