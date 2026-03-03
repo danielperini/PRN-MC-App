@@ -155,11 +155,11 @@ function GestorArquivosInner() {
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-black tracking-tight flex items-center gap-3">
-            <Paperclip className="w-7 h-7" />
+          <h1 className="text-4xl font-semibold text-black tracking-tight flex items-center gap-3">
+            <Paperclip className="w-8 h-8" />
             Gestor de Arquivos
           </h1>
-          <p className="text-gray-500 mt-1 text-sm">
+          <p className="text-gray-500 mt-1 text-base">
             {isCoordenador
               ? `${visible.length} arquivo(s) encontrado(s) em todos os relatórios`
               : `${visible.length} arquivo(s) dos seus relatórios`}
@@ -169,7 +169,7 @@ function GestorArquivosInner() {
         {/* Action Bar */}
         {selectedFiles.size > 0 && (
           <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between">
-            <span className="text-sm font-medium text-blue-900">{selectedFiles.size} arquivo(s) selecionado(s)</span>
+            <span className="text-base font-medium text-blue-900">{selectedFiles.size} arquivo(s) selecionado(s)</span>
             <div className="flex gap-2">
               <Button
                 size="sm"
@@ -273,7 +273,7 @@ function GestorArquivosInner() {
             {/* Gallery View for Media */}
             {shouldShowGallery && mediaFiles.length > 0 && (
               <div className="mb-8">
-                <h3 className="text-sm font-semibold text-gray-700 mb-4">Imagens e Vídeos</h3>
+                <h3 className="text-base font-semibold text-gray-700 mb-4">Imagens e Vídeos</h3>
                 <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {mediaFiles.map(att => {
                     const isImage = att.file_type?.startsWith('image/');
@@ -313,7 +313,7 @@ function GestorArquivosInner() {
 
                         {/* Overlay */}
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-end justify-between p-2 opacity-0 group-hover:opacity-100">
-                          <div className="text-white text-xs truncate max-w-[70%]" title={att.file_name}>
+                          <div className="text-white text-sm truncate max-w-[70%]" title={att.file_name}>
                             {att.file_name}
                           </div>
                           <Button
@@ -347,7 +347,7 @@ function GestorArquivosInner() {
             {/* List View for Documents */}
             {(shouldShowGallery && documentFiles.length > 0) && (
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-4">Documentos</h3>
+                <h3 className="text-base font-semibold text-gray-700 mb-4">Documentos</h3>
               </div>
             )}
 
@@ -389,8 +389,8 @@ function GestorArquivosInner() {
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-black truncate">{att.file_name}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="font-medium text-base text-black truncate">{att.file_name}</p>
+                        <p className="text-sm text-gray-500 mt-0.5">
                           {formatSize(att.file_size)} {report && `• ${report.author_name}`}
                         </p>
                       </div>
@@ -536,8 +536,8 @@ function GestorArquivosInner() {
           {/* Header */}
           <div className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
             <div className="text-white">
-              <p className="font-semibold">{fullscreenFile.file_name}</p>
-              <p className="text-xs text-gray-400">{formatSize(fullscreenFile.file_size)}</p>
+              <p className="font-semibold text-lg">{fullscreenFile.file_name}</p>
+              <p className="text-sm text-gray-400">{formatSize(fullscreenFile.file_size)}</p>
             </div>
             <div className="flex gap-2">
               {fullscreenFile.file_type?.startsWith('image/') && (
@@ -550,7 +550,7 @@ function GestorArquivosInner() {
                   >
                     <ZoomOut className="w-4 h-4" />
                   </Button>
-                  <span className="text-white text-sm px-2 py-1">{Math.round(fullscreenZoom * 100)}%</span>
+                  <span className="text-white text-base px-2 py-1">{Math.round(fullscreenZoom * 100)}%</span>
                   <Button
                     size="sm"
                     variant="ghost"
