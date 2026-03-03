@@ -147,13 +147,12 @@ function DashboardInner() {
           </div>
 
          {/* Coordenador: dashboard completo */}
-           {showCoordView ? (
-             <>
-               <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
-               <ExemptionManager currentMonth={currentMonth} currentYear={currentYear} />
-               <CoordDashboard reports={allReports} isLoading={loadingAll} />
-             </>
-           ) : (
+          {showCoordView ? (
+            <>
+              <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
+              <ExemptionManager currentMonth={currentMonth} currentYear={currentYear} />
+              <CoordDashboard reports={allReports} isLoading={loadingAll} />
+            </>
            ) : showDedicatedProfView ? (
              <div>
                {/* Redirect message */}
