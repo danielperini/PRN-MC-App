@@ -5,7 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, ChevronDown, ChevronUp, AlertCircle, Sparkles, X, Loader2 } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp, AlertCircle, Sparkles, X, Loader2, Paperclip, Copy, CheckSquare2 } from 'lucide-react';
 import { toast } from 'sonner';
 import ActivityAttachments from './ActivityAttachments';
 import ActivitySummarizer from './ActivitySummarizer';
