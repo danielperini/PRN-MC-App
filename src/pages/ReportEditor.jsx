@@ -266,8 +266,25 @@ function ReportEditorInner() {
         {/* Return comment banner */}
         {formData.return_comment && formData.status === 'RETURNED' && (
           <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-xl">
-            <p className="text-sm font-medium text-red-800 mb-1">Motivo da devolução:</p>
-            <p className="text-sm text-red-700">{formData.return_comment}</p>
+            <p className="text-sm font-semibold text-red-800 mb-3 flex items-center gap-1.5">
+              <AlertCircle className="w-4 h-4" />Relatório devolvido — comentários do coordenador:
+            </p>
+            {formData.return_comment.includes('[') ? (
+              <div className="space-y-3">
+                {formData.return_comment.split('\n\n').map((block, i) => {
+                  const match = block.match(/^\[(.+?)\]\n([\s\S]*)/);
+                  if (!match) return <p key={i} className="text-sm text-red-700">{block}</p>;
+                  return (
+                    <div key={i} className="bg-white border border-red-100 rounded-lg p-3">
+                      <p className="text-xs font-semibold text-red-600 uppercase tracking-wide mb-1">{match[1]}</p>
+                      <p className="text-sm text-red-700 whitespace-pre-wrap">{match[2]}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-red-700 whitespace-pre-wrap">{formData.return_comment}</p>
+            )}
           </div>
         )}
 
