@@ -658,6 +658,7 @@ function UserManagementInner() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Convidar novo usuário</DialogTitle>
+            <DialogDescription>Compartilhe o link com o profissional para solicitar acesso</DialogDescription>
           </DialogHeader>
           <div className="space-y-5 mt-2">
             <p className="text-sm text-gray-600">
