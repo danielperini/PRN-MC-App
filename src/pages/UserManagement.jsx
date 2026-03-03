@@ -648,7 +648,9 @@ function UserManagementInner() {
               </div>
             )}
           </TabsContent>
-        </Tabs>
+           </Tabs>
+          );
+          })()}
       </div>
 
       {/* Invite Link Dialog */}
