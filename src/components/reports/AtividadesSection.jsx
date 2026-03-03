@@ -96,6 +96,9 @@ const EMPTY_ATIVIDADE = {
   status_meta: '',
   justificativa_tecnica: '',
   depoimento_participantes: '',
+  eh_mobilizacao: false,
+  tipo_mobilizacao: '',
+  descricao_mobilizacao: '',
 };
 
 export function validateAtividade(ativ) {
