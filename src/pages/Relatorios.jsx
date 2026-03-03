@@ -302,7 +302,6 @@ function RelatoriosInner() {
           )}
         </div>
       </div>
-    </div>
 
       {/* Delete Confirm */}
       <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
@@ -324,6 +323,7 @@ function RelatoriosInner() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
   );
 }
 
