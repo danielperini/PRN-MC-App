@@ -576,7 +576,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
               </Select>
             </Field>
             <Field label="Público estimado (por ocorrência)">
-              <Input type="number" placeholder="0" value={atividade.publico_estimado || ''} onChange={e => onChange('publico_estimado', e.target.value)} disabled={!canEdit} />
+              <Input type="number" placeholder="0" value={atividade.publico_estimado ?? ''} onChange={e => onChange('publico_estimado', parseInt(e.target.value) || 0)} disabled={!canEdit} />
             </Field>
             <Field label="Quantas vezes se repetiu?">
               <Input 
@@ -605,7 +605,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
               </Select>
             </Field>
             <Field label="Quantidade de produtos gerados">
-              <Input type="number" placeholder="Ex: 10 posts, 5 oficinas" value={atividade.quantidade_produto || ''} onChange={e => onChange('quantidade_produto', e.target.value)} disabled={!canEdit} />
+              <Input type="number" placeholder="Ex: 10 posts, 5 oficinas" value={atividade.quantidade_produto ?? ''} onChange={e => onChange('quantidade_produto', parseInt(e.target.value) || 0)} disabled={!canEdit} />
             </Field>
             </div>
 
