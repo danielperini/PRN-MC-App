@@ -312,7 +312,23 @@ function UserManagementInner() {
     }
   };
 
-  const isPending = inviteMutation.isPending || updateMutation.isPending;
+  const createDirectMutation = useMutation({
+    mutationFn: async (data) => {
+      const response = await base44.functions.invoke('createUserWithPassword', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['users']);
+      queryClient.invalidateQueries(['user-permissions']);
+      toast.success('Usuário cadastrado com sucesso!');
+      setShowCreateDirect(false);
+      setDirectForm({ email: '', password: '', full_name: '', role: 'PROFISSIONAL' });
+      setPasswordConfirm('');
+    },
+    onError: (err) => toast.error(err.message || 'Erro ao cadastrar usuário'),
+  });
+
+  const isPending = inviteMutation.isPending || updateMutation.isPending || createDirectMutation.isPending;
 
   const canViewReportStatus = currentUser && currentUser.role === 'COORDENADOR';
 
