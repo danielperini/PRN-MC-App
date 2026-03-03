@@ -87,15 +87,20 @@ export default function Layout({ children, currentPageName }) {
             {/* User Menu */}
             <div className="flex items-center gap-3">
               {currentUser && (
-                <div className="hidden sm:block text-right">
+                <Link to={createPageUrl('Perfil')} className="hidden sm:block text-right hover:opacity-70 transition-opacity">
                   <p className="text-sm font-medium text-black">
                     {currentUser.full_name}
                   </p>
                   <p className="text-xs text-gray-500">
                     {currentUser.role}
                   </p>
-                </div>
+                </Link>
               )}
+              <Link to={createPageUrl('Perfil')}>
+                <Button variant="ghost" size="icon" className="text-gray-500">
+                  <UserCircle className="w-4 h-4" />
+                </Button>
+              </Link>
               <Button 
                 variant="ghost" 
                 size="icon"
