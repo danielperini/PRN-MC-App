@@ -356,6 +356,16 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
               Co: {coRespUser.full_name || coRespUser.email}
             </Badge>
           )}
+          {hasAttachments && (
+            <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 flex items-center gap-1">
+              <Paperclip className="w-3 h-3" />Anexos
+            </Badge>
+          )}
+          {atividade.is_template && (
+            <Badge className="text-xs bg-purple-100 text-purple-700">
+              <Copy className="w-3 h-3 mr-1" />Modelo
+            </Badge>
+          )}
           {errors.length > 0 && (
             <span className="flex items-center gap-1 text-xs text-red-500">
               <AlertCircle className="w-3 h-3" />{errors.length} campo(s) pendente(s)
