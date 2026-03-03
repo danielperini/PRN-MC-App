@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Plus, Pencil, Trash2, Bell, CheckCircle, XCircle, Clock, Copy, Check, Mail, Key, Shield, AlertCircle } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Bell, CheckCircle, XCircle, Clock, Copy, Check, Mail, Key, Shield, AlertCircle, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
