@@ -22,6 +22,7 @@ import ExecutiveSummaryAI from '../components/reports/ExecutiveSummaryAI';
 import TrendAnalysisAI from '../components/reports/TrendAnalysisAI';
 import ReportComments from '../components/reports/ReportComments';
 import ReportTimeline from '../components/reports/ReportTimeline';
+import ActivityProgressBar from '../components/reports/ActivityProgressBar';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -407,12 +408,15 @@ function ReportEditorInner() {
           </TabsContent>
 
           <TabsContent value="atividades">
-            <AtividadesSection
-              atividades={formData.atividades || []}
-              canEdit={canEdit}
-              onChange={list => set('atividades', list)}
-              reportId={reportId}
-            />
+            <div className="space-y-6">
+              <ActivityProgressBar atividades={formData.atividades} oportunidades={formData.oportunidades} />
+              <AtividadesSection
+                atividades={formData.atividades || []}
+                canEdit={canEdit}
+                onChange={list => set('atividades', list)}
+                reportId={reportId}
+              />
+            </div>
           </TabsContent>
 
           <TabsContent value="oportunidades">
@@ -473,19 +477,19 @@ function ReportEditorInner() {
           </TabsContent>
 
           <TabsContent value="avaliacao">
-            <section>
+            <section className="space-y-6">
               <SectionTitle>Avaliação do Mês</SectionTitle>
 
               {/* Análise de Tendências */}
               {reportId && formData.museu && (
-                <div className="mb-6 p-4 border border-gray-100 rounded-xl bg-gray-50">
+                <div className="p-4 border border-gray-100 rounded-xl bg-gray-50">
                   <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Análise de Tendências Históricas</p>
                   <TrendAnalysisAI museu={formData.museu} disabled={false} />
                 </div>
               )}
 
               {(formData.atividades || []).length === 0 && (
-                <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-amber-800">Nenhuma atividade vinculada</p>
@@ -519,7 +523,41 @@ function ReportEditorInner() {
                   <Textarea placeholder="Sugestões de melhoria..." value={formData.avaliacao_sugestoes || ''} onChange={e => set('avaliacao_sugestoes', e.target.value)} disabled={!canEdit} />
                 </div>
               </div>
+
+              {/* Declaração de responsabilidade — na aba de avaliação */}
+              {canEdit && (
+                <div className="p-4 border border-gray-200 rounded-xl bg-gray-50">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="declaracao"
+                      checked={declaracaoAceita}
+                      onCheckedChange={v => setDeclaracaoAceita(!!v)}
+                      className="mt-1"
+                    />
+                    <label htmlFor="declaracao" className="text-xs text-gray-700 leading-relaxed cursor-pointer">
+                      Declaro que as informações registradas neste relatório são verdadeiras, completas e de minha inteira responsabilidade. Estou ciente de que o envio deste documento implica comprometimento formal com os dados informados.
+                    </label>
+                  </div>
+                </div>
+              )}
             </section>
+
+            {/* Botões de salvar e enviar — aparecem apenas aqui */}
+            {canEdit && (
+              <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
+                <Button variant="outline" onClick={() => saveMutation.mutate(formData)} disabled={saveMutation.isPending}>
+                  <Save className="w-4 h-4 mr-2" />Salvar Rascunho
+                </Button>
+                <Button
+                  className="bg-black hover:bg-gray-800 text-white"
+                  onClick={() => submitMutation.mutate()}
+                  disabled={submitMutation.isPending || !declaracaoAceita || (!(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0))}
+                  title={!declaracaoAceita ? 'Aceite a declaração para enviar' : !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0) ? 'Preencha atividades ou oportunidades para enviar' : ''}
+                >
+                  <Send className="w-4 h-4 mr-2" />Enviar para Revisão
+                </Button>
+              </div>
+            )}
           </TabsContent>
 
           {/* COMENTÁRIOS */}
@@ -541,44 +579,7 @@ function ReportEditorInner() {
           </TabsContent>
         </Tabs>
 
-        {/* Declaração de responsabilidade */}
-        {canEdit && (
-          <div className="mt-10 p-5 border border-gray-200 rounded-xl bg-gray-50">
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="declaracao"
-                checked={declaracaoAceita}
-                onCheckedChange={v => setDeclaracaoAceita(!!v)}
-                className="mt-0.5"
-              />
-              <label htmlFor="declaracao" className="text-sm text-gray-700 leading-relaxed cursor-pointer">
-                <span className="flex items-center gap-1.5 font-semibold text-black mb-1">
-                  <ShieldCheck className="w-4 h-4 text-green-600" />
-                  Declaração de Responsabilidade
-                </span>
-                Declaro que as informações registradas neste relatório são verdadeiras, completas e de minha inteira responsabilidade. 
-                Estou ciente de que o envio deste documento implica comprometimento formal com os dados informados, nos termos do contrato de gestão com a Fundação Municipal de Cultura de Belo Horizonte (FMC/PBH).
-              </label>
-            </div>
-          </div>
-        )}
 
-        {/* Bottom save bar */}
-        {canEdit && (
-          <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end gap-3">
-            <Button variant="outline" onClick={() => saveMutation.mutate(formData)} disabled={saveMutation.isPending}>
-              <Save className="w-4 h-4 mr-2" />Salvar Rascunho
-            </Button>
-            <Button
-              className="bg-black hover:bg-gray-800 text-white"
-              onClick={() => submitMutation.mutate()}
-              disabled={submitMutation.isPending || !declaracaoAceita}
-              title={!declaracaoAceita ? 'Aceite a declaração de responsabilidade para enviar' : ''}
-            >
-              <Send className="w-4 h-4 mr-2" />Enviar para Revisão
-            </Button>
-          </div>
-        )}
       </div>
     </div>
   );
