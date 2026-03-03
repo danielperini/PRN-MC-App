@@ -24,6 +24,7 @@ const CARGO_OPTIONS = [
   { value: 'COORD_PRODUCAO', label: 'Coordenação de Produção', description: 'Pode revisar relatórios da produção, ver dashboard, valores financeiros. Não pode editar/deletar de outros.' },
   { value: 'COORD_ADMINISTRATIVA', label: 'Coordenação Administrativa', description: 'Pode revisar relatórios administrativos, ver dashboard, valores financeiros. Não pode editar/deletar de outros.' },
   { value: 'COORD_COMUNICACAO', label: 'Coordenação de Comunicação', description: 'Pode revisar relatórios de comunicação, ver dashboard, valores financeiros. Não pode editar/deletar de outros.' },
+  { value: 'CONSULTORIA_PROGRAMACAO', label: 'Consultoria Programação', description: 'Mesmas permissões que Coordenação de Comunicação.' },
   { value: 'COORDENADOR', label: 'Coordenação Geral', description: 'Todas as permissões. Pode gerenciar tudo.' },
   { value: 'ADMIN', label: 'Administração', description: 'Gerencia usuários e visualiza tudo.' },
 ];
