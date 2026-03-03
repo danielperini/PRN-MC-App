@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import NotificationPanel from '@/components/notifications/NotificationPanel';
 
 export default function Layout({ children, currentPageName }) {
   const [currentUser, setCurrentUser] = useState(null);
@@ -120,6 +121,7 @@ export default function Layout({ children, currentPageName }) {
                   </p>
                 </Link>
               )}
+              {currentUser && <NotificationPanel userEmail={currentUser.email} />}
               <Link to={createPageUrl('Perfil')}>
                 <Button variant="ghost" size="icon" className="text-gray-500">
                   <UserCircle className="w-4 h-4" />
