@@ -139,7 +139,27 @@ function PermissionManagerInner() {
     }
   };
 
-  const activePerms = permissions.filter(p =>
+  const getUserPermissions = () => {
+    const permMap = {};
+    permissions.forEach(p => {
+      permMap[p.user_email] = p;
+    });
+
+    return users.map(user => {
+      if (permMap[user.email]) {
+        return permMap[user.email];
+      }
+      return {
+        id: null,
+        user_email: user.email,
+        user_name: user.full_name,
+        base_role: user.role,
+        isNew: true,
+      };
+    });
+  };
+
+  const allUserPerms = getUserPermissions().filter(p =>
     !searchEmail || p.user_email.toLowerCase().includes(searchEmail.toLowerCase())
   );
 
@@ -173,52 +193,73 @@ function PermissionManagerInner() {
 
         {/* Permissions List */}
         <div className="space-y-3">
-          {loadingPerms ? (
+          {loadingPerms || loadingUsers ? (
             <div className="text-center py-12 text-gray-400">Carregando...</div>
-          ) : activePerms.length === 0 ? (
+          ) : allUserPerms.length === 0 ? (
             <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl">
               <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">Nenhuma permissão configurada</p>
+              <p className="text-gray-500">Nenhum usuário encontrado</p>
             </div>
           ) : (
-            activePerms.map(perm => (
-              <div key={perm.id} className="p-5 border border-gray-100 rounded-xl hover:border-gray-200 transition-all">
+            allUserPerms.map(perm => (
+              <div key={perm.id || perm.user_email} className={`p-5 border rounded-xl transition-all ${perm.isNew ? 'border-amber-200 bg-amber-50' : 'border-gray-100 hover:border-gray-200'}`}>
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <p className="font-semibold text-black">{perm.user_name}</p>
                     <p className="text-sm text-gray-500">{perm.user_email}</p>
-                    <Badge className="mt-2 bg-blue-100 text-blue-700">{perm.base_role}</Badge>
+                    <div className="flex gap-2 mt-2">
+                      <Badge className="bg-blue-100 text-blue-700">{perm.base_role}</Badge>
+                      {perm.isNew && <Badge className="bg-amber-100 text-amber-700">Sem permissões</Badge>}
+                    </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleOpenEdit(perm)}>
-                      <Edit className="w-4 h-4 mr-1" />Editar
+                    <Button variant="outline" size="sm" onClick={() => {
+                      if (perm.isNew) {
+                        setFormData({
+                          user_email: perm.user_email,
+                          user_name: perm.user_name,
+                          base_role: perm.base_role,
+                        });
+                        PERMISSIONS.forEach(p => {
+                          setFormData(prev => ({ ...prev, [p.key]: false }));
+                        });
+                        setShowDialog(true);
+                      } else {
+                        handleOpenEdit(perm);
+                      }
+                    }}>
+                      <Edit className="w-4 h-4 mr-1" />{perm.isNew ? 'Adicionar' : 'Editar'}
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-red-600 border-red-200"
-                      onClick={() => deletePermMutation.mutate(perm.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    {perm.id && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 border-red-200"
+                        onClick={() => deletePermMutation.mutate(perm.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
 
                 {/* Permissions Grid */}
-                <div className="grid md:grid-cols-2 gap-3">
-                  {PERMISSIONS.map(p => (
-                    <div key={p.key} className="flex items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={perm[p.key]}
-                        disabled
-                        className="pointer-events-none"
-                      />
-                      <span className={perm[p.key] ? 'text-gray-700' : 'text-gray-400'}>
-                        {p.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                {!perm.isNew && (
+                  <div className="grid md:grid-cols-2 gap-3">
+                    {PERMISSIONS.map(p => (
+                      <div key={p.key} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={perm[p.key]}
+                          disabled
+                          className="pointer-events-none"
+                        />
+                        <span className={perm[p.key] ? 'text-gray-700' : 'text-gray-400'}>
+                          {p.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))
           )}
