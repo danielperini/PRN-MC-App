@@ -186,69 +186,134 @@ function UserManagementInner() {
           </Button>
         </div>
 
-        {/* Table header */}
-        {!isLoading && users.length > 0 && (
-          <div className="grid grid-cols-12 gap-4 px-4 mb-2 text-xs font-medium text-gray-400 uppercase tracking-wide">
-            <span className="col-span-4">Nome / Email</span>
-            <span className="col-span-3">Papel</span>
-            <span className="col-span-3">Equipe</span>
-            <span className="col-span-2 text-right">Ações</span>
-          </div>
-        )}
+        <Tabs defaultValue={pendingRegistrations.length > 0 ? 'solicitacoes' : 'usuarios'}>
+          <TabsList className="mb-6">
+            <TabsTrigger value="usuarios">
+              Usuários
+            </TabsTrigger>
+            <TabsTrigger value="solicitacoes" className="gap-2">
+              <Bell className="w-3.5 h-3.5" />
+              Solicitações de Acesso
+              {pendingRegistrations.length > 0 && (
+                <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
+                  {pendingRegistrations.length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Users List */}
-        <div className="space-y-2">
-          {isLoading ? (
-            <div className="text-center py-20 text-gray-400">Carregando usuários...</div>
-          ) : users.length === 0 ? (
-            <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
-              <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Nenhum usuário cadastrado</p>
-            </div>
-          ) : (
-            users.map(user => (
-              <div
-                key={user.id}
-                className="grid grid-cols-12 gap-4 items-center p-4 border border-gray-100 rounded-xl hover:border-gray-200 transition-all"
-              >
-                {/* Nome / email */}
-                <div className="col-span-4 flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm font-medium text-gray-600">
-                      {(user.full_name || user.email || '?')[0].toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-black truncate">{user.full_name || '–'}</p>
-                    <p className="text-xs text-gray-400 truncate">{user.email}</p>
-                  </div>
-                </div>
-
-                {/* Papel */}
-                <div className="col-span-3">
-                  <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700'} font-normal`}>
-                    {ROLE_LABELS[user.role] || user.role || '–'}
-                  </Badge>
-                </div>
-
-                {/* Equipe */}
-                <div className="col-span-3">
-                  <span className="text-sm text-gray-600">{user.equipe || '–'}</span>
-                </div>
-
-                {/* Ações */}
-                <div className="col-span-2 flex justify-end gap-1">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(user)}>
-                    <Pencil className="w-4 h-4 text-gray-500" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(user)}>
-                    <Trash2 className="w-4 h-4 text-red-400" />
-                  </Button>
-                </div>
+          {/* ── ABA USUÁRIOS ── */}
+          <TabsContent value="usuarios">
+            {/* Table header */}
+            {!isLoading && users.length > 0 && (
+              <div className="grid grid-cols-12 gap-4 px-4 mb-2 text-xs font-medium text-gray-400 uppercase tracking-wide">
+                <span className="col-span-4">Nome / Email</span>
+                <span className="col-span-3">Papel</span>
+                <span className="col-span-3">Equipe</span>
+                <span className="col-span-2 text-right">Ações</span>
               </div>
-            ))
-          )}
-        </div>
+            )}
+            <div className="space-y-2">
+              {isLoading ? (
+                <div className="text-center py-20 text-gray-400">Carregando usuários...</div>
+              ) : users.length === 0 ? (
+                <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
+                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">Nenhum usuário cadastrado</p>
+                </div>
+              ) : (
+                users.map(user => (
+                  <div
+                    key={user.id}
+                    className="grid grid-cols-12 gap-4 items-center p-4 border border-gray-100 rounded-xl hover:border-gray-200 transition-all"
+                  >
+                    <div className="col-span-4 flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-sm font-medium text-gray-600">
+                          {(user.full_name || user.email || '?')[0].toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-black truncate">{user.full_name || '–'}</p>
+                        <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                      </div>
+                    </div>
+                    <div className="col-span-3">
+                      <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700'} font-normal`}>
+                        {ROLE_LABELS[user.role] || user.role || '–'}
+                      </Badge>
+                    </div>
+                    <div className="col-span-3">
+                      <span className="text-sm text-gray-600">{user.equipe || '–'}</span>
+                    </div>
+                    <div className="col-span-2 flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(user)}>
+                        <Pencil className="w-4 h-4 text-gray-500" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(user)}>
+                        <Trash2 className="w-4 h-4 text-red-400" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </TabsContent>
+
+          {/* ── ABA SOLICITAÇÕES ── */}
+          <TabsContent value="solicitacoes">
+            {pendingRegistrations.length === 0 ? (
+              <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
+                <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">Nenhuma solicitação pendente</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {pendingRegistrations.map(reg => (
+                  <div key={reg.id} className="p-5 border border-amber-100 bg-amber-50/40 rounded-xl">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <Clock className="w-5 h-5 text-amber-600" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-black">{reg.full_name}</p>
+                          <p className="text-sm text-gray-500">{reg.email}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {reg.funcao} · {reg.museu}{reg.equipe ? ` · ${reg.equipe}` : ''}
+                          </p>
+                          {reg.mensagem && (
+                            <p className="text-xs text-gray-500 mt-2 italic">"{reg.mensagem}"</p>
+                          )}
+                          <p className="text-xs text-gray-300 mt-1">
+                            Solicitado em {new Date(reg.created_date).toLocaleDateString('pt-BR')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                          onClick={() => { setReviewingReg({ ...reg, action: 'rejeitar' }); setRegNote(''); }}
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />Rejeitar
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          onClick={() => { setReviewingReg({ ...reg, action: 'aprovar' }); setRegNote(''); }}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />Aprovar
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Create / Edit Dialog */}
