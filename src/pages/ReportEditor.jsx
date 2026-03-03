@@ -175,12 +175,12 @@ function ReportEditorInner() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['my-reports']);
-      toast.success('Relatório enviado para revisão!', { description: 'O coordenador será notificado.' });
-      navigate(createPageUrl('Dashboard'));
+      toast.success('Relatório enviado para revisão!', { description: '✓ O coordenador será notificado em breve.' });
+      setTimeout(() => navigate(createPageUrl('Dashboard')), 1500);
     },
     onError: (e) => {
       const silentErrors = ['Declaração não aceita', 'Mês obrigatório', 'Nome obrigatório', 'Museu obrigatório'];
-      if (!silentErrors.includes(e.message)) toast.error('Erro ao enviar o relatório. Tente novamente.');
+      if (!silentErrors.includes(e.message)) toast.error('Erro ao enviar relatório', { description: 'Não foi possível enviar. Tente novamente.' });
     },
   });
 
