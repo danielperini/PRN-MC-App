@@ -231,6 +231,18 @@ function GestorArquivosInner() {
               className="pl-9"
             />
           </div>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-40 h-9 text-sm">
+              <SelectValue placeholder="Tipo de arquivo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">— Todos —</SelectItem>
+              <SelectItem value="image">Imagens</SelectItem>
+              <SelectItem value="video">Vídeos</SelectItem>
+              <SelectItem value="pdf">PDFs</SelectItem>
+              <SelectItem value="archive">Compactados</SelectItem>
+            </SelectContent>
+          </Select>
           {isCoordenador && (
             <>
               <Select value={filterMuseu} onValueChange={setFilterMuseu}>
@@ -253,6 +265,33 @@ function GestorArquivosInner() {
               </Select>
             </>
           )}
+          <Input
+            type="date"
+            value={filterStartDate}
+            onChange={e => setFilterStartDate(e.target.value)}
+            className="w-32 h-9 text-sm"
+            placeholder="De"
+          />
+          <Input
+            type="date"
+            value={filterEndDate}
+            onChange={e => setFilterEndDate(e.target.value)}
+            className="w-32 h-9 text-sm"
+            placeholder="Até"
+          />
+          <Select value={filterReport} onValueChange={setFilterReport}>
+            <SelectTrigger className="w-48 h-9 text-sm">
+              <SelectValue placeholder="Filtrar por relatório" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">— Todos os relatórios —</SelectItem>
+              {reports.map(r => (
+                <SelectItem key={r.id} value={r.id}>
+                  {r.numero_protocolo} - {r.author_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             variant="outline"
             size="sm"
