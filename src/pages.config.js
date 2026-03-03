@@ -47,10 +47,13 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import AdminUsers from './pages/AdminUsers';
+import AssistentePlanejamento from './pages/AssistentePlanejamento';
 import AuditLog from './pages/AuditLog';
 import Cadastro from './pages/Cadastro';
 import CoordReview from './pages/CoordReview';
 import Dashboard from './pages/Dashboard';
+import DashboardProfissional from './pages/DashboardProfissional';
 import GestorArquivos from './pages/GestorArquivos';
 import Home from './pages/Home';
 import Perfil from './pages/Perfil';
@@ -59,17 +62,17 @@ import PlataformaAdmin from './pages/PlataformaAdmin';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
-import AdminUsers from './pages/AdminUsers';
-import AssistentePlanejamento from './pages/AssistentePlanejamento';
-import DashboardProfissional from './pages/DashboardProfissional';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "AdminUsers": AdminUsers,
+    "AssistentePlanejamento": AssistentePlanejamento,
     "AuditLog": AuditLog,
     "Cadastro": Cadastro,
     "CoordReview": CoordReview,
     "Dashboard": Dashboard,
+    "DashboardProfissional": DashboardProfissional,
     "GestorArquivos": GestorArquivos,
     "Home": Home,
     "Perfil": Perfil,
@@ -78,9 +81,6 @@ export const PAGES = {
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
-    "AdminUsers": AdminUsers,
-    "AssistentePlanejamento": AssistentePlanejamento,
-    "DashboardProfissional": DashboardProfissional,
 }
 
 export const pagesConfig = {

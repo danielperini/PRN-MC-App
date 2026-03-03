@@ -19,6 +19,15 @@ import { toast } from 'sonner';
 
 const EQUIPES = ['Comunicação', 'Coordenação', 'Administração', 'Educativo', 'Produção'];
 
+const CARGO_OPTIONS = [
+  { value: 'PROFISSIONAL', label: 'Profissional', description: 'Cria e envia seus próprios relatórios' },
+  { value: 'COORD_PRODUCAO', label: 'Coordenação de Produção', description: 'Pode revisar relatórios da produção, ver dashboard, valores financeiros. Não pode editar/deletar de outros.' },
+  { value: 'COORD_ADMINISTRATIVA', label: 'Coordenação Administrativa', description: 'Pode revisar relatórios administrativos, ver dashboard, valores financeiros. Não pode editar/deletar de outros.' },
+  { value: 'COORD_COMUNICACAO', label: 'Coordenação de Comunicação', description: 'Pode revisar relatórios de comunicação, ver dashboard, valores financeiros. Não pode editar/deletar de outros.' },
+  { value: 'COORDENADOR', label: 'Coordenação Geral', description: 'Todas as permissões. Pode gerenciar tudo.' },
+  { value: 'ADMIN', label: 'Administração', description: 'Gerencia usuários e visualiza tudo.' },
+];
+
 const gerarMatricula = async () => {
   const ano = new Date().getFullYear();
   const allUsers = await base44.entities.User.list('-created_date', 9999);
@@ -28,12 +37,18 @@ const gerarMatricula = async () => {
 
 const ROLE_LABELS = {
   COORDENADOR: 'Coordenação Geral',
+  COORD_PRODUCAO: 'Coordenação de Produção',
+  COORD_ADMINISTRATIVA: 'Coordenação Administrativa',
+  COORD_COMUNICACAO: 'Coordenação de Comunicação',
   PROFISSIONAL: 'Profissional',
   ADMIN: 'Administração',
 };
 
 const ROLE_COLORS = {
   COORDENADOR: 'bg-black text-white',
+  COORD_PRODUCAO: 'bg-purple-100 text-purple-700',
+  COORD_ADMINISTRATIVA: 'bg-orange-100 text-orange-700',
+  COORD_COMUNICACAO: 'bg-cyan-100 text-cyan-700',
   PROFISSIONAL: 'bg-gray-100 text-gray-700',
   ADMIN: 'bg-blue-100 text-blue-700',
 };
@@ -427,19 +442,17 @@ function UserManagementInner() {
               {reviewingReg.action === 'aprovar' && (
                 <div className="space-y-3">
                   <div>
-                    <Label>Papel <span className="text-red-500">*</span></Label>
+                    <Label>Cargo <span className="text-red-500">*</span></Label>
                     <Select value={regRole} onValueChange={setRegRole}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
-                        <SelectItem value="COORDENADOR">Coordenação Geral</SelectItem>
-                        <SelectItem value="ADMIN">Administração</SelectItem>
+                        {CARGO_OPTIONS.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-gray-400 mt-1">
-                      {regRole === 'COORDENADOR' && 'Pode revisar, aprovar e arquivar relatórios.'}
-                      {regRole === 'ADMIN' && 'Pode gerenciar usuários e visualizar todos os relatórios.'}
-                      {regRole === 'PROFISSIONAL' && 'Cria e envia seus próprios relatórios mensais.'}
+                      {CARGO_OPTIONS.find(o => o.value === regRole)?.description}
                     </p>
                   </div>
                 </div>
@@ -506,21 +519,19 @@ function UserManagementInner() {
             )}
 
             <div>
-              <Label>Papel <span className="text-red-500">*</span></Label>
-              <Select value={formData.role} onValueChange={v => setFormData({ ...formData, role: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
-                  <SelectItem value="COORDENADOR">Coordenação Geral</SelectItem>
-                  <SelectItem value="ADMIN">Administração</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-gray-400 mt-1">
-                {formData.role === 'COORDENADOR' && 'Pode revisar, aprovar e arquivar relatórios.'}
-                {formData.role === 'ADMIN' && 'Pode gerenciar usuários e visualizar todos os relatórios.'}
-                {formData.role === 'PROFISSIONAL' && 'Cria e envia seus próprios relatórios mensais.'}
-              </p>
-            </div>
+               <Label>Cargo <span className="text-red-500">*</span></Label>
+               <Select value={formData.role} onValueChange={v => setFormData({ ...formData, role: v })}>
+                 <SelectTrigger><SelectValue /></SelectTrigger>
+                 <SelectContent>
+                   {CARGO_OPTIONS.map(opt => (
+                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
+               <p className="text-xs text-gray-400 mt-1">
+                 {CARGO_OPTIONS.find(o => o.value === formData.role)?.description}
+               </p>
+             </div>
 
             <div>
               <Label>Equipe</Label>
