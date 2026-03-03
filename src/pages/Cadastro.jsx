@@ -63,7 +63,7 @@ export default function Cadastro() {
           <div className="mb-8">
             <h1 className="text-2xl font-semibold text-black tracking-tight">Solicitar acesso à plataforma</h1>
             <p className="text-gray-500 mt-1 text-sm">
-              Preencha o formulário abaixo. Após a análise de um coordenador, você receberá um convite por e-mail.
+              Preencha o formulário abaixo. Após a análise de um coordenador seu perfil poderá ser aprovado.
             </p>
           </div>
 
@@ -86,15 +86,6 @@ export default function Cadastro() {
               />
             </div>
             <div>
-              <Label>Função <span className="text-red-500">*</span></Label>
-              <Select value={form.funcao} onValueChange={v => set('funcao', v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione sua função" /></SelectTrigger>
-                <SelectContent>
-                  {FUNCOES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
               <Label>Museu de atuação <span className="text-red-500">*</span></Label>
               <Select value={form.museu} onValueChange={v => set('museu', v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione o museu" /></SelectTrigger>
@@ -102,24 +93,6 @@ export default function Cadastro() {
                   {MUSEUS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                 </SelectContent>
               </Select>
-            </div>
-            <div>
-              <Label>Equipe</Label>
-              <Select value={form.equipe} onValueChange={v => set('equipe', v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione a equipe (opcional)" /></SelectTrigger>
-                <SelectContent>
-                  {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Mensagem (opcional)</Label>
-              <Textarea
-                placeholder="Fale um pouco sobre sua atuação nos museus..."
-                value={form.mensagem}
-                onChange={e => set('mensagem', e.target.value)}
-                className="min-h-[80px]"
-              />
             </div>
           </div>
 
