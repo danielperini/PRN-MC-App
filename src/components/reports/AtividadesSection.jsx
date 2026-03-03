@@ -231,6 +231,20 @@ Escreva em português do Brasil, de forma objetiva e profissional.`;
     setAiLoading(false);
   };
 
+  const handleAiJustificativa = async () => {
+    setAiLoading(true);
+    const prompt = `Com base na seguinte atividade de museu, escreva uma justificativa técnica clara explicando por que esta atividade é considerada "${atividade.classificacao}" (máximo 3 linhas):
+Nome: ${atividade.nome || ''}
+Tipo de ação: ${atividade.tipo_acao || ''}
+Descrição: ${atividade.descricao_executado || atividade.objetivo || ''}
+Museu: ${atividade.museu || ''}
+Classificação: ${atividade.classificacao || ''}
+Escreva em português do Brasil, de forma técnica e concisa.`;
+    const result = await base44.integrations.Core.InvokeLLM({ prompt });
+    onChange('justificativa_tecnica', result);
+    setAiLoading(false);
+  };
+
   return (
     <div className={`border rounded-xl overflow-hidden ${hasDupWarning ? 'border-amber-400' : errors.length > 0 ? 'border-red-200' : 'border-gray-200'}`}>
       {/* Card header */}
@@ -361,17 +375,30 @@ Escreva em português do Brasil, de forma objetiva e profissional.`;
 
           {/* Campos condicionais: ROTINA / EXTRA */}
           {isRotinaOrExtra && (
-            <div className="p-4 border border-green-100 bg-green-50/20 rounded-xl">
-              <Field label="Justificativa Técnica">
-                <Textarea
-                  placeholder="Explique por que esta atividade é de rotina/extra e como se relaciona ao projeto/museu."
-                  value={atividade.justificativa_tecnica || ''}
-                  onChange={e => onChange('justificativa_tecnica', e.target.value)}
-                  disabled={!canEdit}
-                  rows={4}
-
-                />
-              </Field>
+            <div className="p-4 border border-green-100 bg-green-50/20 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-gray-700">Justificativa Técnica</Label>
+                {canEdit && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs h-7"
+                    onClick={handleAiJustificativa}
+                    disabled={aiLoading}
+                  >
+                    {aiLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                    {aiLoading ? 'Gerando...' : 'Sugerir com IA'}
+                  </Button>
+                )}
+              </div>
+              <Textarea
+                placeholder="Explique por que esta atividade é de rotina/extra e como se relaciona ao projeto/museu."
+                value={atividade.justificativa_tecnica || ''}
+                onChange={e => onChange('justificativa_tecnica', e.target.value)}
+                disabled={!canEdit}
+                rows={3}
+              />
             </div>
           )}
 
