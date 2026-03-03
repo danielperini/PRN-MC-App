@@ -601,7 +601,23 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
               </Select>
             </Field>
             <Field label="Público estimado (por ocorrência)">
-              <Input type="number" placeholder="0" value={atividade.publico_estimado ?? ''} onChange={e => onChange('publico_estimado', parseInt(e.target.value) || 0)} disabled={!canEdit} />
+               <Input type="number" placeholder="0" value={atividade.publico_estimado ?? ''} onChange={e => onChange('publico_estimado', parseInt(e.target.value) || 0)} disabled={!canEdit} />
+            </Field>
+            <Field label="Quantas vezes ocorreu?">
+               <Input 
+                 type="number" 
+                 placeholder="1" 
+                 value={atividade.quantas_repeticoes || 1} 
+                 onChange={e => {
+                   const val = e.target.value === '' ? 1 : parseInt(e.target.value, 10);
+                   if (!isNaN(val) && val >= 1 && val <= 99) {
+                     onChange('quantas_repeticoes', val);
+                   }
+                 }} 
+                 disabled={!canEdit}
+                 min="1"
+                 max="99"
+               />
             </Field>
 
             <Field label="Produto realizado">
