@@ -546,7 +546,7 @@ function UserManagementInner() {
                        </div>
 
                        {/* Expanded details */}
-                       {expandedUser === user.id && (
+                       {expandedUserId === user.id && (
                          <div className="border-t border-gray-100 p-4 space-y-6 bg-gray-50">
                            {/* Editar dados básicos */}
                            <div>
@@ -554,9 +554,9 @@ function UserManagementInner() {
                                <h3 className="text-sm font-semibold text-black">Informações</h3>
                                <Button
                                  size="sm"
-                                 variant={editUser === 'info' ? 'default' : 'outline'}
+                                 variant={editingUserMode === `${user.id}-info` ? 'default' : 'outline'}
                                  className="text-xs"
-                                 onClick={() => setEditUser(editUser === 'info' ? null : 'info')}
+                                 onClick={() => setEditingUserMode(editingUserMode === `${user.id}-info` ? null : `${user.id}-info`)}
                                >
                                  {editUser === 'info' ? 'Salvar' : 'Editar'}
                                </Button>
