@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import PendingApprovalsPanel from './PendingApprovalsPanel';
 
 const STATUS_CONFIG = {
   DRAFT:     { label: 'Rascunho',   color: '#e5e7eb', text: '#374151' },
