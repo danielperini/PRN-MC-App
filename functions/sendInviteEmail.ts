@@ -10,10 +10,10 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { email, full_name, role, inviteUrl } = body;
+    const { email, full_name, role, inviteUrl, cadastroUrl } = body;
 
-    if (!email || !inviteUrl) {
-      return Response.json({ error: 'Email e inviteUrl são obrigatórios' }, { status: 400 });
+    if (!email) {
+      return Response.json({ error: 'Email é obrigatório' }, { status: 400 });
     }
 
     // Buscar configuração de email para convites
@@ -27,14 +27,17 @@ Deno.serve(async (req) => {
     }
 
     const emailConfig = emailConfigs[0];
+    const linkAcesso = cadastroUrl || inviteUrl || '';
 
-    // Enviar email de convite
+    // Enviar email de convite com link direto
     const message = `Olá ${full_name || 'usuário'}!
 
 Você foi convidado para acessar a Plataforma de Relatórios dos Museus Centro.
 
-Para aceitar o convite, clique no link abaixo:
-${inviteUrl}
+📌 CLIQUE AQUI PARA ACESSAR:
+${linkAcesso}
+
+Neste link, você poderá completar seu cadastro de forma rápida e fácil. Após preencher o formulário, sua solicitação será analisada pela equipe de coordenação.
 
 Se você não solicitou este convite, favor desconsiderar este email.
 
@@ -51,7 +54,8 @@ Equipe da Plataforma`;
     return Response.json({ 
       success: true, 
       message: 'Email de convite enviado com sucesso',
-      from: emailConfig.email_sender
+      from: emailConfig.email_sender,
+      recipient: email
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
