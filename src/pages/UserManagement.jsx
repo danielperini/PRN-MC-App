@@ -255,6 +255,17 @@ function UserManagementInner() {
     setShowDialog(true);
   };
 
+  const setShowPermissions = (user) => {
+    const perm = userPermissions.find(p => p.user_email === user.email);
+    setEditingUserPerm(perm || { user_email: user.email, user_name: user.full_name });
+    setPermissionsForm({
+      must_submit_monthly_report: perm?.must_submit_monthly_report || false,
+      can_view_all_reports: perm?.can_view_all_reports !== false,
+      can_review_reports: perm?.can_review_reports || false,
+      can_manage_users: perm?.can_manage_users || false,
+    });
+  };
+
   const openEdit = (user) => {
     setEditingUser(user);
     setFormData({
