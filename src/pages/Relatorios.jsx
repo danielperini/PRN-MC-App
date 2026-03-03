@@ -69,14 +69,14 @@ function RelatoriosInner() {
   const { data: allReports = [], isLoading: loadingAll } = useQuery({
     queryKey: ['all-reports-list'],
     queryFn: () => base44.entities.Report.list('-created_date', 200),
-    enabled: !!currentUser && isCoordenador,
+    enabled: !!currentUser && !isLoading && isCoordenador,
     staleTime: 30_000,
   });
 
   const { data: myReports = [], isLoading: loadingMy } = useQuery({
     queryKey: ['my-reports-list', currentUser?.email],
     queryFn: () => base44.entities.Report.filter({ created_by: currentUser?.email }, '-created_date'),
-    enabled: !!currentUser?.email && !isCoordenador,
+    enabled: !!currentUser?.email && !isLoading && !isCoordenador,
     staleTime: 30_000,
   });
 
