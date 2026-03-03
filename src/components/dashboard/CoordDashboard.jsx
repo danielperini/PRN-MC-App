@@ -25,8 +25,22 @@ const MESES_ORDER = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julh
 
 const PIE_COLORS = ['#000000', '#404040', '#737373', '#a3a3a3', '#d4d4d4', '#e5e5e5'];
 
+// Deduplicar atividades por nome+data_inicio+museu para evitar contagem dupla
+function deduplicarAtividades(atividades) {
+  const seen = new Set();
+  return atividades.filter(a => {
+    const key = `${(a.nome || '').trim().toLowerCase()}|${a.data_inicio || ''}|${a.museu || ''}`;
+    if (!a.nome && !a.data_inicio) return true; // sem chave, manter
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export default function CoordDashboard({ reports = [], isLoading }) {
-  const allAtiv = useMemo(() => reports.flatMap(r => r.atividades || []), [reports]);
+  const allAtivRaw = useMemo(() => reports.flatMap(r => r.atividades || []), [reports]);
+  const allAtiv = useMemo(() => deduplicarAtividades(allAtivRaw), [allAtivRaw]);
+  const duplicatas = allAtivRaw.length - allAtiv.length;
 
   // KPIs
   const totalRelatorios = reports.length;
