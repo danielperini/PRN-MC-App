@@ -523,6 +523,66 @@ function UserManagementInner() {
             </div>
           </TabsContent>
 
+          {/* ── ABA PENDENTES DE CONVITE ── */}
+          <TabsContent value="pendentes-convite">
+            {(() => {
+              const approvedButNotInvited = allRegistrations.filter(reg => {
+                const isUser = users.some(u => u.email === reg.email);
+                return reg.status === 'APROVADO' && !isUser;
+              });
+
+              return approvedButNotInvited.length === 0 ? (
+                <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
+                  <Mail className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">Nenhum usuário pendente de convite</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {approvedButNotInvited.map((reg) => (
+                    <div key={reg.id} className="p-5 border border-orange-100 bg-orange-50/40 rounded-xl hover:border-orange-200 transition-all">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-4 min-w-0 flex-1">
+                          <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold text-orange-700">
+                            {(reg.full_name || '')[0]?.toUpperCase() || '?'}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-black">{reg.full_name}</p>
+                            <p className="text-sm text-gray-500">{reg.email}</p>
+                            <div className="flex gap-3 text-xs text-gray-400 mt-1">
+                              <span>{reg.funcao}</span>
+                              <span>•</span>
+                              <span>{reg.museu}</span>
+                              {reg.equipe && (
+                                <>
+                                  <span>•</span>
+                                  <span>{reg.equipe}</span>
+                                </>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-2">
+                              ✅ Aprovado em {new Date(reg.updated_date).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700 text-white text-xs flex-shrink-0"
+                          onClick={() => {
+                            setReviewingReg({ ...reg, action: 'convidar' });
+                            setRegRole('PROFISSIONAL');
+                            setRegNote('');
+                          }}
+                        >
+                          <Mail className="w-4 h-4 mr-1" />Enviar Convite
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </TabsContent>
+
           {/* ── ABA SOLICITAÇÕES ── */}
           <TabsContent value="solicitacoes">
             {pendingRegistrations.length === 0 ? (
