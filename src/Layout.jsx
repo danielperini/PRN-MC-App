@@ -68,6 +68,7 @@ export default function Layout({ children, currentPageName }) {
     { name: 'PermissionManager', icon: Shield, label: 'Permissões', show: isCoordenador && canViewMenu('can_manage_users') },
     { name: 'PlataformaAdmin', icon: Settings, label: 'Plataforma', show: isCoordenador && canViewMenu('can_manage_platform') },
     { name: 'AuditLog', icon: History, label: 'Auditoria', show: isCoordenador && canViewMenu('can_view_audit_log') },
+    { name: 'ActivityLog', icon: History, label: 'Atividades', show: true },
   ].filter(item => item.show);
 
   if (currentPageName === 'Home') {
