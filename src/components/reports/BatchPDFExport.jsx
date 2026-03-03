@@ -38,13 +38,10 @@ export default function BatchPDFExport({ reports = [] }) {
     setGenerating(true);
 
     try {
-      const JSZip = (await import('jszip')).default;
-      const jsPDF = (await import('jspdf')).jsPDF;
-      const html2canvas = (await import('html2canvas')).default;
-
-      const zip = new JSZip();
+      const { jsPDF } = await import('jspdf');
       const selectedReports = reports.filter(r => selectedIds.has(r.id));
 
+      // Gerar e baixar cada PDF individualmente
       for (const report of selectedReports) {
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pageHeight = pdf.internal.pageSize.getHeight();
@@ -59,7 +56,7 @@ export default function BatchPDFExport({ reports = [] }) {
 
         // Info do relatório
         pdf.setFontSize(10);
-        pdf.text(`${report.mes_referencia}/${report.ano} — ${report.autor_name || report.author_name}`, margin, yPos);
+        pdf.text(`${report.mes_referencia}/${report.ano} — ${report.author_name}`, margin, yPos);
         yPos += 6;
         pdf.text(`Museu: ${report.museu}`, margin, yPos);
         yPos += 10;
@@ -101,17 +98,11 @@ export default function BatchPDFExport({ reports = [] }) {
         }
 
         const filename = `relatorio_${report.author_name}_${report.mes_referencia}_${report.ano}.pdf`;
-        zip.file(filename, pdf.output('blob'));
+        pdf.save(filename);
+        
+        // Pequeno delay entre downloads
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
-
-      // Gerar ZIP
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `relatorios_pdf_${new Date().toISOString().slice(0, 10)}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
 
       toast.success(`${selectedIds.size} relatório(s) exportado(s) com sucesso!`);
       setShowDialog(false);
