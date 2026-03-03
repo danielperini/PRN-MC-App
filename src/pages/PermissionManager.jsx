@@ -20,6 +20,7 @@ const DEFAULT_PERMISSIONS = [
   { key: 'can_manage_equipes', label: 'Gerenciar equipes' },
   { key: 'can_view_audit_log', label: 'Visualizar auditoria' },
   { key: 'can_manage_platform', label: 'Gerenciar plataforma' },
+  { key: 'must_submit_monthly_reports', label: 'Obrigado a entregar relatórios mensais' },
 ];
 
 function PermissionManagerInner() {
@@ -240,9 +241,7 @@ function PermissionManagerInner() {
                   {loadingUsers ? (
                     <p className="p-3 text-gray-400 text-sm">Carregando usuários...</p>
                   ) : (
-                    users
-                      .filter(u => ['COORDENADOR', 'ADMIN', 'admin'].includes(u.role))
-                      .map(user => (
+                    users.map(user => (
                         <button
                           key={user.id}
                           onClick={() => handleSelectUser(user)}
