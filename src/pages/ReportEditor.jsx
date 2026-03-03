@@ -18,6 +18,8 @@ import AtividadesSection, { validateAtividade } from '../components/reports/Ativ
 import ExportPDF from '../components/reports/ExportPDF';
 import AIAssistButton from '../components/reports/AIAssistButton';
 import ReportGenerator from '../components/reports/ReportGenerator';
+import ExecutiveSummaryAI from '../components/reports/ExecutiveSummaryAI';
+import TrendAnalysisAI from '../components/reports/TrendAnalysisAI';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
