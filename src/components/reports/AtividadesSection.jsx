@@ -325,11 +325,13 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
   return (
     <div className={`border rounded-xl overflow-hidden ${hasDupWarning ? 'border-amber-400' : errors.length > 0 ? 'border-red-200' : 'border-gray-200'}`}>
       {/* Card header */}
-      <div
-        className="flex items-center justify-between px-5 py-3 bg-gray-50 cursor-pointer"
-        onClick={() => setExpanded(e => !e)}
+       <div
+        className="flex items-center justify-between px-5 py-3 bg-gray-50"
       >
-        <div className="flex items-center gap-3 flex-wrap">
+        <div 
+          className="flex items-center gap-3 flex-wrap flex-1 cursor-pointer"
+          onClick={() => setExpanded(e => !e)}
+        >
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
             Atividade {index + 1}
           </span>
