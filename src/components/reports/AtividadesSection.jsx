@@ -72,6 +72,7 @@ const EMPTY_ATIVIDADE = {
   resultado_alcancado: '',
   status_meta: '',
   justificativa_tecnica: '',
+  depoimento_participantes: '',
 };
 
 export function validateAtividade(ativ) {
@@ -484,8 +485,11 @@ Escreva em português do Brasil, de forma objetiva e profissional.`;
                   <Textarea placeholder="Como foram resolvidos..." value={atividade.solucoes || ''} onChange={e => onChange('solucoes', e.target.value)} disabled={!canEdit} rows={2} />
                 </Field>
               </div>
-            </div>
-          </div>
+              <Field label="Depoimento de Participantes ou Fatos Marcantes">
+                <Textarea placeholder="Relatos dos participantes, histórias marcantes, feedback importante..." value={atividade.depoimento_participantes || ''} onChange={e => onChange('depoimento_participantes', e.target.value)} disabled={!canEdit} rows={3} />
+              </Field>
+              </div>
+              </div>
 
           {/* Anexos vinculados a esta atividade */}
           {reportId && (
