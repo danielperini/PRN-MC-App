@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { ArrowLeft, Save, Send, Plus, Trash2, CheckCircle, AlertCircle, RotateCcw, ShieldCheck } from 'lucide-react';
+import ReportTabsNavigation from '../components/reports/ReportTabsNavigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -74,6 +75,8 @@ function ReportEditorInner() {
 
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [declaracaoAceita, setDeclaracaoAceita] = useState(false);
+  const [currentTab, setCurrentTab] = useState('identificacao');
+  const [autoSaveTimer, setAutoSaveTimer] = useState(null);
   const set = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
 
   // Pre-fill author from logged user on new reports
@@ -221,6 +224,29 @@ function ReportEditorInner() {
 
   const canEdit = formData.status === 'DRAFT' || formData.status === 'RETURNED';
 
+  // Auto-save ao mudar de aba
+  const handleTabChange = (newTab) => {
+    // Salva dados antes de trocar de aba
+    if (canEdit && reportId) {
+      saveMutation.mutate(formData);
+    }
+    setCurrentTab(newTab);
+  };
+
+  // Auto-save após inatividade (debounce)
+  useEffect(() => {
+    if (!canEdit || !reportId || !formData.mes_referencia) return;
+
+    clearTimeout(autoSaveTimer);
+    const timer = setTimeout(() => {
+      saveMutation.mutate(formData);
+    }, 3000); // Salva 3 segundos após a última alteração
+
+    setAutoSaveTimer(timer);
+
+    return () => clearTimeout(timer);
+  }, [formData, canEdit, reportId, autoSaveTimer]);
+
   if (isLoading && reportId) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -314,7 +340,9 @@ function ReportEditorInner() {
           </div>
         )}
 
-        <Tabs defaultValue="identificacao" className="w-full">
+        <ReportTabsNavigation currentTab={currentTab} formData={formData} onTabChange={handleTabChange} />
+
+        <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="mb-8 flex flex-wrap h-auto gap-1 bg-gray-100 p-1 rounded-xl">
             <TabsTrigger value="identificacao">Identificação</TabsTrigger>
             <TabsTrigger value="atividades">Atividades</TabsTrigger>
