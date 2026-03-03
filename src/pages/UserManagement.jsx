@@ -425,9 +425,24 @@ function UserManagementInner() {
                 <p className="text-gray-500">{reviewingReg.funcao} · {reviewingReg.museu}{reviewingReg.equipe ? ` · ${reviewingReg.equipe}` : ''}</p>
               </div>
               {reviewingReg.action === 'aprovar' && (
-                <p className="text-sm text-gray-500">
-                  O usuário receberá um convite por e-mail com acesso como <strong>Profissional</strong>. Você poderá ajustar o papel e equipe posteriormente.
-                </p>
+                <div className="space-y-3">
+                  <div>
+                    <Label>Papel <span className="text-red-500">*</span></Label>
+                    <Select value={regRole} onValueChange={setRegRole}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
+                        <SelectItem value="COORDENADOR">Coordenação Geral</SelectItem>
+                        <SelectItem value="ADMIN">Administração</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {regRole === 'COORDENADOR' && 'Pode revisar, aprovar e arquivar relatórios.'}
+                      {regRole === 'ADMIN' && 'Pode gerenciar usuários e visualizar todos os relatórios.'}
+                      {regRole === 'PROFISSIONAL' && 'Cria e envia seus próprios relatórios mensais.'}
+                    </p>
+                  </div>
+                </div>
               )}
               <div>
                 <Label>Observação {reviewingReg.action === 'rejeitar' ? '(motivo)' : '(opcional)'}</Label>
