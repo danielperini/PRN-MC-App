@@ -1022,6 +1022,7 @@ function UserManagementInner() {
               }}
               disabled={createDirectMutation.isPending}
             >
+              {createDirectMutation.isPending && <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full inline-block" />}
               {createDirectMutation.isPending ? 'Cadastrando...' : 'Cadastrar Usuário'}
             </Button>
           </DialogFooter>
