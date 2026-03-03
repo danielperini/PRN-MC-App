@@ -303,6 +303,11 @@ function UserManagementInner() {
           can_view_all_reports: permissionsForm.can_view_all_reports,
           can_review_reports: permissionsForm.can_review_reports,
           can_manage_users: permissionsForm.can_manage_users,
+          can_manage_files: permissionsForm.can_manage_files,
+          can_manage_museus: permissionsForm.can_manage_museus,
+          can_manage_equipes: permissionsForm.can_manage_equipes,
+          can_view_audit_log: permissionsForm.can_view_audit_log,
+          can_manage_platform: permissionsForm.can_manage_platform,
         };
 
         if (editingUserPerm.id) {
