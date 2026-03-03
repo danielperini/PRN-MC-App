@@ -50,6 +50,11 @@ export default function Sidebar({ currentPageName, collapsed, onToggle }) {
   const canViewMenu = (requiredPerm) => {
     if (!isCoordenador) return true;
     if (!customPerms) return true; // Se não tem perms customizadas, mostra tudo
+    // Se é Consultoria Programação, herda permissões de Coordenação de Comunicação
+    if (currentUser?.role === 'CONSULTORIA_PROGRAMACAO') {
+      const commPerms = ['can_review_reports', 'can_view_all_reports'];
+      if (commPerms.includes(requiredPerm)) return true;
+    }
     return customPerms[requiredPerm] !== false;
   };
 
