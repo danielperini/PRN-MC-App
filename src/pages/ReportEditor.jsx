@@ -198,15 +198,16 @@ function ReportEditorInner() {
       queryClient.invalidateQueries(['report', reportId]);
       queryClient.invalidateQueries(['my-reports']);
       const msgs = {
-        start_review: 'Revisão iniciada.',
-        return: 'Relatório devolvido ao profissional.',
-        approve: 'Relatório aprovado com sucesso!',
-        archive: 'Relatório arquivado.',
-        reopen: 'Relatório reaberto como rascunho.',
+        start_review: { title: 'Revisão iniciada', desc: '✓ O relatório foi movido para revisão.' },
+        return: { title: 'Relatório devolvido', desc: '✓ Notificação enviada ao profissional.' },
+        approve: { title: 'Relatório aprovado', desc: '✓ Status atualizado com sucesso.' },
+        archive: { title: 'Arquivado', desc: '✓ Relatório movido para arquivo.' },
+        reopen: { title: 'Reabertura concluída', desc: '✓ Relatório reaberto como rascunho.' },
       };
-      toast.success(msgs[action] || 'Status atualizado.');
+      const msg = msgs[action] || { title: 'Status atualizado', desc: '' };
+      toast.success(msg.title, { description: msg.desc });
     },
-    onError: (e) => toast.error('Erro ao atualizar status: ' + (e?.message || 'tente novamente')),
+    onError: (e) => toast.error('Erro ao atualizar', { description: e?.message || 'Não foi possível processar a ação.' }),
   });
 
   // Oportunidades helpers
