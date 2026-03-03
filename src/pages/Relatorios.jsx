@@ -303,6 +303,27 @@ function RelatoriosInner() {
         </div>
       </div>
     </div>
+
+      {/* Delete Confirm */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir relatório?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <p className="text-sm text-gray-500 px-1">
+            Tem certeza que deseja excluir o relatório de <strong>{deleteTarget?.author_name}</strong> — {deleteTarget?.mes_referencia} {deleteTarget?.ano}? Esta ação não pode ser desfeita.
+          </p>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => deleteMutation.mutate(deleteTarget.id)}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
   );
 }
 
