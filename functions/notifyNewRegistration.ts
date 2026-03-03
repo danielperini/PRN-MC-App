@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
 
     // Get all coordinators
     const users = await base44.asServiceRole.entities.User.list();
-    const coordinators = users.filter(u => u.role === 'COORDENADOR' || u.role === 'admin' || u.role === 'ADMIN');
+    const coordinators = users.filter(u => u.role === 'admin' || u.role === 'ADMIN');
 
     // Send notification to each coordinator
     for (const coordinator of coordinators) {
