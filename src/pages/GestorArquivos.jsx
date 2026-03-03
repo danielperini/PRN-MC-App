@@ -221,78 +221,159 @@ function GestorArquivosInner() {
           </div>
         )}
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              placeholder="Buscar arquivo, profissional ou museu..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-9"
-            />
+        {/* Search Bar */}
+        <div className="mb-6">
+          <div className="flex gap-2 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Buscar arquivo, profissional, relatório ou museu..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Button
+              variant={showAdvancedFilters ? 'default' : 'outline'}
+              size="sm"
+              className="gap-2"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            >
+              <Filter className="w-4 h-4" />
+              Filtros Avançados
+            </Button>
           </div>
-          <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-40 h-9 text-sm">
-              <SelectValue placeholder="Tipo de arquivo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">— Todos —</SelectItem>
-              <SelectItem value="image">Imagens</SelectItem>
-              <SelectItem value="video">Vídeos</SelectItem>
-              <SelectItem value="pdf">PDFs</SelectItem>
-              <SelectItem value="archive">Compactados</SelectItem>
-            </SelectContent>
-          </Select>
-          {isCoordenador && (
-            <>
-              <Select value={filterMuseu} onValueChange={setFilterMuseu}>
-                <SelectTrigger className="w-40 h-9 text-sm">
-                  <SelectValue placeholder="Museu" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">— Museu —</SelectItem>
-                  {MUSEUS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={filterMes} onValueChange={setFilterMes}>
-                <SelectTrigger className="w-40 h-9 text-sm">
-                  <SelectValue placeholder="Mês" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">— Mês —</SelectItem>
-                  {MESES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </>
+
+          {/* Advanced Filters */}
+          {showAdvancedFilters && (
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4 mb-4">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Type Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <FileType className="w-4 h-4 inline mr-1" />
+                    Tipo de Arquivo
+                  </label>
+                  <Select value={filterType} onValueChange={setFilterType}>
+                    <SelectTrigger className="text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="image">Imagens</SelectItem>
+                      <SelectItem value="video">Vídeos</SelectItem>
+                      <SelectItem value="pdf">PDFs</SelectItem>
+                      <SelectItem value="archive">Compactados</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Date Range */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Calendar className="w-4 h-4 inline mr-1" />
+                    Data Inicial
+                  </label>
+                  <Input
+                    type="date"
+                    value={filterStartDate}
+                    onChange={e => setFilterStartDate(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Data Final
+                  </label>
+                  <Input
+                    type="date"
+                    value={filterEndDate}
+                    onChange={e => setFilterEndDate(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+
+                {/* Report Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Relatório
+                  </label>
+                  <Select value={filterReport} onValueChange={setFilterReport}>
+                    <SelectTrigger className="text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {reports.map(r => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.numero_protocolo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Museum Filter (Coordinators only) */}
+                {isCoordenador && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Museu
+                    </label>
+                    <Select value={filterMuseu} onValueChange={setFilterMuseu}>
+                      <SelectTrigger className="text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {MUSEUS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Month Filter (Coordinators only) */}
+                {isCoordenador && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Mês
+                    </label>
+                    <Select value={filterMes} onValueChange={setFilterMes}>
+                      <SelectTrigger className="text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {MESES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              {/* Clear Filters */}
+              <div className="flex gap-2 justify-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setFilterType('all');
+                    setFilterMuseu('all');
+                    setFilterMes('all');
+                    setFilterReport('all');
+                    setFilterStartDate('');
+                    setFilterEndDate('');
+                  }}
+                >
+                  Limpar Filtros
+                </Button>
+              </div>
+            </div>
           )}
-          <Input
-            type="date"
-            value={filterStartDate}
-            onChange={e => setFilterStartDate(e.target.value)}
-            className="w-32 h-9 text-sm"
-            placeholder="De"
-          />
-          <Input
-            type="date"
-            value={filterEndDate}
-            onChange={e => setFilterEndDate(e.target.value)}
-            className="w-32 h-9 text-sm"
-            placeholder="Até"
-          />
-          <Select value={filterReport} onValueChange={setFilterReport}>
-            <SelectTrigger className="w-48 h-9 text-sm">
-              <SelectValue placeholder="Filtrar por relatório" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">— Todos os relatórios —</SelectItem>
-              {reports.map(r => (
-                <SelectItem key={r.id} value={r.id}>
-                  {r.numero_protocolo} - {r.author_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        </div>
+
+        {/* Action Bar */}
+        <div className="flex gap-2 mb-6">
           <Button
             variant="outline"
             size="sm"
