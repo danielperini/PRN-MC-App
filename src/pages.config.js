@@ -60,10 +60,10 @@ import Home from './pages/Home';
 import Perfil from './pages/Perfil';
 import PermissionManager from './pages/PermissionManager';
 import PlataformaAdmin from './pages/PlataformaAdmin';
+import PlataformaConfig from './pages/PlataformaConfig';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
-import PlataformaConfig from './pages/PlataformaConfig';
 import __Layout from './Layout.jsx';
 
 
@@ -81,10 +81,10 @@ export const PAGES = {
     "Perfil": Perfil,
     "PermissionManager": PermissionManager,
     "PlataformaAdmin": PlataformaAdmin,
+    "PlataformaConfig": PlataformaConfig,
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
-    "PlataformaConfig": PlataformaConfig,
 }
 
 export const pagesConfig = {

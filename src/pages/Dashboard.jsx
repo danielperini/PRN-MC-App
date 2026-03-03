@@ -119,9 +119,9 @@ function DashboardInner() {
          </div>
 
          {/* General Stats Cards — visível para todos */}
-         <div className="mb-10">
-           <GeneralStatsCards reports={allReports} />
-         </div>
+          <div className="mb-10">
+            <GeneralStatsCards reports={displayReports} />
+          </div>
 
          {/* Coordenador: dashboard completo */}
            {showCoordView ? (
