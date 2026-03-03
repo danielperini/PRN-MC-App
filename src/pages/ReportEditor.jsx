@@ -75,10 +75,13 @@ function ReportEditorInner() {
    const reportId = urlParams.get('id');
 
    const [formData, setFormData] = useState(EMPTY_FORM);
-   const [declaracaoAceita, setDeclaracaoAceita] = useState(false);
-   const [currentTab, setCurrentTab] = useState('identificacao');
-   const [autoSaveTimer, setAutoSaveTimer] = useState(null);
-   const set = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
+    const [declaracaoAceita, setDeclaracaoAceita] = useState(false);
+    const [currentTab, setCurrentTab] = useState('identificacao');
+    const [autoSaveTimer, setAutoSaveTimer] = useState(null);
+    const set = (key, value) => {
+      if (formData === null || typeof formData !== 'object') return;
+      setFormData(prev => ({ ...prev, [key]: value }));
+    };
 
   // Pre-fill author from logged user on new reports
   useEffect(() => {
