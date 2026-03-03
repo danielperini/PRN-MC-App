@@ -579,12 +579,19 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
               <Input type="number" placeholder="0" value={atividade.publico_estimado || ''} onChange={e => onChange('publico_estimado', e.target.value)} disabled={!canEdit} />
             </Field>
             <Field label="Quantas vezes se repetiu?">
-              <Input type="number" placeholder="1" value={atividade.quantas_repeticoes || 1} onChange={e => {
-                const repeticoes = parseInt(e.target.value) || 1;
-                onChange('quantas_repeticoes', repeticoes);
-                const publico = (parseInt(atividade.publico_estimado) || 0) * repeticoes;
-                onChange('publico_total', publico);
-              }} disabled={!canEdit} />
+              <Input 
+                type="number" 
+                placeholder="1" 
+                value={atividade.quantas_repeticoes || ''} 
+                onChange={e => {
+                  const repeticoes = e.target.value ? parseInt(e.target.value) : 1;
+                  onChange('quantas_repeticoes', repeticoes);
+                  const publico = (parseInt(atividade.publico_estimado) || 0) * repeticoes;
+                  onChange('publico_total', publico);
+                }} 
+                disabled={!canEdit}
+                min="1"
+              />
             </Field>
             <Field label="Público total (calculado)">
               <Input type="number" placeholder="0" value={atividade.publico_total || (parseInt(atividade.publico_estimado || 0) * parseInt(atividade.quantas_repeticoes || 1))} disabled={true} className="bg-gray-100 text-gray-600" />
