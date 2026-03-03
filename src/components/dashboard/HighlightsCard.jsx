@@ -27,6 +27,8 @@ export default function HighlightsCard() {
   const [mediaResults, setMediaResults] = useState([]);
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [mediaLoading, setMediaLoading] = useState(false);
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [selectedHighlightForCarousel, setSelectedHighlightForCarousel] = useState(null);
 
   useEffect(() => {
     const loadHighlights = async () => {
