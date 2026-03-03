@@ -21,10 +21,23 @@ const STATUS_LABELS = {
   ARCHIVED: { label: 'Arquivado', color: 'bg-gray-200 text-gray-500' },
 };
 
-function StatCard({ icon: Icon, label, value, color = 'bg-gray-50', highlight }) {
+function StatCard({ icon: Icon, label, value, color = 'bg-gray-800', highlight, dark = false }) {
+  if (dark) {
+    return (
+      <div className={`rounded-2xl border ${highlight ? 'border-amber-400 bg-amber-900/30' : 'border-gray-700 bg-gray-900'} p-5 flex items-center gap-4`}>
+        <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${color}`}>
+          <Icon className="w-7 h-7 text-white" />
+        </div>
+        <div>
+          <p className="text-3xl font-bold text-white leading-none">{value}</p>
+          <p className="text-base text-gray-400 mt-0.5">{label}</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={`rounded-2xl border ${highlight ? 'border-amber-200 bg-amber-50' : 'border-gray-100 bg-white'} p-5 flex items-center gap-4`}>
-      <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${color}`}>
+      <div className={`w-14 h-14 rounded-xl flex items-center justify-center bg-gray-50`}>
         <Icon className="w-7 h-7 text-black" />
       </div>
       <div>
