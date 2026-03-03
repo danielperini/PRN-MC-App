@@ -17,6 +17,8 @@ import HighlightsCard from '../components/dashboard/HighlightsCard';
 import SummaryCards from '../components/dashboard/SummaryCards';
 import GeneralStatsCards from '../components/dashboard/GeneralStatsCards';
 import TrendChart from '../components/dashboard/TrendChart';
+import ComplianceStats from '../components/dashboard/ComplianceStats';
+import ExemptionManager from '../components/dashboard/ExemptionManager';
 
 const STATUS_CONFIG = {
   DRAFT:     { label: 'Rascunho',   color: 'bg-gray-100 text-gray-600',      cardBg: 'bg-white',            icon: Clock },
@@ -31,6 +33,12 @@ function DashboardInner() {
   const { user: currentUser, isLoading: userLoading, isCoordenador } = useCurrentUser();
    const [view, setView] = React.useState('coordenador'); 
    const [filters, setFilters] = React.useState({ museu: '', status: '' });
+
+   // Current month/year for compliance stats
+   const now = new Date();
+   const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+   const currentMonth = monthNames[now.getMonth()];
+   const currentYear = now.getFullYear();
 
    const { data: myReports = [], isLoading: loadingMy } = useQuery({
       queryKey: ['my-reports', currentUser?.email],
@@ -140,7 +148,12 @@ function DashboardInner() {
 
          {/* Coordenador: dashboard completo */}
            {showCoordView ? (
-             <CoordDashboard reports={allReports} isLoading={loadingAll} />
+             <>
+               <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
+               <ExemptionManager currentMonth={currentMonth} currentYear={currentYear} />
+               <CoordDashboard reports={allReports} isLoading={loadingAll} />
+             </>
+           ) : (
            ) : showDedicatedProfView ? (
              <div>
                {/* Redirect message */}
