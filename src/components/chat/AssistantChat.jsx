@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { MessageCircle, X, Send, Minimize2, Maximize2 } from 'lucide-react';
+import { MessageCircle, X, Send, Minimize2, Maximize2, Lightbulb, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useQuery } from '@tanstack/react-query';
