@@ -80,6 +80,8 @@ function UserManagementInner() {
    const [editPasswordUser, setEditPasswordUser] = useState(null);
    const [newPassword, setNewPassword] = useState('');
    const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+   const [expandedUserId, setExpandedUserId] = useState(null);
+   const [editingUserMode, setEditingUserMode] = useState(null);
 
    React.useEffect(() => {
      const loadUser = async () => {
