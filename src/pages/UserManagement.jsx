@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Plus, Pencil, Trash2, Bell, CheckCircle, XCircle, Clock, Copy, Check, Mail, Key, Shield, AlertCircle, Lock } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Bell, CheckCircle, XCircle, Clock, Copy, Check, Mail, Key, Shield, AlertCircle, Lock, ChevronUp, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -492,18 +492,7 @@ function UserManagementInner() {
 
           {/* ── ABA USUÁRIOS ── */}
           <TabsContent value="usuarios">
-            {/* Table header */}
-             {!isLoading && users.length > 0 && (
-               <div className={`grid gap-4 px-4 mb-2 text-xs font-medium text-gray-400 uppercase tracking-wide ${canViewReportStatus ? 'grid-cols-12' : 'grid-cols-10'}`}>
-                 <span className={canViewReportStatus ? 'col-span-3' : 'col-span-3'}>Nome / Email</span>
-                 <span className="col-span-2">Papel</span>
-                 <span className="col-span-2">Equipe</span>
-                 <span className="col-span-2">Acesso</span>
-                 {canViewReportStatus && <span className="col-span-2">Relatório</span>}
-                 <span className={`${canViewReportStatus ? 'col-span-1' : 'col-span-1'} text-right`}>Ações</span>
-               </div>
-             )}
-            <div className="space-y-2">
+            <div className="space-y-3">
               {isLoading ? (
                 <div className="text-center py-20 text-gray-400">Carregando usuários...</div>
               ) : users.length === 0 ? (
@@ -516,88 +505,190 @@ function UserManagementInner() {
                    const userReg = allRegistrations.find(r => r.email === user.email);
                    const approvalStatus = userReg?.status;
                    const reportStatus = getReportStatus(user.email);
+                   const userPerm = userPermissions.find(p => p.user_email === user.email);
+                   const [expandedUser, setExpandedUser] = React.useState(null);
+                   const [editUser, setEditUser] = React.useState(null);
 
                    return (
-                     <div
-                       key={user.id}
-                       className={`grid gap-4 items-center p-4 border border-gray-100 rounded-xl hover:border-gray-200 transition-all ${canViewReportStatus ? 'grid-cols-12' : 'grid-cols-10'}`}
-                     >
-                       <div className="col-span-3 flex items-center gap-3 min-w-0">
-                         <div className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                           <span className="text-sm font-medium text-gray-600">
-                             {(user.full_name || user.email || '?')[0].toUpperCase()}
-                           </span>
+                     <div key={user.id} className="border border-gray-200 rounded-xl overflow-hidden hover:border-gray-300 transition-all">
+                       {/* Header row */}
+                       <div className="p-4 bg-white flex items-center justify-between gap-4">
+                         <div className="flex items-center gap-4 flex-1 min-w-0">
+                           <button
+                             onClick={() => setExpandedUser(expandedUser === user.id ? null : user.id)}
+                             className="flex-shrink-0 text-gray-400 hover:text-gray-600"
+                           >
+                             {expandedUser === user.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                           </button>
+                           <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                             <span className="text-sm font-medium text-gray-600">
+                               {(user.full_name || user.email || '?')[0].toUpperCase()}
+                             </span>
+                           </div>
+                           <div className="min-w-0 flex-1">
+                             <p className="font-semibold text-black">{user.full_name || user.email}</p>
+                             <p className="text-xs text-gray-500">{user.email}</p>
+                           </div>
                          </div>
-                         <div className="min-w-0">
-                           <p className="font-medium text-black truncate">{user.full_name || '–'}</p>
-                           <p className="text-xs text-gray-400 truncate">{user.email}</p>
-                           {user.matricula && (
-                             <p className="text-xs font-mono text-gray-400 truncate">{user.matricula}</p>
+                         <div className="flex items-center gap-3 flex-shrink-0 flex-wrap justify-end">
+                           <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700'} font-normal text-xs`}>
+                             {ROLE_LABELS[user.role] || user.role || '–'}
+                           </Badge>
+                           {user.equipe && (
+                             <Badge variant="outline" className="text-xs">{user.equipe}</Badge>
+                           )}
+                           {approvalStatus === 'APROVADO' && (
+                             <Badge className="bg-green-100 text-green-700 text-xs font-normal">
+                               <CheckCircle className="w-3 h-3 mr-1" />Aprovado
+                             </Badge>
                            )}
                          </div>
                        </div>
-                       <div className="col-span-2">
-                         <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700'} font-normal text-xs`}>
-                           {ROLE_LABELS[user.role] || user.role || '–'}
-                         </Badge>
-                       </div>
-                       <div className="col-span-2">
-                         <span className="text-sm text-gray-600">{user.equipe || '–'}</span>
-                       </div>
-                       <div className="col-span-2">
-                         {approvalStatus === 'APROVADO' ? (
-                           <Badge className="bg-green-100 text-green-700 text-xs font-normal">
-                             <CheckCircle className="w-3 h-3 mr-1" />Aprovado
-                           </Badge>
-                         ) : approvalStatus === 'REJEITADO' ? (
-                           <Badge className="bg-red-100 text-red-700 text-xs font-normal">
-                             <XCircle className="w-3 h-3 mr-1" />Rejeitado
-                           </Badge>
-                         ) : (
-                           <Badge className="bg-amber-100 text-amber-700 text-xs font-normal">
-                             <Clock className="w-3 h-3 mr-1" />Pendente
-                           </Badge>
-                         )}
-                       </div>
-                       {canViewReportStatus && (
-                         <div className="col-span-2">
-                           <Badge className={`${reportStatus.color} text-xs font-normal`}>
-                             {reportStatus.label}
-                           </Badge>
+
+                       {/* Expanded details */}
+                       {expandedUser === user.id && (
+                         <div className="border-t border-gray-100 p-4 space-y-6 bg-gray-50">
+                           {/* Editar dados básicos */}
+                           <div>
+                             <div className="flex items-center justify-between mb-4">
+                               <h3 className="text-sm font-semibold text-black">Informações</h3>
+                               <Button
+                                 size="sm"
+                                 variant={editUser === 'info' ? 'default' : 'outline'}
+                                 className="text-xs"
+                                 onClick={() => setEditUser(editUser === 'info' ? null : 'info')}
+                               >
+                                 {editUser === 'info' ? 'Salvar' : 'Editar'}
+                               </Button>
+                             </div>
+                             {editUser === 'info' ? (
+                               <div className="space-y-3 bg-white p-3 rounded-lg border border-gray-200">
+                                 <div>
+                                   <Label className="text-xs">Cargo</Label>
+                                   <Select value={user.role} onValueChange={(v) => base44.entities.User.update(user.id, { role: v }).then(() => queryClient.invalidateQueries(['users']))}>
+                                     <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                                     <SelectContent>
+                                       {CARGO_OPTIONS.map(opt => (
+                                         <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                       ))}
+                                     </SelectContent>
+                                   </Select>
+                                 </div>
+                                 <div>
+                                   <Label className="text-xs">Equipe</Label>
+                                   <Select value={user.equipe || ''} onValueChange={(v) => base44.entities.User.update(user.id, { equipe: v }).then(() => queryClient.invalidateQueries(['users']))}>
+                                     <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                                     <SelectContent>
+                                       {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                                     </SelectContent>
+                                   </Select>
+                                 </div>
+                               </div>
+                             ) : (
+                               <div className="space-y-2 text-sm">
+                                 <div><span className="text-gray-600">Cargo:</span> {ROLE_LABELS[user.role] || user.role}</div>
+                                 <div><span className="text-gray-600">Equipe:</span> {user.equipe || '–'}</div>
+                                 {user.matricula && <div><span className="text-gray-600">Matrícula:</span> {user.matricula}</div>}
+                               </div>
+                             )}
+                           </div>
+
+                           {/* Permissões */}
+                           <div>
+                             <h3 className="text-sm font-semibold text-black mb-3">Permissões</h3>
+                             <div className="bg-white p-3 rounded-lg border border-gray-200 space-y-3">
+                               <div className="space-y-2">
+                                 <p className="text-xs font-semibold text-gray-600 uppercase">Relatórios</p>
+                                 {['can_view_all_reports', 'can_review_reports', 'must_submit_monthly_report'].map(perm => (
+                                   <div key={perm} className="flex items-center gap-2">
+                                     <input
+                                       type="checkbox"
+                                       id={`${user.id}-${perm}`}
+                                       checked={userPerm?.[perm] !== false}
+                                       onChange={(e) => {
+                                         const data = userPerm ? { ...userPerm, [perm]: e.target.checked } : { user_email: user.email, user_name: user.full_name, base_role: user.role, [perm]: e.target.checked };
+                                         if (userPerm?.id) {
+                                           base44.asServiceRole.entities.UserPermission.update(userPerm.id, data);
+                                         } else {
+                                           base44.asServiceRole.entities.UserPermission.create({ ...data, base_role: user.role });
+                                         }
+                                         queryClient.invalidateQueries(['user-permissions']);
+                                       }}
+                                       className="rounded border-gray-300"
+                                     />
+                                     <Label htmlFor={`${user.id}-${perm}`} className="text-xs font-normal cursor-pointer">
+                                       {perm === 'can_view_all_reports' ? 'Visualizar todos' : perm === 'can_review_reports' ? 'Revisar e aprovar' : 'Enviar relatório mensal'}
+                                     </Label>
+                                   </div>
+                                 ))}
+                               </div>
+                               <div className="space-y-2">
+                                 <p className="text-xs font-semibold text-gray-600 uppercase">Gerenciamento</p>
+                                 {['can_manage_users', 'can_manage_files', 'can_manage_museus', 'can_manage_equipes'].map(perm => (
+                                   <div key={perm} className="flex items-center gap-2">
+                                     <input
+                                       type="checkbox"
+                                       id={`${user.id}-${perm}`}
+                                       checked={userPerm?.[perm] || false}
+                                       onChange={(e) => {
+                                         const data = userPerm ? { ...userPerm, [perm]: e.target.checked } : { user_email: user.email, user_name: user.full_name, base_role: user.role, [perm]: e.target.checked };
+                                         if (userPerm?.id) {
+                                           base44.asServiceRole.entities.UserPermission.update(userPerm.id, data);
+                                         } else {
+                                           base44.asServiceRole.entities.UserPermission.create({ ...data, base_role: user.role });
+                                         }
+                                         queryClient.invalidateQueries(['user-permissions']);
+                                       }}
+                                       className="rounded border-gray-300"
+                                     />
+                                     <Label htmlFor={`${user.id}-${perm}`} className="text-xs font-normal cursor-pointer">
+                                       {perm === 'can_manage_users' ? 'Gerenciar usuários' : perm === 'can_manage_files' ? 'Gerenciar arquivos' : perm === 'can_manage_museus' ? 'Gerenciar museus' : 'Gerenciar equipes'}
+                                     </Label>
+                                   </div>
+                                 ))}
+                               </div>
+                             </div>
+                           </div>
+
+                           {/* Ações */}
+                           <div className="flex gap-2 flex-wrap pt-3 border-t border-gray-200">
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               className="gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                               onClick={() => { setEditPasswordUser(user); setNewPassword(''); setNewPasswordConfirm(''); }}
+                             >
+                               <Key className="w-3 h-3" />Alterar Senha
+                             </Button>
+                             <Button
+                               size="sm"
+                               className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                               onClick={() => {
+                                 const appId = window.location.pathname.split('/')[2] || '';
+                                 const cadastroUrl = appId ? `${window.location.origin}/app/${appId}/Cadastro` : `${window.location.origin}/Cadastro`;
+                                 base44.functions.invoke('sendInviteEmail', {
+                                   email: user.email,
+                                   full_name: user.full_name,
+                                   role: user.role,
+                                   cadastroUrl
+                                 }).then(() => toast.success('Convite reenviado'));
+                               }}
+                             >
+                               <Mail className="w-3 h-3" />Reenviar Convite
+                             </Button>
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               className="text-red-600 border-red-200 hover:bg-red-50 gap-2 ml-auto"
+                               onClick={() => setDeleteTarget(user)}
+                             >
+                               <Trash2 className="w-3 h-3" />Excluir
+                             </Button>
+                           </div>
                          </div>
                        )}
-                       <div className="col-span-1 flex justify-end gap-1">
-                        {approvalStatus === 'PENDENTE' && (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-red-600 border-red-200 hover:bg-red-50 text-xs"
-                              onClick={() => { setReviewingReg({ ...userReg, action: 'rejeitar' }); setRegNote(''); }}
-                            >
-                              <XCircle className="w-3 h-3 mr-1" />Rejeitar
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-700 text-white text-xs"
-                              onClick={() => { setReviewingReg({ ...userReg, action: 'aprovar' }); setRegNote(''); setRegRole(user.role || 'PROFISSIONAL'); }}
-                            >
-                              <CheckCircle className="w-3 h-3 mr-1" />Aprovar
-                            </Button>
-                          </>
-                        )}
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditPasswordUser(user); setNewPassword(''); setNewPasswordConfirm(''); }} title="Resetar senha">
-                          <Lock className="w-4 h-4 text-blue-500" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(user)}>
-                          <Pencil className="w-4 h-4 text-gray-500" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteTarget(user)}>
-                          <Trash2 className="w-4 h-4 text-red-400" />
-                        </Button>
-                      </div>
-                    </div>
-                  );
+                     </div>
+                   );
                 })
               )}
             </div>
@@ -866,201 +957,58 @@ function UserManagementInner() {
         </DialogContent>
       </Dialog>
 
-      {/* Create / Edit Dialog */}
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingUser ? 'Editar Usuário' : 'Convidar Novo Usuário'}</DialogTitle>
-            <DialogDescription>
-              {editingUser ? 'Atualize as informações e permissões do usuário' : 'Convide um novo profissional para a plataforma'}
-            </DialogDescription>
-          </DialogHeader>
+      {/* Create / Edit Dialog — apenas para convidar novo usuário */}
+       <Dialog open={showDialog && !editingUser} onOpenChange={setShowDialog}>
+         <DialogContent>
+           <DialogHeader>
+             <DialogTitle>Convidar Novo Usuário</DialogTitle>
+             <DialogDescription>Convide um novo profissional para a plataforma</DialogDescription>
+           </DialogHeader>
 
-          <div className="space-y-4 mt-2">
-            {!editingUser && (
-              <div>
-                <Label>Email <span className="text-red-500">*</span></Label>
-                <Input
-                  type="email"
-                  placeholder="email@exemplo.com"
-                  value={formData.email}
-                  onChange={e => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
-            )}
-
-            {editingUser && (
-              <div>
-                <Label>Nome</Label>
-                <Input value={editingUser.full_name || ''} disabled className="bg-gray-50" />
-              </div>
-            )}
-
-            <div>
-               <Label>Cargo <span className="text-red-500">*</span></Label>
-               <Select value={formData.role} onValueChange={v => setFormData({ ...formData, role: v })}>
-                 <SelectTrigger><SelectValue /></SelectTrigger>
-                 <SelectContent>
-                   {CARGO_OPTIONS.map(opt => (
-                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                   ))}
-                 </SelectContent>
-               </Select>
-               <p className="text-xs text-gray-400 mt-1">
-                 {CARGO_OPTIONS.find(o => o.value === formData.role)?.description}
-               </p>
+           <div className="space-y-4 mt-2">
+             <div>
+               <Label>Email <span className="text-red-500">*</span></Label>
+               <Input
+                 type="email"
+                 placeholder="email@exemplo.com"
+                 value={formData.email}
+                 onChange={e => setFormData({ ...formData, email: e.target.value })}
+               />
              </div>
 
-            <div>
-               <Label>Equipe</Label>
-               <Select value={formData.equipe} onValueChange={v => setFormData({ ...formData, equipe: v })}>
-                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                 <SelectContent>
-                   {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
-                 </SelectContent>
-               </Select>
-             </div>
+             <div>
+                <Label>Cargo <span className="text-red-500">*</span></Label>
+                <Select value={formData.role} onValueChange={v => setFormData({ ...formData, role: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CARGO_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400 mt-1">
+                  {CARGO_OPTIONS.find(o => o.value === formData.role)?.description}
+                </p>
+              </div>
 
-             {editingUser && editingUserPerm && (
-               <div className="space-y-3 pt-4 border-t border-gray-200">
-                 <h3 className="text-sm font-semibold text-black">Permissões</h3>
-                 
-                 <div className="space-y-3 bg-gray-50 p-3 rounded-lg">
-                   {/* Relatórios */}
-                   <div className="space-y-2">
-                     <p className="text-xs font-semibold text-gray-600 uppercase">Relatórios</p>
-                     <div className="flex items-center gap-2">
-                       <input
-                         type="checkbox"
-                         id="can_view_all"
-                         checked={permissionsForm.can_view_all_reports !== false}
-                         onChange={e => setPermissionsForm({ ...permissionsForm, can_view_all_reports: e.target.checked })}
-                         className="rounded border-gray-300"
-                       />
-                       <Label htmlFor="can_view_all" className="text-sm font-normal cursor-pointer">
-                         Visualizar todos os relatórios
-                       </Label>
-                     </div>
-                     <div className="flex items-center gap-2">
-                       <input
-                         type="checkbox"
-                         id="can_review"
-                         checked={permissionsForm.can_review_reports}
-                         onChange={e => setPermissionsForm({ ...permissionsForm, can_review_reports: e.target.checked })}
-                         className="rounded border-gray-300"
-                       />
-                       <Label htmlFor="can_review" className="text-sm font-normal cursor-pointer">
-                         Revisar e aprovar relatórios
-                       </Label>
-                     </div>
-                     <div className="flex items-center gap-2">
-                       <input
-                         type="checkbox"
-                         id="must_submit"
-                         checked={permissionsForm.must_submit_monthly_report}
-                         onChange={e => setPermissionsForm({ ...permissionsForm, must_submit_monthly_report: e.target.checked })}
-                         className="rounded border-gray-300"
-                       />
-                       <Label htmlFor="must_submit" className="text-sm font-normal cursor-pointer">
-                         Obrigado a enviar relatório mensal
-                       </Label>
-                     </div>
-                   </div>
+             <div>
+                <Label>Equipe</Label>
+                <Select value={formData.equipe} onValueChange={v => setFormData({ ...formData, equipe: v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                   {/* Gerenciamento */}
-                   <div className="space-y-2">
-                     <p className="text-xs font-semibold text-gray-600 uppercase">Gerenciamento</p>
-                     <div className="flex items-center gap-2">
-                       <input
-                         type="checkbox"
-                         id="can_manage_users"
-                         checked={permissionsForm.can_manage_users}
-                         onChange={e => setPermissionsForm({ ...permissionsForm, can_manage_users: e.target.checked })}
-                         className="rounded border-gray-300"
-                       />
-                       <Label htmlFor="can_manage_users" className="text-sm font-normal cursor-pointer">
-                         Gerenciar usuários
-                       </Label>
-                     </div>
-                     <div className="flex items-center gap-2">
-                       <input
-                         type="checkbox"
-                         id="can_manage_files"
-                         checked={permissionsForm.can_manage_files}
-                         onChange={e => setPermissionsForm({ ...permissionsForm, can_manage_files: e.target.checked })}
-                         className="rounded border-gray-300"
-                       />
-                       <Label htmlFor="can_manage_files" className="text-sm font-normal cursor-pointer">
-                         Gerenciar arquivos
-                       </Label>
-                     </div>
-                     <div className="flex items-center gap-2">
-                       <input
-                         type="checkbox"
-                         id="can_manage_museus"
-                         checked={permissionsForm.can_manage_museus}
-                         onChange={e => setPermissionsForm({ ...permissionsForm, can_manage_museus: e.target.checked })}
-                         className="rounded border-gray-300"
-                       />
-                       <Label htmlFor="can_manage_museus" className="text-sm font-normal cursor-pointer">
-                         Gerenciar museus
-                       </Label>
-                     </div>
-                     <div className="flex items-center gap-2">
-                       <input
-                         type="checkbox"
-                         id="can_manage_equipes"
-                         checked={permissionsForm.can_manage_equipes}
-                         onChange={e => setPermissionsForm({ ...permissionsForm, can_manage_equipes: e.target.checked })}
-                         className="rounded border-gray-300"
-                       />
-                       <Label htmlFor="can_manage_equipes" className="text-sm font-normal cursor-pointer">
-                         Gerenciar equipes
-                       </Label>
-                     </div>
-                   </div>
-
-                   {/* Auditoria */}
-                   <div className="space-y-2">
-                     <p className="text-xs font-semibold text-gray-600 uppercase">Sistema</p>
-                     <div className="flex items-center gap-2">
-                       <input
-                         type="checkbox"
-                         id="can_view_audit"
-                         checked={permissionsForm.can_view_audit_log}
-                         onChange={e => setPermissionsForm({ ...permissionsForm, can_view_audit_log: e.target.checked })}
-                         className="rounded border-gray-300"
-                       />
-                       <Label htmlFor="can_view_audit" className="text-sm font-normal cursor-pointer">
-                         Visualizar auditoria
-                       </Label>
-                     </div>
-                     <div className="flex items-center gap-2">
-                       <input
-                         type="checkbox"
-                         id="can_manage_platform"
-                         checked={permissionsForm.can_manage_platform}
-                         onChange={e => setPermissionsForm({ ...permissionsForm, can_manage_platform: e.target.checked })}
-                         className="rounded border-gray-300"
-                       />
-                       <Label htmlFor="can_manage_platform" className="text-sm font-normal cursor-pointer">
-                         Gerenciar plataforma
-                       </Label>
-                     </div>
-                   </div>
-                 </div>
-               </div>
-             )}
-            </div>
-
-            <DialogFooter className="mt-6">
-             <Button variant="outline" onClick={() => { setShowDialog(false); setEditingUserPerm(null); }}>Cancelar</Button>
-             <Button className="bg-black hover:bg-gray-800 text-white" onClick={handleSubmit} disabled={isPending}>
-               {editingUser ? 'Salvar' : 'Convidar'}
-             </Button>
-            </DialogFooter>
-            </DialogContent>
-            </Dialog>
+             <DialogFooter className="mt-6">
+              <Button variant="outline" onClick={() => { setShowDialog(false); setEditingUserPerm(null); }}>Cancelar</Button>
+              <Button className="bg-black hover:bg-gray-800 text-white" onClick={handleSubmit} disabled={isPending}>
+                Convidar
+              </Button>
+             </DialogFooter>
+             </DialogContent>
+             </Dialog>
 
       {/* Create Direct User Dialog */}
       <Dialog open={showCreateDirect} onOpenChange={setShowCreateDirect}>
