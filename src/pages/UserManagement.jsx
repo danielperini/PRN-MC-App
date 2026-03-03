@@ -331,6 +331,20 @@ function UserManagementInner() {
     onError: (err) => toast.error(err.message || 'Erro ao cadastrar usuário'),
   });
 
+  const changePasswordMutation = useMutation({
+    mutationFn: async (data) => {
+      const response = await base44.functions.invoke('changeUserPassword', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success('Senha alterada com sucesso!');
+      setEditPasswordUser(null);
+      setNewPassword('');
+      setNewPasswordConfirm('');
+    },
+    onError: (err) => toast.error(err.message || 'Erro ao alterar senha'),
+  });
+
   const isPending = inviteMutation.isPending || updateMutation.isPending || createDirectMutation.isPending;
 
   const canViewReportStatus = currentUser && currentUser.role === 'COORDENADOR';
