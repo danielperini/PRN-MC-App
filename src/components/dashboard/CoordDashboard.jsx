@@ -218,17 +218,6 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     return <div className="text-center py-20 text-gray-400">Carregando dashboard...</div>;
   }
 
-  // Extrair museus e tipos únicos para filtros
-  const museusUnicos = useMemo(() => {
-    const set = new Set(reportsFiltrados.map(r => r.museu).filter(Boolean));
-    return Array.from(set).sort();
-  }, [reportsFiltrados]);
-
-  const tiposUnicos = useMemo(() => {
-    const set = new Set(allAtivRaw.map(a => a.tipo_atividade).filter(Boolean));
-    return Array.from(set).sort();
-  }, [allAtivRaw]);
-
   const temFiltrosAtivos = filterDataInicio || filterDataFim || filterMuseu || filterClasse || filterTipoAtiv;
 
   const limparFiltros = () => {
