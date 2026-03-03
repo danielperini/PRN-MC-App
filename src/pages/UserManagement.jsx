@@ -269,6 +269,11 @@ function UserManagementInner() {
       can_view_all_reports: perm?.can_view_all_reports !== false,
       can_review_reports: perm?.can_review_reports || false,
       can_manage_users: perm?.can_manage_users || false,
+      can_manage_files: perm?.can_manage_files || false,
+      can_manage_museus: perm?.can_manage_museus || false,
+      can_manage_equipes: perm?.can_manage_equipes || false,
+      can_view_audit_log: perm?.can_view_audit_log || false,
+      can_manage_platform: perm?.can_manage_platform || false,
     });
   };
 
