@@ -655,6 +655,35 @@ function ReportEditorInner() {
           </TabsContent>
         </Tabs>
 
+        {/* Alert Dialog para salvar rascunho */}
+        <AlertDialog open={showSaveAlert} onOpenChange={setShowSaveAlert}>
+          <AlertDialogContent className="max-w-md">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-blue-600" />
+                Informação Importante
+              </AlertDialogTitle>
+              <AlertDialogDescription className="mt-3 text-sm text-gray-700">
+                <p className="font-semibold text-gray-900 mb-2">Fluxo de Relatórios Mensais:</p>
+                <ol className="list-decimal list-inside space-y-2 text-gray-700">
+                  <li><strong>Salve como rascunho</strong> enquanto edita</li>
+                  <li><strong>Envie para aprovação</strong> quando estiver pronto</li>
+                  <li><strong>Após aprovação</strong>, exporte em PDF</li>
+                  <li><strong>Assine digitalmente</strong> o documento exportado</li>
+                </ol>
+                <p className="mt-3 text-xs text-gray-600">
+                  Você pode continuar editando este rascunho conforme necessário.
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex justify-end gap-3 mt-6">
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={proceedWithSave} className="bg-black hover:bg-gray-800">
+                Continuar
+              </AlertDialogAction>
+            </div>
+          </AlertDialogContent>
+        </AlertDialog>
 
       </div>
     </div>
