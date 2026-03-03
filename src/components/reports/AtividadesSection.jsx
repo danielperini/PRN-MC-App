@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, ChevronDown, ChevronUp, AlertCircle, Sparkles, X, Loader2 } from 'lucide-react';
 import ActivityAttachments from './ActivityAttachments';
+import ActivitySummarizer from './ActivitySummarizer';
 import { base44 } from '@/api/base44Client';
 
 const MUSEUS_ATIV = ['MHAB', 'MIS', 'MUMO', 'Externo'];
