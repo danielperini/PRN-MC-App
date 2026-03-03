@@ -433,11 +433,71 @@ Escreva em português do Brasil, de forma objetiva e profissional.`;
   );
 }
 
+async function verificarDuplicata(novaAtiv, atividades) {
+  if (!novaAtiv.nome && !novaAtiv.descricao_executado) return null;
+  if (atividades.length === 0) return null;
+
+  const lista = atividades.map((a, i) => `${i + 1}. Nome: "${a.nome || ''}" | Tipo: ${a.tipo_acao || ''} | Data: ${a.data_inicio || ''} | Museu: ${a.museu || ''}`).join('\n');
+  const nova = `Nome: "${novaAtiv.nome || ''}" | Tipo: ${novaAtiv.tipo_acao || ''} | Data: ${novaAtiv.data_inicio || ''} | Museu: ${novaAtiv.museu || ''}`;
+
+  const prompt = `Você é um assistente de controle de qualidade de relatórios de museus.
+Analise se a nova atividade abaixo é duplicata ou muito similar a alguma das atividades já registradas.
+
+ATIVIDADES JÁ REGISTRADAS:
+${lista}
+
+NOVA ATIVIDADE:
+${nova}
+
+Responda APENAS com um JSON: {"duplicata": true/false, "motivo": "breve explicação se for duplicata, senão vazio"}`;
+
+  const result = await base44.integrations.Core.InvokeLLM({
+    prompt,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        duplicata: { type: 'boolean' },
+        motivo: { type: 'string' },
+      }
+    }
+  });
+  return result;
+}
+
 export default function AtividadesSection({ atividades = [], canEdit, onChange, reportId }) {
-  const add = () => onChange([...atividades, { ...EMPTY_ATIVIDADE }]);
-  const remove = (i) => onChange(atividades.filter((_, idx) => idx !== i));
-  const update = (i, field, value) =>
-    onChange(atividades.map((a, idx) => idx === i ? { ...a, [field]: value } : a));
+  const [checkingDup, setCheckingDup] = React.useState(false);
+  const [dupWarning, setDupWarning] = React.useState(null); // { index, motivo }
+
+  const add = async () => {
+    const nova = { ...EMPTY_ATIVIDADE };
+    onChange([...atividades, nova]);
+  };
+
+  const remove = (i) => {
+    onChange(atividades.filter((_, idx) => idx !== i));
+    if (dupWarning?.index === i) setDupWarning(null);
+  };
+
+  const update = async (i, field, value) => {
+    const updated = atividades.map((a, idx) => idx === i ? { ...a, [field]: value } : a);
+    onChange(updated);
+
+    // Verificar duplicata quando nome ou data muda
+    if ((field === 'nome' || field === 'data_inicio') && value && canEdit) {
+      const novaAtiv = updated[i];
+      const outras = updated.filter((_, idx) => idx !== i);
+      if (novaAtiv.nome && outras.length > 0) {
+        setCheckingDup(true);
+        const res = await verificarDuplicata(novaAtiv, outras).catch(() => null);
+        setCheckingDup(false);
+        if (res?.duplicata) {
+          setDupWarning({ index: i, motivo: res.motivo });
+        } else {
+          setDupWarning(prev => prev?.index === i ? null : prev);
+        }
+      }
+    }
+  };
 
   const totalErrors = atividades.reduce((sum, a) => sum + validateAtividade(a).length, 0);
 
@@ -451,6 +511,11 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
               <AlertCircle className="w-3 h-3" />{totalErrors} pendência(s)
             </span>
           )}
+          {checkingDup && (
+            <span className="flex items-center gap-1 text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+              <Loader2 className="w-3 h-3 animate-spin" />Verificando duplicata...
+            </span>
+          )}
         </div>
         {canEdit && (
           <Button className="bg-black hover:bg-gray-800 text-white gap-1.5" size="sm" onClick={add}>
@@ -458,6 +523,19 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
           </Button>
         )}
       </div>
+
+      {dupWarning && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800">Possível duplicata detectada (Atividade {dupWarning.index + 1})</p>
+            <p className="text-xs text-amber-600 mt-0.5">{dupWarning.motivo}</p>
+          </div>
+          <button onClick={() => setDupWarning(null)} className="text-amber-400 hover:text-amber-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {atividades.length === 0 ? (
         <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
@@ -479,6 +557,7 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
               onChange={(field, value) => update(i, field, value)}
               onRemove={() => remove(i)}
               reportId={reportId}
+              hasDupWarning={dupWarning?.index === i}
             />
           ))}
           {canEdit && (
