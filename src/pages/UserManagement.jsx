@@ -365,7 +365,7 @@ function UserManagementInner() {
                    return (
                      <div
                        key={user.id}
-                       className="grid grid-cols-12 gap-4 items-center p-4 border border-gray-100 rounded-xl hover:border-gray-200 transition-all"
+                       className={`grid gap-4 items-center p-4 border border-gray-100 rounded-xl hover:border-gray-200 transition-all ${canViewReportStatus ? 'grid-cols-12' : 'grid-cols-10'}`}
                      >
                        <div className="col-span-3 flex items-center gap-3 min-w-0">
                          <div className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -404,11 +404,13 @@ function UserManagementInner() {
                            </Badge>
                          )}
                        </div>
-                       <div className="col-span-2">
-                         <Badge className={`${reportStatus.color} text-xs font-normal`}>
-                           {reportStatus.label}
-                         </Badge>
-                       </div>
+                       {canViewReportStatus && (
+                         <div className="col-span-2">
+                           <Badge className={`${reportStatus.color} text-xs font-normal`}>
+                             {reportStatus.label}
+                           </Badge>
+                         </div>
+                       )}
                        <div className="col-span-1 flex justify-end gap-1">
                         {approvalStatus === 'PENDENTE' && (
                           <>
