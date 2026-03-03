@@ -649,9 +649,9 @@ function UserManagementInner() {
             )}
           </TabsContent>
            </Tabs>
-          );
-          })()}
-          </div>
+           );
+           })()}
+           </div>
 
       {/* Invite Link Dialog */}
       <Dialog open={showInviteLink} onOpenChange={setShowInviteLink}>
