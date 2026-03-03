@@ -7,10 +7,11 @@ import {
 } from 'recharts';
 import {
   FileText, Users, Eye, Target, AlertCircle, CheckCircle,
-  Send, Clock, Archive, ChevronRight, TrendingUp, Building2
+  Send, Clock, Archive, ChevronRight, TrendingUp, Building2, Download
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 const STATUS_CONFIG = {
   DRAFT:     { label: 'Rascunho',   color: '#e5e7eb', text: '#374151' },
