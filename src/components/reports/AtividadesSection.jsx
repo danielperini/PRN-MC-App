@@ -373,6 +373,15 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
           )}
         </div>
         <div className="flex items-center gap-2">
+          {canEdit && onSelect && (
+            <Button
+              variant="ghost" size="icon"
+              className={`h-7 w-7 ${isSelected ? 'text-black' : 'text-gray-300'}`}
+              onClick={e => { e.stopPropagation(); onSelect(!isSelected); }}
+            >
+              <CheckSquare2 className="w-4 h-4" />
+            </Button>
+          )}
           {canEdit && (
             <Button
               variant="ghost" size="icon"
@@ -382,7 +391,9 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
               <Trash2 className="w-4 h-4" />
             </Button>
           )}
-          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          <button onClick={() => setExpanded(e => !e)} className="p-0">
+            {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          </button>
         </div>
       </div>
 
