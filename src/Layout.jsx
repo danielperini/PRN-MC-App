@@ -13,7 +13,8 @@ import {
   Eye,
   Paperclip,
   Settings,
-  UserCircle
+  UserCircle,
+  Shield
 } from 'lucide-react';
 import PlanoTrabalhoChat from './components/reports/PlanoTrabalhoChat';
 import { Button } from '@/components/ui/button';
@@ -36,14 +37,31 @@ export default function Layout({ children, currentPageName }) {
 
   const isCoordenador = ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
 
+  // Carregar permissões customizadas se coordenador
+  const [customPerms, setCustomPerms] = React.useState(null);
+  React.useEffect(() => {
+    if (isCoordenador && currentUser?.email) {
+      base44.entities.UserPermission.filter({ user_email: currentUser.email }).then(perms => {
+        if (perms.length > 0) setCustomPerms(perms[0]);
+      }).catch(() => {});
+    }
+  }, [isCoordenador, currentUser?.email]);
+
+  const canViewMenu = (requiredPerm) => {
+    if (!isCoordenador) return true;
+    if (!customPerms) return true; // Se não tem perms customizadas, mostra tudo
+    return customPerms[requiredPerm] !== false;
+  };
+
   const navItems = [
     { name: 'Dashboard', icon: FileText, label: 'Dashboard', show: true },
     { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true },
-    { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: true },
-    { name: 'CoordReview', icon: Eye, label: 'Revisão', show: isCoordenador },
-    { name: 'UserManagement', icon: Users, label: 'Usuários', show: isCoordenador },
-    { name: 'PlataformaAdmin', icon: Settings, label: 'Plataforma', show: isCoordenador },
-    { name: 'AuditLog', icon: History, label: 'Auditoria', show: isCoordenador },
+    { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: isCoordenador && canViewMenu('can_manage_files') },
+    { name: 'CoordReview', icon: Eye, label: 'Revisão', show: isCoordenador && canViewMenu('can_review_reports') },
+    { name: 'UserManagement', icon: Users, label: 'Usuários', show: isCoordenador && canViewMenu('can_manage_users') },
+    { name: 'PermissionManager', icon: Shield, label: 'Permissões', show: isCoordenador && canViewMenu('can_manage_users') },
+    { name: 'PlataformaAdmin', icon: Settings, label: 'Plataforma', show: isCoordenador && canViewMenu('can_manage_platform') },
+    { name: 'AuditLog', icon: History, label: 'Auditoria', show: isCoordenador && canViewMenu('can_view_audit_log') },
   ].filter(item => item.show);
 
   if (currentPageName === 'Home') {

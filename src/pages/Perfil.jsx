@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import PermissionsDisplay from '../components/dashboard/PermissionsDisplay';
 
 const FUNCOES = ['Educador', 'Produtor Cultural', 'Comunicador', 'Administrador', 'Coordenador', 'Outro'];
 const EQUIPES = ['Comunicação', 'Coordenação', 'Administração', 'Educativo', 'Produção', 'Outra'];
@@ -119,6 +120,13 @@ function PerfilInner() {
             <Label className="text-gray-500">Papel no sistema</Label>
             <Input value={user.role || '–'} disabled className="bg-gray-50 text-gray-500" />
           </div>
+
+          {/* Permissões Customizadas */}
+          {['COORDENADOR', 'ADMIN', 'admin'].includes(user.role) && (
+            <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+              <PermissionsDisplay userEmail={user.email} />
+            </div>
+          )}
 
           <div className="pt-2">
             <Button
