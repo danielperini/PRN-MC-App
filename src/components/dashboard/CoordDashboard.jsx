@@ -156,6 +156,17 @@ export default function CoordDashboard({ reports = [], isLoading }) {
       .slice(0, 8);
   }, [allAtiv]);
 
+  // Extrair museus e tipos únicos para filtros
+  const museusUnicos = useMemo(() => {
+    const set = new Set(reportsFiltrados.map(r => r.museu).filter(Boolean));
+    return Array.from(set).sort();
+  }, [reportsFiltrados]);
+
+  const tiposUnicos = useMemo(() => {
+    const set = new Set(allAtivRaw.map(a => a.tipo_atividade).filter(Boolean));
+    return Array.from(set).sort();
+  }, [allAtivRaw]);
+
   // Recentes pendentes
   const pendentesList = reportsFiltrados
     .filter(r => ['SUBMITTED', 'IN_REVIEW'].includes(r.status))
