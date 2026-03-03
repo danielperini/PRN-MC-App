@@ -203,10 +203,10 @@ function AuthenticatedHome({ user }) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {isCoordenador ? (
               <>
-                <StatCard icon={Bell} label="Solicitações pendentes" value={pendingRegs.length} highlight={pendingRegs.length > 0} color="bg-white" />
-                <StatCard icon={Clock} label="Aguardando revisão" value={pendingReview.length} color="bg-white" highlight={pendingReview.length > 0} />
-                <StatCard icon={FileText} label="Total de relatórios" value={allReports.length} color="bg-white" />
-                <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-white" />
+                <StatCard icon={Bell} label="Solicitações pendentes" value={pendingRegs.length} highlight={pendingRegs.length > 0} color="bg-white" dark />
+                <StatCard icon={Clock} label="Aguardando revisão" value={pendingReview.length} color="bg-white" highlight={pendingReview.length > 0} dark />
+                <StatCard icon={FileText} label="Total de relatórios" value={allReports.length} color="bg-white" dark />
+                <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-white" dark />
               </>
             ) : (
               <>
