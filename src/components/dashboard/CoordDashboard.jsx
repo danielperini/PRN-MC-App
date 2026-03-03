@@ -217,6 +217,11 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     return Array.from(set).sort();
   }, [allAtivRaw]);
 
+  const temFiltrosAtivos = useMemo(() => 
+    filterDataInicio || filterDataFim || filterMuseu || filterClasse || filterTipoAtiv,
+    [filterDataInicio, filterDataFim, filterMuseu, filterClasse, filterTipoAtiv]
+  );
+
   const limparFiltros = () => {
     setFilterDataInicio('');
     setFilterDataFim('');
@@ -225,8 +230,6 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     setFilterTipoAtiv('');
     setFilterShowMore(false);
   };
-
-  const temFiltrosAtivos = filterDataInicio || filterDataFim || filterMuseu || filterClasse || filterTipoAtiv;
 
   return (
     <div className="space-y-8">
