@@ -33,6 +33,8 @@ const ROLE_COLORS = {
 
 const EMPTY_FORM = { email: '', role: 'PROFISSIONAL', equipe: '' };
 
+const CADASTRO_URL = `${window.location.origin}/app/${window.location.pathname.split('/')[2] || ''}/Cadastro`;
+
 function UserManagementInner() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
