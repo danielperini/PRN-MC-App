@@ -80,7 +80,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle }) {
       }`}
     >
       {/* Logo */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-gray-800">
+      <div className="h-16 flex items-center justify-between px-4 border-b border-black">
         {!collapsed && (
           <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
             <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
@@ -95,11 +95,11 @@ export default function Sidebar({ currentPageName, collapsed, onToggle }) {
           </div>
         )}
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-white hover:bg-gray-900"
-          onClick={onToggle}
-        >
+           variant="ghost"
+           size="icon"
+           className="h-8 w-8 text-white hover:bg-black"
+           onClick={onToggle}
+         >
           {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
         </Button>
       </div>
@@ -114,8 +114,8 @@ export default function Sidebar({ currentPageName, collapsed, onToggle }) {
               <Button
                 variant="ghost"
                 className={`w-full justify-start gap-3 h-11 ${
-                  isActive ? 'bg-white text-black' : 'text-gray-400 hover:text-white hover:bg-gray-900'
-                }`}
+                   isActive ? 'bg-white text-black' : 'text-white hover:text-black hover:bg-white'
+                 }`}
                 title={collapsed ? item.label : ''}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
@@ -128,11 +128,11 @@ export default function Sidebar({ currentPageName, collapsed, onToggle }) {
 
       {/* User info */}
       {currentUser && !collapsed && (
-        <div className="p-4 border-t border-gray-800">
-          <p className="text-sm font-semibold text-white truncate">{currentUser.full_name}</p>
-          <p className="text-xs text-gray-400 truncate">{currentUser.role}</p>
-        </div>
-      )}
+         <div className="p-4 border-t border-black">
+           <p className="text-sm font-semibold text-white truncate">{currentUser.full_name}</p>
+           <p className="text-xs text-white truncate">{currentUser.role}</p>
+         </div>
+       )}
     </aside>
   );
 }
