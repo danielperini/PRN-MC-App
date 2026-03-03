@@ -234,6 +234,27 @@ function GestorArquivosInner() {
           </div>
         )}
       </div>
+      {/* Delete Confirm */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir arquivo?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <p className="text-sm text-gray-500 px-1">
+            Tem certeza que deseja excluir <strong>{deleteTarget?.file_name}</strong>? Esta ação não pode ser desfeita.
+          </p>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => deleteMutation.mutate(deleteTarget)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
