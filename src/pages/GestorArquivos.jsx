@@ -217,6 +217,16 @@ function GestorArquivosInner() {
                         </Button>
                       </Link>
                     )}
+                    {(isCoordenador || att.created_by === currentUser?.email) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1 text-xs px-2 text-red-400 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => setDeleteTarget(att)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               );
