@@ -137,12 +137,11 @@ function ReportEditorInner() {
   });
 
   const submitMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (!declaracaoAceita) {
         toast.error('Aceite a declaração de responsabilidade antes de enviar.');
         throw new Error('Declaração não aceita');
       }
-      // Validate required fields
       if (!formData.mes_referencia) {
         toast.error('Selecione o mês de referência antes de enviar.');
         throw new Error('Mês obrigatório');
@@ -156,6 +155,9 @@ function ReportEditorInner() {
         throw new Error('Museu obrigatório');
       }
       const { id, created_date, updated_date, created_by, ...payload } = formData;
+      if (!reportId && !payload.numero_protocolo) {
+        payload.numero_protocolo = await gerarNumeroProtocolo(payload.mes_referencia, payload.ano || 2026);
+      }
       const data = { ...payload, status: 'SUBMITTED' };
       return reportId
         ? base44.entities.Report.update(reportId, data)
