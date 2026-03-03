@@ -847,6 +847,27 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
   };
 
   const totalErrors = atividades.reduce((sum, a) => sum + validateAtividade(a).length, 0);
+  const selectedCount = selectedIndices.size;
+  const selectedActivities = atividades.filter((_, idx) => selectedIndices.has(idx));
+
+  const toggleSelection = (index) => {
+    const newSet = new Set(selectedIndices);
+    if (newSet.has(index)) {
+      newSet.delete(index);
+    } else {
+      newSet.add(index);
+    }
+    setSelectedIndices(newSet);
+  };
+
+  const handleBulkApply = (updates) => {
+    const updated = atividades.map((a, idx) => 
+      selectedIndices.has(idx) ? { ...a, ...updates } : a
+    );
+    onChange(updated);
+    setSelectedIndices(new Set());
+    setBulkEditorOpen(false);
+  };
 
   return (
     <section>
@@ -861,6 +882,14 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
         </div>
       )}
 
+      {/* Bulk Editor */}
+      <BulkActivityEditor 
+        open={bulkEditorOpen} 
+        selectedActivities={selectedActivities}
+        onApply={handleBulkApply}
+        onClose={() => setBulkEditorOpen(false)}
+      />
+
       <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold text-black">Atividades Executadas / Produtos</h2>
@@ -874,12 +903,29 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
               <Loader2 className="w-3 h-3 animate-spin" />Verificando duplicata...
             </span>
           )}
+          {selectedCount > 0 && (
+            <span className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+              <CheckSquare2 className="w-3 h-3" />{selectedCount} selecionada(s)
+            </span>
+          )}
         </div>
-        {canEdit && (
-          <Button className="bg-black hover:bg-gray-800 text-white gap-1.5" size="sm" onClick={add}>
-            <Plus className="w-4 h-4" />Inserir Nova Atividade
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {selectedCount > 0 && canEdit && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-1.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+              onClick={() => setBulkEditorOpen(true)}
+            >
+              Editar {selectedCount}
+            </Button>
+          )}
+          {canEdit && (
+            <Button className="bg-black hover:bg-gray-800 text-white gap-1.5" size="sm" onClick={add}>
+              <Plus className="w-4 h-4" />Inserir Nova Atividade
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Info: Atividades do mês de referência */}
