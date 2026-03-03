@@ -195,10 +195,10 @@ function AuthenticatedHome({ user }) {
         </div>
 
         {/* KPIs pessoais */}
-         <div className="bg-black rounded-2xl p-6">
+         <div>
            <div className="flex items-center gap-2 mb-3">
              <TrendingUp className="w-4 h-4 text-gray-400" />
-             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Minha Atividade</h2>
+             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Minha Atividade</h2>
            </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {isCoordenador ? (
