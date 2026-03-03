@@ -455,6 +455,18 @@ function ReportEditorInner() {
           <TabsContent value="avaliacao">
             <section>
               <SectionTitle>Avaliação do Mês</SectionTitle>
+              {(formData.atividades || []).length === 0 && (
+                <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">Nenhuma atividade vinculada</p>
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      Este relatório não possui atividades registradas. Período de referência: <strong>{formData.mes_referencia || '—'} {formData.ano || 2026}</strong>.
+                      Acesse a aba "Atividades" para adicionar.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="space-y-4">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">

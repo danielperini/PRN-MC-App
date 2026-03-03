@@ -53,11 +53,11 @@ import CoordReview from './pages/CoordReview';
 import Dashboard from './pages/Dashboard';
 import GestorArquivos from './pages/GestorArquivos';
 import Home from './pages/Home';
+import Perfil from './pages/Perfil';
 import PlataformaAdmin from './pages/PlataformaAdmin';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
-import Perfil from './pages/Perfil';
 import __Layout from './Layout.jsx';
 
 
@@ -68,11 +68,11 @@ export const PAGES = {
     "Dashboard": Dashboard,
     "GestorArquivos": GestorArquivos,
     "Home": Home,
+    "Perfil": Perfil,
     "PlataformaAdmin": PlataformaAdmin,
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
-    "Perfil": Perfil,
 }
 
 export const pagesConfig = {
