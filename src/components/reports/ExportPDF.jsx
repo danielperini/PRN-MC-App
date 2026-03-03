@@ -743,9 +743,66 @@ export default function ExportPDF({ report, reportId }) {
   };
 
   return (
-    <Button variant="outline" size="sm" onClick={handleExport} disabled={loading}>
-      {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileDown className="w-4 h-4 mr-2" />}
-      {loading ? 'Gerando PDF...' : 'Exportar PDF'}
-    </Button>
+    <>
+      <Button variant="outline" size="sm" onClick={openDialog} disabled={loading}>
+        {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileDown className="w-4 h-4 mr-2" />}
+        {loading ? 'Gerando PDF...' : 'Exportar PDF'}
+      </Button>
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Exportar PDF</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <p className="text-sm text-gray-600">Escolha o período que constará no relatório:</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPeriodoMode('mes')}
+                className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${periodoMode === 'mes' ? 'bg-black text-white border-black' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
+              >
+                Mês de referência
+              </button>
+              <button
+                onClick={() => setPeriodoMode('custom')}
+                className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${periodoMode === 'custom' ? 'bg-black text-white border-black' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
+              >
+                Período personalizado
+              </button>
+            </div>
+
+            {periodoMode === 'mes' && (
+              <p className="text-sm text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+                Período: <strong>{report.mes_referencia || '—'} / {report.ano || 2026}</strong>
+              </p>
+            )}
+
+            {periodoMode === 'custom' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-gray-500 mb-1 block">Data inicial</Label>
+                  <Input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500 mb-1 block">Data final</Label>
+                  <Input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} />
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowDialog(false)}>Cancelar</Button>
+            <Button
+              className="bg-black hover:bg-gray-800 text-white"
+              onClick={handleExport}
+              disabled={periodoMode === 'custom' && (!dataInicio || !dataFim)}
+            >
+              <FileDown className="w-4 h-4 mr-2" />
+              Gerar PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
