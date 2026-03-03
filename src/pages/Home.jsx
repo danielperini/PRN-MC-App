@@ -175,7 +175,7 @@ function AuthenticatedHome({ user }) {
             </div>
             <div className="rounded-2xl bg-white border border-gray-100 p-5 flex flex-col gap-1">
               <MapPin className="w-5 h-5 text-gray-400 mb-1" />
-              <p className="text-3xl font-bold text-black leading-none">{museus.length}</p>
+              <p className="text-3xl font-bold text-black leading-none">3</p>
               <p className="text-sm text-gray-500">Museus ativos</p>
             </div>
           </div>
