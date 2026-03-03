@@ -131,7 +131,7 @@ function DashboardInner() {
 
          {/* General Stats Cards — visível para todos */}
           <div className="mb-10">
-            <GeneralStatsCards reports={displayReports} />
+            <GeneralStatsCards reports={filteredReports} />
           </div>
 
          {/* Coordenador: dashboard completo */}
