@@ -190,17 +190,17 @@ function AuthenticatedHome({ user }) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {isCoordenador ? (
               <>
-                <StatCard icon={Bell} label="Solicitações pendentes" value={pendingRegs.length} highlight={pendingRegs.length > 0} color="bg-amber-100" />
-                <StatCard icon={Clock} label="Aguardando revisão" value={pendingReview.length} color="bg-blue-100" highlight={pendingReview.length > 0} />
-                <StatCard icon={FileText} label="Total de relatórios" value={allReports.length} color="bg-gray-100" />
-                <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-gray-100" />
+                <StatCard icon={Bell} label="Solicitações pendentes" value={pendingRegs.length} highlight={pendingRegs.length > 0} color="bg-white" />
+                <StatCard icon={Clock} label="Aguardando revisão" value={pendingReview.length} color="bg-white" highlight={pendingReview.length > 0} />
+                <StatCard icon={FileText} label="Total de relatórios" value={allReports.length} color="bg-white" />
+                <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-white" />
               </>
             ) : (
               <>
-                <StatCard icon={FileText} label="Meus relatórios" value={myReports.length} color="bg-gray-100" />
-                <StatCard icon={Clock} label="Rascunhos abertos" value={myDrafts.length} color="bg-amber-100" highlight={myDrafts.length > 0} />
-                <StatCard icon={CheckCircle} label="Aprovados" value={myReports.filter(r => r.status === 'APPROVED').length} color="bg-green-100" />
-                <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-gray-100" />
+                <StatCard icon={FileText} label="Meus relatórios" value={myReports.length} color="bg-white" />
+                <StatCard icon={Clock} label="Rascunhos abertos" value={myDrafts.length} color="bg-white" highlight={myDrafts.length > 0} />
+                <StatCard icon={CheckCircle} label="Aprovados" value={myReports.filter(r => r.status === 'APPROVED').length} color="bg-white" />
+                <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-white" />
               </>
             )}
           </div>
