@@ -50,6 +50,7 @@ function UserManagementInner() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [reviewingReg, setReviewingReg] = useState(null);
   const [regNote, setRegNote] = useState('');
+  const [regRole, setRegRole] = useState('PROFISSIONAL');
   const [copied, setCopied] = useState(false);
   const [showInviteLink, setShowInviteLink] = useState(false);
 
