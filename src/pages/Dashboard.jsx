@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import CoordDashboard from '../components/dashboard/CoordDashboard';
 import AdvancedFilters from '../components/dashboard/AdvancedFilters';
 import HighlightsCard from '../components/dashboard/HighlightsCard';
+import SummaryCards from '../components/dashboard/SummaryCards';
 
 const STATUS_CONFIG = {
   DRAFT:     { label: 'Rascunho',   color: 'bg-gray-100 text-gray-600',      cardBg: 'bg-white',            icon: Clock },
@@ -105,13 +106,16 @@ function DashboardInner() {
         </div>
 
         {/* Fatos Marcantes — visível para todos */}
-        <div className="mb-10">
-          <HighlightsCard />
-        </div>
+         <div className="mb-10">
+           <HighlightsCard />
+         </div>
 
-        {/* Coordenador: dashboard completo */}
-         {showCoordView ? (
-           <CoordDashboard reports={allReports} isLoading={loadingAll} />
+         {/* Summary Cards — visível para todos */}
+         <SummaryCards reports={displayReports} />
+
+         {/* Coordenador: dashboard completo */}
+          {showCoordView ? (
+            <CoordDashboard reports={allReports} isLoading={loadingAll} />
          ) : (
            <>
              {/* Filtros Avançados */}
