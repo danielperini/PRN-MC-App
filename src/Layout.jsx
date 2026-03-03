@@ -19,10 +19,6 @@ export default function Layout({ children, currentPageName }) {
     loadUser();
   }, []);
 
-  if (currentPageName === 'Home') {
-    return <>{children}</>;
-  }
-
   return (
     <div className="min-h-screen bg-white">
       {/* Sidebar */}
