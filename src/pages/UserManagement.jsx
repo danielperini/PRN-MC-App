@@ -131,6 +131,7 @@ function UserManagementInner() {
 
   const inviteMutation = useMutation({
     mutationFn: async (data) => {
+      const matricula = await gerarMatricula();
       const base44Role = ['COORDENADOR', 'ADMIN'].includes(data.role) ? 'admin' : 'user';
       await base44.users.inviteUser(data.email, base44Role);
       // Try to update extra fields after invite
@@ -140,6 +141,7 @@ function UserManagementInner() {
         await base44.entities.User.update(newUser.id, {
           role: data.role,
           equipe: data.equipe,
+          matricula,
         });
       }
     },
