@@ -30,7 +30,7 @@ const MESES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
-const FUNCOES = ['Educador', 'Produtor Cultural', 'Comunicador', 'Administrador', 'Coordenador', 'Outro'];
+const FUNCOES = ['Educador', 'Produtor Cultural', 'Comunicador', 'Administrador', 'Coordenador', 'Consultoria Programação', 'Outro'];
 const CATEGORIAS_OP = ['Programação', 'Parceria', 'Comunicação', 'Captação', 'Acessibilidade', 'Infraestrutura', 'Outro'];
 
 const EMPTY_FORM = {
