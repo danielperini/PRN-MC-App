@@ -154,6 +154,11 @@ export default function Layout({ children, currentPageName }) {
       <main>
         {children}
       </main>
+
+      {/* Assistente do Plano de Trabalho — disponível para todos os usuários autenticados */}
+      {currentUser && (
+        <PlanoTrabalhoChat isCoordenador={isCoordenador} />
+      )}
     </div>
   );
 }
