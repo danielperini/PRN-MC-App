@@ -352,6 +352,59 @@ Máximo 10 resultados, ordenados por relevância e recência.`;
         </DialogContent>
       </Dialog>
 
+      {/* Carousel Modal */}
+      <Dialog open={!!selectedHighlightForCarousel} onOpenChange={o => !o && setSelectedHighlightForCarousel(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Galeria: {selectedHighlightForCarousel?.atividade}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="bg-gray-100 rounded-lg p-6 flex items-center justify-center min-h-[300px]">
+              <div className="text-center">
+                <Image className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-500 text-sm">Fotos da atividade em breve</p>
+              </div>
+            </div>
+
+            {highlights.length > 1 && (
+              <div className="flex gap-2 justify-between items-center">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCarouselIndex(prev => prev === 0 ? highlights.length - 1 : prev - 1)}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-sm text-gray-600">
+                  {carouselIndex + 1} de {highlights.length}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const newIdx = (carouselIndex + 1) % highlights.length;
+                    setCarouselIndex(newIdx);
+                    setSelectedHighlightForCarousel(highlights[newIdx]);
+                  }}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
+
+            <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
+              <p className="font-semibold text-black text-sm mb-2">{selectedHighlightForCarousel?.atividade}</p>
+              <p className="text-xs text-gray-700">{selectedHighlightForCarousel?.depoimento}</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedHighlightForCarousel(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Media Search Modal */}
       <Dialog open={showMediaModal} onOpenChange={setShowMediaModal}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
