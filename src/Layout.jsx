@@ -14,7 +14,8 @@ import {
   Paperclip,
   Settings,
   UserCircle,
-  Shield
+  Shield,
+  HelpCircle
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,7 @@ export default function Layout({ children, currentPageName }) {
   const navItems = [
     { name: 'Dashboard', icon: FileText, label: 'Dashboard', show: true },
     { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true },
+    { name: 'AssistentePlanejamento', icon: HelpCircle, label: 'Assistente', show: true },
     { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: isCoordenador && canViewMenu('can_manage_files') },
     { name: 'CoordReview', icon: Eye, label: 'Revisão', show: isCoordenador && canViewMenu('can_review_reports') },
     { name: 'AdminUsers', icon: Users, label: 'Usuários', show: isCoordenador && canViewMenu('can_manage_users') },

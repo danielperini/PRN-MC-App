@@ -60,6 +60,7 @@ import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
 import AdminUsers from './pages/AdminUsers';
+import AssistentePlanejamento from './pages/AssistentePlanejamento';
 import __Layout from './Layout.jsx';
 
 
@@ -77,6 +78,7 @@ export const PAGES = {
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
     "AdminUsers": AdminUsers,
+    "AssistentePlanejamento": AssistentePlanejamento,
 }
 
 export const pagesConfig = {
