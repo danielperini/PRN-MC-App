@@ -203,7 +203,7 @@ function UserManagementInner() {
             <h1 className="text-3xl font-semibold text-black tracking-tight">Usuários</h1>
             <p className="text-gray-500 mt-1">Gerencie os profissionais e seus perfis de acesso</p>
           </div>
-          <Button className="bg-black hover:bg-gray-800 text-white gap-2" onClick={openCreate}>
+          <Button className="bg-black hover:bg-gray-800 text-white gap-2" onClick={() => setShowInviteLink(true)}>
             <Plus className="w-4 h-4" />
             Convidar Usuário
           </Button>
