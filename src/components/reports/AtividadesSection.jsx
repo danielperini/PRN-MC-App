@@ -554,6 +554,12 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
     }
   };
 
+  const handleApplySuggestion = (suggestion) => {
+    if (suggestion.type === 'update_description') {
+      update(suggestion.index, 'descricao_executado', suggestion.value);
+    }
+  };
+
   const totalErrors = atividades.reduce((sum, a) => sum + validateAtividade(a).length, 0);
 
   return (
