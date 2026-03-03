@@ -759,6 +759,14 @@ function UserManagementInner() {
               >
                 {approveRegMutation.isPending ? 'Aprovando...' : 'Confirmar aprovação'}
               </Button>
+            ) : reviewingReg?.action === 'convidar' ? (
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => approveRegMutation.mutate(reviewingReg)}
+                disabled={approveRegMutation.isPending}
+              >
+                {approveRegMutation.isPending ? 'Enviando...' : 'Enviar Convite'}
+              </Button>
             ) : (
               <Button
                 className="bg-red-600 hover:bg-red-700 text-white"
