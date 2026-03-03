@@ -152,11 +152,11 @@ function AuthenticatedHome({ user }) {
         </div>
 
         {/* Números Executivos do Projeto — visíveis para todos */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <BarChart2 className="w-4 h-4 text-gray-400" />
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Números do Projeto</h2>
-          </div>
+         <div className="bg-black rounded-2xl p-6">
+           <div className="flex items-center gap-2 mb-3">
+             <BarChart2 className="w-4 h-4 text-gray-400" />
+             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Números do Projeto</h2>
+           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="rounded-2xl bg-black text-white p-6 flex flex-col gap-1">
               <PersonStanding className="w-7 h-7 text-black mb-2" />
