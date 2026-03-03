@@ -15,6 +15,7 @@ import {
   Settings,
   UserCircle
 } from 'lucide-react';
+import PlanoTrabalhoChat from './components/reports/PlanoTrabalhoChat';
 import { Button } from '@/components/ui/button';
 
 export default function Layout({ children, currentPageName }) {
