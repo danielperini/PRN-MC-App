@@ -715,6 +715,9 @@ function UserManagementInner() {
             <DialogTitle>
               {reviewingReg?.action === 'aprovar' ? 'Aprovar solicitação' : reviewingReg?.action === 'convidar' ? 'Enviar convite' : 'Rejeitar solicitação'}
             </DialogTitle>
+            <DialogDescription>
+              {reviewingReg?.action === 'aprovar' ? 'Aprove e configure as permissões iniciais' : reviewingReg?.action === 'convidar' ? 'Envie um convite ao usuário aprovado' : 'Informe o motivo da rejeição'}
+            </DialogDescription>
           </DialogHeader>
           {reviewingReg && (
             <div className="space-y-4 mt-2">
