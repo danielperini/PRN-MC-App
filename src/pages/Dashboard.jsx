@@ -15,6 +15,8 @@ import CoordDashboard from '../components/dashboard/CoordDashboard';
 import AdvancedFilters from '../components/dashboard/AdvancedFilters';
 import HighlightsCard from '../components/dashboard/HighlightsCard';
 import SummaryCards from '../components/dashboard/SummaryCards';
+import GeneralStatsCards from '../components/dashboard/GeneralStatsCards';
+import TrendChart from '../components/dashboard/TrendChart';
 
 const STATUS_CONFIG = {
   DRAFT:     { label: 'Rascunho',   color: 'bg-gray-100 text-gray-600',      cardBg: 'bg-white',            icon: Clock },
@@ -112,7 +114,14 @@ function DashboardInner() {
          </div>
 
          {/* Summary Cards — visível para todos */}
-         <SummaryCards reports={displayReports} />
+         <div className="mb-10">
+           <SummaryCards reports={displayReports} />
+         </div>
+
+         {/* General Stats Cards — visível para todos */}
+         <div className="mb-10">
+           <GeneralStatsCards reports={allReports} />
+         </div>
 
          {/* Coordenador: dashboard completo */}
            {showCoordView ? (
