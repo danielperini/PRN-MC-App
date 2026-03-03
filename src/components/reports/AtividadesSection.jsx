@@ -607,20 +607,18 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                <Input 
                  type="number" 
                  placeholder="1" 
-                 value={atividade.quantas_repeticoes || 1} 
+                 value={atividade.quantas_repeticoes} 
                  onChange={e => {
-                   let repeticoes = e.target.value ? parseInt(e.target.value, 10) : 1;
-                   if (!isNaN(repeticoes)) {
-                     repeticoes = Math.max(1, Math.min(99, repeticoes));
-                     onChange('quantas_repeticoes', repeticoes);
-                     const publico = (parseInt(atividade.publico_estimado) || 0) * repeticoes;
+                   const val = e.target.value === '' ? 1 : parseInt(e.target.value, 10);
+                   if (!isNaN(val) && val >= 1 && val <= 99) {
+                     onChange('quantas_repeticoes', val);
+                     const publico = (parseInt(atividade.publico_estimado) || 0) * val;
                      onChange('publico_total', publico);
                    }
                  }} 
                  disabled={!canEdit}
                  min="1"
                  max="99"
-                 step="1"
                />
             </Field>
             <Field label="Público total (calculado)">
