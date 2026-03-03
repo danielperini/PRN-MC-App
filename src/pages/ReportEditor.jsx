@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AtividadesSection, { validateAtividade } from '../components/reports/AtividadesSection';
 import ExportPDF from '../components/reports/ExportPDF';
 import AIAssistButton from '../components/reports/AIAssistButton';
+import ReportGenerator from '../components/reports/ReportGenerator';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
