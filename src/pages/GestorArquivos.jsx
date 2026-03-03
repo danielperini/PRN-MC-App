@@ -407,7 +407,7 @@ function GestorArquivosInner() {
                             <Download className="w-4 h-4" />
                           </Button>
                         </a>
-                        {(isCoordenador || att.created_by === currentUser?.email) && (
+                        {att.created_by === currentUser?.email && (
                           <>
                             <Button
                               variant="ghost"

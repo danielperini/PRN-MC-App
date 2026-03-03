@@ -1,6 +1,7 @@
 import React from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
+import RequireAuth from '../components/auth/RequireAuth';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
@@ -27,7 +28,7 @@ const ACTION_COLORS = {
   ARCHIVE: 'bg-gray-100 text-gray-700',
 };
 
-export default function AuditLog() {
+function AuditLogInner() {
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ['audit-logs'],
     queryFn: () => base44.entities.AuditLog.list('-created_date', 100),
@@ -102,4 +103,8 @@ export default function AuditLog() {
       </div>
     </div>
   );
+}
+
+export default function AuditLog() {
+  return <RequireAuth requireRole="ADMIN"><AuditLogInner /></RequireAuth>;
 }

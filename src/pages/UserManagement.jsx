@@ -629,5 +629,5 @@ function UserManagementInner() {
 }
 
 export default function UserManagement() {
-  return <RequireAuth requireRole="COORDENADOR"><UserManagementInner /></RequireAuth>;
+  return <RequireAuth requireRole="ADMIN"><UserManagementInner /></RequireAuth>;
 }

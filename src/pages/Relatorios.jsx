@@ -321,7 +321,7 @@ function RelatoriosInner() {
               const totalAtiv = (report.atividades || []).length;
               const attachments = allAttachments.filter(att => att.report_id === report.id);
               const nAttachments = attachments.length;
-              const canDelete = isCoordenador || report.created_by === currentUser?.email;
+              const canDelete = report.created_by === currentUser?.email;
               return (
                 <div key={report.id} className="block group relative">
                   <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
