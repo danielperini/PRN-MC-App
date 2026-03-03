@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, ChevronDown, ChevronUp, AlertCircle, Sparkles, X, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import ActivityAttachments from './ActivityAttachments';
 import ActivitySummarizer from './ActivitySummarizer';
 import ActivityClassificationAI from './ActivityClassificationAI';
@@ -180,6 +181,14 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId
   const isRotinaOrExtra = atividade.classificacao === 'ROTINA' || atividade.classificacao === 'EXTRA';
 
   const handleAiMeta = async () => {
+    // Validar dados essenciais
+    if (!atividade.nome && !atividade.descricao_executado && !atividade.objetivo) {
+      toast.warning('Preencha pelo menos o nome ou descrição da atividade antes de usar a IA', {
+        description: 'A IA precisa de informações suficientes para sugerir uma meta adequada.'
+      });
+      return;
+    }
+
     setAiMetaLoading(true);
     const metasLista = METAS_3_ADITIVO.map(m => `${m.value}: ${m.label}`).join('\n');
     const prompt = `Você é especialista em gestão de projetos culturais da Fundação Municipal de Cultura de Belo Horizonte.
@@ -212,11 +221,23 @@ Responda APENAS com JSON: {"meta_codigo": "META_XX", "justificativa": "Uma frase
       if (result.justificativa && !atividade.indicador_previsto) {
         onChange('indicador_previsto', result.justificativa);
       }
+      toast.success('Sugestão de meta gerada! ✨', {
+        description: 'Revise e ajuste conforme necessário.',
+        action: { label: 'OK', onClick: () => {} }
+      });
     }
     setAiMetaLoading(false);
   };
 
   const handleAiResultados = async () => {
+    // Validar dados essenciais
+    if (!atividade.descricao_executado && !atividade.objetivo) {
+      toast.warning('Preencha a "Descrição do executado" ou "Objetivo" antes de usar a IA', {
+        description: 'Esses dados são essenciais para gerar uma sugestão de resultados adequada.'
+      });
+      return;
+    }
+
     setAiLoading(true);
     const prompt = `Com base na seguinte atividade de museu, escreva um parágrafo conciso sobre Resultados e Impactos (máximo 4 linhas):
 Nome: ${atividade.nome || ''}
@@ -228,10 +249,22 @@ Produto: ${atividade.produto_realizado || ''}
 Escreva em português do Brasil, de forma objetiva e profissional.`;
     const result = await base44.integrations.Core.InvokeLLM({ prompt });
     onChange('resultados_impactos', result);
+    toast.success('Sugestão gerada! ✨', {
+      description: 'Leia e revise o texto proposto pela IA antes de confirmar.',
+      action: { label: 'OK', onClick: () => {} }
+    });
     setAiLoading(false);
   };
 
   const handleAiJustificativa = async () => {
+    // Validar dados essenciais
+    if (!atividade.tipo_acao && !atividade.descricao_executado && !atividade.objetivo) {
+      toast.warning('Preencha o "Tipo de ação" e descrição antes de usar a IA', {
+        description: 'A IA precisa dessas informações para gerar uma justificativa adequada.'
+      });
+      return;
+    }
+
     setAiLoading(true);
     const prompt = `Com base na seguinte atividade de museu, escreva uma justificativa técnica clara explicando por que esta atividade é considerada "${atividade.classificacao}" (máximo 3 linhas):
 Nome: ${atividade.nome || ''}
@@ -242,6 +275,10 @@ Classificação: ${atividade.classificacao || ''}
 Escreva em português do Brasil, de forma técnica e concisa.`;
     const result = await base44.integrations.Core.InvokeLLM({ prompt });
     onChange('justificativa_tecnica', result);
+    toast.success('Sugestão gerada! ✨', {
+      description: 'Revise a justificativa proposta e ajuste se necessário.',
+      action: { label: 'OK', onClick: () => {} }
+    });
     setAiLoading(false);
   };
 
