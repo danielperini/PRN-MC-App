@@ -134,27 +134,63 @@ function AuthenticatedHome({ user }) {
 
         {/* Welcome */}
         <div>
-          <h1 className="text-2xl font-bold text-black">Bom dia, {user?.full_name?.split(' ')[0]} 👋</h1>
-          <p className="text-gray-500 text-sm mt-1">Aqui está um resumo do que está acontecendo na plataforma.</p>
+          <h1 className="text-2xl font-bold text-black">Olá, {user?.full_name?.split(' ')[0]} 👋</h1>
+          <p className="text-gray-500 text-sm mt-1">Aqui está o panorama geral da plataforma.</p>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {isCoordenador ? (
-            <>
-              <StatCard icon={Bell} label="Solicitações pendentes" value={pendingRegs.length} highlight={pendingRegs.length > 0} color="bg-amber-100" />
-              <StatCard icon={Clock} label="Aguardando revisão" value={pendingReview.length} color="bg-blue-100" highlight={pendingReview.length > 0} />
-              <StatCard icon={FileText} label="Total de relatórios" value={reports.length} color="bg-gray-100" />
-              <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-gray-100" />
-            </>
-          ) : (
-            <>
-              <StatCard icon={FileText} label="Meus relatórios" value={reports.length} color="bg-gray-100" />
-              <StatCard icon={Clock} label="Rascunhos abertos" value={myDrafts.length} color="bg-amber-100" highlight={myDrafts.length > 0} />
-              <StatCard icon={CheckCircle} label="Aprovados" value={reports.filter(r => r.status === 'APPROVED').length} color="bg-green-100" />
-              <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-gray-100" />
-            </>
-          )}
+        {/* Números Executivos do Projeto — visíveis para todos */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <BarChart2 className="w-4 h-4 text-gray-400" />
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Números do Projeto</h2>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="rounded-2xl bg-black text-white p-5 flex flex-col gap-1">
+              <PersonStanding className="w-5 h-5 text-gray-300 mb-1" />
+              <p className="text-3xl font-bold leading-none">{totalPublico.toLocaleString('pt-BR')}</p>
+              <p className="text-sm text-gray-300">Público total alcançado</p>
+            </div>
+            <div className="rounded-2xl bg-white border border-gray-100 p-5 flex flex-col gap-1">
+              <Activity className="w-5 h-5 text-gray-400 mb-1" />
+              <p className="text-3xl font-bold text-black leading-none">{totalAtividades.toLocaleString('pt-BR')}</p>
+              <p className="text-sm text-gray-500">Atividades realizadas</p>
+            </div>
+            <div className="rounded-2xl bg-white border border-gray-100 p-5 flex flex-col gap-1">
+              <Award className="w-5 h-5 text-gray-400 mb-1" />
+              <p className="text-3xl font-bold text-black leading-none">{aprovados}</p>
+              <p className="text-sm text-gray-500">Relatórios aprovados</p>
+            </div>
+            <div className="rounded-2xl bg-white border border-gray-100 p-5 flex flex-col gap-1">
+              <MapPin className="w-5 h-5 text-gray-400 mb-1" />
+              <p className="text-3xl font-bold text-black leading-none">{museus.length}</p>
+              <p className="text-sm text-gray-500">Museus ativos</p>
+            </div>
+          </div>
+        </div>
+
+        {/* KPIs pessoais */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingUp className="w-4 h-4 text-gray-400" />
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Minha Atividade</h2>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {isCoordenador ? (
+              <>
+                <StatCard icon={Bell} label="Solicitações pendentes" value={pendingRegs.length} highlight={pendingRegs.length > 0} color="bg-amber-100" />
+                <StatCard icon={Clock} label="Aguardando revisão" value={pendingReview.length} color="bg-blue-100" highlight={pendingReview.length > 0} />
+                <StatCard icon={FileText} label="Total de relatórios" value={allReports.length} color="bg-gray-100" />
+                <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-gray-100" />
+              </>
+            ) : (
+              <>
+                <StatCard icon={FileText} label="Meus relatórios" value={myReports.length} color="bg-gray-100" />
+                <StatCard icon={Clock} label="Rascunhos abertos" value={myDrafts.length} color="bg-amber-100" highlight={myDrafts.length > 0} />
+                <StatCard icon={CheckCircle} label="Aprovados" value={myReports.filter(r => r.status === 'APPROVED').length} color="bg-green-100" />
+                <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-gray-100" />
+              </>
+            )}
+          </div>
         </div>
 
         {/* Atalhos + Relatórios Recentes */}
