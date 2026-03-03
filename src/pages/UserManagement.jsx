@@ -150,13 +150,17 @@ function UserManagementInner() {
       const base44Role = ['COORDENADOR', 'ADMIN'].includes(regRole) ? 'admin' : 'user';
       await base44.users.inviteUser(reg.email, base44Role);
 
-      // Get invite URL and send email
-      const inviteUrl = `${window.location.origin}/app/${window.location.pathname.split('/')[2] || ''}/`;
+      // Get cadastro URL and send email with direct access
+      const appId = window.location.pathname.split('/')[2] || '';
+      const cadastroUrl = appId 
+        ? `${window.location.origin}/app/${appId}/Cadastro` 
+        : `${window.location.origin}/Cadastro`;
+
       await base44.functions.invoke('sendInviteEmail', {
         email: reg.email,
         full_name: reg.full_name,
         role: regRole,
-        inviteUrl
+        cadastroUrl
       });
 
       // Try to update extra fields after invite
@@ -207,13 +211,17 @@ function UserManagementInner() {
       const base44Role = ['COORDENADOR', 'ADMIN'].includes(data.role) ? 'admin' : 'user';
       await base44.users.inviteUser(data.email, base44Role);
 
-      // Send email with configured sender
-      const inviteUrl = `${window.location.origin}/app/${window.location.pathname.split('/')[2] || ''}/`;
+      // Send email with configured sender and direct cadastro link
+      const appId = window.location.pathname.split('/')[2] || '';
+      const cadastroUrl = appId 
+        ? `${window.location.origin}/app/${appId}/Cadastro` 
+        : `${window.location.origin}/Cadastro`;
+
       await base44.functions.invoke('sendInviteEmail', {
         email: data.email,
         full_name: data.full_name || data.email,
         role: base44Role,
-        inviteUrl
+        cadastroUrl
       });
 
       // Try to update extra fields after invite
