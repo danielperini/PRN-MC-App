@@ -603,27 +603,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
             <Field label="Público estimado (por ocorrência)">
               <Input type="number" placeholder="0" value={atividade.publico_estimado ?? ''} onChange={e => onChange('publico_estimado', parseInt(e.target.value) || 0)} disabled={!canEdit} />
             </Field>
-            <Field label="Quantas vezes se repetiu?">
-               <Input 
-                 type="number" 
-                 placeholder="1" 
-                 value={atividade.quantas_repeticoes} 
-                 onChange={e => {
-                   const val = e.target.value === '' ? 1 : parseInt(e.target.value, 10);
-                   if (!isNaN(val) && val >= 1 && val <= 99) {
-                     onChange('quantas_repeticoes', val);
-                     const publico = (parseInt(atividade.publico_estimado) || 0) * val;
-                     onChange('publico_total', publico);
-                   }
-                 }} 
-                 disabled={!canEdit}
-                 min="1"
-                 max="99"
-               />
-            </Field>
-            <Field label="Público total (calculado)">
-              <Input type="number" placeholder="0" value={atividade.publico_total || (parseInt(atividade.publico_estimado || 0) * parseInt(atividade.quantas_repeticoes || 1))} disabled={true} className="bg-gray-100 text-gray-600" />
-            </Field>
+
             <Field label="Produto realizado">
               <Select value={atividade.produto_realizado || ''} onValueChange={v => onChange('produto_realizado', v)} disabled={!canEdit}>
                 <SelectTrigger><SelectValue placeholder="Selecione o produto" /></SelectTrigger>
