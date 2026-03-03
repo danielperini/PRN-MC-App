@@ -384,10 +384,29 @@ Escreva em português do Brasil, de forma objetiva e profissional.`;
                 <Textarea placeholder="O que foi realizado..." value={atividade.descricao_executado || ''} onChange={e => onChange('descricao_executado', e.target.value)} disabled={!canEdit} rows={3} />
               </Field>
               <Field label="Equipe envolvida">
-                <Input placeholder="Nomes ou equipes que participaram..." value={atividade.equipe_envolvida || ''} onChange={e => onChange('equipe_envolvida', e.target.value)} disabled={!canEdit} />
+                <UserPicker
+                  value={atividade.equipe_envolvida_lista || []}
+                  onChange={v => onChange('equipe_envolvida_lista', v)}
+                  disabled={!canEdit}
+                />
               </Field>
               <Field label="Resultados e impactos">
-                <Textarea placeholder="Resultados observados, impacto no público..." value={atividade.resultados_impactos || ''} onChange={e => onChange('resultados_impactos', e.target.value)} disabled={!canEdit} rows={2} />
+                <div className="space-y-1.5">
+                  <Textarea placeholder="Resultados observados, impacto no público..." value={atividade.resultados_impactos || ''} onChange={e => onChange('resultados_impactos', e.target.value)} disabled={!canEdit} rows={2} />
+                  {canEdit && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs"
+                      onClick={handleAiResultados}
+                      disabled={aiLoading}
+                    >
+                      {aiLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                      {aiLoading ? 'Gerando...' : 'Sugerir com IA'}
+                    </Button>
+                  )}
+                </div>
               </Field>
               <div className="grid md:grid-cols-2 gap-3">
                 <Field label="Problemas (opcional)">
