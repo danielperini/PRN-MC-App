@@ -116,35 +116,33 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
 
   return (
     <div className="mt-4 pt-4 border-t border-gray-100">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-gray-500 flex items-center gap-1">
-          <Paperclip className="w-3 h-3" />
-          Anexos desta atividade ({attachments.length})
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center gap-1.5">
+          <Paperclip className="w-3.5 h-3.5" />
+          Anexos ({attachments.length})
         </span>
         {canEdit && (
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs gap-1"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-            >
-              {uploading
-                ? <Loader2 className="w-3 h-3 animate-spin" />
-                : <Upload className="w-3 h-3" />}
-              {uploading ? 'Enviando...' : 'Adicionar'}
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept={ALLOWED_EXTENSIONS.map(e => `.${e}`).join(',')}
-              className="hidden"
-              onChange={e => e.target.files?.length && handleFiles(e.target.files)}
-            />
-          </>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading
+              ? <Loader2 className="w-3 h-3 animate-spin" />
+              : <Upload className="w-3 h-3" />}
+            {uploading ? 'Enviando...' : 'Adicionar'}
+          </Button>
         )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={ALLOWED_EXTENSIONS.map(e => `.${e}`).join(',')}
+          className="hidden"
+          onChange={e => e.target.files?.length && handleFiles(e.target.files)}
+        />
       </div>
 
       {isLoading ? (
@@ -153,41 +151,54 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
         canEdit ? (
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-full text-xs text-gray-400 border border-dashed border-gray-200 rounded-lg py-3 hover:border-gray-300 transition-colors"
+            className="w-full text-xs text-gray-500 border border-dashed border-gray-200 rounded-lg py-4 hover:border-blue-300 hover:bg-blue-50/30 transition-all"
           >
-            Clique para adicionar anexos a esta atividade
+            + Adicionar anexos
           </button>
         ) : (
-          <p className="text-xs text-gray-400">Nenhum anexo</p>
+          <p className="text-xs text-gray-400">Sem anexos</p>
         )
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {attachments.map(att => {
             const Icon = getFileIcon(att.file_type);
+            const isImage = att.file_type?.startsWith('image/');
             return (
-              <div key={att.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors">
-                <Icon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                <div className="flex-1">
-                  <div className="text-xs text-black truncate" title={att.file_name}>{att.file_name}</div>
+              <div key={att.id} className="flex items-center gap-2.5 p-2.5 bg-gradient-to-r from-gray-50 to-white border border-gray-100 rounded-lg hover:border-gray-200 hover:shadow-sm transition-all group">
+                {isImage ? (
+                  <img
+                    src={att.file_url}
+                    alt={att.file_name}
+                    className="w-8 h-8 rounded object-cover flex-shrink-0 bg-gray-100"
+                  />
+                ) : (
+                  <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center flex-shrink-0">
+                    <Icon className="w-4 h-4 text-gray-500" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-gray-700 truncate">{att.file_name}</div>
                   {att.description && (
                     <div className="text-xs text-gray-400 truncate">{att.description}</div>
                   )}
                 </div>
-                <span className="text-xs text-gray-400 flex-shrink-0 whitespace-nowrap">{formatBytes(att.file_size)}</span>
-                <a href={att.file_url} target="_blank" rel="noopener noreferrer">
-                  <Button variant="ghost" size="icon" className="h-6 w-6">
-                    <ExternalLink className="w-3 h-3 text-gray-400" />
-                  </Button>
-                </a>
-                {canEdit && (
-                  <Button
-                    variant="ghost" size="icon" className="h-6 w-6"
-                    onClick={() => deleteMutation.mutate(att.id)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="w-3 h-3 text-red-400" />
-                  </Button>
-                )}
+                <span className="text-xs text-gray-400 flex-shrink-0">{formatBytes(att.file_size)}</span>
+                <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <a href={att.file_url} target="_blank" rel="noopener noreferrer">
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <ExternalLink className="w-3 h-3 text-gray-500" />
+                    </Button>
+                  </a>
+                  {canEdit && (
+                    <Button
+                      variant="ghost" size="icon" className="h-6 w-6"
+                      onClick={() => deleteMutation.mutate(att.id)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="w-3 h-3 text-red-500" />
+                    </Button>
+                  )}
+                </div>
               </div>
             );
           })}

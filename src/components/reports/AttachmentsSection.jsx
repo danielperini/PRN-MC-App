@@ -227,16 +227,20 @@ export default function AttachmentsSection({ reportId, canEdit }) {
           onDragLeave={handleDragLeave}
           onClick={() => fileInputRef.current?.click()}
           className={`
-            flex flex-col items-center justify-center py-10 border-2 border-dashed rounded-xl cursor-pointer transition-colors
-            ${dragOver ? 'border-black bg-gray-50' : 'border-gray-200 hover:border-gray-300'}
+            flex flex-col items-center justify-center py-12 border-2 border-dashed rounded-xl cursor-pointer transition-all
+            ${dragOver 
+              ? 'border-blue-400 bg-blue-50 scale-[1.02]' 
+              : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50/40'}
           `}
         >
-          <Paperclip className="w-8 h-8 text-gray-300 mb-2" />
-          <p className="text-sm text-gray-500">
-            Arraste arquivos ou <span className="underline">clique para selecionar</span>
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 transition-colors ${dragOver ? 'bg-blue-100' : 'bg-gray-100'}`}>
+            <Paperclip className={`w-6 h-6 ${dragOver ? 'text-blue-500' : 'text-gray-400'}`} />
+          </div>
+          <p className="text-sm font-medium text-gray-700">
+            {dragOver ? 'Solte aqui para enviar' : 'Arraste arquivos ou clique'}
           </p>
-          <p className="text-xs text-gray-400 mt-1">
-            PDF, Word, Excel, imagens, vídeo, áudio — máx. 50MB por arquivo
+          <p className="text-xs text-gray-500 mt-1">
+            PDF, Word, Excel, imagens, vídeo, áudio — máx. 50MB
           </p>
         </div>
       )}
@@ -248,8 +252,8 @@ export default function AttachmentsSection({ reportId, canEdit }) {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           className={`
-            mb-3 transition-all rounded-xl
-            ${dragOver ? 'ring-2 ring-black ring-offset-2' : ''}
+            mb-4 transition-all rounded-xl p-4
+            ${dragOver ? 'ring-2 ring-blue-400 ring-offset-2 bg-blue-50' : ''}
           `}
         >
           {/* File list */}
@@ -264,27 +268,27 @@ export default function AttachmentsSection({ reportId, canEdit }) {
                  return (
                    <div
                      key={attachment.id}
-                     className="flex flex-col gap-2 p-3 border border-gray-100 rounded-xl group hover:border-gray-200 transition-all"
+                     className="flex flex-col gap-3 p-3.5 border border-gray-150 rounded-xl group hover:border-gray-250 hover:shadow-md transition-all bg-white"
                    >
-                     <div className="flex items-start gap-3">
+                     <div className="flex items-start gap-3.5">
                        {/* Thumbnail */}
                        {isImage ? (
                          <img
                            src={attachment.file_url}
                            alt={attachment.file_name}
-                           className="w-12 h-12 rounded-lg object-cover flex-shrink-0 bg-gray-100"
+                           className="w-14 h-14 rounded-lg object-cover flex-shrink-0 bg-gray-100 ring-1 ring-gray-200"
                          />
                        ) : (
-                         <div className="w-12 h-12 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                           <Icon className="w-5 h-5 text-gray-500" />
+                         <div className="w-14 h-14 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 ring-1 ring-gray-200">
+                           <Icon className="w-6 h-6 text-gray-500" />
                          </div>
                        )}
 
                        <div className="flex-1 min-w-0">
-                         <p className="text-sm font-medium text-black truncate">
+                         <p className="text-sm font-semibold text-black truncate">
                            {attachment.file_name}
                          </p>
-                         <p className="text-xs text-gray-400">
+                         <p className="text-xs text-gray-500 mt-0.5">
                            {formatBytes(attachment.file_size)}
                          </p>
                        </div>
@@ -296,8 +300,8 @@ export default function AttachmentsSection({ reportId, canEdit }) {
                            rel="noopener noreferrer"
                            onClick={(e) => e.stopPropagation()}
                          >
-                           <Button variant="ghost" size="icon" className="h-8 w-8">
-                             <ExternalLink className="w-3.5 h-3.5 text-gray-500" />
+                           <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-blue-50">
+                             <ExternalLink className="w-3.5 h-3.5 text-gray-600" />
                            </Button>
                          </a>
                          {canEdit && (
@@ -305,22 +309,22 @@ export default function AttachmentsSection({ reportId, canEdit }) {
                              <Button
                                variant="ghost"
                                size="icon"
-                               className="h-8 w-8"
+                               className="h-8 w-8 hover:bg-amber-50"
                                onClick={() => {
                                  setEditingId(attachment.id);
                                  setEditDesc(attachment.description || '');
                                }}
                              >
-                               <Edit2 className="w-3.5 h-3.5 text-gray-500" />
+                               <Edit2 className="w-3.5 h-3.5 text-gray-600" />
                              </Button>
                              <Button
                                variant="ghost"
                                size="icon"
-                               className="h-8 w-8"
+                               className="h-8 w-8 hover:bg-red-50"
                                onClick={() => deleteMutation.mutate(attachment.id)}
                                disabled={deleteMutation.isPending}
                              >
-                               <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                               <Trash2 className="w-3.5 h-3.5 text-red-500" />
                              </Button>
                            </>
                          )}
@@ -386,37 +390,37 @@ export default function AttachmentsSection({ reportId, canEdit }) {
               return (
                 <div
                   key={attachment.id}
-                  className="flex flex-col gap-2 p-3 border border-gray-100 rounded-xl"
+                  className="flex flex-col gap-3 p-3.5 border border-gray-150 rounded-xl bg-white hover:shadow-sm transition-all"
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3.5">
                     {isImage ? (
                       <img
                         src={attachment.file_url}
                         alt={attachment.file_name}
-                        className="w-12 h-12 rounded-lg object-cover flex-shrink-0 bg-gray-100"
+                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0 bg-gray-100 ring-1 ring-gray-200"
                       />
                     ) : (
-                      <div className="w-12 h-12 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Icon className="w-5 h-5 text-gray-500" />
+                      <div className="w-14 h-14 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 ring-1 ring-gray-200">
+                        <Icon className="w-6 h-6 text-gray-500" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-black truncate">{attachment.file_name}</p>
-                      <p className="text-xs text-gray-400">{formatBytes(attachment.file_size)}</p>
+                      <p className="text-sm font-semibold text-black truncate">{attachment.file_name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{formatBytes(attachment.file_size)}</p>
                     </div>
                     <a
                       href={attachment.file_url}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ExternalLink className="w-3.5 h-3.5 text-gray-500" />
+                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-blue-50">
+                        <ExternalLink className="w-3.5 h-3.5 text-gray-600" />
                       </Button>
                     </a>
                   </div>
                   {attachment.description && (
-                    <div className="text-xs text-gray-600 pt-2 border-t border-gray-100">
-                      {attachment.description}
+                    <div className="text-xs text-gray-600 pt-3 border-t border-gray-100">
+                      <span className="text-gray-500 font-medium">Descrição:</span> {attachment.description}
                     </div>
                   )}
                 </div>
