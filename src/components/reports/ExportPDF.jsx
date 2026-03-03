@@ -108,7 +108,7 @@ function addFooter(doc, report, reportId, geradoEm, totalPages, docStatus, statu
     doc.setTextColor(150, 150, 150);
     doc.setFont('helvetica', 'normal');
     doc.text(
-      `Museus Centro — FMC/PBH  |  ${report.mes_referencia || ''} ${report.ano || 2026}  |  ${report.author_name || ''}  |  ID: ${reportId || '—'}  |  Gerado: ${geradoEm}`,
+      `Museus Centro — FMC/PBH  |  ${periodoLabel}  |  ${report.author_name || ''}  |  ID: ${reportId || '—'}  |  Gerado: ${geradoEm}`,
       M, PH - 2
     );
     doc.setFont('helvetica', 'bold');
