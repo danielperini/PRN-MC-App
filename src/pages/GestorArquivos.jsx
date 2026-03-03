@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import {
   Paperclip, FileText, Search, Download, Eye,
-  Image, File, FileVideo, Music, Archive, Trash2
+  Image, File, FileVideo, Music, Archive, Trash2, Edit2, FolderPlus, CheckSquare, Square
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
@@ -45,6 +48,12 @@ function GestorArquivosInner() {
   const [filterMuseu, setFilterMuseu] = useState('all');
   const [filterMes, setFilterMes] = useState('all');
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState(new Set());
+  const [renameTarget, setRenameTarget] = useState(null);
+  const [newName, setNewName] = useState('');
+  const [newFolder, setNewFolder] = useState('');
+  const [showFolderDialog, setShowFolderDialog] = useState(false);
+  const [folders, setFolders] = useState(['Fotos', 'Vídeos', 'Documentos', 'Outros']);
 
   const deleteMutation = useMutation({
     mutationFn: (att) => base44.entities.Attachment.delete(att.id),
@@ -54,6 +63,30 @@ function GestorArquivosInner() {
       setDeleteTarget(null);
     },
     onError: () => toast.error('Erro ao excluir arquivo.'),
+  });
+
+  const renameMutation = useMutation({
+    mutationFn: ({ id, newFileName }) => base44.entities.Attachment.update(id, { file_name: newFileName }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['gestor-attachments']);
+      toast.success('Arquivo renomeado.');
+      setRenameTarget(null);
+      setNewName('');
+    },
+    onError: () => toast.error('Erro ao renomear arquivo.'),
+  });
+
+  const deleteBulkMutation = useMutation({
+    mutationFn: async () => {
+      const ids = Array.from(selectedFiles);
+      await Promise.all(ids.map(id => base44.entities.Attachment.delete(id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['gestor-attachments']);
+      toast.success(`${selectedFiles.size} arquivo(s) excluído(s).`);
+      setSelectedFiles(new Set());
+    },
+    onError: () => toast.error('Erro ao excluir arquivos.'),
   });
 
   // Fetch reports (for context / linking)
@@ -119,6 +152,35 @@ function GestorArquivosInner() {
           </p>
         </div>
 
+        {/* Action Bar */}
+        {selectedFiles.size > 0 && (
+          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between">
+            <span className="text-sm font-medium text-blue-900">{selectedFiles.size} arquivo(s) selecionado(s)</span>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSelectedFiles(new Set())}
+              >
+                Desmarcar
+              </Button>
+              <Button
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={() => {
+                  if (window.confirm(`Deseja excluir ${selectedFiles.size} arquivo(s)?`)) {
+                    deleteBulkMutation.mutate();
+                  }
+                }}
+                disabled={deleteBulkMutation.isPending}
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                Excluir em Massa
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Filters */}
         <div className="flex flex-wrap gap-3 mb-6">
           <div className="relative flex-1 min-w-[200px]">
@@ -152,6 +214,15 @@ function GestorArquivosInner() {
               </Select>
             </>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => setShowFolderDialog(true)}
+          >
+            <FolderPlus className="w-4 h-4" />
+            Nova Pasta
+          </Button>
         </div>
 
         {/* Files grid */}
@@ -169,11 +240,31 @@ function GestorArquivosInner() {
               const report = reportMap[att.report_id];
               const IconComp = fileIcon(att.file_type);
               const isImage = att.file_type?.startsWith('image/');
+              const isSelected = selectedFiles.has(att.id);
               return (
                 <div
                   key={att.id}
-                  className="flex flex-col h-full p-4 border border-gray-100 rounded-xl hover:border-gray-300 hover:shadow-lg transition-all group bg-white"
+                  className={`flex flex-col h-full p-4 border rounded-xl transition-all group bg-white cursor-pointer relative ${
+                    isSelected ? 'border-blue-400 bg-blue-50 shadow-md' : 'border-gray-100 hover:border-gray-300 hover:shadow-lg'
+                  }`}
+                  onClick={() => {
+                    if (selectedFiles.has(att.id)) {
+                      const newSet = new Set(selectedFiles);
+                      newSet.delete(att.id);
+                      setSelectedFiles(newSet);
+                    } else {
+                      setSelectedFiles(new Set([...selectedFiles, att.id]));
+                    }
+                  }}
                 >
+                  {/* Checkbox */}
+                  <div className="absolute top-3 right-3">
+                    {isSelected ? (
+                      <CheckSquare className="w-5 h-5 text-blue-600" />
+                    ) : (
+                      <Square className="w-5 h-5 text-gray-300" />
+                    )}
+                  </div>
                   {/* File Preview */}
                   <div className="mb-3">
                     {isImage ? (
@@ -214,34 +305,40 @@ function GestorArquivosInner() {
                     )}
                   </div>
 
-                  <div className="mt-4 flex gap-2 pt-3 border-t border-gray-100">
-                    <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs hover:bg-blue-50 hover:border-blue-300">
-                        <Eye className="w-3.5 h-3.5" />Ver
-                      </Button>
-                    </a>
-                    <a href={att.file_url} download={att.file_name} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs hover:bg-green-50 hover:border-green-300">
-                        <Download className="w-3.5 h-3.5" />Baixar
-                      </Button>
-                    </a>
-                    {report && (
-                      <Link to={createPageUrl(`ReportEditor?id=${report.id}`)} className="flex-1">
-                        <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs hover:bg-amber-50 hover:border-amber-300">
-                          <FileText className="w-3.5 h-3.5" />Editar
-                        </Button>
-                      </Link>
-                    )}
-                    {(isCoordenador || att.created_by === currentUser?.email) && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-red-600 hover:bg-red-50 hover:border-red-300"
-                        onClick={() => setDeleteTarget(att)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
+                  <div className="mt-4 flex gap-2 pt-3 border-t border-gray-100" onClick={e => e.stopPropagation()}>
+                   <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="flex-1">
+                     <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs hover:bg-blue-50 hover:border-blue-300">
+                       <Eye className="w-3.5 h-3.5" />Ver
+                     </Button>
+                   </a>
+                   <a href={att.file_url} download={att.file_name} className="flex-1">
+                     <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs hover:bg-green-50 hover:border-green-300">
+                       <Download className="w-3.5 h-3.5" />Baixar
+                     </Button>
+                   </a>
+                   {(isCoordenador || att.created_by === currentUser?.email) && (
+                     <>
+                       <Button
+                         variant="outline"
+                         size="sm"
+                         className="gap-1.5 text-xs hover:bg-amber-50 hover:border-amber-300"
+                         onClick={() => {
+                           setRenameTarget(att);
+                           setNewName(att.file_name);
+                         }}
+                       >
+                         <Edit2 className="w-3.5 h-3.5" />
+                       </Button>
+                       <Button
+                         variant="outline"
+                         size="sm"
+                         className="text-red-600 hover:bg-red-50 hover:border-red-300"
+                         onClick={() => setDeleteTarget(att)}
+                       >
+                         <Trash2 className="w-3.5 h-3.5" />
+                       </Button>
+                     </>
+                   )}
                   </div>
                 </div>
               );
@@ -270,6 +367,75 @@ function GestorArquivosInner() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Rename Dialog */}
+      <Dialog open={!!renameTarget} onOpenChange={o => !o && setRenameTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Renomear arquivo</DialogTitle>
+            <DialogDescription>Digite o novo nome para o arquivo</DialogDescription>
+          </DialogHeader>
+          <Input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Novo nome do arquivo"
+            className="mt-2"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameTarget(null)}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => {
+                if (newName.trim() && renameTarget) {
+                  renameMutation.mutate({ id: renameTarget.id, newFileName: newName.trim() });
+                }
+              }}
+              disabled={renameMutation.isPending || !newName.trim()}
+            >
+              Renomear
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Folder Dialog */}
+      <Dialog open={showFolderDialog} onOpenChange={setShowFolderDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Criar nova pasta</DialogTitle>
+            <DialogDescription>Adicione uma nova pasta para organizar seus arquivos</DialogDescription>
+          </DialogHeader>
+          <Input
+            value={newFolder}
+            onChange={(e) => setNewFolder(e.target.value)}
+            placeholder="Nome da pasta"
+            className="mt-2"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFolderDialog(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => {
+                if (newFolder.trim() && !folders.includes(newFolder.trim())) {
+                  setFolders([...folders, newFolder.trim()]);
+                  toast.success(`Pasta "${newFolder}" criada.`);
+                  setNewFolder('');
+                  setShowFolderDialog(false);
+                } else if (folders.includes(newFolder.trim())) {
+                  toast.error('Pasta já existe.');
+                }
+              }}
+              disabled={!newFolder.trim()}
+            >
+              Criar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
