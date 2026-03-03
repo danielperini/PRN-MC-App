@@ -203,10 +203,10 @@ Máximo 10 resultados, ordenados por relevância e recência.`;
     <>
       <div className="p-6 border border-purple-100 rounded-2xl bg-gradient-to-br from-purple-50 to-white">
         <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <Sparkles className="w-5 h-5 text-purple-600" />
-            <h3 className="font-semibold text-black">Fatos Marcantes</h3>
-          </div>
+           <div className="flex items-center gap-3">
+             <Sparkles className="w-5 h-5 text-purple-600" />
+             <h3 className="font-semibold text-black text-2xl">Fatos Marcantes</h3>
+           </div>
           <Button
             size="sm"
             variant="outline"
