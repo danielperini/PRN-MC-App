@@ -13,7 +13,7 @@ const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const FUNCOES = ['Educador', 'Produtor Cultural', 'Comunicador', 'Administrador', 'Outro'];
 const EQUIPES = ['Comunicação', 'Administração', 'Educativo', 'Produção', 'Outra'];
 
-const EMPTY = { full_name: '', email: '', funcao: '', museu: '', equipe: '', mensagem: '' };
+const EMPTY = { full_name: '', email: '', museu: '' };
 
 export default function Cadastro() {
   const [form, setForm] = useState(EMPTY);
@@ -22,7 +22,7 @@ export default function Cadastro() {
 
   const mutation = useMutation({
     mutationFn: () => {
-      if (!form.full_name || !form.email || !form.funcao || !form.museu) {
+      if (!form.full_name || !form.email || !form.museu) {
         throw new Error('Preencha todos os campos obrigatórios.');
       }
       return base44.entities.UserRegistration.create({ ...form, status: 'PENDENTE' });
