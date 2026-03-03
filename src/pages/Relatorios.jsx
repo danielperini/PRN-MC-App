@@ -181,19 +181,15 @@ function RelatoriosInner() {
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            {isCoordenador && (
-              <>
-                <BatchPDFExport reports={filtered} />
-                <Button
-                  variant="outline"
-                  className="border-black gap-2"
-                  onClick={() => exportCSV(filtered)}
-                >
-                  <Download className="w-4 h-4" />
-                  Exportar CSV
-                </Button>
-              </>
-            )}
+            <BatchPDFExport reports={filtered} />
+            <Button
+              variant="outline"
+              className="border-black gap-2"
+              onClick={() => exportCSV(filtered)}
+            >
+              <Download className="w-4 h-4" />
+              Exportar CSV
+            </Button>
             <Link to={createPageUrl('ReportEditor')}>
               <Button className="bg-black hover:bg-gray-800 text-white gap-2">
                 <Plus className="w-4 h-4" />
