@@ -468,7 +468,7 @@ function ReportEditorInner() {
               {/* Botões de salvar — aba atividades */}
               {canEdit && (
                 <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
-                  <Button variant="outline" onClick={() => saveMutation.mutate(formData)} disabled={saveMutation.isPending}>
+                  <Button variant="outline" onClick={handleSaveDraft} disabled={saveMutation.isPending}>
                     <Save className="w-4 h-4 mr-2" />Salvar Rascunho
                   </Button>
                 </div>
