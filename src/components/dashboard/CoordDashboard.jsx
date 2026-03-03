@@ -106,12 +106,68 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     .filter(r => ['SUBMITTED', 'IN_REVIEW'].includes(r.status))
     .slice(0, 5);
 
+  const exportarRelatorioGeral = () => {
+    const MESES_ABREV = { 'Janeiro':'JAN','Fevereiro':'FEV','Março':'MAR','Abril':'ABR','Maio':'MAI','Junho':'JUN','Julho':'JUL','Agosto':'AGO','Setembro':'SET','Outubro':'OUT','Novembro':'NOV','Dezembro':'DEZ' };
+    const rows = [
+      ['Protocolo','Profissional','Museu','Mês','Ano','Status','Total Atividades','Público Total','Metas','Rotinas','Extras'],
+      ...reports.map(r => {
+        const ativs = deduplicarAtividades(r.atividades || []);
+        return [
+          r.numero_protocolo || '—',
+          r.author_name || '',
+          r.museu || '',
+          r.mes_referencia || '',
+          r.ano || '',
+          r.status || '',
+          ativs.length,
+          ativs.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0),
+          ativs.filter(a => a.classificacao === 'META').length,
+          ativs.filter(a => a.classificacao === 'ROTINA').length,
+          ativs.filter(a => a.classificacao === 'EXTRA').length,
+        ];
+      }),
+      [],
+      ['RESUMO GERAL'],
+      ['Total de Relatórios', totalRelatorios],
+      ['Total de Atividades (sem duplicatas)', totalAtiv],
+      ['Público Total', publicoTotal],
+      ['Metas', metas],
+      ['Rotinas', rotinas],
+      ['Extras', extras],
+      duplicatas > 0 ? [`Atividades duplicadas removidas`, duplicatas] : [],
+    ];
+
+    const csvContent = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `relatorio-geral-museus-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success('Relatório geral exportado com sucesso!');
+  };
+
   if (isLoading) {
     return <div className="text-center py-20 text-gray-400">Carregando dashboard...</div>;
   }
 
   return (
     <div className="space-y-8">
+      {/* Header com botão de exportar */}
+      <div className="flex items-center justify-between">
+        <div>
+          {duplicatas > 0 && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+              ⚠ {duplicatas} atividade(s) duplicada(s) detectadas e removidas da contagem
+            </p>
+          )}
+        </div>
+        <Button variant="outline" size="sm" className="gap-2" onClick={exportarRelatorioGeral}>
+          <Download className="w-4 h-4" />Exportar Relatório Geral (CSV)
+        </Button>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
