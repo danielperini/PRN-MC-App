@@ -309,8 +309,8 @@ export default function CoordDashboard({ reports = [], isLoading }) {
         </Button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      {/* KPI Cards with larger fonts */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
           { label: 'Total de Relatórios', value: totalRelatorios, icon: FileText },
           { label: 'Pendentes de Revisão', value: pendentes, icon: AlertCircle, highlight: pendentes > 0 },
@@ -517,12 +517,12 @@ export default function CoordDashboard({ reports = [], isLoading }) {
 
 function KpiCard({ label, value, icon: Icon, highlight }) {
   return (
-    <div className={`p-4 border rounded-xl ${highlight ? 'border-black bg-black text-white' : 'border-gray-100 bg-white'}`}>
-      <div className="flex items-center gap-1.5 mb-2">
-        <Icon className={`w-3.5 h-3.5 ${highlight ? 'text-white' : 'text-gray-400'}`} />
-        <span className={`text-xs ${highlight ? 'text-gray-300' : 'text-gray-500'}`}>{label}</span>
+    <div className={`p-5 border rounded-xl transition-all shadow-sm ${highlight ? 'border-black bg-black text-white shadow-md' : 'border-gray-100 bg-white hover:shadow-md'}`}>
+      <div className="flex items-center gap-2 mb-3">
+        <Icon className={`w-4 h-4 ${highlight ? 'text-white' : 'text-gray-400'}`} />
+        <span className={`text-xs font-medium ${highlight ? 'text-gray-300' : 'text-gray-600'}`}>{label}</span>
       </div>
-      <p className={`text-2xl font-semibold ${highlight ? 'text-white' : 'text-black'}`}>{value}</p>
+      <p className={`text-3xl font-bold leading-tight ${highlight ? 'text-white' : 'text-black'}`}>{value}</p>
     </div>
   );
 }
