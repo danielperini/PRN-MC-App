@@ -220,29 +220,42 @@ Máximo 10 resultados, ordenados por relevância e recência.`;
         </div>
 
         <div className="space-y-4">
-          {highlights.map((item) => (
-            <div key={item.id} className="pb-4 border-b border-purple-100 last:border-b-0 last:pb-0 cursor-pointer hover:bg-purple-100/30 p-3 rounded-lg transition-colors" onClick={() => openEditHighlight(item)}>
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-2 h-2 rounded-full bg-purple-500 mt-2" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-black line-clamp-2">
-                    {item.atividade}
-                  </p>
-                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">
-                    {item.depoimento}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <span className="text-[11px] px-2 py-1 rounded-full bg-purple-100 text-purple-700 font-medium">
-                      {item.mes} {item.ano}
-                    </span>
-                    <span className="text-[11px] text-gray-500">{item.museu}</span>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
-              </div>
-            </div>
-          ))}
-        </div>
+           {highlights.length > 1 && (
+             <div className="flex gap-2 mb-4">
+               <Button
+                 size="sm"
+                 variant="outline"
+                 onClick={() => setSelectedHighlightForCarousel(highlights[carouselIndex])}
+                 className="text-xs"
+               >
+                 <Image className="w-3 h-3 mr-1" />
+                 Ver Carrossel
+               </Button>
+             </div>
+           )}
+           {highlights.map((item) => (
+             <div key={item.id} className="pb-4 border-b border-purple-100 last:border-b-0 last:pb-0 cursor-pointer hover:bg-purple-100/30 p-3 rounded-lg transition-colors" onClick={() => openEditHighlight(item)}>
+               <div className="flex items-start gap-3">
+                 <div className="flex-shrink-0 w-2 h-2 rounded-full bg-purple-500 mt-2" />
+                 <div className="flex-1 min-w-0">
+                   <p className="text-lg font-medium text-black line-clamp-2">
+                     {item.atividade}
+                   </p>
+                   <p className="text-sm text-gray-600 mt-1 line-clamp-3">
+                     {item.depoimento}
+                   </p>
+                   <div className="flex items-center gap-2 mt-2 flex-wrap">
+                     <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700 font-medium">
+                       {item.mes} {item.ano}
+                     </span>
+                     <span className="text-xs text-gray-500">{item.museu}</span>
+                   </div>
+                 </div>
+                 <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+               </div>
+             </div>
+           ))}
+         </div>
       </div>
 
       {/* Edit Highlight Modal */}
