@@ -344,17 +344,31 @@ export default function Home() {
   const [user, setUser] = useState(undefined); // undefined = loading
 
   useEffect(() => {
-    base44.auth.isAuthenticated().then(async (isAuth) => {
-      if (isAuth) {
-        const u = await base44.auth.me();
-        setUser(u);
-      } else {
+    const load = async () => {
+      try {
+        const isAuth = await base44.auth.isAuthenticated();
+        if (isAuth) {
+          const u = await base44.auth.me();
+          setUser(u || null);
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar usuário:', error);
         setUser(null);
       }
-    });
+    };
+    load();
   }, []);
 
-  if (user === undefined) return null; // brief loading
+  if (user === undefined) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <p className="text-gray-400 text-sm">Carregando...</p>
+      </div>
+    );
+  }
+  
   if (!user) return <PublicHome />;
   return <AuthenticatedHome user={user} />;
 }
