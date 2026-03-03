@@ -51,7 +51,12 @@ const METAS_3_ADITIVO = [
   { value: 'META_22', label: 'META 22 — Contratar consultorias (2 temáticas + 1 formação em ambiente seguro e acessibilidade)' },
 ];
 
+function gerarAtividadeId() {
+  return `ATI_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
 const EMPTY_ATIVIDADE = {
+  activity_id: gerarAtividadeId(), // ID único para a atividade
   data_inicio: '',
   data_fim: '',
   museu: '',
@@ -63,6 +68,8 @@ const EMPTY_ATIVIDADE = {
   objetivo: '',
   descricao_executado: '',
   equipe_envolvida: '',
+  equipe_envolvida_lista: [], // Usuários envolvidos
+  co_responsavel_email: '', // Outro profissional responsável
   resultados_impactos: '',
   problemas: '',
   solucoes: '',
@@ -176,9 +183,21 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId
   const [expanded, setExpanded] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiMetaLoading, setAiMetaLoading] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [coRespSearch, setCoRespSearch] = useState('');
+
+  // Carregar usuários disponíveis
+  useEffect(() => {
+    base44.entities.User.list().then(setUsers).catch(() => {});
+  }, []);
+
   const errors = canEdit ? validateAtividade(atividade) : [];
   const isMeta = atividade.classificacao === 'META';
   const isRotinaOrExtra = atividade.classificacao === 'ROTINA' || atividade.classificacao === 'EXTRA';
+  const coRespUser = users.find(u => u.email === atividade.co_responsavel_email);
+  const filteredUsers = users.filter(u => 
+    (u.full_name || u.email).toLowerCase().includes(coRespSearch.toLowerCase())
+  );
 
   const handleAiMeta = async () => {
     // Validar dados essenciais
@@ -293,6 +312,11 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
             Atividade {index + 1}
           </span>
+          {atividade.activity_id && (
+            <span className="text-xs font-mono bg-black text-white px-2 py-0.5 rounded text-gray-300">
+              {atividade.activity_id.substring(0, 10)}...
+            </span>
+          )}
           {atividade.nome && (
             <span className="text-sm font-medium text-black">{atividade.nome}</span>
           )}
@@ -303,6 +327,11 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
           )}
           {isMeta && atividade.meta_codigo && (
             <Badge variant="outline" className="text-xs">{atividade.meta_codigo}</Badge>
+          )}
+          {atividade.co_responsavel_email && coRespUser && (
+            <Badge variant="outline" className="text-xs bg-blue-50">
+              Co: {coRespUser.full_name || coRespUser.email}
+            </Badge>
           )}
           {errors.length > 0 && (
             <span className="flex items-center gap-1 text-xs text-red-500">
@@ -457,6 +486,45 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                 </SelectContent>
               </Select>
             </Field>
+            <Field label="Co-responsável (outro profissional)">
+              <div className="space-y-2">
+                {coRespUser && (
+                  <Badge className="w-fit gap-1 bg-blue-100 text-blue-800">
+                    {coRespUser.full_name || coRespUser.email}
+                    {canEdit && (
+                      <button onClick={() => onChange('co_responsavel_email', '')} className="ml-1">
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </Badge>
+                )}
+                {!coRespUser && canEdit && (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <input
+                      type="text"
+                      placeholder="Buscar profissional..."
+                      value={coRespSearch}
+                      onChange={e => setCoRespSearch(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border-b border-gray-100 outline-none"
+                    />
+                    <div className="max-h-32 overflow-y-auto">
+                      {filteredUsers.length === 0 ? (
+                        <p className="text-xs text-gray-400 px-3 py-2">Nenhum usuário encontrado</p>
+                      ) : filteredUsers.map(u => (
+                        <div
+                          key={u.email}
+                          onClick={() => { onChange('co_responsavel_email', u.email); setCoRespSearch(''); }}
+                          className="flex items-center gap-2 px-3 py-2 cursor-pointer text-sm hover:bg-gray-50"
+                        >
+                          <span>{u.full_name || u.email}</span>
+                          <span className="text-gray-400 text-xs ml-auto">{u.role}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Field>
             <Field label="Data de início">
               <Input type="date" value={atividade.data_inicio || ''} onChange={e => onChange('data_inicio', e.target.value)} disabled={!canEdit} />
             </Field>
@@ -561,6 +629,8 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
             <ActivityAttachments
               reportId={reportId}
               activityIndex={index}
+              activityId={atividade.activity_id}
+              activityName={atividade.nome || `Atividade ${index + 1}`}
               canEdit={canEdit}
             />
           )}
