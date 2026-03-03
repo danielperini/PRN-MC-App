@@ -289,7 +289,23 @@ Escreva em português do Brasil, de forma objetiva e profissional.`;
           {isMeta && (
             <div className="p-4 border border-blue-100 bg-blue-50/30 rounded-xl space-y-4">
               <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Dados da Meta — 3º Termo Aditivo</p>
-              <Field label="Código da Meta">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm text-gray-700">Código da Meta</Label>
+                  {canEdit && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs h-7"
+                      onClick={handleAiMeta}
+                      disabled={aiMetaLoading}
+                    >
+                      {aiMetaLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                      {aiMetaLoading ? 'Sugerindo...' : 'Sugerir com IA'}
+                    </Button>
+                  )}
+                </div>
                 <Select value={atividade.meta_codigo || ''} onValueChange={v => onChange('meta_codigo', v)} disabled={!canEdit}>
                   <SelectTrigger><SelectValue placeholder="Selecione a meta" /></SelectTrigger>
                   <SelectContent>
@@ -298,7 +314,7 @@ Escreva em português do Brasil, de forma objetiva e profissional.`;
                     ))}
                   </SelectContent>
                 </Select>
-              </Field>
+              </div>
               <Field label="Indicador Previsto">
                 <Input
                   placeholder="Ex: Nº de ações educativas realizadas"
