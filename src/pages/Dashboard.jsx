@@ -56,15 +56,19 @@ function DashboardInner() {
   }, [showCoordView, allReports, myReports]);
 
   // Aplicar filtros
-  if (filters.museu) {
-    displayReports = displayReports.filter(r => r.museu === filters.museu);
-  }
-  if (filters.status) {
-    displayReports = displayReports.filter(r => r.status === filters.status);
-  }
+   const filteredReports = React.useMemo(() => {
+     let reports = displayReports;
+     if (filters.museu) {
+       reports = reports.filter(r => r.museu === filters.museu);
+     }
+     if (filters.status) {
+       reports = reports.filter(r => r.status === filters.status);
+     }
+     return reports;
+   }, [displayReports, filters.museu, filters.status]);
 
-  const recentReports = displayReports.slice(0, 8);
-  const isLoading = showCoordView ? loadingAll : loadingMy;
+   const recentReports = filteredReports.slice(0, 8);
+   const isLoading = showCoordView ? loadingAll : loadingMy || userLoading;
 
   const stats = [
     { label: 'Total',       value: displayReports.length },
