@@ -258,7 +258,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
            </div>
            <div className="space-y-1">
              <label className="text-xs font-medium text-gray-600">Museu</label>
-             <Select value={filterMuseu} onValueChange={setFilterMuseu}>
+             <Select value={filterMuseu || ''} onValueChange={v => setFilterMuseu(v || '')}>
                <SelectTrigger className="text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
                <SelectContent>
                  <SelectItem value={null}>Todos</SelectItem>
