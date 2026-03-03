@@ -61,6 +61,7 @@ import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
 import AdminUsers from './pages/AdminUsers';
 import AssistentePlanejamento from './pages/AssistentePlanejamento';
+import DashboardProfissional from './pages/DashboardProfissional';
 import __Layout from './Layout.jsx';
 
 
@@ -79,6 +80,7 @@ export const PAGES = {
     "UserManagement": UserManagement,
     "AdminUsers": AdminUsers,
     "AssistentePlanejamento": AssistentePlanejamento,
+    "DashboardProfissional": DashboardProfissional,
 }
 
 export const pagesConfig = {

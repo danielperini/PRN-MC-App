@@ -15,7 +15,8 @@ import {
   Settings,
   UserCircle,
   Shield,
-  HelpCircle
+  HelpCircle,
+  BarChart3
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -55,7 +56,8 @@ export default function Layout({ children, currentPageName }) {
   };
 
   const navItems = [
-    { name: 'Dashboard', icon: FileText, label: 'Dashboard', show: true },
+    { name: 'Dashboard', icon: BarChart3, label: 'Dashboard', show: true },
+    { name: 'DashboardProfissional', icon: FileText, label: 'Painel Profissional', show: !isCoordenador },
     { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true },
     { name: 'AssistentePlanejamento', icon: HelpCircle, label: 'Assistente', show: true },
     { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: isCoordenador && canViewMenu('can_manage_files') },

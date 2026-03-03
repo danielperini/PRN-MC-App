@@ -43,6 +43,7 @@ function DashboardInner() {
   });
 
   const showCoordView = isCoordenador && view === 'coordenador';
+  const showDedicatedProfView = !isCoordenador;
   let displayReports = showCoordView ? allReports : myReports;
 
   // Aplicar filtros
@@ -114,12 +115,19 @@ function DashboardInner() {
          <SummaryCards reports={displayReports} />
 
          {/* Coordenador: dashboard completo */}
-          {showCoordView ? (
-            <CoordDashboard reports={allReports} isLoading={loadingAll} />
-         ) : (
-           <>
-             {/* Filtros Avançados */}
-             <AdvancedFilters onFilterChange={setFilters} activeFilters={filters} />
+           {showCoordView ? (
+             <CoordDashboard reports={allReports} isLoading={loadingAll} />
+           ) : showDedicatedProfView ? (
+             <div>
+               {/* Redirect message */}
+               <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                 <p className="text-sm text-blue-800">
+                   Para um painel simplificado, acesse o <Link to={createPageUrl('DashboardProfissional')} className="font-semibold hover:underline">Painel do Profissional</Link>
+                 </p>
+               </div>
+
+               {/* Filtros Avançados */}
+               <AdvancedFilters onFilterChange={setFilters} activeFilters={filters} />
 
             {/* Status Stats — profissional */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
