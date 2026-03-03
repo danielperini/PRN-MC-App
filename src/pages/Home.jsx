@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { Building2, ArrowRight, CheckCircle } from 'lucide-react';
+import { Building2, ArrowRight, CheckCircle, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function Home() {
