@@ -88,13 +88,14 @@ function UserManagementInner() {
     mutationFn: async (reg) => {
       const matricula = await gerarMatricula();
       // Invite the user to the platform
-      await base44.users.inviteUser(reg.email, 'user');
+      const base44Role = ['COORDENADOR', 'ADMIN'].includes(regRole) ? 'admin' : 'user';
+      await base44.users.inviteUser(reg.email, base44Role);
       // Try to update extra fields after invite
       const allUsers = await base44.entities.User.list();
       const newUser = allUsers.find(u => u.email === reg.email);
       if (newUser) {
         await base44.entities.User.update(newUser.id, {
-          role: 'PROFISSIONAL',
+          role: regRole,
           funcao: reg.funcao,
           museu: reg.museu,
           equipe: reg.equipe || '',
