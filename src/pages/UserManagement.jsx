@@ -334,26 +334,27 @@ function UserManagementInner() {
                         {approvalStatus === 'PENDENTE' && (
                           <>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
-                              className="text-red-600 hover:bg-red-50 text-xs"
+                              className="text-red-600 border-red-200 hover:bg-red-50 text-xs"
                               onClick={() => { setReviewingReg({ ...userReg, action: 'rejeitar' }); setRegNote(''); }}
                             >
                               <XCircle className="w-3 h-3 mr-1" />Rejeitar
                             </Button>
                             <Button
-                              variant="ghost"
                               size="sm"
-                              className="text-green-600 hover:bg-green-50 text-xs"
-                              onClick={() => { setReviewingReg({ ...userReg, action: 'aprovar' }); setRegNote(''); setRegRole(formData.role); }}
+                              className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                              onClick={() => { setReviewingReg({ ...userReg, action: 'aprovar' }); setRegNote(''); setRegRole(user.role || 'PROFISSIONAL'); }}
                             >
                               <CheckCircle className="w-3 h-3 mr-1" />Aprovar
                             </Button>
                           </>
                         )}
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(user)}>
-                          <Pencil className="w-4 h-4 text-gray-500" />
-                        </Button>
+                        {approvalStatus !== 'PENDENTE' && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(user)}>
+                            <Pencil className="w-4 h-4 text-gray-500" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteTarget(user)}>
                           <Trash2 className="w-4 h-4 text-red-400" />
                         </Button>
