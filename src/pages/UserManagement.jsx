@@ -85,6 +85,7 @@ function UserManagementInner() {
 
   const approveRegMutation = useMutation({
     mutationFn: async (reg) => {
+      const matricula = await gerarMatricula();
       // Invite the user to the platform
       await base44.users.inviteUser(reg.email, 'user');
       // Try to update extra fields after invite
@@ -96,6 +97,7 @@ function UserManagementInner() {
           funcao: reg.funcao,
           museu: reg.museu,
           equipe: reg.equipe || '',
+          matricula,
         });
       }
       await base44.entities.UserRegistration.update(reg.id, {
