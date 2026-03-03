@@ -629,19 +629,19 @@ function ReportEditorInner() {
           {/* COMENTÁRIOS */}
           <TabsContent value="comentarios" className="space-y-6">
            {reportId ? (
-             <>
-               <ReportComments reportId={reportId} userRole={currentUser?.role} />
-               {/* Botões de salvar — aba comentarios */}
-               {canEdit && (
-                 <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
-                   <Button variant="outline" onClick={() => saveMutation.mutate(formData)} disabled={saveMutation.isPending}>
-                     <Save className="w-4 h-4 mr-2" />Salvar Rascunho
-                   </Button>
-                 </div>
-               )}
-             </>
+           <>
+           <ReportComments reportId={reportId} userRole={currentUser?.role} />
+           {/* Botões de salvar — aba comentarios */}
+           {canEdit && (
+             <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
+               <Button variant="outline" onClick={handleSaveDraft} disabled={saveMutation.isPending}>
+                 <Save className="w-4 h-4 mr-2" />Salvar Rascunho
+               </Button>
+             </div>
+           )}
+           </>
            ) : (
-             <p className="text-sm text-gray-400 text-center py-8">Salve o relatório para adicionar comentários</p>
+           <p className="text-sm text-gray-400 text-center py-8">Salve o relatório para adicionar comentários</p>
            )}
           </TabsContent>
 
