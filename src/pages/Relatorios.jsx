@@ -406,15 +406,15 @@ export default function Relatorios() {
 }
 
 function FilterSel({ placeholder, value, onChange, options }) {
-  return (
-    <Select value={value || 'all'} onValueChange={v => onChange(v === 'all' ? '' : v)}>
-      <SelectTrigger className="h-8 text-sm min-w-[120px] border-gray-200">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">— {placeholder} —</SelectItem>
-        {options.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-      </SelectContent>
-    </Select>
-  );
-}
+   return (
+     <Select value={value || ''} onValueChange={v => onChange(v)}>
+       <SelectTrigger className="h-8 text-sm min-w-[120px] border-gray-200">
+         <SelectValue placeholder={placeholder} />
+       </SelectTrigger>
+       <SelectContent>
+         <SelectItem value={null}>— {placeholder} —</SelectItem>
+         {options.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+       </SelectContent>
+     </Select>
+   );
+ }
