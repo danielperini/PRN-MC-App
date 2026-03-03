@@ -132,6 +132,19 @@ function AuthenticatedHome({ user }) {
 
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
 
+        {/* Welcome Banner — aprovado */}
+        {user?.newly_approved && (
+          <div className="rounded-2xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-6 flex items-center gap-4">
+            <div className="w-12 h-12 bg-green-200 rounded-full flex items-center justify-center flex-shrink-0">
+              <CheckCircle className="w-6 h-6 text-green-700" />
+            </div>
+            <div>
+              <p className="font-semibold text-green-900">Bem-vindo! 🎉</p>
+              <p className="text-sm text-green-800 mt-0.5">Sua solicitação foi aprovada. Você agora tem acesso total à plataforma.</p>
+            </div>
+          </div>
+        )}
+
         {/* Welcome */}
         <div>
           <h1 className="text-2xl font-bold text-black">Olá, {user?.full_name?.split(' ')[0]} 👋</h1>
