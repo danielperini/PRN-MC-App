@@ -564,6 +564,17 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
 
   return (
     <section>
+      {/* Activity Summarizer — Análise de IA */}
+      {canEdit && atividades.length > 0 && (
+        <div className="mb-6 pb-6 border-b border-gray-100">
+          <ActivitySummarizer 
+            atividades={atividades}
+            canEdit={canEdit}
+            onApplySuggestions={handleApplySuggestion}
+          />
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold text-black">Atividades Executadas / Produtos</h2>
