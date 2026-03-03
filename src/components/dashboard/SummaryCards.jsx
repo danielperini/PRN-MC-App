@@ -53,7 +53,7 @@ export default function SummaryCards({ reports = [] }) {
     },
     {
       label: 'Relatórios',
-      value: reports.length,
+      value: safeReports.length,
       icon: Target,
       bg: 'bg-purple-50',
       border: 'border-purple-100',
