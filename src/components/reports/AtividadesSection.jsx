@@ -14,7 +14,12 @@ const TIPOS_ACAO = [
   'Visita Mediada', 'Oficina', 'Exposição', 'Evento', 'Palestra',
   'Reunião', 'Formação', 'Produção de Conteúdo', 'Manutenção', 'Outro'
 ];
-const EQUIPES = ['Comunicação', 'Coordenação', 'Administração', 'Educativo', 'Produção'];
+
+const PRODUTOS_OPCOES = [
+  'Catálogo', 'Folder', 'Vídeo', 'Cobertura de Vídeo', 'Cobertura Fotográfica',
+  'Texto', 'Design', 'Design de Catálogo', 'Identidade Visual', 'Logomarca',
+  'Release', 'Post', 'Outro'
+];
 
 // Metas do 3º Termo Aditivo
 const METAS_3_ADITIVO = [
