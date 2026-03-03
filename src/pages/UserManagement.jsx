@@ -508,8 +508,6 @@ function UserManagementInner() {
                    const approvalStatus = userReg?.status;
                    const reportStatus = getReportStatus(user.email);
                    const userPerm = userPermissions.find(p => p.user_email === user.email);
-                   const [expandedUser, setExpandedUser] = React.useState(null);
-                   const [editUser, setEditUser] = React.useState(null);
 
                    return (
                      <div key={user.id} className="border border-gray-200 rounded-xl overflow-hidden hover:border-gray-300 transition-all">
@@ -517,10 +515,10 @@ function UserManagementInner() {
                        <div className="p-4 bg-white flex items-center justify-between gap-4">
                          <div className="flex items-center gap-4 flex-1 min-w-0">
                            <button
-                             onClick={() => setExpandedUser(expandedUser === user.id ? null : user.id)}
+                             onClick={() => setExpandedUserId(expandedUserId === user.id ? null : user.id)}
                              className="flex-shrink-0 text-gray-400 hover:text-gray-600"
                            >
-                             {expandedUser === user.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                             {expandedUserId === user.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                            </button>
                            <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
                              <span className="text-sm font-medium text-gray-600">
