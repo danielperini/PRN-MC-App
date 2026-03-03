@@ -108,6 +108,18 @@ function UserManagementInner() {
     refetchInterval: 30_000,
   });
 
+  const { data: allReports = [] } = useQuery({
+    queryKey: ['all-reports-status'],
+    queryFn: () => base44.entities.Report.list('-created_date', 9999),
+    refetchInterval: 60_000,
+  });
+
+  const { data: allExemptions = [] } = useQuery({
+    queryKey: ['all-exemptions-status'],
+    queryFn: () => base44.entities.ReportExemption.list('-created_date', 9999),
+    refetchInterval: 60_000,
+  });
+
   const approveRegMutation = useMutation({
     mutationFn: async (reg) => {
       const matricula = await gerarMatricula();
