@@ -220,7 +220,7 @@ function AuthenticatedHome({ user }) {
           {/* Relatórios Recentes */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-bold text-black">Abertos de relatórios recentes</h2>
+              <h2 className="text-lg font-bold text-black">Relatórios Recentes</h2>
               <Link to={createPageUrl('Relatorios')} className="text-xs text-gray-400 hover:text-black">Ver todos →</Link>
             </div>
             <div className="space-y-2">
