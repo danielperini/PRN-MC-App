@@ -960,18 +960,21 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
         </div>
       ) : (
         <div className="space-y-4">
-          {atividades.map((ativ, i) => (
-            <AtividadeCard
-              key={i}
-              atividade={ativ}
-              index={i}
-              canEdit={canEdit}
-              onChange={(field, value) => update(i, field, value)}
-              onRemove={() => remove(i)}
-              reportId={reportId}
-              hasDupWarning={dupWarning?.index === i}
-            />
-          ))}
+           {atividades.map((ativ, i) => (
+             <AtividadeCard
+               key={i}
+               atividade={ativ}
+               index={i}
+               canEdit={canEdit}
+               onChange={(field, value) => update(i, field, value)}
+               onRemove={() => remove(i)}
+               reportId={reportId}
+               hasDupWarning={dupWarning?.index === i}
+               isSelected={selectedIndices.has(i)}
+               onSelect={canEdit ? () => toggleSelection(i) : null}
+               hasAttachments={attachmentCounts[i] > 0}
+             />
+           ))}
           {canEdit && (
             <Button variant="outline" className="w-full border-dashed gap-2" onClick={add}>
               <Plus className="w-4 h-4" />Inserir Nova Atividade
