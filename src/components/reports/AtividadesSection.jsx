@@ -788,6 +788,26 @@ Responda APENAS com um JSON: {"duplicata": true/false, "motivo": "breve explicaÃ
 export default function AtividadesSection({ atividades = [], canEdit, onChange, reportId }) {
   const [checkingDup, setCheckingDup] = React.useState(false);
   const [dupWarning, setDupWarning] = React.useState(null); // { index, motivo }
+  const [selectedIndices, setSelectedIndices] = React.useState(new Set());
+  const [bulkEditorOpen, setBulkEditorOpen] = React.useState(false);
+  const [attachmentCounts, setAttachmentCounts] = React.useState({});
+
+  React.useEffect(() => {
+    // Fetch attachment counts for each activity
+    if (reportId) {
+      atividades.forEach(async (ativ, idx) => {
+        if (ativ.activity_id) {
+          const attachments = await base44.entities.Attachment.filter({ 
+            report_id: reportId, 
+            activity_id: ativ.activity_id 
+          }).catch(() => []);
+          if (attachments.length > 0) {
+            setAttachmentCounts(prev => ({ ...prev, [idx]: attachments.length }));
+          }
+        }
+      });
+    }
+  }, [atividades, reportId]);
 
   const add = async () => {
     const nova = { ...EMPTY_ATIVIDADE };
