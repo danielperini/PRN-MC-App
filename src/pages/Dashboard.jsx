@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import CoordDashboard from '../components/dashboard/CoordDashboard';
 import AdvancedFilters from '../components/dashboard/AdvancedFilters';
+import HighlightsCard from '../components/dashboard/HighlightsCard';
 
 const STATUS_CONFIG = {
   DRAFT:     { label: 'Rascunho',   color: 'bg-gray-100 text-gray-600',      cardBg: 'bg-white',            icon: Clock },
@@ -103,13 +104,18 @@ function DashboardInner() {
           </div>
         </div>
 
+        {/* Fatos Marcantes — visível para todos */}
+        <div className="mb-10">
+          <HighlightsCard />
+        </div>
+
         {/* Coordenador: dashboard completo */}
-        {showCoordView ? (
-          <CoordDashboard reports={allReports} isLoading={loadingAll} />
-        ) : (
-          <>
-            {/* Filtros Avançados */}
-            <AdvancedFilters onFilterChange={setFilters} activeFilters={filters} />
+         {showCoordView ? (
+           <CoordDashboard reports={allReports} isLoading={loadingAll} />
+         ) : (
+           <>
+             {/* Filtros Avançados */}
+             <AdvancedFilters onFilterChange={setFilters} activeFilters={filters} />
 
             {/* Status Stats — profissional */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
