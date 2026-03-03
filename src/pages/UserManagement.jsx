@@ -377,21 +377,39 @@ function UserManagementInner() {
           </Button>
         </div>
 
-        <Tabs defaultValue={pendingRegistrations.length > 0 ? 'solicitacoes' : 'usuarios'}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="usuarios">
-              Usuários
-            </TabsTrigger>
-            <TabsTrigger value="solicitacoes" className="gap-2">
-              <Bell className="w-3.5 h-3.5" />
-              Solicitações de Acesso
-              {pendingRegistrations.length > 0 && (
-                <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
-                  {pendingRegistrations.length}
-                </span>
-              )}
-            </TabsTrigger>
-          </TabsList>
+        {/* Tab calculation for pending approvals */}
+        {(() => {
+          const approvedButNotInvited = allRegistrations.filter(reg => {
+            const isUser = users.some(u => u.email === reg.email);
+            return reg.status === 'APROVADO' && !isUser;
+          });
+          const defaultTab = pendingRegistrations.length > 0 ? 'solicitacoes' : (approvedButNotInvited.length > 0 ? 'pendentes-convite' : 'usuarios');
+          
+          return (
+            <Tabs defaultValue={defaultTab}>
+              <TabsList className="mb-6">
+                <TabsTrigger value="usuarios">
+                  Usuários
+                </TabsTrigger>
+                {approvedButNotInvited.length > 0 && (
+                  <TabsTrigger value="pendentes-convite" className="gap-2">
+                    <Mail className="w-3.5 h-3.5" />
+                    Pendentes de Convite
+                    <span className="w-5 h-5 rounded-full bg-orange-500 text-white text-[10px] flex items-center justify-center font-bold">
+                      {approvedButNotInvited.length}
+                    </span>
+                  </TabsTrigger>
+                )}
+                <TabsTrigger value="solicitacoes" className="gap-2">
+                  <Bell className="w-3.5 h-3.5" />
+                  Solicitações de Acesso
+                  {pendingRegistrations.length > 0 && (
+                    <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
+                      {pendingRegistrations.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              </TabsList>
 
           {/* ── ABA USUÁRIOS ── */}
           <TabsContent value="usuarios">
