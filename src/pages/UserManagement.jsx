@@ -377,7 +377,6 @@ function UserManagementInner() {
           </Button>
         </div>
 
-        {/* Tab calculation for pending approvals */}
         {(() => {
           const approvedButNotInvited = allRegistrations.filter(reg => {
             const isUser = users.some(u => u.email === reg.email);
