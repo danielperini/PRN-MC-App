@@ -99,6 +99,12 @@ function UserManagementInner() {
     refetchInterval: 30_000,
   });
 
+  const { data: allRegistrations = [] } = useQuery({
+    queryKey: ['user-registrations'],
+    queryFn: () => base44.entities.UserRegistration.list('-created_date', 9999),
+    refetchInterval: 30_000,
+  });
+
   const approveRegMutation = useMutation({
     mutationFn: async (reg) => {
       const matricula = await gerarMatricula();
