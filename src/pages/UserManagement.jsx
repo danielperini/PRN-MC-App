@@ -917,6 +917,100 @@ function UserManagementInner() {
             </DialogContent>
             </Dialog>
 
+      {/* Create Direct User Dialog */}
+      <Dialog open={showCreateDirect} onOpenChange={setShowCreateDirect}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cadastrar novo usuário com senha</DialogTitle>
+            <DialogDescription>
+              Crie um usuário direto na plataforma sem necessidade de convite
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            <div>
+              <Label>Nome completo <span className="text-red-500">*</span></Label>
+              <Input
+                placeholder="João Silva"
+                value={directForm.full_name}
+                onChange={e => setDirectForm({ ...directForm, full_name: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <Label>Email <span className="text-red-500">*</span></Label>
+              <Input
+                type="email"
+                placeholder="joao@example.com"
+                value={directForm.email}
+                onChange={e => setDirectForm({ ...directForm, email: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <Label>Cargo <span className="text-red-500">*</span></Label>
+              <Select value={directForm.role} onValueChange={v => setDirectForm({ ...directForm, role: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CARGO_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400 mt-1">
+                {CARGO_OPTIONS.find(o => o.value === directForm.role)?.description}
+              </p>
+            </div>
+
+            <div>
+              <Label>Senha <span className="text-red-500">*</span></Label>
+              <Input
+                type="password"
+                placeholder="Digite uma senha segura"
+                value={directForm.password}
+                onChange={e => setDirectForm({ ...directForm, password: e.target.value })}
+              />
+              <p className="text-xs text-gray-400 mt-1">Mínimo 8 caracteres</p>
+            </div>
+
+            <div>
+              <Label>Confirmar senha <span className="text-red-500">*</span></Label>
+              <Input
+                type="password"
+                placeholder="Digite a senha novamente"
+                value={passwordConfirm}
+                onChange={e => setPasswordConfirm(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="mt-6">
+            <Button variant="outline" onClick={() => setShowCreateDirect(false)}>Cancelar</Button>
+            <Button
+              className="bg-black hover:bg-gray-800 text-white"
+              onClick={() => {
+                if (!directForm.full_name || !directForm.email || !directForm.password || !passwordConfirm) {
+                  toast.error('Preencha todos os campos');
+                  return;
+                }
+                if (directForm.password !== passwordConfirm) {
+                  toast.error('As senhas não coincidem');
+                  return;
+                }
+                if (directForm.password.length < 8) {
+                  toast.error('Senha deve ter no mínimo 8 caracteres');
+                  return;
+                }
+                createDirectMutation.mutate(directForm);
+              }}
+              disabled={createDirectMutation.isPending}
+            >
+              {createDirectMutation.isPending ? 'Cadastrando...' : 'Cadastrar Usuário'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirm */}
       <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
