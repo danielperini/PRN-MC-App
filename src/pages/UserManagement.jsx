@@ -790,6 +790,9 @@ function UserManagementInner() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingUser ? 'Editar Usuário' : 'Convidar Novo Usuário'}</DialogTitle>
+            <DialogDescription>
+              {editingUser ? 'Atualize as informações e permissões do usuário' : 'Convide um novo profissional para a plataforma'}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 mt-2">
