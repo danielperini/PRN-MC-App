@@ -228,20 +228,20 @@ function AuthenticatedHome({ user }) {
                 <div className="text-center py-10 border border-dashed border-gray-200 rounded-xl">
                   <p className="text-sm text-gray-400">Nenhum relatório ainda</p>
                 </div>
-              ) : recentReports.map(r => {
-                const st = STATUS_LABELS[r.status] || { label: r.status, color: 'bg-gray-100 text-gray-600' };
-                return (
-                  <Link key={r.id} to={createPageUrl(`ReportEditor?id=${r.id}`)}>
-                    <div className="p-3 bg-white border border-gray-100 rounded-xl hover:border-gray-300 transition-all flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-black truncate">{r.author_name || '–'}</p>
-                        <p className="text-xs text-gray-400">{r.mes_referencia} {r.ano} · {r.museu}</p>
-                      </div>
-                      <Badge className={`${st.color} text-[11px] font-normal flex-shrink-0`}>{st.label}</Badge>
-                    </div>
-                  </Link>
-                );
-              })}
+              ) : recentReports.slice(0, 3).map(r => {
+                 const st = STATUS_LABELS[r.status] || { label: r.status, color: 'bg-gray-100 text-gray-600' };
+                 return (
+                   <Link key={r.id} to={createPageUrl(`ReportEditor?id=${r.id}`)}>
+                     <div className="p-4 bg-white border border-gray-100 rounded-xl hover:border-gray-300 transition-all flex items-center justify-between gap-3">
+                       <div className="min-w-0">
+                         <p className="text-base font-semibold text-black truncate">{r.author_name || '–'}</p>
+                         <p className="text-xs text-gray-500">{r.mes_referencia} {r.ano} · {r.museu}</p>
+                       </div>
+                       <Badge className={`${st.color} text-[11px] font-normal flex-shrink-0`}>{st.label}</Badge>
+                     </div>
+                   </Link>
+                 );
+               })}
             </div>
           </div>
         </div>
