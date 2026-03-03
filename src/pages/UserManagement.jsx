@@ -1000,6 +1000,7 @@ function UserManagementInner() {
                   </SelectContent>
                 </Select>
               </div>
+             </div>
 
              <DialogFooter className="mt-6">
               <Button variant="outline" onClick={() => { setShowDialog(false); setEditingUserPerm(null); }}>Cancelar</Button>
