@@ -36,38 +36,50 @@ const STATUS_CONFIG = {
 };
 
 function exportCSV(reports) {
-  const rows = [];
-  const header = [
-    'ID','Profissional','Museu','Equipe','Mês','Ano','Status',
-    'Atividade','Classificação','Público Estimado','Equipe Responsável',
-    'Acessibilidade','Parceria'
-  ];
-  rows.push(header.join(';'));
+   try {
+     if (!Array.isArray(reports) || reports.length === 0) {
+       alert('Nenhum relatório para exportar');
+       return;
+     }
 
-  reports.forEach(r => {
-    const atividades = r.atividades || [];
-    if (atividades.length === 0) {
-      rows.push([r.id, r.author_name, r.museu, r.equipe||'', r.mes_referencia, r.ano, r.status,
-        '','','','','',''].join(';'));
-    } else {
-      atividades.forEach(a => {
-        rows.push([
-          r.id, r.author_name, r.museu, r.equipe||'', r.mes_referencia, r.ano, r.status,
-          (a.nome || a.titulo || ''), a.classificacao||'', a.publico_estimado||0,
-          a.equipe_responsavel||'', a.acessibilidade||'', a.parceria||''
-        ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(';'));
-      });
-    }
-  });
+     const rows = [];
+     const header = [
+       'ID','Profissional','Museu','Equipe','Mês','Ano','Status',
+       'Atividade','Classificação','Público Estimado','Equipe Responsável',
+       'Acessibilidade','Parceria'
+     ];
+     rows.push(header.join(';'));
 
-  const blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `relatorios_museus_centro_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
+     reports.forEach(r => {
+       if (!r || !r.id) return;
+       const atividades = Array.isArray(r.atividades) ? r.atividades : [];
+       if (atividades.length === 0) {
+         rows.push([r.id, r.author_name||'', r.museu||'', r.equipe||'', r.mes_referencia||'', r.ano||'', r.status||'',
+           '','','','','',''].join(';'));
+       } else {
+         atividades.forEach(a => {
+           if (!a) return;
+           rows.push([
+             r.id, r.author_name||'', r.museu||'', r.equipe||'', r.mes_referencia||'', r.ano||'', r.status||'',
+             (a.nome || a.titulo || ''), a.classificacao||'', a.publico_estimado||0,
+             a.equipe_responsavel||'', a.acessibilidade||'', a.parceria||''
+           ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(';'));
+         });
+       }
+     });
+
+     const blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+     const url = URL.createObjectURL(blob);
+     const a = document.createElement('a');
+     a.href = url;
+     a.download = `relatorios_museus_centro_${new Date().toISOString().slice(0,10)}.csv`;
+     a.click();
+     URL.revokeObjectURL(url);
+   } catch (error) {
+     console.error('Erro ao exportar CSV:', error);
+     alert('Erro ao exportar relatórios');
+   }
+ }
 
 function RelatoriosInner() {
    const { user: currentUser, isCoordenador } = useCurrentUser();
