@@ -218,7 +218,7 @@ export default function ExportPDF({ report, reportId }) {
         ['Profissional', report.author_name],
         ['Função', report.funcao],
         ['Museu', report.museu],
-        ['Mês / Ano', `${report.mes_referencia || '—'} / ${report.ano || 2026}`],
+        ['Período', periodoLabel],
         ['Status', report.status],
         ['Equipe', report.equipe || '—'],
       ];
