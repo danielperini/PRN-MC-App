@@ -163,20 +163,20 @@ function AuthenticatedHome({ user }) {
               <p className="text-5xl font-bold leading-none">{totalPublico.toLocaleString('pt-BR')}</p>
               <p className="text-base text-gray-300">Público total alcançado</p>
             </div>
-            <div className="rounded-2xl bg-white border border-gray-100 p-6 flex flex-col gap-1">
-              <Activity className="w-7 h-7 text-black mb-2" />
-              <p className="text-5xl font-bold text-black leading-none">{totalAtividades.toLocaleString('pt-BR')}</p>
-              <p className="text-base text-gray-500">Atividades realizadas</p>
+            <div className="rounded-2xl bg-black text-white p-6 flex flex-col gap-1">
+              <Activity className="w-7 h-7 text-white mb-2" />
+              <p className="text-5xl font-bold text-white leading-none">{totalAtividades.toLocaleString('pt-BR')}</p>
+              <p className="text-base text-gray-300">Atividades realizadas</p>
             </div>
-            <div className="rounded-2xl bg-white border border-gray-100 p-6 flex flex-col gap-1">
-              <Award className="w-7 h-7 text-black mb-2" />
-              <p className="text-5xl font-bold text-black leading-none">{aprovados}</p>
-              <p className="text-base text-gray-500">Relatórios aprovados</p>
+            <div className="rounded-2xl bg-black text-white p-6 flex flex-col gap-1">
+              <Award className="w-7 h-7 text-white mb-2" />
+              <p className="text-5xl font-bold text-white leading-none">{aprovados}</p>
+              <p className="text-base text-gray-300">Relatórios aprovados</p>
             </div>
-            <div className="rounded-2xl bg-white border border-gray-100 p-6 flex flex-col gap-1">
-              <MapPin className="w-7 h-7 text-black mb-2" />
-              <p className="text-5xl font-bold text-black leading-none">3</p>
-              <p className="text-base text-gray-500">Museus ativos</p>
+            <div className="rounded-2xl bg-black text-white p-6 flex flex-col gap-1">
+              <MapPin className="w-7 h-7 text-white mb-2" />
+              <p className="text-5xl font-bold text-white leading-none">3</p>
+              <p className="text-base text-gray-300">Museus ativos</p>
             </div>
           </div>
         </div>
