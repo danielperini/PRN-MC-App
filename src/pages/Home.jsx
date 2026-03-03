@@ -38,12 +38,12 @@ function StatCard({ icon: Icon, label, value, color = 'bg-gray-50', highlight })
 function ShortcutCard({ to, icon: Icon, label, desc }) {
   return (
     <Link to={createPageUrl(to)}>
-      <div className="p-4 border border-gray-100 rounded-xl hover:border-gray-300 hover:shadow-sm transition-all group cursor-pointer">
-        <div className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center mb-3 group-hover:bg-black group-hover:text-white transition-colors">
-          <Icon className="w-4 h-4 text-gray-600 group-hover:text-white transition-colors" />
+      <div className="p-4 border-2 border-black rounded-xl hover:shadow-md transition-all group cursor-pointer bg-white">
+        <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center mb-3 group-hover:bg-black group-hover:text-white transition-colors border border-black">
+          <Icon className="w-4 h-4 text-black group-hover:text-white transition-colors" />
         </div>
         <p className="font-semibold text-black text-sm">{label}</p>
-        <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
+        <p className="text-xs text-gray-600 mt-0.5">{desc}</p>
       </div>
     </Link>
   );
