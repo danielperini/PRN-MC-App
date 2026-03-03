@@ -123,8 +123,6 @@ function GestorArquivosInner() {
      if (!report) return isCoordenador;
      // professionals only see their own
      if (!isCoordenador && report?.created_by !== currentUser?.email) return false;
-     // COORD_COMUNICACAO only sees Comunicador reports
-     if (isComunicacao && report?.funcao !== 'Comunicador') return false;
      // museu filter
      if (filterMuseu !== 'all' && report?.museu !== filterMuseu) return false;
      // mes filter

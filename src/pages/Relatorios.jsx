@@ -146,7 +146,6 @@ function RelatoriosInner() {
   const uniqueTeams = Array.from(new Set(allActivities.map(a => a.equipe_responsavel).filter(Boolean))).sort();
 
   const filtered = baseReports.filter(r => {
-    if (isComunicacao && r.funcao !== 'Comunicador') return false;
     if (filters.mes && r.mes_referencia !== filters.mes) return false;
     if (filters.museu && r.museu !== filters.museu) return false;
     if (filters.equipe && r.equipe !== filters.equipe) return false;

@@ -215,7 +215,6 @@ function CoordReviewInner() {
    const filtered = pending.filter(r => {
      if (filterStatus !== 'all' && r.status !== filterStatus) return false;
      if (filterMuseu !== 'all' && r.museu !== filterMuseu) return false;
-     if (isComunicacao && !['Comunicador'].includes(r.funcao)) return false;
      return true;
    });
 
@@ -353,14 +352,14 @@ function CoordReviewInner() {
                           <Eye className="w-3.5 h-3.5" />Ver
                         </Button>
                       </Link>
-                      {report.status === 'SUBMITTED' && (
+                      {report.status === 'SUBMITTED' && (!isComunicacao || report.funcao === 'Comunicador') && (
                         <Button size="sm" variant="outline" className="border-black gap-1"
                           onClick={() => workflowMutation.mutate({ id: report.id, status: 'IN_REVIEW' })}
                           disabled={workflowMutation.isPending}>
                           Assumir Revisão
                         </Button>
                       )}
-                      {report.status === 'IN_REVIEW' && (
+                      {report.status === 'IN_REVIEW' && (!isComunicacao || report.funcao === 'Comunicador') && (
                         <>
                           <Button size="sm" variant="outline" className="border-red-300 text-red-600 gap-1"
                             onClick={() => setReturnDialog({ open: true, report })}>
