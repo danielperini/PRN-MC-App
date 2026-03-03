@@ -16,7 +16,7 @@ import {
   UserCircle,
   Shield
 } from 'lucide-react';
-import PlanoTrabalhoChat from './components/reports/PlanoTrabalhoChat';
+
 import { Button } from '@/components/ui/button';
 
 export default function Layout({ children, currentPageName }) {
@@ -173,10 +173,7 @@ export default function Layout({ children, currentPageName }) {
         {children}
       </main>
 
-      {/* Assistente do Plano de Trabalho — disponível para todos os usuários autenticados */}
-      {currentUser && (
-        <PlanoTrabalhoChat isCoordenador={isCoordenador} />
-      )}
+
     </div>
   );
 }
