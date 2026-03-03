@@ -39,10 +39,62 @@ function UserManagementInner() {
   const [editingUser, setEditingUser] = useState(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [reviewingReg, setReviewingReg] = useState(null);
+  const [regNote, setRegNote] = useState('');
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: () => base44.entities.User.list(),
+  });
+
+  const { data: pendingRegistrations = [] } = useQuery({
+    queryKey: ['user-registrations-pending'],
+    queryFn: () => base44.entities.UserRegistration.filter({ status: 'PENDENTE' }, '-created_date'),
+    refetchInterval: 30_000,
+  });
+
+  const approveRegMutation = useMutation({
+    mutationFn: async (reg) => {
+      // Invite the user to the platform
+      await base44.users.inviteUser(reg.email, 'user');
+      // Try to update extra fields after invite
+      const allUsers = await base44.entities.User.list();
+      const newUser = allUsers.find(u => u.email === reg.email);
+      if (newUser) {
+        await base44.entities.User.update(newUser.id, {
+          role: 'PROFISSIONAL',
+          funcao: reg.funcao,
+          museu: reg.museu,
+          equipe: reg.equipe || '',
+        });
+      }
+      await base44.entities.UserRegistration.update(reg.id, {
+        status: 'APROVADO',
+        reviewer_note: regNote,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['users']);
+      queryClient.invalidateQueries(['user-registrations-pending']);
+      toast.success('Usuário aprovado e convite enviado!');
+      setReviewingReg(null);
+      setRegNote('');
+    },
+    onError: () => toast.error('Erro ao aprovar solicitação.'),
+  });
+
+  const rejectRegMutation = useMutation({
+    mutationFn: (reg) => base44.entities.UserRegistration.update(reg.id, {
+      status: 'REJEITADO',
+      reviewer_note: regNote,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['user-registrations-pending']);
+      toast.success('Solicitação rejeitada.');
+      setReviewingReg(null);
+      setRegNote('');
+    },
+    onError: () => toast.error('Erro ao rejeitar solicitação.'),
   });
 
   const inviteMutation = useMutation({
