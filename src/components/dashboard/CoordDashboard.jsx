@@ -1,16 +1,19 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  PieChart, Pie, Cell, Legend, LineChart, Line, CartesianGrid
 } from 'recharts';
 import {
   FileText, Users, Eye, Target, AlertCircle, CheckCircle,
-  Send, Clock, Archive, ChevronRight, TrendingUp, Building2, Download
+  Send, Clock, Archive, ChevronRight, TrendingUp, Building2, Download,
+  Filter, X
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 
 const STATUS_CONFIG = {
@@ -39,14 +42,42 @@ function deduplicarAtividades(atividades) {
 }
 
 export default function CoordDashboard({ reports = [], isLoading }) {
-  const allAtivRaw = useMemo(() => reports.flatMap(r => r.atividades || []), [reports]);
-  const allAtiv = useMemo(() => deduplicarAtividades(allAtivRaw), [allAtivRaw]);
+  const [filterShowMore, setFilterShowMore] = useState(false);
+  const [filterDataInicio, setFilterDataInicio] = useState('');
+  const [filterDataFim, setFilterDataFim] = useState('');
+  const [filterMuseu, setFilterMuseu] = useState('');
+  const [filterClasse, setFilterClasse] = useState('');
+  const [filterTipoAtiv, setFilterTipoAtiv] = useState('');
+
+  // Filtrar relatórios por data
+  const reportsFiltrados = useMemo(() => {
+    return reports.filter(r => {
+      if (!filterDataInicio && !filterDataFim) return true;
+      const ano = r.ano || 2026;
+      const mesNum = MESES_ORDER.indexOf((r.mes_referencia || '').trim()) + 1;
+      const dataReport = new Date(ano, mesNum - 1, 1);
+      if (filterDataInicio && new Date(filterDataInicio) > dataReport) return false;
+      if (filterDataFim && new Date(filterDataFim) < dataReport) return false;
+      return true;
+    });
+  }, [reports, filterDataInicio, filterDataFim]);
+
+  // Filtrar atividades
+  const allAtivRaw = useMemo(() => reportsFiltrados.flatMap(r => r.atividades || []), [reportsFiltrados]);
+  const allAtiv = useMemo(() => {
+    let ativs = deduplicarAtividades(allAtivRaw);
+    if (filterMuseu) ativs = ativs.filter(a => a.museu === filterMuseu);
+    if (filterClasse) ativs = ativs.filter(a => a.classificacao === filterClasse);
+    if (filterTipoAtiv) ativs = ativs.filter(a => a.tipo_atividade === filterTipoAtiv);
+    return ativs;
+  }, [allAtivRaw, filterMuseu, filterClasse, filterTipoAtiv]);
+
   const duplicatas = allAtivRaw.length - allAtiv.length;
 
   // KPIs
-  const totalRelatorios = reports.length;
-  const pendentes = reports.filter(r => ['SUBMITTED', 'IN_REVIEW'].includes(r.status)).length;
-  const aprovados = reports.filter(r => r.status === 'APPROVED').length;
+  const totalRelatorios = reportsFiltrados.length;
+  const pendentes = reportsFiltrados.filter(r => ['SUBMITTED', 'IN_REVIEW'].includes(r.status)).length;
+  const aprovados = reportsFiltrados.filter(r => r.status === 'APPROVED').length;
   const totalAtiv = allAtiv.length;
   const publicoTotal = allAtiv.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0);
   const metas = allAtiv.filter(a => a.classificacao === 'META').length;
@@ -56,35 +87,45 @@ export default function CoordDashboard({ reports = [], isLoading }) {
   // Por museu
   const porMuseu = useMemo(() => {
     const map = {};
-    reports.forEach(r => {
+    reportsFiltrados.forEach(r => {
       const m = r.museu || 'Outros';
       if (!map[m]) map[m] = { museu: m, relatorios: 0, atividades: 0, publico: 0 };
       map[m].relatorios++;
-      const ativs = r.atividades || [];
+      const ativs = (r.atividades || []).filter(a => {
+        if (filterMuseu && a.museu !== filterMuseu) return false;
+        if (filterClasse && a.classificacao !== filterClasse) return false;
+        if (filterTipoAtiv && a.tipo_atividade !== filterTipoAtiv) return false;
+        return true;
+      });
       map[m].atividades += ativs.length;
       map[m].publico += ativs.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0);
     });
     return Object.values(map).sort((a, b) => b.relatorios - a.relatorios);
-  }, [reports]);
+  }, [reportsFiltrados, filterMuseu, filterClasse, filterTipoAtiv]);
 
   // Por mês (atividades + público)
   const porMes = useMemo(() => {
     const map = {};
-    reports.forEach(r => {
+    reportsFiltrados.forEach(r => {
       const mes = r.mes_referencia;
       if (!mes) return;
       if (!map[mes]) map[mes] = { mes: mes.substring(0, 3), atividades: 0, publico: 0 };
-      const ativs = r.atividades || [];
+      const ativs = (r.atividades || []).filter(a => {
+        if (filterMuseu && a.museu !== filterMuseu) return false;
+        if (filterClasse && a.classificacao !== filterClasse) return false;
+        if (filterTipoAtiv && a.tipo_atividade !== filterTipoAtiv) return false;
+        return true;
+      });
       map[mes].atividades += ativs.length;
       map[mes].publico += ativs.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0);
     });
     return MESES_ORDER.filter(m => map[m]).map(m => map[m]);
-  }, [reports]);
+  }, [reportsFiltrados, filterMuseu, filterClasse, filterTipoAtiv]);
 
   // Status distribuição
   const statusData = useMemo(() => {
     const map = {};
-    reports.forEach(r => {
+    reportsFiltrados.forEach(r => {
       map[r.status] = (map[r.status] || 0) + 1;
     });
     return Object.entries(map).map(([status, value]) => ({
@@ -92,7 +133,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
       value,
       fill: STATUS_CONFIG[status]?.color || '#ccc',
     }));
-  }, [reports]);
+  }, [reportsFiltrados]);
 
   // Classificação atividades
   const classifData = [
@@ -101,8 +142,21 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     { name: 'EXTRA', value: extras },
   ].filter(d => d.value > 0);
 
+  // Atividades por tipo
+  const atividadesPorTipo = useMemo(() => {
+    const map = {};
+    allAtiv.forEach(a => {
+      const tipo = a.tipo_atividade || 'Outro';
+      map[tipo] = (map[tipo] || 0) + 1;
+    });
+    return Object.entries(map)
+      .map(([tipo, value]) => ({ tipo, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+  }, [allAtiv]);
+
   // Recentes pendentes
-  const pendentesList = reports
+  const pendentesList = reportsFiltrados
     .filter(r => ['SUBMITTED', 'IN_REVIEW'].includes(r.status))
     .slice(0, 5);
 
@@ -152,8 +206,95 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     return <div className="text-center py-20 text-gray-400">Carregando dashboard...</div>;
   }
 
+  // Extrair museus e tipos únicos para filtros
+  const museusUnicos = useMemo(() => {
+    const set = new Set(reportsFiltrados.map(r => r.museu).filter(Boolean));
+    return Array.from(set).sort();
+  }, [reportsFiltrados]);
+
+  const tiposUnicos = useMemo(() => {
+    const set = new Set(allAtivRaw.map(a => a.tipo_atividade).filter(Boolean));
+    return Array.from(set).sort();
+  }, [allAtivRaw]);
+
+  const limparFiltros = () => {
+    setFilterDataInicio('');
+    setFilterDataFim('');
+    setFilterMuseu('');
+    setFilterClasse('');
+    setFilterTipoAtiv('');
+    setFilterShowMore(false);
+  };
+
+  const temFiltrosAtivos = filterDataInicio || filterDataFim || filterMuseu || filterClasse || filterTipoAtiv;
+
   return (
     <div className="space-y-8">
+      {/* Filtros */}
+      <div className="border border-gray-100 rounded-2xl p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-black flex items-center gap-2">
+            <Filter className="w-4 h-4" />Filtros de Análise
+          </h3>
+          {temFiltrosAtivos && (
+            <Button size="sm" variant="outline" onClick={limparFiltros} className="h-8 gap-1.5">
+              <X className="w-3 h-3" />Limpar Filtros
+            </Button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-600">Data Inicial</label>
+            <Input type="date" value={filterDataInicio} onChange={e => setFilterDataInicio(e.target.value)} className="text-sm" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-600">Data Final</label>
+            <Input type="date" value={filterDataFim} onChange={e => setFilterDataFim(e.target.value)} className="text-sm" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-600">Museu</label>
+            <Select value={filterMuseu} onValueChange={setFilterMuseu}>
+              <SelectTrigger className="text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={null}>Todos</SelectItem>
+                {museusUnicos.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-600">Classificação</label>
+            <Select value={filterClasse} onValueChange={setFilterClasse}>
+              <SelectTrigger className="text-sm"><SelectValue placeholder="Todas" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={null}>Todas</SelectItem>
+                <SelectItem value="META">META</SelectItem>
+                <SelectItem value="ROTINA">ROTINA</SelectItem>
+                <SelectItem value="EXTRA">EXTRA</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {filterShowMore && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-600">Tipo de Atividade</label>
+              <Select value={filterTipoAtiv} onValueChange={setFilterTipoAtiv}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={null}>Todos</SelectItem>
+                  {tiposUnicos.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        {!filterShowMore && tiposUnicos.length > 0 && (
+          <Button size="sm" variant="ghost" onClick={() => setFilterShowMore(true)} className="text-xs text-gray-500">
+            + Mais Filtros
+          </Button>
+        )}
+      </div>
+
       {/* Header com botão de exportar */}
       <div className="flex items-center justify-between">
         <div>
@@ -226,9 +367,9 @@ export default function CoordDashboard({ reports = [], isLoading }) {
         {statusData.length > 0 && (
           <div className="border border-gray-100 rounded-2xl p-5">
             <h3 className="text-sm font-semibold text-black mb-4">Status dos Relatórios</h3>
-            <ResponsiveContainer width="100%" height={180}>
+            <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={({ name, value }) => `${name}: ${value}`} labelLine={false} fontSize={10}>
+                <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name, value }) => `${name}: ${value}`} labelLine={false} fontSize={10}>
                   {statusData.map((entry, i) => (
                     <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                   ))}
@@ -266,10 +407,36 @@ export default function CoordDashboard({ reports = [], isLoading }) {
           </div>
         )}
 
+        {/* Atividades por Tipo */}
+        {atividadesPorTipo.length > 0 && (
+          <div className="border border-gray-100 rounded-2xl p-5">
+            <h3 className="text-sm font-semibold text-black mb-4">Atividades Mais Frequentes</h3>
+            <div className="space-y-2">
+              {atividadesPorTipo.map((item, i) => {
+                const maxVal = atividadesPorTipo[0]?.value || 1;
+                return (
+                  <div key={item.tipo}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="font-medium text-gray-700 truncate">{item.tipo}</span>
+                      <span className="text-gray-500 ml-2">{item.value}</span>
+                    </div>
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full rounded-full transition-all" 
+                        style={{ width: `${(item.value / maxVal) * 100}%`, background: PIE_COLORS[i % PIE_COLORS.length] }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Por Museu */}
         {porMuseu.length > 0 && (
           <div className="border border-gray-100 rounded-2xl p-5">
-            <h3 className="text-sm font-semibold text-black mb-4">Por Museu</h3>
+            <h3 className="text-sm font-semibold text-black mb-4">Comparativo por Museu</h3>
             <div className="space-y-3">
               {porMuseu.map(m => (
                 <div key={m.museu} className="flex items-center justify-between text-sm">
@@ -290,6 +457,25 @@ export default function CoordDashboard({ reports = [], isLoading }) {
           </div>
         )}
       </div>
+
+      {/* Tendências Públicos por Mês (Linha) */}
+      {porMes.length > 2 && (
+        <div className="border border-gray-100 rounded-2xl p-5">
+          <h3 className="text-sm font-semibold text-black mb-4">Tendência de Público Estimado</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={porMes}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip 
+                formatter={v => [v.toLocaleString('pt-BR'), 'Público']}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
+              />
+              <Line type="monotone" dataKey="publico" stroke="#000000" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Pendentes de revisão */}
       {pendentesList.length > 0 && (
