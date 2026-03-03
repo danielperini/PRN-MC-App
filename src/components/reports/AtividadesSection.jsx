@@ -170,6 +170,7 @@ function UserPicker({ value = [], onChange, disabled }) {
 function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId, hasDupWarning }) {
   const [expanded, setExpanded] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiMetaLoading, setAiMetaLoading] = useState(false);
   const errors = canEdit ? validateAtividade(atividade) : [];
   const isMeta = atividade.classificacao === 'META';
   const isRotinaOrExtra = atividade.classificacao === 'ROTINA' || atividade.classificacao === 'EXTRA';
