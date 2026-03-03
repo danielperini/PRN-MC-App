@@ -237,9 +237,16 @@ function ReportEditorInner() {
               <h1 className="text-2xl font-semibold text-black">
                 {reportId ? 'Editar Relatório' : 'Novo Relatório'}
               </h1>
-              {formData.status && formData.status !== 'DRAFT' && (
-                <p className="text-xs text-gray-400 mt-0.5">Status: {formData.status}</p>
-              )}
+              <div className="flex items-center gap-2 mt-0.5">
+                {formData.numero_protocolo && (
+                  <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                    {formData.numero_protocolo}
+                  </span>
+                )}
+                {formData.status && formData.status !== 'DRAFT' && (
+                  <p className="text-xs text-gray-400">Status: {formData.status}</p>
+                )}
+              </div>
             </div>
           </div>
 
