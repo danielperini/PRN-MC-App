@@ -79,16 +79,23 @@ export default function ClippingAutomatico({ atividade, onUpdate }) {
       </div>
 
       {!clipping || clipping.length === 0 ? (
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full gap-2"
-          onClick={searchClipping}
-          disabled={loading}
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-          {loading ? 'Buscando notícias...' : 'Buscar Notícias e Redes Sociais'}
-        </Button>
+        <div className="space-y-3">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-2"
+            onClick={searchClipping}
+            disabled={loading}
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            {loading ? 'Buscando notícias...' : 'Buscar Notícias e Redes Sociais'}
+          </Button>
+          {clipping !== null && clipping.length === 0 && (
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-center">
+              <p className="text-xs text-gray-500">Não foram localizadas notícias ou posts relacionados a esta atividade</p>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="space-y-3">
           {clipping.map((item, idx) => (
