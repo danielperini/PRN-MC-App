@@ -79,6 +79,7 @@ function ReportEditorInner() {
     const [declaracaoAceita, setDeclaracaoAceita] = useState(false);
     const [currentTab, setCurrentTab] = useState('identificacao');
     const [autoSaveTimer, setAutoSaveTimer] = useState(null);
+    const [showSaveAlert, setShowSaveAlert] = useState(false);
     const set = (key, value) => {
       if (formData === null || typeof formData !== 'object') return;
       setFormData(prev => ({ ...prev, [key]: value }));
