@@ -21,7 +21,7 @@ export default function AssistantChat() {
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Olá! Sou seu assistente de gestão cultural. Como posso ajudar?' }
+    { role: 'assistant', content: 'Olá! Sou seu assistente de gestão cultural. Tenho acesso às informações do plano de trabalho anual e posso ajudá-lo com relatórios, metas, atividades e muito mais. Como posso ajudar?' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
