@@ -33,21 +33,27 @@ export default function HighlightsCard() {
       try {
         setLoading(true);
         const reports = await base44.entities.Report.list('-created_date', 100);
-        
+
+        if (!Array.isArray(reports)) {
+          setHighlights([]);
+          return;
+        }
+
         const allHighlights = [];
         reports.forEach(report => {
+          if (!report || !report.id) return;
           const atividades = Array.isArray(report.atividades) ? report.atividades : [];
           atividades.forEach(ativ => {
-            if (ativ.depoimento_participantes && ativ.depoimento_participantes.trim()) {
+            if (ativ && ativ.depoimento_participantes && ativ.depoimento_participantes.trim()) {
               allHighlights.push({
-                id: `${report.id}-${ativ.nome}`,
-                mes: report.mes_referencia,
-                ano: report.ano,
-                museu: report.museu,
-                atividade: ativ.nome,
+                id: `${report.id}-${ativ.nome || 'unknown'}`,
+                mes: report.mes_referencia || '',
+                ano: report.ano || new Date().getFullYear(),
+                museu: report.museu || 'Indefinido',
+                atividade: ativ.nome || 'Atividade',
                 depoimento: ativ.depoimento_participantes,
-                autor: report.author_name,
-                data: report.created_date,
+                autor: report.author_name || 'Anônimo',
+                data: report.created_date || new Date().toISOString(),
               });
             }
           });
@@ -57,6 +63,7 @@ export default function HighlightsCard() {
         setHighlights(recent);
       } catch (error) {
         console.error('Erro ao carregar fatos marcantes:', error);
+        setHighlights([]);
       } finally {
         setLoading(false);
       }
