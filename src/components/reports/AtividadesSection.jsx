@@ -531,7 +531,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
               </Select>
             </Field>
             <Field label="Co-responsável (outro profissional)">
-              <div className="space-y-2">
+              <div className="space-y-2 relative">
                 {coRespUser && (
                   <Badge className="w-fit gap-1 bg-blue-100 text-blue-800">
                     {coRespUser.full_name || coRespUser.email}
@@ -543,7 +543,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                   </Badge>
                 )}
                 {!coRespUser && canEdit && (
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="border border-gray-200 rounded-lg overflow-hidden" onBlur={() => setTimeout(() => setCoRespSearch(''), 100)}>
                     <input
                       type="text"
                       placeholder="Buscar profissional..."
@@ -551,20 +551,22 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                       onChange={e => setCoRespSearch(e.target.value)}
                       className="w-full px-3 py-2 text-sm border-b border-gray-100 outline-none"
                     />
-                    <div className="max-h-32 overflow-y-auto">
-                      {filteredUsers.length === 0 ? (
-                        <p className="text-xs text-gray-400 px-3 py-2">Nenhum usuário encontrado</p>
-                      ) : filteredUsers.map(u => (
-                        <div
-                          key={u.email}
-                          onClick={() => { onChange('co_responsavel_email', u.email); setCoRespSearch(''); }}
-                          className="flex items-center gap-2 px-3 py-2 cursor-pointer text-sm hover:bg-gray-50"
-                        >
-                          <span>{u.full_name || u.email}</span>
-                          <span className="text-gray-400 text-xs ml-auto">{u.role}</span>
-                        </div>
-                      ))}
-                    </div>
+                    {coRespSearch && (
+                      <div className="max-h-32 overflow-y-auto">
+                        {filteredUsers.length === 0 ? (
+                          <p className="text-xs text-gray-400 px-3 py-2">Nenhum usuário encontrado</p>
+                        ) : filteredUsers.map(u => (
+                          <div
+                            key={u.email}
+                            onClick={() => { onChange('co_responsavel_email', u.email); setCoRespSearch(''); }}
+                            className="flex items-center gap-2 px-3 py-2 cursor-pointer text-sm hover:bg-gray-50"
+                          >
+                            <span>{u.full_name || u.email}</span>
+                            <span className="text-gray-400 text-xs ml-auto">{u.role}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
