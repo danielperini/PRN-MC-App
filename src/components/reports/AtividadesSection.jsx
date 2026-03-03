@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import ActivityAttachments from './ActivityAttachments';
 import ActivitySummarizer from './ActivitySummarizer';
 import ActivityClassificationAI from './ActivityClassificationAI';
+import ClippingAutomatico from './ClippingAutomatico';
 import { base44 } from '@/api/base44Client';
 
 const MUSEUS_ATIV = ['MHAB', 'MIS', 'MUMO', 'Externo'];
