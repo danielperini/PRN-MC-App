@@ -693,6 +693,21 @@ export default function ExportPDF({ report, reportId }) {
         doc.text(`${report.reviewer_name || ''}${report.reviewer_email ? '  <' + report.reviewer_email + '>' : ''}`, M + 4, y + 12);
       }
 
+      // Approval info — appears only if report is APPROVED or ARCHIVED
+      if (report.status === 'APPROVED' || report.status === 'ARCHIVED') {
+        y = checkBreak(doc, y, 20);
+        doc.setFillColor(230, 250, 230);
+        doc.setDrawColor(100, 180, 100);
+        doc.rect(M, y, CW, 12, 'F');
+        doc.rect(M, y, CW, 12, 'S');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(0, 120, 0);
+        const approvalDate = report.updated_date ? new Date(report.updated_date).toLocaleDateString('pt-BR') : '—';
+        const approvalTime = report.updated_date ? new Date(report.updated_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+        doc.text(`✓ Relatório Aprovado em ${approvalDate} às ${approvalTime}`, M + 4, y + 8);
+      }
+
       // rodapé adicionado após instrução de assinatura
 
       // Audit log
