@@ -43,10 +43,13 @@ function DashboardInner() {
     });
 
    const { data: allReports = [], isLoading: loadingAll } = useQuery({
-     queryKey: ['all-reports'],
-     queryFn: async () => base44.entities.Report.list('-created_date', 200),
-     enabled: isCoordenador,
-   });
+      queryKey: ['all-reports'],
+      queryFn: async () => {
+        const data = await base44.entities.Report.list('-created_date', 200);
+        return Array.isArray(data) ? data : [];
+      },
+      enabled: isCoordenador,
+    });
 
   const showCoordView = isCoordenador && view === 'coordenador';
   const showDedicatedProfView = !isCoordenador;
