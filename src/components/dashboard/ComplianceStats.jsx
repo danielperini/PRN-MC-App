@@ -4,14 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { BarChart3, TrendingUp, Users, CheckCircle } from 'lucide-react';
 
 export default function ComplianceStats({ currentMonth, currentYear }) {
-  const { data: allUsers = [] } = useQuery({
-    queryKey: ['compliance-users'],
+  const { data: userPermissions = [] } = useQuery({
+    queryKey: ['compliance-permissions'],
     queryFn: async () => {
-      const data = await base44.asServiceRole.entities.User.filter(
-        { role: 'PROFISSIONAL' },
-        '-created_date',
-        500
-      );
+      const data = await base44.asServiceRole.entities.UserPermission.list('-created_date', 500);
       return Array.isArray(data) ? data : [];
     },
   });
@@ -37,7 +33,9 @@ export default function ComplianceStats({ currentMonth, currentYear }) {
   });
 
   const exemptedEmails = new Set(exemptions.map(e => e.user_email));
-  const obligatedUsers = allUsers.filter(u => !exemptedEmails.has(u.email));
+  const obligatedUsers = userPermissions.filter(
+    p => p.must_submit_monthly_report && !exemptedEmails.has(p.user_email)
+  );
   const submittedReports = allReports.filter(
     r => r.mes_referencia === currentMonth && r.ano === currentYear
   );
