@@ -375,12 +375,20 @@ function ReportEditorInner() {
                 <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
                   <h2 className="text-base font-semibold text-black">Resumo Executivo</h2>
                   {canEdit && (
-                    <AIAssistButton
-                      field="resumo_executivo"
-                      context={formData}
-                      onGenerate={text => set('resumo_executivo', text)}
-                      placeholder="Resumo das principais atividades e resultados do mês"
-                    />
+                    <div className="flex gap-1.5">
+                      <ExecutiveSummaryAI
+                        atividades={formData.atividades}
+                        reportData={formData}
+                        onApply={text => set('resumo_executivo', text)}
+                        disabled={false}
+                      />
+                      <AIAssistButton
+                        field="resumo_executivo"
+                        context={formData}
+                        onGenerate={text => set('resumo_executivo', text)}
+                        placeholder="Resumo das principais atividades e resultados do mês"
+                      />
+                    </div>
                   )}
                 </div>
                 <Textarea
