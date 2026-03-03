@@ -67,9 +67,22 @@ function exportCSV(reports) {
 
 function RelatoriosInner() {
   const { user: currentUser, isCoordenador } = useCurrentUser();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ mes: '', museu: '', equipe: '', status: '', classificacao: '' });
   const [showFilters, setShowFilters] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => base44.entities.Report.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['all-reports-list']);
+      queryClient.invalidateQueries(['my-reports-list']);
+      toast.success('Relatório excluído.');
+      setDeleteTarget(null);
+    },
+    onError: () => toast.error('Erro ao excluir relatório.'),
+  });
 
   const { data: allReports = [], isLoading: loadingAll } = useQuery({
     queryKey: ['all-reports-list'],
