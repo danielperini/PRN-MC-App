@@ -209,9 +209,26 @@ function UserManagementInner() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.User.update(id, data),
+    mutationFn: async ({ id, data }) => {
+      await base44.entities.User.update(id, data);
+      // Also update or create UserPermission record
+      const existingPerm = userPermissions.find(p => p.user_email === data.email);
+      if (existingPerm) {
+        await base44.asServiceRole.entities.UserPermission.update(existingPerm.id, {
+          user_name: data.full_name,
+          base_role: data.role,
+        });
+      } else if (data.email) {
+        await base44.asServiceRole.entities.UserPermission.create({
+          user_email: data.email,
+          user_name: data.full_name,
+          base_role: data.role,
+        });
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries(['users']);
+      queryClient.invalidateQueries(['user-permissions']);
       toast.success('Usuário atualizado');
       setShowDialog(false);
       setEditingUser(null);
