@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp, AlertCircle, Sparkles, X, Loader2 } from 'lucide-react';
 import ActivityAttachments from './ActivityAttachments';
+import { base44 } from '@/api/base44Client';
 
 const MUSEUS_ATIV = ['MHAB', 'MIS', 'MUMO', 'Externo'];
 const TIPOS_ACAO = [
