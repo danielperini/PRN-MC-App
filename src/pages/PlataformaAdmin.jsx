@@ -158,6 +158,7 @@ function PlataformaAdminInner() {
             <TabsTrigger value="usuarios" className="gap-2"><Users className="w-3.5 h-3.5" />Usuários</TabsTrigger>
             <TabsTrigger value="relatorios" className="gap-2"><FileText className="w-3.5 h-3.5" />Relatórios</TabsTrigger>
             <TabsTrigger value="auditoria" className="gap-2"><History className="w-3.5 h-3.5" />Auditoria</TabsTrigger>
+            <TabsTrigger value="metadados" className="gap-2"><Database className="w-3.5 h-3.5" />Metadados</TabsTrigger>
           </TabsList>
 
           {/* ── USUÁRIOS ── */}
