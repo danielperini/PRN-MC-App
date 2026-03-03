@@ -52,11 +52,15 @@ function ShortcutCard({ to, icon: Icon, label, desc }) {
 function AuthenticatedHome({ user }) {
   const isCoordenador = ['COORDENADOR', 'ADMIN', 'admin'].includes(user?.role);
 
-  const { data: reports = [] } = useQuery({
-    queryKey: ['home-reports', user?.email],
-    queryFn: () => isCoordenador
-      ? base44.entities.Report.list('-updated_date', 100)
-      : base44.entities.Report.filter({ created_by: user.email }, '-updated_date', 20),
+  const { data: allReports = [] } = useQuery({
+    queryKey: ['home-all-reports'],
+    queryFn: () => base44.entities.Report.list('-updated_date', 500),
+    enabled: !!user,
+  });
+
+  const { data: allActivities = [] } = useQuery({
+    queryKey: ['home-all-activities'],
+    queryFn: () => base44.entities.Activity.list('-created_date', 1000),
     enabled: !!user,
   });
 
@@ -72,9 +76,26 @@ function AuthenticatedHome({ user }) {
     enabled: !!user,
   });
 
-  const pendingReview = reports.filter(r => ['SUBMITTED', 'IN_REVIEW'].includes(r.status));
-  const myDrafts = reports.filter(r => r.status === 'DRAFT' && r.created_by === user?.email);
+  // My reports (for non-coord shortcuts)
+  const myReports = allReports.filter(r => r.created_by === user?.email);
+  const reports = isCoordenador ? allReports : myReports;
+
+  const pendingReview = allReports.filter(r => ['SUBMITTED', 'IN_REVIEW'].includes(r.status));
+  const myDrafts = myReports.filter(r => r.status === 'DRAFT');
   const recentReports = reports.slice(0, 5);
+
+  // Executive KPIs — aggregate from all approved/submitted reports
+  const approvedReports = allReports.filter(r => ['APPROVED', 'SUBMITTED', 'IN_REVIEW', 'ARCHIVED'].includes(r.status));
+  const totalPublico = approvedReports.reduce((sum, r) => {
+    const acts = Array.isArray(r.atividades) ? r.atividades : [];
+    return sum + acts.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0);
+  }, 0) + allActivities.reduce((sum, a) => sum + (Number(a.publico_estimado) || 0), 0);
+
+  const totalAtividades = allActivities.length +
+    approvedReports.reduce((sum, r) => sum + (Array.isArray(r.atividades) ? r.atividades.length : 0), 0);
+
+  const museus = [...new Set(allReports.map(r => r.museu).filter(Boolean))];
+  const aprovados = allReports.filter(r => r.status === 'APPROVED').length;
 
   const shortcuts = [
     { to: 'Dashboard', icon: LayoutDashboard, label: 'Dashboard', desc: 'Visão geral dos relatórios' },
