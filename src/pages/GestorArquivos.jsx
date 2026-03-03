@@ -40,9 +40,21 @@ function formatSize(bytes) {
 
 function GestorArquivosInner() {
   const { user: currentUser, isCoordenador } = useCurrentUser();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filterMuseu, setFilterMuseu] = useState('all');
   const [filterMes, setFilterMes] = useState('all');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: (att) => base44.entities.Attachment.delete(att.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['gestor-attachments']);
+      toast.success('Arquivo excluído.');
+      setDeleteTarget(null);
+    },
+    onError: () => toast.error('Erro ao excluir arquivo.'),
+  });
 
   // Fetch reports (for context / linking)
   const { data: reports = [], isLoading: loadingReports } = useQuery({
