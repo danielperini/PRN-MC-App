@@ -253,6 +253,8 @@ function UserManagementInner() {
 
   const isPending = inviteMutation.isPending || updateMutation.isPending;
 
+  const canViewReportStatus = currentUser && ['COORDENADOR', 'CONSULTORIA_PROGRAMACAO'].includes(currentUser.role);
+
   const getReportStatus = (userEmail) => {
     const currentDate = new Date();
     const currentMonth = currentDate.toLocaleString('pt-BR', { month: 'long' }).charAt(0).toUpperCase() + currentDate.toLocaleString('pt-BR', { month: 'long' }).slice(1);
