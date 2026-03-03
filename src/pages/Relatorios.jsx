@@ -10,7 +10,6 @@ import {
   Send, Eye, Archive, ChevronRight, Download, X, Search, SlidersHorizontal, Paperclip, Trash2
 } from 'lucide-react';
 import BatchPDFExport from '../components/reports/BatchPDFExport';
-import AdvancedActivitySearch from '../components/reports/AdvancedActivitySearch';
 import ActivityFilters from '../components/reports/ActivityFilters';
 import ActivitySummary from '../components/reports/ActivitySummary';
 import CompliancePanel from '../components/reports/CompliancePanel';
@@ -88,10 +87,9 @@ function RelatoriosInner() {
    const queryClient = useQueryClient();
    const [search, setSearch] = useState('');
    const [filters, setFilters] = useState({ mes: '', museu: '', equipe: '', status: '', classificacao: '' });
-   const [showFilters, setShowFilters] = useState(false);
-   const [deleteTarget, setDeleteTarget] = useState(null);
-   const [filteredActivities, setFilteredActivities] = useState([]);
-   const [activityFilters, setActivityFilters] = useState({ team: '', museum: '', dateStart: '', dateEnd: '' });
+    const [showFilters, setShowFilters] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [activityFilters, setActivityFilters] = useState({ team: '', museum: '', dateStart: '', dateEnd: '' });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Report.delete(id),
@@ -290,36 +288,7 @@ function RelatoriosInner() {
             )}
           </div>
 
-         {/* Advanced activity search */}
-          <div className="mb-8 p-6 bg-blue-50 border border-blue-100 rounded-xl">
-            <h2 className="text-sm font-semibold text-blue-900 mb-4 uppercase tracking-wide">
-              🔍 Busca Avançada de Atividades
-            </h2>
-            <AdvancedActivitySearch
-              activities={allActivities}
-              onFilteredActivities={setFilteredActivities}
-              users={allUsers}
-            />
-            {filteredActivities.length > 0 && (
-              <div className="mt-6 pt-4 border-t border-blue-100 space-y-3">
-                <p className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
-                  Atividades encontradas ({filteredActivities.length})
-                </p>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {filteredActivities.map((activity, idx) => (
-                    <div key={idx} className="p-3 bg-white border border-blue-100 rounded-lg text-xs">
-                      <div className="font-medium text-black">{activity.nome || 'Sem nome'}</div>
-                      <div className="text-gray-600 mt-1">{activity.author_name} • {activity.mes_referencia} {activity.ano}</div>
-                      <div className="text-gray-500 mt-1 line-clamp-2">{activity.descricao_executado || activity.objetivo || '—'}</div>
-                      {activity.co_responsavel_email && (
-                        <div className="text-blue-700 mt-1">Co-responsável: {activity.co_responsavel_email}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+
 
         {/* Cards grid */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
