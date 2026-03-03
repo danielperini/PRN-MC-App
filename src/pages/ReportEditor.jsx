@@ -98,7 +98,11 @@ function ReportEditorInner() {
   // Load existing report
   const { isLoading, data: reportData } = useQuery({
     queryKey: ['report', reportId],
-    queryFn: () => base44.entities.Report.get(reportId),
+    queryFn: async () => {
+      if (!reportId) return null;
+      const data = await base44.entities.Report.get(reportId);
+      return data || null;
+    },
     enabled: !!reportId,
     staleTime: 30_000,
   });
