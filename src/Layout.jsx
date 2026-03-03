@@ -12,7 +12,8 @@ import {
   History,
   Eye,
   Paperclip,
-  Settings
+  Settings,
+  UserCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
