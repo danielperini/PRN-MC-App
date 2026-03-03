@@ -186,58 +186,89 @@ function RelatoriosInner() {
           </div>
         </div>
 
-        {/* Search + Filter bar */}
-        <div className="mb-5 space-y-3">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Buscar por profissional, museu, mês, atividade..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="pl-9 h-10 border-gray-200"
-              />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-            <Button
-              variant="outline"
-              className={`gap-2 h-10 ${showFilters ? 'border-black bg-gray-50' : 'border-gray-200'}`}
-              onClick={() => setShowFilters(p => !p)}
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-              Filtros
-              {Object.values(filters).some(Boolean) && (
-                <span className="w-4 h-4 rounded-full bg-black text-white text-[10px] flex items-center justify-center">
-                  {Object.values(filters).filter(Boolean).length}
-                </span>
-              )}
-            </Button>
-            {hasFilters && (
-              <Button variant="ghost" size="sm" className="text-gray-400 gap-1 h-10" onClick={clearFilters}>
-                <X className="w-3 h-3" /> Limpar
-              </Button>
-            )}
-          </div>
+        {/* Search + Filter bar for reports */}
+         <div className="mb-8 space-y-3">
+           <div className="flex gap-2">
+             <div className="relative flex-1">
+               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+               <Input
+                 placeholder="Buscar por profissional, museu, mês, atividade..."
+                 value={search}
+                 onChange={e => setSearch(e.target.value)}
+                 className="pl-9 h-10 border-gray-200"
+               />
+               {search && (
+                 <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                   <X className="w-3.5 h-3.5" />
+                 </button>
+               )}
+             </div>
+             <Button
+               variant="outline"
+               className={`gap-2 h-10 ${showFilters ? 'border-black bg-gray-50' : 'border-gray-200'}`}
+               onClick={() => setShowFilters(p => !p)}
+             >
+               <SlidersHorizontal className="w-4 h-4" />
+               Filtros
+               {Object.values(filters).some(Boolean) && (
+                 <span className="w-4 h-4 rounded-full bg-black text-white text-[10px] flex items-center justify-center">
+                   {Object.values(filters).filter(Boolean).length}
+                 </span>
+               )}
+             </Button>
+             {hasFilters && (
+               <Button variant="ghost" size="sm" className="text-gray-400 gap-1 h-10" onClick={clearFilters}>
+                 <X className="w-3 h-3" /> Limpar
+               </Button>
+             )}
+           </div>
 
-          {showFilters && (
-            <div className="flex flex-wrap gap-2 p-4 bg-gray-50 border border-gray-100 rounded-xl">
-              <FilterSel placeholder="Mês" value={filters.mes} onChange={v => setFilter('mes', v)}
-                options={MESES.map(m => ({ value: m, label: m }))} />
-              <FilterSel placeholder="Museu" value={filters.museu} onChange={v => setFilter('museu', v)}
-                options={MUSEUS.map(m => ({ value: m, label: m }))} />
-              <FilterSel placeholder="Equipe" value={filters.equipe} onChange={v => setFilter('equipe', v)}
-                options={EQUIPES.map(e => ({ value: e, label: e }))} />
-              <FilterSel placeholder="Status" value={filters.status} onChange={v => setFilter('status', v)}
-                options={Object.entries(STATUS_CONFIG).map(([v, c]) => ({ value: v, label: c.label }))} />
-              <FilterSel placeholder="Classificação" value={filters.classificacao} onChange={v => setFilter('classificacao', v)}
-                options={['META','ROTINA','EXTRA'].map(c => ({ value: c, label: c }))} />
-            </div>
-          )}
-        </div>
+           {showFilters && (
+             <div className="flex flex-wrap gap-2 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+               <FilterSel placeholder="Mês" value={filters.mes} onChange={v => setFilter('mes', v)}
+                 options={MESES.map(m => ({ value: m, label: m }))} />
+               <FilterSel placeholder="Museu" value={filters.museu} onChange={v => setFilter('museu', v)}
+                 options={MUSEUS.map(m => ({ value: m, label: m }))} />
+               <FilterSel placeholder="Equipe" value={filters.equipe} onChange={v => setFilter('equipe', v)}
+                 options={EQUIPES.map(e => ({ value: e, label: e }))} />
+               <FilterSel placeholder="Status" value={filters.status} onChange={v => setFilter('status', v)}
+                 options={Object.entries(STATUS_CONFIG).map(([v, c]) => ({ value: v, label: c.label }))} />
+               <FilterSel placeholder="Classificação" value={filters.classificacao} onChange={v => setFilter('classificacao', v)}
+                 options={['META','ROTINA','EXTRA'].map(c => ({ value: c, label: c }))} />
+             </div>
+           )}
+         </div>
+
+         {/* Advanced activity search */}
+         <div className="mb-8 p-6 bg-blue-50 border border-blue-100 rounded-xl">
+           <h2 className="text-sm font-semibold text-blue-900 mb-4 uppercase tracking-wide">
+             🔍 Busca Avançada de Atividades
+           </h2>
+           <AdvancedActivitySearch
+             activities={allActivities}
+             onFilteredActivities={setFilteredActivities}
+             users={allUsers}
+           />
+           {filteredActivities.length > 0 && (
+             <div className="mt-6 pt-4 border-t border-blue-100 space-y-3">
+               <p className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
+                 Atividades encontradas ({filteredActivities.length})
+               </p>
+               <div className="space-y-2 max-h-96 overflow-y-auto">
+                 {filteredActivities.map((activity, idx) => (
+                   <div key={idx} className="p-3 bg-white border border-blue-100 rounded-lg text-xs">
+                     <div className="font-medium text-black">{activity.nome || 'Sem nome'}</div>
+                     <div className="text-gray-600 mt-1">{activity.author_name} • {activity.mes_referencia} {activity.ano}</div>
+                     <div className="text-gray-500 mt-1 line-clamp-2">{activity.descricao_executado || activity.objetivo || '—'}</div>
+                     {activity.co_responsavel_email && (
+                       <div className="text-blue-700 mt-1">Co-responsável: {activity.co_responsavel_email}</div>
+                     )}
+                   </div>
+                 ))}
+               </div>
+             </div>
+           )}
+         </div>
 
         {/* Cards grid */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
