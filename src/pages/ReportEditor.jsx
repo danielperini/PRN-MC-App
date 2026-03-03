@@ -265,16 +265,6 @@ function ReportEditorInner() {
             ) || (
               <span className="text-xs text-gray-400">Salve o relatório para exportar dados</span>
             )}
-            {canEdit && (
-              <>
-                <Button variant="outline" onClick={() => saveMutation.mutate(formData)} disabled={saveMutation.isPending}>
-                  <Save className="w-4 h-4 mr-2" />Salvar Rascunho
-                </Button>
-                <Button className="bg-black hover:bg-gray-800 text-white" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
-                  <Send className="w-4 h-4 mr-2" />Enviar para Revisão
-                </Button>
-              </>
-            )}
             {isCoordenador && formData.status === 'SUBMITTED' && (
               <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'start_review' })}>Iniciar Revisão</Button>
             )}
