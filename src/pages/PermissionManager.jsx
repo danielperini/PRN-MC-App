@@ -121,18 +121,13 @@ function PermissionManagerInner() {
 
   const handleSave = () => {
     if (editingPerm) {
+      const dataToUpdate = {};
+      PERMISSIONS.forEach(p => {
+        dataToUpdate[p.key] = editingPerm[p.key];
+      });
       updatePermMutation.mutate({
         id: editingPerm.id,
-        data: {
-          can_view_all_reports: editingPerm.can_view_all_reports,
-          can_review_reports: editingPerm.can_review_reports,
-          can_manage_users: editingPerm.can_manage_users,
-          can_manage_files: editingPerm.can_manage_files,
-          can_manage_museus: editingPerm.can_manage_museus,
-          can_manage_equipes: editingPerm.can_manage_equipes,
-          can_view_audit_log: editingPerm.can_view_audit_log,
-          can_manage_platform: editingPerm.can_manage_platform,
-        },
+        data: dataToUpdate,
       });
     } else {
       if (!formData.user_email) {
