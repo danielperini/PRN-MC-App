@@ -2,20 +2,26 @@ import React from 'react';
 import { Activity, Package, Users, Target } from 'lucide-react';
 
 export default function SummaryCards({ reports = [] }) {
-  // Calcular totais
-  const allActivities = reports.flatMap(r => r.atividades || []);
-  const totalActivities = allActivities.length;
-  const totalPublic = allActivities.reduce((sum, a) => {
-    const repeticoes = a.quantas_repeticoes || 1;
-    const publico = a.publico_estimado || 0;
-    return sum + (publico * repeticoes);
-  }, 0);
-  
-  const totalProducts = allActivities.reduce((sum, a) => {
-    const produtos = a.produtos_entregues?.length || 0;
-    const quantidade = a.quantidade_produtos || 0;
-    return sum + produtos + quantidade;
-  }, 0);
+   // Calcular totais
+   const safeReports = Array.isArray(reports) ? reports : [];
+   const allActivities = safeReports.flatMap(r => {
+     if (!r || !Array.isArray(r.atividades)) return [];
+     return r.atividades;
+   });
+   const totalActivities = allActivities.length;
+   const totalPublic = allActivities.reduce((sum, a) => {
+     if (!a) return sum;
+     const repeticoes = Number(a.quantas_repeticoes) || 1;
+     const publico = Number(a.publico_estimado) || 0;
+     return sum + (publico * repeticoes);
+   }, 0);
+
+   const totalProducts = allActivities.reduce((sum, a) => {
+     if (!a) return sum;
+     const produtos = Array.isArray(a.produtos_entregues) ? a.produtos_entregues.length : 0;
+     const quantidade = Number(a.quantidade_produtos) || 0;
+     return sum + produtos + quantidade;
+   }, 0);
 
   const cards = [
     {
