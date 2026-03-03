@@ -20,6 +20,7 @@ Deno.serve(async (req) => {
 
     // Send notification to each coordinator
     for (const coordinator of coordinators) {
+      // Send email notification
       await base44.integrations.Core.SendEmail({
         to: coordinator.email,
         subject: `Nova solicitação de cadastro: ${registration.full_name}`,
@@ -32,6 +33,16 @@ Deno.serve(async (req) => {
           `Mensagem: ${registration.mensagem || 'Sem mensagem'}\n\n` +
           `Por favor, acesse o painel de administração para revisar e aprovar/rejeitar esta solicitação.\n\n` +
           `Atenciosamente,\nSistema de Gestão de Museus`
+      });
+
+      // Create in-app notification
+      await base44.asServiceRole.entities.Notification.create({
+        user_email: coordinator.email,
+        type: 'USER_NEEDS_ATTENTION',
+        title: `Nova solicitação de cadastro: ${registration.full_name}`,
+        message: `${registration.full_name} (${registration.email}) solicitou acesso como ${registration.funcao}`,
+        action_url: '/admin/usuarios',
+        email_sent: true
       });
     }
 
