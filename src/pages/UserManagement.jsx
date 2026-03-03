@@ -374,24 +374,37 @@ function UserManagementInner() {
               </div>
             ) : (
               <div className="space-y-3">
-                {pendingRegistrations.map(reg => (
-                  <div key={reg.id} className="p-5 border border-amber-100 bg-amber-50/40 rounded-xl">
+                {pendingRegistrations.map((reg, idx) => (
+                  <div key={reg.id} className="p-5 border border-amber-100 bg-amber-50/40 rounded-xl hover:border-amber-200 transition-all">
                     <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <Clock className="w-5 h-5 text-amber-600" />
+                      <div className="flex items-center gap-4 min-w-0 flex-1">
+                        <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold text-amber-700">
+                          {(reg.full_name || '')[0]?.toUpperCase() || '?'}
                         </div>
-                        <div>
-                          <p className="font-semibold text-black">{reg.full_name}</p>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold text-black">{reg.full_name}</p>
+                            <span className="text-xs font-mono bg-amber-100 text-amber-700 px-2 py-0.5 rounded">#{idx + 1}</span>
+                          </div>
                           <p className="text-sm text-gray-500">{reg.email}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {reg.funcao} · {reg.museu}{reg.equipe ? ` · ${reg.equipe}` : ''}
-                          </p>
+                          <div className="flex gap-3 text-xs text-gray-400 mt-1">
+                            <span>{reg.funcao}</span>
+                            <span>•</span>
+                            <span>{reg.museu}</span>
+                            {reg.equipe && (
+                              <>
+                                <span>•</span>
+                                <span>{reg.equipe}</span>
+                              </>
+                            )}
+                          </div>
                           {reg.mensagem && (
-                            <p className="text-xs text-gray-500 mt-2 italic">"{reg.mensagem}"</p>
+                            <p className="text-xs text-gray-500 mt-2 p-2 bg-white/50 rounded border border-amber-100 italic">
+                              "{reg.mensagem}"
+                            </p>
                           )}
-                          <p className="text-xs text-gray-300 mt-1">
-                            Solicitado em {new Date(reg.created_date).toLocaleDateString('pt-BR')}
+                          <p className="text-xs text-gray-400 mt-2">
+                            📅 Solicitado em {new Date(reg.created_date).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
                           </p>
                         </div>
                       </div>
@@ -399,14 +412,14 @@ function UserManagementInner() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="text-red-600 border-red-200 hover:bg-red-50"
+                          className="text-red-600 border-red-200 hover:bg-red-50 text-xs"
                           onClick={() => { setReviewingReg({ ...reg, action: 'rejeitar' }); setRegNote(''); }}
                         >
                           <XCircle className="w-4 h-4 mr-1" />Rejeitar
                         </Button>
                         <Button
                            size="sm"
-                           className="bg-green-600 hover:bg-green-700 text-white"
+                           className="bg-green-600 hover:bg-green-700 text-white text-xs"
                            onClick={() => { setReviewingReg({ ...reg, action: 'aprovar' }); setRegNote(''); setRegRole('PROFISSIONAL'); }}
                          >
                            <CheckCircle className="w-4 h-4 mr-1" />Aprovar
