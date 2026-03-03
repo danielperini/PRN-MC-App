@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -167,7 +167,7 @@ function UserPicker({ value = [], onChange, disabled }) {
   );
 }
 
-function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId }) {
+function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId, hasDupWarning }) {
   const [expanded, setExpanded] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
   const errors = canEdit ? validateAtividade(atividade) : [];
@@ -190,7 +190,7 @@ Escreva em português do Brasil, de forma objetiva e profissional.`;
   };
 
   return (
-    <div className={`border rounded-xl overflow-hidden ${errors.length > 0 ? 'border-red-200' : 'border-gray-200'}`}>
+    <div className={`border rounded-xl overflow-hidden ${hasDupWarning ? 'border-amber-400' : errors.length > 0 ? 'border-red-200' : 'border-gray-200'}`}>
       {/* Card header */}
       <div
         className="flex items-center justify-between px-5 py-3 bg-gray-50 cursor-pointer"
