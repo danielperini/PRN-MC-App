@@ -628,43 +628,6 @@ function UserManagementInner() {
   );
 }
 
-function UserManagementWrapper() {
-  const [hasAccess, setHasAccess] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    const checkAccess = async () => {
-      const isAuth = await base44.auth.isAuthenticated();
-      if (isAuth) {
-        const user = await base44.auth.me();
-        // Only Daniel Perini can access
-        setHasAccess(user.email === 'daniel.perini@museuscentro.org.br');
-      }
-      setIsLoading(false);
-    };
-    checkAccess();
-  }, []);
-
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-400">Carregando...</div>;
-  }
-
-  if (!hasAccess) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg font-medium text-black">Acesso restrito</p>
-          <p className="text-sm text-gray-500 mt-1">
-            Apenas o coordenador geral pode gerenciar usuários.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return <UserManagementInner />;
-}
-
 export default function UserManagement() {
-  return <RequireAuth requireRole="ADMIN"><UserManagementWrapper /></RequireAuth>;
+  return <RequireAuth requireRole="ADMIN"><UserManagementInner /></RequireAuth>;
 }
