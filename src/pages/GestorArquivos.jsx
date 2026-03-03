@@ -62,6 +62,7 @@ function GestorArquivosInner() {
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
   const [filterReport, setFilterReport] = useState('all');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: (att) => base44.entities.Attachment.delete(att.id),
