@@ -564,6 +564,15 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                 </SelectContent>
               </Select>
             </Field>
+            <Field label="É uma atividade de mobilização/divulgação?">
+              <Select value={atividade.eh_mobilizacao ? 'sim' : 'nao'} onValueChange={v => onChange('eh_mobilizacao', v === 'sim')} disabled={!canEdit}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nao">Não</SelectItem>
+                  <SelectItem value="sim">Sim</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
             <Field label="Público estimado (por ocorrência)">
               <Input type="number" placeholder="0" value={atividade.publico_estimado || ''} onChange={e => onChange('publico_estimado', e.target.value)} disabled={!canEdit} />
             </Field>
