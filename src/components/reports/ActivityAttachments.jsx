@@ -117,22 +117,20 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
   return (
     <div className="mt-4 pt-4 border-t border-gray-100">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center gap-1.5">
-          <Paperclip className="w-3.5 h-3.5" />
-          Anexos ({attachments.length})
+        <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+          📸 Evidências ({attachments.length})
         </span>
         {canEdit && (
           <Button
-            variant="ghost"
             size="sm"
-            className="h-7 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            className="h-8 text-xs gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
             {uploading
               ? <Loader2 className="w-3 h-3 animate-spin" />
-              : <Upload className="w-3 h-3" />}
-            {uploading ? 'Enviando...' : 'Adicionar'}
+              : <Upload className="w-3.5 h-3.5" />}
+            {uploading ? 'Enviando...' : '+ Enviar Evidências'}
           </Button>
         )}
         <input
@@ -151,12 +149,12 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
         canEdit ? (
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-full text-xs text-gray-500 border border-dashed border-gray-200 rounded-lg py-4 hover:border-blue-300 hover:bg-blue-50/30 transition-all"
+            className="w-full text-xs text-gray-600 border-2 border-dashed border-gray-300 rounded-lg py-5 hover:border-blue-400 hover:bg-blue-50 transition-all font-medium"
           >
-            + Adicionar anexos
+            📁 Clique para adicionar evidências (fotos, vídeos, PDFs)
           </button>
         ) : (
-          <p className="text-xs text-gray-400">Sem anexos</p>
+          <p className="text-xs text-gray-400">Sem evidências anexadas</p>
         )
       ) : (
         <div className="space-y-2">
