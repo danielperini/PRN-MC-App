@@ -41,6 +41,7 @@ const ROLE_LABELS = {
   COORD_PRODUCAO: 'Coordenação de Produção',
   COORD_ADMINISTRATIVA: 'Coordenação Administrativa',
   COORD_COMUNICACAO: 'Coordenação de Comunicação',
+  CONSULTORIA_PROGRAMACAO: 'Consultoria Programação',
   PROFISSIONAL: 'Profissional',
   ADMIN: 'Administração',
 };
