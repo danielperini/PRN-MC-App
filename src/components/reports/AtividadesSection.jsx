@@ -21,30 +21,30 @@ const PRODUTOS_OPCOES = [
   'Release', 'Post', 'Outro'
 ];
 
-// Metas do 3º Termo Aditivo
+// Metas do 3º Termo Aditivo — Plano de Trabalho Real
 const METAS_3_ADITIVO = [
-  { value: 'META_01', label: 'META_01 — Contratação da equipe principal (Comissão de Programação)' },
-  { value: 'META_02', label: 'META_02 — Plano de comunicação (ASCOM/SUCOM)' },
-  { value: 'META_03', label: 'META_03 — Manutenção de rotina das exposições (MUMO/MIS/MHAB)' },
-  { value: 'META_04', label: 'META_04 — Alteração de dois núcleos (MUMO e MIS)' },
-  { value: 'META_05', label: 'META_05 — Formação e qualificação da equipe técnica' },
-  { value: 'META_06', label: 'META_06 — Ações de mediação e educação nos museus' },
-  { value: 'META_07', label: 'META_07 — Contratar educadores (MIS/MUMO/MHAB)' },
-  { value: 'META_08', label: 'META_08 — Exposição + abertura no Casarão do MHAB' },
-  { value: 'META_09', label: 'META_09 — Programação cultural integrada dos três museus' },
-  { value: 'META_10', label: 'META_10 — Ações de comunicação e marketing cultural' },
-  { value: 'META_11', label: 'META_11 — Gestão administrativa e financeira do projeto' },
-  { value: 'META_12', label: 'META_12 — Monitoramento e avaliação de resultados' },
-  { value: 'META_13', label: 'META_13 — Relatórios periódicos de acompanhamento' },
-  { value: 'META_14', label: 'META_14 — Inscrição em Leis de Incentivo e outros editais' },
-  { value: 'META_15', label: 'META_15 — Dispositivos acessíveis (maquete tátil + 5 vídeos em Libras)' },
-  { value: 'META_16', label: 'META_16 — 101 diárias de educador' },
-  { value: 'META_17', label: 'META_17 — Publicações (produção editorial de catálogos)' },
-  { value: 'META_18', label: 'META_18 — Custeios para atividades educativas contínuas' },
-  { value: 'META_19', label: "META_19 — Atividade 'Presente de Iemanjá'" },
-  { value: 'META_20', label: 'META_20 — Realizar 30 ações educativas e/ou culturais (10 meses)' },
-  { value: 'META_21', label: 'META_21 — Exposição + abertura no Museu da Moda (MUMO)' },
-  { value: 'META_22', label: 'META_22 — Encerramento e prestação de contas final' },
+  { value: 'META_01', label: 'META 01 — Contratação da equipe principal, incluindo coordenadores da Comissão de Programação' },
+  { value: 'META_02', label: 'META 02 — Elaborar e executar plano de comunicação nacional (ASCOM/SUCOM)' },
+  { value: 'META_03', label: 'META 03 — Manutenção de rotina nas 4 exposições dos três museus (MUMO, MIS e MHAB)' },
+  { value: 'META_04', label: 'META 04 — Alteração de dois núcleos (salas) das exposições do MUMO e MIS' },
+  { value: 'META_05', label: 'META 05 — Realizar no mínimo 60 ações educativas' },
+  { value: 'META_06', label: 'META 06 — Realizar no mínimo 36 ações culturais' },
+  { value: 'META_07', label: 'META 07 — Contratar educador para MIS-BH, MUMO e MHAB' },
+  { value: 'META_08', label: 'META 08 — Exposição e evento de abertura no Casarão do MHAB' },
+  { value: 'META_09', label: 'META 09 — Exposição e evento de abertura no Museu da Imagem e do Som (MIS)' },
+  { value: 'META_10', label: 'META 10 — Realizar 18 mostras de baixa e/ou média complexidade nos museus' },
+  { value: 'META_11', label: 'META 11 — Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus' },
+  { value: 'META_12', label: 'META 12 — Pesquisa, identidade visual, projeto curatorial e expográfico — MHAB (galeria sede)' },
+  { value: 'META_13', label: 'META 13 — Pesquisa, identidade visual, projeto curatorial e expográfico — MUMO' },
+  { value: 'META_14', label: 'META 14 — Inscrição em Leis de Incentivo e outros editais' },
+  { value: 'META_15', label: 'META 15 — Entregar dispositivos acessíveis (mínimo 1 maquete tátil + 5 vídeos em Libras)' },
+  { value: 'META_16', label: 'META 16 — Contratação de 101 diárias de educador para mediação ao público espontâneo' },
+  { value: 'META_17', label: 'META 17 — Produção de 4 publicações/catálogos (2 MHAB, 1 MIS, 1 MUMO)' },
+  { value: 'META_18', label: 'META 18 — Custeios para atividades educativas contínuas (insumos, lanches, materiais, consultorias)' },
+  { value: 'META_19', label: "META 19 — Realizar atividade 'Presente de Iemanjá' (produção + 4 ações + infraestrutura + divulgação)" },
+  { value: 'META_20', label: 'META 20 — Realizar 30 ações educativas e/ou culturais adicionais (meses 19 ao 28)' },
+  { value: 'META_21', label: 'META 21 — Exposição e evento de abertura no Museu da Moda (MUMO)' },
+  { value: 'META_22', label: 'META 22 — Contratar consultorias (2 temáticas + 1 formação em ambiente seguro e acessibilidade)' },
 ];
 
 const EMPTY_ATIVIDADE = {
