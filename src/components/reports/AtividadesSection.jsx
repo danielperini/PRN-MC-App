@@ -563,17 +563,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
             </Field>
           </div>
 
-          {/* AI Classification Suggestion */}
-          {!isMeta && !isRotinaOrExtra && canEdit && (
-            <div className="p-4 border border-purple-100 bg-purple-50/20 rounded-xl">
-              <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-3">Classificação Automática</p>
-              <ActivityClassificationAI
-                atividade={atividade}
-                onApplySuggestion={(field, value) => onChange(field, value)}
-                disabled={false}
-              />
-            </div>
-          )}
+
 
           {/* Registro detalhado */}
           <div>
