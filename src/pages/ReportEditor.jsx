@@ -101,10 +101,26 @@ function ReportEditorInner() {
     }
   }, [reportData]);
 
+  // Generate protocol number: MC-MESANO-XXXXX
+  const gerarNumeroProtocolo = async (mes, ano) => {
+    const MESES_ABREV = {
+      'Janeiro': 'JAN', 'Fevereiro': 'FEV', 'Março': 'MAR', 'Abril': 'ABR',
+      'Maio': 'MAI', 'Junho': 'JUN', 'Julho': 'JUL', 'Agosto': 'AGO',
+      'Setembro': 'SET', 'Outubro': 'OUT', 'Novembro': 'NOV', 'Dezembro': 'DEZ'
+    };
+    const mesAbrev = MESES_ABREV[mes] || mes.substring(0, 3).toUpperCase();
+    const allReports = await base44.entities.Report.list('-created_date', 9999);
+    const seq = String(allReports.length + 1).padStart(5, '0');
+    return `MC-${mesAbrev}${ano}-${seq}`;
+  };
+
   const saveMutation = useMutation({
-    mutationFn: data => {
+    mutationFn: async data => {
       // Strip internal fields that should not be sent to the API
       const { id, created_date, updated_date, created_by, ...payload } = data;
+      if (!reportId && !payload.numero_protocolo) {
+        payload.numero_protocolo = await gerarNumeroProtocolo(payload.mes_referencia || 'SEM', payload.ano || 2026);
+      }
       return reportId
         ? base44.entities.Report.update(reportId, payload)
         : base44.entities.Report.create(payload);
