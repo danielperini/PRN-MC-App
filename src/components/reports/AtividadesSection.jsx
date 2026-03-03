@@ -175,6 +175,43 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId
   const isMeta = atividade.classificacao === 'META';
   const isRotinaOrExtra = atividade.classificacao === 'ROTINA' || atividade.classificacao === 'EXTRA';
 
+  const handleAiMeta = async () => {
+    setAiMetaLoading(true);
+    const metasLista = METAS_3_ADITIVO.map(m => `${m.value}: ${m.label}`).join('\n');
+    const prompt = `Você é especialista em gestão de projetos culturais da Fundação Municipal de Cultura de Belo Horizonte.
+Com base na atividade abaixo, identifique qual META do Plano de Trabalho do 3º Termo Aditivo melhor se encaixa.
+
+ATIVIDADE:
+Nome: ${atividade.nome || '(não informado)'}
+Descrição: ${atividade.descricao_executado || atividade.objetivo || '(não informado)'}
+Tipo de ação: ${atividade.tipo_acao || ''}
+Museu: ${atividade.museu || ''}
+Produto: ${atividade.produto_realizado || ''}
+
+METAS DISPONÍVEIS:
+${metasLista}
+
+Responda APENAS com JSON: {"meta_codigo": "META_XX", "justificativa": "Uma frase explicando por quê"}`;
+
+    const result = await base44.integrations.Core.InvokeLLM({
+      prompt,
+      response_json_schema: {
+        type: 'object',
+        properties: {
+          meta_codigo: { type: 'string' },
+          justificativa: { type: 'string' },
+        }
+      }
+    });
+    if (result?.meta_codigo) {
+      onChange('meta_codigo', result.meta_codigo);
+      if (result.justificativa && !atividade.indicador_previsto) {
+        onChange('indicador_previsto', result.justificativa);
+      }
+    }
+    setAiMetaLoading(false);
+  };
+
   const handleAiResultados = async () => {
     setAiLoading(true);
     const prompt = `Com base na seguinte atividade de museu, escreva um parágrafo conciso sobre Resultados e Impactos (máximo 4 linhas):
