@@ -531,43 +531,36 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
               </Select>
             </Field>
             <Field label="Co-responsável (outro profissional)">
-              <div className="space-y-2 relative">
+              <div className="space-y-2">
                 {coRespUser && (
-                  <Badge className="w-fit gap-1 bg-blue-100 text-blue-800">
-                    {coRespUser.full_name || coRespUser.email}
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-blue-100 text-blue-800 gap-1">
+                      {coRespUser.full_name || coRespUser.email}
+                    </Badge>
                     {canEdit && (
-                      <button onClick={() => onChange('co_responsavel_email', '')} className="ml-1">
-                        <X className="w-3 h-3" />
+                      <button onClick={() => onChange('co_responsavel_email', '')} className="text-gray-400 hover:text-gray-600">
+                        <X className="w-4 h-4" />
                       </button>
                     )}
-                  </Badge>
+                  </div>
                 )}
                 {!coRespUser && canEdit && (
-                  <div className="border border-gray-200 rounded-lg overflow-hidden" onBlur={() => setTimeout(() => setCoRespSearch(''), 100)}>
-                    <input
-                      type="text"
-                      placeholder="Buscar profissional..."
-                      value={coRespSearch}
-                      onChange={e => setCoRespSearch(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border-b border-gray-100 outline-none"
-                    />
-                    {coRespSearch && (
-                      <div className="max-h-32 overflow-y-auto">
-                        {filteredUsers.length === 0 ? (
-                          <p className="text-xs text-gray-400 px-3 py-2">Nenhum usuário encontrado</p>
-                        ) : filteredUsers.map(u => (
-                          <div
-                            key={u.email}
-                            onClick={() => { onChange('co_responsavel_email', u.email); setCoRespSearch(''); }}
-                            className="flex items-center gap-2 px-3 py-2 cursor-pointer text-sm hover:bg-gray-50"
-                          >
-                            <span>{u.full_name || u.email}</span>
-                            <span className="text-gray-400 text-xs ml-auto">{u.role}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <Select value={atividade.co_responsavel_email || ''} onValueChange={v => onChange('co_responsavel_email', v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um profissional" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredUsers.length === 0 ? (
+                        <div className="text-xs text-gray-400 px-3 py-2">Nenhum usuário disponível</div>
+                      ) : (
+                        filteredUsers.map(u => (
+                          <SelectItem key={u.email} value={u.email}>
+                            {u.full_name || u.email}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                 )}
               </div>
             </Field>
