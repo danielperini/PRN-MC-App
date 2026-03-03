@@ -54,25 +54,37 @@ function AuthenticatedHome({ user }) {
 
   const { data: allReports = [] } = useQuery({
     queryKey: ['home-all-reports'],
-    queryFn: () => base44.entities.Report.list('-updated_date', 500),
+    queryFn: async () => {
+      const data = await base44.entities.Report.list('-updated_date', 500);
+      return Array.isArray(data) ? data : [];
+    },
     enabled: !!user,
   });
 
   const { data: allActivities = [] } = useQuery({
     queryKey: ['home-all-activities'],
-    queryFn: () => base44.entities.Activity.list('-created_date', 1000),
+    queryFn: async () => {
+      const data = await base44.entities.Activity.list('-created_date', 1000);
+      return Array.isArray(data) ? data : [];
+    },
     enabled: !!user,
   });
 
   const { data: pendingRegs = [] } = useQuery({
     queryKey: ['home-pending-regs'],
-    queryFn: () => base44.entities.UserRegistration.filter({ status: 'PENDENTE' }),
+    queryFn: async () => {
+      const data = await base44.entities.UserRegistration.filter({ status: 'PENDENTE' });
+      return Array.isArray(data) ? data : [];
+    },
     enabled: !!user && isCoordenador,
   });
 
   const { data: attachments = [] } = useQuery({
     queryKey: ['home-attachments'],
-    queryFn: () => base44.entities.Attachment.list('-created_date', 50),
+    queryFn: async () => {
+      const data = await base44.entities.Attachment.list('-created_date', 50);
+      return Array.isArray(data) ? data : [];
+    },
     enabled: !!user,
   });
 
