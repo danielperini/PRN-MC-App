@@ -5,10 +5,11 @@ import { useCurrentUser } from '../components/auth/useCurrentUser';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import MetadadosManager from '../components/admin/MetadadosManager';
 import {
   Users, FileText, History, Settings, ShieldCheck,
   CheckCircle, XCircle, Pencil, Trash2, ChevronRight,
-  TrendingUp, Clock, UserCheck, AlertTriangle, Download
+  TrendingUp, Clock, UserCheck, AlertTriangle, Download, Database
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
