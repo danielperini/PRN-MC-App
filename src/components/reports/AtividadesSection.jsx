@@ -63,6 +63,8 @@ const EMPTY_ATIVIDADE = {
   tipo_acao: '',
   nome: '',
   publico_estimado: '',
+  quantas_repeticoes: 1,
+  publico_total: '',
   produto_realizado: '',
   quantidade_produto: '',
   objetivo: '',
@@ -547,8 +549,19 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Público estimado">
+            <Field label="Público estimado (por ocorrência)">
               <Input type="number" placeholder="0" value={atividade.publico_estimado || ''} onChange={e => onChange('publico_estimado', e.target.value)} disabled={!canEdit} />
+            </Field>
+            <Field label="Quantas vezes se repetiu?">
+              <Input type="number" placeholder="1" value={atividade.quantas_repeticoes || 1} onChange={e => {
+                const repeticoes = parseInt(e.target.value) || 1;
+                onChange('quantas_repeticoes', repeticoes);
+                const publico = (parseInt(atividade.publico_estimado) || 0) * repeticoes;
+                onChange('publico_total', publico);
+              }} disabled={!canEdit} />
+            </Field>
+            <Field label="Público total (calculado)">
+              <Input type="number" placeholder="0" value={atividade.publico_total || (parseInt(atividade.publico_estimado || 0) * parseInt(atividade.quantas_repeticoes || 1))} disabled={true} className="bg-gray-100 text-gray-600" />
             </Field>
             <Field label="Produto realizado">
               <Select value={atividade.produto_realizado || ''} onValueChange={v => onChange('produto_realizado', v)} disabled={!canEdit}>
@@ -558,8 +571,8 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Quantidade do produto">
-              <Input type="number" placeholder="0" value={atividade.quantidade_produto || ''} onChange={e => onChange('quantidade_produto', e.target.value)} disabled={!canEdit} />
+            <Field label="Quantidade de produtos gerados">
+              <Input type="number" placeholder="Ex: 10 posts, 5 oficinas" value={atividade.quantidade_produto || ''} onChange={e => onChange('quantidade_produto', e.target.value)} disabled={!canEdit} />
             </Field>
           </div>
 
