@@ -711,7 +711,7 @@ function UserManagementInner() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {reviewingReg?.action === 'aprovar' ? 'Aprovar solicitação' : 'Rejeitar solicitação'}
+              {reviewingReg?.action === 'aprovar' ? 'Aprovar solicitação' : reviewingReg?.action === 'convidar' ? 'Enviar convite' : 'Rejeitar solicitação'}
             </DialogTitle>
           </DialogHeader>
           {reviewingReg && (
