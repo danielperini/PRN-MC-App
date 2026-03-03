@@ -101,6 +101,7 @@ const EMPTY_ATIVIDADE = {
   tipo_mobilizacao: '',
   descricao_mobilizacao: '',
   clipping_automatico: null,
+  is_template: false,
 };
 
 export function validateAtividade(ativ) {
