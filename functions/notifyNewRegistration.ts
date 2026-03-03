@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 Deno.serve(async (req) => {
   try {
@@ -20,30 +20,38 @@ Deno.serve(async (req) => {
 
     // Send notification to each coordinator
     for (const coordinator of coordinators) {
-      // Send email notification
-      await base44.integrations.Core.SendEmail({
-        to: coordinator.email,
-        subject: `Nova solicitação de cadastro: ${registration.full_name}`,
-        body: `Olá ${coordinator.full_name},\n\nUma nova solicitação de cadastro foi recebida:\n\n` +
-          `Nome: ${registration.full_name}\n` +
-          `Email: ${registration.email}\n` +
-          `Função: ${registration.funcao}\n` +
-          `Museu: ${registration.museu}\n` +
-          `Equipe: ${registration.equipe || 'Não informada'}\n` +
-          `Mensagem: ${registration.mensagem || 'Sem mensagem'}\n\n` +
-          `Por favor, acesse o painel de administração para revisar e aprovar/rejeitar esta solicitação.\n\n` +
-          `Atenciosamente,\nSistema de Gestão de Museus`
-      });
+      try {
+        // Send email notification
+        await base44.integrations.Core.SendEmail({
+          to: coordinator.email,
+          subject: `Nova solicitação de cadastro: ${registration.full_name}`,
+          body: `Olá ${coordinator.full_name || 'Coordenador'},\n\nUma nova solicitação de cadastro foi recebida:\n\n` +
+            `Nome: ${registration.full_name}\n` +
+            `Email: ${registration.email}\n` +
+            `Função: ${registration.funcao}\n` +
+            `Museu: ${registration.museu}\n` +
+            `Equipe: ${registration.equipe || 'Não informada'}\n` +
+            `Mensagem: ${registration.mensagem || 'Sem mensagem'}\n\n` +
+            `Por favor, acesse o painel de administração para revisar e aprovar/rejeitar esta solicitação.\n\n` +
+            `Atenciosamente,\nSistema de Gestão de Museus`
+        });
+      } catch (emailError) {
+        console.warn(`Erro ao enviar email para ${coordinator.email}:`, emailError.message);
+      }
 
       // Create in-app notification
-      await base44.asServiceRole.entities.Notification.create({
-        user_email: coordinator.email,
-        type: 'USER_NEEDS_ATTENTION',
-        title: `Nova solicitação de cadastro: ${registration.full_name}`,
-        message: `${registration.full_name} (${registration.email}) solicitou acesso como ${registration.funcao}`,
-        action_url: '/admin/usuarios',
-        email_sent: true
-      });
+      try {
+        await base44.asServiceRole.entities.Notification.create({
+          user_email: coordinator.email,
+          type: 'REPORT_NEEDS_ATTENTION',
+          title: `Nova solicitação de cadastro: ${registration.full_name}`,
+          message: `${registration.full_name} (${registration.email}) solicitou acesso como ${registration.funcao}`,
+          action_url: '/UserManagement',
+          email_sent: true
+        });
+      } catch (notifError) {
+        console.warn(`Erro ao criar notificação para ${coordinator.email}:`, notifError.message);
+      }
     }
 
     return Response.json({ success: true, notifiedCoordinators: coordinators.length });
