@@ -26,6 +26,14 @@ Deno.serve(async (req) => {
       user_email: danialEmail,
       user_name: user.full_name || 'Daniel Perini',
       base_role: 'COORDENADOR',
+      can_view_all_reports: true,
+      can_review_reports: true,
+      can_manage_users: true,
+      can_manage_files: true,
+      can_manage_museus: true,
+      can_manage_equipes: true,
+      can_view_audit_log: true,
+      can_manage_platform: true,
     };
 
     // Adicionar todas as permissões customizadas
