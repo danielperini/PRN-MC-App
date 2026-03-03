@@ -51,6 +51,7 @@ const ROLE_COLORS = {
   COORD_PRODUCAO: 'bg-purple-100 text-purple-700',
   COORD_ADMINISTRATIVA: 'bg-orange-100 text-orange-700',
   COORD_COMUNICACAO: 'bg-cyan-100 text-cyan-700',
+  CONSULTORIA_PROGRAMACAO: 'bg-teal-100 text-teal-700',
   PROFISSIONAL: 'bg-gray-100 text-gray-700',
   ADMIN: 'bg-blue-100 text-blue-700',
 };
