@@ -121,27 +121,46 @@ function GestorArquivosInner() {
   const isComunicacao = currentUser?.role === 'COORD_COMUNICACAO';
 
   // Filter attachments based on user role and filters
-   const visible = attachments.filter(att => {
-     const report = reportMap[att.report_id];
-     // skip orphan attachments for non-coordinators
-     if (!report) return isCoordenador;
-     // professionals only see their own
-     if (!isCoordenador && report?.created_by !== currentUser?.email) return false;
-     // museu filter
-     if (filterMuseu !== 'all' && report?.museu !== filterMuseu) return false;
-     // mes filter
-     if (filterMes !== 'all' && report?.mes_referencia !== filterMes) return false;
-     // search
-     if (search) {
-       const q = search.toLowerCase();
-       if (
-         !att.file_name?.toLowerCase().includes(q) &&
-         !report?.author_name?.toLowerCase().includes(q) &&
-         !report?.museu?.toLowerCase().includes(q)
-       ) return false;
-     }
-     return true;
-   });
+    const visible = attachments.filter(att => {
+      const report = reportMap[att.report_id];
+      // skip orphan attachments for non-coordinators
+      if (!report) return isCoordenador;
+      // professionals only see their own
+      if (!isCoordenador && report?.created_by !== currentUser?.email) return false;
+      // museu filter
+      if (filterMuseu !== 'all' && report?.museu !== filterMuseu) return false;
+      // mes filter
+      if (filterMes !== 'all' && report?.mes_referencia !== filterMes) return false;
+      // type filter
+      if (filterType !== 'all') {
+        const isImage = att.file_type?.startsWith('image/');
+        const isVideo = att.file_type?.startsWith('video/');
+        const isPDF = att.file_type?.includes('pdf');
+        const isZip = att.file_type?.includes('zip') || att.file_type?.includes('rar');
+        if (filterType === 'image' && !isImage) return false;
+        if (filterType === 'video' && !isVideo) return false;
+        if (filterType === 'pdf' && !isPDF) return false;
+        if (filterType === 'archive' && !isZip) return false;
+      }
+      // date range filter
+      if (filterStartDate || filterEndDate) {
+        const attDate = new Date(att.created_date);
+        if (filterStartDate && attDate < new Date(filterStartDate)) return false;
+        if (filterEndDate && attDate > new Date(filterEndDate)) return false;
+      }
+      // report filter
+      if (filterReport !== 'all' && att.report_id !== filterReport) return false;
+      // search
+      if (search) {
+        const q = search.toLowerCase();
+        if (
+          !att.file_name?.toLowerCase().includes(q) &&
+          !report?.author_name?.toLowerCase().includes(q) &&
+          !report?.museu?.toLowerCase().includes(q)
+        ) return false;
+      }
+      return true;
+    });
 
   const isLoading = loadingReports || loadingAttachments;
 
