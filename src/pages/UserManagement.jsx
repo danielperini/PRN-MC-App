@@ -77,6 +77,9 @@ function UserManagementInner() {
    const [showCreateDirect, setShowCreateDirect] = useState(false);
    const [directForm, setDirectForm] = useState({ email: '', password: '', full_name: '', role: 'PROFISSIONAL' });
    const [passwordConfirm, setPasswordConfirm] = useState('');
+   const [editPasswordUser, setEditPasswordUser] = useState(null);
+   const [newPassword, setNewPassword] = useState('');
+   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
 
    React.useEffect(() => {
      const loadUser = async () => {
