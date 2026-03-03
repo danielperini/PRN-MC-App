@@ -97,8 +97,24 @@ export default function AssistantChat() {
   return (
     <div className={`fixed bottom-6 right-6 ${minimized ? 'w-80 h-16' : 'w-96 h-96'} bg-white border border-gray-200 rounded-xl shadow-xl flex flex-col z-40 transition-all duration-200`}>
       {/* Header */}
-      <div className="flex items-center justify-between h-16 px-4 border-b border-gray-100 bg-gray-50 rounded-t-xl flex-shrink-0">
-        <h3 className="font-semibold text-black text-sm">Assistente de Ajuda</h3>
+       <div className="flex items-center justify-between h-16 px-4 border-b border-gray-100 bg-gray-50 rounded-t-xl flex-shrink-0">
+         <div className="flex items-center gap-2">
+           <h3 className="font-semibold text-black text-sm">Assistente de Ajuda</h3>
+           <TooltipProvider>
+             <Tooltip>
+               <TooltipTrigger asChild>
+                 <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+               </TooltipTrigger>
+               <TooltipContent side="bottom" className="max-w-xs text-xs bg-gray-900 text-white border-0">
+                 <div className="space-y-1.5">
+                   <p className="font-semibold">Ajuda sobre Plano de Trabalho</p>
+                   <p>O plano de trabalho anual define as metas e atividades esperadas para cada período. Consulte seu coordenador para detalhes específicos do seu museu.</p>
+                   <p className="text-gray-300 text-[10px] pt-1">Dica: use "Qual é o plano de trabalho?" para mais informações</p>
+                 </div>
+               </TooltipContent>
+             </Tooltip>
+           </TooltipProvider>
+         </div>
         <div className="flex gap-1">
           <Button
             variant="ghost"
