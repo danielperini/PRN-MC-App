@@ -10,6 +10,7 @@ import {
   Send, Eye, Archive, ChevronRight, Download, X, Search, SlidersHorizontal, Paperclip, Trash2
 } from 'lucide-react';
 import BatchPDFExport from '../components/reports/BatchPDFExport';
+import AdvancedActivitySearch from '../components/reports/AdvancedActivitySearch';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -73,6 +74,7 @@ function RelatoriosInner() {
   const [filters, setFilters] = useState({ mes: '', museu: '', equipe: '', status: '', classificacao: '' });
   const [showFilters, setShowFilters] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [filteredActivities, setFilteredActivities] = useState([]);
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Report.delete(id),
@@ -106,8 +108,25 @@ function RelatoriosInner() {
     staleTime: 30_000,
   });
 
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ['all-users'],
+    queryFn: () => base44.entities.User.list(),
+    staleTime: 60_000,
+  });
+
   const isLoading = isCoordenador ? loadingAll : loadingMy;
   const baseReports = isCoordenador ? allReports : myReports;
+
+  // Flatten all activities from reports for advanced search
+  const allActivities = baseReports.flatMap(report => 
+    (report.atividades || []).map(activity => ({
+      ...activity,
+      report_id: report.id,
+      author_name: report.author_name,
+      mes_referencia: report.mes_referencia,
+      ano: report.ano
+    }))
+  );
 
   const filtered = baseReports.filter(r => {
     if (filters.mes && r.mes_referencia !== filters.mes) return false;
