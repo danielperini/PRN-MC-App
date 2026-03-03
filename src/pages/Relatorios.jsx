@@ -270,6 +270,11 @@ function RelatoriosInner() {
            )}
          </div>
 
+         {/* Compliance Panel (only for coordinators) */}
+         {isCoordenador && (
+           <CompliancePanel allReports={allReports} allUsers={allUsers} />
+         )}
+
          {/* Activity Filters & Summary */}
           <div className="mb-8 space-y-4">
             <ActivityFilters 
