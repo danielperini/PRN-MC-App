@@ -19,6 +19,13 @@ import { toast } from 'sonner';
 
 const EQUIPES = ['Comunicação', 'Coordenação', 'Administração', 'Educativo', 'Produção'];
 
+const gerarMatricula = async () => {
+  const ano = new Date().getFullYear();
+  const allUsers = await base44.entities.User.list('-created_date', 9999);
+  const seq = String(allUsers.length + 1).padStart(8, '0');
+  return `MCA${ano}${seq}`;
+};
+
 const ROLE_LABELS = {
   COORDENADOR: 'Coordenação Geral',
   PROFISSIONAL: 'Profissional',
