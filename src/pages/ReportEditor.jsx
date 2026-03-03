@@ -133,6 +133,15 @@ function ReportEditorInner() {
     return `MC-${mesAbrev}${ano}-${seq}`;
   };
 
+  const handleSaveDraft = () => {
+    setShowSaveAlert(true);
+  };
+
+  const proceedWithSave = () => {
+    setShowSaveAlert(false);
+    saveMutation.mutate(formData);
+  };
+
   const saveMutation = useMutation({
     mutationFn: async data => {
       // Strip internal fields that should not be sent to the API
