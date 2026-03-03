@@ -218,17 +218,6 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     return <div className="text-center py-20 text-gray-400">Carregando dashboard...</div>;
   }
 
-  const temFiltrosAtivos = filterDataInicio || filterDataFim || filterMuseu || filterClasse || filterTipoAtiv;
-
-  const limparFiltros = () => {
-    setFilterDataInicio('');
-    setFilterDataFim('');
-    setFilterMuseu('');
-    setFilterClasse('');
-    setFilterTipoAtiv('');
-    setFilterShowMore(false);
-  };
-
   return (
     <div className="space-y-8">
       {/* Painel de Aprovações Pendentes */}
