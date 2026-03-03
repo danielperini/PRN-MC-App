@@ -253,7 +253,10 @@ function ReportEditorInner() {
 
           <div className="flex gap-2 flex-wrap">
             {reportId && (
-              <ExportPDF report={formData} reportId={reportId} />
+              <>
+                <ReportGenerator reportId={reportId} report={formData} />
+                <ExportPDF report={formData} reportId={reportId} />
+              </>
             )}
             {canEdit && (
               <>
