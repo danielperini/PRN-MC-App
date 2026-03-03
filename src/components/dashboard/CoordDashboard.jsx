@@ -218,7 +218,9 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     return Array.from(set).sort();
   }, [allAtivRaw]);
 
-  const temFiltrosAtivos = filterDataInicio || filterDataFim || filterMuseu || filterClasse || filterTipoAtiv;
+  const temFiltrosAtivos = useMemo(() => {
+    return filterDataInicio || filterDataFim || filterMuseu || filterClasse || filterTipoAtiv;
+  }, [filterDataInicio, filterDataFim, filterMuseu, filterClasse, filterTipoAtiv]);
 
   const limparFiltros = () => {
     setFilterDataInicio('');
@@ -278,16 +280,18 @@ export default function CoordDashboard({ reports = [], isLoading }) {
                </SelectContent>
              </Select>
            </div>
-           <div className={`space-y-1 ${!filterShowMore ? 'hidden' : ''}`}>
-             <label className="text-xs font-medium text-gray-600">Tipo de Atividade</label>
-             <Select value={filterTipoAtiv} onValueChange={setFilterTipoAtiv}>
-               <SelectTrigger className="text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
-               <SelectContent>
-                 <SelectItem value={null}>Todos</SelectItem>
-                 {tiposUnicos.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-               </SelectContent>
-             </Select>
-           </div>
+           {filterShowMore && (
+             <div className="space-y-1">
+               <label className="text-xs font-medium text-gray-600">Tipo de Atividade</label>
+               <Select value={filterTipoAtiv} onValueChange={setFilterTipoAtiv}>
+                 <SelectTrigger className="text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value={null}>Todos</SelectItem>
+                   {tiposUnicos.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                 </SelectContent>
+               </Select>
+             </div>
+           )}
          </div>
 
         {!filterShowMore && tiposUnicos.length > 0 && (
