@@ -36,7 +36,28 @@ export default function AssistantChat() {
     enabled: open,
   });
 
-  const handleSend = async () => {
+  const suggestedQuestions = [
+    'Como preencher o resumo executivo?',
+    'Qual é o plano de trabalho para este período?',
+    'Como classificar minhas atividades?',
+    'Dúvidas sobre aprovação de relatórios?'
+  ];
+
+  const handleSuggestedQuestion = (question) => {
+    setInput(question);
+    setTimeout(() => {
+      const fakeEvent = { key: 'Enter' };
+      handleSend(question);
+    }, 0);
+  };
+
+  const handleSend = async (questionText = null) => {
+    const textToSend = questionText || input;
+    if (!textToSend.trim()) return;
+
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
+    setLoading(true);
     if (!input.trim()) return;
 
     const userMessage = input;
