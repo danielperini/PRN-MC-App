@@ -268,7 +268,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
            </div>
            <div className="space-y-1">
              <label className="text-xs font-medium text-gray-600">Classificação</label>
-             <Select value={filterClasse} onValueChange={setFilterClasse}>
+             <Select value={filterClasse || ''} onValueChange={v => setFilterClasse(v || '')}>
                <SelectTrigger className="text-sm"><SelectValue placeholder="Todas" /></SelectTrigger>
                <SelectContent>
                  <SelectItem value={null}>Todas</SelectItem>
