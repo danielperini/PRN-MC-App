@@ -281,7 +281,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
            {filterShowMore && (
              <div className="space-y-1">
                <label className="text-xs font-medium text-gray-600">Tipo de Atividade</label>
-               <Select value={filterTipoAtiv} onValueChange={setFilterTipoAtiv}>
+               <Select value={filterTipoAtiv || ''} onValueChange={v => setFilterTipoAtiv(v || '')}>
                  <SelectTrigger className="text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
                  <SelectContent>
                    <SelectItem value={null}>Todos</SelectItem>
