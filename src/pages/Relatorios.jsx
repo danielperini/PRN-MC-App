@@ -134,16 +134,21 @@ function RelatoriosInner() {
   const baseReports = isCoordenador ? allReports : myReports;
 
   // Flatten all activities from reports for advanced search
-  const allActivities = baseReports.flatMap(report => 
-    (report.atividades || []).map(activity => ({
-      ...activity,
-      report_id: report.id,
-      author_name: report.author_name,
-      mes_referencia: report.mes_referencia,
-      ano: report.ano,
-      museu: report.museu
-    }))
-  );
+   const allActivities = baseReports.flatMap(report => {
+     if (!report || !report.id) return [];
+     const atividades = Array.isArray(report.atividades) ? report.atividades : [];
+     return atividades.map(activity => {
+       if (!activity) return null;
+       return {
+         ...activity,
+         report_id: report.id,
+         author_name: report.author_name || '',
+         mes_referencia: report.mes_referencia || '',
+         ano: report.ano || '',
+         museu: report.museu || ''
+       };
+     }).filter(Boolean);
+   });
 
   // Apply activity filters
   const filteredActivityList = allActivities.filter(activity => {
