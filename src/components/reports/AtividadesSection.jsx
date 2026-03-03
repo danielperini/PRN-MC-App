@@ -361,7 +361,12 @@ Escreva em português do Brasil, de forma objetiva e profissional.`;
               <Input type="number" placeholder="0" value={atividade.publico_estimado || ''} onChange={e => onChange('publico_estimado', e.target.value)} disabled={!canEdit} />
             </Field>
             <Field label="Produto realizado">
-              <Input placeholder="Ex: Vídeo, Folder, Oficina..." value={atividade.produto_realizado || ''} onChange={e => onChange('produto_realizado', e.target.value)} disabled={!canEdit} />
+              <Select value={atividade.produto_realizado || ''} onValueChange={v => onChange('produto_realizado', v)} disabled={!canEdit}>
+                <SelectTrigger><SelectValue placeholder="Selecione o produto" /></SelectTrigger>
+                <SelectContent>
+                  {PRODUTOS_OPCOES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </Field>
             <Field label="Quantidade do produto">
               <Input type="number" placeholder="0" value={atividade.quantidade_produto || ''} onChange={e => onChange('quantidade_produto', e.target.value)} disabled={!canEdit} />
