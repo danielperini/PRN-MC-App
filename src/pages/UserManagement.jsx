@@ -244,6 +244,55 @@ function UserManagementInner() {
 
   const isPending = inviteMutation.isPending || updateMutation.isPending;
 
+  const getReportStatus = (userEmail) => {
+    const currentDate = new Date();
+    const currentMonth = currentDate.toLocaleString('pt-BR', { month: 'long' }).charAt(0).toUpperCase() + currentDate.toLocaleString('pt-BR', { month: 'long' }).slice(1);
+    const currentYear = currentDate.getFullYear();
+    const prevMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+    const prevMonthName = prevMonth.toLocaleString('pt-BR', { month: 'long' }).charAt(0).toUpperCase() + prevMonth.toLocaleString('pt-BR', { month: 'long' }).slice(1);
+    const prevYear = prevMonth.getFullYear();
+
+    // Verifica se o usuário é obrigado (PROFISSIONAL)
+    const user = users.find(u => u.email === userEmail);
+    if (!user || user.role !== 'PROFISSIONAL') {
+      return { status: 'nao_obrigado', label: 'Não obrigado', color: 'bg-gray-100 text-gray-700' };
+    }
+
+    // Verifica se está desobrigado neste mês
+    const isExempted = allExemptions.some(e => 
+      e.user_email === userEmail && 
+      e.mes_referencia === prevMonthName && 
+      e.ano === prevYear
+    );
+    if (isExempted) {
+      return { status: 'desobrigado', label: 'Desobrigado', color: 'bg-purple-100 text-purple-700' };
+    }
+
+    // Procura relatório do mês anterior
+    const report = allReports.find(r => 
+      r.created_by === userEmail && 
+      r.mes_referencia === prevMonthName && 
+      r.ano === prevYear
+    );
+
+    if (!report) {
+      // Verifica prazo (10º dia do mês atual)
+      const deadline = new Date(currentDate.getFullYear(), currentDate.getMonth(), 10);
+      if (currentDate > deadline) {
+        return { status: 'atrasado', label: 'Atrasado', color: 'bg-red-100 text-red-700' };
+      }
+      return { status: 'pendente', label: 'Pendente', color: 'bg-amber-100 text-amber-700' };
+    }
+
+    if (report.status === 'APPROVED' || report.status === 'ARCHIVED') {
+      return { status: 'aprovado', label: 'Aprovado', color: 'bg-green-100 text-green-700' };
+    }
+    if (report.status === 'SUBMITTED' || report.status === 'IN_REVIEW') {
+      return { status: 'enviado', label: 'Enviado', color: 'bg-blue-100 text-blue-700' };
+    }
+    return { status: 'rascunho', label: 'Rascunho', color: 'bg-gray-100 text-gray-700' };
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-5xl mx-auto px-6 py-10">
