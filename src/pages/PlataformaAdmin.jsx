@@ -6,10 +6,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import MetadadosManager from '../components/admin/MetadadosManager';
+import MuseuManager from '../components/admin/MuseuManager';
+import EquipeManager from '../components/admin/EquipeManager';
 import {
   Users, FileText, History, Settings, ShieldCheck,
   CheckCircle, XCircle, Pencil, Trash2, ChevronRight,
-  TrendingUp, Clock, UserCheck, AlertTriangle, Download, Database
+  TrendingUp, Clock, UserCheck, AlertTriangle, Download, Database, Building2, Users2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
