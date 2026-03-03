@@ -277,12 +277,33 @@ function UserManagementInner() {
     setShowDialog(true);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.email && !editingUser) {
       toast.error('Informe o email'); return;
     }
     if (editingUser) {
-      updateMutation.mutate({ id: editingUser.id, data: { role: formData.role, equipe: formData.equipe } });
+      // Se está editando e tem permissões customizadas, atualizar também
+      if (editingUserPerm) {
+        const permData = {
+          user_email: editingUserPerm.user_email,
+          user_name: editingUser.full_name,
+          base_role: formData.role,
+          must_submit_monthly_report: permissionsForm.must_submit_monthly_report,
+          can_view_all_reports: permissionsForm.can_view_all_reports,
+          can_review_reports: permissionsForm.can_review_reports,
+          can_manage_users: permissionsForm.can_manage_users,
+        };
+
+        if (editingUserPerm.id) {
+          // Update existing permission
+          await base44.asServiceRole.entities.UserPermission.update(editingUserPerm.id, permData);
+        } else {
+          // Create new permission
+          await base44.asServiceRole.entities.UserPermission.create(permData);
+        }
+        queryClient.invalidateQueries(['user-permissions']);
+      }
+      updateMutation.mutate({ id: editingUser.id, data: { role: formData.role, equipe: formData.equipe, email: editingUser.email } });
     } else {
       inviteMutation.mutate(formData);
     }
