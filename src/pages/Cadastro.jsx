@@ -27,7 +27,10 @@ export default function Cadastro() {
       }
       return base44.entities.UserRegistration.create({ ...form, status: 'PENDENTE' });
     },
-    onSuccess: () => setDone(true),
+    onSuccess: () => {
+      toast.success('Solicitação enviada com sucesso! Aguarde a análise de um coordenador.');
+      setDone(true);
+    },
     onError: (e) => toast.error(e.message || 'Erro ao enviar solicitação. Tente novamente.'),
   });
 
