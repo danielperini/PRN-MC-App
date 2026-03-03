@@ -30,26 +30,28 @@ function formatBytes(bytes) {
  * Gerencia anexos vinculados a uma atividade específica dentro de um relatório.
  * Props:
  *  - reportId: string (obrigatório)
- *  - activityIndex: number (índice da atividade, usado como chave virtual já que atividades são embutidas no relatório)
- *  - activityId: string (opcional, para quando a atividade tiver ID próprio)
+ *  - activityIndex: number (índice da atividade)
+ *  - activityId: string (ID único da atividade para renomeação de arquivos)
+ *  - activityName: string (nome da atividade para organização)
  *  - canEdit: boolean
  */
-export default function ActivityAttachments({ reportId, activityIndex, activityId, canEdit }) {
+export default function ActivityAttachments({ reportId, activityIndex, activityId, activityName = 'Atividade', canEdit }) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
 
-  // Query key única por relatório + índice de atividade
-  const qKey = ['act-attachments', reportId, activityIndex];
+  // Query key única por relatório + atividade
+  const qKey = ['act-attachments', reportId, activityId || activityIndex];
 
   const { data: attachments = [], isLoading } = useQuery({
     queryKey: qKey,
     queryFn: async () => {
-      // Busca todos os anexos do relatório e filtra pelo activity_index salvo no file_name prefix
-      // Como atividades são arrays embutidos, usamos um prefixo especial no campo activity_id
+      // Busca todos os anexos do relatório e filtra pela atividade
       const all = await base44.entities.Attachment.filter({ report_id: reportId }, '-created_date');
-      // Filtra somente os que pertencem a este índice de atividade
-      return all.filter(a => a.activity_id === `activity_${activityIndex}`);
+      // Filtra por activity_id ou activity_index (compatibilidade)
+      return all.filter(a => 
+        a.activity_id === activityId || a.activity_id === `activity_${activityIndex}`
+      );
     },
     enabled: !!reportId,
   });
@@ -83,13 +85,20 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
     try {
       for (const file of fileList) {
         const { file_url } = await base44.integrations.Core.UploadFile({ file });
+        
+        // Renomear arquivo com ID da atividade e número sequencial
+        const fileExt = file.name.split('.').pop();
+        const timestamp = new Date().getTime();
+        const renamedFileName = `${activityId || `activity_${activityIndex}`}__${activityName.substring(0, 20).replace(/\s+/g, '_')}__${timestamp}.${fileExt}`;
+        
         await base44.entities.Attachment.create({
           report_id: reportId,
-          activity_id: `activity_${activityIndex}`,  // vínculo com a atividade
-          file_name: file.name,
+          activity_id: activityId || `activity_${activityIndex}`,  // vínculo com a atividade
+          file_name: renamedFileName,  // nome organizado e padronizado
           file_type: file.type || 'application/octet-stream',
           file_size: file.size,
           file_url,
+          description: file.name,  // guardar nome original como descrição
         });
       }
       queryClient.invalidateQueries(qKey);
@@ -156,10 +165,15 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
           {attachments.map(att => {
             const Icon = getFileIcon(att.file_type);
             return (
-              <div key={att.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg group">
+              <div key={att.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors">
                 <Icon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                <span className="flex-1 text-xs text-black truncate">{att.file_name}</span>
-                <span className="text-xs text-gray-400 flex-shrink-0">{formatBytes(att.file_size)}</span>
+                <div className="flex-1">
+                  <div className="text-xs text-black truncate" title={att.file_name}>{att.file_name}</div>
+                  {att.description && (
+                    <div className="text-xs text-gray-400 truncate">{att.description}</div>
+                  )}
+                </div>
+                <span className="text-xs text-gray-400 flex-shrink-0 whitespace-nowrap">{formatBytes(att.file_size)}</span>
                 <a href={att.file_url} target="_blank" rel="noopener noreferrer">
                   <Button variant="ghost" size="icon" className="h-6 w-6">
                     <ExternalLink className="w-3 h-3 text-gray-400" />
