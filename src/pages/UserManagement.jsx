@@ -720,7 +720,7 @@ function UserManagementInner() {
                 <p><strong>{reviewingReg.full_name}</strong> — {reviewingReg.email}</p>
                 <p className="text-gray-500">{reviewingReg.funcao} · {reviewingReg.museu}{reviewingReg.equipe ? ` · ${reviewingReg.equipe}` : ''}</p>
               </div>
-              {reviewingReg.action === 'aprovar' && (
+              {(reviewingReg.action === 'aprovar' || reviewingReg.action === 'convidar') && (
                 <div className="space-y-3">
                   <div>
                     <Label>Cargo <span className="text-red-500">*</span></Label>
