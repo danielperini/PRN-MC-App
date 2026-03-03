@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
-const PERMISSIONS = [
+const DEFAULT_PERMISSIONS = [
   { key: 'can_view_all_reports', label: 'Visualizar todos os relatórios' },
   { key: 'can_review_reports', label: 'Revisar e aprovar relatórios' },
   { key: 'can_manage_users', label: 'Gerenciar usuários' },
@@ -38,6 +38,21 @@ function PermissionManagerInner() {
     queryKey: ['user-permissions'],
     queryFn: () => base44.entities.UserPermission.list('-created_date', 1000),
   });
+
+  const { data: permissionTypes = [] } = useQuery({
+    queryKey: ['permission-types'],
+    queryFn: async () => {
+      try {
+        return await base44.entities.PermissionType.list('', 1000);
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const PERMISSIONS = permissionTypes.length > 0
+    ? permissionTypes.filter(t => t.ativo).map(t => ({ key: t.key, label: t.label }))
+    : DEFAULT_PERMISSIONS;
 
   const createPermMutation = useMutation({
     mutationFn: (data) => base44.entities.UserPermission.create(data),
