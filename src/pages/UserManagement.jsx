@@ -260,6 +260,7 @@ function UserManagementInner() {
       role: user.role || 'PROFISSIONAL',
       equipe: user.equipe || '',
     });
+    setShowPermissions(user);
     setShowDialog(true);
   };
 
