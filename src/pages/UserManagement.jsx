@@ -61,16 +61,25 @@ const EMPTY_FORM = { email: '', role: 'PROFISSIONAL', equipe: '' };
 const CADASTRO_URL = `${window.location.origin}/app/${window.location.pathname.split('/')[2] || ''}/Cadastro`;
 
 function UserManagementInner() {
-  const queryClient = useQueryClient();
-  const [showDialog, setShowDialog] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [formData, setFormData] = useState(EMPTY_FORM);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [reviewingReg, setReviewingReg] = useState(null);
-  const [regNote, setRegNote] = useState('');
-  const [regRole, setRegRole] = useState('PROFISSIONAL');
-  const [copied, setCopied] = useState(false);
-  const [showInviteLink, setShowInviteLink] = useState(false);
+   const queryClient = useQueryClient();
+   const [showDialog, setShowDialog] = useState(false);
+   const [editingUser, setEditingUser] = useState(null);
+   const [formData, setFormData] = useState(EMPTY_FORM);
+   const [deleteTarget, setDeleteTarget] = useState(null);
+   const [reviewingReg, setReviewingReg] = useState(null);
+   const [regNote, setRegNote] = useState('');
+   const [regRole, setRegRole] = useState('PROFISSIONAL');
+   const [copied, setCopied] = useState(false);
+   const [showInviteLink, setShowInviteLink] = useState(false);
+   const [currentUser, setCurrentUser] = useState(null);
+
+   React.useEffect(() => {
+     const loadUser = async () => {
+       const user = await base44.auth.me();
+       setCurrentUser(user);
+     };
+     loadUser();
+   }, []);
 
   const cadastroUrl = (() => {
     const parts = window.location.pathname.split('/');
