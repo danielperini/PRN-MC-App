@@ -548,11 +548,9 @@ function UserManagementInner() {
                             </Button>
                           </>
                         )}
-                        {approvalStatus !== 'PENDENTE' && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(user)}>
-                            <Pencil className="w-4 h-4 text-gray-500" />
-                          </Button>
-                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(user)}>
+                          <Pencil className="w-4 h-4 text-gray-500" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteTarget(user)}>
                           <Trash2 className="w-4 h-4 text-red-400" />
                         </Button>
