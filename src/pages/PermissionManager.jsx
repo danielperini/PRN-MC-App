@@ -245,22 +245,30 @@ function PermissionManagerInner() {
                   </div>
                 </div>
 
-                {/* Permissions Grid */}
+                {/* Permissions Dropdown */}
                 {!perm.isNew && (
-                  <div className="grid md:grid-cols-2 gap-3">
-                    {PERMISSIONS.map(p => (
-                      <div key={p.key} className="flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={perm[p.key]}
-                          disabled
-                          className="pointer-events-none"
-                        />
-                        <span className={perm[p.key] ? 'text-gray-700' : 'text-gray-400'}>
-                          {p.label}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  <Collapsible>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between">
+                        <span>Permissões ({PERMISSIONS.filter(p => perm[p.key]).length})</span>
+                        <ChevronDown className="w-4 h-4" />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-3 space-y-2 p-4 bg-gray-50 rounded-lg">
+                      {PERMISSIONS.map(p => (
+                        <div key={p.key} className="flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={perm[p.key]}
+                            disabled
+                            className="pointer-events-none"
+                          />
+                          <span className={perm[p.key] ? 'text-gray-700' : 'text-gray-400'}>
+                            {p.label}
+                          </span>
+                        </div>
+                      ))}
+                    </CollapsibleContent>
+                  </Collapsible>
                 )}
               </div>
             ))
