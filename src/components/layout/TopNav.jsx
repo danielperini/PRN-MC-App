@@ -9,7 +9,7 @@ import GlobalSearch from './GlobalSearch';
 
 export default function TopNav({ userEmail, userName, userRole }) {
   return (
-    <nav className="h-16 border-b border-gray-200 bg-white flex items-center justify-between px-6 sticky top-0 z-30">
+    <nav className="h-16 border-b border-gray-300 bg-white flex items-center justify-between px-6 sticky top-0 z-30">
       {/* Search */}
       <div className="flex-1 max-w-md">
         <GlobalSearch />
@@ -20,8 +20,8 @@ export default function TopNav({ userEmail, userName, userRole }) {
         {userEmail && <NotificationPanel userEmail={userEmail} />}
         
         <Link to={createPageUrl('Perfil')}>
-          <Button variant="ghost" size="icon" className="text-gray-500">
-            <UserCircle className="w-4 h-4" />
+          <Button variant="ghost" size="icon" className="text-black hover:bg-gray-100 h-11 w-11">
+            <UserCircle className="w-5 h-5" />
           </Button>
         </Link>
 
@@ -29,9 +29,9 @@ export default function TopNav({ userEmail, userName, userRole }) {
           variant="ghost"
           size="icon"
           onClick={() => base44.auth.logout()}
-          className="text-gray-500"
+          className="text-black hover:bg-gray-100 h-11 w-11"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-5 h-5" />
         </Button>
       </div>
     </nav>
