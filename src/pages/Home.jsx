@@ -225,9 +225,9 @@ function AuthenticatedHome({ user }) {
             </div>
             <div className="space-y-2">
               {recentReports.length === 0 ? (
-                <div className="text-center py-10 border border-dashed border-gray-200 rounded-xl">
-                  <p className="text-sm text-gray-400">Nenhum relatório ainda</p>
-                </div>
+                <div className="text-center py-10 border border-dashed border-gray-200 rounded-xl bg-white">
+                    <p className="text-sm text-gray-400">Nenhum relatório ainda</p>
+                  </div>
               ) : recentReports.slice(0, 3).map(r => {
                  const st = STATUS_LABELS[r.status] || { label: r.status, color: 'bg-gray-100 text-gray-600' };
                  return (
