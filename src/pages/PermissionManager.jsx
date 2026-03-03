@@ -85,19 +85,17 @@ function PermissionManagerInner() {
   });
 
   const handleOpenCreate = () => {
-    setFormData({
+    const newForm = {
       user_email: '',
       user_name: '',
       base_role: 'COORDENADOR',
-      can_view_all_reports: true,
-      can_review_reports: true,
-      can_manage_users: false,
-      can_manage_files: false,
-      can_manage_museus: false,
-      can_manage_equipes: false,
-      can_view_audit_log: false,
-      can_manage_platform: false,
+    };
+    PERMISSIONS.forEach(p => {
+      newForm[p.key] = false;
     });
+    newForm.can_view_all_reports = true;
+    newForm.can_review_reports = true;
+    setFormData(newForm);
     setShowDialog(true);
   };
 
