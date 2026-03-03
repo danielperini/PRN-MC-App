@@ -753,18 +753,26 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
         )}
       </div>
 
+      {/* Info: Atividades do mês de referência */}
+      <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+        <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">ℹ️ Sobre as Atividades</p>
+        <p className="text-sm text-blue-700 leading-relaxed">
+          As atividades registradas abaixo são <strong>aquelas realizadas no mês de referência</strong> indicado no início do relatório. Cada atividade integra o <strong>relatório mensal da equipe</strong> e contribui para os indicadores de desempenho.
+        </p>
+      </div>
+
       {dupWarning && (
-        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-amber-800">Possível duplicata detectada (Atividade {dupWarning.index + 1})</p>
-            <p className="text-xs text-amber-600 mt-0.5">{dupWarning.motivo}</p>
-          </div>
-          <button onClick={() => setDupWarning(null)} className="text-amber-400 hover:text-amber-600">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
+         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+           <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+           <div className="flex-1">
+             <p className="text-sm font-medium text-amber-800">Possível duplicata detectada (Atividade {dupWarning.index + 1})</p>
+             <p className="text-xs text-amber-600 mt-0.5">{dupWarning.motivo}</p>
+           </div>
+           <button onClick={() => setDupWarning(null)} className="text-amber-400 hover:text-amber-600">
+             <X className="w-4 h-4" />
+           </button>
+         </div>
+       )}
 
       {atividades.length === 0 ? (
         <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
