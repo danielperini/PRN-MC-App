@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useMutation } from '@tanstack/react-query';
-import { User, Save, BadgeCheck } from 'lucide-react';
+import { User, Save, BadgeCheck, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import PermissionsDisplay from '../components/dashboard/PermissionsDisplay';
 
@@ -17,6 +18,7 @@ const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 function PerfilInner() {
   const [user, setUser] = useState(null);
   const [formData, setFormData] = useState({ full_name: '', funcao: '', equipe: '', museu: '' });
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
     base44.auth.me().then(u => {
@@ -34,6 +36,16 @@ function PerfilInner() {
     mutationFn: () => base44.auth.updateMe(formData),
     onSuccess: () => toast.success('Perfil atualizado com sucesso!'),
     onError: () => toast.error('Erro ao atualizar perfil.'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (user) {
+        await base44.entities.User.delete(user.id);
+        await base44.auth.logout();
+      }
+    },
+    onError: () => toast.error('Erro ao excluir conta.'),
   });
 
   const set = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
@@ -130,7 +142,7 @@ function PerfilInner() {
 
           <div className="pt-2">
             <Button
-              className="w-full bg-black hover:bg-gray-800 text-white"
+              className="w-full bg-black hover:bg-gray-800 text-white select-none"
               onClick={() => saveMutation.mutate()}
               disabled={saveMutation.isPending}
             >
@@ -138,11 +150,49 @@ function PerfilInner() {
               {saveMutation.isPending ? 'Salvando...' : 'Salvar alterações'}
             </Button>
           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+          </div>
+
+          {/* Excluir Conta Section */}
+          <div className="mt-12 pt-8 border-t border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Zona de Risco</h3>
+          <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
+            <p className="text-sm text-red-700 mb-4">
+              Excluir sua conta é uma ação permanente. Todos os seus dados serão removidos e não poderão ser recuperados.
+            </p>
+            <Button
+              variant="outline"
+              className="w-full text-red-600 border-red-200 hover:bg-red-50 select-none"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Excluir Conta
+            </Button>
+          </div>
+          </div>
+          </div>
+
+          {/* Delete Account Dialog */}
+          <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir conta permanentemente?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <p className="text-sm text-gray-600">
+            Esta ação não pode ser desfeita. Sua conta e todos os dados associados serão removidos permanentemente.
+          </p>
+          <AlertDialogCancel className="select-none">Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-red-600 hover:bg-red-700 text-white select-none"
+            onClick={() => deleteMutation.mutate()}
+            disabled={deleteMutation.isPending}
+          >
+            {deleteMutation.isPending ? 'Excluindo...' : 'Excluir permanentemente'}
+          </AlertDialogAction>
+          </AlertDialogContent>
+          </AlertDialog>
+          </div>
+          );
+          }
 
 export default function Perfil() {
   return <RequireAuth><PerfilInner /></RequireAuth>;

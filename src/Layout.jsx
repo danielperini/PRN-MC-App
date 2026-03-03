@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import Sidebar from '@/components/layout/Sidebar';
 import TopNav from '@/components/layout/TopNav';
 import AssistantChat from '@/components/chat/AssistantChat';
+import MobileBottomTab from '@/components/mobile/MobileBottomTab';
 
 export default function Layout({ children, currentPageName }) {
   const [currentUser, setCurrentUser] = useState(null);
@@ -21,15 +22,17 @@ export default function Layout({ children, currentPageName }) {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Sidebar */}
-      <Sidebar 
-        currentPageName={currentPageName} 
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
+      {/* Desktop Sidebar */}
+      <div className="hidden md:block">
+        <Sidebar 
+          currentPageName={currentPageName} 
+          collapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
+      </div>
 
       {/* Main Content */}
-      <div className={`${sidebarCollapsed ? 'ml-20' : 'ml-64'} flex flex-col min-h-screen transition-all duration-300`}>
+      <div className={`hidden md:flex md:flex-col ${sidebarCollapsed ? 'ml-20' : 'ml-64'} min-h-screen transition-all duration-300`}>
         {/* Top Nav */}
         <TopNav
           userEmail={currentUser?.email}
@@ -41,6 +44,14 @@ export default function Layout({ children, currentPageName }) {
         <main className="flex-1 overflow-auto bg-white">
           {children}
         </main>
+      </div>
+
+      {/* Mobile Layout */}
+      <div className="md:hidden flex flex-col min-h-screen">
+        <main className="flex-1 overflow-auto bg-white pb-16 animate-slide-in">
+          {children}
+        </main>
+        <MobileBottomTab currentPageName={currentPageName} />
       </div>
 
       {/* Assistant Chat */}
