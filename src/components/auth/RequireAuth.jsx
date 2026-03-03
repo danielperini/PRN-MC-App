@@ -44,12 +44,16 @@ export default function RequireAuth({ children, requireRole }) {
 
   if (status === 'forbidden') {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg font-medium text-black">Acesso restrito</p>
-          <p className="text-sm text-gray-500 mt-1">
-            Você não tem permissão para acessar esta área.
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md">
+          <div className="mb-4 text-4xl">🔒</div>
+          <p className="text-lg font-semibold text-black mb-2">Acesso Restrito</p>
+          <p className="text-gray-600 text-sm mb-6">
+            Esta área requer permissões especiais. Entre em contato com o administrador da plataforma se acredita que deveria ter acesso.
           </p>
+          <Link to={createPageUrl('Dashboard')}>
+            <Button variant="outline">Voltar ao Dashboard</Button>
+          </Link>
         </div>
       </div>
     );
