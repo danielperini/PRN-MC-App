@@ -98,6 +98,7 @@ function UserManagementInner() {
           museu: reg.museu,
           equipe: reg.equipe || '',
           matricula,
+          newly_approved: true,
         });
       }
       await base44.entities.UserRegistration.update(reg.id, {
