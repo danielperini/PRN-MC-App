@@ -22,6 +22,10 @@ function PerfilInner() {
 
   useEffect(() => {
     base44.auth.me().then(u => {
+      if (!u) {
+        setUser(null);
+        return;
+      }
       setUser(u);
       setFormData({
         full_name: u.full_name || '',
@@ -29,7 +33,7 @@ function PerfilInner() {
         equipe: u.equipe || '',
         museu: u.museu || '',
       });
-    });
+    }).catch(() => setUser(null));
   }, []);
 
   const saveMutation = useMutation({
