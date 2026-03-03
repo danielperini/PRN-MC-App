@@ -210,10 +210,10 @@ function AuthenticatedHome({ user }) {
               </>
             ) : (
               <>
-                <StatCard icon={FileText} label="Meus relatórios" value={myReports.length} color="bg-white" />
-                <StatCard icon={Clock} label="Rascunhos abertos" value={myDrafts.length} color="bg-white" highlight={myDrafts.length > 0} />
-                <StatCard icon={CheckCircle} label="Aprovados" value={myReports.filter(r => r.status === 'APPROVED').length} color="bg-white" />
-                <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-white" />
+                <StatCard icon={FileText} label="Meus relatórios" value={myReports.length} color="bg-white" dark />
+                <StatCard icon={Clock} label="Rascunhos abertos" value={myDrafts.length} color="bg-white" highlight={myDrafts.length > 0} dark />
+                <StatCard icon={CheckCircle} label="Aprovados" value={myReports.filter(r => r.status === 'APPROVED').length} color="bg-white" dark />
+                <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-white" dark />
               </>
             )}
           </div>
