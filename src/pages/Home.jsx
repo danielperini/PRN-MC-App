@@ -193,30 +193,21 @@ function AuthenticatedHome({ user }) {
           </div>
         </div>
 
-        {/* KPIs pessoais */}
-         <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6">
-           <div className="flex items-center gap-2 mb-3">
-             <TrendingUp className="w-4 h-4 text-gray-400" />
-             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Minha Atividade</h2>
-           </div>
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {isCoordenador ? (
-              <>
-                <StatCard icon={Bell} label="Solicitações pendentes" value={pendingRegs.length} highlight={pendingRegs.length > 0} color="bg-gray-50" />
-                <StatCard icon={Clock} label="Aguardando revisão" value={pendingReview.length} color="bg-gray-50" highlight={pendingReview.length > 0} />
-                <StatCard icon={FileText} label="Total de relatórios" value={allReports.length} color="bg-gray-50" />
-                <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-gray-50" />
-              </>
-            ) : (
-              <>
-                <StatCard icon={FileText} label="Meus relatórios" value={myReports.length} color="bg-gray-50" />
-                <StatCard icon={Clock} label="Rascunhos abertos" value={myDrafts.length} color="bg-gray-50" highlight={myDrafts.length > 0} />
-                <StatCard icon={CheckCircle} label="Aprovados" value={myReports.filter(r => r.status === 'APPROVED').length} color="bg-gray-50" />
-                <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-gray-50" />
-              </>
-            )}
+        {/* KPIs pessoais — apenas para coordenadores */}
+        {isCoordenador && (
+          <div className="rounded-2xl border border-gray-100 bg-white p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="w-4 h-4 text-gray-400" />
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Minha Atividade</h2>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard icon={Bell} label="Solicitações pendentes" value={pendingRegs.length} highlight={pendingRegs.length > 0} color="bg-white" />
+              <StatCard icon={Clock} label="Aguardando revisão" value={pendingReview.length} color="bg-white" highlight={pendingReview.length > 0} />
+              <StatCard icon={FileText} label="Total de relatórios" value={allReports.length} color="bg-white" />
+              <StatCard icon={Paperclip} label="Arquivos enviados" value={attachments.length} color="bg-white" />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Atalhos + Relatórios Recentes */}
         <div className="grid md:grid-cols-2 gap-6">
