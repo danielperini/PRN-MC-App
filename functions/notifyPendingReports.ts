@@ -27,6 +27,21 @@ Deno.serve(async (req) => {
     }
 
     for (const prof of professionals) {
+      // Check if user is exempted this month
+      const exemption = await base44.asServiceRole.entities.ReportExemption.filter(
+        {
+          user_email: prof.email,
+          mes_referencia: currentMonth,
+          ano: currentYear,
+        },
+        '-created_date',
+        1
+      );
+
+      if (exemption && exemption.length > 0) {
+        continue; // Skip exempted users
+      }
+
       // Check if they already submitted a report this month
       const existingReport = await base44.asServiceRole.entities.Report.filter(
         {
