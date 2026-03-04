@@ -10,13 +10,16 @@ Deno.serve(async (req) => {
     }
 
     const searchTerms = [
-      'Viaduto das Artes',
-      'Museu da Moda MUMO',
+      'Museu da Moda BH',
+      'MUMO Belo Horizonte',
       'Museu da Imagem e do Som BH',
+      'MIS BH',
       'Museu Histórico Abílio Barreto',
+      'MHAB Belo Horizonte',
+      'Viaduto das Artes BH',
       'Museus Centro Belo Horizonte',
-      'Projeto Museus Centro',
-      'Circuito de Museus do Centro de BH'
+      'circuito museus centro BH',
+      'projeto museus centro BH'
     ];
 
     const existingNews = await base44.entities.NewsHighlight.list('-created_date', 1000);
