@@ -31,6 +31,7 @@ const STATUS_CONFIG = {
 
 function DashboardInner() {
   const { user: currentUser, isLoading: userLoading, isCoordenador } = useCurrentUser();
+  const { widgets, loaded: widgetsLoaded, toggleWidget, resetToDefault } = useWidgetPreferences();
    const [view, setView] = React.useState('coordenador'); 
    const [filters, setFilters] = React.useState({ museu: '', status: '' });
 
