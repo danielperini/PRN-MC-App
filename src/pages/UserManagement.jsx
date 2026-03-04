@@ -141,7 +141,7 @@ function UserManagementInner() {
 
   const { data: userPermissions = [] } = useQuery({
     queryKey: ['user-permissions'],
-    queryFn: () => base44.asServiceRole.entities.UserPermission.list('-created_date', 9999),
+    queryFn: () => base44.entities.UserPermission.list('-created_date', 9999),
     refetchInterval: 30_000,
   });
 
