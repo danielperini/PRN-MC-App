@@ -118,11 +118,12 @@ function GestorArquivosInner() {
           </div>
         </div>
 
-        {/* Filtro */}
-        <div className="bg-white border border-gray-200 rounded-lg md:rounded-xl p-3 md:p-4 mb-6 md:mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-3">
-            <div className="flex-1">
-              <Label className="text-xs font-medium text-gray-600">Filtrar por Data</Label>
+        {/* Filtros Avançados */}
+        <div className="bg-white border border-gray-200 rounded-lg md:rounded-xl p-3 md:p-4 mb-6 md:mb-8 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Filtro por Data */}
+            <div>
+              <Label className="text-xs font-medium text-gray-600">Data</Label>
               <Input
                 type="date"
                 value={selectedDate}
@@ -130,16 +131,60 @@ function GestorArquivosInner() {
                 className="mt-1 text-sm"
               />
             </div>
-            {selectedDate && (
-              <Button
-                variant="outline"
-                onClick={() => setSelectedDate('')}
-                className="border-gray-300 w-full sm:w-auto text-sm"
-              >
-                Limpar
-              </Button>
-            )}
+
+            {/* Busca por Nome */}
+            <div>
+              <Label className="text-xs font-medium text-gray-600">Nome do Arquivo</Label>
+              <Input
+                placeholder="Buscar nome..."
+                value={searchFileName}
+                onChange={e => setSearchFileName(e.target.value)}
+                className="mt-1 text-sm"
+              />
+            </div>
+
+            {/* Busca por Conteúdo */}
+            <div>
+              <Label className="text-xs font-medium text-gray-600">Conteúdo / Resumo</Label>
+              <Input
+                placeholder="Buscar conteúdo..."
+                value={searchContent}
+                onChange={e => setSearchContent(e.target.value)}
+                className="mt-1 text-sm"
+              />
+            </div>
+
+            {/* Ordenação */}
+            <div>
+              <Label className="text-xs font-medium text-gray-600">Ordenar</Label>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="mt-1 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date-desc">Mais recentes</SelectItem>
+                  <SelectItem value="date-asc">Mais antigos</SelectItem>
+                  <SelectItem value="name-asc">Nome (A-Z)</SelectItem>
+                  <SelectItem value="name-desc">Nome (Z-A)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
+          {/* Botão Limpar Filtros */}
+          {(selectedDate || searchFileName || searchContent) && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSelectedDate('');
+                setSearchFileName('');
+                setSearchContent('');
+              }}
+              className="border-gray-300 w-full sm:w-auto text-sm"
+            >
+              Limpar Filtros
+            </Button>
+          )}
         </div>
 
         {/* Lista de Backups */}
