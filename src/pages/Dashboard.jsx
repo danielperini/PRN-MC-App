@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import {
   FileText, Plus, Clock, CheckCircle, AlertCircle,
-  Send, Eye, Archive, ChevronRight, LayoutDashboard, User } from
+  Send, Eye, Archive, ChevronRight, LayoutDashboard, User, RotateCw } from
 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +35,7 @@ function DashboardInner() {
   const { widgets, loaded: widgetsLoaded, toggleWidget, resetToDefault } = useWidgetPreferences();
   const [view, setView] = React.useState('coordenador');
   const [filters, setFilters] = React.useState({ museu: '', status: '' });
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   // Current month/year for compliance stats
   const now = new Date();
@@ -42,7 +43,7 @@ function DashboardInner() {
   const currentMonth = monthNames[now.getMonth()];
   const currentYear = now.getFullYear();
 
-  const { data: myReports = [], isLoading: loadingMy } = useQuery({
+  const { data: myReports = [], isLoading: loadingMy, refetch: refetchMy } = useQuery({
     queryKey: ['my-reports', currentUser?.email],
     queryFn: async () => {
       if (!currentUser?.email) return [];
@@ -52,7 +53,7 @@ function DashboardInner() {
     enabled: !!currentUser?.email && !userLoading
   });
 
-  const { data: allReports = [], isLoading: loadingAll } = useQuery({
+  const { data: allReports = [], isLoading: loadingAll, refetch: refetchAll } = useQuery({
     queryKey: ['all-reports'],
     queryFn: async () => {
       const data = await base44.entities.Report.list('-created_date', 200);
@@ -60,6 +61,19 @@ function DashboardInner() {
     },
     enabled: isCoordenador
   });
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      if (showCoordView) {
+        await refetchAll();
+      } else {
+        await refetchMy();
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const showCoordView = isCoordenador && view === 'coordenador';
   const showDedicatedProfView = !isCoordenador;
@@ -139,6 +153,16 @@ function DashboardInner() {
                 </button>
               </div>
             )}
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="border-gray-200"
+              title="Atualizar dados dos últimos 30 dias"
+            >
+              <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </Button>
             <Link to={createPageUrl('ReportEditor')}>
               <Button className="bg-black hover:bg-gray-800 text-white gap-2">
                 <Plus className="w-4 h-4" />Novo Relatório
