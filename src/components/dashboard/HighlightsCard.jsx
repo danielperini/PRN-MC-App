@@ -393,7 +393,7 @@ Máximo 10 resultados, ordenados por relevância e recência.`;
               </div>
             )}
 
-            <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
+            <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
               <p className="font-semibold text-black text-sm mb-2">{selectedHighlightForCarousel?.atividade}</p>
               <p className="text-xs text-gray-700">{selectedHighlightForCarousel?.depoimento}</p>
             </div>
