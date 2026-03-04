@@ -24,34 +24,30 @@ function GestorArquivosInner() {
     queryKey: ['google-drive-backups', selectedDate, searchFileName, searchContent, currentUser?.email],
     queryFn: async () => {
       try {
-        let attachments = [];
+        // Sempre buscar todos os anexos (padrão: todos os usuários)
+        const allAttachments = await base44.entities.Attachment.list();
         
-        if (isCoordinator) {
-          // Admin vê todos os anexos
-          attachments = await base44.entities.Attachment.list();
-        } else {
-          // Usuários regulares veem apenas anexos de seus relatórios
-          const userReports = await base44.entities.Report.filter({ created_by: currentUser?.email });
-          const reportIds = userReports.map(r => r.id);
-          
-          if (reportIds.length > 0) {
-            const allAttachments = await base44.entities.Attachment.list();
-            attachments = allAttachments.filter(a => reportIds.includes(a.report_id));
-          }
-        }
-
+        // Filtro padrão: últimos 90 dias
+        const today = new Date();
+        const ninetyDaysAgo = new Date(today.setDate(today.getDate() - 90));
+        
         // Converter anexos em backups para exibição
-        const backupsData = attachments.map(att => ({
-          id: att.id,
-          date: att.created_date?.split('T')[0] || new Date().toISOString().split('T')[0],
-          timestamp: att.created_date || new Date().toISOString(),
-          fileName: att.file_name,
-          fileType: att.file_type,
-          size: att.file_size ? `${(att.file_size / 1024 / 1024).toFixed(2)} MB` : 'N/A',
-          fileUrl: att.file_url,
-          summary: att.description || 'Arquivo anexado a relatório',
-          reportId: att.report_id
-        }));
+        const backupsData = allAttachments
+          .filter(att => {
+            const attDate = new Date(att.created_date);
+            return attDate >= ninetyDaysAgo;
+          })
+          .map(att => ({
+            id: att.id,
+            date: att.created_date?.split('T')[0] || new Date().toISOString().split('T')[0],
+            timestamp: att.created_date || new Date().toISOString(),
+            fileName: att.file_name,
+            fileType: att.file_type,
+            size: att.file_size ? `${(att.file_size / 1024 / 1024).toFixed(2)} MB` : 'N/A',
+            fileUrl: att.file_url,
+            summary: att.description || 'Arquivo anexado a relatório',
+            reportId: att.report_id
+          }));
 
         return backupsData.filter(b => {
           const dateMatch = !selectedDate || b.date === selectedDate;
@@ -103,9 +99,9 @@ function GestorArquivosInner() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 md:mb-8">
           <div className="flex-1">
-            <h1 className="text-2xl md:text-3xl font-semibold text-black tracking-tight">Meus Arquivos</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold text-black tracking-tight">Galeria de Arquivos</h1>
             <p className="text-gray-500 mt-1 text-xs md:text-sm">
-              {isCoordinator ? 'Todos os arquivos anexados a relatórios' : 'Seus arquivos anexados a relatórios'}
+              Todos os arquivos dos últimos 90 dias
             </p>
           </div>
           <div className="w-full md:w-auto">
