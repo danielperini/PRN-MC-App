@@ -330,7 +330,7 @@ Máximo 10 resultados, ordenados por relevância e recência.`;
               {redactedText && (
                 <div>
                   <Label className="mb-2 block font-semibold">Texto Gerado (Jornalístico)</Label>
-                  <div className="p-4 bg-purple-50 border border-purple-100 rounded-lg text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
                     {redactedText}
                   </div>
                 </div>
