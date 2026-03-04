@@ -98,9 +98,9 @@ function GestorArquivosInner() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 md:mb-8">
           <div className="flex-1">
-            <h1 className="text-2xl md:text-3xl font-semibold text-black tracking-tight">Gerenciador de Arquivos</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold text-black tracking-tight">Meus Arquivos</h1>
             <p className="text-gray-500 mt-1 text-xs md:text-sm">
-              Backups automáticos salvos no Google Drive
+              {isCoordinator ? 'Todos os arquivos anexados a relatórios' : 'Seus arquivos anexados a relatórios'}
             </p>
           </div>
           <div className="w-full md:w-auto">
