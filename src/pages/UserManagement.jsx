@@ -463,7 +463,7 @@ function UserManagementInner() {
               <Plus className="w-4 h-4" />
               Cadastrar com Senha
             </Button>
-            <Button variant="outline" className="gap-2" onClick={() => setShowInviteLink(true)}>
+            <Button variant="outline" className="gap-2" onClick={() => setShowInviteDialog(true)}>
               <Plus className="w-4 h-4" />
               Convidar Usuário
             </Button>
