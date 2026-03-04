@@ -72,8 +72,6 @@ function UserManagementInner() {
    const [copied, setCopied] = useState(false);
    const [showInviteLink, setShowInviteLink] = useState(false);
    const [currentUser, setCurrentUser] = useState(null);
-   const [editingUserPerm, setEditingUserPerm] = useState(null);
-   const [permissionsForm, setPermissionsForm] = useState({});
    const [showCreateDirect, setShowCreateDirect] = useState(false);
    const [directForm, setDirectForm] = useState({ email: '', password: '', full_name: '', role: 'PROFISSIONAL' });
    const [passwordConfirm, setPasswordConfirm] = useState('');
