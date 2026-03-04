@@ -28,7 +28,9 @@ export default function BackupButton({ userRole }) {
     }
   });
 
-  if (userRole !== 'admin') {
+  const isCoordinator = ['admin', 'COORDENADOR', 'COORD_PRODUCAO', 'COORD_ADMINISTRATIVA', 'COORD_COMUNICACAO'].includes(userRole);
+  
+  if (!isCoordinator) {
     return null;
   }
 
