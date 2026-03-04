@@ -17,8 +17,9 @@ Deno.serve(async (req) => {
       }, { status: 400 });
     }
 
-    // Invite user first
-    await base44.users.inviteUser(email, role);
+    // Invite user first — platform only accepts "user" or "admin"
+    const platformRole = role === 'ADMIN' ? 'admin' : 'user';
+    await base44.users.inviteUser(email, platformRole);
 
     // Create user permission based on role
     const permissionDefaults = {
