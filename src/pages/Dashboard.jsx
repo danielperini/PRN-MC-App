@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import CoordDashboard from '../components/dashboard/CoordDashboard';
 import AdvancedFilters from '../components/dashboard/AdvancedFilters';
 import ComplianceStats from '../components/dashboard/ComplianceStats';
-import MomentosCarrossel from '../components/dashboard/MomentosCarrossel';
+
 import WidgetCustomizer from '../components/dashboard/WidgetCustomizer';
 import { useWidgetPreferences } from '../components/dashboard/useWidgetPreferences';
 import ActivityMetricsWidget from '../components/dashboard/ActivityMetricsWidget';
