@@ -1,17 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-// Cria ou obtém pasta de data no Google Drive
-async function getOrCreateDateFolder(accessToken, parentFolderId, folderName) {
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${folderName}' and '${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false&spaces=drive&fields=files(id,name)`, {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  const result = await response.json();
-  
-  if (result.files && result.files.length > 0) {
-    return result.files[0].id;
-  }
-  
-  // Criar nova pasta
+// Cria pasta de data no Google Drive (limitado ao escopo drive.file)
+async function createDateFolder(accessToken, parentFolderId, folderName) {
   const createResponse = await fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
     method: 'POST',
     headers: {
@@ -26,34 +16,9 @@ async function getOrCreateDateFolder(accessToken, parentFolderId, folderName) {
   });
   
   const created = await createResponse.json();
-  return created.id;
-}
-
-// Obtém pasta raiz de Backup
-async function getOrCreateBackupRoot(accessToken) {
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='Relatórios Backup' and mimeType='application/vnd.google-apps.folder' and trashed=false&spaces=drive&fields=files(id,name)`, {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  const result = await response.json();
-  
-  if (result.files && result.files.length > 0) {
-    return result.files[0].id;
+  if (created.error) {
+    throw new Error(`Erro ao criar pasta: ${created.error.message}`);
   }
-  
-  // Criar pasta raiz
-  const createResponse = await fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      name: 'Relatórios Backup',
-      mimeType: 'application/vnd.google-apps.folder'
-    })
-  });
-  
-  const created = await createResponse.json();
   return created.id;
 }
 
