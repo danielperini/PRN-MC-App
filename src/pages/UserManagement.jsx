@@ -638,6 +638,14 @@ function UserManagementInner() {
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div>
+              <Label>Nome completo</Label>
+              <Input
+                placeholder="Nome completo"
+                value={editingUserData.full_name || ''}
+                onChange={e => setEditingUserData({ ...editingUserData, full_name: e.target.value })}
+              />
+            </div>
+            <div>
               <Label>Cargo</Label>
               <Select value={editingUserData.role || 'PROFISSIONAL'} onValueChange={v => setEditingUserData({ ...editingUserData, role: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
