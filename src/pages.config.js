@@ -58,7 +58,6 @@ import DashboardProfissional from './pages/DashboardProfissional';
 import GestorArquivos from './pages/GestorArquivos';
 import Home from './pages/Home';
 import Perfil from './pages/Perfil';
-import PermissionManager from './pages/PermissionManager';
 import PlataformaAdmin from './pages/PlataformaAdmin';
 import PlataformaConfig from './pages/PlataformaConfig';
 import Relatorios from './pages/Relatorios';
@@ -79,7 +78,6 @@ export const PAGES = {
     "GestorArquivos": GestorArquivos,
     "Home": Home,
     "Perfil": Perfil,
-    "PermissionManager": PermissionManager,
     "PlataformaAdmin": PlataformaAdmin,
     "PlataformaConfig": PlataformaConfig,
     "Relatorios": Relatorios,
