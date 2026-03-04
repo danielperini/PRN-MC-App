@@ -118,6 +118,18 @@ function GestorArquivosInner() {
   // Build a report map for quick lookup
   const reportMap = Object.fromEntries(reports.map(r => [r.id, r]));
 
+  // Build activity map from all reports (activityId -> activityName)
+  const activityMap = {};
+  reports.forEach(report => {
+    if (Array.isArray(report.atividades)) {
+      report.atividades.forEach(act => {
+        if (act && act.id) {
+          activityMap[act.id] = act.titulo || act.nome || 'Atividade';
+        }
+      });
+    }
+  });
+
   const isComunicacao = currentUser?.role === 'COORD_COMUNICACAO';
 
   // Filter attachments based on user role and filters
