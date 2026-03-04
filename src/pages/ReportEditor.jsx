@@ -45,6 +45,7 @@ const EMPTY_FORM = {
   resumo_executivo: '',
   atividades: [],
   oportunidades: [],
+  momentos: [],
   avaliacao_pontos_positivos: '',
   avaliacao_desafios: '',
   avaliacao_sugestoes: '',
@@ -537,15 +538,105 @@ function ReportEditorInner() {
           </TabsContent>
 
           <TabsContent value="oportunidades">
-            <section>
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
-                <h2 className="text-base font-semibold text-black">Oportunidades Identificadas</h2>
-                {canEdit && (
-                  <Button variant="outline" size="sm" onClick={addOp}>
-                    <Plus className="w-4 h-4 mr-1" />Adicionar
-                  </Button>
-                )}
-              </div>
+            <section className="space-y-8">
+              {/* MOMENTOS — Histórias e Depoimentos */}
+              {canEdit && (
+                <div className="p-4 border border-purple-100 bg-purple-50 rounded-xl">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-black">Momentos Especiais e Depoimentos</h3>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setFormData(prev => ({ ...prev, momentos: [...(prev.momentos || []), { titulo: '', texto: '', imagem_url: '' }] }))}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />Adicionar
+                    </Button>
+                  </div>
+                  {(formData.momentos || []).map((momento, i) => (
+                    <div key={i} className="p-4 bg-white rounded-lg border border-purple-100 space-y-3 mb-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-medium text-gray-400 uppercase">Momento {i + 1}</span>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-red-400 h-7 w-7" 
+                          onClick={() => setFormData(prev => ({ ...prev, momentos: prev.momentos.filter((_, idx) => idx !== i) }))}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <Input 
+                        placeholder="Título do momento (ex: Depoimento de visitante)"
+                        value={momento.titulo || ''}
+                        onChange={e => setFormData(prev => ({
+                          ...prev,
+                          momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, titulo: e.target.value } : m)
+                        }))}
+                      />
+                      <div>
+                        <Label className="text-xs text-gray-600">Texto</Label>
+                        <Textarea 
+                          placeholder="Fala especial, depoimento ou momento importante..."
+                          value={momento.texto || ''}
+                          onChange={e => setFormData(prev => ({
+                            ...prev,
+                            momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, texto: e.target.value } : m)
+                          }))}
+                          rows={3}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 text-xs mt-2"
+                          onClick={async () => {
+                            const prompt = `Com base no título e contexto abaixo, gere um texto inspirador e significativo sobre um momento especial vivido em um museu ou evento cultural (máximo 3 linhas):
+          Título: ${momento.titulo || '(não informado)'}
+          Contexto: ${formData.funcao || ''} no museu ${formData.museu || ''}
+
+          Escreva em português do Brasil, de forma pessoal e tocante.`;
+                            const result = await base44.integrations.Core.InvokeLLM({ prompt });
+                            setFormData(prev => ({
+                              ...prev,
+                              momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, texto: result } : m)
+                            }));
+                            toast.success('Texto gerado! ✨');
+                          }}
+                        >
+                          <Sparkles className="w-3 h-3" />Gerar com IA
+                        </Button>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-600">Imagem (URL quadrada)</Label>
+                        <Input 
+                          placeholder="https://exemplo.com/imagem.jpg"
+                          value={momento.imagem_url || ''}
+                          onChange={e => setFormData(prev => ({
+                            ...prev,
+                            momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, imagem_url: e.target.value } : m)
+                          }))}
+                        />
+                        {momento.imagem_url && (
+                          <div className="mt-2 w-20 h-20 rounded-lg overflow-hidden border border-gray-200">
+                            <img src={momento.imagem_url} alt="preview" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* OPORTUNIDADES */}
+              <div>
+                <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
+                  <h2 className="text-base font-semibold text-black">Oportunidades Identificadas</h2>
+                  {canEdit && (
+                    <Button variant="outline" size="sm" onClick={addOp}>
+                      <Plus className="w-4 h-4 mr-1" />Adicionar
+                    </Button>
+                  )}
+                </div>
               {(formData.oportunidades || []).length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-8 border border-dashed rounded-xl">
                   Nenhuma oportunidade adicionada
@@ -590,6 +681,7 @@ function ReportEditorInner() {
                   ))}
                 </div>
               )}
+              </div>
               </section>
 
               {/* Botões de salvar — aba oportunidades */}
