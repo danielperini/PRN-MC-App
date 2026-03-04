@@ -698,14 +698,18 @@ export default function ExportPDF({ report, reportId }) {
         y = checkBreak(doc, y, 20);
         doc.setFillColor(230, 250, 230);
         doc.setDrawColor(100, 180, 100);
-        doc.rect(M, y, CW, 12, 'F');
-        doc.rect(M, y, CW, 12, 'S');
+        doc.rect(M, y, CW, 16, 'F');
+        doc.rect(M, y, CW, 16, 'S');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7.5);
         doc.setTextColor(0, 120, 0);
         const approvalDate = report.updated_date ? new Date(report.updated_date).toLocaleDateString('pt-BR') : '—';
         const approvalTime = report.updated_date ? new Date(report.updated_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
-        doc.text(`✓ Relatório Aprovado em ${approvalDate} às ${approvalTime}`, M + 4, y + 8);
+        doc.text(`✓ RELATÓRIO APROVADO`, M + 4, y + 5);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(`Data: ${approvalDate}  ·  Hora: ${approvalTime}`, M + 4, y + 10);
+        doc.text(`Coordenador(a): ${report.reviewer_name || '—'}`, M + 4, y + 14);
       }
 
       // rodapé adicionado após instrução de assinatura
