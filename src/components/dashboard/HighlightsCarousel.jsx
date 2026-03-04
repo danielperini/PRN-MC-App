@@ -75,9 +75,10 @@ export default function HighlightsCarousel() {
   return (
     <div className="w-full mb-8">
       <div 
-        className="relative w-full rounded-2xl overflow-hidden bg-white border-2 border-black h-48 flex items-center justify-between px-6 py-6 group"
+        className="relative w-full rounded-2xl overflow-hidden bg-white border-2 border-black h-48 flex items-center justify-between px-6 py-6 group cursor-pointer"
         onMouseEnter={() => setAutoPlay(false)}
         onMouseLeave={() => setAutoPlay(true)}
+        onClick={() => current.link && handleViewNews(current)}
       >
         {/* Imagem de fundo (opcional) */}
         {current.imagem_url && (
@@ -96,19 +97,33 @@ export default function HighlightsCarousel() {
           <h3 className="text-xl font-bold text-black mb-2 line-clamp-2">
             {current.titulo}
           </h3>
-          <p className="text-sm text-gray-700 mb-4 line-clamp-2">
+          <p className="text-sm text-gray-700 mb-3 line-clamp-2">
             {current.resumo}
           </p>
           {current.link && (
-            <Button
-              onClick={() => handleViewNews(current)}
-              variant="outline"
-              size="sm"
-              className="border-black text-black hover:bg-black hover:text-white gap-1"
-            >
-              Leia mais
-              <ExternalLink className="w-3 h-3" />
-            </Button>
+            <div className="flex flex-col gap-2">
+              <a 
+                href={current.link} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 hover:text-blue-800 underline truncate"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {current.link}
+              </a>
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleViewNews(current);
+                }}
+                variant="outline"
+                size="sm"
+                className="border-black text-black hover:bg-black hover:text-white gap-1 w-fit"
+              >
+                Leia mais
+                <ExternalLink className="w-3 h-3" />
+              </Button>
+            </div>
           )}
         </div>
 
