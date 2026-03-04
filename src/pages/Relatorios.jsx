@@ -268,9 +268,9 @@ function RelatoriosInner() {
            )}
          </div>
 
-         {/* Compliance Panel (only for coordinators) */}
+         {/* Compliance Stats (only for coordinators) */}
          {isCoordenador && (
-           <CompliancePanel allReports={allReports} allUsers={allUsers} />
+           <ComplianceStats currentMonth={MESES[new Date().getMonth()]} currentYear={new Date().getFullYear()} />
          )}
 
          {/* Activity Filters & Summary */}
