@@ -303,19 +303,12 @@ export default function CoordDashboard({ reports = [], isLoading }) {
         )}
       </div>
 
-      {/* Header com botão de exportar */}
-      <div className="flex items-center justify-between">
-        <div>
-          {duplicatas > 0 && (
-            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
-              ⚠ {duplicatas} atividade(s) duplicada(s) detectadas e removidas da contagem
-            </p>
-          )}
-        </div>
-        <Button variant="outline" size="sm" className="gap-2" onClick={exportarRelatorioGeral}>
-          <Download className="w-4 h-4" />Exportar Relatório Geral (CSV)
-        </Button>
-      </div>
+      {/* Aviso de duplicatas */}
+       {duplicatas > 0 && (
+         <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+           ⚠ {duplicatas} atividade(s) duplicada(s) detectadas e removidas da contagem
+         </p>
+       )}
 
       {/* KPI Cards with larger fonts */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
