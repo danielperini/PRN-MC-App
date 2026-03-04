@@ -13,20 +13,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import CoordDashboard from '../components/dashboard/CoordDashboard';
 import AdvancedFilters from '../components/dashboard/AdvancedFilters';
-import HighlightsCard from '../components/dashboard/HighlightsCard';
-import SummaryCards from '../components/dashboard/SummaryCards';
-import GeneralStatsCards from '../components/dashboard/GeneralStatsCards';
-import TrendChart from '../components/dashboard/TrendChart';
 import ComplianceStats from '../components/dashboard/ComplianceStats';
-import ExemptionManager from '../components/dashboard/ExemptionManager';
 
 const STATUS_CONFIG = {
-  DRAFT:     { label: 'Rascunho',   color: 'bg-gray-100 text-gray-600',      cardBg: 'bg-white',            icon: Clock },
-  SUBMITTED: { label: 'Enviado',    color: 'bg-blue-100 text-blue-700',      cardBg: 'bg-blue-50/40',       icon: Send },
-  IN_REVIEW: { label: 'Em Revisão', color: 'bg-amber-100 text-amber-700',    cardBg: 'bg-amber-50/40',      icon: Eye },
-  RETURNED:  { label: 'Devolvido',  color: 'bg-red-100 text-red-700',        cardBg: 'bg-red-50/40',        icon: AlertCircle },
-  APPROVED:  { label: 'Aprovado',   color: 'bg-emerald-100 text-emerald-700', cardBg: 'bg-emerald-50/40',   icon: CheckCircle },
-  ARCHIVED:  { label: 'Arquivado',  color: 'bg-purple-100 text-purple-700',  cardBg: 'bg-purple-50/30',     icon: Archive },
+  DRAFT:     { label: 'Rascunho',   color: 'bg-gray-100 text-gray-600',  icon: Clock },
+  SUBMITTED: { label: 'Enviado',    color: 'bg-gray-100 text-gray-700',  icon: Send },
+  IN_REVIEW: { label: 'Em Revisão', color: 'bg-gray-200 text-gray-700',  icon: Eye },
+  RETURNED:  { label: 'Devolvido',  color: 'bg-black text-white',        icon: AlertCircle },
+  APPROVED:  { label: 'Aprovado',   color: 'bg-gray-900 text-white',     icon: CheckCircle },
+  ARCHIVED:  { label: 'Arquivado',  color: 'bg-gray-100 text-gray-500',  icon: Archive },
 };
 
 function DashboardInner() {
