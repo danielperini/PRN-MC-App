@@ -664,7 +664,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                 <Textarea placeholder="Objetivo da atividade..." value={atividade.objetivo || ''} onChange={e => onChange('objetivo', e.target.value)} disabled={!canEdit} rows={2} />
               </Field>
               <Field label="Descrição do executado">
-                <Textarea placeholder="O que foi realizado..." value={atividade.descricao_executado || ''} onChange={e => onChange('descricao_executado', e.target.value)} disabled={!canEdit} rows={3} />
+                <RichTextEditor placeholder="O que foi realizado..." value={atividade.descricao_executado || ''} onChange={text => onChange('descricao_executado', text)} disabled={!canEdit} />
               </Field>
               <Field label="Equipe envolvida (esta atividade será adicionada ao relatório de cada membro)">
                 <UserPicker
