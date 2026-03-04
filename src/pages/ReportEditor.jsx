@@ -28,6 +28,8 @@ import ActivityProgressBar from '../components/reports/ActivityProgressBar';
 import ReportVersionHistory from '../components/reports/ReportVersionHistory';
 import RichTextEditor from '../components/reports/RichTextEditor';
 import { Sparkles } from 'lucide-react';
+import SaveTemplateDialog from '../components/templates/SaveTemplateDialog';
+import LoadFromTemplateDialog from '../components/templates/LoadFromTemplateDialog';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
