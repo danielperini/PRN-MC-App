@@ -450,19 +450,11 @@ function UserManagementInner() {
                 </div>
               ) : (
                 users.map(user => {
-                  const userReg = allRegistrations.find(r => r.email === user.email);
-                  const approvalStatus = userReg?.status;
-
+                  const isEditing = editingUserId === user.id;
                   return (
                     <div key={user.id} className="border border-gray-200 rounded-xl overflow-hidden hover:border-gray-300 transition-all">
                       <div className="p-4 bg-white flex items-center justify-between gap-4">
                         <div className="flex items-center gap-4 flex-1 min-w-0">
-                          <button
-                            onClick={() => setExpandedUserId(expandedUserId === user.id ? null : user.id)}
-                            className="flex-shrink-0 text-gray-400 hover:text-gray-600"
-                          >
-                            {expandedUserId === user.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                          </button>
                           <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
                             <span className="text-sm font-medium text-gray-600">
                               {(user.full_name || user.email || '?')[0].toUpperCase()}
@@ -471,85 +463,31 @@ function UserManagementInner() {
                           <div className="min-w-0 flex-1">
                             <p className="font-semibold text-black">{user.full_name || user.email}</p>
                             <p className="text-xs text-gray-500">{user.email}</p>
+                            {user.matricula && <p className="text-xs text-gray-400">{user.matricula}</p>}
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 flex-shrink-0 flex-wrap justify-end">
+                        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
                           <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700'} font-normal text-xs`}>
                             {ROLE_LABELS[user.role] || user.role || '–'}
                           </Badge>
                           {user.equipe && <Badge variant="outline" className="text-xs">{user.equipe}</Badge>}
-                          {approvalStatus === 'APROVADO' && (
-                            <Badge className="bg-green-100 text-green-700 text-xs font-normal">
-                              <CheckCircle className="w-3 h-3 mr-1" />Aprovado
-                            </Badge>
-                          )}
+                          <Button size="sm" variant="outline" className="text-xs gap-1"
+                            onClick={() => {
+                              setEditingUserId(user.id);
+                              setEditingUserData({ role: user.role || 'PROFISSIONAL', equipe: user.equipe || '' });
+                            }}>
+                            <Pencil className="w-3 h-3" />Editar
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-xs gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+                            onClick={() => { setEditPasswordUser(user); setNewPassword(''); setNewPasswordConfirm(''); }}>
+                            <Key className="w-3 h-3" />Senha
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-xs gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                            onClick={() => setDeleteTarget(user)}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
                         </div>
                       </div>
-
-                      {expandedUserId === user.id && (
-                        <div className="border-t border-gray-100 p-4 space-y-6 bg-gray-50">
-                          <div>
-                            <div className="flex items-center justify-between mb-4">
-                              <h3 className="text-sm font-semibold text-black">Informações</h3>
-                              <Button
-                                size="sm"
-                                variant={editingUserMode === `${user.id}-info` ? 'default' : 'outline'}
-                                className="text-xs"
-                                onClick={() => setEditingUserMode(editingUserMode === `${user.id}-info` ? null : `${user.id}-info`)}
-                              >
-                                {editingUserMode === `${user.id}-info` ? 'Salvar' : 'Editar'}
-                              </Button>
-                            </div>
-                            {editingUserMode === `${user.id}-info` ? (
-                              <div className="space-y-3 bg-white p-3 rounded-lg border border-gray-200">
-                                <div>
-                                  <Label className="text-xs">Cargo</Label>
-                                  <Select value={user.role} onValueChange={(v) => base44.entities.User.update(user.id, { role: v }).then(() => queryClient.invalidateQueries(['users']))}>
-                                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                      {CARGO_OPTIONS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Equipe</Label>
-                                  <Select value={user.equipe || ''} onValueChange={(v) => base44.entities.User.update(user.id, { equipe: v }).then(() => queryClient.invalidateQueries(['users']))}>
-                                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                                    <SelectContent>
-                                      {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="space-y-2 text-sm">
-                                <div><span className="text-gray-600">Cargo:</span> {ROLE_LABELS[user.role] || user.role}</div>
-                                <div><span className="text-gray-600">Equipe:</span> {user.equipe || '–'}</div>
-                                {user.matricula && <div><span className="text-gray-600">Matrícula:</span> {user.matricula}</div>}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex gap-2 flex-wrap pt-3 border-t border-gray-200">
-                            <Button size="sm" variant="outline" className="gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                              onClick={() => { setEditPasswordUser(user); setNewPassword(''); setNewPasswordConfirm(''); }}>
-                              <Key className="w-3 h-3" />Alterar Senha
-                            </Button>
-                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
-                              onClick={() => {
-                                const appId = window.location.pathname.split('/')[2] || '';
-                                const cadastroUrl = appId ? `${window.location.origin}/app/${appId}/Cadastro` : `${window.location.origin}/Cadastro`;
-                                base44.functions.invoke('sendInviteEmail', { email: user.email, full_name: user.full_name, role: user.role, cadastroUrl }).then(() => toast.success('Convite reenviado'));
-                              }}>
-                              <Mail className="w-3 h-3" />Reenviar Convite
-                            </Button>
-                            <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 gap-2 ml-auto"
-                              onClick={() => setDeleteTarget(user)}>
-                              <Trash2 className="w-3 h-3" />Excluir
-                            </Button>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   );
                 })
