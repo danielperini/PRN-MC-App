@@ -629,6 +629,47 @@ function UserManagementInner() {
         </DialogContent>
       </Dialog>
 
+      {/* Edit User Dialog */}
+      <Dialog open={!!editingUserId} onOpenChange={o => { if (!o) { setEditingUserId(null); setEditingUserData({}); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Usuário</DialogTitle>
+            <DialogDescription>Atualize cargo e equipe do usuário</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <Label>Cargo</Label>
+              <Select value={editingUserData.role || 'PROFISSIONAL'} onValueChange={v => setEditingUserData({ ...editingUserData, role: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CARGO_OPTIONS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400 mt-1">{CARGO_OPTIONS.find(o => o.value === editingUserData.role)?.description}</p>
+            </div>
+            <div>
+              <Label>Equipe</Label>
+              <Select value={editingUserData.equipe || ''} onValueChange={v => setEditingUserData({ ...editingUserData, equipe: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="mt-6">
+            <Button variant="outline" onClick={() => { setEditingUserId(null); setEditingUserData({}); }}>Cancelar</Button>
+            <Button className="bg-black hover:bg-gray-800 text-white" disabled={updateMutation.isPending}
+              onClick={() => {
+                const user = users.find(u => u.id === editingUserId);
+                if (user) updateMutation.mutate({ id: user.id, data: { role: editingUserData.role, equipe: editingUserData.equipe, email: user.email } });
+              }}>
+              {updateMutation.isPending ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Create / Edit Dialog — apenas para convidar novo usuário */}
        <Dialog open={showDialog && !editingUser} onOpenChange={setShowDialog}>
          <DialogContent>
