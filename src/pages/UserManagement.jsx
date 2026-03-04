@@ -709,6 +709,11 @@ function UserManagementInner() {
                             onClick={() => { setEditPasswordUser(user); setNewPassword(''); setNewPasswordConfirm(''); }}>
                             <Key className="w-3 h-3" />Senha
                           </Button>
+                          <Button size="sm" variant="outline" className="text-xs gap-1"
+                            onClick={() => openPermEdit(permMap[user.email] || { user_email: user.email, user_name: user.full_name, base_role: user.role })}
+                          >
+                            <Shield className="w-3 h-3" />Permissões
+                          </Button>
                           <Button size="sm" variant="outline" className="text-xs gap-1 text-red-600 border-red-200 hover:bg-red-50"
                             onClick={() => setDeleteTarget(user)}>
                             <Trash2 className="w-3 h-3" />
