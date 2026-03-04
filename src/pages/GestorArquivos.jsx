@@ -20,54 +20,45 @@ function GestorArquivosInner() {
   const isCoordinator = currentUser?.role === 'admin';
 
   const { data: backups = [], isLoading } = useQuery({
-    queryKey: ['google-drive-backups', selectedDate, searchFileName, searchContent],
+    queryKey: ['google-drive-backups', selectedDate, searchFileName, searchContent, currentUser?.email],
     queryFn: async () => {
-      if (!isCoordinator) return [];
       try {
-        const allBackups = [
-          {
-            id: '1',
-            date: '2026-03-04',
-            timestamp: '2026-03-04T14:30:00Z',
-            fileName: 'Backup-2026-03-04-Completo',
-            reportsCount: 45,
-            activitiesCount: 320,
-            attachmentsCount: 25,
-            size: '2.4 MB',
-            summary: 'Backup com todos os relatórios do mês de março, 45 relatórios aprovados'
-          },
-          {
-            id: '2',
-            date: '2026-03-03',
-            timestamp: '2026-03-03T14:30:00Z',
-            fileName: 'Backup-2026-03-03-Parcial',
-            reportsCount: 45,
-            activitiesCount: 318,
-            attachmentsCount: 25,
-            size: '2.3 MB',
-            summary: 'Backup incremental com atualizações de atividades educativas'
-          },
-          {
-            id: '3',
-            date: '2026-03-02',
-            timestamp: '2026-03-02T14:30:00Z',
-            fileName: 'Backup-2026-03-02-Completo',
-            reportsCount: 42,
-            activitiesCount: 305,
-            attachmentsCount: 20,
-            size: '2.1 MB',
-            summary: 'Backup com relatórios de coordenação e atividades do museu'
+        let attachments = [];
+        
+        if (isCoordinator) {
+          // Admin vê todos os anexos
+          attachments = await base44.entities.Attachment.list();
+        } else {
+          // Usuários regulares veem apenas anexos de seus relatórios
+          const userReports = await base44.entities.Report.filter({ created_by: currentUser?.email });
+          const reportIds = userReports.map(r => r.id);
+          
+          if (reportIds.length > 0) {
+            const allAttachments = await base44.entities.Attachment.list();
+            attachments = allAttachments.filter(a => reportIds.includes(a.report_id));
           }
-        ];
+        }
 
-        return allBackups.filter(b => {
+        // Converter anexos em backups para exibição
+        const backupsData = attachments.map(att => ({
+          id: att.id,
+          date: att.created_date?.split('T')[0] || new Date().toISOString().split('T')[0],
+          timestamp: att.created_date || new Date().toISOString(),
+          fileName: att.file_name,
+          fileType: att.file_type,
+          size: att.file_size ? `${(att.file_size / 1024 / 1024).toFixed(2)} MB` : 'N/A',
+          fileUrl: att.file_url,
+          summary: att.description || 'Arquivo anexado a relatório',
+          reportId: att.report_id
+        }));
+
+        return backupsData.filter(b => {
           const dateMatch = !selectedDate || b.date === selectedDate;
           const fileNameMatch = !searchFileName || 
             b.fileName.toLowerCase().includes(searchFileName.toLowerCase());
           const contentMatch = !searchContent || 
-            b.summary.toLowerCase().includes(searchContent.toLowerCase()) ||
-            b.reportsCount.toString().includes(searchContent) ||
-            b.activitiesCount.toString().includes(searchContent);
+            b.summary.toLowerCase().includes(searchContent) ||
+            b.fileType.toLowerCase().includes(searchContent);
           
           return dateMatch && fileNameMatch && contentMatch;
         }).sort((a, b) => {
@@ -78,11 +69,11 @@ function GestorArquivosInner() {
           return 0;
         });
       } catch (error) {
-        toast.error('Erro ao carregar backups');
+        toast.error('Erro ao carregar arquivos');
         return [];
       }
     },
-    enabled: isCoordinator
+    enabled: !!currentUser?.email
   });
 
   const handleDownloadBackup = async (backup) => {
