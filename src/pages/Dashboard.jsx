@@ -247,6 +247,10 @@ function DashboardInner() {
                  }
                  );
                  }
+                 );
+                 }
+                 );
+                 }
 
                  export default function Dashboard() {
   return <RequireAuth><DashboardInner /></RequireAuth>;
