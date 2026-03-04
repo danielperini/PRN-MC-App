@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
     const timestamp = now.toISOString();
     const backupData = {
       timestamp,
-      userEmail,
+      backupType: isCoordinator ? 'completo' : 'usuario',
       reports: Array.isArray(userReports) ? userReports : [],
       activities: Array.isArray(userActivities) ? userActivities : [],
       attachments: Array.isArray(userAttachments) ? userAttachments : []
