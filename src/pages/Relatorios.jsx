@@ -197,7 +197,6 @@ function RelatoriosInner() {
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <BatchPDFExport reports={filtered} />
             <Button
               variant="outline"
               className="border-black gap-2"
