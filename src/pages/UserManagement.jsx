@@ -2,20 +2,34 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Plus, Pencil, Trash2, Bell, CheckCircle, XCircle, Copy, Check, Mail, Key, AlertCircle } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Bell, CheckCircle, XCircle, Copy, Check, Mail, Key, AlertCircle, Shield, ChevronDown, ChevronUp, Save, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+
+const DEFAULT_PERMISSIONS = [
+  { key: 'can_view_all_reports', label: 'Visualizar todos os relatórios' },
+  { key: 'can_review_reports', label: 'Revisar e aprovar relatórios' },
+  { key: 'can_manage_users', label: 'Gerenciar usuários' },
+  { key: 'can_manage_files', label: 'Gerenciar arquivos (completo)' },
+  { key: 'can_manage_museus', label: 'Gerenciar museus' },
+  { key: 'can_manage_equipes', label: 'Gerenciar equipes' },
+  { key: 'can_view_audit_log', label: 'Visualizar auditoria' },
+  { key: 'can_manage_platform', label: 'Gerenciar plataforma' },
+  { key: 'must_submit_monthly_reports', label: 'Obrigado a entregar relatórios mensais' },
+];
 
 const EQUIPES = ['Comunicação', 'Coordenação', 'Administração', 'Educativo', 'Produção'];
 
