@@ -308,6 +308,49 @@ function UserManagementInner() {
     onError: (err) => toast.error(err.message || 'Erro ao alterar senha'),
   });
 
+  const updateRegMutation = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.UserRegistration.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['user-registrations']);
+      toast.success('Registro atualizado');
+      setEditingPendingReg(null);
+      setEditingPendingData({});
+    },
+    onError: () => toast.error('Erro ao atualizar registro'),
+  });
+
+  const deleteRegMutation = useMutation({
+    mutationFn: (id) => base44.entities.UserRegistration.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['user-registrations']);
+      queryClient.invalidateQueries(['user-registrations-pending']);
+      toast.success('Registro removido');
+      setDeleteRegTarget(null);
+    },
+    onError: () => toast.error('Erro ao remover registro'),
+  });
+
+  const createDirectFromPendingMutation = useMutation({
+    mutationFn: async (reg) => {
+      const password = Math.random().toString(36).slice(-10) + 'A1!';
+      const response = await base44.functions.invoke('createUserWithPassword', {
+        email: reg.email,
+        full_name: reg.full_name,
+        role: reg.role || 'PROFISSIONAL',
+        password,
+      });
+      await base44.entities.UserRegistration.update(reg.id, { status: 'APROVADO', reviewer_note: 'Cadastrado diretamente pelo administrador' });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['users']);
+      queryClient.invalidateQueries(['user-registrations']);
+      queryClient.invalidateQueries(['user-registrations-pending']);
+      toast.success('Usuário cadastrado diretamente!');
+    },
+    onError: (err) => toast.error(err.message || 'Erro ao cadastrar usuário'),
+  });
+
   const isPending = inviteMutation.isPending || updateMutation.isPending || createDirectMutation.isPending;
 
   return (
