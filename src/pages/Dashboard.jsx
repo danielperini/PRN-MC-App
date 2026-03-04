@@ -161,15 +161,36 @@ function DashboardInner() {
                ))}
              </div>
 
+             {/* Widgets Dinâmicos */}
+             {widgetsLoaded && (
+               <div className="space-y-8">
+                 {widgets.activityMetrics.enabled && (
+                   <div>
+                     <h2 className="text-lg font-medium text-black mb-4">{widgets.activityMetrics.title}</h2>
+                     <ActivityMetricsWidget reports={filteredReports} />
+                   </div>
+                 )}
+
+                 {widgets.opportunityMetrics.enabled && (
+                   <div>
+                     <h2 className="text-lg font-medium text-black mb-4">{widgets.opportunityMetrics.title}</h2>
+                     <OpportunityMetricsWidget reports={filteredReports} />
+                   </div>
+                 )}
+               </div>
+             )}
+
              {/* Recentes */}
-             <div className="flex items-center justify-between mb-4">
-               <h2 className="text-lg font-medium text-black">Relatórios Recentes</h2>
-               <Link to={createPageUrl('Relatorios')}>
-                 <Button variant="ghost" size="sm" className="text-gray-500 gap-1">
-                   Ver todos <ChevronRight className="w-4 h-4" />
-                 </Button>
-               </Link>
-             </div>
+             {widgets.recentReports.enabled && (
+               <>
+                 <div className="flex items-center justify-between mb-4 mt-8">
+                   <h2 className="text-lg font-medium text-black">{widgets.recentReports.title}</h2>
+                   <Link to={createPageUrl('Relatorios')}>
+                     <Button variant="ghost" size="sm" className="text-gray-500 gap-1">
+                       Ver todos <ChevronRight className="w-4 h-4" />
+                     </Button>
+                   </Link>
+                 </div>
 
              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                {isLoading ? (
