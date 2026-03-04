@@ -160,6 +160,80 @@ function UserManagementInner() {
     refetchInterval: 60_000,
   });
 
+  const { data: permissions = [] } = useQuery({
+    queryKey: ['user-permissions'],
+    queryFn: () => base44.entities.UserPermission.list('-created_date', 1000),
+  });
+
+  const { data: permissionTypes = [] } = useQuery({
+    queryKey: ['permission-types'],
+    queryFn: async () => {
+      try { return await base44.entities.PermissionType.list('', 1000); } catch { return []; }
+    },
+  });
+
+  const PERMISSIONS = permissionTypes.length > 0
+    ? permissionTypes.filter(t => t.ativo).map(t => ({ key: t.key, label: t.label }))
+    : DEFAULT_PERMISSIONS;
+
+  const createPermMutation = useMutation({
+    mutationFn: (data) => base44.entities.UserPermission.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['user-permissions']);
+      toast.success('Permissões criadas');
+      setShowPermDialog(false);
+      setPermFormData(null);
+    },
+    onError: () => toast.error('Erro ao criar permissões'),
+  });
+
+  const updatePermMutation = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.UserPermission.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['user-permissions']);
+      toast.success('Permissões atualizadas');
+      setEditingPerm(null);
+    },
+    onError: () => toast.error('Erro ao atualizar permissões'),
+  });
+
+  const deletePermMutation = useMutation({
+    mutationFn: (id) => base44.entities.UserPermission.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['user-permissions']);
+      toast.success('Permissões removidas');
+    },
+    onError: () => toast.error('Erro ao remover permissões'),
+  });
+
+  const openPermEdit = (perm) => setEditingPerm({ ...perm });
+
+  const openPermCreate = (user) => {
+    const newForm = { user_email: user?.email || '', user_name: user?.full_name || '', base_role: user?.role || 'PROFISSIONAL' };
+    PERMISSIONS.forEach(p => { newForm[p.key] = false; });
+    setPermFormData(newForm);
+    setShowPermDialog(true);
+  };
+
+  const togglePerm = (key) => {
+    if (editingPerm) setEditingPerm(prev => ({ ...prev, [key]: !prev[key] }));
+    else setPermFormData(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const savePerm = () => {
+    if (editingPerm) {
+      const data = {};
+      PERMISSIONS.forEach(p => { data[p.key] = editingPerm[p.key]; });
+      updatePermMutation.mutate({ id: editingPerm.id, data });
+    } else {
+      if (!permFormData.user_email) { toast.error('Selecione um usuário'); return; }
+      createPermMutation.mutate(permFormData);
+    }
+  };
+
+  const permMap = {};
+  permissions.forEach(p => { permMap[p.user_email] = p; });
+
 
 
   const approveRegMutation = useMutation({
