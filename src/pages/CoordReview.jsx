@@ -25,6 +25,12 @@ const STATUS_CONFIG = {
   IN_REVIEW: { label: 'Em Revisão', color: 'bg-amber-100 text-amber-700', cardBg: 'bg-amber-50/30',  icon: Eye },
 };
 
+const REVIEW_STATUS_CONFIG = {
+  aguardando_revisao: { label: 'Aguardando Revisão', color: 'text-blue-600', bg: 'bg-blue-50' },
+  revisao_concluida: { label: 'Revisão Concluída', color: 'text-amber-600', bg: 'bg-amber-50' },
+  aguardando_aprovacao_final: { label: 'Aguardando Aprovação Final', color: 'text-purple-600', bg: 'bg-purple-50' },
+};
+
 const SECOES = [
   { key: 'identificacao', label: 'Identificação' },
   { key: 'atividades',    label: 'Atividades Executadas' },
