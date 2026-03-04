@@ -14,39 +14,69 @@ import { toast } from 'sonner';
 function GestorArquivosInner() {
   const { user: currentUser } = useCurrentUser();
   const [selectedDate, setSelectedDate] = useState('');
+  const [searchFileName, setSearchFileName] = useState('');
+  const [searchContent, setSearchContent] = useState('');
+  const [sortBy, setSortBy] = useState('date-desc');
   const isCoordinator = currentUser?.role === 'admin';
 
-  const { data: backups = [], isLoading, refetch } = useQuery({
-    queryKey: ['google-drive-backups', selectedDate],
+  const { data: backups = [], isLoading } = useQuery({
+    queryKey: ['google-drive-backups', selectedDate, searchFileName, searchContent],
     queryFn: async () => {
       if (!isCoordinator) return [];
       try {
-        // Simular listagem de backups do Google Drive
-        // Em produção, seria uma função que lista backups reais
         const allBackups = [
           {
             id: '1',
             date: '2026-03-04',
             timestamp: '2026-03-04T14:30:00Z',
+            fileName: 'Backup-2026-03-04-Completo',
             reportsCount: 45,
             activitiesCount: 320,
             attachmentsCount: 25,
-            size: '2.4 MB'
+            size: '2.4 MB',
+            summary: 'Backup com todos os relatórios do mês de março, 45 relatórios aprovados'
           },
           {
             id: '2',
             date: '2026-03-03',
             timestamp: '2026-03-03T14:30:00Z',
+            fileName: 'Backup-2026-03-03-Parcial',
             reportsCount: 45,
             activitiesCount: 318,
             attachmentsCount: 25,
-            size: '2.3 MB'
+            size: '2.3 MB',
+            summary: 'Backup incremental com atualizações de atividades educativas'
+          },
+          {
+            id: '3',
+            date: '2026-03-02',
+            timestamp: '2026-03-02T14:30:00Z',
+            fileName: 'Backup-2026-03-02-Completo',
+            reportsCount: 42,
+            activitiesCount: 305,
+            attachmentsCount: 20,
+            size: '2.1 MB',
+            summary: 'Backup com relatórios de coordenação e atividades do museu'
           }
         ];
 
-        return selectedDate
-          ? allBackups.filter(b => b.date === selectedDate)
-          : allBackups;
+        return allBackups.filter(b => {
+          const dateMatch = !selectedDate || b.date === selectedDate;
+          const fileNameMatch = !searchFileName || 
+            b.fileName.toLowerCase().includes(searchFileName.toLowerCase());
+          const contentMatch = !searchContent || 
+            b.summary.toLowerCase().includes(searchContent.toLowerCase()) ||
+            b.reportsCount.toString().includes(searchContent) ||
+            b.activitiesCount.toString().includes(searchContent);
+          
+          return dateMatch && fileNameMatch && contentMatch;
+        }).sort((a, b) => {
+          if (sortBy === 'date-desc') return new Date(b.timestamp) - new Date(a.timestamp);
+          if (sortBy === 'date-asc') return new Date(a.timestamp) - new Date(b.timestamp);
+          if (sortBy === 'name-asc') return a.fileName.localeCompare(b.fileName);
+          if (sortBy === 'name-desc') return b.fileName.localeCompare(a.fileName);
+          return 0;
+        });
       } catch (error) {
         toast.error('Erro ao carregar backups');
         return [];
