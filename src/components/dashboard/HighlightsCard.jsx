@@ -245,7 +245,7 @@ Máximo 10 resultados, ordenados por relevância e recência.`;
                      {item.depoimento}
                    </p>
                    <div className="flex items-center gap-2 mt-2 flex-wrap">
-                     <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700 font-medium">
+                     <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 font-medium">
                        {item.mes} {item.ano}
                      </span>
                      <span className="text-xs text-gray-500">{item.museu}</span>
