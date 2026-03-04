@@ -13,6 +13,7 @@ import BatchPDFExport from '../components/reports/BatchPDFExport';
 import ActivityFilters from '../components/reports/ActivityFilters';
 import ActivitySummary from '../components/reports/ActivitySummary';
 import CompliancePanel from '../components/reports/CompliancePanel';
+import ComplianceStats from '../components/dashboard/ComplianceStats';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
