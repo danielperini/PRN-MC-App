@@ -235,17 +235,17 @@ function DashboardInner() {
                            </div>
                          </Link>
                        );
-                     })
-                   )}
-                 </div>
-                 </>
-                 )}
-                 </div>
-                 )}
-                 </div>
-                 );
-                 }
+                       })
+                       )}
+                       </div>
+                       </>
+                       )}
+                       </div>
+                       )}
+                       </div>
+                       );
+                       }
 
-                 export default function Dashboard() {
-                 return <RequireAuth><DashboardInner /></RequireAuth>;
-                 }
+                       export default function Dashboard() {
+                       return <RequireAuth><DashboardInner /></RequireAuth>;
+                       }
