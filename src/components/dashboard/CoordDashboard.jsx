@@ -511,6 +511,13 @@ export default function CoordDashboard({ reports = [], isLoading }) {
           </div>
         </div>
       )}
+
+      {/* Exportar Relatório */}
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" className="gap-2" onClick={exportarRelatorioGeral}>
+          <Download className="w-4 h-4" />Exportar Relatório Geral (CSV)
+        </Button>
+      </div>
     </div>
   );
 }
