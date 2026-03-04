@@ -30,7 +30,7 @@ const DEFAULT_PERMISSIONS = [
   { key: 'can_manage_equipes', label: 'Gerenciar equipes' },
   { key: 'can_view_audit_log', label: 'Visualizar auditoria' },
   { key: 'can_manage_platform', label: 'Gerenciar plataforma' },
-  { key: 'must_submit_monthly_reports', label: 'Obrigado a entregar relatórios mensais' },
+  { key: 'must_submit_monthly_reports', label: 'Relatório mensal' },
 ];
 
 const EQUIPES = ['Comunicação', 'Coordenação', 'Administração', 'Educativo', 'Produção'];
@@ -1138,7 +1138,7 @@ function UserManagementInner() {
                 <p className="text-sm font-semibold text-black">Obrigações de Relatório</p>
                 <div className="flex items-center gap-3">
                   <Checkbox checked={!!permFormData['must_submit_monthly_report']} onCheckedChange={() => togglePerm('must_submit_monthly_report')} id="new-must_submit_monthly_report" />
-                  <label htmlFor="new-must_submit_monthly_report" className="text-sm cursor-pointer font-medium">Obrigado a entregar relatório mensal</label>
+                  <label htmlFor="new-must_submit_monthly_report" className="text-sm cursor-pointer font-medium">Relatório mensal</label>
                 </div>
                 <p className="text-xs text-gray-500 ml-6">Quando ativado, o sistema exigirá que este usuário envie um relatório a cada mês.</p>
               </div>
@@ -1176,7 +1176,7 @@ function UserManagementInner() {
                 <p className="text-sm font-semibold text-black">Obrigações de Relatório</p>
                 <div className="flex items-center gap-3">
                   <Checkbox checked={!!editingPerm['must_submit_monthly_report']} onCheckedChange={() => togglePerm('must_submit_monthly_report')} id="edit-must_submit_monthly_report" />
-                  <label htmlFor="edit-must_submit_monthly_report" className="text-sm cursor-pointer font-medium">Obrigado a entregar relatório mensal</label>
+                  <label htmlFor="edit-must_submit_monthly_report" className="text-sm cursor-pointer font-medium">Relatório mensal</label>
                 </div>
                 <p className="text-xs text-gray-500 ml-6">Quando ativado, o sistema exigirá que este usuário envie um relatório a cada mês.</p>
               </div>
