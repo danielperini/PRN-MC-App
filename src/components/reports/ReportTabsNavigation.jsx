@@ -52,7 +52,7 @@ export default function ReportTabsNavigation({ currentTab, formData, onTabChange
           const isActive = currentTab === tab.value;
 
           return (
-            <div key={tab.value}>
+            <div key={tab.value} className="flex items-center gap-2">
               <button
                 onClick={() => onTabChange(tab.value)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
@@ -71,13 +71,11 @@ export default function ReportTabsNavigation({ currentTab, formData, onTabChange
               </button>
 
               {idx < TABS_INFO.length - 1 && (
-                <div className="flex items-center">
-                  <span className="text-gray-300">→</span>
-                </div>
+                <span className="text-gray-300">→</span>
               )}
-              </div>
-              );
-              })}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
