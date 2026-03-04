@@ -6,7 +6,6 @@ const DEFAULT_WIDGETS = {
   activityMetrics: { enabled: true, position: 2, title: 'Métricas de Atividades' },
   recentReports: { enabled: true, position: 3, title: 'Relatórios Recentes' },
   opportunityMetrics: { enabled: true, position: 4, title: 'Análise de Oportunidades' },
-  performanceChart: { enabled: true, position: 5, title: 'Desempenho' },
 };
 
 export function useWidgetPreferences() {
