@@ -198,10 +198,12 @@ function AuditEntry({ log }) {
 function CoordReviewInner() {
    const queryClient = useQueryClient();
    const { user } = useCurrentUser();
-   const [filterStatus, setFilterStatus] = useState('all');
-   const [filterMuseu, setFilterMuseu]   = useState('all');
-   const [returnDialog, setReturnDialog] = useState({ open: false, report: null });
-   const [approveDialog, setApproveDialog] = useState({ open: false, report: null });
+    const [filterStatus, setFilterStatus] = useState('all');
+    const [filterMuseu, setFilterMuseu]   = useState('all');
+    const [filterReviewStatus, setFilterReviewStatus] = useState('all');
+    const [returnDialog, setReturnDialog] = useState({ open: false, report: null });
+    const [approveDialog, setApproveDialog] = useState({ open: false, report: null });
+    const [delegateDialog, setDelegateDialog] = useState({ open: false, report: null, selectedCoord: '' });
 
    const isComunicacao = user?.role === 'COORD_COMUNICACAO';
 
