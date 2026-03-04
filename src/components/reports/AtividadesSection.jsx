@@ -981,6 +981,32 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
           )}
         </div>
       )}
+    {/* Delete activity confirmation dialog */}
+    <AlertDialog open={!!deleteConfirm} onOpenChange={o => !o && setDeleteConfirm(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Excluir atividade</AlertDialogTitle>
+          <AlertDialogDescription>
+            Esta atividade possui <strong>{deleteConfirm?.count} anexo(s)</strong>. Deseja também excluir os anexos vinculados?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+          <AlertDialogCancel onClick={() => setDeleteConfirm(null)}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-gray-700 hover:bg-gray-800 text-white"
+            onClick={() => remove(deleteConfirm.index, false)}
+          >
+            Manter anexos
+          </AlertDialogAction>
+          <AlertDialogAction
+            className="bg-red-600 hover:bg-red-700 text-white"
+            onClick={() => remove(deleteConfirm.index, true)}
+          >
+            Excluir anexos também
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </section>
   );
 }
