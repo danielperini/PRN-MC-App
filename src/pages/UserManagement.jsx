@@ -476,9 +476,9 @@ function UserManagementInner() {
           {pendingRegistrations.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <Bell className="w-4 h-4 text-amber-500" />
+                <Bell className="w-4 h-4 text-black" />
                 <h2 className="text-sm font-semibold text-black">Solicitações de Acesso</h2>
-                <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
+                <span className="w-5 h-5 rounded-full bg-black text-white text-[10px] flex items-center justify-center font-bold">
                   {pendingRegistrations.length}
                 </span>
               </div>
@@ -539,9 +539,9 @@ function UserManagementInner() {
             return (
               <div>
                 <div className="flex items-center gap-2 mb-4">
-                  <Mail className="w-4 h-4 text-orange-500" />
+                  <Mail className="w-4 h-4 text-black" />
                   <h2 className="text-sm font-semibold text-black">Pendentes de Convite</h2>
-                  <span className="w-5 h-5 rounded-full bg-orange-500 text-white text-[10px] flex items-center justify-center font-bold">
+                  <span className="w-5 h-5 rounded-full bg-black text-white text-[10px] flex items-center justify-center font-bold">
                     {approvedButNotInvited.length}
                   </span>
                 </div>
@@ -575,7 +575,7 @@ function UserManagementInner() {
                             disabled={createDirectFromPendingMutation.isPending}>
                             <Plus className="w-3 h-3" />Cadastrar Direto
                           </Button>
-                          <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1"
+                          <Button size="sm" className="bg-black hover:bg-gray-800 text-white text-xs gap-1"
                             onClick={() => { setReviewingReg({ ...reg, action: 'convidar' }); setRegRole('PROFISSIONAL'); setRegNote(''); }}>
                             <Mail className="w-3 h-3" />Reenviar Convite
                           </Button>
@@ -1016,9 +1016,9 @@ function UserManagementInner() {
           </DialogHeader>
 
           <div className="space-y-4 mt-2">
-            <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg flex gap-3">
-              <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-blue-700">
+            <div className="p-3 bg-gray-50 border border-black rounded-lg flex gap-3">
+              <AlertCircle className="w-4 h-4 text-black flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-black">
                 A nova senha será enviada ao usuário. Certifique-se de que ele está ciente da alteração.
               </p>
             </div>
