@@ -77,8 +77,12 @@ function GestorArquivosInner() {
   });
 
   const handleDownloadBackup = async (backup) => {
-    toast.success(`Download iniciado: ${backup.date}`);
-    // Em produção, implementar download real
+   if (backup.fileUrl) {
+     window.open(backup.fileUrl, '_blank');
+     toast.success(`Download iniciado: ${backup.fileName}`);
+   } else {
+     toast.error('URL do arquivo não disponível');
+   }
   };
 
   if (!currentUser) {
