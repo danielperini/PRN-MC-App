@@ -484,10 +484,10 @@ function UserManagementInner() {
               </div>
               <div className="space-y-3">
                 {pendingRegistrations.map((reg, idx) => (
-                  <div key={reg.id} className="p-5 border border-amber-100 bg-amber-50/40 rounded-xl hover:border-amber-200 transition-all">
+                  <div key={reg.id} className="p-5 border-2 border-black bg-white rounded-xl transition-all">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-4 min-w-0 flex-1">
-                        <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold text-amber-700">
+                        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold text-black">
                           {(reg.full_name || '')[0]?.toUpperCase() || '?'}
                         </div>
                         <div className="min-w-0 flex-1">

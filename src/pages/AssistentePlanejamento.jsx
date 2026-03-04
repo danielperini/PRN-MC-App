@@ -251,17 +251,17 @@ Sempre seja prestativo, didático e use exemplos práticos quando possível.`;
         <div className="flex gap-6 flex-1 min-h-0">
           {/* Manual Section */}
           {showManual && (
-            <div className="hidden lg:block w-72 bg-blue-50 border border-blue-100 rounded-2xl p-4 overflow-auto">
+            <div className="hidden lg:block w-72 bg-white border border-black rounded-2xl p-4 overflow-auto">
               <div className="prose prose-sm max-w-none text-xs">
                 {MANUAL_PT_BR.split('\n').map((line, i) => {
                   if (line.startsWith('# ')) {
-                    return <h1 key={i} className="text-lg font-bold mt-4 mb-2 text-blue-900">{line.replace('# ', '')}</h1>;
+                    return <h1 key={i} className="text-lg font-bold mt-4 mb-2 text-black">{line.replace('# ', '')}</h1>;
                   }
                   if (line.startsWith('## ')) {
-                    return <h2 key={i} className="text-base font-semibold mt-3 mb-1 text-blue-800">{line.replace('## ', '')}</h2>;
+                    return <h2 key={i} className="text-base font-semibold mt-3 mb-1 text-black">{line.replace('## ', '')}</h2>;
                   }
                   if (line.startsWith('### ')) {
-                    return <h3 key={i} className="text-sm font-semibold mt-2 mb-1 text-blue-700">{line.replace('### ', '')}</h3>;
+                    return <h3 key={i} className="text-sm font-semibold mt-2 mb-1 text-black">{line.replace('### ', '')}</h3>;
                   }
                   if (line.startsWith('- ')) {
                     return <li key={i} className="ml-4 text-gray-700">{line.replace('- ', '')}</li>;
@@ -279,7 +279,7 @@ Sempre seja prestativo, didático e use exemplos práticos quando possível.`;
           )}
 
           {/* Chat Section */}
-          <div className="flex-1 flex flex-col border border-gray-200 rounded-2xl bg-gray-50">
+          <div className="flex-1 flex flex-col border border-black rounded-2xl bg-white">
             {/* Messages */}
             <ScrollArea className="flex-1 p-6 space-y-4">
               {conversation.length === 0 && (
