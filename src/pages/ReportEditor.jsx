@@ -25,6 +25,7 @@ import TrendAnalysisAI from '../components/reports/TrendAnalysisAI';
 import ReportComments from '../components/reports/ReportComments';
 import ReportTimeline from '../components/reports/ReportTimeline';
 import ActivityProgressBar from '../components/reports/ActivityProgressBar';
+import ReportVersionHistory from '../components/reports/ReportVersionHistory';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -707,7 +708,10 @@ function ReportEditorInner() {
           {/* HISTÓRICO */}
           <TabsContent value="historico" className="space-y-6">
             {reportId ? (
-              <ReportTimeline reportId={reportId} />
+              <div className="space-y-6">
+                <ReportVersionHistory reportId={reportId} />
+                <ReportTimeline reportId={reportId} />
+              </div>
             ) : (
               <p className="text-sm text-gray-400 text-center py-8">Salve o relatório para visualizar o histórico</p>
             )}
