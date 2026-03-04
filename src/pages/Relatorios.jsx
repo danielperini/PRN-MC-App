@@ -333,14 +333,14 @@ function RelatoriosInner() {
                      {totalAtiv > 0 && (
                        <div className="flex gap-1.5 mt-4 flex-wrap">
                          {nMeta > 0 && (
-                           <span className="text-[11px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>
-                         )}
-                         {nRot > 0 && (
-                           <span className="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>
-                         )}
-                         {nExt > 0 && (
-                           <span className="text-[11px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>
-                         )}
+                               <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>
+                              )}
+                              {nRot > 0 && (
+                                <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>
+                              )}
+                              {nExt > 0 && (
+                                <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>
+                              )}
                        </div>
                      )}
 
