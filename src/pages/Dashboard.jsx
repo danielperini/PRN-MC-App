@@ -192,57 +192,54 @@ function DashboardInner() {
                    </Link>
                  </div>
 
-             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-               {isLoading ? (
-                 <div className="col-span-full text-center py-20 text-gray-400">Carregando...</div>
-               ) : recentReports.length === 0 ? (
-                 <div className="col-span-full text-center py-16 border border-dashed border-gray-200 rounded-2xl">
-                   <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                   <p className="text-gray-500">Nenhum relatório encontrado</p>
-                   <Link to={createPageUrl('ReportEditor')}>
-                     <Button variant="outline" className="mt-4 border-black">Criar primeiro relatório</Button>
-                   </Link>
-                 </div>
-               ) : (
-                 recentReports.map(report => {
-                   const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.DRAFT;
-                   const StatusIcon = cfg.icon;
-                   const atividades = Array.isArray(report.atividades) ? report.atividades : [];
-                   const nMeta = atividades.filter(a => a.classificacao === 'META').length;
-                   const nRot  = atividades.filter(a => a.classificacao === 'ROTINA').length;
-                   const nExt  = atividades.filter(a => a.classificacao === 'EXTRA').length;
-                   return (
-                     <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block group">
-                       <div className="h-full p-5 rounded-2xl border-2 border-black hover:shadow-md transition-all bg-white">
-                         <div className="flex items-center justify-between mb-4">
-                           <Badge className={`${cfg.color} font-normal gap-1`}>
-                             <StatusIcon className="w-3 h-3" />{cfg.label}
-                           </Badge>
-                           <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
-                         </div>
-                         <h3 className="font-semibold text-black text-base leading-tight">
-                           {report.mes_referencia} {report.ano}
-                         </h3>
-                         <p className="text-sm text-gray-500 mt-1 truncate">{report.author_name}</p>
-                         <p className="text-xs text-gray-400 mt-0.5">{report.museu}</p>
-                         {(nMeta + nRot + nExt) > 0 && (
-                           <div className="flex gap-1.5 mt-4 flex-wrap">
-                             {nMeta > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>}
-                             {nRot > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>}
-                             {nExt > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>}
+                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                   {isLoading ? (
+                     <div className="col-span-full text-center py-20 text-gray-400">Carregando...</div>
+                   ) : recentReports.length === 0 ? (
+                     <div className="col-span-full text-center py-16 border border-dashed border-gray-200 rounded-2xl">
+                       <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                       <p className="text-gray-500">Nenhum relatório encontrado</p>
+                       <Link to={createPageUrl('ReportEditor')}>
+                         <Button variant="outline" className="mt-4 border-black">Criar primeiro relatório</Button>
+                       </Link>
+                     </div>
+                   ) : (
+                     recentReports.map(report => {
+                       const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.DRAFT;
+                       const StatusIcon = cfg.icon;
+                       const atividades = Array.isArray(report.atividades) ? report.atividades : [];
+                       const nMeta = atividades.filter(a => a.classificacao === 'META').length;
+                       const nRot  = atividades.filter(a => a.classificacao === 'ROTINA').length;
+                       const nExt  = atividades.filter(a => a.classificacao === 'EXTRA').length;
+                       return (
+                         <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block group">
+                           <div className="h-full p-5 rounded-2xl border-2 border-black hover:shadow-md transition-all bg-white">
+                             <div className="flex items-center justify-between mb-4">
+                               <Badge className={`${cfg.color} font-normal gap-1`}>
+                                 <StatusIcon className="w-3 h-3" />{cfg.label}
+                               </Badge>
+                               <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
+                             </div>
+                             <h3 className="font-semibold text-black text-base leading-tight">
+                               {report.mes_referencia} {report.ano}
+                             </h3>
+                             <p className="text-sm text-gray-500 mt-1 truncate">{report.author_name}</p>
+                             <p className="text-xs text-gray-400 mt-0.5">{report.museu}</p>
+                             {(nMeta + nRot + nExt) > 0 && (
+                               <div className="flex gap-1.5 mt-4 flex-wrap">
+                                 {nMeta > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>}
+                                 {nRot > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>}
+                                 {nExt > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>}
+                               </div>
+                             )}
                            </div>
-                         )}
-                       </div>
-                     </Link>
-                   );
-                 })
-               )}
-               </div>
-               )}
-               </div>
-               )}
-               </div>
-               </div>
+                         </Link>
+                       );
+                     })
+                   )}
+                 </div>
+               </>
+             )}
                );
                }
 
