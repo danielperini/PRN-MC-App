@@ -98,19 +98,21 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    // Verificar se é coordenador/admin
-    const isCoordinator = ['admin', 'COORDENADOR', 'COORD_PRODUCAO', 'COORD_ADMINISTRATIVA', 'COORD_COMUNICACAO'].includes(user.role);
-    if (!isCoordinator) {
-      return Response.json({ error: 'Forbidden: Apenas coordenadores podem fazer backup' }, { status: 403 });
-    }
-    
     // Obter conexão do Google Drive
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
     
-    // Obter dados para backup
-    const reports = await base44.asServiceRole.entities.Report.list('-updated_date', 500);
-    const activities = await base44.asServiceRole.entities.Activity.list('-updated_date', 500);
-    const attachments = await base44.asServiceRole.entities.Attachment.list('-updated_date', 500);
+    // Obter dados para backup - apenas do usuário logado
+    const userEmail = user.email;
+    const userReports = await base44.entities.Report.filter({ created_by: userEmail }, '-updated_date', 500);
+    const reportIds = userReports.map(r => r.id);
+    
+    // Atividades relacionadas aos relatórios do usuário
+    const allActivities = await base44.entities.Activity.list('-updated_date', 500);
+    const userActivities = allActivities.filter(a => reportIds.includes(a.report_id));
+    
+    // Anexos relacionados aos relatórios do usuário
+    const allAttachments = await base44.entities.Attachment.list('-updated_date', 500);
+    const userAttachments = allAttachments.filter(a => reportIds.includes(a.report_id));
     
     // Criar estrutura de pastas
     const backupRootId = await getOrCreateBackupRoot(accessToken);
