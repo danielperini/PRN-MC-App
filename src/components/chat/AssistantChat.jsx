@@ -6,7 +6,40 @@ import { Input } from '@/components/ui/input';
 import { useQuery } from '@tanstack/react-query';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-const systemPrompt = `Você é um assistente inteligente para gestão de museus e relatórios culturais. 
+const MANUAL_CONTEXT = `
+MANUAL PLATAFORMA MUSEU CENTRO - Referência Rápida:
+
+PARA PROFISSIONAIS:
+1. Novo Relatório: Identificação → Resumo → Atividades → Oportunidades → Avaliação
+2. Status: DRAFT (rascunho) → SUBMITTED (enviado) → IN_REVIEW → APPROVED/RETURNED
+3. Atividades: Título, Descrição, Data, Público, Classificação (META/ROTINA/EXTRA)
+4. META: Selecione código, informe resultado e status (Em andamento/Parcial/Cumprida/Superada)
+5. Salvar: Auto-save a cada 5 segundos ou clique "Salvar Rascunho"
+6. Enviar: Marque declaração de responsabilidade e clique "Enviar para Revisão"
+
+PARA COORDENADORES:
+1. Revisão: Acesse "Revisão" → Filtre por museu/status → "Assumir Revisão"
+2. Comentários: Detalhados por seção (Identificação/Atividades/Avaliação)
+3. Ações: Devolver (com feedback) ou Aprovar
+4. Dashboard: Visão consolidada, métricas, compliance, log de aprovações
+
+FUNCIONALIDADES CHAVE:
+- Templates: Salvar/Carregar modelos de relatórios
+- PDF: Exportar relatório completo
+- CSV: Exportar dados para análise
+- IA: Gerar sugestões para resumo e pontos positivos
+- Filtros: Por mês, museu, equipe, status, classificação
+- Momentos: Histórias e depoimentos para carousel
+
+GLOSSÁRIO:
+- META: Objetivos do 3º Aditivo
+- ROTINA: Atividades habituais
+- EXTRA: Atividades adicionais
+- Draft: Rascunho (editável)
+- Compliance: Conformidade de envio
+`;
+
+const systemPrompt = `Você é um assistente inteligente da Plataforma Museu Centro. 
 Você ajuda usuários com:
 - Orientações sobre preenchimento de relatórios mensais
 - Dúvidas sobre metas e indicadores culturais
@@ -14,7 +47,9 @@ Você ajuda usuários com:
 - Boas práticas em documentação de atividades culturais
 - Explicações sobre processo de aprovação de relatórios
 - Dicas para melhorar a coleta de dados de públicos
+- Instruções sobre como usar a plataforma (baseadas no manual)
 
+Consulte sempre as instruções do manual para respostas precisas.
 Sempre seja amigável, profissional e conciso nas respostas.`;
 
 export default function AssistantChat() {
@@ -39,8 +74,10 @@ export default function AssistantChat() {
 
   const suggestedQuestions = [
     'Como preencher o resumo executivo?',
-    'Qual é o plano de trabalho para este período?',
-    'Como classificar minhas atividades?',
+    'O que é uma atividade META?',
+    'Como enviar meu relatório?',
+    'Como revisar um relatório? (coordenadores)',
+    'Como usar templates?',
     'Dúvidas sobre aprovação de relatórios?'
   ];
 
@@ -67,7 +104,7 @@ export default function AssistantChat() {
         : '';
 
       const response = await base44.integrations.Core.InvokeLLM({
-        prompt: `${systemPrompt}\n\n${context}\n\nPergunta do usuário: ${textToSend}`,
+        prompt: `${systemPrompt}\n\n${MANUAL_CONTEXT}\n\n${context}\n\nPergunta do usuário: ${textToSend}`,
         add_context_from_internet: false,
       });
 
