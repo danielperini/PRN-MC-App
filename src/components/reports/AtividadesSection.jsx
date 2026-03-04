@@ -770,6 +770,7 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
   const [selectedIndices, setSelectedIndices] = React.useState(new Set());
   const [bulkEditorOpen, setBulkEditorOpen] = React.useState(false);
   const [attachmentCounts, setAttachmentCounts] = React.useState({});
+  const [deleteConfirm, setDeleteConfirm] = React.useState(null); // { index, activityId, hasAttachments }
 
   React.useEffect(() => {
     // Fetch attachment counts for each activity
