@@ -1,0 +1,142 @@
+import React, { useState } from 'react';
+import { ChevronRight, ChevronDown, FileIcon, FolderIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import FilePreview from './FilePreview';
+import { Download } from 'lucide-react';
+import { toast } from 'sonner';
+
+export default function FileHierarchy({ backups = [] }) {
+  const [expandedReports, setExpandedReports] = useState(new Set());
+  const [expandedActivities, setExpandedActivities] = useState(new Set());
+
+  // Agrupar por relatório > atividade
+  const hierarchy = backups.reduce((acc, file) => {
+    const reportId = file.reportId || 'sem-relatorio';
+    if (!acc[reportId]) {
+      acc[reportId] = {};
+    }
+    const activityId = `atividade-${file.fileType?.split('/')[0] || 'outro'}`;
+    if (!acc[reportId][activityId]) {
+      acc[reportId][activityId] = [];
+    }
+    acc[reportId][activityId].push(file);
+    return acc;
+  }, {});
+
+  const toggleReport = (reportId) => {
+    const newExpanded = new Set(expandedReports);
+    if (newExpanded.has(reportId)) {
+      newExpanded.delete(reportId);
+    } else {
+      newExpanded.add(reportId);
+    }
+    setExpandedReports(newExpanded);
+  };
+
+  const toggleActivity = (key) => {
+    const newExpanded = new Set(expandedActivities);
+    if (newExpanded.has(key)) {
+      newExpanded.delete(key);
+    } else {
+      newExpanded.add(key);
+    }
+    setExpandedActivities(newExpanded);
+  };
+
+  const handleDownload = (file) => {
+    if (file.fileUrl) {
+      window.open(file.fileUrl, '_blank');
+      toast.success(`Download iniciado: ${file.fileName}`);
+    } else {
+      toast.error('URL do arquivo não disponível');
+    }
+  };
+
+  if (backups.length === 0) {
+    return (
+      <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
+        <FolderIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-500">Nenhum arquivo encontrado</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {Object.entries(hierarchy).map(([reportId, activities]) => (
+        <div key={reportId} className="border border-gray-200 rounded-lg overflow-hidden">
+          {/* Relatório */}
+          <button
+            onClick={() => toggleReport(reportId)}
+            className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+          >
+            {expandedReports.has(reportId) ? (
+              <ChevronDown className="w-4 h-4 text-gray-600" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-gray-600" />
+            )}
+            <FolderIcon className="w-4 h-4 text-blue-500" />
+            <span className="font-medium text-sm text-gray-900">
+              Relatório {reportId === 'sem-relatorio' ? '(Sem ID)' : reportId}
+            </span>
+            <span className="ml-auto text-xs text-gray-500">
+              {Object.values(activities).flat().length} arquivos
+            </span>
+          </button>
+
+          {/* Atividades */}
+          {expandedReports.has(reportId) && (
+            <div className="bg-gray-50 divide-y">
+              {Object.entries(activities).map(([activityKey, files]) => (
+                <div key={activityKey}>
+                  <button
+                    onClick={() => toggleActivity(activityKey)}
+                    className="w-full flex items-center gap-2 px-6 py-2 hover:bg-gray-100 transition-colors text-left"
+                  >
+                    {expandedActivities.has(activityKey) ? (
+                      <ChevronDown className="w-4 h-4 text-gray-500" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-gray-500" />
+                    )}
+                    <FolderIcon className="w-4 h-4 text-amber-500" />
+                    <span className="text-sm text-gray-700">
+                      {activityKey.replace('atividade-', 'Atividade - ')}
+                    </span>
+                    <span className="ml-auto text-xs text-gray-500">{files.length}</span>
+                  </button>
+
+                  {/* Arquivos */}
+                  {expandedActivities.has(activityKey) && (
+                    <div className="bg-white divide-y">
+                      {files.map((file) => (
+                        <div key={file.id} className="px-8 py-3 flex items-start gap-3 hover:bg-gray-50">
+                          <FileIcon className="w-4 h-4 text-gray-400 mt-1 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {file.fileName}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {new Date(file.timestamp).toLocaleString('pt-BR')} · {file.size}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDownload(file)}
+                            className="flex-shrink-0"
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
