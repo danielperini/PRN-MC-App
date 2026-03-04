@@ -318,14 +318,13 @@ export default function CoordDashboard({ reports = [], isLoading }) {
       </div>
 
       {/* KPI Cards with larger fonts */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {[
           { label: 'Total de Relatórios', value: totalRelatorios, icon: FileText },
           { label: 'Pendentes de Revisão', value: pendentes, icon: AlertCircle, highlight: pendentes > 0 },
           { label: 'Aprovados', value: aprovados, icon: CheckCircle },
           { label: 'Total de Atividades', value: totalAtiv, icon: Target },
           { label: 'Público Total', value: publicoTotal.toLocaleString('pt-BR'), icon: Users },
-          { label: 'Taxa de Aprovação', value: totalRelatorios ? `${Math.round((aprovados/totalRelatorios)*100)}%` : '—', icon: TrendingUp },
         ].map(kpi => (
           <KpiCard key={kpi.label} {...kpi} />
         ))}
