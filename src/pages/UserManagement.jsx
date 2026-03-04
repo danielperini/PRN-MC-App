@@ -474,7 +474,7 @@ function UserManagementInner() {
                           <Button size="sm" variant="outline" className="text-xs gap-1"
                             onClick={() => {
                               setEditingUserId(user.id);
-                              setEditingUserData({ role: user.role || 'PROFISSIONAL', equipe: user.equipe || '' });
+                              setEditingUserData({ role: user.role || 'PROFISSIONAL', equipe: user.equipe || '', full_name: user.full_name || '' });
                             }}>
                             <Pencil className="w-3 h-3" />Editar
                           </Button>
