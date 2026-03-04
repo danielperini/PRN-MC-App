@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import PendingApprovalsPanel from './PendingApprovalsPanel';
+import FrasesParticipantes from './FrasesParticipantes';
 
 const STATUS_CONFIG = {
   DRAFT:     { label: 'Rascunho',   color: '#e5e7eb', text: '#374151' },
@@ -233,6 +234,9 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     <div className="space-y-8">
       {/* Painel de Aprovações Pendentes */}
       <PendingApprovalsPanel />
+
+      {/* Frases de Participantes */}
+      <FrasesParticipantes reports={reports} />
 
       {/* Filtros */}
       <div className="border border-gray-100 rounded-2xl p-5 space-y-4">
