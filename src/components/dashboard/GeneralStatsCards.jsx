@@ -57,17 +57,7 @@ const GENERAL_STATS = [
 ];
 
 export default function GeneralStatsCards({ reports = [] }) {
-   const [visibleCards, setVisibleCards] = useState(
-     GENERAL_STATS.map(s => s.id).slice(0, 3)
-   );
-
    const data = { allReports: Array.isArray(reports) ? reports : [] };
-
-  const toggleCard = (id) => {
-    setVisibleCards(prev => 
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
-  };
 
   return (
     <div className="space-y-4">
