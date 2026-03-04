@@ -81,13 +81,12 @@ function GestorArquivosInner() {
     // Em produção, implementar download real
   };
 
-  if (!isCoordinator) {
+  if (!currentUser) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-6">
         <div className="text-center">
           <Cloud className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900">Acesso Restrito</h2>
-          <p className="text-gray-500 mt-2">Apenas coordenadores podem acessar o gerenciador de arquivos.</p>
+          <h2 className="text-xl font-semibold text-gray-900">Carregando...</h2>
         </div>
       </div>
     );
