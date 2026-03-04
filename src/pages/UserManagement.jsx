@@ -1168,6 +1168,56 @@ function UserManagementInner() {
         </DialogContent>
       </Dialog>
 
+      {/* Permission Create Dialog */}
+      <Dialog open={showPermDialog} onOpenChange={setShowPermDialog}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Permissões: {permFormData?.user_name || permFormData?.user_email}</DialogTitle>
+            <DialogDescription>Configure as permissões customizadas para este usuário</DialogDescription>
+          </DialogHeader>
+          {permFormData && (
+            <div className="space-y-3 mt-3">
+              {PERMISSIONS.map(p => (
+                <div key={p.key} className="flex items-center gap-3">
+                  <Checkbox checked={!!permFormData[p.key]} onCheckedChange={() => togglePerm(p.key)} id={`new-${p.key}`} />
+                  <label htmlFor={`new-${p.key}`} className="text-sm cursor-pointer">{p.label}</label>
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter className="mt-6">
+            <Button variant="outline" onClick={() => setShowPermDialog(false)}>Cancelar</Button>
+            <Button className="bg-black hover:bg-gray-800 text-white" onClick={savePerm} disabled={createPermMutation.isPending}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Permission Edit Dialog */}
+      <Dialog open={!!editingPerm} onOpenChange={o => !o && setEditingPerm(null)}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Permissões: {editingPerm?.user_name}</DialogTitle>
+            <DialogDescription>{editingPerm?.user_email}</DialogDescription>
+          </DialogHeader>
+          {editingPerm && (
+            <div className="space-y-3 mt-3">
+              {PERMISSIONS.map(p => (
+                <div key={p.key} className="flex items-center gap-3">
+                  <Checkbox checked={!!editingPerm[p.key]} onCheckedChange={() => togglePerm(p.key)} id={`edit-${p.key}`} />
+                  <label htmlFor={`edit-${p.key}`} className="text-sm cursor-pointer">{p.label}</label>
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter className="mt-6">
+            <Button variant="outline" onClick={() => setEditingPerm(null)}>Cancelar</Button>
+            <Button className="bg-black hover:bg-gray-800 text-white" onClick={savePerm} disabled={updatePermMutation.isPending}>
+              <Save className="w-4 h-4 mr-1" />Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Pending Registration Confirm */}
       <AlertDialog open={!!deleteRegTarget} onOpenChange={o => !o && setDeleteRegTarget(null)}>
         <AlertDialogContent>
