@@ -966,7 +966,7 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
                index={i}
                canEdit={canEdit}
                onChange={(field, value) => update(i, field, value)}
-               onRemove={() => remove(i)}
+               onRemove={() => requestRemove(i)}
                reportId={reportId}
                hasDupWarning={dupWarning?.index === i}
                isSelected={selectedIndices.has(i)}
