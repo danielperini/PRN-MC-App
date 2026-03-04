@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 export default function HighlightsCarousel() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [autoPlay, setAutoPlay] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const queryClient = useQueryClient();
 
   // Fetch Momentos (conteúdo interno)
   const { data: momentos = [] } = useQuery({
@@ -93,6 +96,24 @@ export default function HighlightsCarousel() {
     }
     if (item.link) {
       window.open(item.link, '_blank');
+    }
+  };
+
+  // Função para trocar notícias (busca nova busca)
+  const handleRefreshNews = async () => {
+    setIsRefreshing(true);
+    try {
+      // Força uma busca nova via backend (função específica ou integração)
+      // Para agora, invalida o cache e refetch
+      await queryClient.invalidateQueries(['news-highlights']);
+      await queryClient.invalidateQueries(['momentos-ativos']);
+      setCurrentIndex(0); // Volta ao primeiro slide
+      toast.success('Notícias atualizadas com sucesso!');
+    } catch (error) {
+      console.error('Erro ao atualizar notícias:', error);
+      toast.error('Erro ao atualizar notícias');
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -196,6 +217,19 @@ export default function HighlightsCarousel() {
             />
           ))}
         </div>
+      </div>
+
+      {/* Botão de Trocar Notícias */}
+      <div className="mt-4 flex justify-center">
+        <Button
+          onClick={handleRefreshNews}
+          disabled={isRefreshing}
+          variant="outline"
+          className="gap-2 border-black text-black hover:bg-black hover:text-white"
+        >
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          {isRefreshing ? 'Atualizando...' : 'Trocar Notícias'}
+        </Button>
       </div>
     </div>
   );
