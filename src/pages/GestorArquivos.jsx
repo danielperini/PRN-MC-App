@@ -208,29 +208,31 @@ function GestorArquivosInner() {
                       <FileJson className="w-4 md:w-5 h-4 md:h-5 text-blue-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-black text-sm md:text-base break-words">
-                        Backup - {new Date(backup.timestamp).toLocaleDateString('pt-BR')}
-                      </h3>
-                      <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                        <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span className="truncate">{new Date(backup.timestamp).toLocaleString('pt-BR')}</span>
-                      </div>
+                       <h3 className="font-medium text-black text-sm md:text-base break-words">
+                         {backup.fileName}
+                       </h3>
+                       <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                         <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                         <span className="truncate">{new Date(backup.timestamp).toLocaleString('pt-BR')}</span>
+                       </div>
 
-                      <div className="grid grid-cols-3 gap-2 md:gap-3 mt-3 md:mt-4">
-                        <div className="p-2 bg-gray-50 rounded">
-                          <p className="text-xs text-gray-600">Relatórios</p>
-                          <p className="font-semibold text-black text-sm">{backup.reportsCount}</p>
-                        </div>
-                        <div className="p-2 bg-gray-50 rounded">
-                          <p className="text-xs text-gray-600">Atividades</p>
-                          <p className="font-semibold text-black text-sm">{backup.activitiesCount}</p>
-                        </div>
-                        <div className="p-2 bg-gray-50 rounded">
-                          <p className="text-xs text-gray-600">Tamanho</p>
-                          <p className="font-semibold text-black text-sm">{backup.size}</p>
-                        </div>
-                      </div>
-                    </div>
+                       <p className="text-xs text-gray-600 mt-2 line-clamp-2">{backup.summary}</p>
+
+                       <div className="grid grid-cols-3 gap-2 md:gap-3 mt-3 md:mt-4">
+                         <div className="p-2 bg-gray-50 rounded">
+                           <p className="text-xs text-gray-600">Relatórios</p>
+                           <p className="font-semibold text-black text-sm">{backup.reportsCount}</p>
+                         </div>
+                         <div className="p-2 bg-gray-50 rounded">
+                           <p className="text-xs text-gray-600">Atividades</p>
+                           <p className="font-semibold text-black text-sm">{backup.activitiesCount}</p>
+                         </div>
+                         <div className="p-2 bg-gray-50 rounded">
+                           <p className="text-xs text-gray-600">Tamanho</p>
+                           <p className="font-semibold text-black text-sm">{backup.size}</p>
+                         </div>
+                       </div>
+                     </div>
                   </div>
 
                   <Button
