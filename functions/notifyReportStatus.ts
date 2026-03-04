@@ -3,54 +3,88 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const { report_id, status, reviewer_name } = await req.json();
+    const user = await base44.auth.me();
 
-    if (!report_id || !status) {
-      return Response.json({ error: 'report_id and status required' }, { status: 400 });
+    if (!user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const report = await base44.entities.Report.get(report_id);
-    if (!report) {
-      return Response.json({ error: 'Report not found' }, { status: 404 });
+    const payload = await req.json();
+    const { reportId, action, reportData } = payload;
+
+    if (!reportId || !action) {
+      return Response.json({ error: 'Missing reportId or action' }, { status: 400 });
     }
 
-    const author_email = report.created_by;
-    let title = '';
-    let message = '';
+    // Get user notification preferences
+    const prefs = await base44.asServiceRole.entities.NotificationPreference.filter(
+      { user_email: reportData?.author_email || user.email },
+      '-created_date',
+      1
+    );
 
-    if (status === 'APPROVED') {
-      title = '✅ Relatório Aprovado';
-      message = `Seu relatório de ${report.mes_referencia}/${report.ano} foi aprovado${
-        reviewer_name ? ` por ${reviewer_name}` : ''
-      }.`;
-    } else if (status === 'RETURNED') {
-      title = '⚠️ Relatório Devolvido';
-      message = `Seu relatório de ${report.mes_referencia}/${report.ano} foi devolvido para revisão. ${
-        report.return_comment ? `Comentário: ${report.return_comment}` : ''
-      }`;
-    } else if (status === 'IN_REVIEW') {
-      title = '👁️ Relatório em Revisão';
-      message = `Seu relatório de ${report.mes_referencia}/${report.ano} está sendo revisado${
-        reviewer_name ? ` por ${reviewer_name}` : ''
-      }.`;
+    const preference = prefs?.[0];
+    if (!preference) {
+      return Response.json({ success: false, message: 'No preference found' });
     }
 
-    if (title && message) {
-      await base44.asServiceRole.entities.Notification.create({
-        user_email: author_email,
-        type: `REPORT_${status}`,
-        title,
-        message,
-        report_id,
-        action_url: `/report-editor?id=${report_id}`,
-        read: false,
-        email_sent: false,
-      });
+    // Determine if should send notification based on action and preferences
+    let shouldNotify = false;
+    let subject = '';
+    let body = '';
+
+    const reportMonth = reportData?.mes_referencia || 'Mês';
+    const reportYear = reportData?.ano || 'Ano';
+
+    switch (action) {
+      case 'APPROVED':
+        if (preference.notify_approved) {
+          shouldNotify = true;
+          subject = `✓ Relatório de ${reportMonth}/${reportYear} foi aprovado`;
+          body = `Seu relatório de ${reportMonth}/${reportYear} foi oficialmente aprovado.\n\nMuseu: ${reportData?.museu}\nEquipe: ${reportData?.equipe}`;
+        }
+        break;
+      case 'RETURNED':
+        if (preference.notify_returned) {
+          shouldNotify = true;
+          subject = `↻ Relatório de ${reportMonth}/${reportYear} devolvido para revisão`;
+          body = `Seu relatório de ${reportMonth}/${reportYear} foi devolvido para revisão.\n\nComentário: ${reportData?.return_comment || 'Nenhum comentário adicional'}`;
+        }
+        break;
+      case 'PENDING_REMINDER':
+        if (preference.notify_pending_reports && preference.reminder_frequency !== 'never') {
+          shouldNotify = true;
+          subject = `⏰ Lembrança: Relatório de ${reportMonth}/${reportYear} pendente`;
+          body = `Você tem um relatório pendente de ${reportMonth}/${reportYear}.\n\nPrazo sugerido: em ${preference.notify_deadline_days} dias`;
+        }
+        break;
+      case 'SUBMITTED':
+        if (preference.notify_pending_reports) {
+          shouldNotify = true;
+          subject = `📤 Relatório de ${reportMonth}/${reportYear} enviado`;
+          body = `Seu relatório de ${reportMonth}/${reportYear} foi enviado com sucesso para revisão.`;
+        }
+        break;
     }
 
-    return Response.json({ success: true });
+    if (!shouldNotify) {
+      return Response.json({ success: false, message: 'Notification skipped by user preference' });
+    }
+
+    // Send email via Core integration
+    const emailResult = await base44.asServiceRole.integrations.Core.SendEmail({
+      to: reportData?.author_email || user.email,
+      subject: subject,
+      body: body
+    });
+
+    return Response.json({
+      success: true,
+      action: action,
+      emailSent: !!emailResult
+    });
   } catch (error) {
-    console.error('Error in notifyReportStatus:', error);
+    console.error('Error notifying report status:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
