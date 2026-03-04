@@ -323,11 +323,16 @@ function RelatoriosInner() {
                     </div>
 
                     {/* Main info */}
-                    <h3 className="font-semibold text-black text-base leading-tight">
-                      {report.mes_referencia} {report.ano}
-                    </h3>
-                    <p className="text-sm text-gray-500 mt-1 truncate">{report.author_name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{report.museu}{report.equipe ? ` · ${report.equipe}` : ''}</p>
+                     <h3 className="font-semibold text-black text-base leading-tight">
+                       {report.mes_referencia} {report.ano}
+                     </h3>
+                     <div className="flex items-center gap-2 mt-1">
+                       <p className="text-sm text-gray-500 truncate">{report.author_name}</p>
+                       {report.status === 'DRAFT' && (
+                         <span className="text-[11px] px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-700 font-medium whitespace-nowrap">Pendente</span>
+                       )}
+                     </div>
+                     <p className="text-xs text-gray-400 mt-0.5">{report.museu}{report.equipe ? ` · ${report.equipe}` : ''}</p>
 
                     {/* Activity pills */}
                      {totalAtiv > 0 && (
