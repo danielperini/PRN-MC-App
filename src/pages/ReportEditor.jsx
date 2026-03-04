@@ -592,10 +592,10 @@ function ReportEditorInner() {
                           className="gap-1.5 text-xs mt-2"
                           onClick={async () => {
                             const prompt = `Com base no título e contexto abaixo, gere um texto inspirador e significativo sobre um momento especial vivido em um museu ou evento cultural (máximo 3 linhas):
-          Título: ${momento.titulo || '(não informado)'}
-          Contexto: ${formData.funcao || ''} no museu ${formData.museu || ''}
+                  Título: ${momento.titulo || '(não informado)'}
+                  Contexto: ${formData.funcao || ''} no museu ${formData.museu || ''}
 
-          Escreva em português do Brasil, de forma pessoal e tocante.`;
+                  Escreva em português do Brasil, de forma pessoal e tocante.`;
                             const result = await base44.integrations.Core.InvokeLLM({ prompt });
                             setFormData(prev => ({
                               ...prev,
@@ -622,6 +622,34 @@ function ReportEditorInner() {
                             <img src={momento.imagem_url} alt="preview" className="w-full h-full object-cover" />
                           </div>
                         )}
+                      </div>
+                      <div className="flex items-center gap-4 pt-2 border-t border-purple-50">
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="checkbox" 
+                            id={`publish-${i}`}
+                            checked={momento.deve_ser_publicado || false}
+                            onChange={e => setFormData(prev => ({
+                              ...prev,
+                              momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, deve_ser_publicado: e.target.checked } : m)
+                            }))}
+                            className="w-4 h-4 rounded border-gray-300"
+                          />
+                          <Label htmlFor={`publish-${i}`} className="text-xs text-gray-600 cursor-pointer">Publicar no carrossel</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="checkbox" 
+                            id={`pdf-${i}`}
+                            checked={momento.incluir_no_pdf || false}
+                            onChange={e => setFormData(prev => ({
+                              ...prev,
+                              momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, incluir_no_pdf: e.target.checked } : m)
+                            }))}
+                            className="w-4 h-4 rounded border-gray-300"
+                          />
+                          <Label htmlFor={`pdf-${i}`} className="text-xs text-gray-600 cursor-pointer">Incluir no PDF</Label>
+                        </div>
                       </div>
                     </div>
                   ))}
