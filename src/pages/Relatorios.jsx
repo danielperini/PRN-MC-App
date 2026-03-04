@@ -354,7 +354,7 @@ function RelatoriosInner() {
 
                     {/* Return comment warning */}
                     {report.return_comment && report.status === 'RETURNED' && (
-                      <p className="mt-3 text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1.5 leading-relaxed line-clamp-2">
+                      <p className="mt-3 text-xs text-black bg-white border border-black rounded-lg px-2 py-1.5 leading-relaxed line-clamp-2">
                         {report.return_comment}
                       </p>
                     )}
