@@ -52,13 +52,13 @@ export default function MomentosCarrossel() {
           <div>
             <div className="flex items-start justify-between gap-4 mb-3">
               <div>
-                <h3 className="text-lg font-semibold text-black">{momento.titulo}</h3>
-                <p className="text-xs text-gray-400 mt-1">
-                  {momentos.length > 1 && `Momento ${currentIndex + 1} de ${momentos.length}`}
-                </p>
-              </div>
-            </div>
-            <p className="text-sm text-gray-700 leading-relaxed line-clamp-4">{momento.texto}</p>
+                <h3 className="text-2xl font-bold text-black">{momento.titulo}</h3>
+                 <p className="text-xs text-gray-400 mt-1">
+                    {momentos.length > 1 && `Momento ${currentIndex + 1} de ${momentos.length}`}
+                 </p>
+                </div>
+                </div>
+                <p className="text-base text-gray-700 leading-relaxed line-clamp-4">{momento.texto}</p>
           </div>
 
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
