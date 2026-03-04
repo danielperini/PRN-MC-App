@@ -183,64 +183,61 @@ function GestorArquivosInner() {
         </div>
 
         {/* Lista de Backups */}
-        <div className="space-y-3">
-          {isLoading ? (
-            <div className="text-center py-12 text-gray-400">
-              Carregando backups...
-            </div>
-          ) : backups.length === 0 ? (
-            <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
-              <Cloud className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Nenhum backup encontrado</p>
-              <p className="text-sm text-gray-400 mt-1">Clique no botão "Fazer Backup" para criar um novo</p>
-            </div>
-          ) : (
-            backups.map(backup => (
-              <div key={backup.id} className="border border-gray-200 rounded-lg md:rounded-xl p-4 md:p-5 hover:shadow-md transition-all">
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                  <div className="flex items-start gap-3 md:gap-4 flex-1">
-                    <div className="p-2 md:p-3 bg-blue-50 rounded-lg flex-shrink-0">
-                      <FileJson className="w-4 md:w-5 h-4 md:h-5 text-blue-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                       <h3 className="font-medium text-black text-sm md:text-base break-words">
-                         {backup.fileName}
-                       </h3>
-                       <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                         <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                         <span className="truncate">{new Date(backup.timestamp).toLocaleString('pt-BR')}</span>
-                       </div>
-
-                       <p className="text-xs text-gray-600 mt-2 line-clamp-2">{backup.summary}</p>
-
-                       <div className="grid grid-cols-2 gap-2 md:gap-3 mt-3 md:mt-4">
-                         <div className="p-2 bg-gray-50 rounded">
-                           <p className="text-xs text-gray-600">Tipo</p>
-                           <p className="font-semibold text-black text-sm">{backup.fileType}</p>
-                         </div>
-                         <div className="p-2 bg-gray-50 rounded">
-                           <p className="text-xs text-gray-600">Tamanho</p>
-                           <p className="font-semibold text-black text-sm">{backup.size}</p>
-                         </div>
-                       </div>
+         <div className="space-y-3">
+           {isLoading ? (
+             <div className="text-center py-12 text-gray-400">
+               Carregando backups...
+             </div>
+           ) : backups.length === 0 ? (
+             <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
+               <Cloud className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+               <p className="text-gray-500">Nenhum backup encontrado</p>
+               <p className="text-sm text-gray-400 mt-1">Clique no botão "Fazer Backup" para criar um novo</p>
+             </div>
+           ) : (
+             backups.map(backup => (
+               <div key={backup.id} className="border border-gray-200 rounded-lg md:rounded-xl p-4 md:p-5 hover:shadow-md transition-all">
+                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                   <div className="flex items-start gap-3 md:gap-4 flex-1">
+                     <div className="p-2 md:p-3 bg-blue-50 rounded-lg flex-shrink-0">
+                       <FileJson className="w-4 md:w-5 h-4 md:h-5 text-blue-600" />
                      </div>
-                  </div>
+                     <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-black text-sm md:text-base break-words">
+                          {backup.fileName}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                          <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className="truncate">{new Date(backup.timestamp).toLocaleString('pt-BR')}</span>
+                        </div>
 
-                  <Button
-                    onClick={() => handleDownloadBackup(backup)}
-                    className="gap-2 bg-black hover:bg-gray-800 text-white whitespace-nowrap w-full md:w-auto text-sm md:text-base"
-                  >
-                    <Download className="w-4 h-4 flex-shrink-0" />
-                    <span>Download</span>
-                  </Button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+                        <p className="text-xs text-gray-600 mt-2 line-clamp-2">{backup.summary}</p>
 
-        {/* Galeria de Fotos e Vídeos */}
-        <MediaGallery mediaItems={backups} />
+                        <div className="grid grid-cols-2 gap-2 md:gap-3 mt-3 md:mt-4">
+                          <div className="p-2 bg-gray-50 rounded">
+                            <p className="text-xs text-gray-600">Tipo</p>
+                            <p className="font-semibold text-black text-sm">{backup.fileType}</p>
+                          </div>
+                          <div className="p-2 bg-gray-50 rounded">
+                            <p className="text-xs text-gray-600">Tamanho</p>
+                            <p className="font-semibold text-black text-sm">{backup.size}</p>
+                          </div>
+                        </div>
+                      </div>
+                   </div>
+
+                   <Button
+                     onClick={() => handleDownloadBackup(backup)}
+                     className="gap-2 bg-black hover:bg-gray-800 text-white whitespace-nowrap w-full md:w-auto text-sm md:text-base"
+                   >
+                     <Download className="w-4 h-4 flex-shrink-0" />
+                     <span>Download</span>
+                   </Button>
+                 </div>
+               </div>
+             ))
+           )}
+         </div>
 
         {/* Info */}
         <div className="mt-6 md:mt-8 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg md:rounded-xl">
