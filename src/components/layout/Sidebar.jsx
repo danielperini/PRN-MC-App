@@ -66,9 +66,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle }) {
     { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: isCoordenador && canViewMenu('can_manage_files') },
     { name: 'CoordReview', icon: Eye, label: 'Revisão', show: isCoordenador && canViewMenu('can_review_reports') },
     { name: 'UserManagement', icon: Users, label: 'Usuários', show: isCoordenador && canViewMenu('can_manage_users') },
-    { name: 'PlataformaConfig', icon: Settings, label: 'Config. Permissões', show: isCoordenador && canViewMenu('can_manage_platform') },
     { name: 'PlataformaAdmin', icon: Settings, label: 'Plataforma', show: isCoordenador && canViewMenu('can_manage_platform') },
-    { name: 'AuditLog', icon: History, label: 'Auditoria', show: isCoordenador && canViewMenu('can_view_audit_log') },
     { name: 'ActivityLog', icon: History, label: 'Atividades', show: true },
   ].filter(item => item.show);
 
