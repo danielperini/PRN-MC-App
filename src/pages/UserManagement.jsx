@@ -257,7 +257,7 @@ function UserManagementInner() {
           base_role: data.role,
         });
       } else if (data.email) {
-        await base44.asServiceRole.entities.UserPermission.create({
+        await base44.entities.UserPermission.create({
           user_email: data.email,
           user_name: data.full_name,
           base_role: data.role,
