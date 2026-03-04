@@ -124,6 +124,7 @@ function ReportEditorInner() {
         ...reportData,
         atividades: Array.isArray(reportData.atividades) ? reportData.atividades : [],
         oportunidades: Array.isArray(reportData.oportunidades) ? reportData.oportunidades : [],
+        momentos: Array.isArray(reportData.momentos) ? reportData.momentos : [],
       });
     }
   }, [reportData]);
