@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import BackupButton from '../components/backup/BackupButton';
-import MediaGallery from '../components/gallery/MediaGallery';
 import { toast } from 'sonner';
 
 function GestorArquivosInner() {
