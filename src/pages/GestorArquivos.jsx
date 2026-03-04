@@ -53,10 +53,7 @@ function GestorArquivosInner() {
   const [selectedFiles, setSelectedFiles] = useState(new Set());
   const [renameTarget, setRenameTarget] = useState(null);
   const [newName, setNewName] = useState('');
-  const [newFolder, setNewFolder] = useState('');
-  const [showFolderDialog, setShowFolderDialog] = useState(false);
-  const [folders, setFolders] = useState(['Fotos', 'Vídeos', 'Documentos', 'Outros']);
-  const [viewMode, setViewMode] = useState('auto'); // auto, gallery, list
+  const [viewMode, setViewMode] = useState('auto');
   const [fullscreenFile, setFullscreenFile] = useState(null);
   const [fullscreenZoom, setFullscreenZoom] = useState(1);
   const [filterType, setFilterType] = useState('all');
@@ -64,6 +61,7 @@ function GestorArquivosInner() {
   const [filterEndDate, setFilterEndDate] = useState('');
   const [filterReport, setFilterReport] = useState('all');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [openFolders, setOpenFolders] = useState(new Set()); // track expanded activity folders
 
   const deleteMutation = useMutation({
     mutationFn: (att) => base44.entities.Attachment.delete(att.id),
