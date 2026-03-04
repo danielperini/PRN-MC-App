@@ -6,6 +6,54 @@ import { Input } from '@/components/ui/input';
 import { useQuery } from '@tanstack/react-query';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
+const TERCEIRO_ADITIVO_CONTEXT = `
+=== CONTRATO VIGENTE ===
+3º Termo Aditivo ao Termo de Colaboração - Chamamento Público FMC nº 001/2024
+Vigência: até 29 de novembro de 2026 (28 meses)
+Valor Global: R$ 3.891.800,00 (acréscimo 3º Aditivo: R$ 1.320.000,00)
+Parceria: FMC + OSC Viaduto das Artes
+
+=== MUSEUS ===
+• MUMO - Museu da Moda: Primeiro museu público de moda do Brasil. Foco: moda, design, economia criativa. Exposição atual: "Clara Nunes - eu sou a tal mineira"
+• MIS BH - Museu da Imagem e do Som: 90 mil+ itens audiovisuais. Foco: preservação, catalogação. Exposição: "Cinema: coleções e outras sensações"
+• MHAB - Museu Histórico Abílio Barreto: Fundado 1941. Foco: história de BH. Exposição: "Belo Horizonte Fora dos Planos"
+
+=== METAS DO 3º ADITIVO ===
+Ações Educativas: 60 (fase 1) + 30 (fase 3) = 90 total
+Ações Culturais: 36 (fase 1) + incluídas nas 30 da fase 3
+Educadores Fixos: 3 (40h/sem, 1 por museu, 28 meses)
+Diárias Educadores: 101 (público espontâneo)
+Exposições Novas: 3 (Casarão MHAB, MIS, MUMO)
+Mostras Curta Duração: 18 (áreas não convencionais)
+Noturno nos Museus: 3 edições (2024, 2025, 2026)
+Catálogos: 4 (300 exemplares cada: 2 MHAB, 1 MIS, 1 MUMO)
+Acessibilidade: 1 maquete tátil + 5 vídeos Libras
+Presente de Iemanjá: 1 festejo (4 ações culturais)
+Consultorias: 2 temáticas + 1 formação ambiente seguro
+
+=== FASE 3 (Mês 19-28) ===
+• 30 ações educativas/culturais
+• Nova exposição MUMO + abertura
+• 2 consultorias + 1 formação
+• Continuidade 3 educadores (10 parcelas)
+
+=== NOTURNO NOS MUSEUS ===
+Evento cultural com museus abertos 18h-23h, programação gratuita, vans entre espaços.
+Edições realizadas: 2024 (9ª, 24 espaços, dez/2024), 2025 (10ª, 30+ espaços, jun/2025)
+Próxima: 2026
+
+=== PRINCÍPIOS ===
+✓ TODAS as ações são GRATUITAS
+✓ Classificação indicativa LIVRE
+✓ Acessibilidade garantida
+✓ Proibição de discriminação
+✓ Trabalho colaborativo FMC + OSC
+
+=== COMISSÃO DE PROGRAMAÇÃO ===
+Coordenações OSC: Geral, Programação, Comunicação, Produção
++ 3 Coordenadores dos museus + Diretoria de Museus (paritária)
+`;
+
 const MANUAL_CONTEXT = `
 MANUAL PLATAFORMA MUSEU CENTRO - Referência Rápida:
 
@@ -32,7 +80,7 @@ FUNCIONALIDADES CHAVE:
 - Momentos: Histórias e depoimentos para carousel
 
 GLOSSÁRIO:
-- META: Objetivos do 3º Aditivo
+- META: Objetivos do 3º Aditivo (contrato vigente)
 - ROTINA: Atividades habituais
 - EXTRA: Atividades adicionais
 - Draft: Rascunho (editável)
@@ -40,23 +88,27 @@ GLOSSÁRIO:
 `;
 
 const systemPrompt = `Você é um assistente inteligente da Plataforma Museu Centro. 
-Você ajuda usuários com:
+Você tem acesso ao 3º Termo Aditivo (contrato vigente) e ajuda com:
 - Orientações sobre preenchimento de relatórios mensais
-- Dúvidas sobre metas e indicadores culturais
-- Informações sobre o plano de trabalho anual
+- Dúvidas sobre metas do 3º Aditivo e indicadores culturais
+- Informações sobre o plano de trabalho vigente
+- Detalhes sobre os 3 museus (MUMO, MIS, MHAB)
 - Boas práticas em documentação de atividades culturais
 - Explicações sobre processo de aprovação de relatórios
-- Dicas para melhorar a coleta de dados de públicos
-- Instruções sobre como usar a plataforma (baseadas no manual)
+- Noturno nos Museus e eventos especiais
+- Instruções sobre como usar a plataforma
 
-Consulte sempre as instruções do manual para respostas precisas.
-Sempre seja amigável, profissional e conciso nas respostas.`;
+IMPORTANTE: 
+- Sempre mencione que o 3º Termo Aditivo é o instrumento vigente
+- Todas as ações são GRATUITAS e com classificação LIVRE
+- Use o contexto do 3º Aditivo para respostas sobre metas e prazos
+- Seja amigável, profissional e conciso`;
 
 export default function AssistantChat() {
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Olá! Sou seu assistente de gestão cultural. Tenho acesso às informações do plano de trabalho anual e posso ajudá-lo com relatórios, metas, atividades e muito mais. Como posso ajudar?' }
+    { role: 'assistant', content: 'Olá! Sou seu assistente de gestão cultural. Tenho acesso ao 3º Termo Aditivo (contrato vigente) e posso ajudá-lo com relatórios, metas, atividades dos museus e muito mais. Como posso ajudar?' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -73,12 +125,12 @@ export default function AssistantChat() {
   });
 
   const suggestedQuestions = [
-    'Como preencher o resumo executivo?',
+    'Quais são as metas do 3º Aditivo?',
     'O que é uma atividade META?',
-    'Como enviar meu relatório?',
-    'Como revisar um relatório? (coordenadores)',
-    'Como usar templates?',
-    'Dúvidas sobre aprovação de relatórios?'
+    'Como preencher o resumo executivo?',
+    'Quantas ações educativas devem ser feitas?',
+    'O que é o Noturno nos Museus?',
+    'Como enviar meu relatório?'
   ];
 
   const handleSuggestedQuestion = (question) => {
@@ -104,7 +156,7 @@ export default function AssistantChat() {
         : '';
 
       const response = await base44.integrations.Core.InvokeLLM({
-        prompt: `${systemPrompt}\n\n${MANUAL_CONTEXT}\n\n${context}\n\nPergunta do usuário: ${textToSend}`,
+        prompt: `${systemPrompt}\n\n${TERCEIRO_ADITIVO_CONTEXT}\n\n${MANUAL_CONTEXT}\n\n${context}\n\nPergunta do usuário: ${textToSend}`,
         add_context_from_internet: false,
       });
 
@@ -195,11 +247,11 @@ export default function AssistantChat() {
                 </div>
                 <div className="pt-2 border-t border-gray-100">
                   <button
-                    onClick={() => handleSuggestedQuestion('Qual é o plano de trabalho anual?')}
+                    onClick={() => handleSuggestedQuestion('Me explique o 3º Termo Aditivo vigente')}
                     className="w-full text-left text-xs p-2 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 transition-colors flex items-center gap-2"
                   >
                     <FileText className="w-3.5 h-3.5" />
-                    Ver plano de trabalho
+                    Ver 3º Aditivo (contrato vigente)
                   </button>
                 </div>
               </div>
