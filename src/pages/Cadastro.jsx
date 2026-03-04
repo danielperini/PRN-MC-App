@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useMutation } from '@tanstack/react-query';
-import { Building2, CheckCircle, Send } from 'lucide-react';
+import { Building2, CheckCircle, Send, HelpCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const FUNCOES = ['Educador', 'Produtor Cultural', 'Comunicador', 'Administrador', 'Outro'];
@@ -18,6 +19,8 @@ const EMPTY = { full_name: '', email: '', museu: '' };
 export default function Cadastro() {
   const [form, setForm] = useState(EMPTY);
   const [done, setDone] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const mutation = useMutation({
@@ -32,6 +35,21 @@ export default function Cadastro() {
       setDone(true);
     },
     onError: (e) => toast.error(e.message || 'Erro ao enviar solicitação. Tente novamente.'),
+  });
+
+  const recoveryMutation = useMutation({
+    mutationFn: () => {
+      if (!recoveryEmail) {
+        throw new Error('Preencha seu email.');
+      }
+      return base44.functions.invoke('recoverPassword', { email: recoveryEmail });
+    },
+    onSuccess: () => {
+      toast.success('Senha temporária enviada! Verifique seu email.');
+      setRecoveryEmail('');
+      setShowRecovery(false);
+    },
+    onError: (e) => toast.error(e.message || 'Erro ao recuperar senha.'),
   });
 
   if (done) {
@@ -107,8 +125,46 @@ export default function Cadastro() {
             <Send className="w-4 h-4" />
             {mutation.isPending ? 'Enviando...' : 'Enviar solicitação'}
           </Button>
-        </div>
-      </main>
-    </div>
-  );
-}
+
+          <div className="mt-4">
+            <Button
+              variant="outline"
+              className="w-full gap-2 border-gray-300"
+              onClick={() => setShowRecovery(true)}
+            >
+              <HelpCircle className="w-4 h-4" />
+              Esqueci minha senha
+            </Button>
+          </div>
+          </div>
+          </main>
+
+          {/* Recovery Password Dialog */}
+          <Dialog open={showRecovery} onOpenChange={setShowRecovery}>
+          <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Recuperar Senha</DialogTitle>
+            <DialogDescription>
+              Digite seu email de cadastro. Enviaremos uma senha temporária para você.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              type="email"
+              placeholder="seu@email.com"
+              value={recoveryEmail}
+              onChange={e => setRecoveryEmail(e.target.value)}
+            />
+            <Button
+              className="w-full bg-black hover:bg-gray-800 text-white"
+              onClick={() => recoveryMutation.mutate()}
+              disabled={recoveryMutation.isPending}
+            >
+              {recoveryMutation.isPending ? 'Enviando...' : 'Enviar Senha Temporária'}
+            </Button>
+          </div>
+          </DialogContent>
+          </Dialog>
+          </div>
+          );
+          }
