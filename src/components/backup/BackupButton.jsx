@@ -1,64 +1,129 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useMutation } from '@tanstack/react-query';
+import { HardDrive, Loader, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Cloud, Check, AlertCircle, Loader } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
-export default function BackupButton() {
-  const [loading, setLoading] = useState(false);
-  const [lastBackup, setLastBackup] = useState(null);
+export default function BackupButton({ userRole }) {
+  const [showDialog, setShowDialog] = useState(false);
+  const [backupResult, setBackupResult] = useState(null);
 
-  const handleBackup = async () => {
-    setLoading(true);
-    try {
-      const response = await base44.functions.invoke('backupToGoogleDrive', {});
-
-      if (response.data.success) {
-        setLastBackup(response.data.backup_file.timestamp);
-        toast.success('✓ Backup realizado com sucesso!', {
-          description: `${response.data.backup_file.statistics.total_reports} relatórios salvos no Google Drive`
-        });
-      } else {
-        toast.error('Erro ao fazer backup', {
-          description: response.data.error
-        });
-      }
-    } catch (error) {
-      toast.error('Erro ao fazer backup', {
-        description: error.message
+  const backupMutation = useMutation({
+    mutationFn: () => base44.functions.invoke('backupToGoogleDrive'),
+    onSuccess: (response) => {
+      setBackupResult({
+        success: true,
+        data: response.data
       });
-    } finally {
-      setLoading(false);
+      toast.success('Backup realizado com sucesso!');
+    },
+    onError: (error) => {
+      setBackupResult({
+        success: false,
+        error: error.message
+      });
+      toast.error(error.message || 'Erro ao realizar backup');
     }
-  };
+  });
+
+  if (userRole !== 'admin') {
+    return null;
+  }
 
   return (
-    <div className="space-y-2">
+    <>
       <Button
-        onClick={handleBackup}
-        disabled={loading}
-        variant="outline"
-        className="gap-2 w-full"
+        onClick={() => {
+          setBackupResult(null);
+          setShowDialog(true);
+        }}
+        className="gap-2 bg-black hover:bg-gray-800 text-white"
+        disabled={backupMutation.isPending}
       >
-        {loading ? (
-          <>
-            <Loader className="w-4 h-4 animate-spin" />
-            Fazendo backup...
-          </>
-        ) : (
-          <>
-            <Cloud className="w-4 h-4" />
-            Backup no Google Drive
-          </>
-        )}
+        <HardDrive className="w-4 h-4" />
+        {backupMutation.isPending ? 'Fazendo Backup...' : 'Fazer Backup'}
       </Button>
 
-      {lastBackup && (
-        <div className="text-xs text-gray-500 flex items-center gap-1">
-          <Check className="w-3 h-3 text-green-600" />
-          Último backup: {new Date(lastBackup).toLocaleString('pt-BR')}
-        </div>
-      )}
-    </div>
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Backup para Google Drive</DialogTitle>
+          </DialogHeader>
+
+          {!backupResult ? (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Clique para iniciar o backup de todos os relatórios, atividades e anexos para o Google Drive.
+              </p>
+              <Button
+                onClick={() => backupMutation.mutate()}
+                disabled={backupMutation.isPending}
+                className="w-full gap-2 bg-black hover:bg-gray-800 text-white"
+              >
+                {backupMutation.isPending && <Loader className="w-4 h-4 animate-spin" />}
+                {backupMutation.isPending ? 'Fazendo backup...' : 'Iniciar Backup'}
+              </Button>
+            </div>
+          ) : backupResult.success ? (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-green-50 border border-green-200">
+                <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <h3 className="font-medium text-green-900">Backup Concluído com Sucesso!</h3>
+                  <p className="text-sm text-green-700 mt-1">
+                    Data: {new Date(backupResult.data.timestamp).toLocaleString('pt-BR')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-2xl font-semibold text-black">{backupResult.data.reportsCount}</p>
+                  <p className="text-xs text-gray-600 mt-1">Relatórios</p>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-2xl font-semibold text-black">{backupResult.data.activitiesCount}</p>
+                  <p className="text-xs text-gray-600 mt-1">Atividades</p>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-2xl font-semibold text-black">{backupResult.data.attachmentsCount}</p>
+                  <p className="text-xs text-gray-600 mt-1">Anexos</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-500">
+                Os arquivos foram salvos em: <strong>Relatórios Backup / {new Date(backupResult.data.timestamp).toISOString().split('T')[0]}</strong>
+              </p>
+
+              <Button
+                onClick={() => setShowDialog(false)}
+                className="w-full bg-black hover:bg-gray-800 text-white"
+              >
+                Fechar
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 border border-red-200">
+                <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <h3 className="font-medium text-red-900">Erro no Backup</h3>
+                  <p className="text-sm text-red-700 mt-1">{backupResult.error}</p>
+                </div>
+              </div>
+
+              <Button
+                onClick={() => setBackupResult(null)}
+                className="w-full bg-black hover:bg-gray-800 text-white"
+              >
+                Tentar Novamente
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
