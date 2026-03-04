@@ -24,42 +24,10 @@ export default function SummaryCards({ reports = [] }) {
    }, 0);
 
   const cards = [
-    {
-      label: 'Total de Atividades',
-      value: totalActivities,
-      icon: Activity,
-      bg: 'bg-pink-50',
-      border: 'border-pink-100',
-      textColor: 'text-pink-700',
-      iconColor: 'text-pink-400'
-    },
-    {
-      label: 'Produtos Entregues',
-      value: totalProducts,
-      icon: Package,
-      bg: 'bg-amber-50',
-      border: 'border-amber-100',
-      textColor: 'text-amber-700',
-      iconColor: 'text-amber-400'
-    },
-    {
-      label: 'Público Total',
-      value: totalPublic.toLocaleString('pt-BR'),
-      icon: Users,
-      bg: 'bg-cyan-50',
-      border: 'border-cyan-100',
-      textColor: 'text-cyan-700',
-      iconColor: 'text-cyan-400'
-    },
-    {
-      label: 'Relatórios',
-      value: safeReports.length,
-      icon: Target,
-      bg: 'bg-purple-50',
-      border: 'border-purple-100',
-      textColor: 'text-purple-700',
-      iconColor: 'text-purple-400'
-    }
+    { label: 'Total de Atividades', value: totalActivities, icon: Activity },
+    { label: 'Produtos Entregues', value: totalProducts, icon: Package },
+    { label: 'Público Total', value: totalPublic.toLocaleString('pt-BR'), icon: Users },
+    { label: 'Relatórios', value: safeReports.length, icon: Target },
   ];
 
   return (
@@ -67,19 +35,12 @@ export default function SummaryCards({ reports = [] }) {
       {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <div
-            key={card.label}
-            className={`p-4 rounded-xl border ${card.bg} ${card.border}`}
-          >
+          <div key={card.label} className="p-4 rounded-xl border border-gray-200 bg-white">
             <div className="flex items-center justify-between mb-3">
-              <Icon className={`w-5 h-5 ${card.iconColor}`} />
+              <Icon className="w-5 h-5 text-gray-400" />
             </div>
-            <p className={`text-2xl font-bold ${card.textColor}`}>
-              {card.value}
-            </p>
-            <p className={`text-xs font-medium ${card.textColor} opacity-75 mt-1`}>
-              {card.label}
-            </p>
+            <p className="text-2xl font-bold text-black">{card.value}</p>
+            <p className="text-xs text-gray-500 mt-1">{card.label}</p>
           </div>
         );
       })}
