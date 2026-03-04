@@ -234,9 +234,9 @@ Máximo 10 resultados, ordenados por relevância e recência.`;
              </div>
            )}
            {highlights.map((item) => (
-             <div key={item.id} className="pb-4 border-b border-purple-100 last:border-b-0 last:pb-0 cursor-pointer hover:bg-purple-100/30 p-3 rounded-lg transition-colors" onClick={() => openEditHighlight(item)}>
+             <div key={item.id} className="pb-4 border-b border-gray-100 last:border-b-0 last:pb-0 cursor-pointer hover:bg-gray-50 p-3 rounded-lg transition-colors" onClick={() => openEditHighlight(item)}>
                <div className="flex items-start gap-3">
-                 <div className="flex-shrink-0 w-2 h-2 rounded-full bg-purple-500 mt-2" />
+                 <div className="flex-shrink-0 w-2 h-2 rounded-full bg-black mt-2" />
                  <div className="flex-1 min-w-0">
                    <p className="text-lg font-medium text-black line-clamp-2">
                      {item.atividade}
