@@ -178,61 +178,13 @@ function GestorArquivosInner() {
           )}
         </div>
 
-        {/* Lista de Backups */}
+        {/* Lista Hierárquica de Arquivos */}
          {isLoading ? (
            <div className="text-center py-12 text-gray-400">
              Carregando arquivos...
            </div>
-         ) : backups.length === 0 ? (
-           <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
-             <Cloud className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-             <p className="text-gray-500">Nenhum arquivo encontrado</p>
-             <p className="text-sm text-gray-400 mt-1">Anexe arquivos a seus relatórios para vê-los aqui</p>
-           </div>
          ) : (
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-             {backups.map(backup => (
-               <div key={backup.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-all bg-white">
-                 {/* Preview */}
-                 <div className="relative bg-gray-50">
-                   <FilePreview backup={backup} />
-                 </div>
-
-                 {/* Info */}
-                 <div className="p-4">
-                   <h3 className="font-medium text-black text-sm break-words line-clamp-2">
-                     {backup.fileName}
-                   </h3>
-                   
-                   <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                     <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                     <span className="truncate">{new Date(backup.timestamp).toLocaleString('pt-BR')}</span>
-                   </div>
-
-                   <p className="text-xs text-gray-600 mt-2 line-clamp-2">{backup.summary}</p>
-
-                   <div className="grid grid-cols-2 gap-2 mt-3">
-                     <div className="p-2 bg-gray-50 rounded text-center">
-                       <p className="text-xs text-gray-600">Tipo</p>
-                       <p className="font-semibold text-black text-xs">{backup.fileType?.split('/')[1] || 'arquivo'}</p>
-                     </div>
-                     <div className="p-2 bg-gray-50 rounded text-center">
-                       <p className="text-xs text-gray-600">Tamanho</p>
-                       <p className="font-semibold text-black text-xs">{backup.size}</p>
-                     </div>
-                   </div>
-
-                   <Button
-                     onClick={() => handleDownloadBackup(backup)}
-                     className="gap-2 bg-black hover:bg-gray-800 text-white w-full mt-4 text-sm"
-                   >
-                     <Download className="w-4 h-4" />
-                     Download
-                   </Button>
-                 </div>
-               </div>
-             ))}
-           </div>
+           <FileHierarchy backups={backups} />
          )}
 
         {/* Info */}
