@@ -388,6 +388,16 @@ function CoordReviewInner() {
                     <h3 className="font-semibold text-black text-base leading-tight">{report.author_name}</h3>
                     <p className="text-sm text-gray-500 mt-0.5">{report.museu}{report.equipe ? ` · ${report.equipe}` : ''}</p>
                     {nAtiv > 0 && <p className="text-xs text-gray-400 mt-1">{nAtiv} atividade{nAtiv > 1 ? 's' : ''}</p>}
+                    {report.delegated_to_name && (
+                      <p className="text-xs text-blue-600 mt-1">📋 Delegado a: {report.delegated_to_name}</p>
+                    )}
+                    {report.review_status && (
+                      <div className={`text-xs mt-2 px-2 py-1 rounded ${REVIEW_STATUS_CONFIG[report.review_status]?.bg || 'bg-gray-50'}`}>
+                        <span className={REVIEW_STATUS_CONFIG[report.review_status]?.color || 'text-gray-600'}>
+                          {REVIEW_STATUS_CONFIG[report.review_status]?.label || 'Status desconhecido'}
+                        </span>
+                      </div>
+                    )}
 
                     <div className="flex gap-2 mt-4 flex-wrap">
                       <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
