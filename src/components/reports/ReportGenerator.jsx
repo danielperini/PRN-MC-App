@@ -131,6 +131,88 @@ export default function ReportGenerator({ reportId, report }) {
         });
       }
 
+      // Status de Aprovação
+      checkPageBreak(30);
+      addTitle('STATUS DO RELATÓRIO', 14);
+      const statusLabels = {
+        DRAFT: 'Rascunho',
+        SUBMITTED: 'Enviado para Revisão',
+        IN_REVIEW: 'Em Revisão pela Coordenação',
+        RETURNED: 'Devolvido para Correção',
+        APPROVED: 'APROVADO PELA COORDENAÇÃO',
+        ARCHIVED: 'Arquivado',
+      };
+      const statusLabel = statusLabels[report.status] || report.status || '—';
+      const isApproved = report.status === 'APPROVED';
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(isApproved ? 22 : 50, isApproved ? 163 : 50, isApproved ? 74 : 50);
+      doc.text(statusLabel, margin, yPosition);
+      doc.setTextColor(0, 0, 0);
+      yPosition += 7;
+      if (isApproved && report.reviewer_name) {
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Aprovado por: ${report.reviewer_name}`, margin, yPosition);
+        yPosition += 5;
+      }
+      yPosition += 5;
+
+      // Anexos
+      checkPageBreak(30);
+      addTitle('ARQUIVOS ANEXADOS', 14);
+      if (attachments.length === 0) {
+        addText('Nenhum arquivo anexado a este relatório.', 9);
+      } else {
+        addText(`Total de arquivos: ${attachments.length}`, 10, true);
+        yPosition += 3;
+
+        // Try to embed image thumbnails
+        for (let i = 0; i < attachments.length; i++) {
+          const att = attachments[i];
+          checkPageBreak(35);
+          const isImage = att.file_type && att.file_type.startsWith('image/');
+          const fileLabel = `${i + 1}. ${att.file_name || 'Arquivo'}`;
+          const sizeKb = att.file_size ? `(${(att.file_size / 1024).toFixed(1)} KB)` : '';
+          const typeLabel = att.file_type || '';
+
+          if (isImage && att.file_url) {
+            try {
+              // Load image via canvas to convert to base64
+              const img = await new Promise((resolve, reject) => {
+                const imgEl = new Image();
+                imgEl.crossOrigin = 'anonymous';
+                imgEl.onload = () => resolve(imgEl);
+                imgEl.onerror = reject;
+                imgEl.src = att.file_url;
+              });
+              const canvas = document.createElement('canvas');
+              const MAX = 200;
+              const scale = Math.min(MAX / img.width, MAX / img.height, 1);
+              canvas.width = img.width * scale;
+              canvas.height = img.height * scale;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+              const thumbW = 30;
+              const thumbH = (canvas.height / canvas.width) * thumbW;
+              checkPageBreak(thumbH + 10);
+              doc.addImage(dataUrl, 'JPEG', margin, yPosition, thumbW, thumbH);
+              doc.setFontSize(9);
+              doc.setFont(undefined, 'normal');
+              doc.text(`${fileLabel} ${sizeKb}`, margin + thumbW + 4, yPosition + thumbH / 2);
+              yPosition += thumbH + 4;
+            } catch (_) {
+              // If image load fails, just show text
+              addText(`${fileLabel} [imagem] ${sizeKb}`, 9);
+            }
+          } else {
+            addText(`${fileLabel} · ${typeLabel} ${sizeKb}`, 9);
+          }
+        }
+      }
+      yPosition += 5;
+
       // Footer
       doc.setFontSize(8);
       doc.setTextColor(128, 128, 128);
