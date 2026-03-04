@@ -27,6 +27,7 @@ import ReportTimeline from '../components/reports/ReportTimeline';
 import ActivityProgressBar from '../components/reports/ActivityProgressBar';
 import ReportVersionHistory from '../components/reports/ReportVersionHistory';
 import RichTextEditor from '../components/reports/RichTextEditor';
+import { Sparkles } from 'lucide-react';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
