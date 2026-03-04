@@ -213,12 +213,17 @@ function CoordReviewInner() {
    });
 
    const { data: auditLogs = [], isLoading: logsLoading } = useQuery({
-     queryKey: ['audit-approvals'],
-     queryFn: () => base44.entities.AuditLog.filter({ entity_type: 'REPORT' }, '-created_date', 100),
-   });
+      queryKey: ['audit-approvals'],
+      queryFn: () => base44.entities.AuditLog.filter({ entity_type: 'REPORT' }, '-created_date', 100),
+    });
 
-   const pending = reports.filter(r => ['SUBMITTED', 'IN_REVIEW'].includes(r.status));
-   const museus  = [...new Set(pending.map(r => r.museu).filter(Boolean))];
+    const { data: allCoords = [] } = useQuery({
+      queryKey: ['coordinators'],
+      queryFn: () => base44.asServiceRole.entities.User.filter({ role: 'COORDENADOR' }),
+    });
+
+    const pending = reports.filter(r => ['SUBMITTED', 'IN_REVIEW'].includes(r.status));
+    const museus  = [...new Set(pending.map(r => r.museu).filter(Boolean))];
 
    const filtered = pending.filter(r => {
      if (filterStatus !== 'all' && r.status !== filterStatus) return false;
