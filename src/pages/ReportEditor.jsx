@@ -862,6 +862,19 @@ function ReportEditorInner() {
           </TabsContent>
         </Tabs>
 
+        {/* Template Dialogs */}
+        <SaveTemplateDialog 
+          isOpen={showSaveTemplateDialog}
+          onClose={() => setShowSaveTemplateDialog(false)}
+          formData={formData}
+        />
+
+        <LoadFromTemplateDialog
+          isOpen={showLoadTemplateDialog}
+          onClose={() => setShowLoadTemplateDialog(false)}
+          onSelectTemplate={handleLoadFromTemplate}
+        />
+
         {/* Alert Dialog para salvar rascunho */}
         <AlertDialog open={showSaveAlert} onOpenChange={setShowSaveAlert}>
           <AlertDialogContent className="max-w-md">
