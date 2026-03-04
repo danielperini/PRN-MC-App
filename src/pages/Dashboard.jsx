@@ -248,10 +248,7 @@ function DashboardInner() {
                  );
                  }
                  );
-                 }
-                 );
-                 }
 
                  export default function Dashboard() {
-  return <RequireAuth><DashboardInner /></RequireAuth>;
-}
+                 return <RequireAuth><DashboardInner /></RequireAuth>;
+                 }
