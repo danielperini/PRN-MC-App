@@ -342,10 +342,10 @@ function UserManagementInner() {
 
         if (editingUserPerm.id) {
           // Update existing permission
-          await base44.asServiceRole.entities.UserPermission.update(editingUserPerm.id, permData);
+          await base44.entities.UserPermission.update(editingUserPerm.id, permData);
         } else {
           // Create new permission
-          await base44.asServiceRole.entities.UserPermission.create(permData);
+          await base44.entities.UserPermission.create(permData);
         }
         queryClient.invalidateQueries(['user-permissions']);
       }
