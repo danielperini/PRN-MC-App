@@ -15,6 +15,10 @@ import CoordDashboard from '../components/dashboard/CoordDashboard';
 import AdvancedFilters from '../components/dashboard/AdvancedFilters';
 import ComplianceStats from '../components/dashboard/ComplianceStats';
 import MomentosCarrossel from '../components/dashboard/MomentosCarrossel';
+import WidgetCustomizer from '../components/dashboard/WidgetCustomizer';
+import { useWidgetPreferences } from '../components/dashboard/useWidgetPreferences';
+import ActivityMetricsWidget from '../components/dashboard/ActivityMetricsWidget';
+import OpportunityMetricsWidget from '../components/dashboard/OpportunityMetricsWidget';
 
 const STATUS_CONFIG = {
   DRAFT:     { label: 'Rascunho',   color: 'bg-white text-black border border-black', icon: Clock },
