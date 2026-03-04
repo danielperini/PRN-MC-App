@@ -178,7 +178,7 @@ function DashboardInner() {
                    const nExt  = atividades.filter(a => a.classificacao === 'EXTRA').length;
                    return (
                      <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block group">
-                       <div className="h-full p-5 rounded-2xl border border-gray-200 hover:border-gray-400 hover:shadow-sm transition-all bg-white">
+                       <div className="h-full p-5 rounded-2xl border-2 border-black hover:shadow-md transition-all bg-white">
                          <div className="flex items-center justify-between mb-4">
                            <Badge className={`${cfg.color} font-normal gap-1`}>
                              <StatusIcon className="w-3 h-3" />{cfg.label}
