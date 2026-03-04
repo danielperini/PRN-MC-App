@@ -81,6 +81,9 @@ function UserManagementInner() {
    const [expandedUserId, setExpandedUserId] = useState(null);
    const [editingUserId, setEditingUserId] = useState(null);
    const [editingUserData, setEditingUserData] = useState({});
+   const [editingPendingReg, setEditingPendingReg] = useState(null);
+   const [editingPendingData, setEditingPendingData] = useState({});
+   const [deleteRegTarget, setDeleteRegTarget] = useState(null);
 
    React.useEffect(() => {
      const loadUser = async () => {
