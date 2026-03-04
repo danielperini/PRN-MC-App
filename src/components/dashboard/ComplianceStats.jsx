@@ -50,31 +50,31 @@ export default function ComplianceStats({ currentMonth, currentYear }) {
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-      <div className="p-5 rounded-xl border border-blue-100 bg-blue-50">
+      <div className="p-5 rounded-xl border border-gray-100 bg-white">
         <div className="flex items-center justify-between mb-2">
-          <BarChart3 className="w-5 h-5 text-blue-400" />
+          <BarChart3 className="w-5 h-5 text-gray-400" />
           <span className="text-sm font-medium text-gray-500">Entregues</span>
         </div>
-        <p className="text-2xl font-bold text-blue-900">{percentSubmitted}%</p>
-        <p className="text-xs text-blue-700 mt-1">{totalSubmitted} de {totalObligated} enviados</p>
+        <p className="text-2xl font-bold text-black">{percentSubmitted}%</p>
+        <p className="text-xs text-gray-500 mt-1">{totalSubmitted} de {totalObligated} enviados</p>
       </div>
 
-      <div className="p-5 rounded-xl border border-green-100 bg-green-50">
+      <div className="p-5 rounded-xl border border-gray-100 bg-white">
         <div className="flex items-center justify-between mb-2">
-          <CheckCircle className="w-5 h-5 text-green-400" />
+          <CheckCircle className="w-5 h-5 text-gray-400" />
           <span className="text-sm font-medium text-gray-500">Aprovados</span>
         </div>
-        <p className="text-2xl font-bold text-green-900">{percentApproved}%</p>
-        <p className="text-xs text-green-700 mt-1">{totalApproved} de {totalObligated} aprovados</p>
+        <p className="text-2xl font-bold text-black">{percentApproved}%</p>
+        <p className="text-xs text-gray-500 mt-1">{totalApproved} de {totalObligated} aprovados</p>
       </div>
 
-      <div className="p-5 rounded-xl border border-amber-100 bg-amber-50">
+      <div className="p-5 rounded-xl border border-gray-100 bg-white">
         <div className="flex items-center justify-between mb-2">
-          <TrendingUp className="w-5 h-5 text-amber-400" />
+          <TrendingUp className="w-5 h-5 text-gray-400" />
           <span className="text-sm font-medium text-gray-500">Pendentes</span>
         </div>
-        <p className="text-2xl font-bold text-amber-900">{totalObligated - totalSubmitted}</p>
-        <p className="text-xs text-amber-700 mt-1">ainda não enviados</p>
+        <p className="text-2xl font-bold text-black">{totalObligated - totalSubmitted}</p>
+        <p className="text-xs text-gray-500 mt-1">ainda não enviados</p>
       </div>
     </div>
   );
