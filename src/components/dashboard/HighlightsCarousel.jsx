@@ -12,15 +12,20 @@ export default function HighlightsCarousel() {
   const { data: momentos = [] } = useQuery({
     queryKey: ['momentos-ativos'],
     queryFn: async () => {
-      const today = new Date().toISOString().split('T')[0];
-      const data = await base44.entities.Momento.filter({
-        ativo: true,
-        deve_ser_publicado: true
-      }, '-created_date', 10);
-      return Array.isArray(data) ? data.filter(m => {
-        if (!m.data_expiracao) return true;
-        return m.data_expiracao >= today;
-      }) : [];
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const data = await base44.entities.Momento.filter({
+          ativo: true,
+          deve_ser_publicado: true
+        }, '-created_date', 10);
+        return Array.isArray(data) ? data.filter(m => {
+          if (!m.data_expiracao) return true;
+          return m.data_expiracao >= today;
+        }) : [];
+      } catch (error) {
+        console.error('Erro ao buscar Momentos:', error);
+        return [];
+      }
     },
     refetchInterval: 60000 // 1 minuto
   });
@@ -29,10 +34,13 @@ export default function HighlightsCarousel() {
   const { data: newsHighlights = [] } = useQuery({
     queryKey: ['news-highlights'],
     queryFn: async () => {
-      const data = await base44.entities.NewsHighlight.filter({
-        ativo: true
-      }, '-data_encontrada', 10);
-      return Array.isArray(data) ? data : [];
+      try {
+        const data = await base44.entities.NewsHighlight.list('-data_encontrada', 10);
+        return Array.isArray(data) ? data.filter(n => n.ativo) : [];
+      } catch (error) {
+        console.error('Erro ao buscar notícias:', error);
+        return [];
+      }
     },
     refetchInterval: 300000 // 5 minutos
   });
@@ -89,10 +97,14 @@ export default function HighlightsCarousel() {
   };
 
   if (allHighlights.length === 0) {
-    return null;
+    return (
+      <div className="w-full mb-8 p-6 rounded-2xl border-2 border-gray-200 bg-gray-50 text-center">
+        <p className="text-gray-500">Nenhum destaque disponível no momento</p>
+      </div>
+    );
   }
 
-  const current = allHighlights[currentIndex];
+  const current = allHighlights[currentIndex] || allHighlights[0];
 
   return (
     <div className="w-full mb-8">
