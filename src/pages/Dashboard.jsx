@@ -84,13 +84,21 @@ function DashboardInner() {
   const recentReports = filteredReports.slice(0, 8);
   const isLoading = showCoordView ? loadingAll : loadingMy || userLoading;
 
-  const stats = React.useMemo(() => [
-  { label: 'Total', value: filteredReports.length },
-  { label: 'Rascunhos', value: filteredReports.filter((r) => r.status === 'DRAFT').length },
-  { label: 'Enviados', value: filteredReports.filter((r) => r.status === 'SUBMITTED').length },
-  { label: 'Em Revisão', value: filteredReports.filter((r) => r.status === 'IN_REVIEW').length },
-  { label: 'Aprovados', value: filteredReports.filter((r) => r.status === 'APPROVED').length }],
-  [filteredReports]);
+  const stats = React.useMemo(() => {
+    const total = filteredReports.length;
+    const draft = filteredReports.filter((r) => r.status === 'DRAFT').length;
+    const submitted = filteredReports.filter((r) => r.status === 'SUBMITTED').length;
+    const inReview = filteredReports.filter((r) => r.status === 'IN_REVIEW').length;
+    const approved = filteredReports.filter((r) => r.status === 'APPROVED').length;
+    
+    return [
+      { label: 'Total', value: total },
+      { label: 'Rascunhos', value: draft },
+      { label: 'Enviados', value: submitted },
+      { label: 'Em Revisão', value: inReview },
+      { label: 'Aprovados', value: approved }
+    ];
+  }, [filteredReports]);
 
   return (
     <div className="min-h-screen bg-white">
