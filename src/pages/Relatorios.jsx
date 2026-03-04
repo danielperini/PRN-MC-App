@@ -313,7 +313,7 @@ function RelatoriosInner() {
               return (
                 <div key={report.id} className="block group relative">
                   <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
-                  <div className={`h-full p-5 rounded-2xl border border-gray-100 hover:border-gray-300 hover:shadow-md transition-all ${cfg.cardBg}`}>
+                  <div className={`h-full p-5 rounded-2xl border-2 border-black hover:shadow-md transition-all bg-white`}>
                     {/* Status badge */}
                     <div className="flex items-center justify-between mb-4">
                       <Badge className={`${cfg.color} font-normal gap-1`}>
