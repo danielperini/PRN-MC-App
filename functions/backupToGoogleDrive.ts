@@ -126,9 +126,10 @@ Deno.serve(async (req) => {
     const timestamp = now.toISOString();
     const backupData = {
       timestamp,
-      reports: Array.isArray(reports) ? reports : [],
-      activities: Array.isArray(activities) ? activities : [],
-      attachments: Array.isArray(attachments) ? attachments : []
+      userEmail,
+      reports: Array.isArray(userReports) ? userReports : [],
+      activities: Array.isArray(userActivities) ? userActivities : [],
+      attachments: Array.isArray(userAttachments) ? userAttachments : []
     };
     
     await uploadToGoogleDrive(
