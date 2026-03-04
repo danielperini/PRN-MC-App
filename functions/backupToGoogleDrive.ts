@@ -101,18 +101,28 @@ Deno.serve(async (req) => {
     // Obter conexão do Google Drive
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
     
-    // Obter dados para backup - apenas do usuário logado
-    const userEmail = user.email;
-    const userReports = await base44.entities.Report.filter({ created_by: userEmail }, '-updated_date', 500);
-    const reportIds = userReports.map(r => r.id);
+    // Verificar se é coordenador
+    const isCoordinator = ['admin', 'COORDENADOR', 'COORD_PRODUCAO', 'COORD_ADMINISTRATIVA', 'COORD_COMUNICACAO'].includes(user.role);
     
-    // Atividades relacionadas aos relatórios do usuário
-    const allActivities = await base44.entities.Activity.list('-updated_date', 500);
-    const userActivities = allActivities.filter(a => reportIds.includes(a.report_id));
+    let userReports, userActivities, userAttachments;
     
-    // Anexos relacionados aos relatórios do usuário
-    const allAttachments = await base44.entities.Attachment.list('-updated_date', 500);
-    const userAttachments = allAttachments.filter(a => reportIds.includes(a.report_id));
+    if (isCoordinator) {
+      // Coordenador faz backup de TUDO
+      userReports = await base44.asServiceRole.entities.Report.list('-updated_date', 1000);
+      userActivities = await base44.asServiceRole.entities.Activity.list('-updated_date', 1000);
+      userAttachments = await base44.asServiceRole.entities.Attachment.list('-updated_date', 1000);
+    } else {
+      // Usuário comum faz backup apenas dos seus arquivos
+      const userEmail = user.email;
+      userReports = await base44.entities.Report.filter({ created_by: userEmail }, '-updated_date', 500);
+      const reportIds = userReports.map(r => r.id);
+      
+      const allActivities = await base44.entities.Activity.list('-updated_date', 500);
+      userActivities = allActivities.filter(a => reportIds.includes(a.report_id));
+      
+      const allAttachments = await base44.entities.Attachment.list('-updated_date', 500);
+      userAttachments = allAttachments.filter(a => reportIds.includes(a.report_id));
+    }
     
     // Criar estrutura de pastas
     const backupRootId = await getOrCreateBackupRoot(accessToken);
