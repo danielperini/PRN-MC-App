@@ -724,60 +724,8 @@ function UserManagementInner() {
         </div>
       </div>
 
-      {/* Invite Link Dialog */}
-      <Dialog open={showInviteLink} onOpenChange={setShowInviteLink}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Convidar novo usuário</DialogTitle>
-            <DialogDescription>Compartilhe o link com o profissional para solicitar acesso</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-5 mt-2">
-            <p className="text-sm text-gray-600">
-              Compartilhe o link abaixo com o profissional. Ele(a) preencherá o formulário de cadastro e a solicitação chegará aqui para sua aprovação.
-            </p>
-
-            {/* Link */}
-            <div>
-              <Label className="text-xs text-gray-500 mb-1 block">Link do formulário de cadastro</Label>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 break-all text-gray-700">
-                  {cadastroUrl}
-                </code>
-                <Button size="icon" variant="outline" onClick={copyLink} className="flex-shrink-0">
-                  {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-                </Button>
-              </div>
-            </div>
-
-            {/* Texto para copiar */}
-            <div>
-              <Label className="text-xs text-gray-500 mb-1 block">Texto para WhatsApp / mensagens</Label>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-700 whitespace-pre-line leading-relaxed">
-                {`Olá! Você foi convidado(a) para acessar a plataforma de relatórios dos Museus Centro.\n\nPara solicitar seu acesso, preencha o formulário neste link:\n${cadastroUrl}\n\nApós o envio, sua solicitação será analisada e você receberá um e-mail com as instruções de acesso.`}
-              </div>
-            </div>
-
-            {/* Ações rápidas */}
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="w-full gap-2"
-                onClick={copyLink}
-              >
-                {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-                {copied ? 'Copiado!' : 'Copiar link'}
-              </Button>
-            </div>
-
-            <p className="text-xs text-gray-400 text-center">
-              Após preencher o formulário, a solicitação aparecerá na aba "Solicitações de Acesso" para sua aprovação.
-            </p>
-          </div>
-          <DialogFooter className="mt-2">
-            <Button variant="outline" onClick={() => setShowInviteLink(false)}>Fechar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Invite Dialog — link com aprovação ou email direto */}
+      <InviteDialog open={showInviteDialog} onClose={() => setShowInviteDialog(false)} cadastroUrl={cadastroUrl} />
 
       {/* Review Registration Dialog */}
       <Dialog open={!!reviewingReg} onOpenChange={o => !o && setReviewingReg(null)}>
