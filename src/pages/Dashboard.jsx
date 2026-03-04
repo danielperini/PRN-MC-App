@@ -108,6 +108,13 @@ function DashboardInner() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {!showCoordView && widgetsLoaded && (
+              <WidgetCustomizer
+                widgets={widgets}
+                onToggleWidget={toggleWidget}
+                onReset={resetToDefault}
+              />
+            )}
             {isCoordenador && (
               <div className="flex border border-gray-200 rounded-lg overflow-hidden">
                 <button
