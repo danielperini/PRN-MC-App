@@ -124,13 +124,13 @@ Deno.serve(async (req) => {
       userAttachments = allAttachments.filter(a => reportIds.includes(a.report_id));
     }
     
-    // Criar estrutura de pastas
-    const backupRootId = await getOrCreateBackupRoot(accessToken);
+    // Usar pasta específica do Google Drive fornecida
+    const customFolderId = '1AsUJJqUv2O-NTGFAxIY5QySu_U8KQ094';
     
-    // Pasta por data
+    // Pasta por data dentro da pasta customizada
     const now = new Date();
     const dateFolder = now.toISOString().split('T')[0];
-    const dateFolderId = await getOrCreateDateFolder(accessToken, backupRootId, dateFolder);
+    const dateFolderId = await getOrCreateDateFolder(accessToken, customFolderId, dateFolder);
     
     // Salvar arquivos
     const timestamp = now.toISOString();
