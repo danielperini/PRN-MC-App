@@ -341,7 +341,7 @@ Máximo 10 resultados, ordenados por relevância e recência.`;
           <DialogFooter className="mt-6">
             <Button variant="outline" onClick={() => setEditingHighlight(null)}>Fechar</Button>
             <Button
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-black hover:bg-gray-800 text-white"
               onClick={generateJournalisticText}
               disabled={aiLoading || topics.length === 0}
             >
