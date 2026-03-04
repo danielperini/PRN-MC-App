@@ -8,6 +8,28 @@ export default function HighlightsCarousel() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [autoPlay, setAutoPlay] = useState(true);
 
+  // Fetch Momentos (conteúdo interno)
+  const { data: momentos = [] } = useQuery({
+    queryKey: ['momentos-ativos'],
+    queryFn: async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const data = await base44.entities.Momento.filter({
+          ativo: true,
+          deve_ser_publicado: true
+        }, '-created_date', 10);
+        return Array.isArray(data) ? data.filter(m => {
+          if (!m.data_expiracao) return true;
+          return m.data_expiracao >= today;
+        }) : [];
+      } catch (error) {
+        console.error('Erro ao buscar Momentos:', error);
+        return [];
+      }
+    },
+    refetchInterval: 60000 // 1 minuto
+  });
+
   // Fetch NewsHighlight (notícias externas)
   const { data: newsHighlights = [] } = useQuery({
     queryKey: ['news-highlights'],
@@ -23,18 +45,30 @@ export default function HighlightsCarousel() {
     refetchInterval: 300000 // 5 minutos
   });
 
-  // Usar apenas notícias
+  // Combinar e ordenar conteúdo (Momentos primeiro, depois notícias)
   const allHighlights = React.useMemo(() => {
-    return newsHighlights.map(n => ({
-      id: n.id,
-      titulo: n.titulo,
-      resumo: n.resumo,
-      imagem_url: n.imagem_url,
-      link: n.link,
-      tipo: 'noticia',
-      fonte: n.fonte
-    }));
-  }, [newsHighlights]);
+    const combined = [
+      ...momentos.map(m => ({
+        id: m.id,
+        titulo: m.titulo,
+        resumo: m.texto,
+        imagem_url: m.imagem_url,
+        link: null,
+        tipo: 'momento',
+        fonte: 'internal'
+      })),
+      ...newsHighlights.map(n => ({
+        id: n.id,
+        titulo: n.titulo,
+        resumo: n.resumo,
+        imagem_url: n.imagem_url,
+        link: n.link,
+        tipo: 'noticia',
+        fonte: n.fonte
+      }))
+    ];
+    return combined;
+  }, [momentos, newsHighlights]);
 
   // Auto-play carrossel
   useEffect(() => {
@@ -91,7 +125,7 @@ export default function HighlightsCarousel() {
         <div className="relative z-10 flex-1">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-xs font-semibold px-2 py-1 rounded-full bg-black text-white">
-              Museu na Mídia
+              {current.fonte === 'internal' ? 'Destaque Interno' : 'Museu na Mídia'}
             </span>
           </div>
           <h3 className="text-xl font-bold text-black mb-2 line-clamp-2">
