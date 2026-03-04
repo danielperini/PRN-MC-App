@@ -25,10 +25,12 @@ Deno.serve(async (req) => {
     const existingNews = await base44.entities.NewsHighlight.list('-created_date', 1000);
     const existingLinks = new Set(existingNews.map(n => n.link));
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const maxNewsPerDay = 15;
 
     let newNewsAdded = 0;
 
     for (const term of searchTerms) {
+      if (newNewsAdded >= maxNewsPerDay) break;
       const searchResult = await base44.integrations.Core.InvokeLLM({
         prompt: `Busque notícias recentes sobre "${term}" em Belo Horizonte. 
         Retorne um array JSON com no máximo 3 notícias, cada uma com: 
