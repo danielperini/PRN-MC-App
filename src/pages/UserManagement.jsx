@@ -716,7 +716,7 @@ function UserManagementInner() {
              </div>
 
              <DialogFooter className="mt-6">
-              <Button variant="outline" onClick={() => { setShowDialog(false); setEditingUserPerm(null); }}>Cancelar</Button>
+              <Button variant="outline" onClick={() => { setShowDialog(false); }}>Cancelar</Button>
               <Button className="bg-black hover:bg-gray-800 text-white" onClick={handleSubmit} disabled={isPending}>
                 Convidar
               </Button>
