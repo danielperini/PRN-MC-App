@@ -21,6 +21,40 @@ export default function MetaForm({ metas, onActivityAdded }) {
     status: 'realizada'
   });
 
+  const handleAnalyzeDescription = async () => {
+    if (formData.descricao.trim().length < 10) return;
+    
+    setLoading(true);
+    try {
+      const response = await base44.functions.invoke('analyzeActivityDescription', {
+        descricao: formData.descricao
+      });
+
+      const metaSugerida = metas.find(m => m.nome === response.data.meta_sugerida);
+      setSuggestion({
+        tipo_atividade: response.data.tipo_atividade,
+        meta_id: metaSugerida?.id,
+        confianca: response.data.confianca,
+        motivo: response.data.motivo
+      });
+    } catch (error) {
+      console.error('Erro ao analisar descrição:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAcceptSuggestion = () => {
+    if (suggestion) {
+      setFormData(prev => ({
+        ...prev,
+        tipo_atividade: suggestion.tipo_atividade,
+        meta_id: suggestion.meta_id
+      }));
+      setSuggestion(null);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -35,6 +69,7 @@ export default function MetaForm({ metas, onActivityAdded }) {
         descricao: '',
         status: 'realizada'
       });
+      setSuggestion(null);
       setOpen(false);
       onActivityAdded?.();
     } catch (error) {
