@@ -249,6 +249,9 @@ function CoordReviewInner() {
       if (status === 'APPROVED') {
         update.reviewer_name  = user?.full_name || '';
         update.reviewer_email = user?.email || '';
+        update.review_status = 'revisao_concluida';
+      } else if (status === 'IN_REVIEW') {
+        update.review_status = 'aguardando_aprovacao_final';
       }
 
       const report = reports.find(r => r.id === id);
