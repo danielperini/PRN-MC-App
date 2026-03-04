@@ -264,70 +264,11 @@ function UserManagementInner() {
     onError: () => toast.error('Erro ao remover usuário'),
   });
 
-  const openCreate = () => {
-    setEditingUser(null);
-    setFormData(EMPTY_FORM);
-    setShowDialog(true);
-  };
-
-  const setShowPermissions = (user) => {
-    const perm = userPermissions.find(p => p.user_email === user.email);
-    setEditingUserPerm(perm || { user_email: user.email, user_name: user.full_name });
-    setPermissionsForm({
-      must_submit_monthly_report: perm?.must_submit_monthly_report || false,
-      can_view_all_reports: perm?.can_view_all_reports !== false,
-      can_review_reports: perm?.can_review_reports || false,
-      can_manage_users: perm?.can_manage_users || false,
-      can_manage_files: perm?.can_manage_files || false,
-      can_manage_museus: perm?.can_manage_museus || false,
-      can_manage_equipes: perm?.can_manage_equipes || false,
-      can_view_audit_log: perm?.can_view_audit_log || false,
-      can_manage_platform: perm?.can_manage_platform || false,
-    });
-  };
-
-  const openEdit = (user) => {
-    setEditingUser(user);
-    setFormData({
-      email: user.email,
-      role: user.role || 'PROFISSIONAL',
-      equipe: user.equipe || '',
-    });
-    setShowPermissions(user);
-    setShowDialog(true);
-  };
-
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!formData.email && !editingUser) {
       toast.error('Informe o email'); return;
     }
     if (editingUser) {
-      // Se está editando e tem permissões customizadas, atualizar também
-      if (editingUserPerm) {
-        const permData = {
-          user_email: editingUserPerm.user_email,
-          user_name: editingUser.full_name,
-          base_role: formData.role,
-          must_submit_monthly_report: permissionsForm.must_submit_monthly_report,
-          can_view_all_reports: permissionsForm.can_view_all_reports,
-          can_review_reports: permissionsForm.can_review_reports,
-          can_manage_users: permissionsForm.can_manage_users,
-          can_manage_files: permissionsForm.can_manage_files,
-          can_manage_museus: permissionsForm.can_manage_museus,
-          can_manage_equipes: permissionsForm.can_manage_equipes,
-          can_view_audit_log: permissionsForm.can_view_audit_log,
-          can_manage_platform: permissionsForm.can_manage_platform,
-        };
-
-        if (editingUserPerm.id) {
-          // Update existing permission
-          await base44.entities.UserPermission.update(editingUserPerm.id, permData);
-        } else {
-          // Create new permission
-          await base44.entities.UserPermission.create(permData);
-        }
-        queryClient.invalidateQueries(['user-permissions']);
-      }
       updateMutation.mutate({ id: editingUser.id, data: { role: formData.role, equipe: formData.equipe, email: editingUser.email } });
     } else {
       inviteMutation.mutate(formData);
