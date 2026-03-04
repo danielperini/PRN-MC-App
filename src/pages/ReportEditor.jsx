@@ -344,14 +344,20 @@ function ReportEditorInner() {
             </div>
           </div>
 
-          <div className="flex gap-2 flex-wrap">
-            {reportId && (
-              <>
-                <ReportGenerator reportId={reportId} report={formData} />
-              </>
-            ) || (
-              <span className="text-xs text-gray-400">Salve o relatório para exportar dados</span>
-            )}
+          <div className="flex gap-2 flex-wrap items-center">
+             <Button variant="outline" size="sm" onClick={() => setShowLoadTemplateDialog(true)} title="Criar novo relatório a partir de um template">
+               Carregar Template
+             </Button>
+             {reportId && (
+               <>
+                 <Button variant="outline" size="sm" onClick={() => setShowSaveTemplateDialog(true)}>
+                   Salvar como Template
+                 </Button>
+                 <ReportGenerator reportId={reportId} report={formData} />
+               </>
+             ) || (
+               <span className="text-xs text-gray-400">Salve o relatório para exportar dados</span>
+             )}
             {canReview && formData.status === 'SUBMITTED' && (
                <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'start_review' })}>Iniciar Revisão</Button>
              )}
