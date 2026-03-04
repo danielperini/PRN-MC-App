@@ -155,85 +155,14 @@ function PlataformaAdminInner() {
           <KpiCard label="Relatórios Aprovados" value={approvedReports} icon={CheckCircle} sub={totalReports ? `${Math.round((approvedReports/totalReports)*100)}% do total` : '—'} />
         </div>
 
-        <Tabs defaultValue="usuarios">
+        <Tabs defaultValue="relatorios">
           <TabsList className="mb-6 bg-gray-100 p-1 rounded-xl">
-            <TabsTrigger value="usuarios" className="gap-2"><Users className="w-3.5 h-3.5" />Usuários</TabsTrigger>
             <TabsTrigger value="museus" className="gap-2"><Building2 className="w-3.5 h-3.5" />Museus</TabsTrigger>
             <TabsTrigger value="equipes" className="gap-2"><Users2 className="w-3.5 h-3.5" />Equipes</TabsTrigger>
             <TabsTrigger value="relatorios" className="gap-2"><FileText className="w-3.5 h-3.5" />Relatórios</TabsTrigger>
             <TabsTrigger value="auditoria" className="gap-2"><History className="w-3.5 h-3.5" />Auditoria</TabsTrigger>
             <TabsTrigger value="metadados" className="gap-2"><Database className="w-3.5 h-3.5" />Metadados</TabsTrigger>
           </TabsList>
-
-          {/* ── USUÁRIOS ── */}
-          <TabsContent value="usuarios">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-black">Gestão de Usuários</h2>
-              <Link to={createPageUrl('UserManagement')}>
-                <Button size="sm" className="bg-black text-white hover:bg-gray-800 gap-1">
-                  Gerenciar <ChevronRight className="w-3.5 h-3.5" />
-                </Button>
-              </Link>
-            </div>
-
-            {loadingUsers ? (
-              <div className="text-center py-16 text-gray-400">Carregando...</div>
-            ) : (
-              <div className="space-y-2">
-                {users.map(user => (
-                  <div key={user.id} className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:border-gray-200 transition-all">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-sm font-medium text-gray-600">
-                          {(user.full_name || user.email || '?')[0].toUpperCase()}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-medium text-black text-sm">{user.full_name || '(sem nome)'}</p>
-                        <p className="text-xs text-gray-400">{user.email} {user.equipe ? `· ${user.equipe}` : ''}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-500'} font-normal text-xs`}>
-                        {ROLE_LABELS[user.role] || user.role || 'Sem perfil'}
-                      </Badge>
-                      {/* Promover / rebaixar */}
-                      {user.role !== 'COORDENADOR' && user.id !== currentUser?.id && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs gap-1"
-                          onClick={() => updateUserMutation.mutate({ id: user.id, data: { role: 'COORDENADOR' } })}
-                        >
-                          <UserCheck className="w-3 h-3" />Promover
-                        </Button>
-                      )}
-                      {user.role === 'COORDENADOR' && user.id !== currentUser?.id && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs gap-1"
-                          onClick={() => updateUserMutation.mutate({ id: user.id, data: { role: 'PROFISSIONAL' } })}
-                        >
-                          Rebaixar
-                        </Button>
-                      )}
-                      {user.id !== currentUser?.id && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => setDeleteTarget(user)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </TabsContent>
 
           {/* ── RELATÓRIOS ── */}
           <TabsContent value="relatorios">
