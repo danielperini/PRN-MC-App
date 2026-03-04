@@ -250,6 +250,19 @@ function ReportEditorInner() {
     oportunidades: prev.oportunidades.filter((_, idx) => idx !== i)
   }));
 
+  // Template handlers
+  const handleLoadFromTemplate = (template) => {
+    if (template?.template_data) {
+      setFormData(prev => ({
+        ...EMPTY_FORM,
+        ...template.template_data,
+        author_name: currentUser?.full_name || '',
+        status: 'DRAFT'
+      }));
+      toast.success('Template carregado com sucesso!');
+    }
+  };
+
   const canEdit = (formData.status === 'DRAFT' || formData.status === 'RETURNED') && (!isComunicacao || (isComunicacao && formData.funcao === 'Comunicador'));
   const canReview = isCoordenador && (!isComunicacao || (isComunicacao && formData.funcao === 'Comunicador'));
 
