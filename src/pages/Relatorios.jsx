@@ -281,7 +281,7 @@ function RelatoriosInner() {
             />
             {filteredActivityList.length > 0 && (
               <div className="space-y-3">
-                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Resumo do Período</p>
+                <p className="text-xs font-semibold text-black uppercase tracking-wide">Resumo do Período</p>
                 <ActivitySummary activities={filteredActivityList} />
               </div>
             )}
