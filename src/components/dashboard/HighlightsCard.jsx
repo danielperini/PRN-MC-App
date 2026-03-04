@@ -181,7 +181,7 @@ Máximo 10 resultados, ordenados por relevância e recência.`;
 
   if (loading) {
     return (
-      <div className="p-6 border border-gray-100 rounded-2xl bg-gradient-to-br from-purple-50 to-white">
+      <div className="p-6 border border-gray-200 rounded-2xl bg-white">
         <p className="text-sm text-gray-400">Carregando...</p>
       </div>
     );
@@ -189,9 +189,9 @@ Máximo 10 resultados, ordenados por relevância e recência.`;
 
   if (highlights.length === 0) {
     return (
-      <div className="p-6 border border-gray-100 rounded-2xl bg-gradient-to-br from-purple-50 to-white">
+      <div className="p-6 border border-gray-200 rounded-2xl bg-white">
         <div className="flex items-center gap-3 mb-4">
-          <Sparkles className="w-5 h-5 text-purple-600" />
+          <Sparkles className="w-5 h-5 text-gray-600" />
           <h3 className="font-semibold text-black">Fatos Marcantes</h3>
         </div>
         <p className="text-sm text-gray-500">Nenhum fato marcante registrado ainda</p>
