@@ -493,7 +493,7 @@ function UserManagementInner() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <p className="font-semibold text-black">{reg.full_name}</p>
-                            <span className="text-xs font-mono bg-amber-100 text-amber-700 px-2 py-0.5 rounded">#{idx + 1}</span>
+                            <span className="text-xs font-mono bg-gray-100 text-black px-2 py-0.5 rounded">#{idx + 1}</span>
                           </div>
                           <p className="text-sm text-gray-500">{reg.email}</p>
                           <div className="flex gap-3 text-xs text-gray-400 mt-1">
@@ -547,10 +547,10 @@ function UserManagementInner() {
                 </div>
                 <div className="space-y-3">
                   {approvedButNotInvited.map((reg) => (
-                    <div key={reg.id} className="p-5 border border-orange-100 bg-orange-50/40 rounded-xl hover:border-orange-200 transition-all">
+                    <div key={reg.id} className="p-5 border-2 border-black bg-white rounded-xl transition-all">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-center gap-4 min-w-0 flex-1">
-                          <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold text-orange-700">
+                          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold text-black">
                             {(reg.full_name || '')[0]?.toUpperCase() || '?'}
                           </div>
                           <div className="min-w-0 flex-1">
@@ -596,7 +596,7 @@ function UserManagementInner() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowPermsSection(v => !v)}>
-                <Shield className="w-4 h-4 text-blue-600" />
+                <Shield className="w-4 h-4 text-black" />
                 <h2 className="text-sm font-semibold text-black">Permissões de Usuários</h2>
                 {showPermsSection ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
               </div>
@@ -628,7 +628,7 @@ function UserManagementInner() {
                             {perm ? (
                               <div className="flex flex-wrap gap-1 mt-2">
                                 {PERMISSIONS.filter(p => perm[p.key]).map(p => (
-                                  <span key={p.key} className="text-[10px] bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full">{p.label}</span>
+                                  <span key={p.key} className="text-[10px] bg-white text-black border border-black px-2 py-0.5 rounded-full">{p.label}</span>
                                 ))}
                                 {PERMISSIONS.filter(p => perm[p.key]).length === 0 && (
                                   <span className="text-xs text-gray-400 italic">Nenhuma permissão extra</span>
