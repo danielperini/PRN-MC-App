@@ -192,9 +192,9 @@ function DashboardInner() {
                          <p className="text-xs text-gray-400 mt-0.5">{report.museu}</p>
                          {(nMeta + nRot + nExt) > 0 && (
                            <div className="flex gap-1.5 mt-4 flex-wrap">
-                             {nMeta > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>}
-                             {nRot > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>}
-                             {nExt > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>}
+                             {nMeta > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>}
+                             {nRot > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>}
+                             {nExt > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>}
                            </div>
                          )}
                        </div>
