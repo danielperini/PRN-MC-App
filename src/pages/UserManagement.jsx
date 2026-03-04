@@ -705,7 +705,7 @@ function UserManagementInner() {
                             }}>
                             <Pencil className="w-3 h-3" />Editar
                           </Button>
-                          <Button size="sm" variant="outline" className="text-xs gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+                          <Button size="sm" variant="outline" className="text-xs gap-1"
                             onClick={() => { setEditPasswordUser(user); setNewPassword(''); setNewPasswordConfirm(''); }}>
                             <Key className="w-3 h-3" />Senha
                           </Button>
@@ -785,7 +785,7 @@ function UserManagementInner() {
               </Button>
             ) : reviewingReg?.action === 'convidar' ? (
               <Button
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-black hover:bg-gray-800 text-white"
                 onClick={() => approveRegMutation.mutate(reviewingReg)}
                 disabled={approveRegMutation.isPending}
               >
@@ -1007,7 +1007,7 @@ function UserManagementInner() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Key className="w-5 h-5 text-blue-600" />
+              <Key className="w-5 h-5 text-black" />
               Alterar senha
             </DialogTitle>
             <DialogDescription>
@@ -1048,7 +1048,7 @@ function UserManagementInner() {
           <DialogFooter className="mt-6">
             <Button variant="outline" onClick={() => setEditPasswordUser(null)}>Cancelar</Button>
             <Button
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-black hover:bg-gray-800 text-white"
               onClick={() => {
                 if (!newPassword || !newPasswordConfirm) {
                   toast.error('Preencha ambas as senhas');
