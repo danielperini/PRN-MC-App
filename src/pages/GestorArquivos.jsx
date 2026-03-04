@@ -383,39 +383,6 @@ function GestorArquivosInner() {
           )}
         </div>
 
-        {/* Action Bar */}
-        <div className="flex gap-2 mb-6">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => setShowFolderDialog(true)}
-          >
-            <FolderPlus className="w-4 h-4" />
-            Nova Pasta
-          </Button>
-          {visible.length > 0 && (
-            <div className="flex gap-1 ml-auto border border-gray-200 rounded-lg p-1">
-              <Button
-                variant={shouldShowGallery ? 'default' : 'ghost'}
-                size="sm"
-                className="h-8 px-2"
-                onClick={() => setViewMode(shouldShowGallery ? 'auto' : 'gallery')}
-              >
-                <Grid3x3 className="w-4 h-4" />
-              </Button>
-              <Button
-                variant={!shouldShowGallery ? 'default' : 'ghost'}
-                size="sm"
-                className="h-8 px-2"
-                onClick={() => setViewMode(shouldShowGallery ? 'list' : 'auto')}
-              >
-                <List className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-        </div>
-
         {/* Files grid */}
         {isLoading ? (
           <div className="text-center py-20 text-gray-400">Carregando arquivos...</div>
@@ -426,174 +393,19 @@ function GestorArquivosInner() {
             <p className="text-xs text-gray-400 mt-1">Os arquivos são adicionados nos relatórios mensais</p>
           </div>
         ) : (
-          <>
-            {/* Gallery View for Media */}
-            {shouldShowGallery && mediaFiles.length > 0 && (
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-700 mb-4">Imagens e Vídeos</h3>
-                <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {mediaFiles.map(att => {
-                    const isImage = att.file_type?.startsWith('image/');
-                    const isVideo = att.file_type?.startsWith('video/');
-                    const isSelected = selectedFiles.has(att.id);
-                    return (
-                      <div
-                        key={att.id}
-                        className={`group relative aspect-square rounded-lg overflow-hidden border transition-all cursor-pointer ${
-                          isSelected ? 'border-blue-400 shadow-lg' : 'border-gray-200 hover:border-gray-400'
-                        }`}
-                        onClick={() => {
-                          if (selectedFiles.has(att.id)) {
-                            const newSet = new Set(selectedFiles);
-                            newSet.delete(att.id);
-                            setSelectedFiles(newSet);
-                          } else {
-                            setSelectedFiles(new Set([...selectedFiles, att.id]));
-                          }
-                        }}
-                      >
-                        {/* Thumbnail */}
-                        {isImage || isVideo ? (
-                          <img
-                            src={isImage ? att.file_url : att.file_url}
-                            alt={att.file_name}
-                            className="w-full h-full object-cover bg-gray-100"
-                          />
-                        ) : null}
-
-                        {/* Video Badge */}
-                        {isVideo && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/50 transition-all">
-                            <FileVideo className="w-8 h-8 text-white" />
-                          </div>
-                        )}
-
-                        {/* Overlay */}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-end justify-between p-2 opacity-0 group-hover:opacity-100">
-                          <div className="text-white text-base truncate max-w-[70%]" title={att.file_name}>
-                            {att.file_name}
-                          </div>
-                          <Button
-                            size="sm"
-                            className="h-7 w-7 p-0 bg-white hover:bg-gray-100 text-black"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setFullscreenFile(att);
-                              setFullscreenZoom(1);
-                            }}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </div>
-
-                        {/* Checkbox */}
-                        <div className="absolute top-2 right-2">
-                          {isSelected ? (
-                            <CheckSquare className="w-5 h-5 text-blue-500 drop-shadow-lg" />
-                          ) : (
-                            <Square className="w-5 h-5 text-white drop-shadow-lg" />
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* List View for Documents */}
-            {(shouldShowGallery && documentFiles.length > 0) && (
-              <div>
-                <h3 className="text-lg font-semibold text-gray-700 mb-4">Documentos</h3>
-              </div>
-            )}
-
-            {documentFiles.length > 0 && (
-              <div className="space-y-2">
-                {documentFiles.map(att => {
-                  const report = reportMap[att.report_id];
-                  const IconComp = fileIcon(att.file_type);
-                  const isSelected = selectedFiles.has(att.id);
-                  return (
-                    <div
-                      key={att.id}
-                      className={`flex items-center gap-4 p-4 border rounded-lg transition-all cursor-pointer ${
-                        isSelected ? 'bg-blue-50 border-blue-300' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                      onClick={() => {
-                        if (selectedFiles.has(att.id)) {
-                          const newSet = new Set(selectedFiles);
-                          newSet.delete(att.id);
-                          setSelectedFiles(newSet);
-                        } else {
-                          setSelectedFiles(new Set([...selectedFiles, att.id]));
-                        }
-                      }}
-                    >
-                      {/* Checkbox */}
-                      <div className="flex-shrink-0">
-                        {isSelected ? (
-                          <CheckSquare className="w-5 h-5 text-blue-600" />
-                        ) : (
-                          <Square className="w-5 h-5 text-gray-300" />
-                        )}
-                      </div>
-
-                      {/* Icon */}
-                      <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100">
-                        <IconComp className="w-6 h-6 text-gray-600" />
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-lg text-black truncate">{att.file_name}</p>
-                        <p className="text-base text-gray-500 mt-0.5">
-                          {formatSize(att.file_size)} {report && `• ${report.author_name}`}
-                        </p>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                        <a href={att.file_url} target="_blank" rel="noopener noreferrer">
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-blue-100">
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </a>
-                        <a href={att.file_url} download={att.file_name}>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-green-100">
-                            <Download className="w-4 h-4" />
-                          </Button>
-                        </a>
-                        {att.created_by === currentUser?.email && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 hover:bg-amber-100"
-                              onClick={() => {
-                                setRenameTarget(att);
-                                setNewName(att.file_name);
-                              }}
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-red-600 hover:bg-red-100"
-                              onClick={() => setDeleteTarget(att)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
+          <ActivityFolderView
+            attachments={visible}
+            reportMap={reportMap}
+            activityMap={activityMap}
+            currentUser={currentUser}
+            openFolders={openFolders}
+            setOpenFolders={setOpenFolders}
+            setDeleteTarget={setDeleteTarget}
+            setRenameTarget={setRenameTarget}
+            setNewName={setNewName}
+            setFullscreenFile={setFullscreenFile}
+            setFullscreenZoom={setFullscreenZoom}
+          />
         )}
       </div>
       {/* Delete Confirm */}
