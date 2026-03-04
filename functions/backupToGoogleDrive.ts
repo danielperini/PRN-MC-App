@@ -95,7 +95,13 @@ Deno.serve(async (req) => {
     // Pasta por data dentro da pasta customizada
     const now = new Date();
     const dateFolder = now.toISOString().split('T')[0];
-    const dateFolderId = await getOrCreateDateFolder(accessToken, customFolderId, dateFolder);
+    let dateFolderId;
+    try {
+      dateFolderId = await createDateFolder(accessToken, customFolderId, dateFolder);
+    } catch (err) {
+      console.warn('Aviso ao criar pasta:', err.message);
+      dateFolderId = customFolderId; // Usar pasta pai se não conseguir criar subpasta
+    }
     
     // Salvar arquivos
     const timestamp = now.toISOString();
