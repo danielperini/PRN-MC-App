@@ -239,6 +239,9 @@ function GestorArquivosInner() {
           )}
         </div>
 
+        {/* Galeria de Fotos e Vídeos */}
+        <MediaGallery mediaItems={backups} />
+
         {/* Info */}
         <div className="mt-6 md:mt-8 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg md:rounded-xl">
           <p className="text-xs md:text-sm text-blue-900">
