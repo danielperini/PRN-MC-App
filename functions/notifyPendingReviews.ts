@@ -79,6 +79,9 @@ Deno.serve(async (req) => {
       }
     }
 
+    const reportCount = submittedReports.length;
+    const regCount = pendingRegistrations.length;
+    
     return Response.json({
       success: true,
       coordinators_notified: coordinators.length,
