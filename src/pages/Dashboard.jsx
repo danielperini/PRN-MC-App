@@ -143,13 +143,12 @@ function DashboardInner() {
         <HighlightsCarousel />
 
         {/* Coordenador: dashboard completo */}
-        {showCoordView ? (
-          <>
-            <MomentosCarrossel />
-            <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
-            <CoordDashboard reports={allReports} isLoading={loadingAll} />
-          </>
-        ) : (
+         {showCoordView ? (
+           <>
+             <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
+             <CoordDashboard reports={allReports} isLoading={loadingAll} />
+           </>
+         ) : (
           <div>
             {/* Filtros */}
             <AdvancedFilters onFilterChange={setFilters} activeFilters={filters} />
