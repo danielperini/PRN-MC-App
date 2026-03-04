@@ -16,12 +16,12 @@ import AdvancedFilters from '../components/dashboard/AdvancedFilters';
 import ComplianceStats from '../components/dashboard/ComplianceStats';
 
 const STATUS_CONFIG = {
-  DRAFT:     { label: 'Rascunho',   color: 'bg-gray-100 text-gray-600',  icon: Clock },
-  SUBMITTED: { label: 'Enviado',    color: 'bg-gray-100 text-gray-700',  icon: Send },
-  IN_REVIEW: { label: 'Em Revisão', color: 'bg-gray-200 text-gray-700',  icon: Eye },
-  RETURNED:  { label: 'Devolvido',  color: 'bg-black text-white',        icon: AlertCircle },
-  APPROVED:  { label: 'Aprovado',   color: 'bg-gray-900 text-white',     icon: CheckCircle },
-  ARCHIVED:  { label: 'Arquivado',  color: 'bg-gray-100 text-gray-500',  icon: Archive },
+  DRAFT:     { label: 'Rascunho',   color: 'bg-white text-black border border-black', icon: Clock },
+  SUBMITTED: { label: 'Enviado',    color: 'bg-white text-black border border-black', icon: Send },
+  IN_REVIEW: { label: 'Em Revisão', color: 'bg-white text-black border border-black', icon: Eye },
+  RETURNED:  { label: 'Devolvido',  color: 'bg-black text-white border border-black', icon: AlertCircle },
+  APPROVED:  { label: 'Aprovado',   color: 'bg-black text-white border border-black', icon: CheckCircle },
+  ARCHIVED:  { label: 'Arquivado',  color: 'bg-gray-200 text-black border border-black', icon: Archive },
 };
 
 function DashboardInner() {
