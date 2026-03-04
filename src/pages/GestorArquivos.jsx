@@ -3,12 +3,13 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
-import { FileJson, Download, Cloud, Calendar, Filter } from 'lucide-react';
+import { Download, Cloud, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import BackupButton from '../components/backup/BackupButton';
+import FilePreview from '../components/gallery/FilePreview';
 import { toast } from 'sonner';
 
 function GestorArquivosInner() {
@@ -182,61 +183,61 @@ function GestorArquivosInner() {
         </div>
 
         {/* Lista de Backups */}
-         <div className="space-y-3">
-           {isLoading ? (
-             <div className="text-center py-12 text-gray-400">
-               Carregando backups...
-             </div>
-           ) : backups.length === 0 ? (
-             <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
-               <Cloud className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-               <p className="text-gray-500">Nenhum backup encontrado</p>
-               <p className="text-sm text-gray-400 mt-1">Clique no botão "Fazer Backup" para criar um novo</p>
-             </div>
-           ) : (
-             backups.map(backup => (
-               <div key={backup.id} className="border border-gray-200 rounded-lg md:rounded-xl p-4 md:p-5 hover:shadow-md transition-all">
-                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                   <div className="flex items-start gap-3 md:gap-4 flex-1">
-                     <div className="p-2 md:p-3 bg-blue-50 rounded-lg flex-shrink-0">
-                       <FileJson className="w-4 md:w-5 h-4 md:h-5 text-blue-600" />
+         {isLoading ? (
+           <div className="text-center py-12 text-gray-400">
+             Carregando arquivos...
+           </div>
+         ) : backups.length === 0 ? (
+           <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
+             <Cloud className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+             <p className="text-gray-500">Nenhum arquivo encontrado</p>
+             <p className="text-sm text-gray-400 mt-1">Anexe arquivos a seus relatórios para vê-los aqui</p>
+           </div>
+         ) : (
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+             {backups.map(backup => (
+               <div key={backup.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-all bg-white">
+                 {/* Preview */}
+                 <div className="relative bg-gray-50">
+                   <FilePreview backup={backup} />
+                 </div>
+
+                 {/* Info */}
+                 <div className="p-4">
+                   <h3 className="font-medium text-black text-sm break-words line-clamp-2">
+                     {backup.fileName}
+                   </h3>
+                   
+                   <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                     <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                     <span className="truncate">{new Date(backup.timestamp).toLocaleString('pt-BR')}</span>
+                   </div>
+
+                   <p className="text-xs text-gray-600 mt-2 line-clamp-2">{backup.summary}</p>
+
+                   <div className="grid grid-cols-2 gap-2 mt-3">
+                     <div className="p-2 bg-gray-50 rounded text-center">
+                       <p className="text-xs text-gray-600">Tipo</p>
+                       <p className="font-semibold text-black text-xs">{backup.fileType?.split('/')[1] || 'arquivo'}</p>
                      </div>
-                     <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-black text-sm md:text-base break-words">
-                          {backup.fileName}
-                        </h3>
-                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                          <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span className="truncate">{new Date(backup.timestamp).toLocaleString('pt-BR')}</span>
-                        </div>
-
-                        <p className="text-xs text-gray-600 mt-2 line-clamp-2">{backup.summary}</p>
-
-                        <div className="grid grid-cols-2 gap-2 md:gap-3 mt-3 md:mt-4">
-                          <div className="p-2 bg-gray-50 rounded">
-                            <p className="text-xs text-gray-600">Tipo</p>
-                            <p className="font-semibold text-black text-sm">{backup.fileType}</p>
-                          </div>
-                          <div className="p-2 bg-gray-50 rounded">
-                            <p className="text-xs text-gray-600">Tamanho</p>
-                            <p className="font-semibold text-black text-sm">{backup.size}</p>
-                          </div>
-                        </div>
-                      </div>
+                     <div className="p-2 bg-gray-50 rounded text-center">
+                       <p className="text-xs text-gray-600">Tamanho</p>
+                       <p className="font-semibold text-black text-xs">{backup.size}</p>
+                     </div>
                    </div>
 
                    <Button
                      onClick={() => handleDownloadBackup(backup)}
-                     className="gap-2 bg-black hover:bg-gray-800 text-white whitespace-nowrap w-full md:w-auto text-sm md:text-base"
+                     className="gap-2 bg-black hover:bg-gray-800 text-white w-full mt-4 text-sm"
                    >
-                     <Download className="w-4 h-4 flex-shrink-0" />
-                     <span>Download</span>
+                     <Download className="w-4 h-4" />
+                     Download
                    </Button>
                  </div>
                </div>
-             ))
-           )}
-         </div>
+             ))}
+           </div>
+         )}
 
         {/* Info */}
         <div className="mt-6 md:mt-8 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg md:rounded-xl">
