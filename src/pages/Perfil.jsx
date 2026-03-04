@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useMutation } from '@tanstack/react-query';
-import { User, Save, BadgeCheck, LogOut } from 'lucide-react';
+import { User, Save, BadgeCheck, LogOut, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +19,8 @@ function PerfilInner() {
   const [user, setUser] = useState(null);
   const [formData, setFormData] = useState({ full_name: '', funcao: '', equipe: '', museu: '' });
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
 
   useEffect(() => {
     base44.auth.me().then(u => {
@@ -50,6 +52,37 @@ function PerfilInner() {
       }
     },
     onError: () => toast.error('Erro ao excluir conta.'),
+  });
+
+  const passwordMutation = useMutation({
+    mutationFn: async () => {
+      if (!passwordForm.newPassword || !passwordForm.confirmPassword) {
+        throw new Error('Preencha todos os campos');
+      }
+      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+        throw new Error('As senhas não coincidem');
+      }
+      if (passwordForm.newPassword.length < 8) {
+        throw new Error('Senha deve ter no mínimo 8 caracteres');
+      }
+      
+      const response = await base44.functions.invoke('changeUserPassword', {
+        target_user_email: user.email,
+        new_password: passwordForm.newPassword
+      });
+
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Erro ao alterar senha');
+      }
+
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success('Senha alterada com sucesso! Email de confirmação enviado.');
+      setPasswordForm({ newPassword: '', confirmPassword: '' });
+      setShowPasswordDialog(false);
+    },
+    onError: (error) => toast.error(error.message || 'Erro ao alterar senha.'),
   });
 
   const set = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
@@ -156,8 +189,21 @@ function PerfilInner() {
           </div>
           </div>
 
+          {/* Alterar Senha Section */}
+          <div className="mt-8 pt-6 border-t border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Segurança</h3>
+          <Button
+            variant="outline"
+            className="w-full border-black text-black hover:bg-black hover:text-white select-none"
+            onClick={() => setShowPasswordDialog(true)}
+          >
+            <Lock className="w-4 h-4 mr-2" />
+            Alterar Senha
+          </Button>
+          </div>
+
           {/* Excluir Conta Section */}
-          <div className="mt-12 pt-8 border-t border-gray-100">
+          <div className="mt-6 pt-6 border-t border-gray-100">
           <h3 className="text-sm font-semibold text-gray-700 mb-4">Zona de Risco</h3>
           <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
             <p className="text-sm text-red-700 mb-4">
@@ -174,6 +220,45 @@ function PerfilInner() {
           </div>
           </div>
           </div>
+
+          {/* Change Password Dialog */}
+          <AlertDialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+          <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Alterar Senha</AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm">Nova Senha</Label>
+              <Input
+                type="password"
+                placeholder="Mínimo 8 caracteres"
+                value={passwordForm.newPassword}
+                onChange={e => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-sm">Confirmar Senha</Label>
+              <Input
+                type="password"
+                placeholder="Confirme a nova senha"
+                value={passwordForm.confirmPassword}
+                onChange={e => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <AlertDialogCancel className="select-none">Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-black hover:bg-gray-800 text-white select-none"
+            onClick={() => passwordMutation.mutate()}
+            disabled={passwordMutation.isPending}
+          >
+            {passwordMutation.isPending ? 'Alterando...' : 'Alterar Senha'}
+          </AlertDialogAction>
+          </AlertDialogContent>
+          </AlertDialog>
 
           {/* Delete Account Dialog */}
           <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
