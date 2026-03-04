@@ -43,6 +43,144 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function ActivityFolderView({
+  attachments, reportMap, activityMap, currentUser,
+  openFolders, setOpenFolders, setDeleteTarget, setRenameTarget, setNewName,
+  setFullscreenFile, setFullscreenZoom
+}) {
+  // Group attachments by activity_id (folder), ungrouped go to "Sem atividade"
+  const grouped = {};
+  attachments.forEach(att => {
+    const key = att.activity_id || '__sem_atividade__';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(att);
+  });
+
+  const toggleFolder = (key) => {
+    setOpenFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const getFolderName = (key, files) => {
+    if (key === '__sem_atividade__') return 'Sem atividade vinculada';
+    // Try activityMap first
+    if (activityMap[key]) return activityMap[key];
+    // Fallback: parse from file_name pattern (activityId__activityName__...)
+    const first = files[0];
+    if (first?.file_name?.includes('__')) {
+      const parts = first.file_name.split('__');
+      if (parts[1]) return parts[1].replace(/_/g, ' ');
+    }
+    return `Atividade ${key.slice(0, 8)}`;
+  };
+
+  const keys = Object.keys(grouped).sort((a, b) => {
+    if (a === '__sem_atividade__') return 1;
+    if (b === '__sem_atividade__') return -1;
+    return getFolderName(a, grouped[a]).localeCompare(getFolderName(b, grouped[b]));
+  });
+
+  return (
+    <div className="space-y-2">
+      {keys.map(key => {
+        const files = grouped[key];
+        const folderName = getFolderName(key, files);
+        const isOpen = openFolders.has(key);
+        const isNoActivity = key === '__sem_atividade__';
+
+        return (
+          <div key={key} className="border border-gray-200 rounded-xl overflow-hidden">
+            {/* Folder Header */}
+            <button
+              className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+              onClick={() => toggleFolder(key)}
+            >
+              <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+              {isOpen
+                ? <FolderOpen className={`w-5 h-5 ${isNoActivity ? 'text-gray-400' : 'text-amber-500'}`} />
+                : <Folder className={`w-5 h-5 ${isNoActivity ? 'text-gray-400' : 'text-amber-500'}`} />
+              }
+              <span className="font-medium text-sm text-black flex-1 truncate">{folderName}</span>
+              {!isNoActivity && (
+                <span className="text-xs font-mono text-gray-400 bg-gray-200 px-2 py-0.5 rounded mr-1 hidden sm:inline">
+                  {key.slice(0, 12)}...
+                </span>
+              )}
+              <span className="text-xs text-gray-400 flex-shrink-0">{files.length} arquivo{files.length !== 1 ? 's' : ''}</span>
+            </button>
+
+            {/* Folder Contents */}
+            {isOpen && (
+              <div className="divide-y divide-gray-100">
+                {files.map(att => {
+                  const report = reportMap[att.report_id];
+                  const IconComp = fileIcon(att.file_type);
+                  const isImage = att.file_type?.startsWith('image/');
+                  const isVideo = att.file_type?.startsWith('video/');
+                  return (
+                    <div key={att.id} className="flex items-center gap-3 p-3 pl-12 hover:bg-gray-50 transition-colors group">
+                      {/* Thumbnail or icon */}
+                      {isImage ? (
+                        <img
+                          src={att.file_url}
+                          alt={att.file_name}
+                          className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-gray-100 ring-1 ring-gray-200 cursor-pointer"
+                          onClick={() => { setFullscreenFile(att); setFullscreenZoom(1); }}
+                        />
+                      ) : (
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <IconComp className="w-5 h-5 text-gray-500" />
+                        </div>
+                      )}
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-black truncate">{att.description || att.file_name}</p>
+                        <p className="text-xs text-gray-400">
+                          {formatSize(att.file_size)}
+                          {report ? ` • ${report.author_name} • ${report.mes_referencia} ${report.ano}` : ''}
+                        </p>
+                      </div>
+                      {/* Actions */}
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        <a href={att.file_url} target="_blank" rel="noopener noreferrer">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                            <Eye className="w-3.5 h-3.5 text-gray-500" />
+                          </Button>
+                        </a>
+                        <a href={att.file_url} download={att.description || att.file_name}>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                            <Download className="w-3.5 h-3.5 text-gray-500" />
+                          </Button>
+                        </a>
+                        {att.created_by === currentUser?.email && (
+                          <>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
+                              onClick={() => { setRenameTarget(att); setNewName(att.file_name); }}>
+                              <Edit2 className="w-3.5 h-3.5 text-gray-500" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
+                              onClick={() => setDeleteTarget(att)}>
+                              <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function GestorArquivosInner() {
   const { user: currentUser, isCoordenador } = useCurrentUser();
   const queryClient = useQueryClient();
