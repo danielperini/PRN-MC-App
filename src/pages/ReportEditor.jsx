@@ -275,8 +275,8 @@ function ReportEditorInner() {
     setCurrentTab(newTab);
   };
 
-  const [conflictError, setConflictError] = React.useState(null);
-  const [lastSaveTime, setLastSaveTime] = React.useState(null);
+  const [conflictError, setConflictError] = useState(null);
+  const [lastSaveTime, setLastSaveTime] = useState(null);
 
   // Auto-save com detecção de conflito via função backend
   useEffect(() => {

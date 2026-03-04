@@ -89,7 +89,7 @@ function AuthenticatedHome({ user }) {
   });
 
   // My reports (for non-coord shortcuts)
-  const myReports = allReports.filter(r => r.created_by === user?.email);
+  const myReports = allReports.filter(r => r.created_by === user?.email || r.author_name === user?.full_name);
   const reports = isCoordenador ? allReports : myReports;
 
   const pendingReview = allReports.filter(r => ['SUBMITTED', 'IN_REVIEW'].includes(r.status));
