@@ -400,31 +400,37 @@ function CoordReviewInner() {
                     )}
 
                     <div className="flex gap-2 mt-4 flex-wrap">
-                      <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
-                        <Button variant="outline" size="sm" className="gap-1">
-                          <Eye className="w-3.5 h-3.5" />Ver
-                        </Button>
-                      </Link>
-                      {report.status === 'SUBMITTED' && (!isComunicacao || report.funcao === 'Comunicador') && (
-                        <Button size="sm" variant="outline" className="border-black gap-1"
-                          onClick={() => workflowMutation.mutate({ id: report.id, status: 'IN_REVIEW' })}
-                          disabled={workflowMutation.isPending}>
-                          Assumir Revisão
-                        </Button>
-                      )}
-                      {report.status === 'IN_REVIEW' && (!isComunicacao || report.funcao === 'Comunicador') && (
-                        <>
-                          <Button size="sm" variant="outline" className="border-red-300 text-red-600 gap-1"
-                            onClick={() => setReturnDialog({ open: true, report })}>
-                            <AlertCircle className="w-3.5 h-3.5" />Devolver
-                          </Button>
-                          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
-                            onClick={() => setApproveDialog({ open: true, report })}>
-                            <CheckCircle className="w-3.5 h-3.5" />Aprovar
-                          </Button>
-                        </>
-                      )}
-                    </div>
+                       <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
+                         <Button variant="outline" size="sm" className="gap-1">
+                           <Eye className="w-3.5 h-3.5" />Ver
+                         </Button>
+                       </Link>
+                       {report.status === 'SUBMITTED' && (!isComunicacao || report.funcao === 'Comunicador') && (
+                         <>
+                           <Button size="sm" variant="outline" className="border-black gap-1"
+                             onClick={() => workflowMutation.mutate({ id: report.id, status: 'IN_REVIEW' })}
+                             disabled={workflowMutation.isPending}>
+                             Assumir Revisão
+                           </Button>
+                           <Button size="sm" variant="outline" className="gap-1 text-purple-600"
+                             onClick={() => setDelegateDialog({ open: true, report, selectedCoord: '' })}>
+                             📋 Delegar
+                           </Button>
+                         </>
+                       )}
+                       {report.status === 'IN_REVIEW' && (!isComunicacao || report.funcao === 'Comunicador') && (
+                         <>
+                           <Button size="sm" variant="outline" className="border-red-300 text-red-600 gap-1"
+                             onClick={() => setReturnDialog({ open: true, report })}>
+                             <AlertCircle className="w-3.5 h-3.5" />Devolver
+                           </Button>
+                           <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                             onClick={() => setApproveDialog({ open: true, report })}>
+                             <CheckCircle className="w-3.5 h-3.5" />Aprovar
+                           </Button>
+                         </>
+                       )}
+                     </div>
                   </div>
                 );
               })}
