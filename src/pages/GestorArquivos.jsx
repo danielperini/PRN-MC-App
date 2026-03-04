@@ -208,14 +208,10 @@ function GestorArquivosInner() {
 
                        <p className="text-xs text-gray-600 mt-2 line-clamp-2">{backup.summary}</p>
 
-                       <div className="grid grid-cols-3 gap-2 md:gap-3 mt-3 md:mt-4">
+                       <div className="grid grid-cols-2 gap-2 md:gap-3 mt-3 md:mt-4">
                          <div className="p-2 bg-gray-50 rounded">
-                           <p className="text-xs text-gray-600">Relatórios</p>
-                           <p className="font-semibold text-black text-sm">{backup.reportsCount}</p>
-                         </div>
-                         <div className="p-2 bg-gray-50 rounded">
-                           <p className="text-xs text-gray-600">Atividades</p>
-                           <p className="font-semibold text-black text-sm">{backup.activitiesCount}</p>
+                           <p className="text-xs text-gray-600">Tipo</p>
+                           <p className="font-semibold text-black text-sm">{backup.fileType}</p>
                          </div>
                          <div className="p-2 bg-gray-50 rounded">
                            <p className="text-xs text-gray-600">Tamanho</p>
