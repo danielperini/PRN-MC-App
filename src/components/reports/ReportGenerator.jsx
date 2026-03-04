@@ -14,8 +14,13 @@ export default function ReportGenerator({ reportId, report }) {
   const generatePDF = async () => {
     setGenerating(true);
     try {
+      // Fetch attachments for this report
+      let attachments = [];
+      try {
+        attachments = await base44.entities.Attachment.filter({ report_id: reportId });
+      } catch (_) {}
+
       const { jsPDF } = await import('jspdf');
-      const html2canvas = (await import('html2canvas')).default;
 
       const doc = new jsPDF('p', 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
