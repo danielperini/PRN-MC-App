@@ -13,6 +13,10 @@ import ActivityClassificationAI from './ActivityClassificationAI';
 import ClippingAutomatico from './ClippingAutomatico';
 import BulkActivityEditor from './BulkActivityEditor';
 import { base44 } from '@/api/base44Client';
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction
+} from '@/components/ui/alert-dialog';
 
 const MUSEUS_ATIV = ['MHAB', 'MIS', 'MUMO', 'Externo'];
 const EQUIPES = ['Comunicação', 'Administração', 'Educativo', 'Produção', 'Outra'];
