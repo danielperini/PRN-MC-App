@@ -27,12 +27,12 @@ const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Ag
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const EQUIPES = ['Comunicação', 'Coordenação', 'Administração', 'Educativo', 'Produção'];
 const STATUS_CONFIG = {
-  DRAFT:     { label: 'Rascunho',   color: 'bg-gray-100 text-gray-600',    cardBg: 'bg-white',             icon: Clock },
-  SUBMITTED: { label: 'Enviado',    color: 'bg-blue-100 text-blue-700',    cardBg: 'bg-blue-50/40',        icon: Send },
-  IN_REVIEW: { label: 'Em Revisão', color: 'bg-amber-100 text-amber-700',  cardBg: 'bg-amber-50/40',       icon: Eye },
-  RETURNED:  { label: 'Devolvido',  color: 'bg-red-100 text-red-700',      cardBg: 'bg-red-50/40',         icon: AlertCircle },
-  APPROVED:  { label: 'Aprovado',   color: 'bg-emerald-100 text-emerald-700', cardBg: 'bg-emerald-50/40',  icon: CheckCircle },
-  ARCHIVED:  { label: 'Arquivado',  color: 'bg-purple-100 text-purple-700', cardBg: 'bg-purple-50/30',     icon: Archive },
+  DRAFT:     { label: 'Rascunho',   color: 'bg-gray-100 text-gray-600',    cardBg: 'bg-white', icon: Clock },
+  SUBMITTED: { label: 'Enviado',    color: 'bg-blue-100 text-blue-700',    cardBg: 'bg-white', icon: Send },
+  IN_REVIEW: { label: 'Em Revisão', color: 'bg-amber-100 text-amber-700',  cardBg: 'bg-white', icon: Eye },
+  RETURNED:  { label: 'Devolvido',  color: 'bg-red-100 text-red-700',      cardBg: 'bg-white', icon: AlertCircle },
+  APPROVED:  { label: 'Aprovado',   color: 'bg-emerald-100 text-emerald-700', cardBg: 'bg-white', icon: CheckCircle },
+  ARCHIVED:  { label: 'Arquivado',  color: 'bg-purple-100 text-purple-700', cardBg: 'bg-white', icon: Archive },
 };
 
 function exportCSV(reports) {
