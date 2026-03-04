@@ -307,7 +307,6 @@ function ReportEditorInner() {
             {reportId && (
               <>
                 <ReportGenerator reportId={reportId} report={formData} />
-                <ExportPDF report={formData} reportId={reportId} />
               </>
             ) || (
               <span className="text-xs text-gray-400">Salve o relatório para exportar dados</span>
