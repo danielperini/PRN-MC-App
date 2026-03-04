@@ -26,6 +26,7 @@ import ReportComments from '../components/reports/ReportComments';
 import ReportTimeline from '../components/reports/ReportTimeline';
 import ActivityProgressBar from '../components/reports/ActivityProgressBar';
 import ReportVersionHistory from '../components/reports/ReportVersionHistory';
+import RichTextEditor from '../components/reports/RichTextEditor';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -455,13 +456,12 @@ function ReportEditorInner() {
                     </div>
                   )}
                 </div>
-                <Textarea
-                  placeholder="Descreva sucintamente as atividades realizadas no mês..."
-                  value={formData.resumo_executivo || ''}
-                  onChange={e => set('resumo_executivo', e.target.value)}
-                  className="min-h-[120px]"
-                  disabled={!canEdit}
-                />
+                <RichTextEditor
+                   placeholder="Descreva sucintamente as atividades realizadas no mês..."
+                   value={formData.resumo_executivo || ''}
+                   onChange={text => set('resumo_executivo', text)}
+                   disabled={!canEdit}
+                 />
               </section>
 
               {/* Botões de salvar — aba identificacao */}
@@ -632,21 +632,21 @@ function ReportEditorInner() {
                     <Label className="text-sm text-gray-700">Pontos Positivos</Label>
                     {canEdit && <AIAssistButton field="avaliacao_pontos_positivos" context={formData} onGenerate={t => set('avaliacao_pontos_positivos', t)} />}
                   </div>
-                  <Textarea placeholder="O que funcionou bem este mês..." value={formData.avaliacao_pontos_positivos || ''} onChange={e => set('avaliacao_pontos_positivos', e.target.value)} disabled={!canEdit} />
+                  <RichTextEditor placeholder="O que funcionou bem este mês..." value={formData.avaliacao_pontos_positivos || ''} onChange={text => set('avaliacao_pontos_positivos', text)} disabled={!canEdit} />
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm text-gray-700">Dificuldades</Label>
                     {canEdit && <AIAssistButton field="avaliacao_desafios" context={formData} onGenerate={t => set('avaliacao_desafios', t)} />}
                   </div>
-                  <Textarea placeholder="Principais dificuldades enfrentadas..." value={formData.avaliacao_desafios || ''} onChange={e => set('avaliacao_desafios', e.target.value)} disabled={!canEdit} />
+                  <RichTextEditor placeholder="Principais dificuldades enfrentadas..." value={formData.avaliacao_desafios || ''} onChange={text => set('avaliacao_desafios', text)} disabled={!canEdit} />
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm text-gray-700">Sugestões</Label>
                     {canEdit && <AIAssistButton field="avaliacao_sugestoes" context={formData} onGenerate={t => set('avaliacao_sugestoes', t)} />}
                   </div>
-                  <Textarea placeholder="Sugestões de melhoria..." value={formData.avaliacao_sugestoes || ''} onChange={e => set('avaliacao_sugestoes', e.target.value)} disabled={!canEdit} />
+                  <RichTextEditor placeholder="Sugestões de melhoria..." value={formData.avaliacao_sugestoes || ''} onChange={text => set('avaliacao_sugestoes', text)} disabled={!canEdit} />
                 </div>
               </div>
 
