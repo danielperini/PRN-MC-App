@@ -319,7 +319,7 @@ Máximo 10 resultados, ordenados por relevância e recência.`;
                   ))}
                   <button
                     onClick={() => setQuotes(prev => [...prev, ''])}
-                    className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+                    className="text-sm text-black hover:text-gray-700 font-medium"
                   >
                     + Adicionar fala
                   </button>
