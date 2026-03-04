@@ -7,7 +7,6 @@ const GENERAL_STATS = [
     id: 'total_museus',
     label: 'Museus Ativos',
     icon: BarChart3,
-    color: 'bg-blue-50 text-blue-700',
     getter: (data) => {
       const museus = new Set((data.allReports || []).map(r => r.museu).filter(Boolean));
       return museus.size;
@@ -17,7 +16,6 @@ const GENERAL_STATS = [
     id: 'media_publico',
     label: 'Público Médio/Atividade',
     icon: Users,
-    color: 'bg-green-50 text-green-700',
     getter: (data) => {
       const ativs = (data.allReports || []).flatMap(r => r.atividades || []);
       if (ativs.length === 0) return 0;
@@ -29,7 +27,6 @@ const GENERAL_STATS = [
     id: 'taxa_preenchimento',
     label: 'Taxa de Preenchimento',
     icon: Target,
-    color: 'bg-purple-50 text-purple-700',
     getter: (data) => {
       const total = (data.allReports || []).length;
       if (total === 0) return 0;
@@ -38,23 +35,9 @@ const GENERAL_STATS = [
     }
   },
   {
-    id: 'crescimento',
-    label: 'Crescimento (últimos meses)',
-    icon: TrendingUp,
-    color: 'bg-orange-50 text-orange-700',
-    getter: (data) => {
-      const reports = (data.allReports || []);
-      const thisMonth = reports.filter(r => r.ano === new Date().getFullYear()).length;
-      const lastMonth = Math.max(thisMonth - 2, 0);
-      if (lastMonth === 0) return '—';
-      return `+${Math.round(((thisMonth - lastMonth) / lastMonth) * 100)}%`;
-    }
-  },
-  {
     id: 'aprovacao_media',
     label: 'Taxa de Aprovação',
     icon: CheckCircle,
-    color: 'bg-emerald-50 text-emerald-700',
     getter: (data) => {
       const total = (data.allReports || []).length;
       if (total === 0) return 0;
@@ -66,7 +49,6 @@ const GENERAL_STATS = [
     id: 'meses_cobertos',
     label: 'Períodos Cobertos',
     icon: Calendar,
-    color: 'bg-pink-50 text-pink-700',
     getter: (data) => {
       const periodos = new Set((data.allReports || []).map(r => `${r.mes_referencia}-${r.ano}`).filter(Boolean));
       return periodos.size;
