@@ -468,18 +468,57 @@ function CoordReviewInner() {
       />
 
       <ApproveDialog
-        open={approveDialog.open}
-        report={approveDialog.report}
-        onClose={() => setApproveDialog({ open: false, report: null })}
-        isPending={workflowMutation.isPending}
-        onConfirm={(note) => {
-          workflowMutation.mutate({ id: approveDialog.report.id, status: 'APPROVED', approvalNote: note });
-          setApproveDialog({ open: false, report: null });
-        }}
-      />
-    </div>
-  );
-}
+         open={approveDialog.open}
+         report={approveDialog.report}
+         onClose={() => setApproveDialog({ open: false, report: null })}
+         isPending={workflowMutation.isPending}
+         onConfirm={(note) => {
+           workflowMutation.mutate({ id: approveDialog.report.id, status: 'APPROVED', approvalNote: note });
+           setApproveDialog({ open: false, report: null });
+         }}
+       />
+
+      {/* Delegate Dialog */}
+      <Dialog open={delegateDialog.open} onOpenChange={o => !o && setDelegateDialog({ open: false, report: null, selectedCoord: '' })}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delegar Revisão</DialogTitle>
+            <p className="text-sm text-gray-500 mt-1">{delegateDialog.report?.author_name} — {delegateDialog.report?.mes_referencia}</p>
+          </DialogHeader>
+          <div className="py-2 space-y-2">
+            <Label className="text-sm">Selecione o coordenador</Label>
+            <Select value={delegateDialog.selectedCoord} onValueChange={v => setDelegateDialog(p => ({ ...p, selectedCoord: v }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Escolha um coordenador" />
+              </SelectTrigger>
+              <SelectContent>
+                {allCoords.filter(c => c.email !== user?.email).map(coord => (
+                  <SelectItem key={coord.id} value={JSON.stringify({ email: coord.email, name: coord.full_name })}>
+                    {coord.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDelegateDialog({ open: false, report: null, selectedCoord: '' })}>Cancelar</Button>
+            <Button
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={() => {
+                const coord = JSON.parse(delegateDialog.selectedCoord);
+                delegateMutation.mutate({ id: delegateDialog.report.id, coordEmail: coord.email, coordName: coord.name });
+                setDelegateDialog({ open: false, report: null, selectedCoord: '' });
+              }}
+              disabled={delegateMutation.isPending || !delegateDialog.selectedCoord}
+            >
+              Confirmar Delegação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      </div>
+      );
+      }
 
 export default function CoordReview() {
   return <RequireAuth requireRole="COORDENADOR"><CoordReviewInner /></RequireAuth>;
