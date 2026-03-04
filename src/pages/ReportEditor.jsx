@@ -254,14 +254,34 @@ function ReportEditorInner() {
     setCurrentTab(newTab);
   };
 
-  // Auto-save após inatividade (debounce)
+  const [conflictError, setConflictError] = React.useState(null);
+  const [lastSaveTime, setLastSaveTime] = React.useState(null);
+
+  // Auto-save com detecção de conflito via função backend
   useEffect(() => {
     if (!canEdit || !reportId || !formData.mes_referencia) return;
 
     clearTimeout(autoSaveTimer);
-    const timer = setTimeout(() => {
-      saveMutation.mutate(formData);
-    }, 3000); // Salva 3 segundos após a última alteração
+    const timer = setTimeout(async () => {
+      try {
+        const response = await base44.functions.invoke('autoSaveReport', {
+          reportId,
+          formData,
+        });
+        if (response.data.hasConflict) {
+          setConflictError(response.data.conflictMessage);
+          toast.error('Conflito de edição detectado!', {
+            description: 'Outro usuário editou este relatório. Verifique as alterações.',
+            duration: 10000,
+          });
+        } else {
+          setLastSaveTime(new Date().toLocaleTimeString('pt-BR'));
+          setConflictError(null);
+        }
+      } catch (err) {
+        console.error('Erro ao auto-salvar:', err);
+      }
+    }, 5000); // Auto-save a cada 5 segundos de inatividade
 
     setAutoSaveTimer(timer);
 
@@ -456,10 +476,51 @@ function ReportEditorInner() {
 
           <TabsContent value="atividades">
             <div className="space-y-6">
+              {/* Aviso de conflito de edição */}
+              {conflictError && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-red-800">Conflito de Edição</p>
+                    <p className="text-xs text-red-700 mt-1">{conflictError}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Indicador de auto-save */}
+              {reportId && canEdit && (
+                <div className="flex items-center justify-between p-3 bg-green-50 border border-green-100 rounded-lg">
+                  <p className="text-xs text-green-700">
+                    ✓ Auto-salvando... {lastSaveTime && <span>Última sincronização: {lastSaveTime}</span>}
+                  </p>
+                </div>
+              )}
+
+              {/* Detecção de duplicatas */}
               <AtividadesSection
                 atividades={formData.atividades || []}
                 canEdit={canEdit}
-                onChange={list => set('atividades', list)}
+                onChange={async list => {
+                  set('atividades', list);
+                  // Detectar duplicatas
+                  if (list.length > 1) {
+                    try {
+                      const result = await base44.functions.invoke('detectDuplicateActivities', {
+                        atividades: list,
+                      });
+                      if (result.data.hasDuplicates) {
+                        toast.warning('Atividades duplicadas detectadas', {
+                          description: result.data.message,
+                          duration: 8000,
+                        });
+                        // Auto-mesclar duplicatas
+                        set('atividades', result.data.cleanedActivities);
+                      }
+                    } catch (err) {
+                      console.error('Erro ao detectar duplicatas:', err);
+                    }
+                  }
+                }}
                 reportId={reportId}
               />
 
