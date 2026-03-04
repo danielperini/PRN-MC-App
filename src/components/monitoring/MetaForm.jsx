@@ -179,11 +179,54 @@ export default function MetaForm({ metas, onActivityAdded }) {
 
         <div>
           <label className="text-sm font-medium text-gray-700">Descrição</label>
-          <Input
-            value={formData.descricao}
-            onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-            placeholder="Descrição da atividade"
-          />
+          <div className="relative">
+            <Input
+              value={formData.descricao}
+              onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+              placeholder="Descrição da atividade"
+              onBlur={() => formData.descricao.trim().length >= 10 && handleAnalyzeDescription()}
+            />
+            {loading && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                Analisando...
+              </span>
+            )}
+          </div>
+          {suggestion && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-900">Sugestão da IA</span>
+                </div>
+                <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded">
+                  {suggestion.confianca}% confiança
+                </span>
+              </div>
+              <p className="text-xs text-blue-800 mb-2">{suggestion.motivo}</p>
+              <div className="text-xs text-blue-700 mb-3 space-y-1">
+                <p>Tipo: <strong>{suggestion.tipo_atividade}</strong></p>
+                <p>Meta: <strong>{metas.find(m => m.id === suggestion.meta_id)?.nome}</strong></p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleAcceptSuggestion}
+                  className="bg-blue-600 hover:bg-blue-700 text-white gap-1"
+                >
+                  <Check className="w-3 h-3" /> Aceitar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSuggestion(null)}
+                  className="gap-1"
+                >
+                  <XIcon className="w-3 h-3" /> Rejeitar
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2 pt-2">
