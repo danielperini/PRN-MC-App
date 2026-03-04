@@ -457,7 +457,6 @@ function ReportEditorInner() {
 
           <TabsContent value="atividades">
             <div className="space-y-6">
-              <ActivityProgressBar atividades={formData.atividades} oportunidades={formData.oportunidades} />
               <AtividadesSection
                 atividades={formData.atividades || []}
                 canEdit={canEdit}
