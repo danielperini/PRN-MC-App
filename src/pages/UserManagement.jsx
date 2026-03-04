@@ -961,6 +961,68 @@ function UserManagementInner() {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Pending Registration Dialog */}
+      <Dialog open={!!editingPendingReg} onOpenChange={o => { if (!o) { setEditingPendingReg(null); setEditingPendingData({}); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Registro Pendente</DialogTitle>
+            <DialogDescription>Atualize os dados do registro de {editingPendingReg?.full_name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <Label>Nome completo</Label>
+              <Input value={editingPendingData.full_name || ''} onChange={e => setEditingPendingData({ ...editingPendingData, full_name: e.target.value })} />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input type="email" value={editingPendingData.email || ''} onChange={e => setEditingPendingData({ ...editingPendingData, email: e.target.value })} />
+            </div>
+            <div>
+              <Label>Função</Label>
+              <Input value={editingPendingData.funcao || ''} onChange={e => setEditingPendingData({ ...editingPendingData, funcao: e.target.value })} />
+            </div>
+            <div>
+              <Label>Museu</Label>
+              <Input value={editingPendingData.museu || ''} onChange={e => setEditingPendingData({ ...editingPendingData, museu: e.target.value })} />
+            </div>
+            <div>
+              <Label>Equipe</Label>
+              <Select value={editingPendingData.equipe || ''} onValueChange={v => setEditingPendingData({ ...editingPendingData, equipe: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="mt-6">
+            <Button variant="outline" onClick={() => { setEditingPendingReg(null); setEditingPendingData({}); }}>Cancelar</Button>
+            <Button className="bg-black hover:bg-gray-800 text-white" disabled={updateRegMutation.isPending}
+              onClick={() => updateRegMutation.mutate({ id: editingPendingReg.id, data: editingPendingData })}>
+              {updateRegMutation.isPending ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Pending Registration Confirm */}
+      <AlertDialog open={!!deleteRegTarget} onOpenChange={o => !o && setDeleteRegTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover registro?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <p className="text-sm text-gray-500 px-1">
+            Tem certeza que deseja remover o registro de <strong>{deleteRegTarget?.full_name || deleteRegTarget?.email}</strong>? Esta ação não pode ser desfeita.
+          </p>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700 text-white" onClick={() => deleteRegMutation.mutate(deleteRegTarget.id)}>
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Delete Confirm */}
       <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
