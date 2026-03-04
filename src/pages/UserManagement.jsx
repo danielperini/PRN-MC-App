@@ -469,10 +469,25 @@ function UserManagementInner() {
                             </p>
                           </div>
                         </div>
-                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs flex-shrink-0"
-                          onClick={() => { setReviewingReg({ ...reg, action: 'convidar' }); setRegRole('PROFISSIONAL'); setRegNote(''); }}>
-                          <Mail className="w-4 h-4 mr-1" />Enviar Convite
-                        </Button>
+                        <div className="flex gap-2 flex-shrink-0 flex-wrap">
+                          <Button size="sm" variant="outline" className="text-xs gap-1"
+                            onClick={() => { setEditingPendingReg(reg); setEditingPendingData({ full_name: reg.full_name, email: reg.email, funcao: reg.funcao, museu: reg.museu, equipe: reg.equipe || '' }); }}>
+                            <Pencil className="w-3 h-3" />Editar
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-xs gap-1 text-green-700 border-green-200 hover:bg-green-50"
+                            onClick={() => createDirectFromPendingMutation.mutate(reg)}
+                            disabled={createDirectFromPendingMutation.isPending}>
+                            <Plus className="w-3 h-3" />Cadastrar Direto
+                          </Button>
+                          <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1"
+                            onClick={() => { setReviewingReg({ ...reg, action: 'convidar' }); setRegRole('PROFISSIONAL'); setRegNote(''); }}>
+                            <Mail className="w-3 h-3" />Reenviar Convite
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-xs gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                            onClick={() => setDeleteRegTarget(reg)}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
