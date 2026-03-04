@@ -228,6 +228,7 @@ function CoordReviewInner() {
    const filtered = pending.filter(r => {
      if (filterStatus !== 'all' && r.status !== filterStatus) return false;
      if (filterMuseu !== 'all' && r.museu !== filterMuseu) return false;
+     if (filterReviewStatus !== 'all' && (r.review_status || 'aguardando_revisao') !== filterReviewStatus) return false;
      return true;
    });
 
