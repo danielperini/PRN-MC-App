@@ -58,6 +58,18 @@ async function uploadFile(accessToken, fileName, fileContent, parentFolderId) {
   return response.json();
 }
 
+async function checkDuplicate(accessToken, fileName, fileSize, parentFolderId) {
+  const query = `name='${fileName.replace(/'/g, "\\'")}' and parents='${parentFolderId}' and trashed=false`;
+  const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&spaces=drive&fields=files(id,name,size)&pageSize=10`;
+
+  const response = await fetch(searchUrl, {
+    headers: { 'Authorization': `Bearer ${accessToken}` }
+  });
+
+  const data = await response.json();
+  return data.files && data.files.some(f => f.size === fileSize);
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -105,22 +117,85 @@ Deno.serve(async (req) => {
         ? attachments.filter(att => att.report_id === report.id)
         : [];
 
-      // Upload attachments
-      for (const attachment of reportAttachments) {
-        if (!attachment.file_url) continue;
+      // Organize by file type
+      const imageAttachments = reportAttachments.filter(att => 
+        att.file_type && /^image\/(jpeg|jpg|png|gif|webp)$/i.test(att.file_type)
+      );
+      const videoAttachments = reportAttachments.filter(att => 
+        att.file_type && /^video\/(mp4|mpeg|quicktime|x-msvideo|webm)$/i.test(att.file_type)
+      );
+      const otherAttachments = reportAttachments.filter(att =>
+        !imageAttachments.includes(att) && !videoAttachments.includes(att)
+      );
 
+      // Create subfolders for media
+      let imagesFolderId = null;
+      let videosFolderId = null;
+
+      if (imageAttachments.length > 0) {
+        imagesFolderId = await createOrGetFolder(accessToken, 'Fotos', reportFolderId);
+      }
+      if (videoAttachments.length > 0) {
+        videosFolderId = await createOrGetFolder(accessToken, 'Vídeos', reportFolderId);
+      }
+
+      // Upload images
+      for (const attachment of imageAttachments) {
+        if (!attachment.file_url) continue;
         try {
-          // Fetch file from URL
+          const fileResponse = await fetch(attachment.file_url);
+          if (!fileResponse.ok) continue;
+
+          const fileBuffer = await fileResponse.arrayBuffer();
+          const fileName = attachment.file_name || `image_${Date.now()}`;
+          
+          const isDuplicate = await checkDuplicate(accessToken, fileName, fileBuffer.byteLength, imagesFolderId);
+          if (!isDuplicate) {
+            await uploadFile(accessToken, fileName, fileBuffer, imagesFolderId);
+            syncedCount++;
+          }
+        } catch (fileErr) {
+          console.error(`Error uploading image ${attachment.file_name}:`, fileErr.message);
+        }
+      }
+
+      // Upload videos
+      for (const attachment of videoAttachments) {
+        if (!attachment.file_url) continue;
+        try {
+          const fileResponse = await fetch(attachment.file_url);
+          if (!fileResponse.ok) continue;
+
+          const fileBuffer = await fileResponse.arrayBuffer();
+          const fileName = attachment.file_name || `video_${Date.now()}`;
+          
+          const isDuplicate = await checkDuplicate(accessToken, fileName, fileBuffer.byteLength, videosFolderId);
+          if (!isDuplicate) {
+            await uploadFile(accessToken, fileName, fileBuffer, videosFolderId);
+            syncedCount++;
+          }
+        } catch (fileErr) {
+          console.error(`Error uploading video ${attachment.file_name}:`, fileErr.message);
+        }
+      }
+
+      // Upload other attachments
+      for (const attachment of otherAttachments) {
+        if (!attachment.file_url) continue;
+        try {
           const fileResponse = await fetch(attachment.file_url);
           if (!fileResponse.ok) continue;
 
           const fileBuffer = await fileResponse.arrayBuffer();
           const fileName = attachment.file_name || `attachment_${Date.now()}`;
-
-          await uploadFile(accessToken, fileName, fileBuffer, reportFolderId);
-          syncedCount++;
+          
+          const isDuplicate = await checkDuplicate(accessToken, fileName, fileBuffer.byteLength, reportFolderId);
+          if (!isDuplicate) {
+            await uploadFile(accessToken, fileName, fileBuffer, reportFolderId);
+            syncedCount++;
+          }
         } catch (fileErr) {
-          console.error(`Error uploading ${attachment.file_name}:`, fileErr.message);
+          console.error(`Error uploading attachment ${attachment.file_name}:`, fileErr.message);
         }
       }
 
