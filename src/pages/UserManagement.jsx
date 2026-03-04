@@ -589,6 +589,76 @@ function UserManagementInner() {
             );
           })()}
 
+          {/* ── PERMISSÕES ── */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowPermsSection(v => !v)}>
+                <Shield className="w-4 h-4 text-blue-600" />
+                <h2 className="text-sm font-semibold text-black">Permissões de Usuários</h2>
+                {showPermsSection ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+              </div>
+              {showPermsSection && (
+                <Button size="sm" className="bg-black hover:bg-gray-800 text-white gap-1 text-xs" onClick={() => openPermCreate(null)}>
+                  <Plus className="w-3 h-3" />Adicionar
+                </Button>
+              )}
+            </div>
+
+            {showPermsSection && (
+              <div className="space-y-3">
+                <Input
+                  placeholder="Buscar por email..."
+                  value={permSearchEmail}
+                  onChange={e => setPermSearchEmail(e.target.value)}
+                  className="max-w-sm"
+                />
+                {users
+                  .filter(u => !permSearchEmail || u.email.toLowerCase().includes(permSearchEmail.toLowerCase()) || (u.full_name || '').toLowerCase().includes(permSearchEmail.toLowerCase()))
+                  .map(user => {
+                    const perm = permMap[user.email];
+                    return (
+                      <div key={user.email} className={`p-4 border rounded-xl transition-all ${perm ? 'border-gray-200' : 'border-dashed border-gray-200 bg-gray-50'}`}>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-black text-sm">{user.full_name || user.email}</p>
+                            <p className="text-xs text-gray-500">{user.email}</p>
+                            {perm ? (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {PERMISSIONS.filter(p => perm[p.key]).map(p => (
+                                  <span key={p.key} className="text-[10px] bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full">{p.label}</span>
+                                ))}
+                                {PERMISSIONS.filter(p => perm[p.key]).length === 0 && (
+                                  <span className="text-xs text-gray-400 italic">Nenhuma permissão extra</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400 italic mt-1 block">Sem permissões customizadas</span>
+                            )}
+                          </div>
+                          <div className="flex gap-2 flex-shrink-0">
+                            {perm ? (
+                              <>
+                                <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => openPermEdit(perm)}>
+                                  <Edit className="w-3 h-3" />Editar
+                                </Button>
+                                <Button size="sm" variant="outline" className="text-xs gap-1 text-red-600 border-red-200 hover:bg-red-50" onClick={() => deletePermMutation.mutate(perm.id)}>
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </>
+                            ) : (
+                              <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => openPermCreate(user)}>
+                                <Plus className="w-3 h-3" />Definir
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+
           {/* ── USUÁRIOS ── */}
           <div>
             {(pendingRegistrations.length > 0 || allRegistrations.some(r => r.status === 'APROVADO' && !users.some(u => u.email === r.email))) && (
