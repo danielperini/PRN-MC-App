@@ -238,10 +238,15 @@ function DashboardInner() {
                      })
                    )}
                  </div>
-               </>
-             )}
-               );
-               }
+                 </>
+                 )}
+                 </div>
+                 );
+                 })}
+                 </div>
+                 </div>
+                 );
+                 }
 
 export default function Dashboard() {
   return <RequireAuth><DashboardInner /></RequireAuth>;
