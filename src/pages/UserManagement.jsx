@@ -608,9 +608,9 @@ function UserManagementInner() {
                                        onChange={(e) => {
                                          const data = userPerm ? { ...userPerm, [perm]: e.target.checked } : { user_email: user.email, user_name: user.full_name, base_role: user.role, [perm]: e.target.checked };
                                          if (userPerm?.id) {
-                                           base44.asServiceRole.entities.UserPermission.update(userPerm.id, data);
+                                           base44.entities.UserPermission.update(userPerm.id, data);
                                          } else {
-                                           base44.asServiceRole.entities.UserPermission.create({ ...data, base_role: user.role });
+                                           base44.entities.UserPermission.create({ ...data, base_role: user.role });
                                          }
                                          queryClient.invalidateQueries(['user-permissions']);
                                        }}
@@ -633,9 +633,9 @@ function UserManagementInner() {
                                        onChange={(e) => {
                                          const data = userPerm ? { ...userPerm, [perm]: e.target.checked } : { user_email: user.email, user_name: user.full_name, base_role: user.role, [perm]: e.target.checked };
                                          if (userPerm?.id) {
-                                           base44.asServiceRole.entities.UserPermission.update(userPerm.id, data);
+                                           base44.entities.UserPermission.update(userPerm.id, data);
                                          } else {
-                                           base44.asServiceRole.entities.UserPermission.create({ ...data, base_role: user.role });
+                                           base44.entities.UserPermission.create({ ...data, base_role: user.role });
                                          }
                                          queryClient.invalidateQueries(['user-permissions']);
                                        }}
