@@ -282,10 +282,10 @@ Máximo 10 resultados, ordenados por relevância e recência.`;
                       key={topic}
                       onClick={() => setTopics(prev => prev.includes(topic) ? prev.filter(t => t !== topic) : [...prev, topic])}
                       className={`p-3 text-left rounded-lg border-2 transition-all ${
-                        topics.includes(topic)
-                          ? 'border-purple-500 bg-purple-50'
-                          : 'border-gray-200 bg-white hover:border-gray-300'
-                      }`}
+                            topics.includes(topic)
+                              ? 'border-black bg-gray-50'
+                              : 'border-gray-200 bg-white hover:border-gray-300'
+                          }`}
                     >
                       <p className="text-sm font-medium text-black">{topic}</p>
                     </button>
