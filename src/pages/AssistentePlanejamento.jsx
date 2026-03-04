@@ -226,7 +226,7 @@ Sempre seja prestativo, didático e use exemplos práticos quando possível.`;
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
-            <HelpCircle className="w-6 h-6 text-blue-600" />
+            <HelpCircle className="w-6 h-6 text-black" />
             <h1 className="text-3xl font-semibold text-black">Assistente Plano de Trabalho e Relatório</h1>
           </div>
           <p className="text-gray-500 text-sm">
