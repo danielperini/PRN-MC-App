@@ -8,7 +8,8 @@ import { createPageUrl } from '@/utils';
 import {
   Paperclip, FileText, Search, Download, Eye,
   Image, File, FileVideo, Music, Archive, Trash2, Edit2, FolderPlus, CheckSquare, Square,
-  Grid3x3, List, X, ZoomIn, ZoomOut, ChevronDown, Calendar, FileType, Filter
+  Grid3x3, List, X, ZoomIn, ZoomOut, ChevronDown, Calendar, FileType, Filter,
+  Folder, FolderOpen, ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
