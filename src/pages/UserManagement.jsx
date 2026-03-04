@@ -87,6 +87,7 @@ function UserManagementInner() {
    const [regRole, setRegRole] = useState('PROFISSIONAL');
    const [copied, setCopied] = useState(false);
    const [showInviteLink, setShowInviteLink] = useState(false);
+   const [showInviteDialog, setShowInviteDialog] = useState(false);
    const [currentUser, setCurrentUser] = useState(null);
    const [showCreateDirect, setShowCreateDirect] = useState(false);
    const [directForm, setDirectForm] = useState({ email: '', password: '', full_name: '', role: 'PROFISSIONAL' });
