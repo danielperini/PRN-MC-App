@@ -4,6 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { BarChart3, TrendingUp, Users, CheckCircle } from 'lucide-react';
 
 export default function ComplianceStats({ currentMonth, currentYear }) {
+  // Calcular data de 30 dias atrás
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoISO = thirtyDaysAgo.toISOString().split('T')[0];
+
   const { data: userPermissions = [] } = useQuery({
     queryKey: ['compliance-permissions'],
     queryFn: async () => {
@@ -13,9 +18,9 @@ export default function ComplianceStats({ currentMonth, currentYear }) {
   });
 
   const { data: allReports = [] } = useQuery({
-    queryKey: ['compliance-reports', currentMonth, currentYear],
+    queryKey: ['compliance-reports-30days', thirtyDaysAgoISO],
     queryFn: async () => {
-      const data = await base44.entities.Report.list('-created_date', 500);
+      const data = await base44.entities.Report.list('-updated_date', 500);
       return Array.isArray(data) ? data : [];
     },
   });
@@ -36,9 +41,11 @@ export default function ComplianceStats({ currentMonth, currentYear }) {
   const obligatedUsers = userPermissions.filter(
     p => p.must_submit_monthly_report && !exemptedEmails.has(p.user_email)
   );
-  const submittedReports = allReports.filter(
-    r => r.mes_referencia === currentMonth && r.ano === currentYear
-  );
+  const submittedReports = allReports.filter(r => {
+    const reportDate = r.updated_date || r.created_date;
+    const isIn30Days = reportDate >= thirtyDaysAgoISO;
+    return (r.status === 'SUBMITTED' || r.status === 'IN_REVIEW' || r.status === 'APPROVED') && isIn30Days;
+  });
   const approvedReports = submittedReports.filter(r => r.status === 'APPROVED');
 
   const totalObligated = obligatedUsers.length;
