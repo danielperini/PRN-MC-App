@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import CoordDashboard from '../components/dashboard/CoordDashboard';
 import AdvancedFilters from '../components/dashboard/AdvancedFilters';
 import ComplianceStats from '../components/dashboard/ComplianceStats';
+import MomentosCarrossel from '../components/dashboard/MomentosCarrossel';
 
 const STATUS_CONFIG = {
   DRAFT:     { label: 'Rascunho',   color: 'bg-white text-black border border-black', icon: Clock },
@@ -127,12 +128,13 @@ function DashboardInner() {
         </div>
 
          {/* Coordenador: dashboard completo */}
-         {showCoordView ? (
-           <>
-             <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
-             <CoordDashboard reports={allReports} isLoading={loadingAll} />
-           </>
-         ) : (
+          {showCoordView ? (
+            <>
+              <MomentosCarrossel />
+              <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
+              <CoordDashboard reports={allReports} isLoading={loadingAll} />
+            </>
+          ) : (
            <div>
              {/* Filtros */}
              <AdvancedFilters onFilterChange={setFilters} activeFilters={filters} />
