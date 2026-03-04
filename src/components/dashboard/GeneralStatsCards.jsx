@@ -71,32 +71,18 @@ export default function GeneralStatsCards({ reports = [] }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-black">Dados Gerais da Plataforma</h3>
-        <Button size="sm" variant="outline" onClick={() => {
-          const allIds = GENERAL_STATS.map(s => s.id);
-          setVisibleCards(visibleCards.length === allIds.length ? allIds.slice(0, 3) : allIds);
-        }} className="text-xs">
-          {visibleCards.length === GENERAL_STATS.length ? 'Mostrar menos' : 'Ver todos'}
-        </Button>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <h3 className="text-sm font-semibold text-black">Dados Gerais da Plataforma</h3>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         {GENERAL_STATS.map(stat => {
           const Icon = stat.icon;
           const value = stat.getter(data);
-          const isVisible = visibleCards.includes(stat.id);
-          
-          if (!isVisible && visibleCards.length < GENERAL_STATS.length) {
-            return null;
-          }
-
           return (
-            <div key={stat.id} className={`p-4 border rounded-xl cursor-pointer transition-all hover:shadow-md ${stat.color}`}>
+            <div key={stat.id} className="p-4 border border-gray-200 rounded-xl bg-white">
               <div className="flex items-center gap-2 mb-2">
-                <Icon className="w-4 h-4" />
-                <span className="text-xs font-medium opacity-75">{stat.label}</span>
+                <Icon className="w-4 h-4 text-gray-400" />
               </div>
-              <p className="text-2xl font-bold">{value}</p>
+              <p className="text-2xl font-bold text-black">{value}</p>
+              <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
             </div>
           );
         })}
