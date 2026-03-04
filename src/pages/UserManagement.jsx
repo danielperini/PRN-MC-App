@@ -688,6 +688,7 @@ function UserManagementInner() {
             </div>
           </div>
         </div>
+      </div>
 
       {/* Invite Link Dialog */}
       <Dialog open={showInviteLink} onOpenChange={setShowInviteLink}>
