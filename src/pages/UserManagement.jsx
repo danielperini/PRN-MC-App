@@ -98,6 +98,11 @@ function UserManagementInner() {
    const [editingPendingReg, setEditingPendingReg] = useState(null);
    const [editingPendingData, setEditingPendingData] = useState({});
    const [deleteRegTarget, setDeleteRegTarget] = useState(null);
+   const [editingPerm, setEditingPerm] = useState(null);
+   const [showPermDialog, setShowPermDialog] = useState(false);
+   const [permFormData, setPermFormData] = useState(null);
+   const [permSearchEmail, setPermSearchEmail] = useState('');
+   const [showPermsSection, setShowPermsSection] = useState(false);
 
    React.useEffect(() => {
      const loadUser = async () => {
