@@ -794,9 +794,28 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
     onChange([...atividades, nova]);
   };
 
-  const remove = (i) => {
+  const remove = async (i, deleteAttachments) => {
+    const ativ = atividades[i];
+    if (deleteAttachments && ativ?.activity_id && reportId) {
+      // Delete all attachments for this activity
+      const atts = await base44.entities.Attachment.filter({ report_id: reportId, activity_id: ativ.activity_id }).catch(() => []);
+      await Promise.all(atts.map(a => base44.entities.Attachment.delete(a.id).catch(() => {})));
+    }
     onChange(atividades.filter((_, idx) => idx !== i));
     if (dupWarning?.index === i) setDupWarning(null);
+    setDeleteConfirm(null);
+  };
+
+  const requestRemove = async (i) => {
+    const ativ = atividades[i];
+    if (ativ?.activity_id && reportId) {
+      const atts = await base44.entities.Attachment.filter({ report_id: reportId, activity_id: ativ.activity_id }).catch(() => []);
+      if (atts.length > 0) {
+        setDeleteConfirm({ index: i, activityId: ativ.activity_id, hasAttachments: true, count: atts.length });
+        return;
+      }
+    }
+    remove(i, false);
   };
 
   const update = async (i, field, value) => {
