@@ -667,13 +667,11 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                 <Textarea placeholder="O que foi realizado..." value={atividade.descricao_executado || ''} onChange={e => onChange('descricao_executado', e.target.value)} disabled={!canEdit} rows={3} />
               </Field>
               <Field label="Equipe envolvida (esta atividade será adicionada ao relatório de cada membro)">
-                <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                  <UserPicker
-                    value={atividade.equipe_envolvida_lista || []}
-                    onChange={v => onChange('equipe_envolvida_lista', v)}
-                    disabled={!canEdit}
-                  />
-                </div>
+                <UserPicker
+                  value={atividade.equipe_envolvida_lista || []}
+                  onChange={v => onChange('equipe_envolvida_lista', v)}
+                  disabled={!canEdit}
+                />
               </Field>
               <Field label="Resultados e impactos">
                 <div className="space-y-1.5">
