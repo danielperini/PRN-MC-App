@@ -78,13 +78,27 @@ Deno.serve(async (req) => {
 
     let syncedCount = 0;
 
-    // Process each report
+    // Group reports by museum
+    const reportsByMuseum = {};
     for (const report of reports) {
       if (!report.id || !report.author_name) continue;
+      const museu = report.museu || 'Sem Museu';
+      if (!reportsByMuseum[museu]) {
+        reportsByMuseum[museu] = [];
+      }
+      reportsByMuseum[museu].push(report);
+    }
 
-      // Create folder for report
-      const reportFolderName = `${report.mes_referencia} ${report.ano} - ${report.author_name} (${report.status})`;
-      const reportFolderId = await createOrGetFolder(accessToken, reportFolderName, mainFolderId);
+    // Process each museum folder
+    for (const [museu, museumReports] of Object.entries(reportsByMuseum)) {
+      // Create museum folder
+      const museumFolderId = await createOrGetFolder(accessToken, museu, mainFolderId);
+
+      // Process reports in this museum
+      for (const report of museumReports) {
+        // Create folder for report
+        const reportFolderName = `${report.mes_referencia} ${report.ano} - ${report.author_name} (${report.status})`;
+        const reportFolderId = await createOrGetFolder(accessToken, reportFolderName, museumFolderId);
 
       // Find attachments for this report
       const reportAttachments = Array.isArray(attachments)
@@ -128,6 +142,7 @@ Deno.serve(async (req) => {
 
       const summaryJson = JSON.stringify(reportSummary, null, 2);
       await uploadFile(accessToken, `_resumo_${report.numero_protocolo || report.id}.json`, summaryJson, reportFolderId);
+      }
     }
 
     return Response.json({
