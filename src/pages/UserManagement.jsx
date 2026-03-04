@@ -252,7 +252,7 @@ function UserManagementInner() {
       // Also update or create UserPermission record
       const existingPerm = userPermissions.find(p => p.user_email === data.email);
       if (existingPerm) {
-        await base44.asServiceRole.entities.UserPermission.update(existingPerm.id, {
+        await base44.entities.UserPermission.update(existingPerm.id, {
           user_name: data.full_name,
           base_role: data.role,
         });
