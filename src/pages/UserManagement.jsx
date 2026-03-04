@@ -1128,12 +1128,26 @@ function UserManagementInner() {
           </DialogHeader>
           {permFormData && (
             <div className="space-y-3 mt-3">
-              {PERMISSIONS.map(p => (
-                <div key={p.key} className="flex items-center gap-3">
-                  <Checkbox checked={!!permFormData[p.key]} onCheckedChange={() => togglePerm(p.key)} id={`new-${p.key}`} />
-                  <label htmlFor={`new-${p.key}`} className="text-sm cursor-pointer">{p.label}</label>
+              {/* Controle especial para obrigatoriedade de relatório mensal */}
+              <div className="p-3 border-2 border-black rounded-lg bg-white space-y-3">
+                <p className="text-sm font-semibold text-black">Obrigações de Relatório</p>
+                <div className="flex items-center gap-3">
+                  <Checkbox checked={!!permFormData['must_submit_monthly_report']} onCheckedChange={() => togglePerm('must_submit_monthly_report')} id="new-must_submit_monthly_report" />
+                  <label htmlFor="new-must_submit_monthly_report" className="text-sm cursor-pointer font-medium">Obrigado a entregar relatório mensal</label>
                 </div>
-              ))}
+                <p className="text-xs text-gray-500 ml-6">Quando ativado, o sistema exigirá que este usuário envie um relatório a cada mês.</p>
+              </div>
+
+              {/* Outras permissões */}
+              <div className="space-y-3 border-t pt-3">
+                <p className="text-sm font-semibold text-black">Permissões de Acesso</p>
+                {PERMISSIONS.filter(p => p.key !== 'must_submit_monthly_report').map(p => (
+                  <div key={p.key} className="flex items-center gap-3">
+                    <Checkbox checked={!!permFormData[p.key]} onCheckedChange={() => togglePerm(p.key)} id={`new-${p.key}`} />
+                    <label htmlFor={`new-${p.key}`} className="text-sm cursor-pointer">{p.label}</label>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           <DialogFooter className="mt-6">
@@ -1152,12 +1166,26 @@ function UserManagementInner() {
           </DialogHeader>
           {editingPerm && (
             <div className="space-y-3 mt-3">
-              {PERMISSIONS.map(p => (
-                <div key={p.key} className="flex items-center gap-3">
-                  <Checkbox checked={!!editingPerm[p.key]} onCheckedChange={() => togglePerm(p.key)} id={`edit-${p.key}`} />
-                  <label htmlFor={`edit-${p.key}`} className="text-sm cursor-pointer">{p.label}</label>
+              {/* Controle especial para obrigatoriedade de relatório mensal */}
+              <div className="p-3 border-2 border-black rounded-lg bg-white space-y-3">
+                <p className="text-sm font-semibold text-black">Obrigações de Relatório</p>
+                <div className="flex items-center gap-3">
+                  <Checkbox checked={!!editingPerm['must_submit_monthly_report']} onCheckedChange={() => togglePerm('must_submit_monthly_report')} id="edit-must_submit_monthly_report" />
+                  <label htmlFor="edit-must_submit_monthly_report" className="text-sm cursor-pointer font-medium">Obrigado a entregar relatório mensal</label>
                 </div>
-              ))}
+                <p className="text-xs text-gray-500 ml-6">Quando ativado, o sistema exigirá que este usuário envie um relatório a cada mês.</p>
+              </div>
+
+              {/* Outras permissões */}
+              <div className="space-y-3 border-t pt-3">
+                <p className="text-sm font-semibold text-black">Permissões de Acesso</p>
+                {PERMISSIONS.filter(p => p.key !== 'must_submit_monthly_report').map(p => (
+                  <div key={p.key} className="flex items-center gap-3">
+                    <Checkbox checked={!!editingPerm[p.key]} onCheckedChange={() => togglePerm(p.key)} id={`edit-${p.key}`} />
+                    <label htmlFor={`edit-${p.key}`} className="text-sm cursor-pointer">{p.label}</label>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           <DialogFooter className="mt-6">
