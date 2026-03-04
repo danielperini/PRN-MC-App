@@ -5,7 +5,7 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     
-    if (!user || !['ADMIN', 'admin', 'COORDENADOR'].includes(user.role)) {
+    if (!user || !['admin'].includes(user.role)) {
       return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
@@ -17,9 +17,16 @@ Deno.serve(async (req) => {
       }, { status: 400 });
     }
 
-    // Invite user first — platform only accepts "user" or "admin"
+    if (password.length < 8) {
+      return Response.json({ 
+        error: 'Password must be at least 8 characters long' 
+      }, { status: 400 });
+    }
+
     const platformRole = role === 'ADMIN' ? 'admin' : 'user';
-    await base44.users.inviteUser(email, platformRole);
+    
+    // Create user with password using service role
+    await base44.asServiceRole.auth.createUserWithPassword(email, full_name, password, platformRole);
 
     // Create user permission based on role
     const permissionDefaults = {
@@ -58,7 +65,7 @@ Deno.serve(async (req) => {
       }
     };
 
-    const permissions = await base44.entities.UserPermission.create({
+    const permissions = await base44.asServiceRole.entities.UserPermission.create({
       user_email: email,
       user_name: full_name,
       base_role: role,
@@ -74,6 +81,7 @@ Deno.serve(async (req) => {
       permission_id: permissions.id
     });
   } catch (error) {
+    console.error('Error creating user:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
