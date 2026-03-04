@@ -661,6 +661,57 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
             </div>
             )}
 
+            {/* Seção de Contratações (condicional) */}
+            <div className="p-4 border border-gray-100 bg-gray-50/50 rounded-xl space-y-4">
+             <Field label="Houve contratações de profissionais da cadeia da cultura?">
+               <Select value={atividade.houve_contratacoes ? 'sim' : 'nao'} onValueChange={v => onChange('houve_contratacoes', v === 'sim')} disabled={!canEdit}>
+                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="nao">Não</SelectItem>
+                   <SelectItem value="sim">Sim</SelectItem>
+                 </SelectContent>
+               </Select>
+             </Field>
+             {atividade.houve_contratacoes && (
+               <div className="space-y-4 p-4 bg-white border border-gray-200 rounded-lg">
+                 <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Detalhes das Contratações</p>
+                 <div className="grid md:grid-cols-3 gap-4">
+                   <Field label="Número de trabalhadores envolvidos">
+                     <Input 
+                       type="number" 
+                       placeholder="Ex: 5" 
+                       value={atividade.numero_trabalhadores ?? ''} 
+                       onChange={e => onChange('numero_trabalhadores', parseInt(e.target.value) || '')} 
+                       disabled={!canEdit}
+                       min="0"
+                     />
+                   </Field>
+                   <Field label="Número de empresas envolvidas">
+                     <Input 
+                       type="number" 
+                       placeholder="Ex: 2" 
+                       value={atividade.numero_empresas ?? ''} 
+                       onChange={e => onChange('numero_empresas', parseInt(e.target.value) || '')} 
+                       disabled={!canEdit}
+                       min="0"
+                     />
+                   </Field>
+                   <Field label="Valor aproximado gasto (R$)">
+                     <Input 
+                       type="number" 
+                       placeholder="Ex: 5000.00" 
+                       value={atividade.valor_aproximado ?? ''} 
+                       onChange={e => onChange('valor_aproximado', parseFloat(e.target.value) || '')} 
+                       disabled={!canEdit}
+                       min="0"
+                       step="0.01"
+                     />
+                   </Field>
+                 </div>
+               </div>
+             )}
+            </div>
+
             {/* Registro detalhado */}
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Registro Detalhado</p>
