@@ -57,13 +57,13 @@ import Dashboard from './pages/Dashboard';
 import DashboardProfissional from './pages/DashboardProfissional';
 import GestorArquivos from './pages/GestorArquivos';
 import Home from './pages/Home';
+import MonitoringPanel from './pages/MonitoringPanel';
 import Perfil from './pages/Perfil';
 import PlataformaAdmin from './pages/PlataformaAdmin';
 import PlataformaConfig from './pages/PlataformaConfig';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
-import MonitoringPanel from './pages/MonitoringPanel';
 import __Layout from './Layout.jsx';
 
 
@@ -78,13 +78,13 @@ export const PAGES = {
     "DashboardProfissional": DashboardProfissional,
     "GestorArquivos": GestorArquivos,
     "Home": Home,
+    "MonitoringPanel": MonitoringPanel,
     "Perfil": Perfil,
     "PlataformaAdmin": PlataformaAdmin,
     "PlataformaConfig": PlataformaConfig,
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
-    "MonitoringPanel": MonitoringPanel,
 }
 
 export const pagesConfig = {

@@ -360,13 +360,24 @@ function RelatoriosInner() {
                     )}
                     </div>
                     </Link>
+                    {isCoordenador && report.status === 'SUBMITTED' && (
+                      <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
+                        <button
+                          onClick={e => e.preventDefault()}
+                          className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-600"
+                          title="Revisar relatório"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                      </Link>
+                    )}
                     {canDelete && (
                     <button
-                     onClick={e => { e.preventDefault(); setDeleteTarget(report); }}
-                     className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg bg-white border border-gray-200 hover:bg-red-50 hover:border-red-200 text-gray-400 hover:text-red-500"
-                     title="Excluir relatório"
+                      onClick={e => { e.preventDefault(); setDeleteTarget(report); }}
+                      className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg bg-white border border-gray-200 hover:bg-red-50 hover:border-red-200 text-gray-400 hover:text-red-500"
+                      title="Excluir relatório"
                     >
-                     <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                     )}
                     </div>
