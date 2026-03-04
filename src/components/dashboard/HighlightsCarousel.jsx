@@ -109,7 +109,7 @@ export default function HighlightsCarousel() {
   return (
     <div className="w-full mb-8">
       <div 
-        className="relative w-full rounded-2xl overflow-hidden bg-white border-2 border-black h-48 flex items-center justify-between px-6 py-6 group cursor-pointer"
+        className="relative w-full rounded-2xl overflow-hidden bg-white border-2 border-black h-48 flex items-center justify-between px-3 py-6 group cursor-pointer"
         onMouseEnter={() => setAutoPlay(false)}
         onMouseLeave={() => setAutoPlay(true)}
         onClick={() => current.link && handleViewNews(current)}
