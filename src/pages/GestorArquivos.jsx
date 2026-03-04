@@ -462,42 +462,7 @@ function GestorArquivosInner() {
         </DialogContent>
       </Dialog>
 
-      {/* New Folder Dialog */}
-      <Dialog open={showFolderDialog} onOpenChange={setShowFolderDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Criar nova pasta</DialogTitle>
-            <DialogDescription>Adicione uma nova pasta para organizar seus arquivos</DialogDescription>
-          </DialogHeader>
-          <Input
-            value={newFolder}
-            onChange={(e) => setNewFolder(e.target.value)}
-            placeholder="Nome da pasta"
-            className="mt-2"
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowFolderDialog(false)}>
-              Cancelar
-            </Button>
-            <Button
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => {
-                if (newFolder.trim() && !folders.includes(newFolder.trim())) {
-                  setFolders([...folders, newFolder.trim()]);
-                  toast.success(`Pasta "${newFolder}" criada.`);
-                  setNewFolder('');
-                  setShowFolderDialog(false);
-                } else if (folders.includes(newFolder.trim())) {
-                  toast.error('Pasta já existe.');
-                }
-              }}
-              disabled={!newFolder.trim()}
-            >
-              Criar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
 
       {/* Fullscreen View */}
       {fullscreenFile && (
