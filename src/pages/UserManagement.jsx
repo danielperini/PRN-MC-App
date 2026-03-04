@@ -459,254 +459,18 @@ function UserManagementInner() {
           </div>
         </div>
 
-        {(() => {
-          const approvedButNotInvited = allRegistrations.filter(reg => {
-            const isUser = users.some(u => u.email === reg.email);
-            return reg.status === 'APROVADO' && !isUser;
-          });
-          const defaultTab = pendingRegistrations.length > 0 ? 'solicitacoes' : (approvedButNotInvited.length > 0 ? 'pendentes-convite' : 'usuarios');
-          
-          return (
-            <Tabs defaultValue={defaultTab}>
-              <TabsList className="mb-6">
-                <TabsTrigger value="usuarios">
-                  Usuários
-                </TabsTrigger>
-                {approvedButNotInvited.length > 0 && (
-                  <TabsTrigger value="pendentes-convite" className="gap-2">
-                    <Mail className="w-3.5 h-3.5" />
-                    Pendentes de Convite
-                    <span className="w-5 h-5 rounded-full bg-orange-500 text-white text-[10px] flex items-center justify-center font-bold">
-                      {approvedButNotInvited.length}
-                    </span>
-                  </TabsTrigger>
-                )}
-                <TabsTrigger value="solicitacoes" className="gap-2">
-                  <Bell className="w-3.5 h-3.5" />
-                  Solicitações de Acesso
-                  {pendingRegistrations.length > 0 && (
-                    <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
-                      {pendingRegistrations.length}
-                    </span>
-                  )}
-                </TabsTrigger>
-              </TabsList>
+        <div className="space-y-10">
 
-          {/* ── ABA USUÁRIOS ── */}
-          <TabsContent value="usuarios">
-            <div className="space-y-3">
-              {isLoading ? (
-                <div className="text-center py-20 text-gray-400">Carregando usuários...</div>
-              ) : users.length === 0 ? (
-                <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
-                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">Nenhum usuário cadastrado</p>
-                </div>
-              ) : (
-                users.map(user => {
-                   const userReg = allRegistrations.find(r => r.email === user.email);
-                   const approvalStatus = userReg?.status;
-                   const reportStatus = getReportStatus(user.email);
-                   const userPerm = userPermissions.find(p => p.user_email === user.email);
-
-                   return (
-                     <div key={user.id} className="border border-gray-200 rounded-xl overflow-hidden hover:border-gray-300 transition-all">
-                       {/* Header row */}
-                       <div className="p-4 bg-white flex items-center justify-between gap-4">
-                         <div className="flex items-center gap-4 flex-1 min-w-0">
-                           <button
-                             onClick={() => setExpandedUserId(expandedUserId === user.id ? null : user.id)}
-                             className="flex-shrink-0 text-gray-400 hover:text-gray-600"
-                           >
-                             {expandedUserId === user.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                           </button>
-                           <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                             <span className="text-sm font-medium text-gray-600">
-                               {(user.full_name || user.email || '?')[0].toUpperCase()}
-                             </span>
-                           </div>
-                           <div className="min-w-0 flex-1">
-                             <p className="font-semibold text-black">{user.full_name || user.email}</p>
-                             <p className="text-xs text-gray-500">{user.email}</p>
-                           </div>
-                         </div>
-                         <div className="flex items-center gap-3 flex-shrink-0 flex-wrap justify-end">
-                           <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700'} font-normal text-xs`}>
-                             {ROLE_LABELS[user.role] || user.role || '–'}
-                           </Badge>
-                           {user.equipe && (
-                             <Badge variant="outline" className="text-xs">{user.equipe}</Badge>
-                           )}
-                           {approvalStatus === 'APROVADO' && (
-                             <Badge className="bg-green-100 text-green-700 text-xs font-normal">
-                               <CheckCircle className="w-3 h-3 mr-1" />Aprovado
-                             </Badge>
-                           )}
-                         </div>
-                       </div>
-
-                       {/* Expanded details */}
-                       {expandedUserId === user.id && (
-                         <div className="border-t border-gray-100 p-4 space-y-6 bg-gray-50">
-                           {/* Editar dados básicos */}
-                           <div>
-                             <div className="flex items-center justify-between mb-4">
-                               <h3 className="text-sm font-semibold text-black">Informações</h3>
-                               <Button
-                                 size="sm"
-                                 variant={editingUserMode === `${user.id}-info` ? 'default' : 'outline'}
-                                 className="text-xs"
-                                 onClick={() => setEditingUserMode(editingUserMode === `${user.id}-info` ? null : `${user.id}-info`)}
-                               >
-                                 {editingUserMode === `${user.id}-info` ? 'Salvar' : 'Editar'}
-                                 </Button>
-                                 </div>
-                                 {editingUserMode === `${user.id}-info` ? (
-                               <div className="space-y-3 bg-white p-3 rounded-lg border border-gray-200">
-                                 <div>
-                                   <Label className="text-xs">Cargo</Label>
-                                   <Select value={user.role} onValueChange={(v) => base44.entities.User.update(user.id, { role: v }).then(() => queryClient.invalidateQueries(['users']))}>
-                                     <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                                     <SelectContent>
-                                       {CARGO_OPTIONS.map(opt => (
-                                         <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                       ))}
-                                     </SelectContent>
-                                   </Select>
-                                 </div>
-                                 <div>
-                                   <Label className="text-xs">Equipe</Label>
-                                   <Select value={user.equipe || ''} onValueChange={(v) => base44.entities.User.update(user.id, { equipe: v }).then(() => queryClient.invalidateQueries(['users']))}>
-                                     <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                                     <SelectContent>
-                                       {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
-                                     </SelectContent>
-                                   </Select>
-                                 </div>
-                               </div>
-                             ) : (
-                               <div className="space-y-2 text-sm">
-                                 <div><span className="text-gray-600">Cargo:</span> {ROLE_LABELS[user.role] || user.role}</div>
-                                 <div><span className="text-gray-600">Equipe:</span> {user.equipe || '–'}</div>
-                                 {user.matricula && <div><span className="text-gray-600">Matrícula:</span> {user.matricula}</div>}
-                               </div>
-                             )}
-                           </div>
-
-
-
-                           {/* Ações */}
-                           <div className="flex gap-2 flex-wrap pt-3 border-t border-gray-200">
-                             <Button
-                               size="sm"
-                               variant="outline"
-                               className="gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                               onClick={() => { setEditPasswordUser(user); setNewPassword(''); setNewPasswordConfirm(''); }}
-                             >
-                               <Key className="w-3 h-3" />Alterar Senha
-                             </Button>
-                             <Button
-                               size="sm"
-                               className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
-                               onClick={() => {
-                                 const appId = window.location.pathname.split('/')[2] || '';
-                                 const cadastroUrl = appId ? `${window.location.origin}/app/${appId}/Cadastro` : `${window.location.origin}/Cadastro`;
-                                 base44.functions.invoke('sendInviteEmail', {
-                                   email: user.email,
-                                   full_name: user.full_name,
-                                   role: user.role,
-                                   cadastroUrl
-                                 }).then(() => toast.success('Convite reenviado'));
-                               }}
-                             >
-                               <Mail className="w-3 h-3" />Reenviar Convite
-                             </Button>
-                             <Button
-                               size="sm"
-                               variant="outline"
-                               className="text-red-600 border-red-200 hover:bg-red-50 gap-2 ml-auto"
-                               onClick={() => setDeleteTarget(user)}
-                             >
-                               <Trash2 className="w-3 h-3" />Excluir
-                             </Button>
-                           </div>
-                         </div>
-                       )}
-                     </div>
-                   );
-                })
-              )}
-            </div>
-          </TabsContent>
-
-          {/* ── ABA PENDENTES DE CONVITE ── */}
-          <TabsContent value="pendentes-convite">
-            {(() => {
-              const approvedButNotInvited = allRegistrations.filter(reg => {
-                const isUser = users.some(u => u.email === reg.email);
-                return reg.status === 'APROVADO' && !isUser;
-              });
-
-              return approvedButNotInvited.length === 0 ? (
-                <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
-                  <Mail className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">Nenhum usuário pendente de convite</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {approvedButNotInvited.map((reg) => (
-                    <div key={reg.id} className="p-5 border border-orange-100 bg-orange-50/40 rounded-xl hover:border-orange-200 transition-all">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-center gap-4 min-w-0 flex-1">
-                          <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold text-orange-700">
-                            {(reg.full_name || '')[0]?.toUpperCase() || '?'}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-black">{reg.full_name}</p>
-                            <p className="text-sm text-gray-500">{reg.email}</p>
-                            <div className="flex gap-3 text-xs text-gray-400 mt-1">
-                              <span>{reg.funcao}</span>
-                              <span>•</span>
-                              <span>{reg.museu}</span>
-                              {reg.equipe && (
-                                <>
-                                  <span>•</span>
-                                  <span>{reg.equipe}</span>
-                                </>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-400 mt-2">
-                              ✅ Aprovado em {new Date(reg.updated_date).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          className="bg-blue-600 hover:bg-blue-700 text-white text-xs flex-shrink-0"
-                          onClick={() => {
-                            setReviewingReg({ ...reg, action: 'convidar' });
-                            setRegRole('PROFISSIONAL');
-                            setRegNote('');
-                          }}
-                        >
-                          <Mail className="w-4 h-4 mr-1" />Enviar Convite
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-          </TabsContent>
-
-          {/* ── ABA SOLICITAÇÕES ── */}
-          <TabsContent value="solicitacoes">
-            {pendingRegistrations.length === 0 ? (
-              <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
-                <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Nenhuma solicitação pendente</p>
+          {/* ── SOLICITAÇÕES DE ACESSO ── */}
+          {pendingRegistrations.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Bell className="w-4 h-4 text-amber-500" />
+                <h2 className="text-sm font-semibold text-black">Solicitações de Acesso</h2>
+                <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
+                  {pendingRegistrations.length}
+                </span>
               </div>
-            ) : (
               <div className="space-y-3">
                 {pendingRegistrations.map((reg, idx) => (
                   <div key={reg.id} className="p-5 border border-amber-100 bg-amber-50/40 rounded-xl hover:border-amber-200 transition-all">
@@ -725,12 +489,7 @@ function UserManagementInner() {
                             <span>{reg.funcao}</span>
                             <span>•</span>
                             <span>{reg.museu}</span>
-                            {reg.equipe && (
-                              <>
-                                <span>•</span>
-                                <span>{reg.equipe}</span>
-                              </>
-                            )}
+                            {reg.equipe && (<><span>•</span><span>{reg.equipe}</span></>)}
                           </div>
                           {reg.mensagem && (
                             <p className="text-xs text-gray-500 mt-2 p-2 bg-white/50 rounded border border-amber-100 italic">
@@ -743,32 +502,192 @@ function UserManagementInner() {
                         </div>
                       </div>
                       <div className="flex gap-2 flex-shrink-0">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-red-600 border-red-200 hover:bg-red-50 text-xs"
-                          onClick={() => { setReviewingReg({ ...reg, action: 'rejeitar' }); setRegNote(''); }}
-                        >
+                        <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 text-xs"
+                          onClick={() => { setReviewingReg({ ...reg, action: 'rejeitar' }); setRegNote(''); }}>
                           <XCircle className="w-4 h-4 mr-1" />Rejeitar
                         </Button>
-                        <Button
-                           size="sm"
-                           className="bg-green-600 hover:bg-green-700 text-white text-xs"
-                           onClick={() => { setReviewingReg({ ...reg, action: 'aprovar' }); setRegNote(''); setRegRole('PROFISSIONAL'); }}
-                         >
-                           <CheckCircle className="w-4 h-4 mr-1" />Aprovar
-                         </Button>
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                          onClick={() => { setReviewingReg({ ...reg, action: 'aprovar' }); setRegNote(''); setRegRole('PROFISSIONAL'); }}>
+                          <CheckCircle className="w-4 h-4 mr-1" />Aprovar
+                        </Button>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* ── PENDENTES DE CONVITE ── */}
+          {(() => {
+            const approvedButNotInvited = allRegistrations.filter(reg => {
+              const isUser = users.some(u => u.email === reg.email);
+              return reg.status === 'APROVADO' && !isUser;
+            });
+            if (approvedButNotInvited.length === 0) return null;
+            return (
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Mail className="w-4 h-4 text-orange-500" />
+                  <h2 className="text-sm font-semibold text-black">Pendentes de Convite</h2>
+                  <span className="w-5 h-5 rounded-full bg-orange-500 text-white text-[10px] flex items-center justify-center font-bold">
+                    {approvedButNotInvited.length}
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {approvedButNotInvited.map((reg) => (
+                    <div key={reg.id} className="p-5 border border-orange-100 bg-orange-50/40 rounded-xl hover:border-orange-200 transition-all">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-4 min-w-0 flex-1">
+                          <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold text-orange-700">
+                            {(reg.full_name || '')[0]?.toUpperCase() || '?'}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-black">{reg.full_name}</p>
+                            <p className="text-sm text-gray-500">{reg.email}</p>
+                            <div className="flex gap-3 text-xs text-gray-400 mt-1">
+                              <span>{reg.funcao}</span><span>•</span><span>{reg.museu}</span>
+                              {reg.equipe && (<><span>•</span><span>{reg.equipe}</span></>)}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-2">
+                              ✅ Aprovado em {new Date(reg.updated_date).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+                            </p>
+                          </div>
+                        </div>
+                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs flex-shrink-0"
+                          onClick={() => { setReviewingReg({ ...reg, action: 'convidar' }); setRegRole('PROFISSIONAL'); setRegNote(''); }}>
+                          <Mail className="w-4 h-4 mr-1" />Enviar Convite
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── USUÁRIOS ── */}
+          <div>
+            {(pendingRegistrations.length > 0 || allRegistrations.some(r => r.status === 'APROVADO' && !users.some(u => u.email === r.email))) && (
+              <h2 className="text-sm font-semibold text-black mb-4">Usuários Cadastrados</h2>
             )}
-          </TabsContent>
-           </Tabs>
-           );
-           })()}
-           </div>
+            <div className="space-y-3">
+              {isLoading ? (
+                <div className="text-center py-20 text-gray-400">Carregando usuários...</div>
+              ) : users.length === 0 ? (
+                <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
+                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">Nenhum usuário cadastrado</p>
+                </div>
+              ) : (
+                users.map(user => {
+                  const userReg = allRegistrations.find(r => r.email === user.email);
+                  const approvalStatus = userReg?.status;
+
+                  return (
+                    <div key={user.id} className="border border-gray-200 rounded-xl overflow-hidden hover:border-gray-300 transition-all">
+                      <div className="p-4 bg-white flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <button
+                            onClick={() => setExpandedUserId(expandedUserId === user.id ? null : user.id)}
+                            className="flex-shrink-0 text-gray-400 hover:text-gray-600"
+                          >
+                            {expandedUserId === user.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                          </button>
+                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-sm font-medium text-gray-600">
+                              {(user.full_name || user.email || '?')[0].toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-black">{user.full_name || user.email}</p>
+                            <p className="text-xs text-gray-500">{user.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0 flex-wrap justify-end">
+                          <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700'} font-normal text-xs`}>
+                            {ROLE_LABELS[user.role] || user.role || '–'}
+                          </Badge>
+                          {user.equipe && <Badge variant="outline" className="text-xs">{user.equipe}</Badge>}
+                          {approvalStatus === 'APROVADO' && (
+                            <Badge className="bg-green-100 text-green-700 text-xs font-normal">
+                              <CheckCircle className="w-3 h-3 mr-1" />Aprovado
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {expandedUserId === user.id && (
+                        <div className="border-t border-gray-100 p-4 space-y-6 bg-gray-50">
+                          <div>
+                            <div className="flex items-center justify-between mb-4">
+                              <h3 className="text-sm font-semibold text-black">Informações</h3>
+                              <Button
+                                size="sm"
+                                variant={editingUserMode === `${user.id}-info` ? 'default' : 'outline'}
+                                className="text-xs"
+                                onClick={() => setEditingUserMode(editingUserMode === `${user.id}-info` ? null : `${user.id}-info`)}
+                              >
+                                {editingUserMode === `${user.id}-info` ? 'Salvar' : 'Editar'}
+                              </Button>
+                            </div>
+                            {editingUserMode === `${user.id}-info` ? (
+                              <div className="space-y-3 bg-white p-3 rounded-lg border border-gray-200">
+                                <div>
+                                  <Label className="text-xs">Cargo</Label>
+                                  <Select value={user.role} onValueChange={(v) => base44.entities.User.update(user.id, { role: v }).then(() => queryClient.invalidateQueries(['users']))}>
+                                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      {CARGO_OPTIONS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Equipe</Label>
+                                  <Select value={user.equipe || ''} onValueChange={(v) => base44.entities.User.update(user.id, { equipe: v }).then(() => queryClient.invalidateQueries(['users']))}>
+                                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                                    <SelectContent>
+                                      {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-2 text-sm">
+                                <div><span className="text-gray-600">Cargo:</span> {ROLE_LABELS[user.role] || user.role}</div>
+                                <div><span className="text-gray-600">Equipe:</span> {user.equipe || '–'}</div>
+                                {user.matricula && <div><span className="text-gray-600">Matrícula:</span> {user.matricula}</div>}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex gap-2 flex-wrap pt-3 border-t border-gray-200">
+                            <Button size="sm" variant="outline" className="gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                              onClick={() => { setEditPasswordUser(user); setNewPassword(''); setNewPasswordConfirm(''); }}>
+                              <Key className="w-3 h-3" />Alterar Senha
+                            </Button>
+                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                              onClick={() => {
+                                const appId = window.location.pathname.split('/')[2] || '';
+                                const cadastroUrl = appId ? `${window.location.origin}/app/${appId}/Cadastro` : `${window.location.origin}/Cadastro`;
+                                base44.functions.invoke('sendInviteEmail', { email: user.email, full_name: user.full_name, role: user.role, cadastroUrl }).then(() => toast.success('Convite reenviado'));
+                              }}>
+                              <Mail className="w-3 h-3" />Reenviar Convite
+                            </Button>
+                            <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 gap-2 ml-auto"
+                              onClick={() => setDeleteTarget(user)}>
+                              <Trash2 className="w-3 h-3" />Excluir
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
 
       {/* Invite Link Dialog */}
       <Dialog open={showInviteLink} onOpenChange={setShowInviteLink}>
