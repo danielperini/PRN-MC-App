@@ -47,14 +47,48 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import ActivityLog from './pages/ActivityLog';
+import AdminUsers from './pages/AdminUsers';
+import AssistentePlanejamento from './pages/AssistentePlanejamento';
+import AuditLog from './pages/AuditLog';
+import Cadastro from './pages/Cadastro';
+import CoordReview from './pages/CoordReview';
+import Dashboard from './pages/Dashboard';
+import DashboardProfissional from './pages/DashboardProfissional';
 import GestorArquivos from './pages/GestorArquivos';
+import Home from './pages/Home';
+import MonitoringPanel from './pages/MonitoringPanel';
+import Perfil from './pages/Perfil';
+import PlataformaAdmin from './pages/PlataformaAdmin';
+import PlataformaConfig from './pages/PlataformaConfig';
+import Relatorios from './pages/Relatorios';
+import ReportEditor from './pages/ReportEditor';
+import UserManagement from './pages/UserManagement';
+import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "ActivityLog": ActivityLog,
+    "AdminUsers": AdminUsers,
+    "AssistentePlanejamento": AssistentePlanejamento,
+    "AuditLog": AuditLog,
+    "Cadastro": Cadastro,
+    "CoordReview": CoordReview,
+    "Dashboard": Dashboard,
+    "DashboardProfissional": DashboardProfissional,
     "GestorArquivos": GestorArquivos,
+    "Home": Home,
+    "MonitoringPanel": MonitoringPanel,
+    "Perfil": Perfil,
+    "PlataformaAdmin": PlataformaAdmin,
+    "PlataformaConfig": PlataformaConfig,
+    "Relatorios": Relatorios,
+    "ReportEditor": ReportEditor,
+    "UserManagement": UserManagement,
 }
 
 export const pagesConfig = {
     mainPage: "GestorArquivos",
     Pages: PAGES,
+    Layout: __Layout,
 };
