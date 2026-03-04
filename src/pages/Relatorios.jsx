@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import {
   FileText, Plus, Clock, CheckCircle, AlertCircle,
-  Send, Eye, Archive, ChevronRight, Download, X, Search, SlidersHorizontal, Paperclip, Trash2
+  Send, Eye, Archive, ChevronRight, Download, X, Search, SlidersHorizontal, Paperclip, Trash2, FileX
 } from 'lucide-react';
 import BatchPDFExport from '../components/reports/BatchPDFExport';
 import ActivityFilters from '../components/reports/ActivityFilters';
