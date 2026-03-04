@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Lightbulb, Check, X as XIcon } from 'lucide-react';
 
 export default function MetaForm({ metas, onActivityAdded }) {
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [suggestion, setSuggestion] = useState(null);
   const [formData, setFormData] = useState({
     meta_id: '',
     titulo: '',
