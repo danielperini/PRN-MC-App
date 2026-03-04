@@ -98,8 +98,9 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    // Verificar se é coordenador
-    if (user.role !== 'admin') {
+    // Verificar se é coordenador/admin
+    const isCoordinator = ['admin', 'COORDENADOR', 'COORD_PRODUCAO', 'COORD_ADMINISTRATIVA', 'COORD_COMUNICACAO'].includes(user.role);
+    if (!isCoordinator) {
       return Response.json({ error: 'Forbidden: Apenas coordenadores podem fazer backup' }, { status: 403 });
     }
     
