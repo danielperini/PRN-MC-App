@@ -41,9 +41,9 @@ export default function Layout({ children, currentPageName }) {
         />
 
         {/* Content */}
-        <main className="flex-1 overflow-auto bg-white">
-          {children}
-        </main>
+          <main className="flex-1 overflow-auto bg-white px-4 md:px-6">
+            {children}
+          </main>
       </div>
 
       {/* Mobile Layout */}
