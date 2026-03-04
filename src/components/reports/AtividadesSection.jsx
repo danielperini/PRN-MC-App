@@ -106,6 +106,10 @@ const EMPTY_ATIVIDADE = {
   eh_mobilizacao: false,
   tipo_mobilizacao: '',
   descricao_mobilizacao: '',
+  houve_contratacoes: false,
+  numero_trabalhadores: '',
+  numero_empresas: '',
+  valor_aproximado: '',
   clipping_automatico: null,
   is_template: false,
 };
