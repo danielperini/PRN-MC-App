@@ -232,6 +232,21 @@ function CoordReviewInner() {
      return true;
    });
 
+  const delegateMutation = useMutation({
+    mutationFn: async ({ id, coordEmail, coordName }) => {
+      return base44.entities.Report.update(id, {
+        delegated_to_email: coordEmail,
+        delegated_to_name: coordName,
+        review_status: 'aguardando_revisao'
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['review-reports']);
+      toast.success('Revisão delegada com sucesso!');
+    },
+    onError: (err) => toast.error('Erro ao delegar: ' + (err?.message || 'tente novamente')),
+  });
+
   const workflowMutation = useMutation({
     mutationFn: async ({ id, status, returnComments, approvalNote }) => {
       const update = { status };
