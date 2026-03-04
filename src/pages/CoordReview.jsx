@@ -354,6 +354,17 @@ function CoordReviewInner() {
                   {museus.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <Select value={filterReviewStatus} onValueChange={setFilterReviewStatus}>
+                <SelectTrigger className="w-56 h-8 text-sm border-gray-200">
+                  <SelectValue placeholder="Status Revisão" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">— Status Revisão —</SelectItem>
+                  <SelectItem value="aguardando_revisao">Aguardando Revisão</SelectItem>
+                  <SelectItem value="revisao_concluida">Revisão Concluída</SelectItem>
+                  <SelectItem value="aguardando_aprovacao_final">Aguardando Aprovação Final</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
