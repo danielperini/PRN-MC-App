@@ -59,6 +59,7 @@ Deno.serve(async (req) => {
 
       if (searchResult.noticias && Array.isArray(searchResult.noticias)) {
         for (const news of searchResult.noticias) {
+          if (newNewsAdded >= maxNewsPerDay) break;
           if (news.link && !existingLinks.has(news.link)) {
             await base44.asServiceRole.entities.NewsHighlight.create({
               titulo: news.titulo || 'Notícia sem título',
