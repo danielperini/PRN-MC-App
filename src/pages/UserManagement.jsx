@@ -593,62 +593,7 @@ function UserManagementInner() {
                              )}
                            </div>
 
-                           {/* Permissões */}
-                           <div>
-                             <h3 className="text-sm font-semibold text-black mb-3">Permissões</h3>
-                             <div className="bg-white p-3 rounded-lg border border-gray-200 space-y-3">
-                               <div className="space-y-2">
-                                 <p className="text-xs font-semibold text-gray-600 uppercase">Relatórios</p>
-                                 {['can_view_all_reports', 'can_review_reports', 'must_submit_monthly_report'].map(perm => (
-                                   <div key={perm} className="flex items-center gap-2">
-                                     <input
-                                       type="checkbox"
-                                       id={`${user.id}-${perm}`}
-                                       checked={userPerm?.[perm] !== false}
-                                       onChange={(e) => {
-                                         const data = userPerm ? { ...userPerm, [perm]: e.target.checked } : { user_email: user.email, user_name: user.full_name, base_role: user.role, [perm]: e.target.checked };
-                                         if (userPerm?.id) {
-                                           base44.entities.UserPermission.update(userPerm.id, data);
-                                         } else {
-                                           base44.entities.UserPermission.create({ ...data, base_role: user.role });
-                                         }
-                                         queryClient.invalidateQueries(['user-permissions']);
-                                       }}
-                                       className="rounded border-gray-300"
-                                     />
-                                     <Label htmlFor={`${user.id}-${perm}`} className="text-xs font-normal cursor-pointer">
-                                       {perm === 'can_view_all_reports' ? 'Visualizar todos' : perm === 'can_review_reports' ? 'Revisar e aprovar' : 'Enviar relatório mensal'}
-                                     </Label>
-                                   </div>
-                                 ))}
-                               </div>
-                               <div className="space-y-2">
-                                 <p className="text-xs font-semibold text-gray-600 uppercase">Gerenciamento</p>
-                                 {['can_manage_users', 'can_manage_files', 'can_manage_museus', 'can_manage_equipes'].map(perm => (
-                                   <div key={perm} className="flex items-center gap-2">
-                                     <input
-                                       type="checkbox"
-                                       id={`${user.id}-${perm}`}
-                                       checked={userPerm?.[perm] || false}
-                                       onChange={(e) => {
-                                         const data = userPerm ? { ...userPerm, [perm]: e.target.checked } : { user_email: user.email, user_name: user.full_name, base_role: user.role, [perm]: e.target.checked };
-                                         if (userPerm?.id) {
-                                           base44.entities.UserPermission.update(userPerm.id, data);
-                                         } else {
-                                           base44.entities.UserPermission.create({ ...data, base_role: user.role });
-                                         }
-                                         queryClient.invalidateQueries(['user-permissions']);
-                                       }}
-                                       className="rounded border-gray-300"
-                                     />
-                                     <Label htmlFor={`${user.id}-${perm}`} className="text-xs font-normal cursor-pointer">
-                                       {perm === 'can_manage_users' ? 'Gerenciar usuários' : perm === 'can_manage_files' ? 'Gerenciar arquivos' : perm === 'can_manage_museus' ? 'Gerenciar museus' : 'Gerenciar equipes'}
-                                     </Label>
-                                   </div>
-                                 ))}
-                               </div>
-                             </div>
-                           </div>
+
 
                            {/* Ações */}
                            <div className="flex gap-2 flex-wrap pt-3 border-t border-gray-200">
