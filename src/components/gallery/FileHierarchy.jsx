@@ -108,9 +108,20 @@ export default function FileHierarchy({ backups = [] }) {
                   {/* Arquivos */}
                   {expandedActivities.has(activityKey) && (
                     <div className="bg-white divide-y">
-                      {files.map((file) => (
+                      {files.map((file) => {
+                        const isImage = file.fileType?.startsWith('image/');
+                        return (
                         <div key={file.id} className="px-8 py-3 flex items-start gap-3 hover:bg-gray-50">
-                          <FileIcon className="w-4 h-4 text-gray-400 mt-1 flex-shrink-0" />
+                          {isImage ? (
+                            <img
+                              src={file.fileUrl}
+                              alt={file.fileName}
+                              className="w-12 h-12 object-cover rounded-md flex-shrink-0 border border-gray-200 cursor-pointer"
+                              onClick={() => window.open(file.fileUrl, '_blank')}
+                            />
+                          ) : (
+                            <FileIcon className="w-4 h-4 text-gray-400 mt-1 flex-shrink-0" />
+                          )}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">
                               {file.fileName}
@@ -128,7 +139,8 @@ export default function FileHierarchy({ backups = [] }) {
                             <Download className="w-4 h-4" />
                           </Button>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
