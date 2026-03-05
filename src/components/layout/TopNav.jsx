@@ -1,6 +1,6 @@
 import React from 'react';
 import { base44 } from '@/api/base44Client';
-import { LogOut, UserCircle } from 'lucide-react';
+import { LogOut, UserCircle, Home } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,11 @@ export default function TopNav({ userEmail, userName, userRole }) {
 
       {/* Right side */}
       <div className="flex items-center gap-4 ml-auto">
+        <Link to={createPageUrl('Dashboard')}>
+          <Button variant="ghost" size="icon" className="text-black hover:bg-black hover:text-white h-11 w-11" title="Ir para Home">
+            <Home className="w-5 h-5" />
+          </Button>
+        </Link>
         {userEmail && <NotificationBell userEmail={userEmail} />}
         
         <Link to={createPageUrl('Perfil')}>

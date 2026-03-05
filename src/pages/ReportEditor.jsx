@@ -224,6 +224,7 @@ function ReportEditorInner() {
     onSuccess: (_, { action }) => {
       queryClient.invalidateQueries(['report', reportId]);
       queryClient.invalidateQueries(['my-reports']);
+      queryClient.invalidateQueries(['all-reports']);
       const msgs = {
         start_review: { title: 'Revisão iniciada', desc: '✓ O relatório foi movido para revisão.' },
         return: { title: 'Relatório devolvido', desc: '✓ Notificação enviada ao profissional.' },
