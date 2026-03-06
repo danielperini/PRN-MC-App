@@ -528,26 +528,8 @@ function ReportEditorInner() {
               <AtividadesSection
                 atividades={formData.atividades || []}
                 canEdit={canEdit}
-                onChange={async list => {
+                onChange={list => {
                   set('atividades', list);
-                  // Detectar duplicatas
-                  if (list.length > 1) {
-                    try {
-                      const result = await base44.functions.invoke('detectDuplicateActivities', {
-                        atividades: list,
-                      });
-                      if (result.data.hasDuplicates) {
-                        toast.warning('Atividades duplicadas detectadas', {
-                          description: result.data.message,
-                          duration: 8000,
-                        });
-                        // Auto-mesclar duplicatas
-                        set('atividades', result.data.cleanedActivities);
-                      }
-                    } catch (err) {
-                      console.error('Erro ao detectar duplicatas:', err);
-                    }
-                  }
                 }}
                 reportId={reportId}
               />
