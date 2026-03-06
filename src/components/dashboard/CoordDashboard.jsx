@@ -362,7 +362,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
         )}
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid md:grid-cols-4 gap-6">
         {/* Status dos Relatórios */}
         {statusData.length > 0 && (
           <div className="border border-gray-100 rounded-2xl p-5">
@@ -439,16 +439,14 @@ export default function CoordDashboard({ reports = [], isLoading }) {
             <h3 className="text-sm font-semibold text-black mb-4">Comparativo por Museu</h3>
             <div className="space-y-3">
               {porMuseu.map(m => (
-                <div key={m.museu} className="flex items-center justify-between text-sm">
+                <div key={m.museu} className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <Building2 className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="font-medium text-black">{m.museu}</span>
+                    <Building2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <span className="font-medium text-sm text-black truncate">{m.museu}</span>
                   </div>
-                  <div className="text-right text-xs text-gray-500">
+                  <div className="flex gap-3 text-xs text-gray-500 pl-5">
                     <span>{m.relatorios} rel.</span>
-                    <span className="mx-1">·</span>
                     <span>{m.atividades} ativ.</span>
-                    <span className="mx-1">·</span>
                     <span>{m.publico.toLocaleString('pt-BR')} púb.</span>
                   </div>
                 </div>
