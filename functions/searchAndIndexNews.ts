@@ -26,38 +26,129 @@ function normalizeDate(dateValue) {
   return d;
 }
 
-function getRecencyScore(dateValue) {
-  const d = normalizeDate(dateValue);
-  if (!d) return 0;
-
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-  if (diffDays <= 1) return 100;
-  if (diffDays <= 3) return 80;
-  if (diffDays <= 7) return 60;
-  if (diffDays <= 15) return 40;
-  if (diffDays <= 30) return 20;
-  return 5;
-}
-
 function sortNewsByRecency(newsList) {
   return [...newsList].sort((a, b) => {
-    const scoreA = getRecencyScore(a.data_publicacao);
-    const scoreB = getRecencyScore(b.data_publicacao);
+    const da = normalizeDate(a.data_publicacao);
+    const db = normalizeDate(b.data_publicacao);
 
-    if (scoreA !== scoreB) return scoreB - scoreA;
-
-    const dateA = normalizeDate(a.data_publicacao);
-    const dateB = normalizeDate(b.data_publicacao);
-
-    if (dateA && dateB) return dateB.getTime() - dateA.getTime();
-    if (dateB) return 1;
-    if (dateA) return -1;
-
+    if (da && db) return db.getTime() - da.getTime();
+    if (db) return 1;
+    if (da) return -1;
     return 0;
   });
+}
+
+function dedupeByLink(items) {
+  const seen = new Set();
+  const result = [];
+
+  for (const item of items) {
+    if (!item || !item.link) continue;
+    if (seen.has(item.link)) continue;
+    seen.add(item.link);
+    result.push(item);
+  }
+
+  return result;
+}
+
+async function fetchPortalMuseusCentro(base44) {
+  const result = await base44.integrations.Core.InvokeLLM({
+    prompt: `Acesse e analise prioritariamente esta página:
+https://portalbelohorizonte.com.br/museuscentro/2025/noticias
+
+Objetivo:
+- identificar a notícia MAIS RECENTE publicada nessa página
+- retornar apenas 1 notícia
+- priorizar a notícia mais atual visível
+- não inventar link nem data
+
+Retorne JSON no formato:
+{
+  "noticias": [
+    {
+      "titulo": "...",
+      "resumo": "...",
+      "link": "...",
+      "imagem_url": "...",
+      "data_publicacao": "...",
+      "fonte_prioritaria": "portal_museus_centro"
+    }
+  ]
+}`,
+    add_context_from_internet: true,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        noticias: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              titulo: { type: 'string' },
+              resumo: { type: 'string' },
+              link: { type: 'string' },
+              imagem_url: { type: 'string' },
+              data_publicacao: { type: 'string' },
+              fonte_prioritaria: { type: 'string' }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  return result && Array.isArray(result.noticias) ? result.noticias : [];
+}
+
+async function fetchCulturadoriaMuseus(base44) {
+  const result = await base44.integrations.Core.InvokeLLM({
+    prompt: `Acesse e analise prioritariamente estas páginas:
+https://culturadoria.com.br/
+https://culturadoria.com.br/?s=MUSEUS
+
+Objetivo:
+- identificar a notícia MAIS RECENTE relacionada à busca por MUSEUS
+- retornar apenas 1 notícia
+- priorizar a notícia mais atual visível
+- não inventar link nem data
+
+Retorne JSON no formato:
+{
+  "noticias": [
+    {
+      "titulo": "...",
+      "resumo": "...",
+      "link": "...",
+      "imagem_url": "...",
+      "data_publicacao": "...",
+      "fonte_prioritaria": "culturadoria_museus"
+    }
+  ]
+}`,
+    add_context_from_internet: true,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        noticias: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              titulo: { type: 'string' },
+              resumo: { type: 'string' },
+              link: { type: 'string' },
+              imagem_url: { type: 'string' },
+              data_publicacao: { type: 'string' },
+              fonte_prioritaria: { type: 'string' }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  return result && Array.isArray(result.noticias) ? result.noticias : [];
 }
 
 Deno.serve(async (req) => {
@@ -79,15 +170,15 @@ Deno.serve(async (req) => {
 
     const mediumTailTerms = [
       'programação cultural museus centro belo horizonte',
-      'eventos museus centro de belo horizonte 2026',
-      'notícias viaduto das artes belo horizonte 2026',
-      'agenda viaduto das artes bh 2026',
-      'atividades museu da moda belo horizonte 2026',
-      'exposição mis belo horizonte 2026',
-      'museu histórico abílio barreto programação 2026',
-      'circuito cultural museus centro bh 2026',
-      'projeto museus centro programação cultural 2026',
-      'ações culturais museus centro belo horizonte 2026'
+      'eventos museus centro de belo horizonte',
+      'notícias viaduto das artes belo horizonte',
+      'agenda viaduto das artes bh',
+      'atividades museu da moda belo horizonte',
+      'exposição mis belo horizonte',
+      'museu histórico abílio barreto programação',
+      'circuito cultural museus centro bh',
+      'projeto museus centro programação cultural',
+      'ações culturais museus centro belo horizonte'
     ];
 
     const longTailTerms = [
@@ -119,8 +210,46 @@ Deno.serve(async (req) => {
     const maxNewsPerDay = 15;
     let newNewsAdded = 0;
 
-    const collectedNews = [];
+    const priorityNews = [];
+    const collectedKeywordNews = [];
 
+    // 1) Portal oficial Museus Centro: sempre pegar a mais recente
+    const portalNews = await fetchPortalMuseusCentro(base44);
+    for (const news of portalNews) {
+      if (!news || !news.link) continue;
+      if (existingLinks.has(news.link)) continue;
+
+      priorityNews.push({
+        titulo: news.titulo || 'Notícia sem título',
+        resumo: news.resumo || '',
+        link: news.link,
+        imagem_url: news.imagem_url || '',
+        data_publicacao: news.data_publicacao || '',
+        fonte: 'portal_museus_centro',
+        data_encontrada: new Date().toISOString(),
+        ativo: true
+      });
+    }
+
+    // 2) Culturadoria: sempre pegar a mais recente da busca MUSEUS
+    const culturadoriaNews = await fetchCulturadoriaMuseus(base44);
+    for (const news of culturadoriaNews) {
+      if (!news || !news.link) continue;
+      if (existingLinks.has(news.link)) continue;
+
+      priorityNews.push({
+        titulo: news.titulo || 'Notícia sem título',
+        resumo: news.resumo || '',
+        link: news.link,
+        imagem_url: news.imagem_url || '',
+        data_publicacao: news.data_publicacao || '',
+        fonte: 'culturadoria_museus',
+        data_encontrada: new Date().toISOString(),
+        ativo: true
+      });
+    }
+
+    // 3) Depois pesquisar por palavras-chave, 5 por vez, randomizadas
     for (const group of searchGroups) {
       if (newNewsAdded >= maxNewsPerDay) break;
 
@@ -134,11 +263,11 @@ Regras:
 1. Priorize notícias mais atuais.
 2. Priorize temas ligados ao Projeto Museus Centro Belo Horizonte e ao Viaduto das Artes.
 3. Considere também MUMO, MIS BH e Museu Histórico Abílio Barreto.
-4. Retorne no máximo 10 notícias para este grupo.
-5. Não invente links.
-6. Se não encontrar notícias válidas, retorne lista vazia.
+4. Considere resultados gerais da web e também resultados compatíveis com as fontes portalbelohorizonte.com.br/museuscentro e culturadoria.com.br.
+5. Retorne no máximo 10 notícias para este grupo.
+6. Não invente links.
 7. Sempre inclua data_publicacao quando conseguir identificar.
-8. Priorize publicações jornalísticas, portais culturais, páginas institucionais e cobertura de agenda cultural.
+8. Retorne apenas notícias mais atuais e relevantes; descarte notícias antigas se houver opção mais recente.
 
 Retorne apenas JSON no formato solicitado.`,
         add_context_from_internet: true,
@@ -168,7 +297,7 @@ Retorne apenas JSON no formato solicitado.`,
           if (!news || !news.link) continue;
           if (existingLinks.has(news.link)) continue;
 
-          collectedNews.push({
+          collectedKeywordNews.push({
             titulo: news.titulo || 'Notícia sem título',
             resumo: news.resumo || '',
             link: news.link,
@@ -183,19 +312,12 @@ Retorne apenas JSON no formato solicitado.`,
       }
     }
 
-    const uniqueCollectedNews = [];
-    const seenLinks = new Set();
+    const uniquePriorityNews = dedupeByLink(priorityNews);
+    const uniqueKeywordNews = dedupeByLink(collectedKeywordNews);
+    const prioritizedKeywordNews = sortNewsByRecency(uniqueKeywordNews);
 
-    for (const news of collectedNews) {
-      if (!news.link) continue;
-      if (seenLinks.has(news.link)) continue;
-      seenLinks.add(news.link);
-      uniqueCollectedNews.push(news);
-    }
-
-    const prioritizedNews = sortNewsByRecency(uniqueCollectedNews);
-
-    for (const news of prioritizedNews) {
+    // 4) Publicar SEMPRE primeiro as duas fontes prioritárias
+    for (const news of uniquePriorityNews) {
       if (newNewsAdded >= maxNewsPerDay) break;
 
       await base44.asServiceRole.entities.NewsHighlight.create({
@@ -205,9 +327,26 @@ Retorne apenas JSON no formato solicitado.`,
         fonte: news.fonte,
         imagem_url: news.imagem_url,
         data_encontrada: news.data_encontrada,
-        ativo: news.ativo,
-        data_publicacao: news.data_publicacao || null,
-        palavra_chave_encontrada: news.palavra_chave_encontrada || ''
+        ativo: news.ativo
+      });
+
+      existingLinks.add(news.link);
+      newNewsAdded++;
+    }
+
+    // 5) Depois completar com as notícias mais atuais das palavras-chave
+    for (const news of prioritizedKeywordNews) {
+      if (newNewsAdded >= maxNewsPerDay) break;
+      if (existingLinks.has(news.link)) continue;
+
+      await base44.asServiceRole.entities.NewsHighlight.create({
+        titulo: news.titulo,
+        resumo: news.resumo,
+        link: news.link,
+        fonte: news.fonte,
+        imagem_url: news.imagem_url,
+        data_encontrada: news.data_encontrada,
+        ativo: news.ativo
       });
 
       existingLinks.add(news.link);
@@ -217,7 +356,7 @@ Retorne apenas JSON no formato solicitado.`,
     const updatedNews = await base44.entities.NewsHighlight.list('-created_date', 1000);
 
     const oldNews = updatedNews.filter((n) => {
-      if (n.fonte !== 'web_search') return false;
+      if (n.fonte !== 'web_search' && n.fonte !== 'portal_museus_centro' && n.fonte !== 'culturadoria_museus') return false;
       if (!n.data_encontrada) return false;
       return new Date(n.data_encontrada) < oneWeekAgo;
     });
@@ -228,14 +367,26 @@ Retorne apenas JSON no formato solicitado.`,
       });
     }
 
+    const latestNews = await base44.asServiceRole.entities.NewsHighlight.list('-created_date', 10);
+
     return Response.json({
       success: true,
-      message: 'Busca concluída com priorização por atualidade.',
+      message: 'Busca concluída com prioridade para Portal Museus Centro e Culturadoria.',
       total_keywords: allSearchTerms.length,
       grupos_processados: searchGroups.length,
-      noticias_coletadas: uniqueCollectedNews.length,
+      noticias_prioritarias_coletadas: uniquePriorityNews.length,
+      noticias_keywords_coletadas: uniqueKeywordNews.length,
       noticias_publicadas: newNewsAdded,
-      old_news_deactivated: oldNews.length
+      old_news_deactivated: oldNews.length,
+      ultimas_noticias: latestNews.map((n) => ({
+        id: n.id,
+        titulo: n.titulo,
+        link: n.link,
+        fonte: n.fonte,
+        ativo: n.ativo,
+        data_encontrada: n.data_encontrada,
+        created_date: n.created_date
+      }))
     });
   } catch (error) {
     return Response.json(
