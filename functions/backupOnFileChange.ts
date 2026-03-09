@@ -4,7 +4,7 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    let body: any = {};
+    let body = {};
     try {
       body = await req.json();
     } catch (_e) {
@@ -12,15 +12,20 @@ Deno.serve(async (req) => {
     }
 
     const event =
-      body?.event ??
-      body?.data?.event ??
-      body?.data ??
-      null;
+      body && body.event
+        ? body.event
+        : body && body.data && body.data.event
+          ? body.data.event
+          : body && body.data
+            ? body.data
+            : null;
 
     const eventType =
-      event?.type ??
-      body?.type ??
-      null;
+      event && event.type
+        ? event.type
+        : body && body.type
+          ? body.type
+          : null;
 
     if (!eventType) {
       return Response.json({
@@ -31,10 +36,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!['create', 'delete'].includes(eventType)) {
+    if (eventType !== 'create' && eventType !== 'delete') {
       return Response.json({
         success: true,
-        message: `Evento ignorado: ${eventType}`,
+        message: 'Evento ignorado: ' + eventType,
         detectedEventType: eventType,
         receivedBody: body
       });
@@ -44,19 +49,19 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: true,
-      message: `Backup automático realizado após ${eventType} de arquivo`,
+      message: 'Backup automático realizado após ' + eventType + ' de arquivo',
       detectedEventType: eventType,
-      backup_data: response?.data ?? null
+      backup_data: response && response.data ? response.data : null
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in backupOnFileChange:', error);
 
     return Response.json(
       {
         success: false,
-        error: String(error?.message || error)
+        error: error && error.message ? String(error.message) : String(error)
       },
       { status: 500 }
     );
   }
-}); 
+});
