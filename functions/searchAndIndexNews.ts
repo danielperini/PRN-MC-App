@@ -79,15 +79,15 @@ Deno.serve(async (req) => {
 
     const mediumTailTerms = [
       'programação cultural museus centro belo horizonte',
-      'eventos museus centro de belo horizonte',
-      'notícias viaduto das artes belo horizonte',
-      'agenda viaduto das artes bh',
-      'atividades museu da moda belo horizonte',
-      'exposição mis belo horizonte',
-      'museu histórico abílio barreto programação',
-      'circuito cultural museus centro bh',
-      'projeto museus centro programação cultural',
-      'ações culturais museus centro belo horizonte'
+      'eventos museus centro de belo horizonte 2026',
+      'notícias viaduto das artes belo horizonte 2026',
+      'agenda viaduto das artes bh 2026',
+      'atividades museu da moda belo horizonte 2026',
+      'exposição mis belo horizonte 2026',
+      'museu histórico abílio barreto programação 2026',
+      'circuito cultural museus centro bh 2026',
+      'projeto museus centro programação cultural 2026',
+      'ações culturais museus centro belo horizonte 2026'
     ];
 
     const longTailTerms = [
