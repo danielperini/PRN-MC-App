@@ -2,33 +2,59 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 Deno.serve(async (req) => {
   try {
-    createClientFromRequest(req);
+    const base44 = createClientFromRequest(req);
 
-    let body = {};
+    let body: any = {};
     try {
       body = await req.json();
     } catch (_e) {
       body = {};
     }
 
-    const event = body?.event ?? null;
-    const eventType = event?.type ?? null;
+    console.log('backupOnFileChange - body recebido:', JSON.stringify(body));
 
-    if (!eventType || !['create', 'delete'].includes(eventType)) {
+    const event =
+      body?.event ??
+      body?.data?.event ??
+      body?.data ??
+      null;
+
+    const eventType =
+      event?.type ??
+      body?.type ??
+      null;
+
+    if (!eventType) {
       return Response.json({
         success: true,
-        message: 'Evento ignorado',
+        message: 'Evento ignorado: type não encontrado',
+        detectedEventType: null,
+        receivedBody: body
+      });
+    }
+
+    if (!['create', 'delete'].includes(eventType)) {
+      return Response.json({
+        success: true,
+        message: `Evento ignorado: ${eventType}`,
         detectedEventType: eventType,
         receivedBody: body
       });
     }
 
+    console.log(`Evento válido detectado: ${eventType}`);
+
+    const response = await base44.asServiceRole.functions.invoke('backupToGoogleDrive');
+
     return Response.json({
       success: true,
-      message: `Evento ${eventType} detectado com sucesso`,
-      detectedEventType: eventType
+      message: `Backup automático realizado após ${eventType} de arquivo`,
+      detectedEventType: eventType,
+      backup_data: response?.data ?? null
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Error in backupOnFileChange:', error);
+
     return Response.json(
       {
         success: false,
@@ -37,4 +63,4 @@ Deno.serve(async (req) => {
       { status: 500 }
     );
   }
-});;
+});
