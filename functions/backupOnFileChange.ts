@@ -4,63 +4,44 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    const rawBody = await req.clone().text();
     let body = {};
-
     try {
-      body = rawBody ? JSON.parse(rawBody) : {};
-    } catch (_e) {
+      body = await req.json();
+    } catch (_error) {
       body = {};
     }
 
-    console.log('rawBody:', rawBody);
-    console.log('body:', body);
+    console.log('backupOnFileChange body:', body);
 
-    const eventData = body?.data || {};
-    const eventType = eventData?.type || body?.type || 'unknown';
+    const event = body?.event ?? body?.data?.event ?? body?.data ?? null;
+    const eventType = event?.type ?? body?.type ?? null;
 
-    console.log('eventType:', eventType);
-
-    const reports = await base44.asServiceRole.entities.Report.list();
-    const attachments = await base44.asServiceRole.entities.Attachment.list();
-
-    const backupData = {
-      success: true,
-      message: 'Backup realizado com sucesso',
-      timestamp: new Date().toISOString(),
-      eventType,
-      reportsCount: Array.isArray(reports) ? reports.length : 0,
-      attachmentsCount: Array.isArray(attachments) ? attachments.length : 0
-    };
-
-    return new Response(
-      JSON.stringify({
+    // Ignora se não houver tipo ou se não for create/delete
+    if (!eventType || !['create', 'delete'].includes(eventType)) {
+      return Response.json({
         success: true,
-        message: 'Backup automático executado',
-        backup_data: backupData
-      }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-  } catch (error) {
-    console.error('Erro em backupOnFileChange:', error?.message);
-    console.error(error?.stack);
+        message: 'Evento ignorado',
+        detectedEventType: eventType,
+        receivedBody: body
+      });
+    }
 
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: String(error?.message || error)
-      }),
+    const response = await base44.asServiceRole.functions.invoke('backupToGoogleDrive');
+
+    return Response.json({
+      success: true,
+      message: `Backup automático realizado após ${eventType} de arquivo`,
+      backup_data: response?.data ?? null
+    });
+  } catch (error) {
+    console.error('Error in backupOnFileChange:', error);
+
+    return Response.json(
       {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
+        error: String(error?.message || error),
+        success: false
+      },
+      { status: 500 }
     );
   }
 });
