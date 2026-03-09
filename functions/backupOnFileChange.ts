@@ -18,13 +18,15 @@ Deno.serve(async (req) => {
       return Response.json({
         success: true,
         message: 'Evento ignorado',
-        detectedEventType: eventType
+        detectedEventType: eventType,
+        receivedBody: body
       });
     }
 
     return Response.json({
       success: true,
-      message: `Evento ${eventType} detectado com sucesso`
+      message: `Evento ${eventType} detectado com sucesso`,
+      detectedEventType: eventType
     });
   } catch (error) {
     return Response.json(
@@ -35,4 +37,4 @@ Deno.serve(async (req) => {
       { status: 500 }
     );
   }
-});
+});;
