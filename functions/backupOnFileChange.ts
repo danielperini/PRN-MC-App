@@ -11,8 +11,6 @@ Deno.serve(async (req) => {
       body = {};
     }
 
-    console.log('backupOnFileChange - body recebido:', JSON.stringify(body));
-
     const event =
       body?.event ??
       body?.data?.event ??
@@ -41,8 +39,6 @@ Deno.serve(async (req) => {
         receivedBody: body
       });
     }
-
-    console.log(`Evento válido detectado: ${eventType}`);
 
     const response = await base44.asServiceRole.functions.invoke('backupToGoogleDrive');
 
