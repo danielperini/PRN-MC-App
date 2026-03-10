@@ -13,10 +13,11 @@ const GENERAL_STATS = [
   },
   {
     id: 'media_publico',
-    label: 'Público Médio/Atividade',
+    label: 'Público Médio/Atividade (aprovados)',
     icon: Users,
     getter: (data) => {
-      const ativs = (data.allReports || []).flatMap(r => r.atividades || []);
+      const approved = (data.allReports || []).filter(r => r.status === 'APPROVED');
+      const ativs = approved.flatMap(r => r.atividades || []);
       if (ativs.length === 0) return 0;
       const total = ativs.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0);
       return Math.round(total / ativs.length);
