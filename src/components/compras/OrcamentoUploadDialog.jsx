@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Upload, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { alert } from 'sonner';
+import { toast } from 'sonner';
 
 export default function OrcamentoUploadDialog({ open, onOpenChange, onSuccess, purchaseRequestId, activityTitle }) {
   const [file, setFile] = useState(null);
