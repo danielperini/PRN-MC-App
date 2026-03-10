@@ -1,4 +1,14 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import pdfParse from 'npm:pdf-parse@1.1.1';
+
+async function extractPdfText(file_url) {
+  const response = await fetch(file_url);
+  if (!response.ok) throw new Error(`Falha ao baixar arquivo: ${response.status}`);
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const data = await pdfParse(buffer);
+  return data.text || '';
+}
 
 Deno.serve(async (req) => {
   try {
@@ -15,51 +25,57 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'file_url e titulo são obrigatórios' }, { status: 400 });
     }
 
-    // Extrai o conteúdo do arquivo usando a integração
-    const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
-      file_url,
-      json_schema: {
-        type: 'object',
-        properties: {
-          conteudo_completo: {
-            type: 'string',
-            description: 'Todo o texto extraído do documento'
-          },
-          resumo: {
-            type: 'string',
-            description: 'Resumo executivo do documento em até 500 palavras'
-          },
-          pontos_chave: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Lista de pontos-chave, metas e informações importantes'
-          }
-        }
-      }
-    });
-
+    const isPdf = file_url.toLowerCase().includes('.pdf') || file_url.toLowerCase().includes('pdf');
     let conteudo_extraido = '';
 
-    if (extracted.status === 'success' && extracted.output) {
-      const out = extracted.output;
-      const partes = [];
-      if (out.resumo) partes.push(`RESUMO:\n${out.resumo}`);
-      if (out.pontos_chave?.length) partes.push(`PONTOS-CHAVE:\n${out.pontos_chave.join('\n')}`);
-      if (out.conteudo_completo) partes.push(`CONTEÚDO COMPLETO:\n${out.conteudo_completo}`);
-      conteudo_extraido = partes.join('\n\n');
+    if (isPdf) {
+      // Leitura direta do PDF com pdf-parse
+      try {
+        const rawText = await extractPdfText(file_url);
+        // Limpa e normaliza o texto
+        conteudo_extraido = rawText
+          .replace(/\r\n/g, '\n')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
+      } catch (pdfErr) {
+        console.warn('pdf-parse falhou, tentando fallback via LLM:', pdfErr.message);
+        // Fallback via LLM com visão
+        const llmResult = await base44.integrations.Core.InvokeLLM({
+          prompt: `Extraia todo o conteúdo textual deste documento PDF de forma fiel e completa. Preserve a estrutura original incluindo metas, valores, datas, nomes e quaisquer informações relevantes. Organize em seções claras.`,
+          file_urls: [file_url],
+          response_json_schema: {
+            type: 'object',
+            properties: {
+              conteudo: { type: 'string', description: 'Conteúdo completo extraído do documento' }
+            }
+          }
+        });
+        conteudo_extraido = llmResult?.conteudo || 'Conteúdo não pôde ser extraído.';
+      }
     } else {
-      // Fallback: tenta obter texto básico via LLM com o arquivo
-      const llmResult = await base44.integrations.Core.InvokeLLM({
-        prompt: `Extraia e organize todo o conteúdo textual deste documento em formato estruturado. Inclua todas as metas, valores, prazos, nomes e informações relevantes.`,
-        file_urls: [file_url],
-        response_json_schema: {
+      // Para outros formatos (docx, xlsx, etc), usa a integração de extração
+      const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
+        file_url,
+        json_schema: {
           type: 'object',
           properties: {
-            conteudo: { type: 'string' }
+            conteudo_completo: { type: 'string', description: 'Todo o texto extraído do documento' }
           }
         }
       });
-      conteudo_extraido = llmResult?.conteudo || 'Conteúdo não pôde ser extraído automaticamente.';
+      if (extracted.status === 'success' && extracted.output?.conteudo_completo) {
+        conteudo_extraido = extracted.output.conteudo_completo;
+      } else {
+        const llmResult = await base44.integrations.Core.InvokeLLM({
+          prompt: 'Extraia todo o conteúdo textual deste documento de forma completa e estruturada.',
+          file_urls: [file_url],
+          response_json_schema: {
+            type: 'object',
+            properties: { conteudo: { type: 'string' } }
+          }
+        });
+        conteudo_extraido = llmResult?.conteudo || 'Conteúdo não pôde ser extraído.';
+      }
     }
 
     // Salva o documento na base
