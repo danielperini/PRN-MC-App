@@ -14,12 +14,11 @@ import { Badge } from '@/components/ui/badge';
 import CoordDashboard from '../components/dashboard/CoordDashboard';
 import AdvancedFilters from '../components/dashboard/AdvancedFilters';
 import ComplianceStats from '../components/dashboard/ComplianceStats';
-import DailyNewsHighlight from '../components/dashboard/DailyNewsHighlight';
 import WidgetCustomizer from '../components/dashboard/WidgetCustomizer';
 import { useWidgetPreferences } from '../components/dashboard/useWidgetPreferences';
 import ActivityMetricsWidget from '../components/dashboard/ActivityMetricsWidget';
 import OpportunityMetricsWidget from '../components/dashboard/OpportunityMetricsWidget';
-import HighlightsCarousel from '../components/dashboard/HighlightsCarousel';
+import UnifiedNewsCarousel from '../components/dashboard/UnifiedNewsCarousel';
 
 const STATUS_CONFIG = {
   DRAFT: { label: 'Rascunho', color: 'bg-white text-black border border-black', icon: Clock },
@@ -187,13 +186,8 @@ function DashboardInner() {
           </div>
         </div>
 
-        {/* Notícia do Dia */}
-        <div className="mb-8">
-          <DailyNewsHighlight />
-        </div>
-
-        {/* Painel de Destaques (todos os usuários) */}
-         <HighlightsCarousel />
+        {/* Painel Unificado de Destaques e Notícias */}
+        <UnifiedNewsCarousel />
 
         {/* Coordenador: dashboard completo */}
          {showCoordView ? (
