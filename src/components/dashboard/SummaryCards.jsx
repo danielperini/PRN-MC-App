@@ -2,9 +2,10 @@ import React from 'react';
 import { Activity, Package, Users, Target } from 'lucide-react';
 
 export default function SummaryCards({ reports = [] }) {
-   // Calcular totais
+   // Calcular totais apenas de relatórios APROVADOS
    const safeReports = Array.isArray(reports) ? reports : [];
-   const allActivities = safeReports.flatMap(r => {
+   const approvedReports = safeReports.filter(r => r.status === 'APPROVED');
+   const allActivities = approvedReports.flatMap(r => {
      if (!r || !Array.isArray(r.atividades)) return [];
      return r.atividades;
    });
@@ -24,10 +25,10 @@ export default function SummaryCards({ reports = [] }) {
    }, 0);
 
   const cards = [
-    { label: 'Total de Atividades', value: totalActivities, icon: Activity },
+    { label: 'Atividades (aprovados)', value: totalActivities, icon: Activity },
     { label: 'Produtos Entregues', value: totalProducts, icon: Package },
-    { label: 'Público Total', value: totalPublic.toLocaleString('pt-BR'), icon: Users },
-    { label: 'Relatórios', value: safeReports.length, icon: Target },
+    { label: 'Público Total (aprovados)', value: totalPublic.toLocaleString('pt-BR'), icon: Users },
+    { label: 'Relatórios Aprovados', value: approvedReports.length, icon: Target },
   ];
 
   return (
