@@ -4,8 +4,11 @@ const MUSEOLOGY_SOURCES = [
   'https://www.patrimoniocultural.gov.pt/publicacoes/revista-museologia-pt-pt/',
   'https://www.relici.org.br/index.php/relici/announcement',
   'https://dasartes.com.br/',
-  'https://dobras.emnuvens.com.br/dobras'
+  'https://dobras.emnuvens.com.br/dobras',
+  'https://ufjf.repositorio.federado.br/', // Repositório UFJF
 ];
+
+const THREE_MONTHS_AGO = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
 Deno.serve(async (req) => {
   try {
@@ -43,39 +46,47 @@ Deno.serve(async (req) => {
       })
     );
 
-    // Use AI to find additional relevant links
+    // Use AI to find recent academic articles and sources
     const aiResponse = await base44.integrations.Core.InvokeLLM({
-      prompt: `Você é especialista em museuologia, cinema, moda e história, com foco em Belo Horizonte. Liste 8 URLs de fontes confiáveis sobre esses temas. 
+      prompt: `Você é especialista em história do cinema, museuologia, moda e história cultural. Busque APENAS fontes e artigos acadêmicos/científicos publicados após ${THREE_MONTHS_AGO} (últimos 3 meses). 
+
+      Prioridades:
+      1. CINEMAS DE RUA EM MINAS GERAIS - artigos e pesquisas sobre história dos cinemas de rua, cinema de bairro em MG
+      2. Repositórios acadêmicos: UFJF, UFMG, PUC-MG, UNIMONTES
+      3. Revistas científicas sobre:
+         - Cinema brasileiro e história
+         - Patrimônio cultural arquitetônico
+         - Memória urbana de Minas Gerais
+         - Museologia e curadoria
+         - História cultural de Belo Horizonte
+      4. Artigos sobre cinemas históricos desativados em cidades mineiras
+      5. Pesquisas sobre espaços culturais urbanos
       
-      Deve incluir:
-      - Revistas acadêmicas sobre museologia, cinema, moda e história
-      - Portais de patrimônio cultural
-      - Sites de museus e institutos em Belo Horizonte (MHAB, MIS, MUMO, museus de moda, cinema)
-      - Universidades mineiras com pesquisa em história e cultura
-      - Bases de dados de pesquisa sobre patrimônio
-      - Publicações sobre Belo Horizonte história e cultura
-      - Cinematecas e arquivos de cinema
-      - Arquivos sobre moda brasileira
+      IMPORTANTE:
+      - Apenas publicações de ${THREE_MONTHS_AGO} em diante
+      - Priorize artigos revisados por pares e acadêmicos
+      - Inclua repositórios institucionais de universidades
       
       Formato: Uma URL por linha, apenas a URL sem descrição.
-      Deve ser URLs reais e acessíveis. Priorize fontes de Belo Horizonte e Minas Gerais.`,
+      Liste 10 URLs.`,
       response_json_schema: {
         type: 'object',
         properties: {
           urls: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Lista de URLs sobre museuologia, cinema, moda, história e BH'
+            description: 'URLs de artigos científicos recentes sobre cinemas de rua MG'
           }
         }
       },
-      add_context_from_internet: true
+      add_context_from_internet: true,
+      model: 'gemini_3_pro'
     });
 
-    // Fetch from AI-discovered links
+    // Fetch from AI-discovered links (recent academic articles)
     const aiUrls = aiResponse.urls || [];
     const aiArticles = await Promise.all(
-      aiUrls.slice(0, 5).map(async (url) => {
+      aiUrls.slice(0, 8).map(async (url) => {
         try {
           const response = await fetch(url, { 
             headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -84,11 +95,14 @@ Deno.serve(async (req) => {
           if (response.ok) {
             const text = await response.text();
             const titleMatch = text.match(/<title>(.*?)<\/title>/i);
+            const isAcademic = url.includes('repositorio') || url.includes('ufjf') || url.includes('ufmg') || url.includes('scielo') || url.includes('.edu');
             return {
               titulo: titleMatch ? titleMatch[1] : url,
-              resumo: 'Recurso sobre museuologia, cinema, moda e história de Belo Horizonte',
+              resumo: isAcademic 
+                ? 'Artigo científico sobre cinemas de rua e história cultural de Minas Gerais' 
+                : 'Artigo sobre história do cinema em Minas Gerais',
               link: url,
-              fonte: 'web_search',
+              fonte: isAcademic ? 'academic' : 'web_search',
               imagem_url: null,
               data_publicacao: new Date().toISOString().split('T')[0]
             };
