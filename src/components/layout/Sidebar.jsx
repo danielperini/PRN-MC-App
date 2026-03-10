@@ -16,7 +16,8 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
-  Layers
+  Layers,
+  BookOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
