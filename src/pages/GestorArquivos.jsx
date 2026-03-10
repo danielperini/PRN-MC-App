@@ -243,7 +243,7 @@ function GestorArquivosInner() {
         {/* Info */}
         <div className="mt-6 md:mt-8 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg md:rounded-xl">
           <p className="text-xs md:text-sm text-blue-900">
-            <strong>Visibilidade:</strong> Apenas relatórios aprovados são exibidos nesta galeria.
+            <strong>Visibilidade:</strong> Apenas relatórios aprovados são exibidos nesta galeria. Todos os arquivos são mantidos permanentemente.
           </p>
           <p className="text-xs text-blue-700 mt-2">
             Aviso: Sistema detecta automaticamente atividades duplicadas com risco superior a 80%.
