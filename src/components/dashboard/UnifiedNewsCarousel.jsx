@@ -18,11 +18,22 @@ const FONTE_LABELS = {
   internal: 'Destaque',
 };
 
+const TAG_COLORS = {
+  'Museuologia': 'bg-purple-100 text-purple-700 border-purple-300',
+  'Cinema': 'bg-red-100 text-red-700 border-red-300',
+  'Moda': 'bg-pink-100 text-pink-700 border-pink-300',
+  'História de BH': 'bg-blue-100 text-blue-700 border-blue-300',
+  'Patrimônio Cultural': 'bg-green-100 text-green-700 border-green-300',
+  'Curadoria': 'bg-amber-100 text-amber-700 border-amber-300',
+  'Educação': 'bg-indigo-100 text-indigo-700 border-indigo-300'
+};
+
 export default function UnifiedNewsCarousel() {
   const today = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
   const [currentIndex, setCurrentIndex] = useState(0);
   const [autoPlay, setAutoPlay] = useState(true);
   const [isSelecting, setIsSelecting] = useState(false);
+  const [selectedTags, setSelectedTags] = useState([]);
   const queryClient = useQueryClient();
 
   // Fetch today's selected news and museology articles
@@ -84,6 +95,7 @@ export default function UnifiedNewsCarousel() {
         imagem_url: m.imagem_url,
         link: null,
         fonte: 'internal',
+        tags: m.tags || [],
         _tipo: 'momento',
       })),
       ...todayNews.map(n => ({
@@ -94,12 +106,37 @@ export default function UnifiedNewsCarousel() {
         link: n.link,
         fonte: n.fonte,
         data_publicacao: n.data_publicacao,
+        tags: n.tags || [],
         _tipo: 'noticia',
       })),
     ];
+    
+    // Filter by selected tags
+    let filtered = items;
+    if (selectedTags.length > 0) {
+      filtered = items.filter(item => 
+        item.tags.some(tag => selectedTags.includes(tag))
+      );
+    }
+    
     // Shuffle randomly on every load
-    return items.sort(() => Math.random() - 0.5);
-  }, [momentos, todayNews]);
+    return filtered.sort(() => Math.random() - 0.5);
+  }, [momentos, todayNews, selectedTags]);
+
+  const allAvailableTags = React.useMemo(() => {
+    const tags = new Set();
+    [...todayNews, ...momentos].forEach(item => {
+      (item.tags || []).forEach(tag => tags.add(tag));
+    });
+    return Array.from(tags).sort();
+  }, [todayNews, momentos]);
+
+  const toggleTag = (tag) => {
+    setSelectedTags(prev => 
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+    setCurrentIndex(0);
+  };
 
   const selectTodayNews = useCallback(async () => {
     if (isSelecting) return;
@@ -185,6 +222,34 @@ export default function UnifiedNewsCarousel() {
 
   return (
     <div className="w-full mb-8">
+      {/* Tag filters */}
+      {allAvailableTags.length > 0 && (
+        <div className="mb-4 flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Filtrar:</span>
+          {allAvailableTags.map(tag => (
+            <button
+              key={tag}
+              onClick={() => toggleTag(tag)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-full border-2 transition-all ${
+                selectedTags.includes(tag)
+                  ? `${TAG_COLORS[tag]} border-current`
+                  : 'bg-gray-100 text-gray-600 border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              {tag}
+            </button>
+          ))}
+          {selectedTags.length > 0 && (
+            <button
+              onClick={() => setSelectedTags([])}
+              className="px-2 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-900 transition-all"
+            >
+              ✕ Limpar
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Main card */}
       <div
         className="relative w-full rounded-2xl overflow-hidden h-56 group bg-white border-2 border-black"
@@ -210,6 +275,18 @@ export default function UnifiedNewsCarousel() {
               <span className="text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full text-white bg-black">
                 {isMomento ? '✦ Destaque' : '📡 ' + (FONTE_LABELS[current.fonte] || 'Notícia')}
               </span>
+              {current.tags && current.tags.length > 0 && (
+                <div className="flex gap-1 flex-wrap">
+                  {current.tags.slice(0, 2).map(tag => (
+                    <span
+                      key={tag}
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${TAG_COLORS[tag] || 'bg-gray-100 text-gray-600 border-gray-300'}`}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Navigation dots */}
