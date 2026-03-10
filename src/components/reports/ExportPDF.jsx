@@ -185,28 +185,49 @@ export default function ExportPDF({ report, reportId }) {
       const doc = new jsPDF({ unit: 'mm', format: 'a4' });
       let y = 20;
 
-      // ── CAPA compacta ──────────────────────────────────────────────────────
-      // Top bar
-      doc.setFillColor(18, 18, 18);
-      doc.rect(0, 0, 210, 28, 'F');
+      // ── CAPA refinada ──────────────────────────────────────────────────────
+      // Top bar dark
+      doc.setFillColor(12, 12, 12);
+      doc.rect(0, 0, 210, 32, 'F');
+      // Thin accent line at bottom of bar
+      doc.setFillColor(255, 255, 255);
+      doc.rect(0, 31.5, 210, 0.5, 'F');
+
+      // Vertical accent left
+      doc.setFillColor(220, 220, 220);
+      doc.rect(M, 6, 0.5, 20, 'F');
 
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(16);
+      doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
-      doc.text('MUSEUS CENTRO', M, 12);
+      doc.text('MUSEUS CENTRO', M + 5, 14);
 
-      doc.setFontSize(8);
+      doc.setFontSize(7);
       doc.setFont('helvetica', 'normal');
-      doc.text('Relatório Mensal Individual  ·  Fundação Municipal de Cultura / PBH', M, 18);
+      doc.setTextColor(180, 180, 180);
+      doc.text('RELATÓRIO MENSAL INDIVIDUAL  ·  FUNDAÇÃO MUNICIPAL DE CULTURA / PBH', M + 5, 21);
 
-      doc.setFontSize(7.5);
+      // Status pill top right
+      const statusBg = isOfficial ? [0, 110, 0] : [160, 70, 0];
+      doc.setFillColor(...statusBg);
+      const docStatusW = doc.getTextWidth(docStatus) + 8;
+      doc.roundedRect(210 - M - docStatusW, 7.5, docStatusW, 7, 1.5, 1.5, 'F');
+      doc.setFontSize(6.5);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...statusColor.map(v => Math.max(v + 80, 200)));
-      const sw = doc.getTextWidth(docStatus);
-      doc.text(docStatus, 210 - M - sw, 18);
+      doc.setTextColor(255, 255, 255);
+      doc.text(docStatus, 210 - M - docStatusW / 2 - 0.5, 12.5, { align: 'center' });
+
+      // Protocol row
+      doc.setFillColor(230, 230, 230);
+      doc.rect(0, 32, 210, 7, 'F');
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(60, 60, 60);
+      const proto = report.numero_protocolo ? `Protocolo: ${report.numero_protocolo}   ·   ` : '';
+      doc.text(`${proto}Gerado em: ${geradoEm}   ·   Período: ${periodoLabel}`, M, 37);
 
       doc.setTextColor(0, 0, 0);
-      y = 34;
+      y = 44;
 
       // Identification block (compact 3-column grid)
       doc.setFillColor(248, 248, 248);
