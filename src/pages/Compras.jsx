@@ -36,6 +36,15 @@ function ComprasInner() {
 
   const isCoordenador = ['admin', 'COORDENADOR', 'ADMIN'].includes(currentUser?.role);
 
+  const { data: userPermission } = useQuery({
+    queryKey: ['user-permission', currentUser?.email],
+    queryFn: () => base44.entities.UserPermission.filter({ user_email: currentUser?.email }),
+    enabled: !!currentUser?.email,
+    select: (data) => data?.[0],
+  });
+
+  const hasGestaoCompras = isCoordenador || userPermission?.gestao_compras === true;
+
   const { data: purchases = [], isLoading } = useQuery({
     queryKey: ['purchases', isCoordenador, currentUser?.email],
     queryFn: () => isCoordenador
