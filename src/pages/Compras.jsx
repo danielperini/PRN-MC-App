@@ -12,6 +12,8 @@ import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
 import AprovacoesFila from '@/components/compras/AprovacoesFila';
 import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
 import RubricaManager from '@/components/compras/RubricaManager';
+import TeamManager from '@/components/compras/TeamManager';
+import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -114,13 +116,15 @@ function ComprasInner() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
-          {[
-            { id: 'lista', label: 'Solicitações' },
-            { id: 'orcamento', label: 'Orçamento' },
-            ...(hasGestaoCompras ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
-            ...(isCoordenador ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
-          ].map(t => (
+         <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+           {[
+             { id: 'lista', label: 'Solicitações' },
+             { id: 'orcamento', label: 'Orçamento' },
+             ...(hasGestaoCompras ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
+             ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
+             ...(isCoordenador ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
+             ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
+           ].map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -210,17 +214,27 @@ function ComprasInner() {
           <RubricaManager budgetLines={budgetLines} purchases={purchases} />
         )}
 
-        {/* Aprovações */}
-        {tab === 'aprovacoes' && isCoordenador && (
-          <AprovacoesFila
-            purchases={purchases}
-            budgetLines={budgetLines}
-            statusConfig={STATUS_CONFIG}
-            onRefresh={() => queryClient.invalidateQueries(['purchases'])}
-            currentUser={currentUser}
-          />
+        {/* Equipe */}
+        {tab === 'equipe' && isCoordenador && (
+          <TeamManager />
         )}
-      </div>
+
+        {/* Meus Pagamentos */}
+        {tab === 'pagamentos' && !isCoordenador && (
+          <TeamPaymentSubmit userEmail={currentUser?.email} />
+        )}
+
+        {/* Aprovações */}
+         {tab === 'aprovacoes' && isCoordenador && (
+           <AprovacoesFila
+             purchases={purchases}
+             budgetLines={budgetLines}
+             statusConfig={STATUS_CONFIG}
+             onRefresh={() => queryClient.invalidateQueries(['purchases'])}
+             currentUser={currentUser}
+           />
+         )}
+        </div>
 
       {showForm && (
         <PurchaseFormDialog
