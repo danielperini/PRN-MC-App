@@ -82,7 +82,7 @@ function ComprasInner() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-black">Módulo de Compras</h1>
+                <h1 className="text-2xl font-bold text-black">Suprimentos</h1>
                 {isCoordenador ? (
                   <span className="flex items-center gap-1 text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-2.5 py-0.5">
                     <ShieldCheck className="w-3 h-3" />Coordenador
