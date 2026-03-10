@@ -65,6 +65,7 @@ import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
 import CalendarioAtividades from './pages/CalendarioAtividades';
+import NovaAtividade from './pages/NovaAtividade';
 import __Layout from './Layout.jsx';
 
 
@@ -87,6 +88,7 @@ export const PAGES = {
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
     "CalendarioAtividades": CalendarioAtividades,
+    "NovaAtividade": NovaAtividade,
 }
 
 export const pagesConfig = {
