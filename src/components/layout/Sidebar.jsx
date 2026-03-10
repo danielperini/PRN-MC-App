@@ -63,6 +63,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle }) {
       items: [
         { name: 'Compras', icon: ShoppingCart, label: 'Compras', show: true },
         { name: 'GestaoPagamentos', icon: Banknote, label: 'Pagamentos', show: isCoordenador },
+        { name: 'RelatorioMeta', icon: Target, label: 'Rel. por Meta', show: isCoordenador },
       ],
     },
     {
