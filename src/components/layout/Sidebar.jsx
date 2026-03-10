@@ -68,6 +68,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle }) {
     { name: 'CoordReview', icon: Eye, label: 'Revisão', show: isCoordenador && canViewMenu('can_review_reports') },
     { name: 'UserManagement', icon: Users, label: 'Usuários', show: isCoordenador && canViewMenu('can_manage_users') },
     { name: 'PlataformaAdmin', icon: Settings, label: 'Plataforma', show: isCoordenador && canViewMenu('can_manage_platform') },
+    { name: 'CalendarioAtividades', icon: CalendarDays, label: 'Calendário', show: true },
     { name: 'ActivityLog', icon: History, label: 'Atividades', show: true },
   ].filter(item => item.show);
 
