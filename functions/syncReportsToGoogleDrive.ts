@@ -50,7 +50,7 @@ async function generateReportPDF(report, activities) {
   function drawText(page, yRef, text, { font = regularFont, size = 11, color = rgb(0, 0, 0), x = 50, maxWidth = 495 } = {}) {
     if (!text) return yRef;
     // Limpar HTML tags e caracteres especiais problemáticos
-    const clean = String(text).replace(/<[^>]*>/g, '').replace(/[^\x00-\x7F]/g, c => {
+    const clean = String(text).replace(/<[^>]*>/g, '').replace(/[\n\r\t]/g, ' ').replace(/[^\x00-\x7F]/g, c => {
       const map = {
         '\u00e3': 'a', '\u00e2': 'a', '\u00e1': 'a', '\u00e0': 'a', '\u00e4': 'a',
         '\u00c3': 'A', '\u00c2': 'A', '\u00c1': 'A',
