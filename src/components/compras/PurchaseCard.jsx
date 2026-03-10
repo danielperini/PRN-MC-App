@@ -57,10 +57,31 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
               )}
             </div>
             <p className="font-medium text-black text-sm truncate">{purchase.descricao_item}</p>
-            <div className="flex flex-wrap gap-3 mt-1">
-              {purchase.fornecedor_nome && <span className="text-xs text-gray-500">{purchase.fornecedor_nome}</span>}
-              {budgetLine && <span className="text-xs text-gray-400">[{budgetLine.codigo}] {budgetLine.descricao?.substring(0, 40)}...</span>}
+            <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-600">
+              {purchase.fornecedor_nome && <span>Fornecedor: {purchase.fornecedor_nome}</span>}
+              {budgetLine && (
+                <div className="flex items-center gap-1">
+                  <DollarSign className="w-3 h-3" />
+                  <span>[{budgetLine.codigo}] {budgetLine.descricao?.substring(0, 35)}</span>
+                </div>
+              )}
             </div>
+            {budgetLine && (
+              <div className="flex flex-wrap gap-2 mt-2 text-xs">
+                <Badge variant="outline" className="text-xs">
+                  Valor PO: R$ {(budgetLine.valor_total_previsto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  Saldo: R$ {Math.max(0, (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </Badge>
+              </div>
+            )}
+            {relatedActivity && (
+              <div className="flex items-center gap-1 mt-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit">
+                <Activity className="w-3 h-3" />
+                Atividade: {relatedActivity.titulo?.substring(0, 40)}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             <div className="text-right">
