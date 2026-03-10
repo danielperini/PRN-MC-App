@@ -1,14 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, ExternalLink, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink, Sparkles, Activity, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCoordenador, onRefresh }) {
   const [expanded, setExpanded] = useState(false);
+  const [relatedActivity, setRelatedActivity] = useState(null);
+  
   const s = statusConfig[purchase.status] || { label: purchase.status, color: 'bg-gray-100 text-gray-700' };
   const budgetLine = budgetLines.find(l => l.id === purchase.budgetline_id);
+  
+  // Buscar atividade relacionada
+  useEffect(() => {
+    const fetchActivity = async () => {
+      if (purchase.activity_id) {
+        try {
+          const activity = await base44.entities.Activity.list('-created_date', 1);
+          const found = activity.find(a => a.id === purchase.activity_id);
+          setRelatedActivity(found);
+        } catch (e) {
+          // Silently fail
+        }
+      }
+    };
+    fetchActivity();
+  }, [purchase.activity_id]);
 
   const META_LABELS = {
     'MC3A-20': 'Ações Educativas',
