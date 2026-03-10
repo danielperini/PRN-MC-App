@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-import { jsPDF } from 'npm:jspdf@4.0.0';
-import 'npm:jspdf/dist/jspdf.umd.min';
+import jsPDFModule from 'npm:jspdf@4.0.0';
+
+const { jsPDF } = jsPDFModule;
 
 const COLORS = {
   primary: '#1F2937',
