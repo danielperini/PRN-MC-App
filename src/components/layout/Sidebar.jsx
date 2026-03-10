@@ -17,7 +17,8 @@ import {
   ChevronRight,
   CalendarDays,
   Layers,
-  BookOpen
+  BookOpen,
+  ShoppingCart
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -73,6 +74,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle }) {
     { name: 'PlataformaAdmin', icon: Settings, label: 'Plataforma', show: isCoordenador && canViewMenu('can_manage_platform') },
     { name: 'CalendarioAtividades', icon: CalendarDays, label: 'Calendário', show: true },
     { name: 'ActivityLog', icon: History, label: 'Registro de Atividade', show: isCoordenador },
+    { name: 'Compras', icon: ShoppingCart, label: 'Compras', show: true },
     { name: 'BaseConhecimento', icon: BookOpen, label: 'Base de Conhecimento', show: currentUser?.role === 'admin' },
   ].filter(item => item.show);
 
