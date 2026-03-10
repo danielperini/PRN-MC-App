@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-import PDFDocument from 'npm:pdfkit@0.15.0';
+import { PDFDocument, StandardFonts, rgb } from 'npm:pdf-lib@1.17.1';
 
 const ROOT_FOLDER_ID = '1jgV1WdnZUtXzgiBzken1Lw6SBFlxSxl0';
 
