@@ -322,6 +322,17 @@ function AtividadeCard({ atividade, canEdit, onEdit, onDelete, budgetLines, curr
           )}
         </div>
       </div>
+
+      {/* Dialog de compra pré-preenchida */}
+      {showCompraDialog && (
+        <PurchaseFormDialog
+          budgetLines={budgetLines || []}
+          currentUser={currentUser}
+          prefill={buildPurchasePrefill()}
+          onClose={() => setShowCompraDialog(false)}
+          onSuccess={() => setShowCompraDialog(false)}
+        />
+      )}
     </div>
   );
 }
