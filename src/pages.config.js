@@ -64,6 +64,7 @@ import PlataformaConfig from './pages/PlataformaConfig';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
+import CalendarioAtividades from './pages/CalendarioAtividades';
 import __Layout from './Layout.jsx';
 
 
@@ -85,6 +86,7 @@ export const PAGES = {
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
+    "CalendarioAtividades": CalendarioAtividades,
 }
 
 export const pagesConfig = {
