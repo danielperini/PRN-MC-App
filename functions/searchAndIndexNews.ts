@@ -198,6 +198,7 @@ Deno.serve(async (req) => {
     ];
 
     const allSearchTerms = [
+      ...priorityTerms,
       ...shortTailTerms,
       ...mediumTailTerms,
       ...longTailTerms
