@@ -45,24 +45,27 @@ Deno.serve(async (req) => {
 
     // Use AI to find additional relevant links
     const aiResponse = await base44.integrations.Core.InvokeLLM({
-      prompt: `Você é especialista em museuologia. Liste 5 URLs de fontes confiáveis sobre museuologia, curadoria, gestão de museus e patrimônio cultural. 
+      prompt: `Você é especialista em museuologia, cinema, moda e história, com foco em Belo Horizonte. Liste 8 URLs de fontes confiáveis sobre esses temas. 
       
       Deve incluir:
-      - Revistas acadêmicas sobre museologia
+      - Revistas acadêmicas sobre museologia, cinema, moda e história
       - Portais de patrimônio cultural
-      - Sites de museus reconhecidos
-      - Bases de dados de pesquisa
-      - Publicações sobre curadoria
+      - Sites de museus e institutos em Belo Horizonte (MHAB, MIS, MUMO, museus de moda, cinema)
+      - Universidades mineiras com pesquisa em história e cultura
+      - Bases de dados de pesquisa sobre patrimônio
+      - Publicações sobre Belo Horizonte história e cultura
+      - Cinematecas e arquivos de cinema
+      - Arquivos sobre moda brasileira
       
       Formato: Uma URL por linha, apenas a URL sem descrição.
-      Deve ser URLs reais e acessíveis.`,
+      Deve ser URLs reais e acessíveis. Priorize fontes de Belo Horizonte e Minas Gerais.`,
       response_json_schema: {
         type: 'object',
         properties: {
           urls: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Lista de URLs sobre museuologia'
+            description: 'Lista de URLs sobre museuologia, cinema, moda, história e BH'
           }
         }
       },
@@ -72,7 +75,7 @@ Deno.serve(async (req) => {
     // Fetch from AI-discovered links
     const aiUrls = aiResponse.urls || [];
     const aiArticles = await Promise.all(
-      aiUrls.slice(0, 3).map(async (url) => {
+      aiUrls.slice(0, 5).map(async (url) => {
         try {
           const response = await fetch(url, { 
             headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -83,7 +86,7 @@ Deno.serve(async (req) => {
             const titleMatch = text.match(/<title>(.*?)<\/title>/i);
             return {
               titulo: titleMatch ? titleMatch[1] : url,
-              resumo: 'Recurso sobre museuologia e patrimônio cultural',
+              resumo: 'Recurso sobre museuologia, cinema, moda e história de Belo Horizonte',
               link: url,
               fonte: 'web_search',
               imagem_url: null,
