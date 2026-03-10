@@ -10,17 +10,22 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import BackupButton from '../components/backup/BackupButton';
 import BackupDriveFoldersButton from '../components/backup/BackupDriveFoldersButton';
+import BackupHistoryTable from '../components/backup/BackupHistoryTable';
 import FileHierarchy from '../components/gallery/FileHierarchy';
+import FilePreviewModal from '../components/gallery/FilePreviewModal';
 import { toast } from 'sonner';
 
 function GestorArquivosInner() {
-  const { user: currentUser } = useCurrentUser();
-  const [selectedDate, setSelectedDate] = useState('');
-  const [searchFileName, setSearchFileName] = useState('');
-  const [searchContent, setSearchContent] = useState('');
-  const [sortBy, setSortBy] = useState('date-desc');
-  const [duplicateWarnings, setDuplicateWarnings] = useState([]);
-  const isCoordinator = currentUser?.role === 'admin';
+   const { user: currentUser } = useCurrentUser();
+   const [selectedDate, setSelectedDate] = useState('');
+   const [searchFileName, setSearchFileName] = useState('');
+   const [searchContent, setSearchContent] = useState('');
+   const [sortBy, setSortBy] = useState('date-desc');
+   const [duplicateWarnings, setDuplicateWarnings] = useState([]);
+   const [previewFile, setPreviewFile] = useState(null);
+   const [showPreview, setShowPreview] = useState(false);
+   const [showHistory, setShowHistory] = useState(false);
+   const isCoordinator = currentUser?.role === 'admin';
 
   const { data: backups = [], isLoading } = useQuery({
     queryKey: ['google-drive-backups', selectedDate, searchFileName, searchContent, currentUser?.email],
@@ -98,6 +103,11 @@ function GestorArquivosInner() {
     }
   }, [duplicates, isCoordinator]);
 
+  const handlePreviewFile = (backup) => {
+    setPreviewFile(backup);
+    setShowPreview(true);
+  };
+
   const handleDownloadBackup = async (backup) => {
    if (backup.fileUrl) {
      window.open(backup.fileUrl, '_blank');
@@ -115,11 +125,17 @@ function GestorArquivosInner() {
           <h2 className="text-xl font-semibold text-gray-900">Carregando...</h2>
         </div>
       </div>
-    );
-  }
+      );
+      }
 
-  return (
-    <div className="min-h-screen bg-white">
+      return (
+      <>
+      <FilePreviewModal 
+      file={previewFile} 
+      isOpen={showPreview} 
+      onClose={() => setShowPreview(false)} 
+      />
+      <div className="min-h-screen bg-white">
       <div className="w-full py-6 md:py-10">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 md:mb-8">
@@ -204,14 +220,49 @@ function GestorArquivosInner() {
           )}
         </div>
 
-        {/* Lista Hierárquica de Arquivos */}
-         {isLoading ? (
-           <div className="text-center py-12 text-gray-400">
-             Carregando arquivos...
-           </div>
-         ) : (
-           <FileHierarchy backups={backups} />
-         )}
+        {/* Tabs: Arquivos e Histórico */}
+        <div className="space-y-4">
+          <div className="flex gap-2 border-b">
+            <button
+              onClick={() => setShowHistory(false)}
+              className={`px-4 py-2 font-medium text-sm border-b-2 ${
+                !showHistory 
+                  ? 'border-blue-600 text-blue-600' 
+                  : 'border-transparent text-gray-600'
+              }`}
+            >
+              Arquivos
+            </button>
+            <button
+              onClick={() => setShowHistory(true)}
+              className={`px-4 py-2 font-medium text-sm border-b-2 ${
+                showHistory 
+                  ? 'border-blue-600 text-blue-600' 
+                  : 'border-transparent text-gray-600'
+              }`}
+            >
+              Histórico de Backups
+            </button>
+          </div>
+
+          {!showHistory ? (
+            isLoading ? (
+              <div className="text-center py-12 text-gray-400">
+                Carregando arquivos...
+              </div>
+            ) : (
+              <FileHierarchy 
+                backups={backups} 
+                onPreview={handlePreviewFile}
+              />
+            )
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-lg p-4 md:p-6">
+              <h3 className="text-lg font-semibold mb-4 text-gray-900">Histórico de Backups</h3>
+              <BackupHistoryTable />
+            </div>
+          )}
+        </div>
 
         {/* Alertas de Duplicação */}
         {isCoordinator && duplicateWarnings.length > 0 && (
@@ -249,11 +300,12 @@ function GestorArquivosInner() {
             Aviso: Sistema detecta automaticamente atividades duplicadas com risco superior a 80%.
           </p>
         </div>
-      </div>
-    </div>
-  );
-}
+        </div>
+        </div>
+        </>
+        );
+        }
 
-export default function GestorArquivos() {
-  return <RequireAuth><GestorArquivosInner /></RequireAuth>;
-}
+        export default function GestorArquivos() {
+        return <RequireAuth><GestorArquivosInner /></RequireAuth>;
+        }
