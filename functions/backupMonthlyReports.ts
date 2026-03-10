@@ -46,19 +46,26 @@ async function shareFolder(folderId, email, accessToken) {
   }
 }
 
-async function uploadFileToDrive(accessToken, file, folderId, fileName) {
+async function uploadFileToDrive(accessToken, fileBuffer, folderId, fileName) {
   const boundary = '===============7330845974216740156==';
   const metadata = {
     name: fileName,
     parents: [folderId]
   };
 
+  // Converter ArrayBuffer para base64
+  const byteArray = new Uint8Array(fileBuffer);
+  let binaryString = '';
+  for (let i = 0; i < byteArray.length; i++) {
+    binaryString += String.fromCharCode(byteArray[i]);
+  }
+
   const body = 
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
     JSON.stringify(metadata) +
-    `\r\n--${boundary}\r\nContent-Type: application/pdf\r\n\r\n`;
-
-  const footer = `\r\n--${boundary}--`;
+    `\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: binary\r\n\r\n` +
+    binaryString +
+    `\r\n--${boundary}--`;
 
   const response = await fetch(
     'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true',
@@ -68,7 +75,7 @@ async function uploadFileToDrive(accessToken, file, folderId, fileName) {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': `multipart/related; boundary="${boundary}"`
       },
-      body: body + file + footer
+      body: body
     }
   );
 
