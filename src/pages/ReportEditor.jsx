@@ -22,7 +22,7 @@ import AIAssistButton from '../components/reports/AIAssistButton';
 import ReportGenerator from '../components/reports/ReportGenerator';
 import ExecutiveSummaryAI from '../components/reports/ExecutiveSummaryAI';
 import TrendAnalysisAI from '../components/reports/TrendAnalysisAI';
-import ReportComments from '../components/reports/ReportComments';
+import ReportCommentsPanel from '../components/reports/ReportCommentsPanel';
 import ReportTimeline from '../components/reports/ReportTimeline';
 import ActivityProgressBar from '../components/reports/ActivityProgressBar';
 import ReportVersionHistory from '../components/reports/ReportVersionHistory';
@@ -842,7 +842,7 @@ function ReportEditorInner() {
           <TabsContent value="comentarios" className="space-y-6">
            {reportId ? (
            <>
-           <ReportComments reportId={reportId} userRole={currentUser?.role} />
+           <ReportCommentsPanel reportId={reportId} currentUser={currentUser} />
            {/* Botões de salvar — aba comentarios */}
            {canEdit && (
              <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
