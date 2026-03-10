@@ -294,9 +294,15 @@ Deno.serve(async (req) => {
       success: true,
       date: today,
       selected_count: selected.length,
+      noticias_count: selectedNoticias.length,
+      historicos_count: selectedHistoricos.length,
+      artigos_count: selectedArtigos.length,
       candidates_available: candidates.length,
+      future_activities: futureActivities.length,
       stale_deactivated: Math.min(stale.length, 20),
-      titles: selected.map(n => n.titulo)
+      noticias: selectedNoticias.map(n => n.titulo),
+      historicos: selectedHistoricos.map(n => n.titulo),
+      artigos: selectedArtigos.map(n => n.titulo)
     });
 
   } catch (error) {
