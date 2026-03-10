@@ -99,7 +99,7 @@ function addPageHeader(doc, report, section, statusLabel, statusColor) {
   return 18;
 }
 
-function addFooter(doc, report, reportId, geradoEm, totalPages, docStatus, statusColor) {
+function addFooter(doc, report, reportId, geradoEm, totalPages, docStatus, statusColor, periodoLabel) {
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
     doc.setDrawColor(200, 200, 200);
@@ -108,7 +108,7 @@ function addFooter(doc, report, reportId, geradoEm, totalPages, docStatus, statu
     doc.setTextColor(150, 150, 150);
     doc.setFont('helvetica', 'normal');
     doc.text(
-      `Museus Centro — FMC/PBH  |  ${periodoLabel}  |  ${report.author_name || ''}  |  ID: ${reportId || '—'}  |  Gerado: ${geradoEm}`,
+      `Museus Centro — FMC/PBH  |  ${periodoLabel || ''}  |  ${report.author_name || ''}  |  ID: ${reportId || '—'}  |  Gerado: ${geradoEm}`,
       M, PH - 2
     );
     doc.setFont('helvetica', 'bold');
