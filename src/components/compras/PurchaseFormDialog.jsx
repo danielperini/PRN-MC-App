@@ -56,6 +56,7 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
   const [activities, setActivities] = useState([]);
   const [mes, setMes] = useState(prefill?.mes_referencia || MESES[new Date().getMonth()]);
   const [ano, setAno] = useState(prefill?.ano || new Date().getFullYear());
+  const [showOrcamentoDialog, setShowOrcamentoDialog] = useState(false);
 
   // Campos travados quando vem de atividade
   const isFromActivity = !!(prefill?.activity_id);
