@@ -28,7 +28,7 @@ export default function OrcamentoUploadDialog({ open, onOpenChange, onSuccess, p
 
   const handleUploadAndExtract = async () => {
     if (!file) {
-      alert.error('Selecione um arquivo');
+      toast.error('Selecione um arquivo');
       return;
     }
 
