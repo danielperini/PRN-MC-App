@@ -66,6 +66,7 @@ import PlataformaConfig from './pages/PlataformaConfig';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
+import BaseConhecimento from './pages/BaseConhecimento';
 import __Layout from './Layout.jsx';
 
 
@@ -89,6 +90,7 @@ export const PAGES = {
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
+    "BaseConhecimento": BaseConhecimento,
 }
 
 export const pagesConfig = {
