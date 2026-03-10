@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 import { PDFDocument, StandardFonts, rgb } from 'npm:pdf-lib@1.17.1';
 
-const ROOT_FOLDER_ID = '1jgV1WdnZUtXzgiBzken1Lw6SBFlxSxl0';
+const ROOT_FOLDER_ID = '1lUvhkeMp-yZ4nNnS33jDw3eekhbpp1R7';
 
 async function createFolder(accessToken, folderName, parentFolderId) {
   const response = await fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
@@ -198,10 +198,23 @@ Deno.serve(async (req) => {
 
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
 
-    // Pasta raiz com timestamp para cada sincronização
+    // Usar pasta Relatórios em PDF para sincronização
     const now = new Date();
     const syncLabel = now.toISOString().slice(0, 16).replace('T', '_').replace(':', '-');
-    const syncFolderId = await createFolder(accessToken, `Sync_${syncLabel}`, ROOT_FOLDER_ID);
+    
+    // Buscar ou criar pasta "Relatórios em PDF"
+    const existingFolders = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q='${ROOT_FOLDER_ID}' in parents and name='Relatórios em PDF' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id)`,
+      { headers: { 'Authorization': `Bearer ${accessToken}` } }
+    ).then(r => r.json());
+    
+    let reportsFolderId = existingFolders.files?.[0]?.id;
+    if (!reportsFolderId) {
+      reportsFolderId = await createFolder(accessToken, 'Relatórios em PDF', ROOT_FOLDER_ID);
+    }
+    
+    // Criar subpasta com timestamp
+    const syncFolderId = await createFolder(accessToken, `Sync_${syncLabel}`, reportsFolderId);
 
     let filesUploaded = 0;
     let pdfsGenerated = 0;

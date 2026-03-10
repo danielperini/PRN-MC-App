@@ -89,8 +89,9 @@ Deno.serve(async (req) => {
       userAttachments = allAttachments.filter(a => reportIds.includes(a.report_id));
     }
     
-    // Usar pasta específica do Google Drive fornecida
-    const customFolderId = '1jgV1WdnZUtXzgiBzken1Lw6SBFlxSxl0';
+    // Usar pasta raiz oficial (Financeiro para backup de dados)
+    const rootFolderId = '1lUvhkeMp-yZ4nNnS33jDw3eekhbpp1R7';
+    const customFolderId = rootFolderId;
     
     // Pasta por data dentro da pasta customizada
     const now = new Date();
