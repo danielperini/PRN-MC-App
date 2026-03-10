@@ -4,13 +4,8 @@ import jsPDFModule from 'npm:jspdf@4.0.0';
 const { jsPDF } = jsPDFModule;
 
 const COLORS = {
-  primary: '#1F2937',
-  secondary: '#6B7280',
-  accent: '#3B82F6',
-  success: '#10B981',
-  warning: '#F59E0B',
-  border: '#E5E7EB',
-  lightBg: '#F9FAFB',
+  text: '#000000',
+  border: '#000000',
 };
 
 const PAGE_WIDTH = 210;
@@ -43,7 +38,7 @@ Deno.serve(async (req) => {
     // ========== HELPER FUNCTIONS ==========
     const addTitle = (text, size = 18) => {
       pdf.setFontSize(size);
-      pdf.setTextColor(COLORS.primary);
+      pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, 'bold');
       const lines = pdf.splitTextToSize(text, CONTENT_WIDTH);
       pdf.text(lines, MARGIN, currentY);
@@ -53,11 +48,11 @@ Deno.serve(async (req) => {
 
     const addHeading = (text) => {
       pdf.setFontSize(12);
-      pdf.setTextColor(COLORS.primary);
+      pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, 'bold');
       pdf.text(text, MARGIN, currentY);
       currentY += 7;
-      pdf.setDrawColor(COLORS.accent);
+      pdf.setDrawColor(0, 0, 0);
       pdf.setLineWidth(0.5);
       pdf.line(MARGIN, currentY, PAGE_WIDTH - MARGIN, currentY);
       currentY += 4;
@@ -66,7 +61,7 @@ Deno.serve(async (req) => {
 
     const addText = (text, size = 10, bold = false) => {
       pdf.setFontSize(size);
-      pdf.setTextColor(COLORS.secondary);
+      pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, bold ? 'bold' : 'normal');
       const lines = pdf.splitTextToSize(text, CONTENT_WIDTH);
       pdf.text(lines, MARGIN, currentY);
@@ -76,7 +71,7 @@ Deno.serve(async (req) => {
 
     const addField = (label, value) => {
       pdf.setFontSize(9);
-      pdf.setTextColor(COLORS.secondary);
+      pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, 'bold');
       pdf.text(label, MARGIN, currentY);
       currentY += 4;
@@ -88,7 +83,7 @@ Deno.serve(async (req) => {
     };
 
     const addSeparator = () => {
-      pdf.setDrawColor(COLORS.border);
+      pdf.setDrawColor(0, 0, 0);
       pdf.setLineWidth(0.3);
       pdf.line(MARGIN, currentY, PAGE_WIDTH - MARGIN, currentY);
       currentY += 4;
@@ -102,10 +97,10 @@ Deno.serve(async (req) => {
     currentY += 8;
 
     pdf.setFontSize(11);
-    pdf.setTextColor(COLORS.secondary);
+    pdf.setTextColor(0, 0, 0);
     pdf.setFont(undefined, 'normal');
     pdf.text('Protocolo:', MARGIN, currentY);
-    pdf.setTextColor(COLORS.primary);
+    pdf.setTextColor(0, 0, 0);
     pdf.setFont(undefined, 'bold');
     pdf.text(report.numero_protocolo || '—', MARGIN + 30, currentY);
     currentY += 8;
@@ -116,7 +111,7 @@ Deno.serve(async (req) => {
     addField('Equipe', report.equipe);
 
     currentY += 10;
-    pdf.setDrawColor(COLORS.border);
+    pdf.setDrawColor(0, 0, 0);
     pdf.setLineWidth(1);
     pdf.rect(MARGIN, currentY - 5, CONTENT_WIDTH, 0.5);
 
@@ -142,13 +137,13 @@ Deno.serve(async (req) => {
     } else {
       atividades.forEach((ativ, idx) => {
         pdf.setFontSize(10);
-        pdf.setTextColor(COLORS.primary);
+        pdf.setTextColor(0, 0, 0);
         pdf.setFont(undefined, 'bold');
         pdf.text(`${idx + 1}. ${ativ.titulo}`, MARGIN, currentY);
         currentY += 6;
 
         pdf.setFontSize(9);
-        pdf.setTextColor(COLORS.secondary);
+        pdf.setTextColor(0, 0, 0);
         pdf.setFont(undefined, 'normal');
         const fields = [
           ['Tipo', ativ.tipo_equipe],
@@ -187,9 +182,9 @@ Deno.serve(async (req) => {
 
     if (report.avaliacao_pontos_positivos) {
       pdf.setFontSize(10);
-      pdf.setTextColor(COLORS.success);
+      pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, 'bold');
-      pdf.text('✓ Pontos Positivos', MARGIN, currentY);
+      pdf.text('Pontos Positivos:', MARGIN, currentY);
       currentY += 5;
       const cleanText = report.avaliacao_pontos_positivos.replace(/<[^>]*>/g, '');
       addText(cleanText);
@@ -197,9 +192,9 @@ Deno.serve(async (req) => {
 
     if (report.avaliacao_desafios) {
       pdf.setFontSize(10);
-      pdf.setTextColor(COLORS.warning);
+      pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, 'bold');
-      pdf.text('⚠ Dificuldades', MARGIN, currentY);
+      pdf.text('Dificuldades:', MARGIN, currentY);
       currentY += 5;
       const cleanText = report.avaliacao_desafios.replace(/<[^>]*>/g, '');
       addText(cleanText);
@@ -207,9 +202,9 @@ Deno.serve(async (req) => {
 
     if (report.avaliacao_sugestoes) {
       pdf.setFontSize(10);
-      pdf.setTextColor(COLORS.accent);
+      pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, 'bold');
-      pdf.text('💡 Sugestões de Melhoria', MARGIN, currentY);
+      pdf.text('Sugestões de Melhoria:', MARGIN, currentY);
       currentY += 5;
       const cleanText = report.avaliacao_sugestoes.replace(/<[^>]*>/g, '');
       addText(cleanText);
@@ -225,7 +220,7 @@ Deno.serve(async (req) => {
 
       rootComments.forEach((comment) => {
         pdf.setFontSize(9);
-        pdf.setTextColor(COLORS.secondary);
+        pdf.setTextColor(0, 0, 0);
         pdf.setFont(undefined, 'bold');
         pdf.text(`${comment.author_name} (${comment.author_role})`, MARGIN, currentY);
         currentY += 4;
@@ -247,7 +242,7 @@ Deno.serve(async (req) => {
     for (let i = 1; i <= pageCount; i++) {
       pdf.setPage(i);
       pdf.setFontSize(8);
-      pdf.setTextColor(COLORS.secondary);
+      pdf.setTextColor(0, 0, 0);
       pdf.text(
         `Página ${i} de ${pageCount}`,
         PAGE_WIDTH / 2,
