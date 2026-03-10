@@ -87,22 +87,45 @@ async function shareFolder(folderId, email, accessToken) {
    }
 }
 
-Deno.serve(async (req) => {
+async function logBackupExecution(base44, backupData) {
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
+    await base44.entities.BackupLog.create(backupData);
+  } catch (error) {
+    console.error('Erro ao registrar backup no histórico:', error.message);
+  }
+}
 
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+Deno.serve(async (req) => {
+   const startTime = Date.now();
+   try {
+     const base44 = createClientFromRequest(req);
+     const user = await base44.auth.me();
 
-    const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
-    if (!accessToken) {
-      return Response.json({ error: 'Google Drive não autorizado' }, { status: 403 });
-    }
+     if (!user) {
+       return Response.json({ error: 'Unauthorized' }, { status: 401 });
+     }
+
+     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
+     if (!accessToken) {
+       await logBackupExecution(base44, {
+         backup_type: 'drive_folders',
+         status: 'failure',
+         error_message: 'Google Drive não autorizado',
+         execution_time_ms: Date.now() - startTime,
+         triggered_by: 'manual'
+       });
+       return Response.json({ error: 'Google Drive não autorizado' }, { status: 403 });
+     }
 
     const backupFolderId = await createBackupFolder(accessToken);
     if (!backupFolderId) {
+      await logBackupExecution(base44, {
+        backup_type: 'drive_folders',
+        status: 'failure',
+        error_message: 'Falha ao criar pasta de backup',
+        execution_time_ms: Date.now() - startTime,
+        triggered_by: 'manual'
+      });
       return Response.json({ error: 'Falha ao criar pasta de backup' }, { status: 500 });
     }
 
@@ -142,6 +165,17 @@ Deno.serve(async (req) => {
       }
     }
 
+    await logBackupExecution(base44, {
+      backup_type: 'drive_folders',
+      status: 'success',
+      total_files: Object.values(backupResults).reduce((sum, r) => sum + r.filesCount, 0),
+      files_copied: totalFilesCopied,
+      backup_folder_id: backupFolderId,
+      execution_time_ms: Date.now() - startTime,
+      triggered_by: 'manual',
+      shared_emails: BACKUP_EMAILS
+    });
+
     return Response.json({
       success: true,
       totalFilesCopied,
@@ -151,7 +185,18 @@ Deno.serve(async (req) => {
       foldersWithFiles: sharedFolders,
       timestamp: new Date().toISOString()
     });
-  } catch (error) {
+    } catch (error) {
+    try {
+      await logBackupExecution(base44, {
+        backup_type: 'drive_folders',
+        status: 'failure',
+        error_message: error.message,
+        execution_time_ms: Date.now() - startTime,
+        triggered_by: 'manual'
+      });
+    } catch (logError) {
+      console.error('Erro ao registrar falha:', logError.message);
+    }
     return Response.json({ error: error.message }, { status: 500 });
-  }
-});
+    }
+    });
