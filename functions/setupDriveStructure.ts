@@ -10,7 +10,9 @@ const FOLDER_STRUCTURE = {
   'Notas Fiscais': 'notas_fiscais',
   'Fotos': 'fotos',
   'Documentos': 'documentos',
-  'Contratos': 'contratos'
+  'Contratos': 'contratos',
+  'Orçamentos': 'orcamentos',
+  'Prestação de Contas': 'prestacao_contas'
 };
 
 async function createFolder(accessToken, folderName, parentFolderId) {
