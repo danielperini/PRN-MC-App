@@ -94,6 +94,8 @@ function RubricaRow({ line, onSaved, onCancel, isNew = false }) {
 export default function RubricaManager({ budgetLines, purchases = [] }) {
   const [editingId, setEditingId] = useState(null);
   const [addingNew, setAddingNew] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedRubrica, setSelectedRubrica] = useState(null);
   const queryClient = useQueryClient();
 
   const refresh = () => {
