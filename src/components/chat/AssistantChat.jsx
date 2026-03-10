@@ -124,6 +124,12 @@ export default function AssistantChat() {
     enabled: open,
   });
 
+  const { data: knowledgeDocs = [] } = useQuery({
+    queryKey: ['knowledge-docs-chat'],
+    queryFn: () => base44.entities.KnowledgeDocument.filter({ ativo: true }, '-created_date', 20),
+    enabled: open,
+  });
+
   const suggestedQuestions = [
     'Quais são as metas do 3º Aditivo?',
     'O que é uma atividade META?',
