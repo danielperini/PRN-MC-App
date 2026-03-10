@@ -152,8 +152,8 @@ Formato: {"noticias":[{"titulo":"...","resumo":"resumo em 2 frases...","link":"h
       }
 
       // Fill remaining slots from any available candidates if still short
-      if (selected.length < 5 && candidates.length > 0) {
-        const remaining = candidates.filter(c => !selected.find(s => s.id === c.id));
+      if (selected.length < 5 && prioritized.length > 0) {
+        const remaining = prioritized.filter(c => !selected.find(s => s.id === c.id));
         selected = [...selected, ...shuffleArray(remaining)].slice(0, 5);
       }
     }
