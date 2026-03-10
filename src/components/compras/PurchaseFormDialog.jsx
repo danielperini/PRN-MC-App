@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { X, Sparkles, AlertTriangle, CheckCircle, Loader2, Upload, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import OrcamentoUploadDialog from './OrcamentoUploadDialog';
 
 const METAS = [
   { id: 'MC3A-20', label: 'MC3A-20 — Ações Educativas/Culturais' },
