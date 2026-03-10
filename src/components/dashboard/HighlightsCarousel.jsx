@@ -80,10 +80,20 @@ export default function HighlightsCarousel() {
     if (isSelecting) return;
     setIsSelecting(true);
     try {
-      await base44.functions.invoke('selectDailyNews', {});
+      // Clear previous day's news first
+      const allNews = await base44.entities.NewsHighlight.list('-created_date', 200);
+      const yesterday = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const oldNews = allNews.filter(n => n.data_selecao === yesterday && n.ativo);
+      
+      for (const news of oldNews) {
+        await base44.entities.NewsHighlight.update(news.id, { ativo: false });
+      }
+      
+      // Call search and index function to fetch and select new news
+      await base44.functions.invoke('searchAndIndexNews', {});
       await queryClient.invalidateQueries({ queryKey: ['today-news'] });
     } catch (e) {
-      console.error('selectDailyNews error:', e);
+      console.error('selectTodayNews error:', e);
     } finally {
       setIsSelecting(false);
     }
