@@ -110,11 +110,11 @@ export default function OrcamentoUploadDialog({ open, onOpenChange, onSuccess, p
         setExtractedData(null);
         setUserInputs({});
         onOpenChange(false);
-        alert.success('Orçamento processado e salvo!');
+        toast.success('Orçamento processado e salvo!');
       };
       reader.readAsDataURL(file);
     } catch (error) {
-      alert.error('Erro ao processar: ' + error.message);
+      toast.error('Erro ao processar: ' + error.message);
     } finally {
       setLoading(false);
     }
