@@ -343,6 +343,11 @@ function HistoricoInner() {
   const queryClient = useQueryClient();
   const isCoordenador = currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
 
+  const { data: budgetLines = [] } = useQuery({
+    queryKey: ['budget-lines-ativ'],
+    queryFn: () => base44.entities.BudgetLine.list('codigo', 200),
+  });
+
   const [showDialog, setShowDialog] = useState(false);
   const [editingAtiv, setEditingAtiv] = useState(null);
   const [filterMuseu, setFilterMuseu] = useState('');
