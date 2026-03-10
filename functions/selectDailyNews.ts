@@ -19,9 +19,17 @@ Deno.serve(async (req) => {
     const month = nowBR.toLocaleString('pt-BR', { month: 'long', timeZone: 'America/Sao_Paulo' });
     const year = nowBR.getFullYear();
 
-    // 1. Load all active news
+    // 1. Load all active news with museu classification
     const allNews = await base44.asServiceRole.entities.NewsHighlight.list('-created_date', 500);
     const activeNews = allNews.filter(n => n.ativo);
+
+    // Load open/future activities from reports
+    const allActivities = await base44.asServiceRole.entities.Activity.list('-created_date', 1000);
+    const today = nowBR.toISOString().split('T')[0];
+    const futureActivities = allActivities.filter(a => {
+      if (!a.data_realizacao) return false;
+      return a.data_realizacao >= today;
+    });
 
     // 2. Check if today's 5 are already selected
     const todaySelected = activeNews.filter(n => n.data_selecao === today);
