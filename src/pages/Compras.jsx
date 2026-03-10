@@ -118,6 +118,7 @@ function ComprasInner() {
           {[
             { id: 'lista', label: 'Solicitações' },
             { id: 'orcamento', label: 'Orçamento' },
+            ...(hasGestaoCompras ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
             ...(isCoordenador ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
           ].map(t => (
             <button
