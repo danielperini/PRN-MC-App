@@ -1146,7 +1146,7 @@ function UserManagementInner() {
               {/* Outras permissões */}
               <div className="space-y-3 border-t pt-3">
                 <p className="text-sm font-semibold text-black">Permissões de Acesso</p>
-                {PERMISSIONS.filter(p => p.key !== 'must_submit_monthly_report').map(p => (
+                {PERMISSIONS.filter(p => p.key !== 'must_submit_monthly_reports').map(p => (
                   <div key={p.key} className="flex items-center gap-3">
                     <Checkbox checked={!!permFormData[p.key]} onCheckedChange={() => togglePerm(p.key)} id={`new-${p.key}`} />
                     <label htmlFor={`new-${p.key}`} className="text-sm cursor-pointer">{p.label}</label>
