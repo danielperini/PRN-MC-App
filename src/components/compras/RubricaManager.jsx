@@ -271,7 +271,22 @@ export default function RubricaManager({ budgetLines, purchases = [] }) {
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
-  );
-}
+        </div>
+
+        {/* Dialog de edição */}
+        <EditRubricaDialog
+         rubrica={selectedRubrica}
+         isOpen={editDialogOpen}
+         onClose={() => {
+           setEditDialogOpen(false);
+           setSelectedRubrica(null);
+         }}
+         onSuccess={() => {
+           queryClient.invalidateQueries(['budget-lines']);
+           setEditDialogOpen(false);
+           setSelectedRubrica(null);
+         }}
+        />
+        </div>
+        );
+        }
