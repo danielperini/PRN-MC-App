@@ -94,7 +94,7 @@ function ComprasInner() {
                 )}
               </div>
               <p className="text-sm text-gray-500">
-                {isCoordenador ? 'Visão geral — todas as solicitações' : 'Suas solicitações — 3º Termo Aditivo'}
+                {isCoordenador ? 'Visão geral — todas as solicitações' : 'Solicitações — 3º Termo Aditivo'}
               </p>
             </div>
           </div>
