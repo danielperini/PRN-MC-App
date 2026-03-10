@@ -548,6 +548,14 @@ function ReportEditorInner() {
                   <Button variant="outline" onClick={handleSaveDraft} disabled={saveMutation.isPending}>
                     <Save className="w-4 h-4 mr-2" />Salvar Rascunho
                   </Button>
+                  <Button
+                    className="bg-black hover:bg-gray-800 text-white"
+                    onClick={() => submitMutation.mutate()}
+                    disabled={submitMutation.isPending || !declaracaoAceita || (!(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0))}
+                    title={!declaracaoAceita ? 'Aceite a declaração (aba Avaliação) para enviar' : !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0) ? 'Preencha atividades ou oportunidades para enviar' : ''}
+                  >
+                    <Send className="w-4 h-4 mr-2" />Enviar para Revisão
+                  </Button>
                 </div>
               )}
             </div>
