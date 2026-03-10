@@ -25,7 +25,6 @@ Deno.serve(async (req) => {
 
     // Load open/future activities from reports
     const allActivities = await base44.asServiceRole.entities.Activity.list('-created_date', 1000);
-    const today = nowBR.toISOString().split('T')[0];
     const futureActivities = allActivities.filter(a => {
       if (!a.data_realizacao) return false;
       return a.data_realizacao >= today;
