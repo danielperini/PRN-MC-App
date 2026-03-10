@@ -147,8 +147,14 @@ function GestorArquivosInner() {
               Todos os arquivos são mantidos permanentemente
             </p>
           </div>
-          <div className="w-full md:w-auto flex gap-2">
+          <div className="w-full md:w-auto flex gap-2 flex-wrap">
             <BackupDriveFoldersButton />
+            <button
+              onClick={() => setShowMonthlyBackup(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
+            >
+              📅 Backup Relatórios
+            </button>
             <BackupButton userRole={currentUser?.role} />
           </div>
         </div>
