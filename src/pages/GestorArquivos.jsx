@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import BackupButton from '../components/backup/BackupButton';
 import BackupDriveFoldersButton from '../components/backup/BackupDriveFoldersButton';
+import BackupMonthlyDialog from '../components/backup/BackupMonthlyDialog';
 import BackupHistoryTable from '../components/backup/BackupHistoryTable';
 import FileHierarchy from '../components/gallery/FileHierarchy';
 import FilePreviewModal from '../components/gallery/FilePreviewModal';
@@ -25,6 +26,7 @@ function GestorArquivosInner() {
    const [previewFile, setPreviewFile] = useState(null);
    const [showPreview, setShowPreview] = useState(false);
    const [showHistory, setShowHistory] = useState(false);
+   const [showMonthlyBackup, setShowMonthlyBackup] = useState(false);
    const isCoordinator = currentUser?.role === 'admin';
 
   const { data: backups = [], isLoading } = useQuery({
