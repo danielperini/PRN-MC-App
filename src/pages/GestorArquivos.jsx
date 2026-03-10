@@ -126,10 +126,11 @@ function GestorArquivosInner() {
           <div className="flex-1">
             <h1 className="text-2xl md:text-3xl font-semibold text-black tracking-tight">Galeria de Arquivos</h1>
             <p className="text-gray-500 mt-1 text-xs md:text-sm">
-              Todos os arquivos dos últimos 90 dias
+              Todos os arquivos são mantidos permanentemente
             </p>
           </div>
-          <div className="w-full md:w-auto">
+          <div className="w-full md:w-auto flex gap-2">
+            <BackupDriveFoldersButton />
             <BackupButton userRole={currentUser?.role} />
           </div>
         </div>
