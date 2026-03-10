@@ -10,10 +10,13 @@ import { X, Sparkles, AlertTriangle, CheckCircle, Loader2, Upload, Link as LinkI
 import { toast } from 'sonner';
 
 const METAS = [
-  { id: 'MC3A-20', label: 'MC3A-20 — 30 Ações Educativas/Culturais' },
-  { id: 'MC3A-21', label: 'MC3A-21 — Exposição e Abertura MUMO' },
-  { id: 'MC3A-22', label: 'MC3A-22 — Consultorias e Formação' },
-  { id: 'MC3A-EXTRA', label: 'MC3A-EXTRA — Meta Extra (outros)' },
+  { id: 'MC3A-20', label: 'MC3A-20 — Ações Educativas/Culturais' },
+  { id: 'MC3A-21', label: 'MC3A-21 — Exposição e Produção Cultural' },
+  { id: 'MC3A-22', label: 'MC3A-22 — Comunicação e Divulgação' },
+  { id: 'MC3A-23', label: 'MC3A-23 — Noturno nos Museus 2026' },
+  { id: 'MC3A-24', label: 'MC3A-24 — Emenda Parlamentar' },
+  { id: 'MC3A-25', label: 'MC3A-25 — Outras Ações' },
+  { id: 'MC3A-EXTRA', label: 'MC3A-EXTRA — Ações Extras' },
 ];
 
 const CATEGORIAS = [
