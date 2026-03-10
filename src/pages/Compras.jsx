@@ -205,6 +205,11 @@ function ComprasInner() {
           </div>
         )}
 
+        {/* Rubricas — apenas para gestao_compras */}
+        {tab === 'rubricas' && hasGestaoCompras && (
+          <RubricaManager budgetLines={budgetLines} purchases={purchases} />
+        )}
+
         {/* Aprovações */}
         {tab === 'aprovacoes' && isCoordenador && (
           <AprovacoesFila
