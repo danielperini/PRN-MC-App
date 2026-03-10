@@ -315,18 +315,19 @@ export default function CoordDashboard({ reports = [], isLoading }) {
          </p>
        )}
 
-      {/* KPI Cards with larger fonts */}
+      {/* KPI Cards — atividades e público consideram apenas relatórios APROVADOS */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {[
           { label: 'Total de Relatórios', value: totalRelatorios, icon: FileText },
           { label: 'Pendentes de Revisão', value: pendentes, icon: AlertCircle, highlight: pendentes > 0 },
           { label: 'Aprovados', value: aprovados, icon: CheckCircle },
-          { label: 'Total de Atividades', value: totalAtiv, icon: Target },
-          { label: 'Público Total', value: publicoTotal.toLocaleString('pt-BR'), icon: Users },
+          { label: 'Atividades (aprovados)', value: totalAtiv, icon: Target },
+          { label: 'Público Total (aprovados)', value: publicoTotal.toLocaleString('pt-BR'), icon: Users },
         ].map(kpi => (
           <KpiCard key={kpi.label} {...kpi} />
         ))}
       </div>
+      <p className="text-xs text-gray-400">* Atividades e Público Total consideram apenas relatórios com status <strong>APROVADO</strong></p>
 
       {/* Charts row */}
       <div className="grid md:grid-cols-2 gap-6">
