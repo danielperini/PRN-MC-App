@@ -110,6 +110,21 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
             </div>
           )}
 
+          {/* Rubrica e Saldo */}
+          {budgetLine && (
+            <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
+              <p className="font-semibold text-xs mb-2 text-blue-900">📋 Rubrica Orçamentária</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-blue-800">
+                <div><span className="text-blue-600 font-medium">Código:</span> {budgetLine.codigo}</div>
+                <div><span className="text-blue-600 font-medium">Natureza:</span> {budgetLine.natureza_codigo}</div>
+                <div><span className="text-blue-600 font-medium">Valor PO:</span> R$ {(budgetLine.valor_total_previsto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                <div><span className="text-blue-600 font-medium">Comprometido:</span> R$ {(budgetLine.saldo_comprometido || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                <div><span className="text-blue-600 font-medium">Saldo Atual:</span> R$ {Math.max(0, (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                {budgetLine.ativo === false && <div className="col-span-1"><Badge className="bg-red-100 text-red-800 text-xs">Inativa</Badge></div>}
+              </div>
+            </div>
+          )}
+
           {/* Detalhes */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
             {purchase.categoria && <div><span className="text-gray-400">Categoria</span><p className="font-medium text-gray-700">{purchase.categoria}</p></div>}
@@ -120,6 +135,21 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
             {purchase.aprov_admin_nome && <div><span className="text-gray-400">Admin aprovou</span><p className="font-medium text-gray-700">{purchase.aprov_admin_nome} — {purchase.aprov_admin_data}</p></div>}
             {purchase.data_pagamento && <div><span className="text-gray-400">Data pgto</span><p className="font-medium text-gray-700">{purchase.data_pagamento}</p></div>}
           </div>
+
+          {/* Atividade Relacionada */}
+          {relatedActivity && (
+            <div className="p-3 bg-purple-50 border border-purple-100 rounded-lg">
+              <p className="font-semibold text-xs mb-2 text-purple-900 flex items-center gap-1">
+                <Activity className="w-3 h-3" /> Atividade Relacionada
+              </p>
+              <div className="space-y-1 text-xs text-purple-800">
+                <p><span className="font-medium">Título:</span> {relatedActivity.titulo}</p>
+                {relatedActivity.descricao && <p><span className="font-medium">Descrição:</span> {relatedActivity.descricao.substring(0, 80)}</p>}
+                {relatedActivity.data_realizacao && <p><span className="font-medium">Data:</span> {relatedActivity.data_realizacao}</p>}
+                {relatedActivity.publico_total && <p><span className="font-medium">Público:</span> {relatedActivity.publico_total} pessoas</p>}
+              </div>
+            </div>
+          )}
 
           {/* Links */}
           {(purchase.link_proposta || purchase.comprovante_url) && (
