@@ -264,14 +264,14 @@ Deno.serve(async (req) => {
 ${groupedTermsText}
 
 Regras:
-1. Priorize notícias mais atuais.
-2. Priorize temas ligados ao Projeto Museus Centro Belo Horizonte e ao Viaduto das Artes.
-3. Considere também MUMO, MIS BH e Museu Histórico Abílio Barreto.
-4. Considere resultados gerais da web e também resultados compatíveis com as fontes portalbelohorizonte.com.br/museuscentro e culturadoria.com.br.
-5. Retorne no máximo 10 notícias para este grupo.
-6. Não invente links.
+1. Priorize SEMPRE notícias sobre "Viaduto das Artes" e "Projeto Museus Centro Belo Horizonte".
+2. Em segundo lugar, considere MUMO, MIS BH e Museu Histórico Abílio Barreto.
+3. DESCARTE notícias genéricas de museus no Brasil que não mencionem especificamente esses locais.
+4. Priorize fontes: portalbelohorizonte.com.br/museuscentro, culturadoria.com.br, agendabh.com.br e imprensa local de BH.
+5. Retorne no máximo 8 notícias para este grupo.
+6. Não invente links. Se não encontrar link real, omita a notícia.
 7. Sempre inclua data_publicacao quando conseguir identificar.
-8. Retorne apenas notícias mais atuais e relevantes; descarte notícias antigas se houver opção mais recente.
+8. Descarte notícias com mais de 60 dias se houver opções mais recentes disponíveis.
 
 Retorne apenas JSON no formato solicitado.`,
         add_context_from_internet: true,
