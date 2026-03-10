@@ -345,7 +345,18 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
 
           {/* Fornecedor */}
           <div className="space-y-3 p-4 border border-gray-100 rounded-xl">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Fornecedor</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Fornecedor</Label>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowOrcamentoDialog(true)}
+                className="gap-2 text-xs"
+              >
+                <Upload className="w-3 h-3" />
+                Extrair de Orçamento
+              </Button>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-gray-600 mb-1 block">Nome do fornecedor</Label>
