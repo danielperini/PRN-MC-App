@@ -47,11 +47,6 @@ async function findFolders(accessToken, parentFolderId) {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-
-    if (!user || user.role !== 'admin') {
-      return Response.json({ error: 'Apenas admins podem configurar Drive' }, { status: 403 });
-    }
 
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
 
