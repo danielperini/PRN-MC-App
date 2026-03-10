@@ -64,8 +64,11 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     });
   }, [reports, filterDataInicio, filterDataFim]);
 
-  // Filtrar atividades
-  const allAtivRaw = useMemo(() => reportsFiltrados.flatMap(r => r.atividades || []), [reportsFiltrados]);
+  // Apenas relatórios APROVADOS contam para atividades e público
+  const reportsFiltradosAprovados = useMemo(() => reportsFiltrados.filter(r => r.status === 'APPROVED'), [reportsFiltrados]);
+
+  // Filtrar atividades (somente de relatórios aprovados)
+  const allAtivRaw = useMemo(() => reportsFiltradosAprovados.flatMap(r => r.atividades || []), [reportsFiltradosAprovados]);
   const allAtiv = useMemo(() => {
     let ativs = deduplicarAtividades(allAtivRaw);
     if (filterMuseu) ativs = ativs.filter(a => a.museu === filterMuseu);
