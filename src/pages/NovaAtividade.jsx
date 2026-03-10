@@ -492,6 +492,8 @@ function HistoricoInner() {
               canEdit={canEditActivity(ativ)}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              budgetLines={budgetLines}
+              currentUser={currentUser}
             />
           ))}
         </div>
