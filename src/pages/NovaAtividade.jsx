@@ -430,7 +430,7 @@ function HistoricoInner() {
         <div className="text-center py-16 border border-dashed border-gray-200 rounded-xl">
           <History className="w-12 h-12 text-gray-200 mx-auto mb-3" />
           <p className="text-gray-400 font-medium">
-            {hasActiveFilters ? 'Nenhuma atividade com estes filtros.' : 'Nenhuma atividade registada ainda.'}
+            {hasActiveFilters ? 'Nenhuma atividade com estes filtros.' : 'Nenhuma atividade registrada ainda.'}
           </p>
           {!hasActiveFilters && (
             <Button variant="outline" className="mt-4" onClick={openCreate}>
