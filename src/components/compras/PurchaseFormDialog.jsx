@@ -293,7 +293,7 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
             </div>
           </div>
 
-          {/* Centro de custo */}
+          {/* Centro de custo + Atividade */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs text-gray-600 mb-1 block">Centro de custo</Label>
@@ -303,16 +303,40 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
               </Select>
             </div>
             <div>
-              <Label className="text-xs text-gray-600 mb-1 block">Vinc. Atividade (opcional)</Label>
-              <Select value={form.activity_id} onValueChange={v => set('activity_id', v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione atividade..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={null}>Sem vínculo</SelectItem>
-                  {activities.map(a => <SelectItem key={a.id} value={a.id}>{a.titulo}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs text-gray-600 mb-1 block">
+                Atividade vinculada {isFromActivity && <span className="text-blue-600 font-normal">(herdada)</span>}
+              </Label>
+              {isFromActivity ? (
+                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-800 h-9">
+                  <LinkIcon className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate">{prefill._activity_titulo || form.activity_id?.slice(0,12) + '…'}</span>
+                </div>
+              ) : (
+                <Select value={form.activity_id} onValueChange={v => set('activity_id', v)}>
+                  <SelectTrigger><SelectValue placeholder="Selecione atividade..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={null}>Sem vínculo</SelectItem>
+                    {activities.map(a => <SelectItem key={a.id} value={a.id}>{a.titulo}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
+
+          {/* Banner de rastreabilidade */}
+          {isFromActivity && (
+            <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs space-y-1">
+              <p className="font-semibold text-blue-800">🔗 Rastreabilidade herdada automaticamente</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-blue-700 mt-1">
+                {form.report_id && <span>Relatório: <code className="bg-blue-100 px-1 rounded">{form.report_id.slice(0,8)}…</code></span>}
+                {form.activity_id && <span>Atividade: <code className="bg-blue-100 px-1 rounded">{form.activity_id.slice(0,8)}…</code></span>}
+                {form.meta_id && <span>Meta: <strong>{form.meta_id}</strong></span>}
+                {prefill?.meta_codigo && <span>Cód. Meta: <strong>{prefill.meta_codigo}</strong></span>}
+                {prefill?.classificacao && <span>Classif.: <strong>{prefill.classificacao}</strong></span>}
+                {prefill?.tipo_equipe && <span>Equipe: <strong>{prefill.tipo_equipe}</strong></span>}
+              </div>
+            </div>
+          )}
 
           {/* Fornecedor */}
           <div className="space-y-3 p-4 border border-gray-100 rounded-xl">
