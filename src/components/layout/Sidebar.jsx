@@ -64,6 +64,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle }) {
     { name: 'Dashboard', icon: BarChart3, label: 'Dashboard', show: true },
     { name: 'DashboardProfissional', icon: FileText, label: 'Painel Profissional', show: !isCoordenador },
     { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true },
+    { name: 'NovaAtividade', icon: Layers, label: 'Atividades', show: !isCoordenador },
     { name: 'AssistentePlanejamento', icon: HelpCircle, label: 'Assistente', show: true },
     { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: isCoordenador && canViewMenu('can_manage_files') },
     { name: 'CoordReview', icon: Eye, label: 'Revisão', show: isCoordenador && canViewMenu('can_review_reports') },
