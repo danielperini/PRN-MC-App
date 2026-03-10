@@ -142,17 +142,34 @@ export default function RubricaManager({ budgetLines, purchases = [] }) {
          ))}
       </div>
 
-      {/* Barra geral */}
-      <div className="p-4 border border-gray-100 rounded-xl bg-white">
-        <div className="flex justify-between text-xs text-gray-500 mb-2">
-          <span>Utilização geral do orçamento</span>
-          <span>{totalInicial > 0 ? ((totalComprometido / totalInicial) * 100).toFixed(1) : 0}% comprometido</span>
+      {/* Barra geral - Consumo por andamento */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Aprovado vs Original */}
+        <div className="p-4 border border-gray-100 rounded-xl bg-white">
+          <div className="flex justify-between text-xs text-gray-500 mb-2">
+            <span>Aprovações (Comprometimento)</span>
+            <span>{totalSaldoOriginal > 0 ? ((totalAprovado / totalSaldoOriginal) * 100).toFixed(1) : 0}% aprovado</span>
+          </div>
+          <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-amber-400 rounded-full transition-all"
+              style={{ width: `${totalSaldoOriginal > 0 ? Math.min((totalAprovado / totalSaldoOriginal) * 100, 100) : 0}%` }}
+            />
+          </div>
         </div>
-        <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-amber-400 rounded-full transition-all"
-            style={{ width: `${totalInicial > 0 ? Math.min((totalComprometido / totalInicial) * 100, 100) : 0}%` }}
-          />
+
+        {/* Consumido vs Aprovado */}
+        <div className="p-4 border border-gray-100 rounded-xl bg-white">
+          <div className="flex justify-between text-xs text-gray-500 mb-2">
+            <span>Consumo Real (Pagos)</span>
+            <span>{totalAprovado > 0 ? ((totalPago / totalAprovado) * 100).toFixed(1) : 0}% pago</span>
+          </div>
+          <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-400 rounded-full transition-all"
+              style={{ width: `${totalAprovado > 0 ? Math.min((totalPago / totalAprovado) * 100, 100) : 0}%` }}
+            />
+          </div>
         </div>
       </div>
 
