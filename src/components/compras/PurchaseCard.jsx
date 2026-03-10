@@ -1,0 +1,112 @@
+import React, { useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ChevronDown, ChevronUp, ExternalLink, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
+
+export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCoordenador, onRefresh }) {
+  const [expanded, setExpanded] = useState(false);
+  const s = statusConfig[purchase.status] || { label: purchase.status, color: 'bg-gray-100 text-gray-700' };
+  const budgetLine = budgetLines.find(l => l.id === purchase.budgetline_id);
+
+  const META_LABELS = {
+    'MC3A-20': 'Ações Educativas',
+    'MC3A-21': 'Exposição MUMO',
+    'MC3A-22': 'Consultorias',
+    'MC3A-EXTRA': 'Meta Extra',
+  };
+
+  const scoreColor = purchase.ai_meta_score >= 80 ? 'text-green-700 bg-green-50' : purchase.ai_meta_score >= 50 ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50';
+
+  return (
+    <div className="border border-gray-100 rounded-xl hover:border-gray-200 transition-colors">
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.color}`}>{s.label}</span>
+              {purchase.meta_id && (
+                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{META_LABELS[purchase.meta_id] || purchase.meta_id}</span>
+              )}
+              {purchase.tipo_gasto && (
+                <span className="text-xs border border-gray-200 text-gray-500 px-2 py-0.5 rounded-full">{purchase.tipo_gasto}</span>
+              )}
+              {purchase.ai_meta_score !== undefined && purchase.ai_meta_score !== null && (
+                <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${scoreColor}`}>
+                  <Sparkles className="w-3 h-3" />IA: {purchase.ai_meta_score}%
+                </span>
+              )}
+            </div>
+            <p className="font-medium text-black text-sm truncate">{purchase.descricao_item}</p>
+            <div className="flex flex-wrap gap-3 mt-1">
+              {purchase.fornecedor_nome && <span className="text-xs text-gray-500">{purchase.fornecedor_nome}</span>}
+              {budgetLine && <span className="text-xs text-gray-400">[{budgetLine.codigo}] {budgetLine.descricao?.substring(0, 40)}...</span>}
+            </div>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="text-right">
+              <p className="font-bold text-black">R$ {(purchase.valor_solicitado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              {purchase.valor_aprovado_admin && purchase.valor_aprovado_admin !== purchase.valor_solicitado && (
+                <p className="text-xs text-green-600">Aprv: R$ {purchase.valor_aprovado_admin.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              )}
+            </div>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpanded(!expanded)}>
+              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="px-4 pb-4 space-y-4 border-t border-gray-50 pt-4">
+          {/* Análise IA */}
+          {purchase.ai_analise && (
+            <div className={`p-3 rounded-lg text-xs ${purchase.ai_meta_score >= 80 ? 'bg-green-50 border border-green-100' : 'bg-amber-50 border border-amber-100'}`}>
+              <p className="font-semibold mb-1 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Análise da IA</p>
+              <p className="text-gray-700">{purchase.ai_analise}</p>
+              {purchase.ai_meta_sugerida && purchase.ai_meta_sugerida !== purchase.meta_id && (
+                <p className="mt-1 text-amber-700 font-medium">Meta sugerida: {purchase.ai_meta_sugerida}</p>
+              )}
+            </div>
+          )}
+
+          {/* Detalhes */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+            {purchase.categoria && <div><span className="text-gray-400">Categoria</span><p className="font-medium text-gray-700">{purchase.categoria}</p></div>}
+            {purchase.centro_custo && <div><span className="text-gray-400">Centro de custo</span><p className="font-medium text-gray-700">{purchase.centro_custo}</p></div>}
+            {purchase.meio_pagamento && <div><span className="text-gray-400">Pagamento</span><p className="font-medium text-gray-700">{purchase.meio_pagamento}</p></div>}
+            {purchase.qtd && <div><span className="text-gray-400">Qtd</span><p className="font-medium text-gray-700">{purchase.qtd} {purchase.unidade}</p></div>}
+            {purchase.aprov_coord_nome && <div><span className="text-gray-400">Coord. aprovou</span><p className="font-medium text-gray-700">{purchase.aprov_coord_nome} — {purchase.aprov_coord_data}</p></div>}
+            {purchase.aprov_admin_nome && <div><span className="text-gray-400">Admin aprovou</span><p className="font-medium text-gray-700">{purchase.aprov_admin_nome} — {purchase.aprov_admin_data}</p></div>}
+            {purchase.data_pagamento && <div><span className="text-gray-400">Data pgto</span><p className="font-medium text-gray-700">{purchase.data_pagamento}</p></div>}
+          </div>
+
+          {/* Links */}
+          {(purchase.link_proposta || purchase.comprovante_url) && (
+            <div className="flex gap-2">
+              {purchase.link_proposta && (
+                <a href={purchase.link_proposta} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" size="sm" className="text-xs gap-1"><ExternalLink className="w-3 h-3" />Ver Proposta</Button>
+                </a>
+              )}
+              {purchase.comprovante_url && (
+                <a href={purchase.comprovante_url} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" size="sm" className="text-xs gap-1"><ExternalLink className="w-3 h-3" />Comprovante/NF</Button>
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Comentários de aprovação */}
+          {(purchase.aprov_coord_comentario || purchase.aprov_admin_comentario) && (
+            <div className="p-3 bg-gray-50 rounded-lg text-xs space-y-1">
+              {purchase.aprov_coord_comentario && <p><strong>Coord:</strong> {purchase.aprov_coord_comentario}</p>}
+              {purchase.aprov_admin_comentario && <p><strong>Admin:</strong> {purchase.aprov_admin_comentario}</p>}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
