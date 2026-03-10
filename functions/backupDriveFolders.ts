@@ -63,21 +63,26 @@ async function createBackupFolder(accessToken) {
 }
 
 async function shareFolder(folderId, email, accessToken) {
-  await fetch(
-    `https://www.googleapis.com/drive/v3/files/${folderId}/permissions?supportsAllDrives=true`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        role: 'owner',
-        type: 'user',
-        emailAddress: email
-      })
-    }
-  );
+   const response = await fetch(
+     `https://www.googleapis.com/drive/v3/files/${folderId}/permissions?supportsAllDrives=true`,
+     {
+       method: 'POST',
+       headers: {
+         Authorization: `Bearer ${accessToken}`,
+         'Content-Type': 'application/json'
+       },
+       body: JSON.stringify({
+         role: 'owner',
+         type: 'user',
+         emailAddress: email
+       })
+     }
+   );
+
+   if (!response.ok) {
+     console.error(`Falha ao compartilhar com ${email}`);
+   }
+   return response.ok;
 }
 
 Deno.serve(async (req) => {
