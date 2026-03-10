@@ -63,26 +63,28 @@ async function createBackupFolder(accessToken) {
 }
 
 async function shareFolder(folderId, email, accessToken) {
-   const response = await fetch(
-     `https://www.googleapis.com/drive/v3/files/${folderId}/permissions?supportsAllDrives=true`,
-     {
-       method: 'POST',
-       headers: {
-         Authorization: `Bearer ${accessToken}`,
-         'Content-Type': 'application/json'
-       },
-       body: JSON.stringify({
-         role: 'owner',
-         type: 'user',
-         emailAddress: email
-       })
-     }
-   );
+   try {
+     const response = await fetch(
+       `https://www.googleapis.com/drive/v3/files/${folderId}/permissions?supportsAllDrives=true`,
+       {
+         method: 'POST',
+         headers: {
+           Authorization: `Bearer ${accessToken}`,
+           'Content-Type': 'application/json'
+         },
+         body: JSON.stringify({
+           role: 'editor',
+           type: 'user',
+           emailAddress: email
+         })
+       }
+     );
 
-   if (!response.ok) {
-     console.error(`Falha ao compartilhar com ${email}`);
+     return response.ok;
+   } catch (error) {
+     console.error(`Erro ao compartilhar com ${email}:`, error.message);
+     return false;
    }
-   return response.ok;
 }
 
 Deno.serve(async (req) => {
@@ -104,12 +106,13 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Falha ao criar pasta de backup' }, { status: 500 });
     }
 
-    for (const email of BACKUP_EMAILS) {
-      await shareFolder(backupFolderId, email, accessToken);
-    }
+    // Compartilhar pasta de backup (não-bloqueante)
+    const sharePromises = BACKUP_EMAILS.map(email => shareFolder(backupFolderId, email, accessToken));
+    await Promise.all(sharePromises);
 
     const backupResults = {};
     let totalFilesCopied = 0;
+    const sharedFolders = [];
 
     for (const [folderKey, folderId] of Object.entries(FOLDER_STRUCTURE)) {
       const files = await listFolderContents(folderId, accessToken);
@@ -124,12 +127,19 @@ Deno.serve(async (req) => {
           }
         }
       }
+
+      if (backupResults[folderKey].filesCopied > 0) {
+        sharedFolders.push(folderKey);
+      }
     }
 
     return Response.json({
       success: true,
       totalFilesCopied,
+      backupFolderId,
       sharedWith: BACKUP_EMAILS,
+      foldersProcessed: Object.keys(FOLDER_STRUCTURE),
+      foldersWithFiles: sharedFolders,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
