@@ -69,6 +69,7 @@ import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
 import GestaoPagamentos from './pages/GestaoPagamentos';
+import RelatorioMeta from './pages/RelatorioMeta';
 import __Layout from './Layout.jsx';
 
 
@@ -95,6 +96,7 @@ export const PAGES = {
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
     "GestaoPagamentos": GestaoPagamentos,
+    "RelatorioMeta": RelatorioMeta,
 }
 
 export const pagesConfig = {
