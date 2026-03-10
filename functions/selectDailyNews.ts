@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
       }
     } else {
       // Need more news — use AI to suggest varied search terms
-      selected = [...candidates];
+      selected = [...prioritized];
 
       const aiResult = await base44.integrations.Core.InvokeLLM({
         prompt: `Hoje é ${today} (${month} de ${year}). Você é especialista em comunicação cultural de Belo Horizonte.
