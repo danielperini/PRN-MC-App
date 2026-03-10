@@ -56,9 +56,15 @@ Deno.serve(async (req) => {
 
     let selected = [];
 
-    if (candidates.length >= 5) {
-      // Enough candidates — pick 5 randomly
-      selected = shuffleArray(candidates).slice(0, 5);
+    if (prioritized.length >= 5) {
+      // Enough candidates — pick 5, respecting priority for museu_centro when active
+      if (futureActivities.length > 0) {
+        const museuCentroNews = prioritized.filter(n => n.museu_classificacao === 'museu_centro').slice(0, 3);
+        const otherNews = shuffleArray(prioritized.filter(n => n.museu_classificacao !== 'museu_centro')).slice(0, 2);
+        selected = [...museuCentroNews, ...otherNews];
+      } else {
+        selected = shuffleArray(prioritized).slice(0, 5);
+      }
     } else {
       // Need more news — use AI to suggest varied search terms
       selected = [...candidates];
