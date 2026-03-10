@@ -256,6 +256,14 @@ function AtividadeCard({ atividade, canEdit, onEdit, onDelete, budgetLines, curr
               </Button>
             </Link>
           )}
+          <Button
+            variant="ghost" size="sm"
+            className="text-xs gap-1 h-7 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50"
+            onClick={() => setShowCompraDialog(true)}
+            title="Criar compra vinculada a esta atividade"
+          >
+            <ShoppingCart className="w-3 h-3" />Compra
+          </Button>
           {canEdit && (
             <>
               <Button
