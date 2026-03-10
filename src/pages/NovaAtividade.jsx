@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, History, Edit2, Trash2, Link as LinkIcon, Filter, Activity, X, AlertTriangle } from 'lucide-react';
+import { Plus, History, Edit2, Trash2, Link as LinkIcon, Filter, Activity, X, AlertTriangle, ShoppingCart } from 'lucide-react';
+import PurchaseFormDialog from '../components/compras/PurchaseFormDialog';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
