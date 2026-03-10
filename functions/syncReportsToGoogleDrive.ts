@@ -38,93 +38,144 @@ async function uploadFileToDrive(accessToken, fileName, content, mimeType, paren
 }
 
 async function generateReportPDF(report, activities) {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
-    const chunks = [];
-    doc.on('data', chunk => chunks.push(chunk));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
+  const pdfDoc = await PDFDocument.create();
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    // Cabeçalho
-    doc.fontSize(16).font('Helvetica-Bold').text('RELATÓRIO MENSAL DE ATIVIDADES', { align: 'center' });
-    doc.moveDown(0.3);
-    doc.fontSize(13).font('Helvetica').text(`${report.mes_referencia || ''} / ${report.ano || ''}`, { align: 'center' });
-    doc.moveDown(1);
+  function addPage() {
+    const page = pdfDoc.addPage([595, 842]); // A4
+    return { page, y: 800 };
+  }
 
-    // Identificação
-    doc.fontSize(13).font('Helvetica-Bold').text('IDENTIFICAÇÃO');
-    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
-    doc.moveDown(0.5);
-    doc.fontSize(11).font('Helvetica');
-    if (report.numero_protocolo) doc.text(`Protocolo: ${report.numero_protocolo}`);
-    doc.text(`Profissional: ${report.author_name || '-'}`);
-    if (report.funcao) doc.text(`Função: ${report.funcao}`);
-    doc.text(`Museu: ${report.museu || '-'}`);
-    if (report.equipe) doc.text(`Equipe: ${report.equipe}`);
-    doc.text(`Status: ${report.status || '-'}`);
-    doc.moveDown(1);
+  function drawText(page, yRef, text, { font = regularFont, size = 11, color = rgb(0, 0, 0), x = 50, maxWidth = 495 } = {}) {
+    if (!text) return yRef;
+    // Limpar HTML tags e caracteres especiais problemáticos
+    const clean = String(text).replace(/<[^>]*>/g, '').replace(/[^\x00-\x7F]/g, c => {
+      const map = { 'ã': 'a', 'â': 'a', 'á': 'a', 'à': 'a', 'ä': 'a', 'Ã': 'A', 'Â': 'A', 'Á': 'A',
+        'ê': 'e', 'é': 'e', 'è': 'e', 'ë': 'e', 'Ê': 'E', 'É': 'E',
+        'î': 'i', 'í': 'i', 'ì': 'i', 'ï': 'i', 'Î': 'I', 'Í': 'I',
+        'õ': 'o', 'ô': 'o', 'ó': 'o', 'ò': 'o', 'ö': 'o', 'Õ': 'O', 'Ô': 'O', 'Ó': 'O',
+        'ú': 'u', 'û': 'u', 'ù': 'u', 'ü': 'u', 'Ú': 'U', 'Û': 'U',
+        'ç': 'c', 'Ç': 'C', 'ñ': 'n', 'Ñ': 'N', '°': 'o', '–': '-', '—': '-', '"': '"', '"': '"', ''': "'", ''': "'"
+      };
+      return map[c] || '?';
+    });
 
-    // Resumo Executivo
-    if (report.resumo_executivo) {
-      doc.fontSize(13).font('Helvetica-Bold').text('RESUMO EXECUTIVO');
-      doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
-      doc.moveDown(0.5);
-      doc.fontSize(11).font('Helvetica').text(report.resumo_executivo, { align: 'justify' });
-      doc.moveDown(1);
-    }
+    const lineHeight = size + 4;
+    const words = clean.split(' ');
+    let line = '';
+    let currentY = yRef;
 
-    // Atividades
-    const atividadesEmbutidas = Array.isArray(report.atividades) ? report.atividades : [];
-    const atividadesEntidade = Array.isArray(activities) ? activities : [];
-    const todasAtividades = [...atividadesEmbutidas, ...atividadesEntidade];
-
-    if (todasAtividades.length > 0) {
-      doc.fontSize(13).font('Helvetica-Bold').text('ATIVIDADES REALIZADAS');
-      doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
-      doc.moveDown(0.5);
-
-      todasAtividades.forEach((ativ, idx) => {
-        const titulo = ativ.titulo || ativ.nome || `Atividade ${idx + 1}`;
-        doc.fontSize(11).font('Helvetica-Bold').text(`${idx + 1}. ${titulo}`);
-        if (ativ.classificacao) doc.fontSize(10).font('Helvetica').text(`Classificação: ${ativ.classificacao}`);
-        if (ativ.descricao) doc.fontSize(10).font('Helvetica').text(ativ.descricao, { indent: 15, align: 'justify' });
-        if (ativ.data_realizacao) doc.fontSize(10).font('Helvetica').text(`Data: ${ativ.data_realizacao}`);
-        if (ativ.publico_total) doc.fontSize(10).font('Helvetica').text(`Público Total: ${ativ.publico_total}`);
-        if (ativ.meta_codigo) doc.fontSize(10).font('Helvetica').text(`Meta: ${ativ.meta_codigo}`);
-        doc.moveDown(0.5);
-      });
-      doc.moveDown(0.5);
-    }
-
-    // Avaliação
-    const temAvaliacao = report.avaliacao_pontos_positivos || report.avaliacao_desafios || report.avaliacao_sugestoes;
-    if (temAvaliacao) {
-      doc.fontSize(13).font('Helvetica-Bold').text('AVALIAÇÃO');
-      doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
-      doc.moveDown(0.5);
-      if (report.avaliacao_pontos_positivos) {
-        doc.fontSize(11).font('Helvetica-Bold').text('Pontos Positivos:');
-        doc.fontSize(11).font('Helvetica').text(report.avaliacao_pontos_positivos, { align: 'justify' });
-        doc.moveDown(0.5);
-      }
-      if (report.avaliacao_desafios) {
-        doc.fontSize(11).font('Helvetica-Bold').text('Desafios:');
-        doc.fontSize(11).font('Helvetica').text(report.avaliacao_desafios, { align: 'justify' });
-        doc.moveDown(0.5);
-      }
-      if (report.avaliacao_sugestoes) {
-        doc.fontSize(11).font('Helvetica-Bold').text('Sugestões:');
-        doc.fontSize(11).font('Helvetica').text(report.avaliacao_sugestoes, { align: 'justify' });
+    for (const word of words) {
+      const testLine = line + (line ? ' ' : '') + word;
+      const lineWidth = font.widthOfTextAtSize(testLine, size);
+      if (lineWidth > maxWidth && line) {
+        if (currentY < 60) {
+          const { page: newPage, y: newY } = addPage();
+          page = newPage;
+          currentY = newY;
+        }
+        page.drawText(line, { x, y: currentY, size, font, color });
+        currentY -= lineHeight;
+        line = word;
+      } else {
+        line = testLine;
       }
     }
+    if (line) {
+      if (currentY < 60) {
+        const { page: newPage, y: newY } = addPage();
+        page = newPage;
+        currentY = newY;
+      }
+      page.drawText(line, { x, y: currentY, size, font, color });
+      currentY -= lineHeight;
+    }
+    return currentY;
+  }
 
-    // Rodapé
-    doc.moveDown(2);
-    doc.fontSize(9).font('Helvetica').fillColor('gray')
-      .text(`Gerado em: ${new Date().toLocaleString('pt-BR')} | Plataforma Gestão MC2026`, { align: 'center' });
+  let { page, y } = addPage();
 
-    doc.end();
+  // Cabeçalho
+  y = drawText(page, y, 'RELATORIO MENSAL DE ATIVIDADES', { font: boldFont, size: 16 });
+  y -= 4;
+  y = drawText(page, y, `${report.mes_referencia || ''} / ${report.ano || ''}`, { size: 13 });
+  y -= 20;
+
+  // Identificação
+  y = drawText(page, y, 'IDENTIFICACAO', { font: boldFont, size: 13 });
+  page.drawLine({ start: { x: 50, y }, end: { x: 545, y }, thickness: 1, color: rgb(0.3, 0.3, 0.3) });
+  y -= 14;
+  if (report.numero_protocolo) y = drawText(page, y, `Protocolo: ${report.numero_protocolo}`);
+  y = drawText(page, y, `Profissional: ${report.author_name || '-'}`);
+  if (report.funcao) y = drawText(page, y, `Funcao: ${report.funcao}`);
+  y = drawText(page, y, `Museu: ${report.museu || '-'}`);
+  if (report.equipe) y = drawText(page, y, `Equipe: ${report.equipe}`);
+  y = drawText(page, y, `Status: ${report.status || '-'}`);
+  y -= 16;
+
+  // Resumo Executivo
+  if (report.resumo_executivo) {
+    y = drawText(page, y, 'RESUMO EXECUTIVO', { font: boldFont, size: 13 });
+    page.drawLine({ start: { x: 50, y }, end: { x: 545, y }, thickness: 1, color: rgb(0.3, 0.3, 0.3) });
+    y -= 14;
+    y = drawText(page, y, report.resumo_executivo);
+    y -= 16;
+  }
+
+  // Atividades
+  const atividadesEmbutidas = Array.isArray(report.atividades) ? report.atividades : [];
+  const atividadesEntidade = Array.isArray(activities) ? activities : [];
+  const todasAtividades = [...atividadesEmbutidas, ...atividadesEntidade];
+
+  if (todasAtividades.length > 0) {
+    y = drawText(page, y, 'ATIVIDADES REALIZADAS', { font: boldFont, size: 13 });
+    page.drawLine({ start: { x: 50, y }, end: { x: 545, y }, thickness: 1, color: rgb(0.3, 0.3, 0.3) });
+    y -= 14;
+
+    for (let idx = 0; idx < todasAtividades.length; idx++) {
+      const ativ = todasAtividades[idx];
+      const titulo = ativ.titulo || ativ.nome || `Atividade ${idx + 1}`;
+      y = drawText(page, y, `${idx + 1}. ${titulo}`, { font: boldFont, size: 11 });
+      if (ativ.classificacao) y = drawText(page, y, `Classificacao: ${ativ.classificacao}`, { size: 10 });
+      if (ativ.descricao) y = drawText(page, y, ativ.descricao, { size: 10, x: 65 });
+      if (ativ.data_realizacao) y = drawText(page, y, `Data: ${ativ.data_realizacao}`, { size: 10 });
+      if (ativ.publico_total) y = drawText(page, y, `Publico Total: ${ativ.publico_total}`, { size: 10 });
+      if (ativ.meta_codigo) y = drawText(page, y, `Meta: ${ativ.meta_codigo}`, { size: 10 });
+      y -= 8;
+    }
+    y -= 8;
+  }
+
+  // Avaliação
+  if (report.avaliacao_pontos_positivos || report.avaliacao_desafios || report.avaliacao_sugestoes) {
+    y = drawText(page, y, 'AVALIACAO', { font: boldFont, size: 13 });
+    page.drawLine({ start: { x: 50, y }, end: { x: 545, y }, thickness: 1, color: rgb(0.3, 0.3, 0.3) });
+    y -= 14;
+    if (report.avaliacao_pontos_positivos) {
+      y = drawText(page, y, 'Pontos Positivos:', { font: boldFont });
+      y = drawText(page, y, report.avaliacao_pontos_positivos);
+      y -= 8;
+    }
+    if (report.avaliacao_desafios) {
+      y = drawText(page, y, 'Desafios:', { font: boldFont });
+      y = drawText(page, y, report.avaliacao_desafios);
+      y -= 8;
+    }
+    if (report.avaliacao_sugestoes) {
+      y = drawText(page, y, 'Sugestoes:', { font: boldFont });
+      y = drawText(page, y, report.avaliacao_sugestoes);
+    }
+  }
+
+  // Rodapé
+  const lastPage = pdfDoc.getPage(pdfDoc.getPageCount() - 1);
+  lastPage.drawText(`Gerado em: ${new Date().toISOString()} | Plataforma Gestao MC2026`, {
+    x: 50, y: 30, size: 8, font: regularFont, color: rgb(0.5, 0.5, 0.5)
   });
+
+  const pdfBytes = await pdfDoc.save();
+  return pdfBytes;
 }
 
 Deno.serve(async (req) => {
