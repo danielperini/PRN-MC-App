@@ -132,6 +132,10 @@ function GestorArquivosInner() {
 
       return (
       <>
+      <BackupMonthlyDialog 
+        isOpen={showMonthlyBackup} 
+        onClose={() => setShowMonthlyBackup(false)} 
+      />
       <FilePreviewModal 
       file={previewFile} 
       isOpen={showPreview} 
