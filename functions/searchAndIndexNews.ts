@@ -155,6 +155,20 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
+    // Termos prioritários — Viaduto das Artes e Projeto Museus Centro têm peso dobrado
+    const priorityTerms = [
+      'Viaduto das Artes BH',
+      'Viaduto das Artes Belo Horizonte',
+      'Projeto Museus Centro BH',
+      'Projeto Museus Centro Belo Horizonte',
+      'notícias viaduto das artes belo horizonte',
+      'agenda viaduto das artes bh',
+      'programação viaduto das artes 2025',
+      'novidades viaduto das artes belo horizonte',
+      'eventos projeto museus centro belo horizonte',
+      'programação projeto museus centro 2025',
+    ];
+
     const shortTailTerms = [
       'Museu da Moda BH',
       'MUMO Belo Horizonte',
@@ -162,23 +176,17 @@ Deno.serve(async (req) => {
       'MIS BH',
       'Museu Histórico Abílio Barreto',
       'MHAB Belo Horizonte',
-      'Viaduto das Artes BH',
       'Museus Centro Belo Horizonte',
       'circuito museus centro BH',
-      'projeto museus centro BH'
     ];
 
     const mediumTailTerms = [
       'programação cultural museus centro belo horizonte',
       'eventos museus centro de belo horizonte',
-      'notícias viaduto das artes belo horizonte',
-      'agenda viaduto das artes bh',
       'atividades museu da moda belo horizonte',
       'exposição mis belo horizonte',
       'museu histórico abílio barreto programação',
       'circuito cultural museus centro bh',
-      'projeto museus centro programação cultural',
-      'ações culturais museus centro belo horizonte'
     ];
 
     const longTailTerms = [
@@ -186,12 +194,7 @@ Deno.serve(async (req) => {
       'programação cultural recente do viaduto das artes em belo horizonte',
       'eventos e exposições no museu da imagem e do som de belo horizonte',
       'ações educativas do museu histórico abílio barreto em belo horizonte',
-      'cobertura de imprensa sobre o museu da moda de belo horizonte',
-      'notícias atuais sobre circuito de museus no centro de belo horizonte',
-      'atividades culturais gratuitas no viaduto das artes em bh',
-      'reportagens sobre exposições nos museus do centro de belo horizonte',
       'novidades do projeto museus centro e viaduto das artes em bh',
-      'matérias recentes sobre cultura e museus no centro de belo horizonte'
     ];
 
     const allSearchTerms = [
