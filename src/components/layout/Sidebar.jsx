@@ -18,7 +18,8 @@ import {
   CalendarDays,
   Layers,
   BookOpen,
-  ShoppingCart
+  ShoppingCart,
+  Banknote
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
