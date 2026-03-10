@@ -247,11 +247,15 @@ export default function RubricaManager({ budgetLines, purchases = [] }) {
                     <td className="py-2.5 px-2">
                       <Button
                         size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100"
-                        onClick={() => { setEditingId(line.id); setAddingNew(false); }}
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => {
+                          setSelectedRubrica(line);
+                          setEditDialogOpen(true);
+                          setAddingNew(false);
+                        }}
+                        title="Editar valores"
                       >
-                        <Pencil className="w-3.5 h-3.5" />
+                        <Edit3 className="w-3.5 h-3.5" />
                       </Button>
                     </td>
                   </tr>
