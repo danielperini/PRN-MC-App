@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronDown, FileIcon, FolderIcon } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileIcon, FolderIcon, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import FilePreview from './FilePreview';
 import { Download } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function FileHierarchy({ backups = [] }) {
+export default function FileHierarchy({ backups = [], onPreview }) {
   const [expandedReports, setExpandedReports] = useState(new Set());
   const [expandedActivities, setExpandedActivities] = useState(new Set());
 
@@ -49,6 +48,17 @@ export default function FileHierarchy({ backups = [] }) {
       toast.success(`Download iniciado: ${file.fileName}`);
     } else {
       toast.error('URL do arquivo não disponível');
+    }
+  };
+
+  const handlePreview = (file) => {
+    const isPdf = file.fileType === 'application/pdf';
+    const isImage = file.fileType?.startsWith('image/');
+
+    if ((isPdf || isImage) && onPreview) {
+      onPreview(file);
+    } else {
+      toast.info('Tipo de arquivo não suportado para pré-visualização');
     }
   };
 
@@ -110,6 +120,8 @@ export default function FileHierarchy({ backups = [] }) {
                     <div className="bg-white divide-y">
                       {files.map((file) => {
                         const isImage = file.fileType?.startsWith('image/');
+                        const isPdf = file.fileType === 'application/pdf';
+                        const canPreview = isPdf || isImage;
                         return (
                         <div key={file.id} className="px-8 py-3 flex items-start gap-3 hover:bg-gray-50">
                           {isImage ? (
@@ -117,7 +129,7 @@ export default function FileHierarchy({ backups = [] }) {
                               src={file.fileUrl}
                               alt={file.fileName}
                               className="w-12 h-12 object-cover rounded-md flex-shrink-0 border border-gray-200 cursor-pointer"
-                              onClick={() => window.open(file.fileUrl, '_blank')}
+                              onClick={() => handlePreview(file)}
                             />
                           ) : (
                             <FileIcon className="w-4 h-4 text-gray-400 mt-1 flex-shrink-0" />
@@ -130,6 +142,17 @@ export default function FileHierarchy({ backups = [] }) {
                               {new Date(file.timestamp).toLocaleString('pt-BR')} · {file.size}
                             </p>
                           </div>
+                          {canPreview && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handlePreview(file)}
+                              className="flex-shrink-0"
+                              title="Pré-visualizar"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"
