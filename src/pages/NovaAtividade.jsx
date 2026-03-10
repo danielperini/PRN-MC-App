@@ -371,7 +371,7 @@ function HistoricoInner() {
             <p className="text-sm text-gray-500">
               {isCoordenador
                 ? 'Todas as atividades registadas na plataforma'
-                : 'As suas atividades registadas'}
+                : 'As suas atividades registradas'}
             </p>
           </div>
         </div>
