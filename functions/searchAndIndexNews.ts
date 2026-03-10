@@ -429,6 +429,16 @@ Retorne apenas JSON no formato solicitado.`,
       return new Date(n.data_encontrada) < oneWeekAgo;
     });
 
+    // 7) Deactivate news older than 7 days for memory management
+    let deactivatedCount = 0;
+    for (const news of oldNews) {
+      if (deactivatedCount >= 5) break;
+      await base44.asServiceRole.entities.NewsHighlight.update(news.id, {
+        ativo: false
+      });
+      deactivatedCount++;
+    }
+
     for (const news of oldNews) {
       await base44.asServiceRole.entities.NewsHighlight.update(news.id, {
         ativo: false
