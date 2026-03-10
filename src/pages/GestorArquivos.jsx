@@ -212,13 +212,40 @@ function GestorArquivosInner() {
            <FileHierarchy backups={backups} />
          )}
 
+        {/* Alertas de Duplicação */}
+        {isCoordinator && duplicateWarnings.length > 0 && (
+         <div className="mt-6 md:mt-8 space-y-3">
+           {duplicateWarnings.map((dup, idx) => (
+             <div key={idx} className="p-3 md:p-4 bg-amber-50 border border-amber-200 rounded-lg md:rounded-xl">
+               <div className="flex items-start gap-3">
+                 <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                 <div className="flex-1">
+                   <p className="text-xs md:text-sm font-semibold text-amber-900">
+                     Risco de duplicação: {dup.risk_score}%
+                   </p>
+                   <p className="text-xs text-amber-800 mt-1">
+                     <strong>"{dup.activity1_titulo}"</strong> e <strong>"{dup.activity2_titulo}"</strong> podem ser a mesma atividade.
+                   </p>
+                   {dup.public_match && (
+                     <p className="text-xs text-amber-700 mt-1">⚠️ Públicos similares detectados</p>
+                   )}
+                   {dup.date_proximity && (
+                     <p className="text-xs text-amber-700">⚠️ Datas muito próximas</p>
+                   )}
+                 </div>
+               </div>
+             </div>
+           ))}
+         </div>
+        )}
+
         {/* Info */}
         <div className="mt-6 md:mt-8 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg md:rounded-xl">
           <p className="text-xs md:text-sm text-blue-900">
-            <strong>Localização dos Backups:</strong> Google Drive → Relatórios Backup → [Data do Backup]
+            <strong>Visibilidade:</strong> Apenas relatórios aprovados são exibidos nesta galeria.
           </p>
           <p className="text-xs text-blue-700 mt-2">
-            Os backups incluem todos os relatórios, atividades e anexos da plataforma salvos em arquivos JSON estruturados.
+            Aviso: Sistema detecta automaticamente atividades duplicadas com risco superior a 80%.
           </p>
         </div>
       </div>
