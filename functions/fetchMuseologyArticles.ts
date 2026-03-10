@@ -6,6 +6,7 @@ const MUSEOLOGY_SOURCES = [
   'https://dasartes.com.br/',
   'https://dobras.emnuvens.com.br/dobras',
   'https://ufjf.repositorio.federado.br/', // Repositório UFJF
+  'https://funartemaisdigital.funarte.gov.br/periodico-bd/revista-educacao-artes-e-inclusao/?view_mode=masonry&perpage=12&paged=1&order=ASC&orderby=date&fetch_only=thumbnail%2Ccreation_date%2Ctitle%2Cdescription&fetch_only_meta='
 ];
 
 const THREE_MONTHS_AGO = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -80,13 +81,18 @@ Deno.serve(async (req) => {
         }
       },
       add_context_from_internet: true,
-      model: 'gemini_3_pro'
+      model: 'claude_sonnet_4_6'
     });
 
     // Fetch from AI-discovered links (recent academic articles)
     const aiUrls = aiResponse.urls || [];
+    // Adicionar a URL FUNARTE se não estiver já na lista
+    const allUrls = [
+      'https://funartemaisdigital.funarte.gov.br/periodico-bd/revista-educacao-artes-e-inclusao/?view_mode=masonry&perpage=12&paged=1&order=ASC&orderby=date&fetch_only=thumbnail%2Ccreation_date%2Ctitle%2Cdescription&fetch_only_meta=',
+      ...aiUrls
+    ];
     const aiArticles = await Promise.all(
-      aiUrls.slice(0, 8).map(async (url) => {
+      allUrls.slice(0, 10).map(async (url) => {
         try {
           const response = await fetch(url, { 
             headers: { 'User-Agent': 'Mozilla/5.0' },
