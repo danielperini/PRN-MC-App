@@ -32,27 +32,26 @@ function GestorArquivosInner() {
         
         const allAttachments = await base44.entities.Attachment.list();
         
-        // Filtro padrão: últimos 90 dias
-        const today = new Date();
-        const ninetyDaysAgo = new Date(today.setDate(today.getDate() - 90));
-        
-        // Converter anexos em backups para exibição
+        // Converter anexos em backups para exibição (sem limite de dias)
         const backupsData = allAttachments
-          .filter(att => {
-            const attDate = new Date(att.created_date);
-            return attDate >= ninetyDaysAgo && approvedReportIds.has(att.report_id);
-          })
-          .map(att => ({
-            id: att.id,
-            date: att.created_date?.split('T')[0] || new Date().toISOString().split('T')[0],
-            timestamp: att.created_date || new Date().toISOString(),
-            fileName: att.file_name,
-            fileType: att.file_type,
-            size: att.file_size ? `${(att.file_size / 1024 / 1024).toFixed(2)} MB` : 'N/A',
-            fileUrl: att.file_url,
-            summary: att.description || 'Arquivo anexado a relatório',
-            reportId: att.report_id
-          }));
+          .filter(att => approvedReportIds.has(att.report_id))
+          .map(att => {
+            const report = approvedReports.find(r => r.id === att.report_id);
+            const reportNumber = report?.numero_protocolo || '';
+            
+            return {
+              id: att.id,
+              date: att.created_date?.split('T')[0] || new Date().toISOString().split('T')[0],
+              timestamp: att.created_date || new Date().toISOString(),
+              fileName: att.file_name,
+              fileType: att.file_type,
+              size: att.file_size ? `${(att.file_size / 1024 / 1024).toFixed(2)} MB` : 'N/A',
+              fileUrl: att.file_url,
+              summary: att.description || 'Arquivo anexado a relatório',
+              reportId: att.report_id,
+              displayName: reportNumber ? `${reportNumber}` : att.file_name
+            };
+          });
 
         return backupsData.filter(b => {
           const dateMatch = !selectedDate || b.date === selectedDate;
