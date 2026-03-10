@@ -1135,12 +1135,12 @@ function UserManagementInner() {
             <div className="space-y-3 mt-3">
               {/* Controle especial para obrigatoriedade de relatório mensal */}
               <div className="p-3 border-2 border-black rounded-lg bg-white space-y-3">
-                <p className="text-sm font-semibold text-black">Obrigações de Relatório</p>
+                <p className="text-sm font-semibold text-black">Relatório Mensal Obrigatório</p>
                 <div className="flex items-center gap-3">
-                  <Checkbox checked={!!permFormData['must_submit_monthly_report']} onCheckedChange={() => togglePerm('must_submit_monthly_report')} id="new-must_submit_monthly_report" />
-                  <label htmlFor="new-must_submit_monthly_report" className="text-sm cursor-pointer font-medium">Relatório mensal</label>
+                  <Checkbox checked={!!permFormData['must_submit_monthly_reports']} onCheckedChange={() => togglePerm('must_submit_monthly_reports')} id="new-must_submit_monthly_reports" />
+                  <label htmlFor="new-must_submit_monthly_reports" className="text-sm cursor-pointer font-medium">Exigir envio de relatório mensal</label>
                 </div>
-                <p className="text-xs text-gray-500 ml-6">Quando ativado, o sistema exigirá que este usuário envie um relatório a cada mês.</p>
+                <p className="text-xs text-gray-500 ml-6">Quando ativado: usuário receberá notificação no último dia do mês, relatório será exportado em PDF, aprovado pela coordenação e assinado digitalmente.</p>
               </div>
 
               {/* Outras permissões */}
