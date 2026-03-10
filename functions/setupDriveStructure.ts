@@ -65,16 +65,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Salvar IDs das pastas na config
-    await base44.asServiceRole.integrations.Core.SaveConfig({
-      key: 'drive_folder_structure',
-      value: JSON.stringify({
-        root: ROOT_FOLDER_ID,
-        folders: createdFolders,
-        createdAt: new Date().toISOString()
-      })
-    });
-
     return Response.json({
       success: true,
       message: 'Estrutura de pastas configurada com sucesso',
