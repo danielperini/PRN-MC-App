@@ -102,6 +102,45 @@ Deno.serve(async (req) => {
             const text = await response.text();
             const titleMatch = text.match(/<title>(.*?)<\/title>/i);
             const isAcademic = url.includes('repositorio') || url.includes('ufjf') || url.includes('ufmg') || url.includes('scielo') || url.includes('.edu');
+            
+            // Classificar artigo com IA
+            let tags = [];
+            try {
+              const classificationResponse = await base44.integrations.Core.InvokeLLM({
+                prompt: `Classifique este artigo/recurso em até 3 categorias principais:
+
+Título: ${titleMatch ? titleMatch[1] : url}
+URL: ${url}
+
+Categorias disponíveis:
+- Museuologia
+- Cinema
+- Moda
+- História de BH
+- Patrimônio Cultural
+- Curadoria
+- Educação
+
+Retorne APENAS as categorias mais relevantes, sem explicações.`,
+                response_json_schema: {
+                  type: 'object',
+                  properties: {
+                    tags: {
+                      type: 'array',
+                      items: { type: 'string' }
+                    }
+                  }
+                }
+              });
+              tags = classificationResponse.tags || [];
+            } catch {
+              // Fallback: classificação simples por URL
+              if (url.includes('cinema') || url.includes('cinemateca')) tags.push('Cinema');
+              if (url.includes('museu') || url.includes('museo')) tags.push('Museuologia');
+              if (url.includes('moda') || url.includes('fashion')) tags.push('Moda');
+              if (url.includes('belo horizonte') || url.includes('bh') || url.includes('mineiro')) tags.push('História de BH');
+            }
+            
             return {
               titulo: titleMatch ? titleMatch[1] : url,
               resumo: isAcademic 
@@ -110,7 +149,8 @@ Deno.serve(async (req) => {
               link: url,
               fonte: isAcademic ? 'academic' : 'web_search',
               imagem_url: null,
-              data_publicacao: new Date().toISOString().split('T')[0]
+              data_publicacao: new Date().toISOString().split('T')[0],
+              tags: tags
             };
           }
         } catch {
