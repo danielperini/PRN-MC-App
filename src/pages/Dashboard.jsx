@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import CoordDashboard from '../components/dashboard/CoordDashboard';
 import AdvancedFilters from '../components/dashboard/AdvancedFilters';
 import ComplianceStats from '../components/dashboard/ComplianceStats';
-
+import DailyNewsHighlight from '../components/dashboard/DailyNewsHighlight';
 import WidgetCustomizer from '../components/dashboard/WidgetCustomizer';
 import { useWidgetPreferences } from '../components/dashboard/useWidgetPreferences';
 import ActivityMetricsWidget from '../components/dashboard/ActivityMetricsWidget';
@@ -187,8 +187,13 @@ function DashboardInner() {
           </div>
         </div>
 
+        {/* Notícia do Dia */}
+        <div className="mb-8">
+          <DailyNewsHighlight />
+        </div>
+
         {/* Painel de Destaques (todos os usuários) */}
-        <HighlightsCarousel />
+         <HighlightsCarousel />
 
         {/* Coordenador: dashboard completo */}
          {showCoordView ? (
