@@ -1184,12 +1184,12 @@ function UserManagementInner() {
               {/* Outras permissões */}
               <div className="space-y-3 border-t pt-3">
                 <p className="text-sm font-semibold text-black">Permissões de Acesso</p>
-                {PERMISSIONS.filter(p => p.key !== 'must_submit_monthly_report').map(p => (
-                  <div key={p.key} className="flex items-center gap-3">
-                    <Checkbox checked={!!editingPerm[p.key]} onCheckedChange={() => togglePerm(p.key)} id={`edit-${p.key}`} />
-                    <label htmlFor={`edit-${p.key}`} className="text-sm cursor-pointer">{p.label}</label>
-                  </div>
-                ))}
+                {PERMISSIONS.filter(p => p.key !== 'must_submit_monthly_reports').map(p => (
+                   <div key={p.key} className="flex items-center gap-3">
+                     <Checkbox checked={!!editingPerm[p.key]} onCheckedChange={() => togglePerm(p.key)} id={`edit-${p.key}`} />
+                     <label htmlFor={`edit-${p.key}`} className="text-sm cursor-pointer">{p.label}</label>
+                   </div>
+                 ))}
               </div>
             </div>
           )}
