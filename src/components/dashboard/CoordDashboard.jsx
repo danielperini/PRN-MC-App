@@ -89,13 +89,14 @@ export default function CoordDashboard({ reports = [], isLoading }) {
   const rotinas = allAtiv.filter(a => a.classificacao === 'ROTINA').length;
   const extras = allAtiv.filter(a => a.classificacao === 'EXTRA').length;
 
-  // Por museu
+  // Por museu (atividades e público só de aprovados)
   const porMuseu = useMemo(() => {
     const map = {};
     reportsFiltrados.forEach(r => {
       const m = r.museu || 'Outros';
       if (!map[m]) map[m] = { museu: m, relatorios: 0, atividades: 0, publico: 0 };
       map[m].relatorios++;
+      if (r.status !== 'APPROVED') return;
       const ativs = (r.atividades || []).filter(a => {
         if (filterMuseu && a.museu !== filterMuseu) return false;
         if (filterClasse && a.classificacao !== filterClasse) return false;
@@ -108,13 +109,14 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     return Object.values(map).sort((a, b) => b.relatorios - a.relatorios);
   }, [reportsFiltrados, filterMuseu, filterClasse, filterTipoAtiv]);
 
-  // Por mês (atividades + público)
+  // Por mês — atividades e público só de aprovados
   const porMes = useMemo(() => {
     const map = {};
     reportsFiltrados.forEach(r => {
       const mes = r.mes_referencia;
       if (!mes) return;
       if (!map[mes]) map[mes] = { mes: mes.substring(0, 3), atividades: 0, publico: 0 };
+      if (r.status !== 'APPROVED') return;
       const ativs = (r.atividades || []).filter(a => {
         if (filterMuseu && a.museu !== filterMuseu) return false;
         if (filterClasse && a.classificacao !== filterClasse) return false;
