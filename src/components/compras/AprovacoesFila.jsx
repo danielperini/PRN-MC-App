@@ -45,12 +45,11 @@ export default function AprovacoesFila({ purchases, budgetLines, statusConfig, o
         }
       }
 
-      await base44.functions.invoke('purchaseActions', {
-        action,
+      await base44.functions.invoke('processPurchaseApproval', {
         purchaseId: purchase.id,
+        action: action === 'approve_coord' ? 'approve_coord' : action === 'approve_admin' ? 'approve_admin' : 'reject',
         comentario,
         valor_aprovado,
-        motivo: comentario,
       });
 
       const msgs = {
