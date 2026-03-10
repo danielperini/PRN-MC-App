@@ -77,6 +77,27 @@ function GestorArquivosInner() {
     enabled: !!currentUser?.email
   });
 
+  // Verificar duplicatas em atividades aprovadas
+  const { data: duplicates = [] } = useQuery({
+    queryKey: ['duplicate-activities', currentUser?.email],
+    queryFn: async () => {
+      try {
+        const res = await base44.functions.invoke('detectDuplicateActivities', {});
+        return res.data.duplicates || [];
+      } catch (error) {
+        console.error('Erro ao detectar duplicatas:', error);
+        return [];
+      }
+    },
+    enabled: isCoordinator && !!currentUser?.email
+  });
+
+  React.useEffect(() => {
+    if (duplicates.length > 0 && isCoordinator) {
+      setDuplicateWarnings(duplicates);
+    }
+  }, [duplicates, isCoordinator]);
+
   const handleDownloadBackup = async (backup) => {
    if (backup.fileUrl) {
      window.open(backup.fileUrl, '_blank');
