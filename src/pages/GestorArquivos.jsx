@@ -18,6 +18,7 @@ function GestorArquivosInner() {
   const [searchFileName, setSearchFileName] = useState('');
   const [searchContent, setSearchContent] = useState('');
   const [sortBy, setSortBy] = useState('date-desc');
+  const [duplicateWarnings, setDuplicateWarnings] = useState([]);
   const isCoordinator = currentUser?.role === 'admin';
 
   const { data: backups = [], isLoading } = useQuery({
