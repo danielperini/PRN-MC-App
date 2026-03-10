@@ -24,23 +24,23 @@ async function listFolderContents(folderId, accessToken) {
   return data.files || [];
 }
 
-async function copyFile(fileId, fileName, targetFolderId, accessToken) {
-  const response = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}/copy?supportsAllDrives=true`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name: `[BACKUP ${new Date().toISOString().split('T')[0]}] ${fileName}`,
-        parents: [targetFolderId]
-      })
-    }
-  );
+async function copyFile(fileId, fileName, targetFolderId, accessToken, customName = null) {
+   const response = await fetch(
+     `https://www.googleapis.com/drive/v3/files/${fileId}/copy?supportsAllDrives=true`,
+     {
+       method: 'POST',
+       headers: {
+         Authorization: `Bearer ${accessToken}`,
+         'Content-Type': 'application/json'
+       },
+       body: JSON.stringify({
+         name: customName || `[BACKUP ${new Date().toISOString().split('T')[0]}] ${fileName}`,
+         parents: [targetFolderId]
+       })
+     }
+   );
 
-  return response.ok ? await response.json() : null;
+   return response.ok ? await response.json() : null;
 }
 
 async function createBackupFolder(accessToken) {
@@ -113,14 +113,23 @@ Deno.serve(async (req) => {
     const backupResults = {};
     let totalFilesCopied = 0;
     const sharedFolders = [];
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const sequenceCounter = {};
 
     for (const [folderKey, folderId] of Object.entries(FOLDER_STRUCTURE)) {
       const files = await listFolderContents(folderId, accessToken);
       backupResults[folderKey] = { filesCount: files.length, filesCopied: 0 };
+      sequenceCounter[folderKey] = 0;
 
       for (const file of files) {
         if (file.mimeType !== 'application/vnd.google-apps.folder') {
-          const copied = await copyFile(file.id, file.name, backupFolderId, accessToken);
+          sequenceCounter[folderKey]++;
+          const ext = file.name.includes('.') ? file.name.substring(file.name.lastIndexOf('.')) : '';
+          const customName = `${folderKey}-${month}${year}-${String(sequenceCounter[folderKey]).padStart(3, '0')}${ext}`;
+
+          const copied = await copyFile(file.id, file.name, backupFolderId, accessToken, customName);
           if (copied) {
             backupResults[folderKey].filesCopied++;
             totalFilesCopied++;
