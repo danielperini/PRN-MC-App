@@ -30,14 +30,16 @@ Deno.serve(async (req) => {
       return a.data_realizacao >= today;
     });
 
-    // 2. Check if today's 5 are already selected
+    // 2. Check if today's 15 are already selected (5 notícias + 5 históricos + 5 artigos)
     const todaySelected = activeNews.filter(n => n.data_selecao === today);
-    if (todaySelected.length >= 5) {
+    if (todaySelected.length >= 15) {
       return Response.json({
         already_done: true,
         date: today,
         count: todaySelected.length,
-        news: todaySelected.slice(0, 5).map(n => ({ id: n.id, titulo: n.titulo }))
+        noticias: todaySelected.filter(n => n.fonte === 'web_search').slice(0, 5).map(n => ({ id: n.id, titulo: n.titulo })),
+        historicos: todaySelected.filter(n => n.fonte === 'internal').slice(0, 5).map(n => ({ id: n.id, titulo: n.titulo })),
+        artigos: todaySelected.filter(n => n.fonte === 'artigos_revistas').slice(0, 5).map(n => ({ id: n.id, titulo: n.titulo }))
       });
     }
 
