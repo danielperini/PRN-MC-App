@@ -320,9 +320,61 @@ Retorne apenas JSON no formato solicitado.`,
     const uniqueKeywordNews = dedupeByLink(collectedKeywordNews);
     const prioritizedKeywordNews = sortNewsByRecency(uniqueKeywordNews);
 
-    // 4) Publicar SEMPRE primeiro as duas fontes prioritárias
+    // 4) Classificar notícias por museu usando IA
+    const classifyNewsByMuseum = async (newsItems) => {
+      if (newsItems.length === 0) return [];
+
+      const prompt = `Classifique cada notícia abaixo indicando qual museu ela está relacionada:
+      - "museu_centro" se for sobre Viaduto das Artes, Projeto Museus Centro, MUMO, MIS BH, ou MHAB
+      - "museu_pbh" se for sobre Museu da PBH ou outros museus de Belo Horizonte
+      - null se não for específico de nenhum museu
+
+      Notícias:
+      ${newsItems.map((n, i) => `${i+1}. Título: "${n.titulo}"\nResumo: "${n.resumo}"`).join('\n\n')}
+
+      Responda com JSON: {"classificacoes": [{"indice": 1, "museu": "museu_centro"}, ...]}`;
+
+      try {
+        const result = await base44.integrations.Core.InvokeLLM({
+          prompt,
+          response_json_schema: {
+            type: 'object',
+            properties: {
+              classificacoes: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    indice: { type: 'number' },
+                    museu: { type: 'string' }
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        return result?.classificacoes || [];
+      } catch (e) {
+        console.error('Erro ao classificar:', e);
+        return [];
+      }
+    };
+
+    // Classificar notícias prioritárias
+    const priorityClassifications = await classifyNewsByMuseum(uniquePriorityNews);
+    const classificationMap = {};
+    priorityClassifications.forEach(c => {
+      if (c.indice > 0 && c.indice <= uniquePriorityNews.length) {
+        classificationMap[uniquePriorityNews[c.indice - 1].link] = c.museu;
+      }
+    });
+
+    // 5) Publicar SEMPRE primeiro as duas fontes prioritárias
     for (const news of uniquePriorityNews) {
       if (newNewsAdded >= maxNewsPerDay) break;
+
+      const museuClassificacao = classificationMap[news.link];
 
       await base44.asServiceRole.entities.NewsHighlight.create({
         titulo: news.titulo,
@@ -331,7 +383,8 @@ Retorne apenas JSON no formato solicitado.`,
         fonte: news.fonte,
         imagem_url: news.imagem_url,
         data_encontrada: news.data_encontrada,
-        ativo: news.ativo
+        ativo: news.ativo,
+        museu_classificacao: museuClassificacao || null
       });
 
       existingLinks.add(news.link);
