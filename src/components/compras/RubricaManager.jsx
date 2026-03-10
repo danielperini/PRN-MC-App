@@ -125,21 +125,21 @@ export default function RubricaManager({ budgetLines, purchases = [] }) {
   return (
     <div className="space-y-6">
       {/* Saldo Geral */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Saldo Total', value: fmt(totalInicial), icon: DollarSign, color: 'text-gray-800', bg: 'bg-gray-50' },
-          { label: 'Comprometido', value: fmt(totalComprometido), icon: TrendingDown, color: 'text-amber-700', bg: 'bg-amber-50' },
-          { label: 'Pago', value: fmt(totalPago), icon: Check, color: 'text-blue-700', bg: 'bg-blue-50' },
-          { label: 'Disponível', value: fmt(totalDisponivel), icon: TrendingUp, color: totalDisponivel < 0 ? 'text-red-700' : 'text-green-700', bg: totalDisponivel < 0 ? 'bg-red-50' : 'bg-green-50' },
-        ].map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className={`p-4 rounded-xl border border-gray-200 ${bg}`}>
-            <div className="flex items-center gap-2 mb-1">
-              <Icon className={`w-4 h-4 ${color}`} />
-              <span className="text-xs text-gray-500 font-medium">{label}</span>
-            </div>
-            <p className={`text-lg font-bold ${color}`}>{value}</p>
-          </div>
-        ))}
+       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+         {[
+           { label: 'Saldo Original', value: fmt(totalSaldoOriginal), icon: DollarSign, color: 'text-gray-800', bg: 'bg-gray-50' },
+           { label: 'Aprovado', value: fmt(totalAprovado), icon: TrendingDown, color: 'text-amber-700', bg: 'bg-amber-50' },
+           { label: 'Consumido (Pago)', value: fmt(totalPago), icon: Check, color: 'text-blue-700', bg: 'bg-blue-50' },
+           { label: 'Saldo Disponível', value: fmt(totalSaldoDisponivel), icon: TrendingUp, color: totalSaldoDisponivel < 0 ? 'text-red-700' : 'text-green-700', bg: totalSaldoDisponivel < 0 ? 'bg-red-50' : 'bg-green-50' },
+         ].map(({ label, value, icon: Icon, color, bg }) => (
+           <div key={label} className={`p-4 rounded-xl border border-gray-200 ${bg}`}>
+             <div className="flex items-center gap-2 mb-1">
+               <Icon className={`w-4 h-4 ${color}`} />
+               <span className="text-xs text-gray-500 font-medium">{label}</span>
+             </div>
+             <p className={`text-lg font-bold ${color}`}>{value}</p>
+           </div>
+         ))}
       </div>
 
       {/* Barra geral */}
