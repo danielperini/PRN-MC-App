@@ -70,6 +70,7 @@ import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
 import GestaoPagamentos from './pages/GestaoPagamentos';
 import RelatorioMeta from './pages/RelatorioMeta';
+import ProgramacoesAgenda from './pages/ProgramacoesAgenda';
 import __Layout from './Layout.jsx';
 
 
@@ -97,6 +98,7 @@ export const PAGES = {
     "UserManagement": UserManagement,
     "GestaoPagamentos": GestaoPagamentos,
     "RelatorioMeta": RelatorioMeta,
+    "ProgramacoesAgenda": ProgramacoesAgenda,
 }
 
 export const pagesConfig = {
