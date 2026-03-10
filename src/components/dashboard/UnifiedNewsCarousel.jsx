@@ -1,0 +1,274 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { base44 } from '@/api/base44Client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, ChevronRight, ExternalLink, Newspaper, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+const FONTE_COLORS = {
+  portal_museus_centro: 'border-emerald-500',
+  culturadoria_museus: 'border-purple-500',
+  web_search: 'border-blue-500',
+  internal: 'border-amber-500',
+};
+
+const FONTE_LABELS = {
+  portal_museus_centro: 'Portal MC',
+  culturadoria_museus: 'Culturadoria',
+  web_search: 'Web',
+  internal: 'Destaque',
+};
+
+export default function UnifiedNewsCarousel() {
+  const today = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [autoPlay, setAutoPlay] = useState(true);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Fetch today's selected news
+  const { data: todayNews = [], isLoading: loadingNews, refetch: refetchNews } = useQuery({
+    queryKey: ['today-news', today],
+    queryFn: async () => {
+      const all = await base44.entities.NewsHighlight.filter({ ativo: true }, '-created_date', 200);
+      return all.filter(n => n.data_selecao === today).slice(0, 10);
+    },
+    refetchInterval: 60000,
+    staleTime: 30000,
+  });
+
+  // Fetch momentos (internal highlights)
+  const { data: momentos = [] } = useQuery({
+    queryKey: ['momentos-ativos-carousel'],
+    queryFn: async () => {
+      try {
+        const data = await base44.entities.Momento.filter(
+          { ativo: true, deve_ser_publicado: true },
+          '-created_date', 5
+        );
+        return Array.isArray(data) ? data.filter(m => !m.data_expiracao || m.data_expiracao >= today) : [];
+      } catch {
+        return [];
+      }
+    },
+    refetchInterval: 120000,
+  });
+
+  const allItems = React.useMemo(() => [
+    ...momentos.map(m => ({
+      id: m.id,
+      titulo: m.titulo,
+      resumo: m.texto,
+      imagem_url: m.imagem_url,
+      link: null,
+      fonte: 'internal',
+      _tipo: 'momento',
+    })),
+    ...todayNews.map(n => ({
+      id: n.id,
+      titulo: n.titulo,
+      resumo: n.resumo,
+      imagem_url: n.imagem_url,
+      link: n.link,
+      fonte: n.fonte,
+      data_publicacao: n.data_publicacao,
+      _tipo: 'noticia',
+    })),
+  ], [momentos, todayNews]);
+
+  const selectTodayNews = useCallback(async () => {
+    if (isSelecting) return;
+    setIsSelecting(true);
+    try {
+      await base44.functions.invoke('searchAndIndexNews', {});
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['today-news'] });
+        refetchNews();
+      }, 500);
+    } catch (e) {
+      console.error('selectTodayNews error:', e);
+    } finally {
+      setIsSelecting(false);
+    }
+  }, [isSelecting, queryClient, refetchNews]);
+
+  // Auto-trigger selection if no news today
+  useEffect(() => {
+    if (!loadingNews && todayNews.length === 0 && !isSelecting) {
+      selectTodayNews();
+    }
+  }, [loadingNews, todayNews.length, isSelecting, selectTodayNews]);
+
+  // Auto-play
+  useEffect(() => {
+    if (!autoPlay || allItems.length <= 1) return;
+    const timer = setInterval(() => {
+      setCurrentIndex(prev => (prev + 1) % allItems.length);
+    }, 7000);
+    return () => clearInterval(timer);
+  }, [autoPlay, allItems.length]);
+
+  const goTo = (idx) => {
+    setCurrentIndex(idx);
+  };
+
+  const goPrev = (e) => {
+    e.stopPropagation();
+    goTo((currentIndex - 1 + allItems.length) % allItems.length);
+  };
+
+  const goNext = (e) => {
+    e.stopPropagation();
+    goTo((currentIndex + 1) % allItems.length);
+  };
+
+  // Loading state
+  if (loadingNews || (isSelecting && allItems.length === 0)) {
+    return (
+      <div className="w-full mb-8 h-56 rounded-2xl bg-white border-2 border-black flex items-center justify-center gap-3">
+        <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm text-black font-medium">
+          {isSelecting ? 'Selecionando destaques do dia...' : 'Carregando...'}
+        </span>
+      </div>
+    );
+  }
+
+  // Empty state
+  if (allItems.length === 0) {
+    return (
+      <div className="w-full mb-8 h-56 rounded-2xl bg-white border-2 border-black flex items-center justify-center">
+        <div className="text-center">
+          <Newspaper className="w-8 h-8 text-black mx-auto mb-3" />
+          <p className="text-sm text-black font-medium mb-4">Nenhum destaque disponível</p>
+          <Button
+            size="sm"
+            onClick={selectTodayNews}
+            className="border-2 border-black bg-white text-black hover:bg-black hover:text-white font-medium"
+          >
+            <RefreshCw className="w-3.5 h-3.5 mr-2" />
+            Buscar destaques
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const current = allItems[currentIndex] || allItems[0];
+  const isMomento = current._tipo === 'momento';
+  const borderColor = FONTE_COLORS[current.fonte] || 'border-gray-300';
+
+  return (
+    <div className="w-full mb-8">
+      {/* Main card */}
+      <div
+        className="relative w-full rounded-2xl overflow-hidden h-56 group bg-white border-2 border-black"
+        onMouseEnter={() => setAutoPlay(false)}
+        onMouseLeave={() => setAutoPlay(true)}
+      >
+        {/* Left accent border */}
+        <div className={`absolute inset-y-0 left-0 w-1 ${borderColor}`} />
+
+        {/* Background image (subtle) */}
+        {current.imagem_url && (
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${current.imagem_url})`, opacity: 0.08 }}
+          />
+        )}
+
+        {/* Content */}
+        <div className="relative z-10 h-full flex flex-col p-6">
+          {/* Top row: badge + dots */}
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full text-white bg-black">
+                {isMomento ? '✦ Destaque' : '📡 ' + (FONTE_LABELS[current.fonte] || 'Notícia')}
+              </span>
+            </div>
+
+            {/* Navigation dots */}
+            {allItems.length > 1 && (
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {allItems.slice(0, 8).map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => goTo(idx)}
+                    className={`rounded-full transition-all duration-300 ${
+                      idx === currentIndex
+                        ? 'bg-black w-5 h-1.5'
+                        : 'bg-gray-300 hover:bg-gray-400 w-1.5 h-1.5'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Title */}
+          <h3 className="text-xl font-bold text-black leading-snug line-clamp-2 mb-2 flex-shrink-0">
+            {current.titulo}
+          </h3>
+
+          {/* Summary */}
+          <p className="text-sm text-gray-700 leading-relaxed line-clamp-2 flex-1">
+            {current.resumo}
+          </p>
+
+          {/* Bottom row */}
+          <div className="flex items-center justify-between mt-3">
+            <span className="text-xs text-gray-600 font-mono">
+              {current.data_publicacao || today}
+            </span>
+            {current.link && (
+              <a
+                href={current.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                className="flex items-center gap-1.5 text-xs font-semibold text-white bg-black hover:bg-gray-800 px-3 py-1.5 rounded-full transition-all border border-black"
+              >
+                Ver matéria <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* Arrow navigation */}
+        {allItems.length > 1 && (
+          <>
+            <button
+              className="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-white border-2 border-black text-black rounded-full p-1.5 z-20"
+              onClick={goPrev}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-white border-2 border-black text-black rounded-full p-1.5 z-20"
+              onClick={goNext}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Footer info */}
+      <div className="flex items-center justify-between mt-2 px-1">
+        <p className="text-xs text-black font-medium">
+          {todayNews.length > 0
+            ? `${todayNews.length} destaque${todayNews.length > 1 ? 's' : ''} selecionado${todayNews.length > 1 ? 's' : ''}`
+            : 'Destaques do dia'}
+          {momentos.length > 0 && ` + ${momentos.length} interno${momentos.length > 1 ? 's' : ''}`}
+        </p>
+        <button
+          onClick={selectTodayNews}
+          disabled={isSelecting}
+          className="flex items-center gap-1 text-xs text-black font-medium hover:opacity-70 transition-opacity disabled:opacity-40"
+        >
+          <RefreshCw className={`w-3 h-3 ${isSelecting ? 'animate-spin' : ''}`} />
+          {isSelecting ? 'Atualizando...' : 'Atualizar'}
+        </button>
+      </div>
+    </div>
+  );
+}
