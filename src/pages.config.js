@@ -58,6 +58,7 @@ import Compras from './pages/Compras';
 import CoordReview from './pages/CoordReview';
 import Dashboard from './pages/Dashboard';
 import DashboardProfissional from './pages/DashboardProfissional';
+import GestaoPagamentos from './pages/GestaoPagamentos';
 import GestorArquivos from './pages/GestorArquivos';
 import Home from './pages/Home';
 import MonitoringPanel from './pages/MonitoringPanel';
@@ -65,12 +66,11 @@ import NovaAtividade from './pages/NovaAtividade';
 import Perfil from './pages/Perfil';
 import PlataformaAdmin from './pages/PlataformaAdmin';
 import PlataformaConfig from './pages/PlataformaConfig';
+import ProgramacoesAgenda from './pages/ProgramacoesAgenda';
+import RelatorioMeta from './pages/RelatorioMeta';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
-import GestaoPagamentos from './pages/GestaoPagamentos';
-import RelatorioMeta from './pages/RelatorioMeta';
-import ProgramacoesAgenda from './pages/ProgramacoesAgenda';
 import __Layout from './Layout.jsx';
 
 
@@ -86,6 +86,7 @@ export const PAGES = {
     "CoordReview": CoordReview,
     "Dashboard": Dashboard,
     "DashboardProfissional": DashboardProfissional,
+    "GestaoPagamentos": GestaoPagamentos,
     "GestorArquivos": GestorArquivos,
     "Home": Home,
     "MonitoringPanel": MonitoringPanel,
@@ -93,12 +94,11 @@ export const PAGES = {
     "Perfil": Perfil,
     "PlataformaAdmin": PlataformaAdmin,
     "PlataformaConfig": PlataformaConfig,
+    "ProgramacoesAgenda": ProgramacoesAgenda,
+    "RelatorioMeta": RelatorioMeta,
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
-    "GestaoPagamentos": GestaoPagamentos,
-    "RelatorioMeta": RelatorioMeta,
-    "ProgramacoesAgenda": ProgramacoesAgenda,
 }
 
 export const pagesConfig = {

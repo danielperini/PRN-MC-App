@@ -30,7 +30,7 @@ const DEFAULT_PERMISSIONS = [
   { key: 'can_manage_equipes', label: 'Gerenciar equipes' },
   { key: 'can_view_audit_log', label: 'Visualizar auditoria' },
   { key: 'can_manage_platform', label: 'Gerenciar plataforma' },
-  { key: 'must_submit_monthly_reports', label: 'Relatório mensal' },
+  { key: 'gestao_compras', label: 'Gestão de Compras' },
 ];
 
 const EQUIPES = ['Comunicação', 'Coordenação', 'Administração', 'Educativo', 'Produção'];
