@@ -108,8 +108,19 @@ export default function RubricaManager({ budgetLines, purchases = [] }) {
   const totalComprometido = budgetLines.reduce((s, l) => s + (l.saldo_comprometido || 0), 0);
   const totalDisponivel = totalInicial - totalComprometido;
 
-  // Calculate pago from purchases
+  // Calculate pago from purchases (consumo real)
   const totalPago = purchases.filter(p => p.status === 'PAGO').reduce((s, p) => s + (p.valor_aprovado_admin || p.valor_solicitado || 0), 0);
+  
+  // Calculate aprovado (comprometido + aguardando pagamento)
+  const totalAprovado = purchases
+    .filter(p => ['APROVADO_ADMIN', 'PAGO'].includes(p.status))
+    .reduce((s, p) => s + (p.valor_aprovado_admin || p.valor_solicitado || 0), 0);
+
+  // Saldo original (inicial sem comprometimento)
+  const totalSaldoOriginal = totalInicial;
+  
+  // Saldo disponível real (inicial - aprovado)
+  const totalSaldoDisponivel = totalInicial - totalAprovado;
 
   return (
     <div className="space-y-6">
