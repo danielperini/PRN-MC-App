@@ -14,7 +14,8 @@ import {
   BarChart3,
   History,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  CalendarDays
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
