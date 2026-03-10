@@ -4,9 +4,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Upload, FileCheck } from 'lucide-react';
+import { Upload, FileCheck, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -132,8 +133,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
             <div key={payment.id} className="p-3 border border-gray-200 rounded-lg text-xs">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-medium">{payment.mes_referencia} / {payment.ano}</span>
-                <Badge className={statusBadge(payment.status)}>
-                  {payment.status}
+                <Badge className={`${statusBadge(payment.status)}`}>
+                  {statusLabel(payment.status)}
                 </Badge>
               </div>
               <p className="text-gray-600">NF: {payment.numero_nf} • R$ {payment.valor_nf?.toFixed(2)}</p>
@@ -250,4 +251,16 @@ function statusBadge(status) {
     RECUSADO: 'bg-red-100 text-red-800'
   };
   return config[status] || config.RASCUNHO;
+}
+
+function statusLabel(status) {
+  const labels = {
+    RASCUNHO: 'Rascunho',
+    AGUARDANDO_APROVACAO: 'Aguardando Aprovação',
+    APROVADO: 'Aprovado',
+    REVISAO: 'Em Revisão',
+    PAGO: 'Pago',
+    RECUSADO: 'Recusado'
+  };
+  return labels[status] || status;
 }
