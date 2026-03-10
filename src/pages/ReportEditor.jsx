@@ -892,34 +892,40 @@ function ReportEditorInner() {
         />
 
         {/* Alert Dialog para salvar rascunho */}
-        <AlertDialog open={showSaveAlert} onOpenChange={setShowSaveAlert}>
-          <AlertDialogContent className="max-w-md">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-blue-600" />
-                Informação Importante
-              </AlertDialogTitle>
-              <AlertDialogDescription className="mt-3 text-sm text-gray-700">
-                <p className="font-semibold text-gray-900 mb-2">Fluxo de Relatórios Mensais:</p>
-                <ol className="list-decimal list-inside space-y-2 text-gray-700">
-                  <li><strong>Salve como rascunho</strong> enquanto edita</li>
-                  <li><strong>Envie para aprovação</strong> quando estiver pronto</li>
-                  <li><strong>Após aprovação</strong>, exporte em PDF</li>
-                  <li><strong>Assine digitalmente</strong> o documento exportado</li>
-                </ol>
-                <p className="mt-3 text-xs text-gray-600">
-                  Você pode continuar editando este rascunho conforme necessário.
-                </p>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="flex justify-end gap-3 mt-6">
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={proceedWithSave} className="bg-black hover:bg-gray-800">
-                Continuar
-              </AlertDialogAction>
-            </div>
-          </AlertDialogContent>
-        </AlertDialog>
+         <AlertDialog open={showSaveAlert} onOpenChange={setShowSaveAlert}>
+           <AlertDialogContent className="max-w-md">
+             <AlertDialogHeader>
+               <AlertDialogTitle className="flex items-center gap-2">
+                 <ShieldCheck className="w-5 h-5 text-amber-600" />
+                 Atenção — Rascunho em Progresso
+               </AlertDialogTitle>
+               <AlertDialogDescription className="mt-3 text-sm text-gray-700 space-y-3">
+                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                   <p className="font-semibold text-amber-900 text-sm mb-2">⚠️ Informação Importante sobre Backup:</p>
+                   <p className="text-xs text-amber-800 leading-relaxed">
+                     <strong>Apenas relatórios aprovados</strong> são mantidos em backup no Google Drive e <strong>considerados na prestação de contas</strong>. Rascunhos são salvos apenas na plataforma e podem ser perdidos.
+                   </p>
+                 </div>
+
+                 <div>
+                   <p className="font-semibold text-gray-900 mb-2 text-sm">Fluxo de Relatórios:</p>
+                   <ol className="list-decimal list-inside space-y-1.5 text-xs text-gray-700">
+                     <li><strong>Salve como rascunho</strong> enquanto edita (proteção básica)</li>
+                     <li><strong>Envie para aprovação</strong> quando estiver pronto</li>
+                     <li><strong>Após aprovação</strong>, será criado backup automático</li>
+                     <li><strong>Exporte em PDF</strong> para seus registros pessoais</li>
+                   </ol>
+                 </div>
+               </AlertDialogDescription>
+             </AlertDialogHeader>
+             <div className="flex justify-end gap-3 mt-6">
+               <AlertDialogCancel>Cancelar</AlertDialogCancel>
+               <AlertDialogAction onClick={proceedWithSave} className="bg-black hover:bg-gray-800">
+                 Salvar Rascunho
+               </AlertDialogAction>
+             </div>
+           </AlertDialogContent>
+         </AlertDialog>
 
       </div>
     </div>
