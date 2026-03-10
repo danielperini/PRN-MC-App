@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useMutation } from '@tanstack/react-query';
-import { HardDrive, Loader, CheckCircle, AlertCircle } from 'lucide-react';
+import { HardDrive, Loader, CheckCircle, AlertCircle, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import SetupDriveDialog from './SetupDriveDialog';
 
 export default function BackupButton({ userRole }) {
   const [showDialog, setShowDialog] = useState(false);
+  const [showSetup, setShowSetup] = useState(false);
   const [backupResult, setBackupResult] = useState(null);
 
   const backupMutation = useMutation({
@@ -32,18 +34,30 @@ export default function BackupButton({ userRole }) {
 
   return (
     <>
-      <Button
-        onClick={() => {
-          setBackupResult(null);
-          setShowDialog(true);
-        }}
-        className="gap-2 bg-black hover:bg-gray-800 text-white w-full md:w-auto text-sm md:text-base"
-        disabled={backupMutation.isPending}
-      >
-        <HardDrive className="w-4 h-4 flex-shrink-0" />
-        <span className="hidden sm:inline">{backupMutation.isPending ? 'Fazendo Backup...' : 'Fazer Backup'}</span>
-        <span className="sm:hidden">{backupMutation.isPending ? 'Backup...' : 'Backup'}</span>
-      </Button>
+      <div className="flex gap-2 flex-wrap">
+        <Button
+          onClick={() => {
+            setBackupResult(null);
+            setShowDialog(true);
+          }}
+          className="gap-2 bg-black hover:bg-gray-800 text-white text-sm md:text-base flex-1"
+          disabled={backupMutation.isPending}
+        >
+          <HardDrive className="w-4 h-4 flex-shrink-0" />
+          <span className="hidden sm:inline">{backupMutation.isPending ? 'Fazendo Backup...' : 'Fazer Backup'}</span>
+          <span className="sm:hidden">{backupMutation.isPending ? 'Backup...' : 'Backup'}</span>
+        </Button>
+        {userRole === 'admin' && (
+          <Button
+            onClick={() => setShowSetup(true)}
+            variant="outline"
+            size="sm"
+            className="gap-2 text-xs"
+          >
+            <Settings className="w-4 h-4" /> Configurar
+          </Button>
+        )}
+      </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="w-[95%] rounded-lg">
@@ -123,6 +137,15 @@ export default function BackupButton({ userRole }) {
           )}
         </DialogContent>
       </Dialog>
+
+      <SetupDriveDialog 
+        isOpen={showSetup} 
+        onClose={() => setShowSetup(false)}
+        onSuccess={() => {
+          toast.success('Drive configurado! Inicie um backup.');
+          setShowDialog(true);
+        }}
+      />
     </>
   );
 }
