@@ -381,6 +381,26 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
             </div>
           </div>
 
+          {/* Anexos */}
+          <div className="space-y-3 p-4 border border-gray-100 rounded-xl">
+            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Anexos</Label>
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <Label className="text-xs text-gray-600 mb-1 block">Link do Orçamento / Proposta</Label>
+                <Input placeholder="https://drive.google.com/..." value={form.orcamento_url || ''} onChange={e => set('orcamento_url', e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-600 mb-1 block">Link da Nota Fiscal</Label>
+                <Input placeholder="https://..." value={form.nota_fiscal_url || ''} onChange={e => set('nota_fiscal_url', e.target.value)} />
+                <p className="text-[10px] text-gray-400 mt-0.5">Visível apenas para coordenadores após aprovação.</p>
+              </div>
+              <div>
+                <Label className="text-xs text-gray-600 mb-1 block">Link do Comprovante de Pagamento</Label>
+                <Input placeholder="https://..." value={form.comprovante_url || ''} onChange={e => set('comprovante_url', e.target.value)} />
+              </div>
+            </div>
+          </div>
+
           {/* Observações */}
           <div>
             <Label className="text-xs text-gray-600 mb-1 block">Observações</Label>
