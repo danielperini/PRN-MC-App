@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
     }
     
     // Usar pasta específica do Google Drive fornecida
-    const customFolderId = '1AsUJJqUv2O-NTGFAxIY5QySu_U8KQ094';
+    const customFolderId = '1jgV1WdnZUtXzgiBzken1Lw6SBFlxSxl0';
     
     // Pasta por data dentro da pasta customizada
     const now = new Date();
