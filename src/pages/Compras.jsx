@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShoppingCart, Plus, Search, Filter, TrendingDown, RefreshCw } from 'lucide-react';
-import { createPageUrl } from '@/utils';
-import { Link } from 'react-router-dom';
+import { ShoppingCart, Plus, Search } from 'lucide-react';
 import RequireAuth from '@/components/auth/RequireAuth';
 import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
 import PurchaseCard from '@/components/compras/PurchaseCard';
 import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
 import AprovacoesFila from '@/components/compras/AprovacoesFila';
+import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -31,7 +29,7 @@ function ComprasInner() {
   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '' });
   const queryClient = useQueryClient();
 
-  React.useEffect(() => {
+  useEffect(() => {
     base44.auth.me().then(u => setCurrentUser(u));
   }, []);
 
@@ -53,12 +51,15 @@ function ComprasInner() {
   const filtered = purchases.filter(p => {
     const matchStatus = filters.status === 'all' || p.status === filters.status;
     const matchMeta = filters.meta_id === 'all' || p.meta_id === filters.meta_id;
-    const matchSearch = !filters.search || p.descricao_item?.toLowerCase().includes(filters.search.toLowerCase()) || p.fornecedor_nome?.toLowerCase().includes(filters.search.toLowerCase());
+    const matchSearch = !filters.search
+      || p.descricao_item?.toLowerCase().includes(filters.search.toLowerCase())
+      || p.fornecedor_nome?.toLowerCase().includes(filters.search.toLowerCase());
     return matchStatus && matchMeta && matchSearch;
   });
 
   const pendentes_coord = purchases.filter(p => p.status === 'SOLICITADO').length;
   const pendentes_admin = purchases.filter(p => p.status === 'APROVADO_COORD').length;
+  const totalPendentes = pendentes_coord + pendentes_admin;
 
   return (
     <div className="min-h-screen bg-white">
@@ -75,11 +76,11 @@ function ComprasInner() {
             </div>
           </div>
           <div className="flex gap-2">
-            {isCoordenador && (pendentes_coord > 0 || pendentes_admin > 0) && (
+            {isCoordenador && totalPendentes > 0 && (
               <Button variant="outline" className="relative" onClick={() => setTab('aprovacoes')}>
                 Aprovações
                 <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  {pendentes_coord + pendentes_admin}
+                  {totalPendentes}
                 </span>
               </Button>
             )}
@@ -94,7 +95,7 @@ function ComprasInner() {
           {[
             { id: 'lista', label: 'Solicitações' },
             { id: 'orcamento', label: 'Orçamento' },
-            ...(isCoordenador ? [{ id: 'aprovacoes', label: `Aprovações${pendentes_coord + pendentes_admin > 0 ? ` (${pendentes_coord + pendentes_admin})` : ''}` }] : []),
+            ...(isCoordenador ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
           ].map(t => (
             <button
               key={t.id}
@@ -109,7 +110,6 @@ function ComprasInner() {
         {/* Lista */}
         {tab === 'lista' && (
           <div>
-            {/* Filtros */}
             <div className="flex flex-wrap gap-3 mb-6">
               <div className="relative flex-1 min-w-48">
                 <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
@@ -170,7 +170,12 @@ function ComprasInner() {
 
         {/* Orçamento */}
         {tab === 'orcamento' && (
-          <OrcamentoDashboard budgetLines={budgetLines} purchases={purchases} isCoordenador={isCoordenador} />
+          <div className="space-y-8">
+            {isCoordenador && (
+              <ImportarOrcamento onSuccess={() => queryClient.invalidateQueries(['budget-lines'])} />
+            )}
+            <OrcamentoDashboard budgetLines={budgetLines} purchases={purchases} isCoordenador={isCoordenador} />
+          </div>
         )}
 
         {/* Aprovações */}

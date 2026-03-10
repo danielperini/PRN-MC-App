@@ -47,56 +47,14 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
-import ActivityLog from './pages/ActivityLog';
-import AdminUsers from './pages/AdminUsers';
-import AssistentePlanejamento from './pages/AssistentePlanejamento';
-import AuditLog from './pages/AuditLog';
-import Cadastro from './pages/Cadastro';
-import CalendarioAtividades from './pages/CalendarioAtividades';
-import CoordReview from './pages/CoordReview';
-import Dashboard from './pages/Dashboard';
-import DashboardProfissional from './pages/DashboardProfissional';
-import GestorArquivos from './pages/GestorArquivos';
-import Home from './pages/Home';
-import MonitoringPanel from './pages/MonitoringPanel';
-import NovaAtividade from './pages/NovaAtividade';
-import Perfil from './pages/Perfil';
-import PlataformaAdmin from './pages/PlataformaAdmin';
-import PlataformaConfig from './pages/PlataformaConfig';
-import Relatorios from './pages/Relatorios';
-import ReportEditor from './pages/ReportEditor';
-import UserManagement from './pages/UserManagement';
-import BaseConhecimento from './pages/BaseConhecimento';
 import Compras from './pages/Compras';
-import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "ActivityLog": ActivityLog,
-    "AdminUsers": AdminUsers,
-    "AssistentePlanejamento": AssistentePlanejamento,
-    "AuditLog": AuditLog,
-    "Cadastro": Cadastro,
-    "CalendarioAtividades": CalendarioAtividades,
-    "CoordReview": CoordReview,
-    "Dashboard": Dashboard,
-    "DashboardProfissional": DashboardProfissional,
-    "GestorArquivos": GestorArquivos,
-    "Home": Home,
-    "MonitoringPanel": MonitoringPanel,
-    "NovaAtividade": NovaAtividade,
-    "Perfil": Perfil,
-    "PlataformaAdmin": PlataformaAdmin,
-    "PlataformaConfig": PlataformaConfig,
-    "Relatorios": Relatorios,
-    "ReportEditor": ReportEditor,
-    "UserManagement": UserManagement,
-    "BaseConhecimento": BaseConhecimento,
     "Compras": Compras,
 }
 
 export const pagesConfig = {
-    mainPage: "GestorArquivos",
+    mainPage: "Compras",
     Pages: PAGES,
-    Layout: __Layout,
 };
