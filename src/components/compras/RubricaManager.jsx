@@ -12,9 +12,11 @@ const fmt = (v) => `R$ ${(v || 0).toLocaleString('pt-BR', { minimumFractionDigit
 const EMPTY_LINE = {
   codigo: '', natureza_codigo: '', natureza_nome: '',
   descricao: '', unidade: 'un', qtd: 1, periodo_meses: 1,
-  valor_unit_medio: 0, valor_total_previsto: 0, saldo_inicial: 0,
-  saldo_comprometido: 0, ativo: true,
+  numero_parcelas: 1, valor_unit_medio: 0, valor_total_previsto: 0, 
+  valor_parcela: 0, saldo_inicial: 0, saldo_comprometido: 0, ativo: true,
 };
+
+const UNIT_OPTIONS = ['mês', 'un', 'diária', 'hora', 'kg', 'serviço', 'km', 'evento'];
 
 function RubricaRow({ line, onSaved, onCancel, isNew = false }) {
   const [form, setForm] = useState({ ...line });
@@ -22,6 +24,7 @@ function RubricaRow({ line, onSaved, onCancel, isNew = false }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const saldo_disponivel = (form.saldo_inicial || 0) - (form.saldo_comprometido || 0);
+  const valorParcela = form.numero_parcelas > 0 ? (form.valor_total_previsto || 0) / form.numero_parcelas : 0;
 
   const handleSave = async () => {
     if (!form.codigo || !form.descricao) {
@@ -39,6 +42,8 @@ function RubricaRow({ line, onSaved, onCancel, isNew = false }) {
           valor_unit_medio: parseFloat(form.valor_unit_medio) || 0,
           qtd: parseFloat(form.qtd) || 1,
           periodo_meses: parseFloat(form.periodo_meses) || 1,
+          numero_parcelas: parseFloat(form.numero_parcelas) || 1,
+          valor_parcela: valorParcela,
         });
         toast.success('Rubrica criada!');
       } else {
@@ -67,6 +72,14 @@ function RubricaRow({ line, onSaved, onCancel, isNew = false }) {
       </td>
       <td className="py-2 px-2">
         <Input value={form.natureza_nome} onChange={e => set('natureza_nome', e.target.value)} placeholder="Natureza" className="h-7 text-xs w-32" />
+      </td>
+      <td className="py-2 px-2">
+        <select value={form.unidade} onChange={e => set('unidade', e.target.value)} className="h-7 text-xs border border-gray-300 rounded px-2 w-20">
+          {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+        </select>
+      </td>
+      <td className="py-2 px-2">
+        <Input type="number" min="1" value={form.numero_parcelas} onChange={e => set('numero_parcelas', e.target.value)} placeholder="Parcelas" className="h-7 text-xs w-20" />
       </td>
       <td className="py-2 px-2">
         <Input type="number" step="0.01" value={form.saldo_inicial} onChange={e => set('saldo_inicial', e.target.value)} className="h-7 text-xs w-28" />
@@ -185,16 +198,18 @@ export default function RubricaManager({ budgetLines, purchases = [] }) {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                <th className="text-left py-2 px-2 font-medium text-gray-500">Código</th>
-                <th className="text-left py-2 px-2 font-medium text-gray-500">Descrição</th>
-                <th className="text-left py-2 px-2 font-medium text-gray-500 hidden md:table-cell">Natureza</th>
-                <th className="text-right py-2 px-2 font-medium text-gray-500">Saldo Inicial</th>
-                <th className="text-right py-2 px-2 font-medium text-gray-500">Comprometido</th>
-                <th className="text-right py-2 px-2 font-medium text-gray-500">Disponível</th>
-                <th className="text-center py-2 px-2 font-medium text-gray-500">Status</th>
-                <th className="py-2 px-2" />
-              </tr>
+             <tr className="border-b border-gray-100 bg-gray-50/50">
+               <th className="text-left py-2 px-2 font-medium text-gray-500">Código</th>
+               <th className="text-left py-2 px-2 font-medium text-gray-500">Descrição</th>
+               <th className="text-left py-2 px-2 font-medium text-gray-500 hidden md:table-cell">Natureza</th>
+               <th className="text-left py-2 px-2 font-medium text-gray-500">Unidade</th>
+               <th className="text-center py-2 px-2 font-medium text-gray-500">Parcelas</th>
+               <th className="text-right py-2 px-2 font-medium text-gray-500">Saldo Inicial</th>
+               <th className="text-right py-2 px-2 font-medium text-gray-500">Comprometido</th>
+               <th className="text-right py-2 px-2 font-medium text-gray-500">Disponível</th>
+               <th className="text-center py-2 px-2 font-medium text-gray-500">Status</th>
+               <th className="py-2 px-2" />
+             </tr>
             </thead>
             <tbody>
               {addingNew && (
@@ -229,6 +244,8 @@ export default function RubricaManager({ budgetLines, purchases = [] }) {
                     <td className="py-2.5 px-2 text-gray-500 hidden md:table-cell">
                       <span className="line-clamp-1">{line.natureza_nome || line.natureza_codigo || '—'}</span>
                     </td>
+                    <td className="py-2.5 px-2 text-gray-600 text-xs">{line.unidade || 'un'}</td>
+                    <td className="py-2.5 px-2 text-center text-gray-600 text-xs">{line.numero_parcelas || 1}x</td>
                     <td className="py-2.5 px-2 text-right text-gray-600">{fmt(line.saldo_inicial)}</td>
                     <td className="py-2.5 px-2 text-right text-amber-600">{fmt(line.saldo_comprometido)}</td>
                     <td className={`py-2.5 px-2 text-right font-semibold ${saldo_disponivel < 0 ? 'text-red-600' : saldo_disponivel < (line.saldo_inicial * 0.1) ? 'text-amber-600' : 'text-green-600'}`}>
@@ -263,7 +280,7 @@ export default function RubricaManager({ budgetLines, purchases = [] }) {
               })}
               {budgetLines.length === 0 && !addingNew && (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-gray-400 text-xs">
+                  <td colSpan={10} className="py-10 text-center text-gray-400 text-xs">
                     Nenhuma rubrica cadastrada. Clique em "Nova Rubrica" para começar.
                   </td>
                 </tr>
