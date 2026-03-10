@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import AtividadesSection, { validateAtividade } from '../components/reports/AtividadesSection';
-import ExportPDF from '../components/reports/ExportPDF';
+import PDFExportButton from '../components/reports/PDFExportButton';
 import AIAssistButton from '../components/reports/AIAssistButton';
 import ReportGenerator from '../components/reports/ReportGenerator';
 import ExecutiveSummaryAI from '../components/reports/ExecutiveSummaryAI';
@@ -352,6 +352,10 @@ function ReportEditorInner() {
              </Button>
              {reportId && (
                <>
+                 <PDFExportButton 
+                   reportId={reportId} 
+                   fileName={`Relatorio_${formData.mes_referencia}_${formData.ano}.pdf`}
+                 />
                  <Button variant="outline" size="sm" onClick={() => setShowSaveTemplateDialog(true)}>
                    Salvar como Template
                  </Button>
