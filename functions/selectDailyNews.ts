@@ -42,8 +42,17 @@ Deno.serve(async (req) => {
     }
 
     // 3. Find candidates (not shown in last 4 days — avoids repeating)
+    // Prioritize news about Museus Centro when there are future activities
     const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const candidates = activeNews.filter(n => !n.data_selecao || n.data_selecao < fourDaysAgo);
+
+    // If there are future activities, prioritize museu_centro news
+    let prioritized = [...candidates];
+    if (futureActivities.length > 0) {
+      const museuCentroNews = candidates.filter(n => n.museu_classificacao === 'museu_centro');
+      const otherNews = candidates.filter(n => n.museu_classificacao !== 'museu_centro');
+      prioritized = [...museuCentroNews, ...otherNews];
+    }
 
     let selected = [];
 
