@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronDown, FileIcon, FolderIcon, Eye } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileIcon, FolderIcon, Eye, Edit2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Download } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 
 export default function FileHierarchy({ backups = [], onPreview }) {
   const [expandedReports, setExpandedReports] = useState(new Set());
   const [expandedActivities, setExpandedActivities] = useState(new Set());
+  const [editingFileId, setEditingFileId] = useState(null);
+  const [editingFileName, setEditingFileName] = useState('');
+  const [savingFileId, setSavingFileId] = useState(null);
 
   // Agrupar por relatório > atividade
   const hierarchy = backups.reduce((acc, file) => {
@@ -60,6 +65,36 @@ export default function FileHierarchy({ backups = [], onPreview }) {
     } else {
       toast.info('Tipo de arquivo não suportado para pré-visualização');
     }
+  };
+
+  const startEdit = (file) => {
+    setEditingFileId(file.id);
+    setEditingFileName(file.fileName);
+  };
+
+  const saveFileName = async (file) => {
+    if (!editingFileName.trim() || editingFileName === file.fileName) {
+      setEditingFileId(null);
+      return;
+    }
+
+    setSavingFileId(file.id);
+    try {
+      await base44.entities.Attachment.update(file.id, { file_name: editingFileName });
+      toast.success('Nome do arquivo atualizado');
+      setEditingFileId(null);
+      window.location.reload();
+    } catch (error) {
+      toast.error('Erro ao renomear arquivo');
+      console.error(error);
+    } finally {
+      setSavingFileId(null);
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingFileId(null);
+    setEditingFileName('');
   };
 
   if (backups.length === 0) {
@@ -135,32 +170,73 @@ export default function FileHierarchy({ backups = [], onPreview }) {
                             <FileIcon className="w-4 h-4 text-gray-400 mt-1 flex-shrink-0" />
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {file.fileName}
-                            </p>
+                            {editingFileId === file.id ? (
+                              <div className="flex items-center gap-2 mb-1">
+                                <Input
+                                  value={editingFileName}
+                                  onChange={(e) => setEditingFileName(e.target.value)}
+                                  className="text-sm"
+                                  autoFocus
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => saveFileName(file)}
+                                  disabled={savingFileId === file.id}
+                                  className="flex-shrink-0"
+                                >
+                                  <Check className="w-4 h-4 text-green-600" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={cancelEdit}
+                                  className="flex-shrink-0"
+                                >
+                                  <X className="w-4 h-4 text-red-600" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {file.fileName}
+                              </p>
+                            )}
                             <p className="text-xs text-gray-500 mt-1">
                               {new Date(file.timestamp).toLocaleString('pt-BR')} · {file.size}
                             </p>
                           </div>
-                          {canPreview && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handlePreview(file)}
-                              className="flex-shrink-0"
-                              title="Pré-visualizar"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
+                          {!editingFileId && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => startEdit(file)}
+                                className="flex-shrink-0"
+                                title="Renomear"
+                              >
+                                <Edit2 className="w-4 h-4 text-gray-500" />
+                              </Button>
+                              {canPreview && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handlePreview(file)}
+                                  className="flex-shrink-0"
+                                  title="Pré-visualizar"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDownload(file)}
+                                className="flex-shrink-0"
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                            </>
                           )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDownload(file)}
-                            className="flex-shrink-0"
-                          >
-                            <Download className="w-4 h-4" />
-                          </Button>
                         </div>
                         );
                       })}
