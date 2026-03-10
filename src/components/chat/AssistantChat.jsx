@@ -157,13 +157,21 @@ export default function AssistantChat() {
     if (!input.trim()) return;
 
     try {
-      const context = reportContext?.length > 0
-        ? `Contexto: Relatórios recentes: ${reportContext.map(r => `${r.numero_protocolo} - ${r.author_name}`).join(', ')}`
+      const reportCtx = reportContext?.length > 0
+        ? `Relatórios recentes: ${reportContext.map(r => `${r.numero_protocolo} - ${r.author_name}`).join(', ')}`
+        : '';
+
+      // Monta contexto dinâmico dos documentos da base de conhecimento
+      const docsContext = knowledgeDocs.length > 0
+        ? `\n\n=== BASE DE DOCUMENTOS DE REFERÊNCIA ===\n${knowledgeDocs.map(d =>
+            `--- ${d.titulo} (${d.categoria}${d.versao ? ', ' + d.versao : ''}) ---\n${d.conteudo_extraido || '(sem conteúdo extraído)'}`
+          ).join('\n\n')}`
         : '';
 
       const response = await base44.integrations.Core.InvokeLLM({
-        prompt: `${systemPrompt}\n\n${TERCEIRO_ADITIVO_CONTEXT}\n\n${MANUAL_CONTEXT}\n\n${context}\n\nPergunta do usuário: ${textToSend}`,
+        prompt: `${systemPrompt}\n\n${TERCEIRO_ADITIVO_CONTEXT}\n\n${MANUAL_CONTEXT}${docsContext}\n\n${reportCtx}\n\nPergunta do usuário: ${textToSend}`,
         add_context_from_internet: false,
+        model: knowledgeDocs.length > 0 ? 'claude_sonnet_4_6' : undefined,
       });
 
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
