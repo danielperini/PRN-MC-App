@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import GlobalSearch from './GlobalSearch';
 
-export default function TopNav({ userEmail, userName, userRole }) {
+export default function TopNav({ currentUser }) {
   return (
     <nav className="h-16 border-b border-black bg-white flex items-center justify-between px-6 sticky top-0 z-30">
       {/* Search */}
@@ -22,7 +22,7 @@ export default function TopNav({ userEmail, userName, userRole }) {
             <Home className="w-5 h-5" />
           </Button>
         </Link>
-        {userEmail && <NotificationBell userEmail={userEmail} />}
+        {currentUser?.email && <NotificationBell userEmail={currentUser.email} />}
         
         <Link to={createPageUrl('Perfil')}>
            <Button variant="ghost" size="icon" className="text-black hover:bg-black hover:text-white h-11 w-11">

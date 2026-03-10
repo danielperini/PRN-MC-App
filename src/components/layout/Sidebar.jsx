@@ -9,30 +9,16 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export default function Sidebar({ currentPageName, collapsed, onToggle }) {
-  const [currentUser, setCurrentUser] = useState(null);
+export default function Sidebar({ currentPageName, collapsed, onToggle, currentUser }) {
   const [customPerms, setCustomPerms] = useState(null);
 
   useEffect(() => {
-    const loadUser = async () => {
-      const isAuth = await base44.auth.isAuthenticated();
-      if (isAuth) {
-        const user = await base44.auth.me();
-        setCurrentUser(user);
-
-        const isCoordenador = ['COORDENADOR', 'ADMIN', 'admin'].includes(user?.role);
-        if (isCoordenador && user?.email) {
-          try {
-            const perms = await base44.entities.UserPermission.filter({ user_email: user.email });
-            if (perms.length > 0) setCustomPerms(perms[0]);
-          } catch (e) {
-            setCustomPerms(null);
-          }
-        }
-      }
-    };
-    loadUser();
-  }, []);
+    if (currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role)) {
+      base44.entities.UserPermission.filter({ user_email: currentUser.email })
+        .then(perms => setCustomPerms(perms?.[0] || null))
+        .catch(() => setCustomPerms(null));
+    }
+  }, [currentUser?.email]);
 
   const isCoordenador = currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
 

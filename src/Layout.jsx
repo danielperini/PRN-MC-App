@@ -6,18 +6,13 @@ import AssistantChat from '@/components/chat/AssistantChat';
 import MobileBottomTab from '@/components/mobile/MobileBottomTab';
 
 export default function Layout({ children, currentPageName }) {
-  const [currentUser, setCurrentUser] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    const loadUser = async () => {
-      const isAuth = await base44.auth.isAuthenticated();
-      if (isAuth) {
-        const user = await base44.auth.me();
-        setCurrentUser(user);
-      }
-    };
-    loadUser();
+    base44.auth.isAuthenticated().then(isAuth => {
+      if (isAuth) base44.auth.me().then(setCurrentUser);
+    });
   }, []);
 
   return (
@@ -28,17 +23,14 @@ export default function Layout({ children, currentPageName }) {
           currentPageName={currentPageName} 
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+          currentUser={currentUser}
         />
       </div>
 
       {/* Main Content */}
       <div className={`hidden md:flex md:flex-col ${sidebarCollapsed ? 'ml-20' : 'ml-64'} min-h-screen transition-all duration-300`}>
         {/* Top Nav */}
-        <TopNav
-          userEmail={currentUser?.email}
-          userName={currentUser?.full_name}
-          userRole={currentUser?.role}
-        />
+        <TopNav currentUser={currentUser} />
 
         {/* Content */}
           <main className="flex-1 overflow-auto bg-white px-4 md:px-6">
