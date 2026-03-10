@@ -266,27 +266,34 @@ export default function ExportPDF({ report, reportId }) {
       y += 30;
 
       // Summary stats strip
-      const totalPublico = atividades.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0);
+      const totalPublico = atividades.reduce((s, a) => s + (Number(a.publico_estimado) || 0) * (Number(a.quantas_repeticoes) || 1), 0);
+      const metaCount = atividades.filter(a => a.classificacao === 'META').length;
       const stats = [
         ['Atividades', atividades.length],
-        ['Público Total', totalPublico],
+        ['Público Total', totalPublico || '—'],
+        ['Metas', metaCount],
         ['Anexos', attachments.length],
       ];
       const statW = CW / stats.length;
-      doc.setFillColor(18, 18, 18);
-      doc.rect(M, y, CW, 14, 'F');
+      doc.setFillColor(12, 12, 12);
+      doc.rect(M, y, CW, 18, 'F');
+      // Dividers
+      doc.setDrawColor(50, 50, 50);
+      for (let i = 1; i < stats.length; i++) {
+        doc.line(M + i * statW, y + 2, M + i * statW, y + 16);
+      }
       stats.forEach(([label, value], i) => {
         const sx = M + i * statW + statW / 2;
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
+        doc.setFontSize(16);
         doc.setTextColor(255, 255, 255);
-        doc.text(String(value), sx, y + 8, { align: 'center' });
+        doc.text(String(value), sx, y + 10, { align: 'center' });
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(6.5);
-        doc.setTextColor(180, 180, 180);
-        doc.text(label, sx, y + 12.5, { align: 'center' });
+        doc.setFontSize(6);
+        doc.setTextColor(140, 140, 140);
+        doc.text(label.toUpperCase(), sx, y + 15.5, { align: 'center' });
       });
-      y += 20;
+      y += 24;
 
       // Activity list table
       y = secHeader(doc, 'ÍNDICE DE ATIVIDADES', y);
