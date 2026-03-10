@@ -24,7 +24,10 @@ function GestorArquivosInner() {
     queryKey: ['google-drive-backups', selectedDate, searchFileName, searchContent, currentUser?.email],
     queryFn: async () => {
       try {
-        // Sempre buscar todos os anexos (padrão: todos os usuários)
+        // Buscar apenas anexos de relatórios aprovados
+        const approvedReports = await base44.entities.Report.filter({ status: 'APPROVED' });
+        const approvedReportIds = new Set(approvedReports.map(r => r.id));
+        
         const allAttachments = await base44.entities.Attachment.list();
         
         // Filtro padrão: últimos 90 dias
@@ -35,7 +38,7 @@ function GestorArquivosInner() {
         const backupsData = allAttachments
           .filter(att => {
             const attDate = new Date(att.created_date);
-            return attDate >= ninetyDaysAgo;
+            return attDate >= ninetyDaysAgo && approvedReportIds.has(att.report_id);
           })
           .map(att => ({
             id: att.id,
