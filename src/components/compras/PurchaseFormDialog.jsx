@@ -41,8 +41,8 @@ const EMPTY = {
   activity_id: '', report_id: '',
 };
 
-export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, onSuccess }) {
-  const [form, setForm] = useState(EMPTY);
+export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, onSuccess, prefill }) {
+  const [form, setForm] = useState(() => prefill ? { ...EMPTY, ...prefill } : EMPTY);
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [analyzingMeta, setAnalyzingMeta] = useState(false);
   const [checkingSaldo, setCheckingSaldo] = useState(false);
@@ -50,8 +50,12 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState(1);
   const [activities, setActivities] = useState([]);
-  const [mes, setMes] = useState(MESES[new Date().getMonth()]);
-  const [ano, setAno] = useState(new Date().getFullYear());
+  const [mes, setMes] = useState(prefill?.mes_referencia || MESES[new Date().getMonth()]);
+  const [ano, setAno] = useState(prefill?.ano || new Date().getFullYear());
+
+  // Campos travados quando vem de atividade
+  const isFromActivity = !!(prefill?.activity_id);
+  const lockedFields = isFromActivity ? ['activity_id', 'report_id', 'meta_id'] : [];
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
