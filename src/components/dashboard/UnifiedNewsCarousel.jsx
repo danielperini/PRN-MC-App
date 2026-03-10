@@ -25,12 +25,25 @@ export default function UnifiedNewsCarousel() {
   const [isSelecting, setIsSelecting] = useState(false);
   const queryClient = useQueryClient();
 
-  // Fetch today's selected news
+  // Fetch today's selected news and museology articles
   const { data: todayNews = [], isLoading: loadingNews, refetch: refetchNews } = useQuery({
     queryKey: ['today-news', today],
     queryFn: async () => {
       const all = await base44.entities.NewsHighlight.filter({ ativo: true }, '-created_date', 200);
-      return all.filter(n => n.data_selecao === today).slice(0, 10);
+      const selected = all.filter(n => n.data_selecao === today).slice(0, 10);
+      
+      // Include museology articles
+      const museologyArticles = all.filter(n => 
+        n.titulo?.toLowerCase().includes('museu') || 
+        n.resumo?.toLowerCase().includes('museu') ||
+        n.titulo?.toLowerCase().includes('museolog')
+      ).slice(0, 3);
+      
+      const combined = [...selected, ...museologyArticles];
+      const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+      
+      // Shuffle randomly
+      return unique.sort(() => Math.random() - 0.5).slice(0, 12);
     },
     refetchInterval: 60000,
     staleTime: 30000,
@@ -53,27 +66,31 @@ export default function UnifiedNewsCarousel() {
     refetchInterval: 120000,
   });
 
-  const allItems = React.useMemo(() => [
-    ...momentos.map(m => ({
-      id: m.id,
-      titulo: m.titulo,
-      resumo: m.texto,
-      imagem_url: m.imagem_url,
-      link: null,
-      fonte: 'internal',
-      _tipo: 'momento',
-    })),
-    ...todayNews.map(n => ({
-      id: n.id,
-      titulo: n.titulo,
-      resumo: n.resumo,
-      imagem_url: n.imagem_url,
-      link: n.link,
-      fonte: n.fonte,
-      data_publicacao: n.data_publicacao,
-      _tipo: 'noticia',
-    })),
-  ], [momentos, todayNews]);
+  const allItems = React.useMemo(() => {
+    const items = [
+      ...momentos.map(m => ({
+        id: m.id,
+        titulo: m.titulo,
+        resumo: m.texto,
+        imagem_url: m.imagem_url,
+        link: null,
+        fonte: 'internal',
+        _tipo: 'momento',
+      })),
+      ...todayNews.map(n => ({
+        id: n.id,
+        titulo: n.titulo,
+        resumo: n.resumo,
+        imagem_url: n.imagem_url,
+        link: n.link,
+        fonte: n.fonte,
+        data_publicacao: n.data_publicacao,
+        _tipo: 'noticia',
+      })),
+    ];
+    // Shuffle randomly on every load
+    return items.sort(() => Math.random() - 0.5);
+  }, [momentos, todayNews]);
 
   const selectTodayNews = useCallback(async () => {
     if (isSelecting) return;
