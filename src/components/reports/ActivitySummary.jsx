@@ -12,7 +12,7 @@ export default function ActivitySummary({ activities = [], dateRange = null }) {
   }
 
   // Calcular totais
-  const totalPublico = activities.reduce((sum, a) => sum + ((a.publico_total || 0) || (a.publico_estimado || 0) * (a.quantas_repeticoes || 1)), 0);
+  const totalPublico = activities.reduce((sum, a) => sum + (a.publico_total || 0), 0);
   const totalProdutos = activities.reduce((sum, a) => sum + ((a.produtos_entregues?.length || 0) + (a.quantidade_produtos || 0)), 0);
   const uniqueTeams = new Set(activities.flatMap(a => [a.equipe_responsavel, (a.equipe_envolvida_lista || [])].flat()).filter(Boolean));
   const totalActividades = activities.length;
