@@ -439,11 +439,7 @@ Retorne apenas JSON no formato solicitado.`,
       deactivatedCount++;
     }
 
-    for (const news of oldNews) {
-      await base44.asServiceRole.entities.NewsHighlight.update(news.id, {
-        ativo: false
-      });
-    }
+
 
     const latestNews = await base44.asServiceRole.entities.NewsHighlight.list('-created_date', 10);
 
