@@ -213,6 +213,11 @@ export default function HighlightsCarousel() {
                   {SOURCE_LABELS[current.fonte] || 'Web'}
                 </span>
               )}
+              {current.museu_classificacao && (
+                <span className="text-[10px] bg-blue-500/80 text-white px-2.5 py-1 rounded-full font-medium">
+                  {MUSEU_LABELS[current.museu_classificacao] || current.museu_classificacao}
+                </span>
+              )}
             </div>
 
             {/* Navigation dots */}
