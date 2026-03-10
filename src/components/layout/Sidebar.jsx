@@ -5,7 +5,7 @@ import { base44 } from '@/api/base44Client';
 import {
   Building2, FileText, Users, Eye, Paperclip, Settings, Shield,
   HelpCircle, BarChart3, History, ChevronLeft, ChevronRight,
-  CalendarDays, Layers, BookOpen, ShoppingCart, Banknote
+  CalendarDays, Layers, BookOpen, ShoppingCart, Banknote, Target
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
