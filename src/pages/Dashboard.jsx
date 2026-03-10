@@ -62,6 +62,22 @@ function DashboardInner() {
     enabled: isCoordenador
   });
 
+  // Subscrições em tempo real para atualizar números quando dados são excluídos/alterados
+  React.useEffect(() => {
+    const unsubReport = base44.entities.Report.subscribe(() => {
+      refetchMy();
+      if (isCoordenador) refetchAll();
+    });
+    const unsubActivity = base44.entities.Activity.subscribe(() => {
+      refetchMy();
+      if (isCoordenador) refetchAll();
+    });
+    return () => {
+      unsubReport();
+      unsubActivity();
+    };
+  }, [isCoordenador]);
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
