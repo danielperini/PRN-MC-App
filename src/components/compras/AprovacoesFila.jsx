@@ -68,9 +68,12 @@ export default function AprovacoesFila({ purchases, budgetLines, statusConfig, o
 
   const META_LABELS = {
     'MC3A-20': 'Ações Educativas',
-    'MC3A-21': 'Exposição MUMO',
-    'MC3A-22': 'Consultorias',
-    'MC3A-EXTRA': 'Meta Extra',
+    'MC3A-21': 'Exposição / Produção Cultural',
+    'MC3A-22': 'Comunicação e Divulgação',
+    'MC3A-23': 'Noturno nos Museus 2026',
+    'MC3A-24': 'Emenda Parlamentar',
+    'MC3A-25': 'Outras Ações',
+    'MC3A-EXTRA': 'Ações Extras',
   };
 
   const renderCard = (purchase, fila) => {
