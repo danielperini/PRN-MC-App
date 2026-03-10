@@ -15,7 +15,8 @@ import {
   History,
   ChevronLeft,
   ChevronRight,
-  CalendarDays
+  CalendarDays,
+  Layers
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
