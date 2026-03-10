@@ -11,7 +11,9 @@ export default function ActivityMetricsWidget({ reports = [] }) {
     let totalPublico = 0;
     const atividadesPorMuseu = {};
 
-    reports.forEach(report => {
+    // Apenas relatórios APROVADOS
+    const approvedReports = reports.filter(r => r.status === 'APPROVED');
+    approvedReports.forEach(report => {
       const atividades = Array.isArray(report.atividades) ? report.atividades : [];
       atividades.forEach(a => {
         if (a.classificacao === 'META') totalMeta++;
