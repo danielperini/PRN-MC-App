@@ -32,15 +32,15 @@ export default function HighlightsCarousel() {
   const queryClient = useQueryClient();
 
   // Fetch today's selected news
-  const { data: todayNews = [], isLoading: loadingNews } = useQuery({
-    queryKey: ['today-news', today],
-    queryFn: async () => {
-      const all = await base44.entities.NewsHighlight.filter({ ativo: true }, '-created_date', 200);
-      return all.filter(n => n.data_selecao === today).slice(0, 5);
-    },
-    refetchInterval: 600000,
-    staleTime: 300000,
-  });
+   const { data: todayNews = [], isLoading: loadingNews, refetch: refetchNews } = useQuery({
+     queryKey: ['today-news', today],
+     queryFn: async () => {
+       const all = await base44.entities.NewsHighlight.filter({ ativo: true }, '-created_date', 200);
+       return all.filter(n => n.data_selecao === today).slice(0, 5);
+     },
+     refetchInterval: 60000, // 1 minuto
+     staleTime: 30000, // 30 segundos
+   });
 
   // Fetch momentos (internal highlights)
   const { data: momentos = [] } = useQuery({
@@ -85,24 +85,20 @@ export default function HighlightsCarousel() {
     if (isSelecting) return;
     setIsSelecting(true);
     try {
-      // Clear previous day's news first
-      const allNews = await base44.entities.NewsHighlight.list('-created_date', 200);
-      const yesterday = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const oldNews = allNews.filter(n => n.data_selecao === yesterday && n.ativo);
-      
-      for (const news of oldNews) {
-        await base44.entities.NewsHighlight.update(news.id, { ativo: false });
-      }
-      
       // Call search and index function to fetch and select new news
       await base44.functions.invoke('searchAndIndexNews', {});
-      await queryClient.invalidateQueries({ queryKey: ['today-news'] });
+
+      // Force refetch after a short delay to ensure data is updated
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['today-news'] });
+        refetchNews();
+      }, 500);
     } catch (e) {
       console.error('selectTodayNews error:', e);
     } finally {
       setIsSelecting(false);
     }
-  }, [isSelecting, queryClient]);
+  }, [isSelecting, queryClient, refetchNews]);
 
   // Auto-trigger selection if no news today
   useEffect(() => {
