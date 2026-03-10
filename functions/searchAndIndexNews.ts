@@ -391,10 +391,20 @@ Retorne apenas JSON no formato solicitado.`,
       newNewsAdded++;
     }
 
-    // 5) Depois completar com as notícias mais atuais das palavras-chave
+    // 6) Depois completar com as notícias mais atuais das palavras-chave
+    const keywordClassifications = await classifyNewsByMuseum(prioritizedKeywordNews);
+    const keywordClassificationMap = {};
+    keywordClassifications.forEach(c => {
+      if (c.indice > 0 && c.indice <= prioritizedKeywordNews.length) {
+        keywordClassificationMap[prioritizedKeywordNews[c.indice - 1].link] = c.museu;
+      }
+    });
+
     for (const news of prioritizedKeywordNews) {
       if (newNewsAdded >= maxNewsPerDay) break;
       if (existingLinks.has(news.link)) continue;
+
+      const museuClassificacao = keywordClassificationMap[news.link];
 
       await base44.asServiceRole.entities.NewsHighlight.create({
         titulo: news.titulo,
@@ -403,7 +413,8 @@ Retorne apenas JSON no formato solicitado.`,
         fonte: news.fonte,
         imagem_url: news.imagem_url,
         data_encontrada: news.data_encontrada,
-        ativo: news.ativo
+        ativo: news.ativo,
+        museu_classificacao: museuClassificacao || null
       });
 
       existingLinks.add(news.link);
