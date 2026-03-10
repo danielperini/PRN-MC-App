@@ -18,6 +18,11 @@ const FONTE_COLORS = {
   internal: 'bg-amber-500/80',
 };
 
+const MUSEU_LABELS = {
+  museu_centro: 'Museus Centro',
+  museu_pbh: 'Museu PBH',
+};
+
 export default function HighlightsCarousel() {
   const today = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
   const [currentIndex, setCurrentIndex] = useState(0);
