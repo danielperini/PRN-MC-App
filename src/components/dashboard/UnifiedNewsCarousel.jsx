@@ -39,14 +39,23 @@ export default function UnifiedNewsCarousel() {
         n.titulo?.toLowerCase().includes('museolog')
       ).slice(0, 3);
       
-      const combined = [...selected, ...museologyArticles];
-      const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+      // Fetch additional museology articles from curated sources
+      let externalArticles = [];
+      try {
+        const response = await base44.functions.invoke('fetchMuseologyArticles', {});
+        externalArticles = response.articles || [];
+      } catch (e) {
+        console.error('Error fetching external museology articles:', e);
+      }
+      
+      const combined = [...selected, ...museologyArticles, ...externalArticles];
+      const unique = Array.from(new Map(combined.map(item => [item.id || item.link, item])).values());
       
       // Shuffle randomly
-      return unique.sort(() => Math.random() - 0.5).slice(0, 12);
+      return unique.sort(() => Math.random() - 0.5).slice(0, 15);
     },
-    refetchInterval: 60000,
-    staleTime: 30000,
+    refetchInterval: 120000,
+    staleTime: 60000,
   });
 
   // Fetch momentos (internal highlights)
