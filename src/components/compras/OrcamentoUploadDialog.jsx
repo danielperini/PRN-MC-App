@@ -61,7 +61,7 @@ export default function OrcamentoUploadDialog({ open, onOpenChange, onSuccess, p
       };
       reader.readAsDataURL(file);
     } catch (error) {
-      alert.error('Erro ao extrair dados: ' + error.message);
+      toast.error('Erro ao extrair dados: ' + error.message);
     } finally {
       setLoading(false);
     }
