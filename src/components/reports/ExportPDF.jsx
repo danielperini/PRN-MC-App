@@ -230,35 +230,40 @@ export default function ExportPDF({ report, reportId }) {
       y = 44;
 
       // Identification block (compact 3-column grid)
-      doc.setFillColor(248, 248, 248);
-      doc.rect(M, y - 3, CW, 22, 'F');
+      doc.setFillColor(250, 250, 250);
+      doc.rect(M, y - 3, CW, 26, 'F');
       doc.setDrawColor(220, 220, 220);
-      doc.rect(M, y - 3, CW, 22, 'S');
+      doc.rect(M, y - 3, CW, 26, 'S');
+      // Vertical dividers
+      doc.setDrawColor(230, 230, 230);
+      doc.line(M + CW / 3, y - 3, M + CW / 3, y + 23);
+      doc.line(M + 2 * CW / 3, y - 3, M + 2 * CW / 3, y + 23);
+      doc.line(M, y + 11, M + CW, y + 11);
 
       const idGrid = [
         ['Profissional', report.author_name],
         ['Função', report.funcao],
         ['Museu', report.museu],
-        ['Período', periodoLabel],
-        ['Status', report.status],
+        ['Período de referência', periodoLabel],
+        ['Status do relatório', report.status],
         ['Equipe', report.equipe || '—'],
       ];
       const colW3 = CW / 3;
       idGrid.forEach(([label, value], i) => {
         const col = i % 3;
         const row = Math.floor(i / 3);
-        const gx = M + col * colW3 + 3;
-        const gy = y + row * 10;
-        doc.setFontSize(6.5);
+        const gx = M + col * colW3 + 4;
+        const gy = y + row * 13;
+        doc.setFontSize(6);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(100, 100, 100);
-        doc.text(label.toUpperCase(), gx, gy + 1);
+        doc.setTextColor(120, 120, 120);
+        doc.text(label.toUpperCase(), gx, gy + 1.5);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(0, 0, 0);
-        doc.text(String(value || '—').substring(0, 26), gx, gy + 6);
+        doc.setFontSize(8.5);
+        doc.setTextColor(10, 10, 10);
+        doc.text(String(value || '—').substring(0, 25), gx, gy + 7.5);
       });
-      y += 26;
+      y += 30;
 
       // Summary stats strip
       const totalPublico = atividades.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0);
