@@ -200,9 +200,29 @@ function AtividadeDialog({ open, onClose, atividade, onSaved }) {
 }
 
 // ——— Card de atividade ———
-function AtividadeCard({ atividade, canEdit, onEdit, onDelete }) {
+function AtividadeCard({ atividade, canEdit, onEdit, onDelete, budgetLines, currentUser }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showCompraDialog, setShowCompraDialog] = useState(false);
+
+  // Monta o prefill para a compra a partir dos dados da atividade
+  const buildPurchasePrefill = () => {
+    const now = new Date();
+    return {
+      activity_id: atividade.id,
+      report_id: atividade.report_id || '',
+      meta_id: atividade.meta_codigo ? (
+        ['MC3A-20','MC3A-21','MC3A-22','MC3A-EXTRA'].find(m => atividade.meta_codigo?.includes(m)) || ''
+      ) : '',
+      meta_codigo: atividade.meta_codigo || '',
+      classificacao: atividade.classificacao || '',
+      tipo_equipe: atividade.tipo_equipe || '',
+      mes_referencia: MESES[now.getMonth()],
+      ano: now.getFullYear(),
+      // campo auxiliar só para exibição no formulário (não gravado na entidade)
+      _activity_titulo: atividade.titulo,
+    };
+  };
 
   const handleDelete = async () => {
     setDeleting(true);
