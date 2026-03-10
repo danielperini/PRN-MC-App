@@ -56,35 +56,36 @@ Deno.serve(async (req) => {
       prioritized = [...museuCentroNews, ...otherNews];
     }
 
-    let selected = [];
+    let selectedNoticias = [];
+    let selectedHistoricos = [];
+    let selectedArtigos = [];
 
+    // === PARTE 1: 5 NOTÍCIAS WEB ===
     if (prioritized.length >= 5) {
       // Enough candidates — pick 5, respecting priority for museu_centro when active
       if (futureActivities.length > 0) {
         const museuCentroNews = prioritized.filter(n => n.museu_classificacao === 'museu_centro').slice(0, 3);
         const otherNews = shuffleArray(prioritized.filter(n => n.museu_classificacao !== 'museu_centro')).slice(0, 2);
-        selected = [...museuCentroNews, ...otherNews];
+        selectedNoticias = [...museuCentroNews, ...otherNews];
       } else {
-        selected = shuffleArray(prioritized).slice(0, 5);
+        selectedNoticias = shuffleArray(prioritized).slice(0, 5);
       }
     } else {
-      // Need more news — use AI to suggest varied search terms
-      selected = [...prioritized];
+      selectedNoticias = [...prioritized];
 
       const aiResult = await base44.integrations.Core.InvokeLLM({
         prompt: `Hoje é ${today} (${month} de ${year}). Você é especialista em comunicação cultural de Belo Horizonte.
-Sugira 6 termos de busca VARIADOS e CRIATIVOS em português brasileiro para encontrar notícias recentes sobre:
-- Viaduto das Artes BH / Projeto Museus Centro Belo Horizonte
-- MUMO (Museu da Moda BH), MIS BH (Museu da Imagem e do Som), MHAB (Museu Histórico Abílio Barreto)
-- Eventos culturais, exposições, programação cultural em BH
+    Sugira 6 termos de busca VARIADOS e CRIATIVOS em português brasileiro para encontrar notícias recentes sobre:
+    - Viaduto das Artes BH / Projeto Museus Centro Belo Horizonte
+    - MUMO (Museu da Moda BH), MIS BH (Museu da Imagem e do Som), MHAB (Museu Histórico Abílio Barreto)
+    - Eventos culturais, exposições, programação cultural em BH
 
-IMPORTANTE — seja diverso: não repita temas óbvios. Considere:
-- O que está acontecendo em ${month}: feriados, eventos sazonais
-- Ângulos variados: acessibilidade, educação, acervo, novas aquisições, parcerias, bastidores
-- Públicos diferentes: famílias, jovens, turistas, escolas
-- Notícias de bastidores: novos curadores, concursos, chamadas públicas, licitações culturais
+    IMPORTANTE — seja diverso: não repita temas óbvios. Considere:
+    - O que está acontecendo em ${month}: feriados, eventos sazonais
+    - Ângulos variados: acessibilidade, educação, acervo, novas aquisições, parcerias, bastidores
+    - Públicos diferentes: famílias, jovens, turistas, escolas
 
-Responda apenas com JSON: {"termos": ["termo1","termo2","termo3","termo4","termo5","termo6"]}`,
+    Responda apenas com JSON: {"termos": ["termo1","termo2","termo3","termo4","termo5","termo6"]}`,
         response_json_schema: {
           type: 'object',
           properties: { termos: { type: 'array', items: { type: 'string' } } }
@@ -96,20 +97,19 @@ Responda apenas com JSON: {"termos": ["termo1","termo2","termo3","termo4","termo
         'Museus Centro BH exposição',
         'MUMO moda belo horizonte',
         'MIS BH atividade educativa',
-        'MHAB historia belo horizonte',
-        `cultura BH eventos ${month}`
+        'MHAB historia belo horizonte'
       ];
 
       const existingLinks = new Set(allNews.map(n => n.link).filter(Boolean));
 
       for (const term of searchTerms.slice(0, 4)) {
-        if (selected.length >= 5) break;
+        if (selectedNoticias.length >= 5) break;
 
         const result = await base44.integrations.Core.InvokeLLM({
           prompt: `Pesquise notícias recentes sobre: "${term}"
-Foco em Belo Horizonte — Museus Centro, Viaduto das Artes, MUMO, MIS BH, MHAB.
-Retorne 3 notícias reais com links verificados. Não invente URLs.
-Formato: {"noticias":[{"titulo":"...","resumo":"resumo em 2 frases...","link":"https://...","imagem_url":"https://... ou vazio","data_publicacao":"YYYY-MM-DD ou vazio"}]}`,
+    Foco em Belo Horizonte — Museus Centro, Viaduto das Artes, MUMO, MIS BH, MHAB.
+    Retorne 3 notícias reais com links verificados. Não invente URLs.
+    Formato: {"noticias":[{"titulo":"...","resumo":"resumo em 2 frases...","link":"https://...","imagem_url":"https://... ou vazio","data_publicacao":"YYYY-MM-DD ou vazio"}]}`,
           add_context_from_internet: true,
           response_json_schema: {
             type: 'object',
@@ -132,7 +132,7 @@ Formato: {"noticias":[{"titulo":"...","resumo":"resumo em 2 frases...","link":"h
         });
 
         for (const news of (result?.noticias || [])) {
-          if (selected.length >= 5) break;
+          if (selectedNoticias.length >= 5) break;
           if (!news?.link || !news.link.startsWith('http') || existingLinks.has(news.link)) continue;
 
           const created = await base44.asServiceRole.entities.NewsHighlight.create({
@@ -149,16 +149,128 @@ Formato: {"noticias":[{"titulo":"...","resumo":"resumo em 2 frases...","link":"h
           });
 
           existingLinks.add(news.link);
-          selected.push(created);
+          selectedNoticias.push(created);
         }
       }
 
-      // Fill remaining slots from any available candidates if still short
-      if (selected.length < 5 && prioritized.length > 0) {
-        const remaining = prioritized.filter(c => !selected.find(s => s.id === c.id));
-        selected = [...selected, ...shuffleArray(remaining)].slice(0, 5);
+      // Fill remaining slots
+      if (selectedNoticias.length < 5 && prioritized.length > 0) {
+        const remaining = prioritized.filter(c => !selectedNoticias.find(s => s.id === c.id));
+        selectedNoticias = [...selectedNoticias, ...shuffleArray(remaining)].slice(0, 5);
       }
     }
+
+    // === PARTE 2: 5 LINKS HISTÓRICOS (AÇÕES DO MUSEU CENTRO) ===
+    const historicalLinks = [
+      {
+        titulo: 'Viaduto das Artes - Projeto de Revitalização',
+        resumo: 'História e projeto de restauração do Viaduto das Artes em Belo Horizonte.',
+        link: 'https://www.museuscentro.com.br/viaduto-artes',
+        fonte: 'internal'
+      },
+      {
+        titulo: 'MUMO - Museu da Moda: Acervo e Coleção',
+        resumo: 'Conheça o acervo único do Museu da Moda de Belo Horizonte.',
+        link: 'https://www.museuscentro.com.br/mumo',
+        fonte: 'internal'
+      },
+      {
+        titulo: 'MIS BH - Museu da Imagem e do Som',
+        resumo: 'Experiências imersivas e acervo audiovisual do MIS Belo Horizonte.',
+        link: 'https://www.museuscentro.com.br/mis',
+        fonte: 'internal'
+      },
+      {
+        titulo: 'MHAB - Museu Histórico Abílio Barreto',
+        resumo: 'A história de Belo Horizonte contada através de artefatos e documentos.',
+        link: 'https://www.museuscentro.com.br/mhab',
+        fonte: 'internal'
+      },
+      {
+        titulo: 'Ações Educativas - Programação Regular',
+        resumo: 'Programa de educação museológica e ações comunitárias do Museus Centro.',
+        link: 'https://www.museuscentro.com.br/educativo',
+        fonte: 'internal'
+      }
+    ];
+
+    const existingHistoricalLinks = new Set(allNews.filter(n => n.fonte === 'internal').map(n => n.link));
+    for (const link of historicalLinks) {
+      if (selectedHistoricos.length >= 5 || existingHistoricalLinks.has(link.link)) continue;
+
+      const created = await base44.asServiceRole.entities.NewsHighlight.create({
+        titulo: link.titulo,
+        resumo: link.resumo,
+        link: link.link,
+        fonte: 'internal',
+        imagem_url: '',
+        data_encontrada: new Date().toISOString(),
+        data_publicacao: today,
+        data_selecao: today,
+        ativo: true,
+        visualizacoes: 0
+      });
+
+      existingHistoricalLinks.add(link.link);
+      selectedHistoricos.push(created);
+    }
+
+    // === PARTE 3: 5 ARTIGOS DE REVISTAS SOBRE MUSEOLOGIA/HISTÓRIA/MODA/CINEMA MINEIRO ===
+    const aiArticles = await base44.integrations.Core.InvokeLLM({
+      prompt: `Você é especialista em revistas e artigos acadêmicos sobre: museologia, história de Belo Horizonte, moda mineira, cinema mineiro e história de Minas Gerais.
+    Encontre 5 artigos em revistas GRATUITAS (acesso aberto) sobre esses temas. Priorize:
+    1. Revistas de museologia e patrimônio (ICOM, Anais do Museu...)
+    2. História de Belo Horizonte e Minas Gerais
+    3. Moda mineira e história do design
+    4. Cinema de Minas Gerais
+    5. Revistas de história brasileira com foco regional
+
+    Retorne links reais de revistas que oferecem acesso gratuito/aberto.
+    Formato: {"artigos":[{"titulo":"...","resumo":"resumo em 2 frases...","link":"https://...","revista":"nome da revista","data_publicacao":"YYYY-MM-DD ou vazio"}]}`,
+      add_context_from_internet: true,
+      response_json_schema: {
+        type: 'object',
+        properties: {
+          artigos: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                titulo: { type: 'string' },
+                resumo: { type: 'string' },
+                link: { type: 'string' },
+                revista: { type: 'string' },
+                data_publicacao: { type: 'string' }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const existingArticleLinks = new Set(allNews.filter(n => n.fonte === 'artigos_revistas').map(n => n.link));
+    for (const article of (aiArticles?.artigos || [])) {
+      if (selectedArtigos.length >= 5 || !article?.link || existingArticleLinks.has(article.link)) continue;
+
+      const created = await base44.asServiceRole.entities.NewsHighlight.create({
+        titulo: article.titulo || 'Sem título',
+        resumo: `${article.revista ? `[${article.revista}] ` : ''}${article.resumo || ''}`,
+        link: article.link,
+        fonte: 'artigos_revistas',
+        imagem_url: '',
+        data_encontrada: new Date().toISOString(),
+        data_publicacao: article.data_publicacao || '',
+        data_selecao: today,
+        ativo: true,
+        visualizacoes: 0
+      });
+
+      existingArticleLinks.add(article.link);
+      selectedArtigos.push(created);
+    }
+
+    // Combine all selected
+    const selected = [...selectedNoticias, ...selectedHistoricos, ...selectedArtigos];
 
     // 4. Mark selected news with today's date
     for (const news of selected) {
