@@ -438,6 +438,27 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
             </Button>
           </div>
         </div>
+
+        {/* Orçamento Upload Dialog */}
+        <OrcamentoUploadDialog
+          open={showOrcamentoDialog}
+          onOpenChange={setShowOrcamentoDialog}
+          purchaseRequestId={form.id || 'novo'}
+          activityTitle={prefill?._activity_titulo || 'Sem Atividade'}
+          onSuccess={(data) => {
+            // Preencher formulário com dados extraídos
+            set('fornecedor_nome', data.fornecedor_nome);
+            set('fornecedor_cnpj', data.fornecedor_cnpj);
+            set('fornecedor_contato', data.fornecedor_contato);
+            if (data.fornecedor_cidade) set('observacoes', `Cidade: ${data.fornecedor_cidade}\n${form.observacoes || ''}`);
+            set('descricao_item', data.descricao_item);
+            set('valor_solicitado', data.valor_solicitado);
+            if (data.garantia) set('observacoes', `Garantia: ${data.garantia}\n${form.observacoes || ''}`);
+            if (data.meios_pagamento) set('meio_pagamento', data.meios_pagamento.split(',')[0]?.trim());
+            set('orcamento_url', data.orcamento_url);
+            setShowOrcamentoDialog(false);
+          }}
+        />
       </div>
     </div>
   );
