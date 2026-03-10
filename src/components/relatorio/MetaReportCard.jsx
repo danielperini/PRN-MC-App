@@ -6,7 +6,10 @@ const META_LABELS = {
   'MC3A-20': 'Ação Educativa',
   'MC3A-21': 'Exposição / Produção Cultural',
   'MC3A-22': 'Comunicação e Divulgação',
-  'MC3A-EXTRA': 'Ações Extras / Outras',
+  'MC3A-23': 'Noturno nos Museus 2026',
+  'MC3A-24': 'Emenda Parlamentar',
+  'MC3A-25': 'Outras Ações',
+  'MC3A-EXTRA': 'Ações Extras',
 };
 
 const STATUS_CONFIG = {

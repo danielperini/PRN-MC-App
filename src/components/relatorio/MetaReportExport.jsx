@@ -13,7 +13,10 @@ const META_LABELS = {
   'MC3A-20': 'Meta 20 — Ação Educativa',
   'MC3A-21': 'Meta 21 — Exposição / Produção Cultural',
   'MC3A-22': 'Meta 22 — Comunicação e Divulgação',
-  'MC3A-EXTRA': 'Ações Extras / Outras',
+  'MC3A-23': 'Meta 23 — Noturno nos Museus 2026',
+  'MC3A-24': 'Meta 24 — Emenda Parlamentar',
+  'MC3A-25': 'Meta 25 — Outras Ações',
+  'MC3A-EXTRA': 'Ações Extras',
 };
 
 function checkBreak(doc, y, needed = 12) {

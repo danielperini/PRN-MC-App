@@ -12,7 +12,7 @@ import { BarChart3, Target, TrendingUp } from 'lucide-react';
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const ANOS = [2025, 2026, 2027];
-const METAS = ['MC3A-20','MC3A-21','MC3A-22','MC3A-EXTRA'];
+const METAS = ['MC3A-20','MC3A-21','MC3A-22','MC3A-23','MC3A-24','MC3A-25','MC3A-EXTRA'];
 
 function RelatorioMetaInner() {
   const { user } = useCurrentUser();
