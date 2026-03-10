@@ -76,6 +76,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle }) {
     { name: 'CalendarioAtividades', icon: CalendarDays, label: 'Calendário', show: true },
     { name: 'ActivityLog', icon: History, label: 'Registro de Atividade', show: isCoordenador },
     { name: 'Compras', icon: ShoppingCart, label: 'Compras', show: true },
+    { name: 'GestaoPagamentos', icon: Banknote, label: 'Pagamentos', show: isCoordenador },
     { name: 'BaseConhecimento', icon: BookOpen, label: 'Base de Conhecimento', show: currentUser?.role === 'admin' },
   ].filter(item => item.show);
 
