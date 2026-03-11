@@ -51,11 +51,9 @@ Deno.serve(async (req) => {
 
       const notificacoes = admins.map(admin => ({
         user_email: admin.user_email,
-        type: 'PURCHASE_COORD_APPROVED',
+        type: 'REPORT_NEEDS_ATTENTION',
         title: 'Solicitação Aprovada pelo Coordenador',
         message: `Compra "${p.descricao_item}" foi aprovada pelo coordenador. Aguarda aprovação administrativa.`,
-        purchase_id: purchaseId,
-        action_url: `/compras?tab=aprovacoes&id=${purchaseId}`,
         read: false,
         email_sent: false,
       }));
@@ -90,11 +88,9 @@ Deno.serve(async (req) => {
       // Notificar solicitante que foi aprovado
       const notificacao = {
         user_email: p.created_by || emailAtor,
-        type: 'PURCHASE_APPROVED',
+        type: 'REPORT_APPROVED',
         title: 'Sua Solicitação de Compra foi Aprovada',
         message: `Compra "${p.descricao_item}" foi aprovada por ${nomeAtor}. Valor aprovado: R$ ${parseFloat(valorFinal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-        purchase_id: purchaseId,
-        action_url: `/compras?id=${purchaseId}`,
         read: false,
         email_sent: false,
       };
@@ -122,19 +118,27 @@ Deno.serve(async (req) => {
     } else if (action === 'reject') {
       novoStatus = 'RECUSADO';
 
-      await base44.entities.PurchaseRequest.update(purchaseId, {
-        status: novoStatus,
-        observacoes: comentario || 'Solicitação recusada',
-      });
+      // Salvar motivo no campo correto conforme o estágio de aprovação
+      const isAdminStage = p.status === 'APROVADO_COORD';
+      const rejectUpdate = { status: novoStatus };
+      if (isAdminStage) {
+        rejectUpdate.aprov_admin_nome = nomeAtor;
+        rejectUpdate.aprov_admin_data = dataAprovacao;
+        rejectUpdate.aprov_admin_comentario = comentario || 'Solicitação recusada';
+      } else {
+        rejectUpdate.aprov_coord_nome = nomeAtor;
+        rejectUpdate.aprov_coord_data = dataAprovacao;
+        rejectUpdate.aprov_coord_comentario = comentario || 'Solicitação recusada';
+      }
+
+      await base44.entities.PurchaseRequest.update(purchaseId, rejectUpdate);
 
       // Notificar solicitante que foi recusado
       const notificacao = {
         user_email: p.created_by || emailAtor,
-        type: 'PURCHASE_REJECTED',
+        type: 'REPORT_RETURNED',
         title: 'Sua Solicitação de Compra foi Recusada',
         message: `Compra "${p.descricao_item}" foi recusada. ${comentario ? `Motivo: ${comentario}` : ''}`,
-        purchase_id: purchaseId,
-        action_url: `/compras?id=${purchaseId}`,
         read: false,
         email_sent: false,
       };
@@ -159,16 +163,6 @@ Deno.serve(async (req) => {
         });
       } catch (emailError) {
         console.error('Erro ao enviar email:', emailError.message);
-      }
-    }
-
-    // Limpar notificações antigas desta compra
-    const notificacoesAntigas = await base44.asServiceRole.entities.Notification.filter({
-      purchase_id: purchaseId
-    });
-    for (const notif of notificacoesAntigas) {
-      if (notif.type.includes('AWAITING')) {
-        await base44.asServiceRole.entities.Notification.delete(notif.id);
       }
     }
 
