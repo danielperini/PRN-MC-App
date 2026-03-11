@@ -35,6 +35,55 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
     }
   }, [purchase.activity_id]);
 
+  const analyzeSecurityPayment = async () => {
+    setLoadingAnalysis(true);
+    try {
+      const saldoDisponivel = budgetLine ? (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0) : 0;
+      
+      const result = await base44.integrations.Core.InvokeLLM({
+        prompt: `Analise a segurança desta aprovação de pagamento/compra:
+
+DADOS DA SOLICITAÇÃO:
+- Descrição: ${purchase.descricao_item}
+- Valor solicitado: R$ ${purchase.valor_solicitado?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+- Fornecedor: ${purchase.fornecedor_nome || 'Não informado'}
+- Categoria: ${purchase.categoria}
+- Tipo de gasto: ${purchase.tipo_gasto}
+- Meta vinculada: ${purchase.meta_id || 'Nenhuma'}
+
+ORÇAMENTO:
+- Rubrica: [${budgetLine?.codigo}] ${budgetLine?.descricao}
+- Saldo total da rubrica: R$ ${(budgetLine?.saldo_inicial || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+- Já comprometido: R$ ${(budgetLine?.saldo_comprometido || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+- Saldo disponível: R$ ${saldoDisponivel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+
+Avalie:
+1. **Conformidade Orçamentária**: O valor está dentro do saldo disponível?
+2. **Rastreabilidade**: Fornecedor, categoria e tipo de gasto estão bem definidos?
+3. **Riscos**: Existem sinais de alerta (valores muito altos, fornecedor sem histórico)?
+4. **Recomendação**: Aprovado ou Rejeitar com justificativa.
+
+Responda em JSON com: { "seguro": true/false, "risco_nivel": "baixo|medio|alto", "observacoes": "...", "recomendacao": "aprovar|recusar", "justificativa": "..." }`,
+        response_json_schema: {
+          type: "object",
+          properties: {
+            seguro: { type: "boolean" },
+            risco_nivel: { type: "string", enum: ["baixo", "medio", "alto"] },
+            observacoes: { type: "string" },
+            recomendacao: { type: "string" },
+            justificativa: { type: "string" }
+          },
+          required: ["seguro", "risco_nivel", "recomendacao", "justificativa"]
+        }
+      });
+
+      setAiSecurityAnalysis(result);
+    } catch (e) {
+      toast.error('Erro ao analisar segurança: ' + e.message);
+    }
+    setLoadingAnalysis(false);
+  };
+
   const handleAction = async (action) => {
     setActionLoading(true);
     try {
