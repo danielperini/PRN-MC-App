@@ -13,6 +13,7 @@ import PDFGeneratorDialog from '../components/reports/PDFGeneratorDialog';
 import PeriodExportDialog from '../components/reports/PeriodExportDialog';
 import ActivityFilters from '../components/reports/ActivityFilters';
 import ActivitySummary from '../components/reports/ActivitySummary';
+import AnnualAccountingExport from '../components/reports/AnnualAccountingExport';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -258,6 +259,9 @@ function RelatoriosInner() {
                   {generatingPDF ? 'Gerando...' : 'PDF Rápido'}
                 </Button>
               </>
+            )}
+            {isCoordenador && (
+              <AnnualAccountingExport />
             )}
             <Button
               variant="outline"
