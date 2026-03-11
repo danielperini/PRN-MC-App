@@ -68,26 +68,34 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
 
       const extracted = await base44.integrations.Core.InvokeLLM({
-        prompt: `Analise este contrato em PDF e extraia TODOS os dados abaixo. Seja preciso e minucioso.
-Retorne em JSON com os campos:
-- valor_total (número - valor total do contrato)
-- numero_parcelas (número)
-- valor_parcela (número)
-- nome (string - nome completo do beneficiário/contratado)
-- funcao (string - função, cargo ou objeto do serviço)
-- cpf (string - CPF se pessoa física)
-- cnpj (string - CNPJ se PJ/MEI/ME)
-- tipo_pessoa (string: "PF", "MEI" ou "ME")
-- data_inicio (string YYYY-MM-DD - início de vigência)
-- data_fim (string YYYY-MM-DD - término de vigência)
-- objeto_contrato (string - descrição completa do objeto/escopo do contrato, 2-4 parágrafos)
-- descricao_contrato (string - resumo geral do contrato incluindo partes, objeto, valores, prazos e condições importantes, 3-5 parágrafos)
-- banco (string)
-- agencia (string)
-- conta (string)
-- tipo_conta (string: "Corrente" ou "Poupança")
-- pix_key (string - chave PIX se houver)
-- cronograma_parcelas (array de objetos com: numero, vencimento (YYYY-MM-DD), valor, descricao)`,
+        model: 'gpt_5',
+        prompt: `Analise este contrato e extraia TODOS os dados solicitados. Seja MUITO preciso e minucioso.
+
+IMPORTANTE: Retorne OBRIGATORIAMENTE um JSON válido com TODOS os campos abaixo, mesmo que vazio (""):
+
+{
+  "valor_total": (número - valor total do contrato),
+  "numero_parcelas": (número de parcelas),
+  "valor_parcela": (valor de cada parcela),
+  "nome": (nome completo do beneficiário/contratado),
+  "funcao": (função, cargo ou objeto do serviço),
+  "cpf": (CPF se pessoa física),
+  "cnpj": (CNPJ se PJ/MEI/ME),
+  "tipo_pessoa": ("PF", "MEI" ou "ME"),
+  "data_inicio": (data YYYY-MM-DD de início de vigência),
+  "data_fim": (data YYYY-MM-DD de término de vigência),
+  "objeto_contrato": (descrição completa do objeto/escopo, 2-4 parágrafos),
+  "descricao_contrato": (resumo geral incluindo partes, objeto, valores, prazos e condições, 3-5 parágrafos),
+  "banco": (nome do banco),
+  "agencia": (número da agência),
+  "conta": (número da conta),
+  "tipo_conta": ("Corrente" ou "Poupança"),
+  "pix_key": (chave PIX se houver, senão ""),
+  "cronograma_parcelas": [
+    {"numero": 1, "vencimento": "YYYY-MM-DD", "valor": número, "descricao": "string"},
+    ...
+  ]
+}`,
         file_urls: [file_url],
         response_json_schema: {
           type: 'object',
@@ -125,12 +133,14 @@ Retorne em JSON com os campos:
         }
       });
 
+      console.log('Dados extraídos do contrato:', extracted);
+
       setForm(prev => ({
         ...prev,
         contrato_url: file_url,
-        valor_total: extracted?.valor_total || 0,
-        numero_parcelas: extracted?.numero_parcelas || 1,
-        valor_parcela: extracted?.valor_parcela || (extracted?.valor_total / (extracted?.numero_parcelas || 1)) || 0,
+        valor_total: Number(extracted?.valor_total) || 0,
+        numero_parcelas: Number(extracted?.numero_parcelas) || 1,
+        valor_parcela: Number(extracted?.valor_parcela) || (Number(extracted?.valor_total) / (Number(extracted?.numero_parcelas) || 1)) || 0,
         user_name: extracted?.nome || prev.user_name,
         funcao: extracted?.funcao || prev.funcao,
         cpf: extracted?.cpf || prev.cpf,
@@ -145,7 +155,7 @@ Retorne em JSON com os campos:
         conta: extracted?.conta || prev.conta,
         tipo_conta: extracted?.tipo_conta || prev.tipo_conta,
         pix_key: extracted?.pix_key || prev.pix_key,
-        cronograma_parcelas: extracted?.cronograma_parcelas || [],
+        cronograma_parcelas: Array.isArray(extracted?.cronograma_parcelas) ? extracted.cronograma_parcelas : [],
       }));
 
       toast.success('Contrato analisado com sucesso pela IA');
