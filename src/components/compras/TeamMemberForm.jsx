@@ -43,7 +43,7 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
   const [form, setForm] = useState(editingMember || EMPTY_FORM);
   const [currentUser, setCurrentUser] = useState(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     base44.auth.me().then(user => setCurrentUser(user)).catch(() => setCurrentUser(null));
   }, []);
 
