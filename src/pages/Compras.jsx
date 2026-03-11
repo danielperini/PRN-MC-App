@@ -92,8 +92,7 @@ function ComprasInner() {
   });
 
   const pendentes_coord = purchases.filter(p => p.status === 'SOLICITADO').length;
-  const pendentes_admin = purchases.filter(p => p.status === 'APROVADO_COORD').length;
-  const totalPendentes = pendentes_coord + pendentes_admin;
+  const totalPendentes = pendentes_coord;
 
   return (
     <div className="min-h-screen bg-white">
