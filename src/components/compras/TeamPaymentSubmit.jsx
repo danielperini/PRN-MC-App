@@ -7,42 +7,143 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Upload, FileCheck, Plus } from 'lucide-react';
+import { Upload, FileCheck, Plus, Loader2, AlertCircle, CheckCircle2, ExternalLink, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
+const STATUS_COLORS = {
+  RASCUNHO: 'bg-gray-100 text-gray-700',
+  AGUARDANDO_APROVACAO: 'bg-blue-100 text-blue-700',
+  EM_ANALISE_COORD: 'bg-yellow-100 text-yellow-700',
+  DEVOLVIDO_REVISAO: 'bg-orange-100 text-orange-700',
+  REVISAO: 'bg-orange-100 text-orange-700',
+  APROVADO_COORD: 'bg-green-100 text-green-700',
+  APROVADO: 'bg-green-100 text-green-700',
+  ENCAMINHADO_COORD_ADMIN: 'bg-purple-100 text-purple-700',
+  PAGO: 'bg-emerald-100 text-emerald-700',
+  RECUSADO: 'bg-red-100 text-red-700',
+  FINALIZADO: 'bg-gray-100 text-gray-500',
+};
+
+const STATUS_LABELS = {
+  RASCUNHO: 'Rascunho',
+  AGUARDANDO_APROVACAO: 'Aguardando Aprovação',
+  EM_ANALISE_COORD: 'Em Análise',
+  DEVOLVIDO_REVISAO: 'Devolvido para Revisão',
+  REVISAO: 'Em Revisão',
+  APROVADO_COORD: 'Aprovado pelo Coord.',
+  APROVADO: 'Aprovado',
+  ENCAMINHADO_COORD_ADMIN: 'Encaminhado Adm.',
+  PAGO: 'Pago',
+  RECUSADO: 'Recusado',
+  FINALIZADO: 'Finalizado',
+};
+
 export default function TeamPaymentSubmit({ userEmail }) {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [extractingNF, setExtractingNF] = useState(false);
+  const [extractingXLSX, setExtractingXLSX] = useState(false);
   const [form, setForm] = useState({
     mes_referencia: '',
     ano: new Date().getFullYear(),
     numero_nf: '',
     valor_nf: 0,
-    nota_fiscal_url: ''
+    nota_fiscal_url: '',
+    xlsx_url: '',
   });
-
+  const [extractedNF, setExtractedNF] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: teamMember } = useQuery({
     queryKey: ['team-member', userEmail],
     queryFn: () => base44.entities.TeamMember.filter({ user_email: userEmail }),
-    select: (data) => data?.[0]
+    select: data => data?.[0],
   });
 
   const { data: payments = [] } = useQuery({
     queryKey: ['team-payments', userEmail],
-    queryFn: () => base44.entities.TeamPayment.filter({ user_email: userEmail }, '-created_date', 50)
+    queryFn: () => base44.entities.TeamPayment.filter({ user_email: userEmail }, '-created_date', 50),
   });
 
+  // Check if report for selected month is approved
+  const { data: monthReport, isLoading: loadingReport } = useQuery({
+    queryKey: ['report-month-check', userEmail, form.mes_referencia, form.ano],
+    queryFn: async () => {
+      if (!form.mes_referencia) return null;
+      const reports = await base44.entities.Report.filter({
+        created_by: userEmail,
+        mes_referencia: form.mes_referencia,
+        ano: form.ano,
+      });
+      return reports?.[0] || null;
+    },
+    enabled: !!form.mes_referencia && showForm,
+  });
+
+  const reportApproved = monthReport?.status === 'APPROVED';
+
   const handleUploadNF = async (file) => {
+    if (!file) return;
+    setLoading(true);
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setForm(prev => ({ ...prev, nota_fiscal_url: file_url }));
-      toast.success('Nota fiscal anexada');
+      toast.success('Nota fiscal anexada — extraindo dados com IA...');
+
+      // AI extraction
+      setExtractingNF(true);
+      try {
+        const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
+          file_url,
+          json_schema: {
+            type: 'object',
+            properties: {
+              numero: { type: 'string', description: 'Número da nota fiscal' },
+              serie: { type: 'string', description: 'Série da nota fiscal' },
+              valor_total: { type: 'number', description: 'Valor total da nota fiscal' },
+              cnpj_emitente: { type: 'string', description: 'CNPJ do emitente' },
+              razao_social: { type: 'string', description: 'Razão social do emitente' },
+              data_emissao: { type: 'string', description: 'Data de emissão no formato DD/MM/YYYY' },
+              competencia: { type: 'string', description: 'Mês/ano de competência identificado' },
+            },
+          },
+        });
+
+        if (extracted?.status === 'success' && extracted.output) {
+          const data = extracted.output;
+          setExtractedNF(data);
+          setForm(prev => ({
+            ...prev,
+            numero_nf: data.numero || prev.numero_nf,
+            valor_nf: data.valor_total || prev.valor_nf,
+          }));
+          toast.success('Dados extraídos automaticamente da nota fiscal!');
+        }
+      } catch {
+        // Silent — extraction is best-effort
+      } finally {
+        setExtractingNF(false);
+      }
     } catch (error) {
-      toast.error('Erro ao enviar: ' + error.message);
+      toast.error('Erro ao enviar arquivo: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUploadXLSX = async (file) => {
+    if (!file) return;
+    setExtractingXLSX(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setForm(prev => ({ ...prev, xlsx_url: file_url }));
+      toast.success('Planilha XLSX anexada com sucesso');
+    } catch (error) {
+      toast.error('Erro ao enviar planilha: ' + error.message);
+    } finally {
+      setExtractingXLSX(false);
     }
   };
 
@@ -53,44 +154,58 @@ export default function TeamPaymentSubmit({ userEmail }) {
       return;
     }
 
+    if (!reportApproved) {
+      toast.error('O relatório do mês precisa estar aprovado pelo coordenador antes do envio financeiro.');
+      return;
+    }
+
     setLoading(true);
     try {
-      // Verificar se já existe pagamento para este mês
-      const existing = payments.find(p => 
-        p.mes_referencia === form.mes_referencia && 
+      const existing = payments.find(p =>
+        p.mes_referencia === form.mes_referencia &&
         p.ano === form.ano &&
-        p.status !== 'RECUSADO'
+        !['RECUSADO', 'DEVOLVIDO_REVISAO'].includes(p.status)
       );
 
       if (existing) {
-        toast.error('Você já enviou pagamento para este mês');
+        toast.error('Você já possui um envio em andamento para este mês');
         setLoading(false);
         return;
       }
 
-      // Criar registro de pagamento
       await base44.entities.TeamPayment.create({
         team_member_id: teamMember.id,
         user_email: userEmail,
+        report_id: monthReport?.id || null,
         mes_referencia: form.mes_referencia,
         ano: form.ano,
         numero_nf: form.numero_nf,
         valor_nf: form.valor_nf,
         nota_fiscal_url: form.nota_fiscal_url,
+        xlsx_url: form.xlsx_url || null,
         numero_parcela: (teamMember.parcelas_pagas || 0) + 1,
-        status: 'AGUARDANDO_APROVACAO'
+        status: 'AGUARDANDO_APROVACAO',
+        // AI extracted data
+        nf_numero_extraido: extractedNF?.numero || null,
+        nf_valor_extraido: extractedNF?.valor_total || null,
+        nf_cnpj_emitente: extractedNF?.cnpj_emitente || null,
+        nf_razao_social: extractedNF?.razao_social || null,
+        nf_data_emissao: extractedNF?.data_emissao || null,
+        nf_competencia: extractedNF?.competencia || null,
       });
 
-      // Notificar coordenadores
-      await base44.functions.invoke('notifyTeamPaymentSubmitted', {
-        team_member_name: teamMember.user_name,
-        mes: form.mes_referencia,
-        ano: form.ano,
-        valor: form.valor_nf
-      });
+      try {
+        await base44.functions.invoke('notifyTeamPaymentSubmitted', {
+          team_member_name: teamMember.user_name,
+          mes: form.mes_referencia,
+          ano: form.ano,
+          valor: form.valor_nf,
+        });
+      } catch {}
 
-      toast.success('Nota fiscal enviada para aprovação');
-      setForm({ mes_referencia: '', ano: new Date().getFullYear(), numero_nf: '', valor_nf: 0, nota_fiscal_url: '' });
+      toast.success('Documentos enviados para aprovação do coordenador!');
+      setForm({ mes_referencia: '', ano: new Date().getFullYear(), numero_nf: '', valor_nf: 0, nota_fiscal_url: '', xlsx_url: '' });
+      setExtractedNF(null);
       setShowForm(false);
       queryClient.invalidateQueries(['team-payments']);
     } catch (error) {
@@ -102,8 +217,9 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
   if (!teamMember) {
     return (
-      <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
-        Você não está cadastrado como membro da equipe. Contate o coordenador.
+      <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-900 flex items-start gap-2">
+        <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+        Você não está cadastrado como membro da equipe financeira. Contate o coordenador.
       </div>
     );
   }
@@ -113,33 +229,68 @@ export default function TeamPaymentSubmit({ userEmail }) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-semibold text-black">Envio de Notas Fiscais</h2>
+          <h2 className="font-semibold text-black">Meus Documentos Financeiros</h2>
           <p className="text-xs text-gray-500 mt-1">
             Parcela {(teamMember.parcelas_pagas || 0) + 1} de {teamMember.numero_parcelas}
+            {teamMember.funcao && ` • ${teamMember.funcao}`}
           </p>
         </div>
         <Button className="bg-black hover:bg-gray-800" onClick={() => setShowForm(true)}>
-          <Plus className="w-4 h-4 mr-2" />Enviar Nota Fiscal
+          <Plus className="w-4 h-4 mr-2" />Novo Envio Mensal
         </Button>
       </div>
 
-      {/* Histórico de Pagamentos */}
+      {/* Payment history */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold">Histórico</h3>
+        <h3 className="text-sm font-semibold text-black">Histórico de Envios</h3>
         {payments.length === 0 ? (
-          <p className="text-xs text-gray-500">Nenhuma nota fiscal enviada</p>
+          <p className="text-sm text-gray-400 text-center py-8 border-2 border-dashed border-gray-100 rounded-xl">
+            Nenhum envio registrado ainda
+          </p>
         ) : (
           payments.map(payment => (
-            <div key={payment.id} className="p-3 border border-gray-200 rounded-lg text-xs">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium">{payment.mes_referencia} / {payment.ano}</span>
-                <Badge className={`${statusBadge(payment.status)}`}>
-                  {statusLabel(payment.status)}
+            <div key={payment.id} className="border border-gray-200 rounded-xl p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <p className="font-semibold text-sm text-black">{payment.mes_referencia} / {payment.ano}</p>
+                  {payment.numero_nf && <p className="text-xs text-gray-500">NF: {payment.numero_nf}</p>}
+                  {payment.valor_nf > 0 && (
+                    <p className="text-sm font-bold text-black mt-1">
+                      R$ {payment.valor_nf?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </p>
+                  )}
+                </div>
+                <Badge className={STATUS_COLORS[payment.status] || STATUS_COLORS.RASCUNHO}>
+                  {STATUS_LABELS[payment.status] || payment.status}
                 </Badge>
               </div>
-              <p className="text-gray-600">NF: {payment.numero_nf} • R$ {payment.valor_nf?.toFixed(2)}</p>
+              <div className="flex gap-2 mt-2 flex-wrap">
+                {payment.nota_fiscal_url && (
+                  <a href={payment.nota_fiscal_url} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="outline" className="text-xs h-7">
+                      <ExternalLink className="w-3 h-3 mr-1" />PDF NF
+                    </Button>
+                  </a>
+                )}
+                {payment.xlsx_url && (
+                  <a href={payment.xlsx_url} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="outline" className="text-xs h-7">
+                      <ExternalLink className="w-3 h-3 mr-1" />Planilha
+                    </Button>
+                  </a>
+                )}
+                {payment.contract_url && (
+                  <a href={payment.contract_url} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="outline" className="text-xs h-7 border-green-300 text-green-700">
+                      <FileCheck className="w-3 h-3 mr-1" />Contrato
+                    </Button>
+                  </a>
+                )}
+              </div>
               {payment.observacoes && (
-                <p className="text-amber-700 mt-2 italic">Obs: {payment.observacoes}</p>
+                <p className="text-xs text-orange-700 bg-orange-50 border border-orange-100 p-2 rounded-lg mt-2 italic">
+                  💬 Observação do coordenador: {payment.observacoes}
+                </p>
               )}
             </div>
           ))
@@ -148,18 +299,18 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
       {/* Form Dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Enviar Nota Fiscal - Parcela {(teamMember.parcelas_pagas || 0) + 1}</DialogTitle>
+            <DialogTitle>Envio Mensal — Parcela {(teamMember.parcelas_pagas || 0) + 1}</DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Mês e Ano */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Mês *</Label>
+                <Label>Mês de Referência *</Label>
                 <Select value={form.mes_referencia} onValueChange={v => setForm({ ...form, mes_referencia: v })}>
-                  <SelectTrigger><SelectValue placeholder="Mês" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Selecione o mês" /></SelectTrigger>
                   <SelectContent>
                     {MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                   </SelectContent>
@@ -176,15 +327,40 @@ export default function TeamPaymentSubmit({ userEmail }) {
               </div>
             </div>
 
-            {/* NF */}
+            {/* Report status check */}
+            {form.mes_referencia && (
+              <div className={`p-3 rounded-xl border text-sm flex items-start gap-2 ${
+                loadingReport
+                  ? 'bg-gray-50 border-gray-200 text-gray-500'
+                  : reportApproved
+                  ? 'bg-green-50 border-green-200 text-green-800'
+                  : 'bg-red-50 border-red-200 text-red-800'
+              }`}>
+                {loadingReport ? (
+                  <Loader2 className="w-4 h-4 animate-spin flex-shrink-0 mt-0.5" />
+                ) : reportApproved ? (
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                )}
+                <span>
+                  {loadingReport
+                    ? 'Verificando relatório do mês...'
+                    : reportApproved
+                    ? `Relatório de ${form.mes_referencia}/${form.ano} aprovado ✓ Pode prosseguir com o envio.`
+                    : `O relatório de ${form.mes_referencia}/${form.ano} ${!monthReport ? 'não foi encontrado' : 'ainda não está aprovado'}. O envio financeiro só é permitido após aprovação do relatório mensal pelo coordenador.`}
+                </span>
+              </div>
+            )}
+
+            {/* NF data */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Número da NF *</Label>
+                <Label>Número da NF</Label>
                 <Input
                   value={form.numero_nf}
                   onChange={e => setForm({ ...form, numero_nf: e.target.value })}
                   placeholder="Ex: 001234"
-                  required
                 />
               </div>
               <div>
@@ -203,16 +379,29 @@ export default function TeamPaymentSubmit({ userEmail }) {
             {/* Upload Nota Fiscal */}
             <div>
               <Label>Nota Fiscal em PDF *</Label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+              <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center">
                 {form.nota_fiscal_url ? (
-                  <div className="flex items-center justify-center gap-2 text-green-600">
-                    <FileCheck className="w-5 h-5" />
-                    <span>Arquivo enviado</span>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-2 text-green-600">
+                      <FileCheck className="w-5 h-5" />
+                      <span className="text-sm font-medium">PDF enviado com sucesso</span>
+                    </div>
+                    {extractingNF && (
+                      <div className="flex items-center justify-center gap-2 text-blue-600 text-xs">
+                        <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                        Extraindo dados com IA...
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <label className="cursor-pointer">
-                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-xs text-gray-600">Clique para enviar PDF</p>
+                    {loading ? (
+                      <Loader2 className="w-8 h-8 text-gray-400 mx-auto mb-2 animate-spin" />
+                    ) : (
+                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    )}
+                    <p className="text-sm text-gray-600">{loading ? 'Enviando...' : 'Clique para enviar PDF da NF'}</p>
+                    <p className="text-xs text-gray-400 mt-1">Dados serão extraídos automaticamente com IA</p>
                     <input
                       type="file"
                       accept=".pdf"
@@ -225,13 +414,64 @@ export default function TeamPaymentSubmit({ userEmail }) {
               </div>
             </div>
 
-            {/* Ações */}
+            {/* AI Extracted Preview */}
+            {extractedNF && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 text-blue-800 font-semibold text-xs mb-2">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Dados extraídos automaticamente via IA
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-blue-700">
+                  {extractedNF.razao_social && <span><span className="text-blue-500">Emitente:</span> {extractedNF.razao_social}</span>}
+                  {extractedNF.valor_total && <span><span className="text-blue-500">Valor:</span> R$ {extractedNF.valor_total?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
+                  {extractedNF.data_emissao && <span><span className="text-blue-500">Emissão:</span> {extractedNF.data_emissao}</span>}
+                  {extractedNF.competencia && <span><span className="text-blue-500">Competência:</span> {extractedNF.competencia}</span>}
+                  {extractedNF.cnpj_emitente && <span><span className="text-blue-500">CNPJ:</span> {extractedNF.cnpj_emitente}</span>}
+                </div>
+              </div>
+            )}
+
+            {/* Upload XLSX (opcional) */}
+            <div>
+              <Label>Planilha XLSX <span className="text-gray-400 font-normal">(opcional)</span></Label>
+              <div className="border-2 border-dashed border-gray-200 rounded-xl p-3 text-center">
+                {form.xlsx_url ? (
+                  <div className="flex items-center justify-center gap-2 text-green-600">
+                    <FileCheck className="w-4 h-4" />
+                    <span className="text-sm">Planilha enviada</span>
+                  </div>
+                ) : (
+                  <label className="cursor-pointer">
+                    {extractingXLSX ? (
+                      <Loader2 className="w-6 h-6 text-gray-400 mx-auto mb-1 animate-spin" />
+                    ) : (
+                      <Upload className="w-6 h-6 text-gray-400 mx-auto mb-1" />
+                    )}
+                    <p className="text-xs text-gray-500">{extractingXLSX ? 'Enviando...' : 'Clique para enviar planilha XLSX'}</p>
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={e => handleUploadXLSX(e.target.files[0])}
+                      className="hidden"
+                      disabled={extractingXLSX}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
             <div className="flex gap-2 justify-end border-t pt-4">
-              <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
+              <Button type="button" variant="outline" onClick={() => { setShowForm(false); setExtractedNF(null); }}>
                 Cancelar
               </Button>
-              <Button type="submit" className="bg-black hover:bg-gray-800" disabled={loading || !form.nota_fiscal_url}>
-                {loading ? 'Enviando...' : 'Enviar para Aprovação'}
+              <Button
+                type="submit"
+                className="bg-black hover:bg-gray-800"
+                disabled={loading || !form.nota_fiscal_url || !reportApproved || loadingReport}
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Enviar para Aprovação
               </Button>
             </div>
           </form>
@@ -239,28 +479,4 @@ export default function TeamPaymentSubmit({ userEmail }) {
       </Dialog>
     </div>
   );
-}
-
-function statusBadge(status) {
-  const config = {
-    RASCUNHO: 'bg-gray-100 text-gray-800',
-    AGUARDANDO_APROVACAO: 'bg-blue-100 text-blue-800',
-    APROVADO: 'bg-green-100 text-green-800',
-    REVISAO: 'bg-yellow-100 text-yellow-800',
-    PAGO: 'bg-emerald-100 text-emerald-800',
-    RECUSADO: 'bg-red-100 text-red-800'
-  };
-  return config[status] || config.RASCUNHO;
-}
-
-function statusLabel(status) {
-  const labels = {
-    RASCUNHO: 'Rascunho',
-    AGUARDANDO_APROVACAO: 'Aguardando Aprovação',
-    APROVADO: 'Aprovado',
-    REVISAO: 'Em Revisão',
-    PAGO: 'Pago',
-    RECUSADO: 'Recusado'
-  };
-  return labels[status] || status;
 }
