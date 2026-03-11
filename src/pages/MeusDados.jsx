@@ -200,7 +200,7 @@ function MeusDadosInner() {
             <div className="space-y-4">
               {BANKING_FIELDS.map(field => (
                 <div key={field.name} className="space-y-1.5">
-                  <Label>{field.icon} {field.label} {field.name !== 'pix_key' ? '*' : ''}</Label>
+                  <Label>{field.label} {field.name !== 'pix_key' ? '*' : ''}</Label>
                   <Input
                     type={field.type}
                     value={formData[field.name]}
