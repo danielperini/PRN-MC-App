@@ -1,0 +1,233 @@
+/**
+ * Constantes extraídas do 3º Termo Aditivo - Projeto Museus Centro
+ * Plano de Trabalho (6º versão) - Janeiro/2026
+ * OSC Viaduto das Artes + Fundação Municipal de Cultura (FMC)
+ * Vigência: até 29 de novembro de 2026
+ */
+
+export const CARGOS_PLANO_TRABALHO = [
+  'Coordenação Geral',
+  'Coordenação de Produção',
+  'Coordenação de Programação',
+  'Coordenação de Comunicação',
+  'Analista Administrativo Financeiro',
+  'Assistente Administrativo',
+  'Assessoria de Imprensa',
+  'Rede Social / Marketing Cultural',
+  'Fotógrafo',
+  'Designer',
+  'Mobilizador',
+  'Redator',
+  'Educador - MIS BH',
+  'Educador - MUMO',
+  'Educador - MHAB',
+  'Assistente de Coordenação e Produção',
+  'Curador',
+  'Pesquisador',
+  'Consultor',
+  'Outro',
+];
+
+export const METAS_3_ADITIVO = [
+  {
+    codigo: 'MC3A-01',
+    numero: 1,
+    titulo: 'Contratação da equipe principal',
+    descricao: 'Contratação da equipe principal, incluindo os coordenadores da Comissão de Programação',
+    periodo: 'Mês 1 ao Mês 28',
+    tipo: 'RH',
+  },
+  {
+    codigo: 'MC3A-02',
+    numero: 2,
+    titulo: 'Plano de Comunicação Nacional',
+    descricao: 'Elaborar e executar plano de comunicação de abrangência nacional, com aprovação da ASCOM e SUCOM',
+    periodo: 'Mês 1 ao Mês 28',
+    tipo: 'Comunicação',
+  },
+  {
+    codigo: 'MC3A-03',
+    numero: 3,
+    titulo: 'Manutenção das 04 exposições',
+    descricao: 'Realizar manutenção de rotina nas 04 exposições dos três museus (MUMO, MIS e MHAB)',
+    periodo: 'Mês 2 ao Mês 28',
+    tipo: 'Operacional',
+  },
+  {
+    codigo: 'MC3A-04',
+    numero: 4,
+    titulo: 'Alteração 2 núcleos (MUMO e MIS)',
+    descricao: 'Realizar a alteração de dois núcleos (salas) das exposições do MUMO e MIS — Clara Nunes (MUMO) e Cinema: coleções e outras sensações (MIS)',
+    periodo: 'Mês 6 ao Mês 15',
+    tipo: 'Produção',
+  },
+  {
+    codigo: 'MC3A-05',
+    numero: 5,
+    titulo: '60 Ações Educativas',
+    descricao: 'Realizar no mínimo 60 (sessenta) ações educativas como oficinas, palestras, mesas redondas, seminários',
+    periodo: 'Mês 2 ao Mês 18',
+    tipo: 'Programação',
+  },
+  {
+    codigo: 'MC3A-06',
+    numero: 6,
+    titulo: '36 Ações Culturais',
+    descricao: 'Realizar no mínimo 36 (trinta e seis) ações culturais — apresentações teatrais, shows, palestras, contação de histórias',
+    periodo: 'Mês 2 ao Mês 18',
+    tipo: 'Programação',
+  },
+  {
+    codigo: 'MC3A-07',
+    numero: 7,
+    titulo: 'Contratação de Educadores (MIS, MUMO, MHAB)',
+    descricao: 'Contratar 3 educadores (40h semanais cada) para MIS BH, Museu da Moda e Museu Histórico Abílio Barreto',
+    periodo: 'Mês 1 ao Mês 28',
+    tipo: 'RH',
+  },
+  {
+    codigo: 'MC3A-08',
+    numero: 8,
+    titulo: 'Exposição no Casarão do MHAB',
+    descricao: 'Realizar uma exposição e um evento de abertura no Casarão secular do Museu Histórico Abílio Barreto (280m²)',
+    periodo: 'Mês 1 ao Mês 18 (abertura a partir do mês 11)',
+    tipo: 'Produção',
+  },
+  {
+    codigo: 'MC3A-09',
+    numero: 9,
+    titulo: 'Exposição no MIS',
+    descricao: 'Realizar uma exposição e o evento de abertura no Museu da Imagem e do Som (96,77m²) — abertura prevista dezembro/2025',
+    periodo: 'Mês 11 ao Mês 18',
+    tipo: 'Produção',
+  },
+  {
+    codigo: 'MC3A-10',
+    numero: 10,
+    titulo: '18 Mostras nos museus',
+    descricao: 'Realizar 18 mostras de baixa e ou média complexidade em áreas não convencionais dos museus',
+    periodo: 'Mês 3 ao Mês 28',
+    tipo: 'Produção',
+  },
+  {
+    codigo: 'MC3A-11',
+    numero: 11,
+    titulo: 'Noturno nos Museus (2024, 2025, 2026)',
+    descricao: 'Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus — evento noturno gratuito com vans, iluminação e programação especial',
+    periodo: 'Mês 3 ao Mês 28',
+    tipo: 'Evento',
+  },
+  {
+    codigo: 'MC3A-12',
+    numero: 12,
+    titulo: 'Projeto curatorial galeria do MHAB',
+    descricao: 'Contratação dos serviços de pesquisa, identidade visual, projeto curatorial e expográfico para a exposição da galeria da sede do MHAB',
+    periodo: 'Mês 6 ao Mês 18',
+    tipo: 'Serviços Técnicos',
+  },
+  {
+    codigo: 'MC3A-13',
+    numero: 13,
+    titulo: 'Projeto curatorial MUMO',
+    descricao: 'Contratação dos serviços de pesquisa, identidade visual, projeto curatorial e expográfico para a exposição do MUMO',
+    periodo: 'Mês 6 ao Mês 18',
+    tipo: 'Serviços Técnicos',
+  },
+  {
+    codigo: 'MC3A-14',
+    numero: 14,
+    titulo: 'Inscrição em Leis de Incentivo',
+    descricao: 'Inscrição do projeto em Leis de Incentivo (Lei Federal de Incentivo à Cultura) e outros editais',
+    periodo: 'Mês 1 ao Mês 18',
+    tipo: 'Captação',
+  },
+  {
+    codigo: 'MC3A-15',
+    numero: 15,
+    titulo: 'Dispositivos acessíveis',
+    descricao: 'Produção de 1 maquete tátil e 5 vídeos em Libras como dispositivos pedagógicos de mediação',
+    periodo: 'Mês 2 ao Mês 18',
+    tipo: 'Acessibilidade',
+  },
+  {
+    codigo: 'MC3A-16',
+    numero: 16,
+    titulo: '101 Diárias de Educador',
+    descricao: '101 (cento e uma) diárias de educador para acolhimento e visitas mediadas ao público espontâneo',
+    periodo: 'Mês 2 ao Mês 28',
+    tipo: 'RH',
+  },
+  {
+    codigo: 'MC3A-17',
+    numero: 17,
+    titulo: 'Publicações (4 catálogos)',
+    descricao: '4 catálogos com 300 exemplares cada: 2 para MHAB, 1 para MIS, 1 para MUMO',
+    periodo: 'Mês 2 ao Mês 28',
+    tipo: 'Editorial',
+  },
+  {
+    codigo: 'MC3A-18',
+    numero: 18,
+    titulo: 'Custeios atividades educativas contínuas',
+    descricao: 'Compras de lanche, materiais, confecção de conteúdos educativos e consultorias para atividades nos 3 museus',
+    periodo: 'Mês 1 ao Mês 28',
+    tipo: 'Operacional',
+  },
+  {
+    codigo: 'MC3A-19',
+    numero: 19,
+    titulo: 'Presente de Iemanjá',
+    descricao: 'Realizar a atividade "Presente de Iemanjá" na orla da Lagoa da Pampulha — 4 ações culturais de matriz africana',
+    periodo: 'Mês 6 ao Mês 15',
+    tipo: 'Evento Cultural',
+  },
+  {
+    codigo: 'MC3A-20',
+    numero: 20,
+    titulo: '30 Ações Educativas/Culturais (Fase Final)',
+    descricao: 'Realizar 30 ações educativas e/ou culturais — Fase 3 (3º Termo Aditivo)',
+    periodo: 'Mês 19 ao Mês 28',
+    tipo: 'Programação',
+  },
+  {
+    codigo: 'MC3A-21',
+    numero: 21,
+    titulo: 'Exposição no MUMO',
+    descricao: 'Realizar uma exposição e o evento de abertura no Museu da Moda — 3º Termo Aditivo',
+    periodo: 'Mês 19 ao Mês 28',
+    tipo: 'Produção',
+  },
+  {
+    codigo: 'MC3A-23',
+    numero: 23,
+    titulo: 'Consultorias para execução do projeto',
+    descricao: '2 consultorias de temas transversais + 1 formação em ambiente seguro e acessibilidade — 3º Termo Aditivo',
+    periodo: 'Mês 19 ao Mês 28',
+    tipo: 'Serviços Especializados',
+  },
+];
+
+export const MUSEUS = [
+  { sigla: 'MUMO', nome: 'Museu da Moda de Belo Horizonte' },
+  { sigla: 'MIS', nome: 'Museu da Imagem e do Som de Belo Horizonte (MIS BH)' },
+  { sigla: 'MHAB', nome: 'Museu Histórico Abílio Barreto' },
+];
+
+export const INFO_PROJETO = {
+  nome: 'MROSC Museus Centro',
+  instrumento: '3º Termo Aditivo ao Termo de Colaboração',
+  chamamento: 'Chamamento Público FMC nº 001/2024',
+  osc: 'Viaduto das Artes',
+  cnpj_osc: '23.843.648/0001-25',
+  parceiro: 'Fundação Municipal de Cultura (FMC)',
+  vigencia: 'até 29 de novembro de 2026',
+  prazo_meses: 28,
+  valor_total: 3891800.00,
+  acrescimo_3_aditivo: 1320000.00,
+};
+
+export const getMeta = (codigoOuNumero) => {
+  return METAS_3_ADITIVO.find(m =>
+    m.codigo === codigoOuNumero || String(m.numero) === String(codigoOuNumero)
+  );
+};
