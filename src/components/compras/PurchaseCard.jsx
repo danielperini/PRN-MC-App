@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { ChevronDown, ChevronUp, ExternalLink, Sparkles, Activity, DollarSign, CheckCircle, XCircle, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import PurchaseTimeline from './PurchaseTimeline';
+import PurchaseDocumentUpload from './PurchaseDocumentUpload';
+import PurchaseDocumentViewer from './PurchaseDocumentViewer';
 
 export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCoordenador, isAdmin, onRefresh, currentUser }) {
   const [expanded, setExpanded] = useState(false);
@@ -361,6 +363,18 @@ Responda em JSON com: { "seguro": true/false, "risco_nivel": "baixo|medio|alto",
             {purchase.meio_pagamento && <div><span className="text-gray-400">Pagamento</span><p className="font-medium text-gray-700">{purchase.meio_pagamento}</p></div>}
             {purchase.qtd && <div><span className="text-gray-400">Qtd</span><p className="font-medium text-gray-700">{purchase.qtd} {purchase.unidade}</p></div>}
             {purchase.data_pagamento && <div><span className="text-gray-400">Data pgto</span><p className="font-medium text-gray-700">{purchase.data_pagamento}</p></div>}
+          </div>
+
+          {/* Documentos */}
+          <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg">
+            <p className="font-semibold text-xs mb-3 text-amber-900">📎 Documentos Anexados</p>
+            <div className="space-y-2 mb-3">
+              <PurchaseDocumentViewer purchaseId={purchase.id} />
+            </div>
+            <PurchaseDocumentUpload 
+              purchaseId={purchase.id}
+              onUploadSuccess={() => {}}
+            />
           </div>
 
           {/* Atividade Relacionada */}
