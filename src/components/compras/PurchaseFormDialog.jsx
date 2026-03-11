@@ -37,7 +37,7 @@ const EMPTY = {
   meta_id: '', meta_extra_descricao: '', budgetline_id: '', categoria: '',
   tipo_gasto: '', centro_custo: '', descricao_item: '', qtd: 1, unidade: 'un',
   valor_solicitado: '', fornecedor_nome: '', fornecedor_cnpj: '', fornecedor_contato: '',
-  link_proposta: '', meio_pagamento: '', detalhe_pagamento: '', observacoes: '',
+  meio_pagamento: '', detalhe_pagamento: '', observacoes: '', arquivos_anexos: '',
   activity_id: '', report_id: '',
 };
 
