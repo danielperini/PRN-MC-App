@@ -212,7 +212,7 @@ function MeusDadosInner() {
               ))}
 
               <div className="space-y-1.5">
-                <Label>💳 Tipo de Conta *</Label>
+                <Label>Tipo de Conta *</Label>
                 <Select value={formData.tipo_conta} onValueChange={v => set('tipo_conta', v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
