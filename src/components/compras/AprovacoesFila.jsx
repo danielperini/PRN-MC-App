@@ -147,11 +147,11 @@ export default function AprovacoesFila({ purchases, budgetLines, statusConfig, o
           </Button>
           <Button
             className="bg-black hover:bg-gray-800 text-white"
-            onClick={() => handleAction(purchase, fila === 'coord' ? 'approve_coord' : 'approve_admin')}
-            disabled={isLoading || (fila === 'admin' && !saldoOk)}
+            onClick={() => handleAction(purchase, 'approve_coord')}
+            disabled={isLoading || !saldoOk}
           >
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle className="w-4 h-4 mr-1" />}
-            {fila === 'coord' ? 'Aprovar → Admin' : 'Aprovar e Comprometer'}
+            Aprovar e Comprometer
           </Button>
         </div>
       </div>
