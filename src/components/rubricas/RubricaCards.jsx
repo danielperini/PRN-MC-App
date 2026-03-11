@@ -1,73 +1,98 @@
-import React from 'react';
-import { AlertTriangle, AlertCircle, CheckCircle } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import React, { useMemo } from 'react';
+import { DollarSign, AlertCircle, TrendingUp } from 'lucide-react';
 
 export default function RubricaCards({ rubricas }) {
-  if (!rubricas || rubricas.length === 0) return null;
+  const totais = useMemo(() => {
+    const ativas = rubricas.filter(r => r.ativo);
+    return {
+      total_rubricas: ativas.length,
+      total_previsto: ativas.reduce((sum, r) => sum + (r.valor_rubrica || 0), 0),
+      total_utilizado: ativas.reduce((sum, r) => sum + (r.valor_utilizado || 0), 0),
+      saldo_total: ativas.reduce((sum, r) => sum + ((r.saldo || 0)), 0),
+    };
+  }, [rubricas]);
 
-  // Filtrar apenas rubricas ativas (sem admin)
-  const activeRubricas = rubricas.filter(r => r.ativo !== false && !r.grupo?.toLowerCase().includes('admin'));
+  const percentualGeral = totais.total_previsto > 0
+    ? Math.round((totais.total_utilizado / totais.total_previsto) * 100)
+    : 0;
 
-  const totalValor = activeRubricas.reduce((sum, r) => sum + (r.valor_rubrica || 0), 0);
-  const totalUtilizado = activeRubricas.reduce((sum, r) => sum + (r.valor_utilizado || 0), 0);
-  const totalSaldo = totalValor - totalUtilizado;
-  const percentualGeral = totalValor > 0 ? (totalUtilizado / totalValor) * 100 : 0;
+  const cards = [
+    {
+      label: 'Total de Rubricas',
+      valor: totais.total_rubricas,
+      formato: 'numero',
+      bgColor: 'bg-blue-50',
+      textColor: 'text-blue-700',
+      borderColor: 'border-blue-200',
+      icon: DollarSign,
+    },
+    {
+      label: 'Total Previsto',
+      valor: totais.total_previsto,
+      formato: 'moeda',
+      bgColor: 'bg-gray-50',
+      textColor: 'text-gray-700',
+      borderColor: 'border-gray-200',
+      icon: TrendingUp,
+    },
+    {
+      label: 'Total Utilizado',
+      valor: totais.total_utilizado,
+      formato: 'moeda',
+      bgColor: 'bg-orange-50',
+      textColor: 'text-orange-700',
+      borderColor: 'border-orange-200',
+      icon: AlertCircle,
+    },
+    {
+      label: 'Saldo Total',
+      valor: totais.saldo_total,
+      formato: 'moeda',
+      bgColor: 'bg-green-50',
+      textColor: 'text-green-700',
+      borderColor: 'border-green-200',
+      icon: DollarSign,
+    },
+    {
+      label: '% Geral Utilizado',
+      valor: percentualGeral,
+      formato: 'percentual',
+      bgColor: 'bg-purple-50',
+      textColor: 'text-purple-700',
+      borderColor: 'border-purple-200',
+      icon: TrendingUp,
+    },
+  ];
 
-  const getStatusIcon = (percent) => {
-    if (percent >= 100) return <AlertTriangle className="w-5 h-5 text-red-600" />;
-    if (percent >= 80) return <AlertCircle className="w-5 h-5 text-amber-600" />;
-    return <CheckCircle className="w-5 h-5 text-green-600" />;
-  };
-
-  const getStatusColor = (percent) => {
-    if (percent >= 100) return 'bg-red-50 border-red-200';
-    if (percent >= 80) return 'bg-amber-50 border-amber-200';
-    return 'bg-green-50 border-green-200';
+  const formatarValor = (valor, tipo) => {
+    if (tipo === 'moeda') {
+      return `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    if (tipo === 'percentual') {
+      return `${valor}%`;
+    }
+    return valor;
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-      <Card className={`border ${getStatusColor(percentualGeral)}`}>
-        <CardContent className="pt-6">
-          <div className="flex items-start justify-between mb-2">
-            <span className="text-xs text-gray-600 font-medium">TOTAL GERAL</span>
-            {getStatusIcon(percentualGeral)}
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
+      {cards.map((card, idx) => {
+        const Icon = card.icon;
+        return (
+          <div
+            key={idx}
+            className={`border rounded-lg p-4 ${card.bgColor} ${card.borderColor}`}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <span className="text-xs font-semibold text-gray-600">{card.label}</span>
+              <Icon className={`w-4 h-4 ${card.textColor}`} />
+            </div>
+            <p className={`text-lg md:text-xl font-bold ${card.textColor}`}>
+              {formatarValor(card.valor, card.formato)}
+            </p>
           </div>
-          <p className="text-2xl font-bold text-black mb-1">
-            {(percentualGeral || 0).toFixed(2)}%
-          </p>
-          <p className="text-xs text-gray-600">
-            R$ {(totalUtilizado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / R$ {(totalValor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card className="border border-green-200 bg-green-50">
-        <CardContent className="pt-6">
-          <span className="text-xs text-gray-600 font-medium block mb-2">VALOR TOTAL</span>
-          <p className="text-2xl font-bold text-black">
-            R$ {(totalValor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card className="border border-blue-200 bg-blue-50">
-        <CardContent className="pt-6">
-          <span className="text-xs text-gray-600 font-medium block mb-2">UTILIZADO</span>
-          <p className="text-2xl font-bold text-black">
-            R$ {(totalUtilizado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card className="border border-purple-200 bg-purple-50">
-        <CardContent className="pt-6">
-          <span className="text-xs text-gray-600 font-medium block mb-2">DISPONÍVEL</span>
-          <p className="text-2xl font-bold text-black">
-            R$ {(totalSaldo || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </p>
-        </CardContent>
-      </Card>
+        );
+      })}
     </div>
   );
 }
