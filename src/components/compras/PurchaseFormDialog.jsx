@@ -244,13 +244,19 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
           action: 'submeter',
           purchaseId: created.id,
         });
-        toast.success('Solicitação enviada para aprovação!');
+        toast.success('✅ Solicitação de compra enviada para aprovação!', {
+          description: `Item: ${form.descricao_item}\nValor: R$ ${parseFloat(form.valor_solicitado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+          duration: 5000
+        });
       } else {
-        toast.success('Rascunho salvo!');
+        toast.success('✅ Rascunho salvo com sucesso!', {
+          description: `Você pode continuar editando ou enviar para aprovação depois.`,
+          duration: 5000
+        });
       }
       onSuccess();
     } catch (e) {
-      toast.error('Erro ao salvar: ' + e.message);
+      toast.error('❌ Erro ao salvar: ' + e.message, { duration: 5000 });
     }
     setSaving(false);
   };
