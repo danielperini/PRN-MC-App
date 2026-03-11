@@ -52,6 +52,12 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
     base44.auth.me().then(user => setCurrentUser(user)).catch(() => setCurrentUser(null));
   }, []);
 
+  useEffect(() => {
+    if (isOpen) {
+      setForm(editingMember || EMPTY_FORM);
+    }
+  }, [isOpen, editingMember]);
+
   const isEditingOwnData = editingMember && currentUser && editingMember.user_email === currentUser.email;
 
   const { data: users = [] } = useQuery({
