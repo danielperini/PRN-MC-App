@@ -241,7 +241,35 @@ function ComprasInner() {
           </div>
         )}
 
-
+         {/* Rubricas */}
+         {tab === 'rubricas' && (
+           <div className="space-y-6">
+             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+               <p className="text-sm text-blue-900">
+                 <strong>📊 Integração:</strong> Esta aba controla o orçamento do projeto. Os valores lançados nas compras serão mapeados automaticamente para suas respectivas rubricas.
+               </p>
+             </div>
+             {selectedRubrica ? (
+               <div>
+                 <button
+                   onClick={() => setSelectedRubrica(null)}
+                   className="text-sm text-black hover:text-gray-600 mb-4 font-medium"
+                 >
+                   ← Voltar
+                 </button>
+                 <RubricaDetail
+                   rubrica={selectedRubrica}
+                   onClose={() => {
+                     setSelectedRubrica(null);
+                     queryClient.invalidateQueries(['rubricas']);
+                   }}
+                 />
+               </div>
+             ) : (
+               <RubricasGrid rubricas={rubricas} onSelectRubrica={setSelectedRubrica} />
+             )}
+           </div>
+         )}
 
          {/* Documentos */}
          {tab === 'documentos' && (
@@ -299,8 +327,6 @@ function ComprasInner() {
           onClose={() => setShowReportGen(false)}
         />
       )}
-
-
       </div>
       );
       }
