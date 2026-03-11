@@ -6,7 +6,7 @@ import {
   Building2, FileText, Users, Eye, Paperclip, Settings, Shield,
   HelpCircle, BarChart3, History, ChevronLeft, ChevronRight,
   CalendarDays, Layers, BookOpen, ShoppingCart, Banknote, Target, Newspaper,
-  Map, DollarSign
+  Map, DollarSign, ChevronDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SuggestionForm from '@/components/sidebar/SuggestionForm';
@@ -14,6 +14,7 @@ import { HelpWrapper } from '@/components/help/withContextualHelp';
 
 export default function Sidebar({ currentPageName, collapsed, onToggle, currentUser }) {
   const [customPerms, setCustomPerms] = useState(null);
+  const [expandedSections, setExpandedSections] = useState({});
 
   useEffect(() => {
     if (currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role)) {
@@ -70,7 +71,18 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
     {
       label: 'Territorialidade',
       items: [
-        { name: 'MuseusNoMapa', icon: Map, label: 'Museus Centro no Mapa', show: true },
+        { 
+          name: 'MuseusNoMapa', 
+          icon: Map, 
+          label: 'Museus Centro no Mapa', 
+          show: true,
+          submenu: [
+            { name: 'MhaabMap', label: 'MHAB' },
+            { name: 'MisMap', label: 'MIS' },
+            { name: 'MumoMap', label: 'MUMO' },
+            { name: 'ViadutoMap', label: 'Viaduto das Artes' },
+          ]
+        },
       ],
     },
     {
@@ -136,35 +148,84 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
 
             {section.items.map(item => {
                const Icon = item.icon;
-               const isActive = currentPageName === item.name;
+               const isActive = currentPageName === item.name || (item.submenu && item.submenu.some(s => s.name === currentPageName));
+               const isExpanded = expandedSections[item.name];
+               const hasSubmenu = item.submenu && item.submenu.length > 0;
+
                return (
-                 <HelpWrapper
-                   key={item.name}
-                   componentKey={`sidebar-${item.name.toLowerCase()}`}
-                   label={item.label}
-                   componentType="sidebar_item"
-                   contextDescription={`Item de menu para acessar ${item.label}`}
-                 >
-                   <Link to={createPageUrl(item.name)} className="block">
-                     <Button
-                       variant="ghost"
-                       className={`w-full h-9 gap-2.5 text-[13px] font-medium transition-all duration-150 ${
-                         collapsed ? 'justify-center px-0' : 'justify-start px-3'
-                       } ${
-                         isActive
-                           ? 'bg-white text-black shadow-sm'
-                           : 'text-white/60 hover:text-white hover:bg-white/8'
-                       }`}
-                       title={collapsed ? item.label : ''}
-                     >
-                       <Icon className={`flex-shrink-0 ${collapsed ? 'w-5 h-5' : 'w-4 h-4'}`} />
-                       {!collapsed && <span>{item.label}</span>}
-                       {isActive && !collapsed && (
-                         <span className="ml-auto w-1.5 h-1.5 rounded-full bg-black/30" />
-                       )}
-                     </Button>
-                   </Link>
-                 </HelpWrapper>
+                 <div key={item.name}>
+                   <HelpWrapper
+                     componentKey={`sidebar-${item.name.toLowerCase()}`}
+                     label={item.label}
+                     componentType="sidebar_item"
+                     contextDescription={`Item de menu para acessar ${item.label}`}
+                   >
+                     {hasSubmenu ? (
+                       <Button
+                         variant="ghost"
+                         onClick={() => setExpandedSections(p => ({ ...p, [item.name]: !p[item.name] }))}
+                         className={`w-full h-9 gap-2.5 text-[13px] font-medium transition-all duration-150 ${
+                           collapsed ? 'justify-center px-0' : 'justify-start px-3'
+                         } ${
+                           isActive
+                             ? 'bg-white text-black shadow-sm'
+                             : 'text-white/60 hover:text-white hover:bg-white/8'
+                         }`}
+                         title={collapsed ? item.label : ''}
+                       >
+                         <Icon className={`flex-shrink-0 ${collapsed ? 'w-5 h-5' : 'w-4 h-4'}`} />
+                         {!collapsed && <span>{item.label}</span>}
+                         {!collapsed && hasSubmenu && (
+                           <ChevronDown className={`ml-auto w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                         )}
+                       </Button>
+                     ) : (
+                       <Link to={createPageUrl(item.name)} className="block">
+                         <Button
+                           variant="ghost"
+                           className={`w-full h-9 gap-2.5 text-[13px] font-medium transition-all duration-150 ${
+                             collapsed ? 'justify-center px-0' : 'justify-start px-3'
+                           } ${
+                             isActive
+                               ? 'bg-white text-black shadow-sm'
+                               : 'text-white/60 hover:text-white hover:bg-white/8'
+                           }`}
+                           title={collapsed ? item.label : ''}
+                         >
+                           <Icon className={`flex-shrink-0 ${collapsed ? 'w-5 h-5' : 'w-4 h-4'}`} />
+                           {!collapsed && <span>{item.label}</span>}
+                           {isActive && !collapsed && (
+                             <span className="ml-auto w-1.5 h-1.5 rounded-full bg-black/30" />
+                           )}
+                         </Button>
+                       </Link>
+                     )}
+                   </HelpWrapper>
+
+                   {/* Submenu */}
+                   {hasSubmenu && isExpanded && !collapsed && (
+                     <div className="space-y-0.5 mt-0.5 pl-2">
+                       {item.submenu.map(subitem => {
+                         const isSubActive = currentPageName === subitem.name;
+                         return (
+                           <Link key={subitem.name} to={createPageUrl(subitem.name)} className="block">
+                             <Button
+                               variant="ghost"
+                               className={`w-full h-8 gap-2 text-[12px] font-medium transition-all duration-150 justify-start px-3 ${
+                                 isSubActive
+                                   ? 'bg-white/20 text-white'
+                                   : 'text-white/40 hover:text-white hover:bg-white/8'
+                               }`}
+                             >
+                               <span className="w-1 h-1 rounded-full bg-current flex-shrink-0" />
+                               {subitem.label}
+                             </Button>
+                           </Link>
+                         );
+                       })}
+                     </div>
+                   )}
+                 </div>
                );
             })}
           </div>
