@@ -5,8 +5,8 @@ import RequireAuth from '../components/auth/RequireAuth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Calendar, Filter } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, parseISO, isValid } from 'date-fns';
+import { Calendar, Filter, ChevronDown } from 'lucide-react';
+import { format, parseISO, isValid, isBefore, isAfter, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const MUSEUS = ['Todos', 'MHAB', 'MIS', 'MUMO', 'Externo'];
@@ -26,10 +26,9 @@ const MUSEU_COLORS = {
 };
 
 function CalendarioAtividadesInner() {
-  const [currentDate, setCurrentDate] = useState(new Date());
   const [filtroMuseu, setFiltroMuseu] = useState('Todos');
   const [filtroEquipe, setFiltroEquipe] = useState('Todas');
-  const [selectedDay, setSelectedDay] = useState(null);
+  const [expandedGroup, setExpandedGroup] = useState(null);
 
   // Buscar todos os relatórios
   const { data: reports = [], isLoading } = useQuery({
@@ -68,33 +67,26 @@ function CalendarioAtividadesInner() {
     });
   }, [todasAtividades, filtroMuseu, filtroEquipe]);
 
-  // Dias do mês atual
-  const diasDoMes = useMemo(() => {
-    const start = startOfMonth(currentDate);
-    const end = endOfMonth(currentDate);
-    return eachDayOfInterval({ start, end });
-  }, [currentDate]);
-
-  // Atividades por dia
-  const atividadesPorDia = useMemo(() => {
-    const map = {};
+  // Agrupar por período (próximas/passadas)
+  const hoje = startOfDay(new Date());
+  const atividadesAgrupadasPeriodo = useMemo(() => {
+    const proximas = [];
+    const passadas = [];
+    
     for (const ativ of atividadesFiltradas) {
-      const key = format(ativ._date, 'yyyy-MM-dd');
-      if (!map[key]) map[key] = [];
-      map[key].push(ativ);
+      if (isBefore(ativ._date, hoje)) {
+        passadas.push(ativ);
+      } else {
+        proximas.push(ativ);
+      }
     }
-    return map;
+    
+    // Ordenar: próximas por data crescente, passadas por data decrescente
+    proximas.sort((a, b) => a._date - b._date);
+    passadas.sort((a, b) => b._date - a._date);
+    
+    return { proximas, passadas };
   }, [atividadesFiltradas]);
-
-  const primeiroDiaSemana = getDay(startOfMonth(currentDate)); // 0=dom
-  const blanks = Array(primeiroDiaSemana).fill(null);
-
-  const atividadesDoDiaSelected = selectedDay
-    ? (atividadesPorDia[format(selectedDay, 'yyyy-MM-dd')] || [])
-    : [];
-
-  const prevMonth = () => setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
-  const nextMonth = () => setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
 
   return (
     <div className="w-full py-6 md:py-10">
