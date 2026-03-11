@@ -13,13 +13,13 @@ import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
 import BudgetHealthDashboard from '@/components/compras/BudgetHealthDashboard';
 import AprovacoesFila from '@/components/compras/AprovacoesFila';
 import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
+import RubricasGrid from '@/components/compras/RubricasGrid';
 import TeamManager from '@/components/compras/TeamManager';
 import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
 import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
 import FinancialExcelExporter from '@/components/financeiro/FinancialExcelExporter';
 import { useBudgetLines } from '@/components/compras/useBudgetLines';
 import GestaoDocumental from '@/pages/GestaoDocumental';
-import RubricasGrid from '@/components/rubricas/RubricasGrid';
 import RubricaDetail from '@/components/rubricas/RubricaDetail';
 
 const STATUS_CONFIG = {
