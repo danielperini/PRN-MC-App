@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'museu_sigla é obrigatório' }, { status: 400 });
     }
 
-    // Buscar todas as atividades da unidade via relatórios associados
+    // Buscar todas as atividades da unidade
     const reports = await base44.asServiceRole.entities.Report.filter({ museu: museu_sigla });
     
     const allActivities = [];
@@ -26,7 +26,6 @@ Deno.serve(async (req) => {
     }
 
     if (allActivities.length === 0) {
-      // Se nenhuma atividade, retornar oportunidades existentes (seed data)
       const existentes = await base44.asServiceRole.entities.TerritorialOpportunity.filter({
         museu_sigla,
         ativo: true
@@ -42,51 +41,79 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Analisar padrões de atividade
+    // Análise de padrões
     const temasPrincipais = {};
     const publicosPrincipais = {};
-    const tiposEspeciais = new Set();
     let atividesMobilizacao = 0;
     let atividadesComParceria = 0;
 
     for (const activity of allActivities) {
-      // Extrair temas do título e descrição
       const textoAnalise = `${activity.titulo || ''} ${activity.descricao || ''}`.toLowerCase();
       
-      if (textoAnalise.includes('moda') || textoAnalise.includes('têxtil') || textoAnalise.includes('design')) {
-        temasPrincipais['Moda/Design'] = (temasPrincipais['Moda/Design'] || 0) + 1;
-      }
-      if (textoAnalise.includes('cinema') || textoAnalise.includes('filme') || textoAnalise.includes('audiovisual')) {
-        temasPrincipais['Cinema/Audiovisual'] = (temasPrincipais['Cinema/Audiovisual'] || 0) + 1;
-      }
-      if (textoAnalise.includes('fotogra') || textoAnalise.includes('imagem')) {
-        temasPrincipais['Fotografia'] = (temasPrincipais['Fotografia'] || 0) + 1;
-      }
-      if (textoAnalise.includes('patrimôni') || textoAnalise.includes('memóri') || textoAnalise.includes('históri')) {
-        temasPrincipais['Patrimônio/Memória'] = (temasPrincipais['Patrimônio/Memória'] || 0) + 1;
-      }
-      if (textoAnalise.includes('formação') || textoAnalise.includes('oficina') || textoAnalise.includes('workshop')) {
-        temasPrincipais['Formação'] = (temasPrincipais['Formação'] || 0) + 1;
+      // Temas específicos por museu
+      if (museu_sigla === 'MUMO') {
+        if (textoAnalise.includes('moda') || textoAnalise.includes('têxtil') || textoAnalise.includes('design') || textoAnalise.includes('costura')) {
+          temasPrincipais['Moda/Têxtil'] = (temasPrincipais['Moda/Têxtil'] || 0) + 1;
+        }
+        if (textoAnalise.includes('economia criativa') || textoAnalise.includes('empreendedorismo') || textoAnalise.includes('criativo')) {
+          temasPrincipais['Economia Criativa'] = (temasPrincipais['Economia Criativa'] || 0) + 1;
+        }
+        if (textoAnalise.includes('mulher') || textoAnalise.includes('feminino') || textoAnalise.includes('gênero')) {
+          temasPrincipais['Mulheres/Feminilidade'] = (temasPrincipais['Mulheres/Feminilidade'] || 0) + 1;
+        }
+        if (textoAnalise.includes('juventude') || textoAnalise.includes('jovem')) {
+          temasPrincipais['Juventude'] = (temasPrincipais['Juventude'] || 0) + 1;
+        }
+      } else if (museu_sigla === 'MIS') {
+        if (textoAnalise.includes('fotogra') || textoAnalise.includes('imagem') || textoAnalise.includes('visual')) {
+          temasPrincipais['Fotografia'] = (temasPrincipais['Fotografia'] || 0) + 1;
+        }
+        if (textoAnalise.includes('cinema') || textoAnalise.includes('filme') || textoAnalise.includes('audiovisual') || textoAnalise.includes('vídeo')) {
+          temasPrincipais['Cinema/Audiovisual'] = (temasPrincipais['Cinema/Audiovisual'] || 0) + 1;
+        }
+        if (textoAnalise.includes('comunicação') || textoAnalise.includes('mídia')) {
+          temasPrincipais['Comunicação'] = (temasPrincipais['Comunicação'] || 0) + 1;
+        }
+      } else if (museu_sigla === 'MHAB') {
+        if (textoAnalise.includes('patrimôni') || textoAnalise.includes('memóri') || textoAnalise.includes('históri') || textoAnalise.includes('urbana')) {
+          temasPrincipais['Patrimônio/Memória'] = (temasPrincipais['Patrimônio/Memória'] || 0) + 1;
+        }
+        if (textoAnalise.includes('educação') || textoAnalise.includes('pedagogia') || textoAnalise.includes('escol')) {
+          temasPrincipais['Educação'] = (temasPrincipais['Educação'] || 0) + 1;
+        }
+        if (textoAnalise.includes('idoso') || textoAnalise.includes('terceira idade') || textoAnalise.includes('envelhecimento')) {
+          temasPrincipais['Idosos'] = (temasPrincipais['Idosos'] || 0) + 1;
+        }
+      } else if (museu_sigla === 'Viaduto das Artes') {
+        if (textoAnalise.includes('arte') || textoAnalise.includes('artístico') || textoAnalise.includes('criação')) {
+          temasPrincipais['Arte/Criação'] = (temasPrincipais['Arte/Criação'] || 0) + 1;
+        }
+        if (textoAnalise.includes('comunidade') || textoAnalise.includes('comunitário') || textoAnalise.includes('social')) {
+          temasPrincipais['Mobilização Comunitária'] = (temasPrincipais['Mobilização Comunitária'] || 0) + 1;
+        }
+        if (textoAnalise.includes('juventude') || textoAnalise.includes('jovem') || textoAnalise.includes('adolescente')) {
+          temasPrincipais['Juventude'] = (temasPrincipais['Juventude'] || 0) + 1;
+        }
+        if (textoAnalise.includes('formação') || textoAnalise.includes('oficina') || textoAnalise.includes('workshop')) {
+          temasPrincipais['Formação'] = (temasPrincipais['Formação'] || 0) + 1;
+        }
       }
 
       if (activity.eh_mobilizacao) atividesMobilizacao++;
       if (activity.parceria === 'Sim') atividadesComParceria++;
-
-      // Extrair tipos especiais
-      if (activity.tipo_equipe) tiposEspeciais.add(activity.tipo_equipe);
     }
 
-    // Preparar contexto para Claude analisar
-    const prompt = `
-Você é um analista territorial especializado em redes de instituições culturais e educacionais.
+    // Prompts específicos por museu
+    const promptsPorMuseu = {
+      'MUMO': `
+Você é um curador territorial especializado em economia criativa, moda e design.
 
-Analise o seguinte perfil de atividades do museu "${museu_sigla}" em Belo Horizonte:
+Analise o seguinte perfil do Museu de Moda em Belo Horizonte:
 
 **ESTATÍSTICAS:**
-- Total de atividades analisadas: ${allActivities.length}
+- Total de atividades: ${allActivities.length}
 - Atividades de mobilização: ${atividesMobilizacao}
 - Atividades com parceria: ${atividadesComParceria}
-- Equipes envolvidas: ${Array.from(tiposEspeciais).join(', ')}
 
 **TEMAS PRINCIPAIS:**
 ${Object.entries(temasPrincipais)
@@ -95,31 +122,110 @@ ${Object.entries(temasPrincipais)
   .join('\n')}
 
 **TAREFA:**
-Com base neste perfil, sugira 15-20 instituições, coletivos e oportunidades no entorno de BH que:
-1. Alinhem com os temas mais frequentes
-2. Potencializem públicos pouco explorados
-3. Criem parcerias estratégicas
-4. Fortaleçam mobilização e relacionamento territorial
+Sugira 15-20 instituições no entorno de BH que:
+1. Fomentem moda, design, têxtil e economia criativa
+2. Alcancem públicos de juventude, designers, criadores
+3. Potencializem parcerias com escolas técnicas, faculdades de design, coletivos de moda
+4. Fortaleçam mulheres empreendedoras e turismo cultural
 
-Para cada oportunidade, retorne um JSON com:
+Priorize: escolas técnicas de moda, faculdades de design UEMG/UFMG, coletivos de mulheres, startups criativas, espaços de economia criativa.
+`,
+      'MIS': `
+Você é um curador territorial especializado em fotografia, cinema e audiovisual.
+
+Analise o seguinte perfil do Museu de Imagens e do Som em Belo Horizonte:
+
+**ESTATÍSTICAS:**
+- Total de atividades: ${allActivities.length}
+- Atividades de mobilização: ${atividesMobilizacao}
+- Atividades com parceria: ${atividadesComParceria}
+
+**TEMAS PRINCIPAIS:**
+${Object.entries(temasPrincipais)
+  .sort((a, b) => b[1] - a[1])
+  .map(([tema, freq]) => `- ${tema}: ${freq} atividades`)
+  .join('\n')}
+
+**TAREFA:**
+Sugira 15-20 instituições no entorno de BH que:
+1. Fortaleçam fotografia, cinema, audiovisual e comunicação visual
+2. Alcancem públicos de escolas, universidades, cineastas, fotógrafos
+3. Criem parcerias com escolas técnicas de áudio/vídeo, faculdades de comunicação, cineclubes
+4. Mobilizem profissionais de cultura visual e coletivos audiovisuais
+
+Priorize: faculdades de comunicação (UFMG, PUC), cineclubes, coletivos audiovisuais, escolas de fotografia, institutos de cinema.
+`,
+      'MHAB': `
+Você é um curador territorial especializado em patrimônio, memória e educação histórica.
+
+Analise o seguinte perfil do Museu Histórico Abílio Barreto em Belo Horizonte:
+
+**ESTATÍSTICAS:**
+- Total de atividades: ${allActivities.length}
+- Atividades de mobilização: ${atividesMobilizacao}
+- Atividades com parceria: ${atividadesComParceria}
+
+**TEMAS PRINCIPAIS:**
+${Object.entries(temasPrincipais)
+  .sort((a, b) => b[1] - a[1])
+  .map(([tema, freq]) => `- ${tema}: ${freq} atividades`)
+  .join('\n')}
+
+**TAREFA:**
+Sugira 15-20 instituições no entorno de BH que:
+1. Fortaleçam patrimônio, memória, história urbana e educação patrimonial
+2. Alcancem públicos de escolas, professores, idosos, pesquisadores
+3. Criem parcerias com escolas públicas/municipais, faculdades de educação, centros de convivência para idosos
+4. Fortaleçam história local, memória comunitária e educação
+
+Priorize: Escola de Educação UFMG/UEMG, lares de idosos, centros comunitários, escolas públicas, institutos de pesquisa histórica.
+`,
+      'Viaduto das Artes': `
+Você é um curador territorial especializado em formação artística e mobilização comunitária.
+
+Analise o seguinte perfil do Viaduto das Artes em Belo Horizonte:
+
+**ESTATÍSTICAS:**
+- Total de atividades: ${allActivities.length}
+- Atividades de mobilização: ${atividesMobilizacao}
+- Atividades com parceria: ${atividadesComParceria}
+
+**TEMAS PRINCIPAIS:**
+${Object.entries(temasPrincipais)
+  .sort((a, b) => b[1] - a[1])
+  .map(([tema, freq]) => `- ${tema}: ${freq} atividades`)
+  .join('\n')}
+
+**TAREFA:**
+Sugira 15-20 instituições no entorno de BH que:
+1. Fortaleçam formação artística, arte urbana e mobilização cultural
+2. Alcancem públicos de juventudes, coletivos comunitários, periferias
+3. Criem parcerias com coletivos culturais de base, escolas públicas, redes comunitárias, organizações sociais
+4. Fortaleçam participação social, mediação cultural e arte em contextos periféricos
+
+Priorize: coletivos de base comunitária, organizações sociais de juventude, escolas públicas, redes de articulação territorial, centros de arte comunitária.
+`
+    };
+
+    const prompt = promptsPorMuseu[museu_sigla] || promptsPorMuseu['MHAB'];
+
+    const llmResponse = await base44.asServiceRole.integrations.Core.InvokeLLM({
+      prompt: prompt + `
+
+Retorne um JSON válido com array "opportunities" contendo 15-20 instituições.
+Para cada uma, inclua:
 {
-  "nome": "Nome da instituição",
-  "categoria": "Uma das categorias listadas",
-  "bairro": "Bairro estimado em BH",
-  "distancia_estimada": número em km,
+  "nome": "Nome exato",
+  "categoria": "Uma das categorias obrigatórias",
+  "bairro": "Bairro em BH",
+  "distancia_estimada": número,
   "publicos_alvo": ["array de públicos"],
   "temas_relacionados": ["array de temas"],
   "nivel_aderencia": número 0-100,
   "prioridade": "Alta/Média/Baixa",
-  "potencial_parceria": "Tipo de parceria potencial",
+  "potencial_parceria": "Tipo de parceria",
   "observacoes_curadoria": "Justificativa concisa"
-}
-
-Retorne um JSON válido com array "opportunities" contendo os 15-20 itens sugeridos.
-`;
-
-    const llmResponse = await base44.asServiceRole.integrations.Core.InvokeLLM({
-      prompt,
+}`,
       response_json_schema: {
         type: 'object',
         properties: {
@@ -147,7 +253,7 @@ Retorne um JSON válido com array "opportunities" contendo os 15-20 itens sugeri
 
     const suggestions = llmResponse.opportunities || [];
 
-    // Buscar oportunidades existentes para este museu
+    // Buscar oportunidades existentes
     const existentes = await base44.asServiceRole.entities.TerritorialOpportunity.filter({
       museu_sigla
     });
@@ -167,8 +273,8 @@ Retorne um JSON válido com array "opportunities" contendo os 15-20 itens sugeri
         distancia_estimada: opp.distancia_estimada,
         publicos_alvo: opp.publicos_alvo,
         temas_relacionados: opp.temas_relacionados,
-        nivel_aderencia: opp.nivel_aderencia,
-        prioridade: opp.prioridade,
+        nivel_aderencia: Math.min(100, Math.max(0, opp.nivel_aderencia || 70)),
+        prioridade: opp.prioridade || 'Média',
         potencial_parceria: opp.potencial_parceria,
         observacoes_curadoria: opp.observacoes_curadoria,
         justificativa_ia: opp.observacoes_curadoria,
@@ -178,7 +284,7 @@ Retorne um JSON válido com array "opportunities" contendo os 15-20 itens sugeri
       await base44.asServiceRole.entities.TerritorialOpportunity.bulkCreate(dados);
     }
 
-    // Retornar todos os ativos para este museu
+    // Retornar todos os ativos
     const todasOportunidades = await base44.asServiceRole.entities.TerritorialOpportunity.filter({
       museu_sigla,
       ativo: true
@@ -195,6 +301,7 @@ Retorne um JSON válido com array "opportunities" contendo os 15-20 itens sugeri
       oportunidades: todasOportunidades.sort((a, b) => b.nivel_aderencia - a.nivel_aderencia)
     });
   } catch (error) {
+    console.error('Erro na análise territorial:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

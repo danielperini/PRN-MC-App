@@ -42,90 +42,142 @@ const museus = [
 ];
 
 function MuseusNoMapaInner() {
-  const [museuData, setMuseuData] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function carregarMuseus() {
-      try {
-        const data = await base44.entities.Museu.list();
-        setMuseuData(data);
-      } catch (err) {
-        console.error('Erro ao carregar museus:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    carregarMuseus();
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+   return (
+     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Hero */}
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-grid-slate-700/5 pointer-events-none" />
-        <div className="relative max-w-7xl mx-auto px-6 py-20 text-center">
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl" />
+        </div>
+        <div className="relative max-w-7xl mx-auto px-6 py-24 text-center">
           <div className="inline-block mb-6">
-            <div className="flex items-center gap-2 bg-white/10 backdrop-blur rounded-full px-4 py-2 border border-white/20">
-              <MapPin className="w-4 h-4 text-white" />
-              <span className="text-sm font-medium text-white/80">Territorialidade & Redes</span>
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 border border-white/20 hover:border-white/40 transition-all">
+              <MapPin className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-medium text-white/80">Inteligência Territorial</span>
             </div>
           </div>
 
-          <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 tracking-tight">
+          <h1 className="text-6xl md:text-7xl font-bold text-white mb-6 tracking-tight leading-tight">
             Museus Centro
-            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
+            <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-400">
               No Mapa
             </span>
           </h1>
 
-          <p className="text-xl text-slate-300 max-w-2xl mx-auto mb-12 leading-relaxed">
-            Explore as oportunidades territoriais, públicos potenciais e parcerias estratégicas
-            de cada unidade em Belo Horizonte.
+          <p className="text-lg text-slate-200 max-w-3xl mx-auto mb-8 leading-relaxed">
+            Visualize oportunidades territoriais, públicos estratégicos e parcerias potenciais.
+            Três mapas gráficos interativos para cada unidade: radial, rede e calor editorial.
           </p>
+
+          <div className="flex flex-wrap gap-3 justify-center">
+            <div className="px-4 py-2 bg-white/10 rounded-full text-sm text-slate-300 border border-white/20">
+              ✨ 4 Museus & Equipamentos
+            </div>
+            <div className="px-4 py-2 bg-white/10 rounded-full text-sm text-slate-300 border border-white/20">
+              🔍 Análise com IA
+            </div>
+            <div className="px-4 py-2 bg-white/10 rounded-full text-sm text-slate-300 border border-white/20">
+              📊 3 Visualizações por Unidade
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Grid de Museus */}
-      <div className="max-w-7xl mx-auto px-6 pb-20">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="relative max-w-7xl mx-auto px-6 pb-20">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {museus.map((museu) => (
             <Link key={museu.sigla} to={createPageUrl(`${museu.sigla === 'Viaduto das Artes' ? 'ViadutoMap' : museu.sigla + 'Map'}`)} className="group">
-              <div className={`bg-gradient-to-br ${museu.cor} rounded-2xl p-8 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 h-full cursor-pointer`}>
-                <div className="flex items-start justify-between mb-6">
-                  <div>
-                    <div className="text-sm font-semibold text-white/80 uppercase tracking-widest mb-2">
-                      {museu.foco}
+              <div className={`relative bg-gradient-to-br ${museu.cor} rounded-2xl p-8 text-white shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:-translate-y-1 h-full cursor-pointer overflow-hidden`}>
+                {/* Overlay gradiente */}
+                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-all" />
+
+                <div className="relative z-10">
+                  <div className="flex items-start justify-between mb-6">
+                    <div className="flex-1">
+                      <div className="text-xs font-bold text-white/70 uppercase tracking-widest mb-3 inline-block px-2 py-1 bg-white/10 rounded-full">
+                        {museu.foco}
+                      </div>
+                      <h2 className="text-3xl md:text-4xl font-bold leading-tight">{museu.nomeFormal}</h2>
                     </div>
-                    <h2 className="text-3xl font-bold">{museu.nomeFormal}</h2>
+                    <div className="p-3 bg-white/20 backdrop-blur rounded-xl group-hover:bg-white/30 transition-all flex-shrink-0">
+                      <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                    </div>
                   </div>
-                  <div className="p-3 bg-white/20 backdrop-blur rounded-lg group-hover:bg-white/30 transition-all">
-                    <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+
+                  <p className="text-white/90 leading-relaxed mb-6 text-sm md:text-base">
+                    {museu.descricao}
+                  </p>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-white/20">
+                    <span className="text-xs text-white/60 font-medium">Explorar análise territorial</span>
+                    <span className="text-lg group-hover:translate-x-2 transition-transform">→</span>
                   </div>
                 </div>
-
-                <p className="text-white/90 leading-relaxed mb-8">
-                  {museu.descricao}
-                </p>
-
-                <Button
-                  variant="secondary"
-                  className="w-full bg-white text-slate-900 hover:bg-white/90 font-semibold"
-                >
-                  Explorar Mapa
-                </Button>
               </div>
             </Link>
           ))}
         </div>
 
-        {/* Info */}
-        <div className="mt-20 bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-8 text-center">
-          <p className="text-slate-300 text-sm max-w-2xl mx-auto">
-            Os mapas gráficos mostram oportunidades de mobilização, relacionamento institucional,
-            formação de público, articulação territorial, programação e parcerias para cada museu.
-            Utilize os filtros para explorar categorias, públicos e prioridades específicas.
-          </p>
+        {/* Info Cards */}
+        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:bg-white/8 transition-all">
+            <div className="text-2xl mb-3">🗺️</div>
+            <h3 className="text-white font-semibold mb-2">3 Visualizações</h3>
+            <p className="text-slate-300 text-sm">Mapas radial, rede e calor editorial para cada museu</p>
+          </div>
+          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:bg-white/8 transition-all">
+            <div className="text-2xl mb-3">🤖</div>
+            <h3 className="text-white font-semibold mb-2">Análise com IA</h3>
+            <p className="text-slate-300 text-sm">Claude analisa atividades e sugere parceiros estratégicos</p>
+          </div>
+          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:bg-white/8 transition-all">
+            <div className="text-2xl mb-3">🎯</div>
+            <h3 className="text-white font-semibold mb-2">Filtros Inteligentes</h3>
+            <p className="text-slate-300 text-sm">Por categoria, público-alvo, tema e prioridade</p>
+          </div>
+        </div>
+
+        {/* Feature Info */}
+        <div className="mt-16 bg-gradient-to-r from-white/5 to-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8 md:p-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <h3 className="text-white text-xl font-bold mb-4">Para Coordenadores</h3>
+              <ul className="space-y-3 text-slate-300 text-sm">
+                <li className="flex items-start gap-3">
+                  <span className="text-blue-400 font-bold">✓</span>
+                  <span>Identificar oportunidades de mobilização</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-blue-400 font-bold">✓</span>
+                  <span>Descobrir parcerias estratégicas</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-blue-400 font-bold">✓</span>
+                  <span>Mapear públicos potenciais</span>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-white text-xl font-bold mb-4">Funcionalidades</h3>
+              <ul className="space-y-3 text-slate-300 text-sm">
+                <li className="flex items-start gap-3">
+                  <span className="text-cyan-400 font-bold">→</span>
+                  <span>Atualizar análise com IA</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-cyan-400 font-bold">→</span>
+                  <span>Ver curadoria de oportunidades</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-cyan-400 font-bold">→</span>
+                  <span>Resumo de mobilização por mês</span>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     </div>
