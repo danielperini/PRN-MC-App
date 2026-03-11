@@ -79,11 +79,17 @@ export default function OrcamentoUploadDialog({ open, onOpenChange, onSuccess, p
         ...userInputs,
       };
 
-      // Upload file to Drive
+      // Upload arquivo para armazenamento
       const reader = new FileReader();
       reader.onload = async (event) => {
         const base64 = event.target.result.split(',')[1];
         
+        // Fazer upload do arquivo para o armazenamento
+        const uploadRes = await base44.integrations.Core.UploadFile({
+          file: file
+        });
+        
+        // Backup para Google Drive
         await base44.functions.invoke('backupOrcamentoToDrive', {
           fileBase64: base64,
           fileName: file.name,
@@ -91,7 +97,7 @@ export default function OrcamentoUploadDialog({ open, onOpenChange, onSuccess, p
           purchaseRequestId,
         });
 
-        // Return data to parent
+        // Return data to parent com URL de arquivo confirmado
         onSuccess({
           fornecedor_nome: finalData.fornecedor_nome,
           fornecedor_cnpj: finalData.fornecedor_cnpj,
@@ -99,10 +105,13 @@ export default function OrcamentoUploadDialog({ open, onOpenChange, onSuccess, p
           fornecedor_cidade: finalData.fornecedor_cidade,
           descricao_item: finalData.descricao_item,
           valor_solicitado: Number(finalData.valor_solicitado) || 0,
-          orcamento_url: file.name,
+          valor_unitario: Number(finalData.valor_unitario) || Number(finalData.valor_solicitado),
+          orcamento_url: uploadRes.file_url,
+          orcamento_nome: file.name,
           garantia: finalData.garantia,
           condicoes_pagamento: finalData.condicoes_pagamento,
           meios_pagamento: finalData.meios_pagamento,
+          prazo_entrega: finalData.prazo_entrega,
         });
 
         setStep('upload');
@@ -110,7 +119,7 @@ export default function OrcamentoUploadDialog({ open, onOpenChange, onSuccess, p
         setExtractedData(null);
         setUserInputs({});
         onOpenChange(false);
-        toast.success('Orçamento processado e salvo!');
+        toast.success('Orçamento anexado e dados preenchidos!');
       };
       reader.readAsDataURL(file);
     } catch (error) {
