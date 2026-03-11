@@ -264,25 +264,32 @@ const items = items.map(item => (
 ```
 components/
   ├── help/
-  │   ├── HelpContextProvider.jsx      ← Context global + cache
-  │   ├── ContextualTooltip.jsx        ← Componente de tooltip
-  │   ├── withContextualHelp.jsx       ← HOC e HelpWrapper
-  │   ├── HelpButton.jsx               ← Botão com ajuda
-  │   ├── HelpFormField.jsx            ← Campo com ajuda
-  │   └── HELP_SYSTEM_README.md        ← Este arquivo
+  │   ├── HelpContextProvider.jsx       ← Context global + cache
+  │   ├── ContextualTooltip.jsx         ← Componente de tooltip
+  │   ├── withContextualHelp.jsx        ← HOC e HelpWrapper
+  │   ├── HelpButton.jsx                ← Botão com ajuda
+  │   ├── HelpFormField.jsx             ← Campo com ajuda
+  │   ├── AutoButton.jsx                ← Botão com auto-detecção de tipo ✨
+  │   ├── AutoField.jsx                 ← Campo com auto-detecção de tipo ✨
+  │   ├── useAutoHelp.js                ← Hook para auto-detecção ✨
+  │   └── HELP_SYSTEM_README.md         ← Este arquivo
   ├── layout/
-  │   └── Sidebar.jsx                  ← Atualizado com HelpWrapper
+  │   └── Sidebar.jsx                   ← Atualizado com HelpWrapper
 
 pages/
-  └── HelpManagement.jsx               ← Admin panel para gerenciar ajudas
+  └── HelpManagement.jsx                ← Admin panel para gerenciar ajudas
 
 functions/
-  └── regenerateHelpText.js            ← Backend para gerar textos com Claude
+  ├── regenerateHelpText.js             ← Backend para gerar textos com Claude
+  └── autoGenerateHelpTexts.js          ← Auto-gera ajudas para componentes padrão ✨
 
 entities/
-  └── HelpText.json                    ← Esquema de banco de dados
+  └── HelpText.json                     ← Esquema de banco de dados
 
-Layout.js                              ← Envolvido com HelpContextProvider
+Layout.js                               ← Envolvido com HelpContextProvider
+
+Automações:
+  └── Auto-gerar Ajuda Contextual      ← Executa diariamente às 2am ✨
 ```
 
 ---
