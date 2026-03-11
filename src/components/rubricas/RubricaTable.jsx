@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 export default function RubricaTable({ rubricas, onSelectRubrica }) {
   const [search, setSearch] = useState('');
   const [filtroGrupo, setFiltroGrupo] = useState('all');
+  const [filtroStatus, setFiltroStatus] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
 
   const grupos = [...new Set(rubricas?.map(r => r.grupo) || [])];
@@ -15,9 +16,19 @@ export default function RubricaTable({ rubricas, onSelectRubrica }) {
     return (rubricas || []).filter(r => {
       const matchSearch = !search || r.rubrica?.toLowerCase().includes(search.toLowerCase());
       const matchGrupo = filtroGrupo === 'all' || r.grupo === filtroGrupo;
-      return matchSearch && matchGrupo;
+      
+      let matchStatus = true;
+      if (filtroStatus !== 'all') {
+        const percent = r.percentual_utilizado || 0;
+        if (filtroStatus === 'sem-uso') matchStatus = percent === 0;
+        if (filtroStatus === 'em-uso') matchStatus = percent > 0 && percent < 80;
+        if (filtroStatus === 'alerta') matchStatus = percent >= 80 && percent < 100;
+        if (filtroStatus === 'excedida') matchStatus = percent >= 100;
+      }
+      
+      return matchSearch && matchGrupo && matchStatus;
     });
-  }, [rubricas, search, filtroGrupo]);
+  }, [rubricas, search, filtroGrupo, filtroStatus]);
 
   const getStatusIcon = (percent) => {
     if (percent >= 100) return <AlertTriangle className="w-4 h-4 text-red-600" />;
@@ -51,6 +62,18 @@ export default function RubricaTable({ rubricas, onSelectRubrica }) {
             {grupos.map(g => (
               <SelectItem key={g} value={g}>{g}</SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+          <SelectTrigger className="w-56">
+            <SelectValue placeholder="Filtrar por status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os status</SelectItem>
+            <SelectItem value="sem-uso">Sem uso</SelectItem>
+            <SelectItem value="em-uso">Em uso (0-80%)</SelectItem>
+            <SelectItem value="alerta">Atenção (80-100%)</SelectItem>
+            <SelectItem value="excedida">Excedida (100%+)</SelectItem>
           </SelectContent>
         </Select>
       </div>

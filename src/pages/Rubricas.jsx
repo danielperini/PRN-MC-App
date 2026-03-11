@@ -7,6 +7,7 @@ import RubricaCards from '@/components/rubricas/RubricaCards';
 import RubricaTable from '@/components/rubricas/RubricaTable';
 import RubricaDetail from '@/components/rubricas/RubricaDetail';
 import RubricaExporter from '@/components/rubricas/RubricaExporter';
+import RubricaStatusReport from '@/components/rubricas/RubricaStatusReport';
 import RequireAuth from '@/components/auth/RequireAuth';
 
 function RubricasInner() {
@@ -44,6 +45,9 @@ function RubricasInner() {
 
         {/* Cards Resumo */}
         {!isLoading && <RubricaCards rubricas={rubricas} />}
+
+        {/* Relatório */}
+        {!isLoading && <RubricaStatusReport rubricas={rubricas} />}
 
         {/* Tabela */}
         {isLoading ? (
