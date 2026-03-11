@@ -473,21 +473,21 @@ export default function AssistantChat() {
             ) : (
               <>
                 {messages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-xs px-3 py-2 rounded-lg text-sm ${
-                        msg.role === 'user'
-                          ? 'bg-black text-white'
-                          : 'bg-gray-100 text-gray-900'
-                      }`}
-                    >
-                      {msg.content}
-                    </div>
-                  </div>
-                ))}
+                   <div
+                     key={i}
+                     className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                   >
+                     <div
+                       className={`max-w-[85%] px-3 py-2.5 rounded-lg text-sm leading-relaxed ${
+                         msg.role === 'user'
+                           ? 'bg-black text-white'
+                           : 'bg-gray-100 text-gray-900 whitespace-pre-wrap'
+                       }`}
+                     >
+                       {msg.content}
+                     </div>
+                   </div>
+                 ))}
                 {loading && (
                   <div className="flex justify-start">
                     <div className="bg-gray-100 text-gray-900 px-3 py-2 rounded-lg text-sm">
