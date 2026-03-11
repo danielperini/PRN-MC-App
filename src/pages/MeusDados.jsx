@@ -10,16 +10,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 
 const FORM_FIELDS = [
-  { name: 'email_pessoal', label: 'Email Pessoal', type: 'email', icon: '📧' },
-  { name: 'telefone', label: 'Telefone de Contato', type: 'tel', icon: '📱' },
-  { name: 'cpf', label: 'CPF', type: 'text', icon: '🆔' },
+  { name: 'email_pessoal', label: 'Email Pessoal', type: 'email' },
+  { name: 'telefone', label: 'Telefone de Contato', type: 'tel' },
+  { name: 'cpf', label: 'CPF', type: 'text' },
 ];
 
 const BANKING_FIELDS = [
-  { name: 'banco', label: 'Banco', type: 'text', icon: '🏦' },
-  { name: 'agencia', label: 'Agência', type: 'text', icon: '📌' },
-  { name: 'conta', label: 'Conta', type: 'text', icon: '💰' },
-  { name: 'pix_key', label: 'Chave PIX (opcional)', type: 'text', icon: '🔑' },
+  { name: 'banco', label: 'Banco', type: 'text' },
+  { name: 'agencia', label: 'Agência', type: 'text' },
+  { name: 'conta', label: 'Conta', type: 'text' },
+  { name: 'pix_key', label: 'Chave PIX (opcional)', type: 'text' },
 ];
 
 function MeusDadosInner() {
