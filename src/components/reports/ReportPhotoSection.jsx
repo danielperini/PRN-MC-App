@@ -5,8 +5,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import PhotoGallerySelector from './PhotoGallerySelector';
+import PhotoCaptionSuggester from './PhotoCaptionSuggester';
 
-export default function ReportPhotoSection({ photos = [], onAddPhoto, onUpdatePhoto, onDeletePhoto }) {
+export default function ReportPhotoSection({ photos = [], onAddPhoto, onUpdatePhoto, onDeletePhoto, activityId, reportId }) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [editingPhotoId, setEditingPhotoId] = useState(null);
   const [editCaption, setEditCaption] = useState('');
@@ -49,13 +50,23 @@ export default function ReportPhotoSection({ photos = [], onAddPhoto, onUpdatePh
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {photos.map(photo => (
             <div key={photo.id} className="border border-gray-200 rounded-lg overflow-hidden">
-              <div className="aspect-video bg-gray-100 overflow-hidden">
+              <div className="aspect-video bg-gray-100 overflow-hidden relative group">
                 <img
                   src={photo.url}
                   alt={photo.fileName}
                   className="w-full h-full object-cover"
                   onError={(e) => { e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="225"%3E%3Crect fill="%23f0f0f0" width="400" height="225"/%3E%3C/svg%3E'; }}
                 />
+                {!photo.caption && (
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                    <PhotoCaptionSuggester
+                      photoUrl={photo.url}
+                      activityId={activityId}
+                      reportId={reportId}
+                      onCaptionSuggested={(caption) => onUpdatePhoto(photo.id, caption)}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="p-3 space-y-2">
