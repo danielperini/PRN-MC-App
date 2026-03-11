@@ -599,55 +599,7 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
           </div>
         </div>
 
-        {/* Orçamento Upload Dialog */}
-        <OrcamentoUploadDialog
-          open={showOrcamentoDialog}
-          onOpenChange={setShowOrcamentoDialog}
-          purchaseRequestId={form.id || 'novo'}
-          activityTitle={prefill?._activity_titulo || 'Sem Atividade'}
-          onSuccess={(data) => {
-            // Preencher formulário com dados extraídos
-            set('fornecedor_nome', data.fornecedor_nome || form.fornecedor_nome);
-            set('fornecedor_cnpj', data.fornecedor_cnpj || form.fornecedor_cnpj);
-            set('fornecedor_contato', data.fornecedor_contato || form.fornecedor_contato);
-            
-            // Descrição com prioridade
-            if (data.descricao_item) set('descricao_item', data.descricao_item);
-            
-            // Valores
-            if (data.valor_solicitado) set('valor_solicitado', data.valor_solicitado.toString());
-            if (data.valor_unitario) set('valor_unitario', data.valor_unitario.toString());
-            
-            // Pagamento
-            if (data.meios_pagamento) {
-              const meio = data.meios_pagamento.split(',')[0]?.trim() || data.meios_pagamento;
-              if (['PIX', 'TED/Transferência', 'Boleto', 'Cartão', 'Dinheiro'].includes(meio)) {
-                set('meio_pagamento', meio);
-              }
-            }
-            
-            // Observações com informações complementares
-            let obs = form.observacoes || '';
-            if (data.fornecedor_cidade) obs += `\nCidade: ${data.fornecedor_cidade}`;
-            if (data.garantia) obs += `\nGarantia: ${data.garantia}`;
-            if (data.condicoes_pagamento) obs += `\nCondições: ${data.condicoes_pagamento}`;
-            if (data.prazo_entrega) obs += `\nPrazo: ${data.prazo_entrega}`;
-            if (obs) set('observacoes', obs.trim());
-            
-            // Anexar orçamento como novo arquivo
-            if (data.orcamento_url) {
-              const newOrc = {
-                id: Date.now(),
-                nome: data.orcamento_nome || 'Orçamento Anexado',
-                arquivo: { name: data.orcamento_nome || 'orcamento.pdf' },
-                url: data.orcamento_url
-              };
-              setForm(f => ({ ...f, orcamentos: [...f.orcamentos, newOrc] }));
-            }
-            
-            setShowOrcamentoDialog(false);
-          }}
-        />
+
       </div>
     </div>
   );
