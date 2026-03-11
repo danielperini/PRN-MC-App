@@ -54,7 +54,34 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
     enabled: isOpen && !editingMember,
   });
 
+  const { data: termos = [] } = useQuery({
+    queryKey: ['termos-compromisso'],
+    queryFn: () => base44.entities.TermoCompromisso.list(),
+    enabled: isOpen,
+  });
+
   const availableUsers = users.filter(u => !existingMembers.some(m => m.user_email === u.email));
+
+  const preencherFormComTermo = (userEmail) => {
+    const termoDoUsuario = termos.find(t => t.contratado_email === userEmail);
+    if (termoDoUsuario) {
+      setForm(prev => ({
+        ...prev,
+        objeto_contrato: termoDoUsuario.objeto || prev.objeto_contrato,
+        descricao_contrato: termoDoUsuario.escopo || prev.descricao_contrato,
+        data_inicio_contrato: termoDoUsuario.data_inicio || prev.data_inicio_contrato,
+        data_fim_contrato: termoDoUsuario.data_fim || prev.data_fim_contrato,
+        valor_total: termoDoUsuario.valor_total || prev.valor_total,
+        numero_parcelas: (termoDoUsuario.parcelas?.length || 1) || prev.numero_parcelas,
+        valor_parcela: termoDoUsuario.valor_total ? (termoDoUsuario.valor_total / (termoDoUsuario.parcelas?.length || 1)) : prev.valor_parcela,
+        banco: termoDoUsuario.contratado_banco || prev.banco,
+        agencia: termoDoUsuario.contratado_agencia || prev.agencia,
+        conta: termoDoUsuario.contratado_conta || prev.conta,
+        tipo_conta: termoDoUsuario.tipo_conta || prev.tipo_conta,
+        pix_key: termoDoUsuario.pix_key || prev.pix_key,
+      }));
+    }
+  };
 
   const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
