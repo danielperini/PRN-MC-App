@@ -10,7 +10,7 @@ import { HelpContextProvider } from '@/components/help/HelpContextProvider';
 const PAGE_TITLES = {
   Dashboard: 'Painel',
   DashboardProfissional: 'Meu Painel',
-  Relatorios: 'Ajuda, Plano de Trabalho e Relatórios',
+  Relatorios: 'Relatórios',
   ReportEditor: 'Relatório',
   NovaAtividade: 'Atividades',
   CalendarioAtividades: 'Calendário',
