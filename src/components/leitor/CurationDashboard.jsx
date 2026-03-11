@@ -16,7 +16,7 @@ const FONTE_COLORS = {
   internal: 'bg-gray-100 text-gray-600',
 };
 
-function NewsCardCurated({ news, onApprove, onReject, processingId }) {
+function NewsCardCurated({ news, onApprove, onReject, onDelete, processingId, isPublished }) {
   const isProcessing = processingId === news.id;
   const scoreColor = news.score_pertinencia >= 80 ? 'text-green-600' : news.score_pertinencia >= 60 ? 'text-amber-600' : 'text-red-600';
 
@@ -42,11 +42,23 @@ function NewsCardCurated({ news, onApprove, onReject, processingId }) {
                 Score: {news.score_pertinencia}%
               </span>
             </div>
-            {news.link && (
-              <a href={news.link} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black flex-shrink-0">
-                <ExternalLink className="w-4 h-4" />
-              </a>
-            )}
+            <div className="flex items-center gap-2">
+              {news.link && (
+                <a href={news.link} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black flex-shrink-0">
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              )}
+              {isPublished && (
+                <button
+                  onClick={() => onDelete(news.id)}
+                  disabled={isProcessing}
+                  className="text-gray-400 hover:text-red-600 flex-shrink-0"
+                  title="Deletar e substituir"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
           <h3 className="font-semibold text-gray-900 line-clamp-2 mb-1">{news.titulo}</h3>
           <p className="text-sm text-gray-600 line-clamp-2 mb-2">{news.resumo}</p>
@@ -69,22 +81,22 @@ function NewsCardCurated({ news, onApprove, onReject, processingId }) {
       </div>
 
       {news.status_curadoria === 'PENDENTE' && (
-        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100 flex-wrap">
           <Button
             size="sm"
             onClick={() => onApprove(news.id)}
             disabled={isProcessing}
-            className="bg-green-600 text-white hover:bg-green-700 text-xs"
+            className="bg-green-600 text-white hover:bg-green-700 text-xs flex-1 sm:flex-none"
           >
             {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
-            Aprovar e Publicar
+            Publicar
           </Button>
           <Button
             size="sm"
             variant="outline"
             onClick={() => onReject(news.id)}
             disabled={isProcessing}
-            className="text-xs text-red-600"
+            className="text-xs text-red-600 flex-1 sm:flex-none"
           >
             <Trash2 className="w-3 h-3" /> Rejeitar
           </Button>
@@ -135,6 +147,23 @@ export default function CurationDashboard() {
     setProcessingId(id);
     try {
       await base44.functions.invoke('rejectCuratedNews', { newsId: id });
+      queryClient.invalidateQueries({ queryKey: ['news-pending-curated'] });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    setProcessingId(id);
+    try {
+      await base44.entities.NewsHighlight.delete(id);
+      // Buscar notícia pendente para substituir
+      const pending = await base44.entities.NewsHighlight.filter({ status_curadoria: 'PENDENTE' }, '-created_date', 1);
+      if (pending.length > 0) {
+        // Substituir com primeira pendente
+        await base44.entities.NewsHighlight.update(pending[0].id, { ativo: true, status_curadoria: 'APROVADO_MANUAL' });
+      }
+      queryClient.invalidateQueries({ queryKey: ['news-published-curated'] });
       queryClient.invalidateQueries({ queryKey: ['news-pending-curated'] });
     } finally {
       setProcessingId(null);
@@ -219,35 +248,13 @@ export default function CurationDashboard() {
         ) : (
           <div className="space-y-3">
             {published.map(news => (
-              <div key={news.id} className="border border-gray-200 rounded-lg p-4 bg-gradient-to-r from-white to-gray-50">
-                <div className="flex items-start justify-between gap-4">
-                  {news.imagem_url && (
-                    <img
-                      src={news.imagem_url}
-                      alt=""
-                      className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
-                      onError={e => e.target.style.display = 'none'}
-                    />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 line-clamp-2 mb-1">{news.titulo}</h3>
-                    <div className="flex flex-wrap gap-2 items-center mb-2">
-                      <Badge variant="outline" className="text-xs">{news.tipo_conteudo}</Badge>
-                      {news.status_curadoria === 'PUBLICADO_AUTO' && (
-                        <Badge className="bg-blue-100 text-blue-700 text-xs">Publicado IA</Badge>
-                      )}
-                      {news.status_curadoria === 'APROVADO_MANUAL' && (
-                        <Badge className="bg-green-100 text-green-700 text-xs">Aprovado Manualmente</Badge>
-                      )}
-                    </div>
-                  </div>
-                  {news.link && (
-                    <a href={news.link} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black flex-shrink-0">
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                  )}
-                </div>
-              </div>
+              <NewsCardCurated
+                key={news.id}
+                news={news}
+                onDelete={handleDelete}
+                processingId={processingId}
+                isPublished={true}
+              />
             ))}
           </div>
         )}
@@ -271,7 +278,9 @@ export default function CurationDashboard() {
                 news={news}
                 onApprove={handleApprove}
                 onReject={handleReject}
+                onDelete={handleDelete}
                 processingId={processingId}
+                isPublished={false}
               />
             ))}
           </div>
