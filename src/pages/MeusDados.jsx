@@ -140,7 +140,8 @@ function MeusDadosInner() {
   const set = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
 
   const isComplete = formData.email_pessoal && formData.telefone && formData.cpf && 
-                     formData.banco && formData.agencia && formData.conta;
+                     formData.banco && formData.agencia && formData.conta &&
+                     (formData.tipo_pessoa === 'PF' || (formData.cnpj && formData.empresa_nome));
 
   if (!user) {
     return (
