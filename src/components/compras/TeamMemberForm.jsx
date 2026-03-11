@@ -372,14 +372,21 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                     <p className="text-sm text-indigo-600 font-medium">Anexando contrato...</p>
                   </div>
                 ) : form.contrato_url ? (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-green-600 flex items-center gap-1">
-                      ✅ Contrato anexado
-                    </span>
-                    <button type="button" onClick={() => set('contrato_url', '')} className="text-red-500 hover:text-red-700">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+                   <div className="flex items-center justify-between">
+                     <span className="text-sm text-green-600 flex items-center gap-1">
+                       ✅ Contrato anexado
+                     </span>
+                     <Button
+                       type="button"
+                       size="sm"
+                       variant="ghost"
+                       onClick={() => set('contrato_url', '')}
+                       className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                     >
+                       <X className="w-4 h-4" />
+                       Deletar
+                     </Button>
+                   </div>
                 ) : (
                   <label className="cursor-pointer">
                     <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
