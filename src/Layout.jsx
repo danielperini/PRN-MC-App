@@ -21,6 +21,7 @@ const PAGE_TITLES = {
   CoordReview: 'Revisão',
   UserManagement: 'Usuários',
   GestorArquivos: 'Arquivos',
+  GaleriaFotos: 'Galeria de Fotos',
   ActivityLog: 'Auditoria',
   PlataformaAdmin: 'Plataforma',
   AssistentePlanejamento: 'Assistente de IA do MC',
