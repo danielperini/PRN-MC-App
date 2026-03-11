@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 export default function RubricasGrid({ budgetLines, purchases }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setategoryFilter] = useState('all');
+  const [expandedCards, setExpandedCards] = useState({});
 
   // Agrupar por categoria
   const categorias = useMemo(() => {
@@ -33,11 +34,26 @@ export default function RubricasGrid({ budgetLines, purchases }) {
     return result;
   }, [categorias, searchTerm, categoryFilter]);
 
-  // Calcular valor utilizado por rubrica
-  const getValorUtilizado = (rubricaId) => {
-    return purchases
-      .filter(p => p.rubrica_id === rubricaId && ['APROVADO_COORD', 'PAGO'].includes(p.status))
-      .reduce((sum, p) => sum + (p.valor_total || 0), 0);
+  // Calcular valores detalhados por rubrica
+  const getValoresRubrica = (rubricaId) => {
+    const comprasAprovadas = purchases.filter(p => p.budgetline_id === rubricaId && p.status === 'APROVADO_COORD');
+    const comprasPagas = purchases.filter(p => p.budgetline_id === rubricaId && p.status === 'PAGO');
+    const comprasEmAnalise = purchases.filter(p => p.budgetline_id === rubricaId && p.status === 'SOLICITADO');
+    
+    const valorAprovado = comprasAprovadas.reduce((sum, p) => sum + (p.valor_total || 0), 0);
+    const valorPago = comprasPagas.reduce((sum, p) => sum + (p.valor_total || 0), 0);
+    const valorEmAnalise = comprasEmAnalise.reduce((sum, p) => sum + (p.valor_total || 0), 0);
+    const valorUtilizado = valorAprovado + valorPago;
+    
+    return {
+      valorAprovado,
+      valorPago,
+      valorEmAnalise,
+      valorUtilizado,
+      quantidadeAprovada: comprasAprovadas.length,
+      quantidadePaga: comprasPagas.length,
+      quantidadeEmAnalise: comprasEmAnalise.length,
+    };
   };
 
   return (
