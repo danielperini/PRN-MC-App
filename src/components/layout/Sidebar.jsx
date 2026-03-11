@@ -90,6 +90,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
     {
       label: 'Recursos',
       items: [
+        { name: 'MeusDados', icon: Users, label: 'Meus Dados', show: true },
         { name: 'AssistentePlanejamento', icon: HelpCircle, label: 'Assistente de IA do MC', show: true },
         { name: 'GeradorTermoCompromisso', icon: FileText, label: 'Termos de Compromisso', show: true, permission: 'can_manage_terms' },
         { name: 'LeitorNoticias', icon: Newspaper, label: 'Curadoria Notícias', show: isCoordenador },
