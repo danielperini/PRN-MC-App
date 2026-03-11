@@ -422,6 +422,7 @@ function ReportEditorInner() {
             <TabsTrigger value="atividades">Atividades</TabsTrigger>
             <TabsTrigger value="oportunidades">Oportunidades</TabsTrigger>
             <TabsTrigger value="avaliacao">Avaliação</TabsTrigger>
+            <TabsTrigger value="anexos">Anexos</TabsTrigger>
             <TabsTrigger value="comentarios">Comentários</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
