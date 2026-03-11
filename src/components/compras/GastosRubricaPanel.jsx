@@ -26,7 +26,7 @@ const CATEGORIA_COLORS = {
   outro: 'bg-gray-100 text-gray-800',
 };
 
-export default function GastosRubricaPanel({ rubricaId, rubricaCodigo }) {
+export default function GastosRubricaPanel({ rubricaId, rubricaCodigo, rubrica }) {
   const [showForm, setShowForm] = useState(false);
   const queryClient = useQueryClient();
 
@@ -124,6 +124,7 @@ export default function GastosRubricaPanel({ rubricaId, rubricaCodigo }) {
 
       <GastoRubricaForm
         rubricaId={rubricaId}
+        rubrica={rubrica}
         isOpen={showForm}
         onClose={() => setShowForm(false)}
         onSuccess={() => queryClient.invalidateQueries(['gastos-rubrica', rubricaId])}
