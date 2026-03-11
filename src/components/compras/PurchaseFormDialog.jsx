@@ -354,10 +354,22 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
                 </div>
               ) : (
                 <Select value={form.activity_id} onValueChange={v => set('activity_id', v)}>
-                  <SelectTrigger><SelectValue placeholder="Selecione atividade..." /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Selecione ou deixar sem vínculo..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={null}>Sem vínculo</SelectItem>
-                    {activities.map(a => <SelectItem key={a.id} value={a.id}>{a.titulo}</SelectItem>)}
+                    <SelectItem value={null}>Sem vínculo com atividade</SelectItem>
+                    {activities.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100">Atividades em aberto</div>
+                        {activities.map(a => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.titulo} {a.data_realizacao && `— ${new Date(a.data_realizacao).toLocaleDateString('pt-BR')}`}
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                    {activities.length === 0 && (
+                      <div className="px-2 py-2 text-xs text-gray-500">Nenhuma atividade em aberto</div>
+                    )}
                   </SelectContent>
                 </Select>
               )}
