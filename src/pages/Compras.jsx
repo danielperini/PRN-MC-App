@@ -19,6 +19,7 @@ import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
 import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
 import FinancialExcelExporter from '@/components/financeiro/FinancialExcelExporter';
 import ExportRubricasExcelButton from '@/components/compras/ExportRubricasExcelButton';
+import { useBudgetLines } from '@/components/compras/useBudgetLines';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
