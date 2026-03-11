@@ -1,7 +1,7 @@
 import React from 'react';
 import { Users, Activity, Award } from 'lucide-react';
 
-export default function ActivitySummary({ activities = [], dateRange = null }) {
+export default function ActivitySummary({ activities = [], dateRange = null, dashboardPublico = null }) {
   if (activities.length === 0) {
     return (
       <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center text-sm text-gray-400">
@@ -10,8 +10,8 @@ export default function ActivitySummary({ activities = [], dateRange = null }) {
     );
   }
 
-  // Calcular totais - mesmo estilo do Dashboard
-  const totalPublico = activities.reduce((sum, a) => sum + (Number(a.publico_total) || Number(a.publico_estimado) || 0), 0);
+  // Usar o público total do Dashboard se fornecido, caso contrário calcular
+  const totalPublico = dashboardPublico !== null ? dashboardPublico : activities.reduce((sum, a) => sum + (Number(a.publico_total) || Number(a.publico_estimado) || 0), 0);
   const totalActividades = activities.length;
   const aprovados = activities.filter(a => a.status === 'APROVADO').length;
 
