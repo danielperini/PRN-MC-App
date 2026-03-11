@@ -283,14 +283,42 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
           </div>
 
           {/* Valores e quantidades */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs text-gray-600 mb-1 block">Quantidade</Label>
-              <Input type="number" min="1" value={form.qtd} onChange={e => set('qtd', e.target.value)} />
+              <Input type="number" min="1" value={form.qtd} onChange={e => {
+                const qtd = parseFloat(e.target.value) || 1;
+                const vUnit = parseFloat(form.valor_unitario) || 0;
+                setForm(f => ({ ...f, qtd: e.target.value, valor_solicitado: qtd * vUnit ? (qtd * vUnit).toFixed(2) : f.valor_solicitado }));
+              }} />
             </div>
             <div>
               <Label className="text-xs text-gray-600 mb-1 block">Unidade</Label>
-              <Input placeholder="un, mês, diária..." value={form.unidade} onChange={e => set('unidade', e.target.value)} />
+              <Select value={form.unidade} onValueChange={v => set('unidade', v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="un">Unidade (un)</SelectItem>
+                  <SelectItem value="diária">Diária</SelectItem>
+                  <SelectItem value="serviço">Serviço</SelectItem>
+                  <SelectItem value="mês">Mês</SelectItem>
+                  <SelectItem value="ano">Ano</SelectItem>
+                  <SelectItem value="hora">Hora</SelectItem>
+                  <SelectItem value="km">Km</SelectItem>
+                  <SelectItem value="evento">Evento</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-600 mb-1 block">Valor por unidade (R$)</Label>
+              <Input
+                type="number" step="0.01" placeholder="0,00"
+                value={form.valor_unitario || ''}
+                onChange={e => {
+                  const vUnit = parseFloat(e.target.value) || 0;
+                  const qtd = parseFloat(form.qtd) || 1;
+                  setForm(f => ({ ...f, valor_unitario: e.target.value, valor_solicitado: (qtd * vUnit).toFixed(2) }));
+                }}
+              />
             </div>
             <div>
               <Label className="text-xs text-gray-600 mb-1 block">Valor total (R$) *</Label>
