@@ -43,7 +43,10 @@ const EMPTY = {
   activity_id: '', report_id: '', orcamentos_docs: [], notas_fiscais_docs: [],
 };
 
-export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, onSuccess, prefill }) {
+export default function PurchaseFormDialog({ currentUser, onClose, onSuccess, prefill }) {
+  // Usar hook centralizado para rubricas
+  const { budgetLines } = useBudgetLines();
+  
   const [form, setForm] = useState(() => prefill ? { ...EMPTY, ...prefill } : EMPTY);
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [analyzingMeta, setAnalyzingMeta] = useState(false);
