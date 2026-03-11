@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronDown, FileIcon, FolderIcon, Download } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
+import { useQueryClient } from '@tanstack/react-query';
+import { ChevronRight, ChevronDown, FileIcon, FolderIcon, Download, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 export default function FileHierarchy({ backups = [], onPreview, canManageFile, isGeneralCoordinator }) {
   const [expandedReports, setExpandedReports] = useState(new Set());
   const [expandedActivities, setExpandedActivities] = useState(new Set());
+  const [deleting, setDeleting] = useState(null);
+  const queryClient = useQueryClient();
 
   // Agrupar por relatório > tipo de arquivo
   const hierarchy = backups.reduce((acc, file) => {
@@ -58,6 +62,23 @@ export default function FileHierarchy({ backups = [], onPreview, canManageFile, 
       onPreview(file);
     } else {
       handleDownload(file);
+    }
+  };
+
+  const handleDelete = async (file) => {
+    if (!confirm(`Tem certeza que deseja deletar "${file.fileName}"?`)) {
+      return;
+    }
+
+    setDeleting(file.id);
+    try {
+      await base44.entities.Attachment.delete(file.id);
+      toast.success('Arquivo deletado com sucesso');
+      queryClient.invalidateQueries({ queryKey: ['google-drive-backups'] });
+    } catch (error) {
+      toast.error('Erro ao deletar arquivo: ' + (error.message || 'desconhecido'));
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -152,15 +173,17 @@ export default function FileHierarchy({ backups = [], onPreview, canManageFile, 
                               <Download className="w-4 h-4" />
                             </Button>
                             {canManageFile && canManageFile(file) && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-red-600 hover:bg-red-50"
-                                title="Deletar arquivo"
-                              >
-                                🗑️
-                              </Button>
-                            )}
+                               <Button
+                                 size="sm"
+                                 variant="ghost"
+                                 className="text-red-600 hover:bg-red-50"
+                                 title="Deletar arquivo"
+                                 disabled={deleting === file.id}
+                                 onClick={() => handleDelete(file)}
+                               >
+                                 <Trash2 className="w-4 h-4" />
+                               </Button>
+                             )}
                           </div>
                         </div>
                         );
