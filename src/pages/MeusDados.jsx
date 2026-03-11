@@ -222,7 +222,63 @@ function MeusDadosInner() {
                 />
               </div>
             ))}
+
+            <div className="space-y-1.5">
+              <Label>Tipo de Pessoa *</Label>
+              <Select value={formData.tipo_pessoa} onValueChange={v => set('tipo_pessoa', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PF">Pessoa Física (PF)</SelectItem>
+                  <SelectItem value="MEI">MEI</SelectItem>
+                  <SelectItem value="ME">ME (Microempresa)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {formData.tipo_pessoa !== 'PF' && (
+              <div>
+                <Label>CNPJ *</Label>
+                <Input
+                  value={formData.cnpj}
+                  onChange={e => set('cnpj', e.target.value)}
+                  placeholder="00.000.000/0001-00"
+                  required={formData.tipo_pessoa !== 'PF'}
+                />
+              </div>
+            )}
           </Section>
+
+          {/* Dados da Empresa */}
+          {formData.tipo_pessoa !== 'PF' && (
+            <Section title="Dados da Empresa">
+              {EMPRESA_FIELDS.map(field => (
+                <div key={field.name} className="space-y-1.5">
+                  <Label>{field.label} {field.name !== 'empresa_endereco' ? '*' : ''}</Label>
+                  <Input
+                    type={field.type}
+                    value={formData[field.name]}
+                    onChange={e => set(field.name, e.target.value)}
+                    placeholder={field.label}
+                    required={field.name !== 'empresa_endereco'}
+                  />
+                </div>
+              ))}
+
+              <div className="space-y-1.5">
+                <Label>Cargo do Representante *</Label>
+                <Select value={formData.cargo_representante} onValueChange={v => set('cargo_representante', v)}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Sócio-Gerente">Sócio-Gerente</SelectItem>
+                    <SelectItem value="Diretor">Diretor</SelectItem>
+                    <SelectItem value="Gerente">Gerente</SelectItem>
+                    <SelectItem value="Procurador">Procurador</SelectItem>
+                    <SelectItem value="Outro">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </Section>
+          )}
 
           {/* Dados Bancários */}
           <Section title="Dados Bancários">
