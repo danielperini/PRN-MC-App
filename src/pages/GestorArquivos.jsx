@@ -117,7 +117,7 @@ function GestorArquivosInner() {
         return [];
       }
     },
-    enabled: isCoordinator && !!currentUser?.email
+    enabled: Boolean(isCoordinator && !!currentUser?.email)
   });
 
   const { data: teamMembers = [] } = useQuery({
