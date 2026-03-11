@@ -503,12 +503,12 @@ export default function AssistantChat() {
           {/* Input */}
           <div className="h-16 px-4 py-3 border-t border-gray-100 flex gap-2 flex-shrink-0">
             <Input
-              placeholder="Escreva sua pergunta..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && !loading && handleSend()}
-              className="text-sm h-10"
-              disabled={loading}
+            placeholder="Faça uma pergunta sobre relatórios atuais e antigos, uso do app, ou metas do projeto."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && !loading && handleSend()}
+            className="text-sm h-10"
+            disabled={loading}
             />
             <Button
               size="icon"
