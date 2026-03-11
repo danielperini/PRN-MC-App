@@ -30,6 +30,7 @@ import RichTextEditor from '../components/reports/RichTextEditor';
 import { Sparkles } from 'lucide-react';
 import SaveTemplateDialog from '../components/templates/SaveTemplateDialog';
 import LoadFromTemplateDialog from '../components/templates/LoadFromTemplateDialog';
+import AttachmentsSection from '../components/reports/AttachmentsSection';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
