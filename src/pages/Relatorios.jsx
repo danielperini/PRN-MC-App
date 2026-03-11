@@ -189,7 +189,7 @@ function RelatoriosInner() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-6xl mx-auto px-6 py-10">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-semibold text-black tracking-tight">Gestão de Relatórios Museus Centro</h1>
