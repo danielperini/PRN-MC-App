@@ -62,6 +62,48 @@ async function renameInDrive(accessToken, fileId, newName) {
   });
 }
 
+// Gera PDF do relatório
+async function generateReportPDF(report, activities) {
+  const pdfDoc = await PDFDocument.create();
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  let page = pdfDoc.addPage([595, 842]);
+  let y = 800;
+
+  function addText(text, opts = {}) {
+    const { font = regularFont, size = 11, isBold = false, y: customY } = opts;
+    if (customY !== undefined) y = customY;
+    if (!text) return y;
+    
+    const clean = String(text).replace(/<[^>]*>/g, '').slice(0, 100);
+    page.drawText(clean, { x: 50, y, size, font: isBold ? boldFont : font, color: rgb(0, 0, 0) });
+    return y - (size + 4);
+  }
+
+  y = addText('RELATORIO MENSAL', { size: 16, isBold: true });
+  y -= 4;
+  y = addText(`${report.mes_referencia} / ${report.ano}`, { size: 13 });
+  y -= 20;
+  
+  y = addText('DADOS', { size: 13, isBold: true });
+  y -= 12;
+  y = addText(`Protocolo: ${report.numero_protocolo || '-'}`);
+  y = addText(`Profissional: ${report.author_name || '-'}`);
+  y = addText(`Museu: ${report.museu || '-'}`);
+  y = addText(`Status: ${report.status || '-'}`);
+  y -= 12;
+  
+  if (report.resumo_executivo) {
+    y = addText('RESUMO', { size: 12, isBold: true });
+    y = addText(report.resumo_executivo?.slice(0, 200));
+    y -= 12;
+  }
+
+  const pdfBytes = await pdfDoc.save();
+  return pdfBytes;
+}
+
 // Upload de arquivo
 async function uploadFileToDrive(accessToken, fileName, fileContent, mimeType, parentFolderId) {
   const boundary = '-------314159265358979323846';
