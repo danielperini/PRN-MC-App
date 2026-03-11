@@ -150,10 +150,11 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
             )}
 
             {section.items.map(item => {
-               const Icon = item.icon;
-               const isActive = currentPageName === item.name || (item.submenu && item.submenu.some(s => s.name === currentPageName));
-               const isExpanded = expandedSections[item.name];
-               const hasSubmenu = item.submenu && item.submenu.length > 0;
+                const Icon = item.icon;
+                const isActive = currentPageName === item.name || (item.submenu && item.submenu.some(s => s.name === currentPageName));
+                const isExpanded = expandedSections[item.name];
+                const hasSubmenu = item.submenu && item.submenu.length > 0;
+                const hasPermission = !item.permission || canViewMenu(item.permission);
 
                return (
                  <div key={item.name}>
