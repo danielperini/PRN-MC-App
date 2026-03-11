@@ -489,9 +489,9 @@ function GestorArquivosInner() {
         <div className="space-y-4">
           <div className="flex gap-2 border-b">
             <button
-              onClick={() => setShowHistory(false)}
+              onClick={() => setShowHistory('contratos')}
               className={`px-4 py-2 font-medium text-sm border-b-2 ${
-                !showHistory 
+                showHistory === 'contratos'
                   ? 'border-blue-600 text-blue-600' 
                   : 'border-transparent text-gray-600'
               }`}
@@ -499,15 +499,29 @@ function GestorArquivosInner() {
               Contratos
             </button>
             <button
-              onClick={() => setShowHistory(false)}
-              className={`px-4 py-2 font-medium text-sm border-b-2 border-transparent text-gray-600 hover:text-gray-900`}
+              onClick={() => setShowHistory('invoices')}
+              className={`px-4 py-2 font-medium text-sm border-b-2 ${
+                showHistory === 'invoices'
+                  ? 'border-blue-600 text-blue-600' 
+                  : 'border-transparent text-gray-600'
+              }`}
+            >
+              Notas Fiscais
+            </button>
+            <button
+              onClick={() => setShowHistory('arquivos')}
+              className={`px-4 py-2 font-medium text-sm border-b-2 ${
+                showHistory === 'arquivos'
+                  ? 'border-blue-600 text-blue-600' 
+                  : 'border-transparent text-gray-600'
+              }`}
             >
               Arquivos
             </button>
             <button
-              onClick={() => setShowHistory(true)}
+              onClick={() => setShowHistory('backups')}
               className={`px-4 py-2 font-medium text-sm border-b-2 ${
-                showHistory 
+                showHistory === 'backups'
                   ? 'border-blue-600 text-blue-600' 
                   : 'border-transparent text-gray-600'
               }`}
