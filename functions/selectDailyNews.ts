@@ -74,18 +74,17 @@ Deno.serve(async (req) => {
       selectedNoticias = [...prioritized];
 
       const aiResult = await base44.integrations.Core.InvokeLLM({
-        prompt: `Hoje é ${today} (${month} de ${year}). Você é especialista em comunicação cultural de Belo Horizonte.
-    Sugira 6 termos de busca VARIADOS e CRIATIVOS em português brasileiro para encontrar notícias recentes sobre:
-    - Viaduto das Artes BH / Projeto Museus Centro Belo Horizonte
-    - MUMO (Museu da Moda BH), MIS BH (Museu da Imagem e do Som), MHAB (Museu Histórico Abílio Barreto)
-    - Eventos culturais, exposições, programação cultural em BH
+        prompt: `Hoje é ${today} (${month} de ${year}). Você é especialista em CULTURA, HISTÓRIA, CINEMA MINEIRO e MODA de Belo Horizonte.
+    Sugira 8 termos de busca VARIADOS e CRIATIVOS em português brasileiro para encontrar notícias sobre:
+    - CULTURA: Viaduto das Artes BH, Projeto Museus Centro, eventos culturais, programação
+    - HISTÓRIA de Belo Horizonte: patrimônio, arquitetura, acervo histórico, personagens
+    - CINEMA MINEIRO: produção audiovisual, cineastas, documentários, festival
+    - MODA em BH: designers mineiros, acervo têxtil, moda contemporânea, história da moda
+    - MUSEUS: MUMO (moda), MIS BH (cinema/audiovisual), MHAB (história)
 
-    IMPORTANTE — seja diverso: não repita temas óbvios. Considere:
-    - O que está acontecendo em ${month}: feriados, eventos sazonais
-    - Ângulos variados: acessibilidade, educação, acervo, novas aquisições, parcerias, bastidores
-    - Públicos diferentes: famílias, jovens, turistas, escolas
+    Seja diverso: ângulos históricos, educativos, acervos, novas aquisições, parcerias, cineastas mineiros, designers, pesquisadores.
 
-    Responda apenas com JSON: {"termos": ["termo1","termo2","termo3","termo4","termo5","termo6"]}`,
+    Responda apenas com JSON: {"termos": ["termo1","termo2","termo3","termo4","termo5","termo6","termo7","termo8"]}`,
         response_json_schema: {
           type: 'object',
           properties: { termos: { type: 'array', items: { type: 'string' } } }
