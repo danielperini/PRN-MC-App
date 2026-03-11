@@ -238,7 +238,7 @@ IMPORTANTE: Retorne OBRIGATORIAMENTE um JSON válido com TODOS os campos abaixo,
                 >
                   <SelectTrigger><SelectValue placeholder="Selecione um usuário" /></SelectTrigger>
                   <SelectContent>
-                    {users.map(u => (
+                    {availableUsers.map(u => (
                       <SelectItem key={u.id} value={u.email}>
                         {u.full_name} — {u.email}
                       </SelectItem>
