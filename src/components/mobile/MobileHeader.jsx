@@ -15,7 +15,7 @@ export default function MobileHeader({ title, showBack = false, onBack }) {
   };
 
   return (
-    <div className="hidden md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-100 select-none" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-100 select-none" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="h-14 px-4 flex items-center justify-between">
         {showBack ? (
           <Button
