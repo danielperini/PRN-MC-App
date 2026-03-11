@@ -194,8 +194,21 @@ function DashboardInner() {
           </div>
         </div>
 
-        {/* Painel Unificado de Destaques e Notícias */}
-        <UnifiedNewsCarousel />
+        {/* Mensagem de Destaque - Atualizar Dados */}
+        <div className="mb-8 p-6 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-start gap-4">
+          <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-amber-900 mb-1">Atualize seus dados</h3>
+            <p className="text-amber-800 text-sm mb-4">
+              Para manter sua equipe sincronizada, preencha seus dados pessoais e bancários no formulário de cadastro.
+            </p>
+            <Link to={createPageUrl('MeusDados')}>
+              <Button className="bg-amber-600 hover:bg-amber-700 text-white">
+                Preencher meus dados →
+              </Button>
+            </Link>
+          </div>
+        </div>
 
         {/* Coordenador: dashboard completo */}
         {showCoordView ? (
