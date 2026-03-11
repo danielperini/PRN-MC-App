@@ -229,24 +229,40 @@ IMPORTANTE: Retorne OBRIGATORIAMENTE um JSON válido com TODOS os campos abaixo,
       if (editingMember?.id) {
         await base44.entities.TeamMember.update(editingMember.id, data);
         memberId = editingMember.id;
-        toast.success('Membro atualizado');
       } else {
         const created = await base44.entities.TeamMember.create(data);
         memberId = created.id;
-        toast.success('Membro adicionado à equipe');
       }
 
-      // Se há contrato, criar Attachment vinculado
+      // Se há contrato, salvar no Google Drive e criar Attachment
       if (form.contrato_url && memberId) {
-        const fileName = `contrato_${form.user_name?.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
-        await base44.entities.Attachment.create({
-          activity_id: memberId,
-          file_name: fileName,
-          file_type: 'application/pdf',
-          file_url: form.contrato_url,
-          description: `Contrato de ${form.user_name} - ${form.objeto_contrato?.substring(0, 50)}`,
-        });
-        toast.success('Contrato anexado ao membro');
+        try {
+          const driveRes = await base44.functions.invoke('saveContractToDrive', {
+            file_url: form.contrato_url,
+            member_name: form.user_name,
+            member_id: memberId,
+          });
+
+          const fileName = `contrato_${form.user_name?.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+          await base44.entities.Attachment.create({
+            activity_id: memberId,
+            file_name: fileName,
+            file_type: 'application/pdf',
+            file_url: driveRes.data.driveLink,
+            description: `Contrato de ${form.user_name} - ${form.objeto_contrato?.substring(0, 50)}`,
+          });
+
+          toast.success('✅ Contrato salvo e armazenado no Google Drive com sucesso!');
+        } catch (driveError) {
+          console.warn('Aviso ao salvar no Drive:', driveError);
+          toast.warning('Membro salvo, mas houve um aviso ao armazenar o contrato no Drive');
+        }
+      }
+
+      if (editingMember?.id) {
+        toast.success('✅ Membro atualizado com sucesso!');
+      } else {
+        toast.success('✅ Membro adicionado à equipe com sucesso!');
       }
 
       onSuccess();
