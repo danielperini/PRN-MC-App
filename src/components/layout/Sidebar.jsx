@@ -45,7 +45,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       items: [
         { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true },
         { name: 'NovaAtividade', icon: Layers, label: 'Atividades', show: true },
-        { name: 'CalendarioAtividades', icon: CalendarDays, label: 'Calendário', show: true },
+        { name: 'CalendarioAtividades', icon: CalendarDays, label: 'Agenda', show: true },
       ],
     },
     {
