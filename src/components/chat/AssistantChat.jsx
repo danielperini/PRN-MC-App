@@ -198,7 +198,7 @@ export default function AssistantChat() {
   }
 
   return (
-    <div className={`fixed bottom-6 right-6 ${minimized ? 'w-80 h-16' : 'w-96 h-96'} bg-white border border-gray-200 rounded-xl shadow-xl flex flex-col z-40 transition-all duration-200`}>
+    <div className={`fixed bottom-20 md:bottom-6 right-0 md:right-6 ${minimized ? 'w-full md:w-80 h-16 rounded-t-xl' : 'w-full md:w-96 h-[60vh] md:h-96 rounded-t-xl md:rounded-xl'} bg-white border border-gray-200 shadow-xl flex flex-col z-50 transition-all duration-200`}>
       {/* Header */}
        <div className="flex items-center justify-between h-16 px-4 border-b border-gray-100 bg-gray-50 rounded-t-xl flex-shrink-0">
          <div className="flex items-center gap-2">
