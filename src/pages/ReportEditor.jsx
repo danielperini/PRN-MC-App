@@ -355,7 +355,7 @@ function ReportEditorInner() {
                <>
                  <PDFExportButton 
                    reportId={reportId} 
-                   fileName={`Relatorio_${formData.mes_referencia}_${formData.ano}.pdf`}
+                   reportProtocolo={formData.numero_protocolo}
                  />
                  <Button variant="outline" size="sm" onClick={() => setShowSaveTemplateDialog(true)}>
                    Salvar como Template
