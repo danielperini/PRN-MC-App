@@ -612,6 +612,16 @@ function GestorArquivosInner() {
                                <Download className="w-4 h-4" />
                                Baixar
                              </a>
+                             {(isCoordinator || member.user_email === currentUser?.email) && (
+                               <Button
+                                 size="sm"
+                                 variant="outline"
+                                 onClick={() => handleDeleteContract(member.id)}
+                                 className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                               >
+                                 <Trash2 className="w-4 h-4" />
+                               </Button>
+                             )}
                            </div>
                          </div>
                        ))}
