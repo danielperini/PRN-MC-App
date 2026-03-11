@@ -164,8 +164,34 @@ Retorne JSON com sua decisão.`,
         </div>
       </div>
 
+      {/* AI Verdict Banner */}
+      {aiVerdict && (
+        <div className={`mt-3 rounded-lg px-3 py-2 text-xs flex items-start gap-2 ${
+          aiVerdict.decisao === 'PUBLICAR' ? 'bg-green-50 border border-green-200 text-green-800' :
+          aiVerdict.decisao === 'ARQUIVAR' ? 'bg-orange-50 border border-orange-200 text-orange-800' :
+          'bg-red-50 border border-red-200 text-red-700'
+        }`}>
+          <span className="font-bold flex-shrink-0">
+            {aiVerdict.decisao === 'PUBLICAR' ? '✅ PUBLICAR' : aiVerdict.decisao === 'ARQUIVAR' ? '📦 ARQUIVAR' : '⚠️ ERRO'}
+          </span>
+          <span>{aiVerdict.motivo}</span>
+        </div>
+      )}
+
       {/* Actions */}
-      <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+      <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100 flex-wrap">
+        {news.link && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={analyzeUrl}
+            disabled={analyzing || isProcessing}
+            className="h-7 text-xs gap-1 border-purple-200 text-purple-700 hover:bg-purple-50"
+          >
+            {analyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+            {analyzing ? 'Analisando...' : 'Analisar URL'}
+          </Button>
+        )}
         <Button
           size="sm"
           onClick={() => onApprove(news.id, localTags)}
