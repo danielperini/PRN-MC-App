@@ -32,9 +32,8 @@ export default function AprovacoesFila({ purchases, budgetLines, statusConfig, o
     setLoading(l => ({ ...l, [purchase.id]: true }));
     try {
       const comentario = comentarios[purchase.id] || '';
-      const valor_aprovado = parseFloat(valoresAdmin[purchase.id]) || purchase.valor_solicitado;
 
-      if (action === 'approve_admin') {
+      if (action === 'approve_coord') {
         const saldoInfo = await getSaldo(purchase);
         if (!saldoInfo.aprovavel) {
           toast.error(`Saldo insuficiente! Disponível: R$ ${saldoInfo.saldo_disponivel?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
@@ -45,14 +44,12 @@ export default function AprovacoesFila({ purchases, budgetLines, statusConfig, o
 
       await base44.functions.invoke('processPurchaseApproval', {
         purchaseId: purchase.id,
-        action: action === 'approve_coord' ? 'approve_coord' : action === 'approve_admin' ? 'approve_admin' : 'reject',
+        action: action === 'approve_coord' ? 'approve_coord' : 'reject',
         comentario,
-        valor_aprovado: action === 'approve_admin' ? valor_aprovado : undefined,
       });
 
       const msgs = {
-        approve_coord: 'Aprovado! Aguarda aprovação administrativa.',
-        approve_admin: 'Aprovação administrativa concluída!',
+        approve_coord: 'Compra aprovada e comprometida!',
         recusar: 'Solicitação recusada.',
       };
       toast.success(msgs[action] || 'Ação realizada!');
