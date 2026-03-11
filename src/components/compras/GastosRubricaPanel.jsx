@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, DollarSign } from 'lucide-react';
+import { Plus, Trash2, DollarSign, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import GastoRubricaForm from './GastoRubricaForm';
+import ServicosMensaisForm from './ServicosMensaisForm';
+import GastoNFUploader from './GastoNFUploader';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 
 const fmt = (v) => `R$ ${(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
@@ -29,6 +31,8 @@ const CATEGORIA_COLORS = {
 
 export default function GastosRubricaPanel({ rubricaId, rubricaCodigo, rubrica }) {
   const [showForm, setShowForm] = useState(false);
+  const [showServicos, setShowServicos] = useState(false);
+  const [showNFUpload, setShowNFUpload] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const queryClient = useQueryClient();
 
@@ -70,14 +74,19 @@ export default function GastosRubricaPanel({ rubricaId, rubricaCodigo, rubrica }
         </div>
       </div>
 
-      {/* Botão adicionar */}
+      {/* Botões adicionar */}
       <div className="flex justify-between items-center">
         <h4 className="text-sm font-semibold text-gray-800">
           {gastos.length} Gasto(s) Registrado(s)
         </h4>
-        <Button size="sm" className="bg-black text-white h-8 gap-1" onClick={() => setShowForm(true)}>
-          <Plus className="w-3.5 h-3.5" />Adicionar Gasto
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={() => setShowServicos(true)}>
+            <Calendar className="w-3.5 h-3.5" />Serviço Mensal
+          </Button>
+          <Button size="sm" className="bg-black text-white h-8 gap-1" onClick={() => setShowForm(true)}>
+            <Plus className="w-3.5 h-3.5" />Adicionar Gasto
+          </Button>
+        </div>
       </div>
 
       {/* Lista de gastos */}
@@ -133,6 +142,24 @@ export default function GastosRubricaPanel({ rubricaId, rubricaCodigo, rubrica }
         onClose={() => setShowForm(false)}
         onSuccess={() => queryClient.invalidateQueries(['gastos-rubrica', rubricaId])}
       />
+
+      <ServicosMensaisForm
+        rubricaId={rubricaId}
+        rubrica={rubrica}
+        isOpen={showServicos}
+        onClose={() => setShowServicos(false)}
+        onSuccess={() => queryClient.invalidateQueries(['gastos-rubrica', rubricaId])}
+      />
+
+      {showNFUpload && (
+        <GastoNFUploader
+          gastoId={showNFUpload.id}
+          fornecedorNome={showNFUpload.fornecedor_nome}
+          isOpen={!!showNFUpload}
+          onClose={() => setShowNFUpload(null)}
+          onSuccess={() => queryClient.invalidateQueries(['gastos-rubrica', rubricaId])}
+        />
+      )}
 
       {deleteConfirm && (
         <ConfirmDialog
