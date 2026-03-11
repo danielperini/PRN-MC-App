@@ -20,6 +20,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import MediaUploader from './MediaUploader';
+import MediaGalleryViewer from './MediaGalleryViewer';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const MAX_FILES_PER_REPORT = 30;
@@ -158,50 +160,76 @@ export default function AttachmentsSection({ reportId, canEdit }) {
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-medium text-black">Anexos</h2>
-          <span className="text-sm text-gray-400">
-            {attachments.length}/{MAX_FILES_PER_REPORT}
-          </span>
-        </div>
-        <div className="flex gap-2">
-          {attachments.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownloadAll}
-              className="gap-1"
-            >
-              <Download className="w-4 h-4" />
-              Baixar Tudo
-            </Button>
-          )}
-          {canEdit && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading || attachments.length >= MAX_FILES_PER_REPORT}
-            >
-              {uploading ? (
-                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-              ) : (
-                <Upload className="w-4 h-4 mr-1" />
+      <div className="space-y-6">
+        {/* Cabeçalho */}
+        <div>
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-medium text-black">Anexos e Evidências</h2>
+              <span className="text-sm text-gray-400">
+                {attachments.length}/{MAX_FILES_PER_REPORT}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              {attachments.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadAll}
+                  className="gap-1"
+                >
+                  <Download className="w-4 h-4" />
+                  Baixar Tudo
+                </Button>
               )}
-              {uploading ? 'Enviando...' : 'Adicionar'}
-            </Button>
+              {canEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading || attachments.length >= MAX_FILES_PER_REPORT}
+                >
+                  {uploading ? (
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4 mr-1" />
+                  )}
+                  {uploading ? 'Enviando...' : 'Adicionar Arquivo'}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Media Uploader — Fotos e Vídeos */}
+          {canEdit && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              <p className="text-xs font-semibold text-blue-900 mb-3">📸 FOTOS E VÍDEOS PARA EVIDÊNCIA</p>
+              <MediaUploader 
+                reportId={reportId}
+                onUploadSuccess={() => queryClient.invalidateQueries(['attachments', reportId])}
+              />
+              <p className="text-xs text-blue-700 mt-2">
+                ✓ Fotos ilimitadas | ✓ Vídeos até 100MB | ✓ Duplicatas detectadas automaticamente
+              </p>
+            </div>
           )}
         </div>
         <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept={ALLOWED_EXTENSIONS.map(e => `.${e}`).join(',')}
-          className="hidden"
-          onChange={handleInputChange}
-        />
-      </div>
+           ref={fileInputRef}
+           type="file"
+           multiple
+           accept={ALLOWED_EXTENSIONS.map(e => `.${e}`).join(',')}
+           className="hidden"
+           onChange={handleInputChange}
+         />
+        </div>
+
+        {/* Galeria de Fotos e Vídeos */}
+        <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+          <p className="text-xs font-semibold text-gray-700 mb-3">🎬 GALERIA DE EVIDÊNCIAS</p>
+          <MediaGalleryViewer reportId={reportId} />
+        </div>
+        </div>
 
       {/* Drop zone — shown when no attachments or always if can edit */}
       {canEdit && attachments.length === 0 && (
