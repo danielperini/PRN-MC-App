@@ -36,47 +36,47 @@ export default function UnifiedNewsCarousel() {
   const [selectedTags, setSelectedTags] = useState([]);
   const queryClient = useQueryClient();
 
-  // Fetch news from last 90 days, most recent first
+  // Fetch news — exclude old ones, randomize order per session
   const { data: todayNews = [], isLoading: loadingNews, refetch: refetchNews } = useQuery({
     queryKey: ['today-news', today],
     queryFn: async () => {
-      const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-      const cutoffStr = cutoff.toISOString().split('T')[0];
+      const pubCutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);  // 90 dias publicação
+      const foundCutoff = new Date(Date.now() - 25 * 24 * 60 * 60 * 1000); // 25 dias desde que foi indexada
 
-      const all = await base44.entities.NewsHighlight.filter({ ativo: true }, '-created_date', 300);
+      const all = await base44.entities.NewsHighlight.filter({ ativo: true }, '-created_date', 400);
 
-      // Filter to last 90 days only
-      const recent = all.filter(n => {
-        const dateStr = n.data_publicacao || n.data_encontrada || n.created_date;
-        if (!dateStr) return false;
-        const date = new Date(dateStr);
-        return !isNaN(date.getTime()) && date >= cutoff;
+      const fresh = all.filter(n => {
+        // Internas (destaques fixos) sempre aparecem
+        if (n.fonte === 'internal') return true;
+
+        // Filtro por data de publicação
+        if (n.data_publicacao) {
+          const pub = new Date(n.data_publicacao);
+          if (!isNaN(pub.getTime()) && pub < pubCutoff) return false;
+        }
+
+        // Filtro por data de indexação (quando foi encontrada/cadastrada)
+        if (n.data_encontrada) {
+          const found = new Date(n.data_encontrada);
+          if (!isNaN(found.getTime()) && found < foundCutoff) return false;
+        }
+
+        return true;
       });
 
-      // Fetch external museology articles
-      let externalArticles = [];
-      try {
-        const response = await base44.functions.invoke('fetchMuseologyArticles', {});
-        externalArticles = (response.articles || []).filter(a => {
-          if (!a.data_publicacao) return true; // include if no date (assume recent)
-          return new Date(a.data_publicacao) >= cutoff;
-        });
-      } catch (e) {
-        console.error('Error fetching external museology articles:', e);
+      // Deduplicate by link
+      const unique = Array.from(new Map(fresh.map(n => [n.link || n.id, n])).values());
+
+      // Shuffle randomly (different order every session)
+      for (let i = unique.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [unique[i], unique[j]] = [unique[j], unique[i]];
       }
 
-      const combined = [...recent, ...externalArticles];
-      const unique = Array.from(new Map(combined.map(item => [item.id || item.link, item])).values());
-
-      // Sort by most recent first (no random shuffle)
-      return unique.sort((a, b) => {
-        const dateA = new Date(a.data_publicacao || a.data_encontrada || a.created_date || 0);
-        const dateB = new Date(b.data_publicacao || b.data_encontrada || b.created_date || 0);
-        return dateB - dateA;
-      }).slice(0, 20);
+      return unique.slice(0, 20);
     },
-    refetchInterval: 120000,
-    staleTime: 60000,
+    refetchInterval: 180000,
+    staleTime: 90000,
   });
 
   // Fetch momentos (internal highlights)
