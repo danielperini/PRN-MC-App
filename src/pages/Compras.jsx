@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ShoppingCart, Plus, Search, ShieldCheck, User, FileText } from 'lucide-react';
 import RequireAuth from '@/components/auth/RequireAuth';
+import RequireCoordinator from '@/components/auth/RequireCoordinator';
 import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
 import PurchaseCard from '@/components/compras/PurchaseCard';
 import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
@@ -287,5 +288,5 @@ function ComprasInner() {
       }
 
       export default function Compras() {
-      return <RequireAuth><ComprasInner /></RequireAuth>;
+      return <RequireAuth><RequireCoordinator><ComprasInner /></RequireCoordinator></RequireAuth>;
       }
