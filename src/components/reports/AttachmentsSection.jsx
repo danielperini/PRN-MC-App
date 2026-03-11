@@ -170,15 +170,10 @@ export default function AttachmentsSection({ reportId, canEdit }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => downloadAllMutation.mutate()}
-              disabled={downloadAllMutation.isPending}
+              onClick={handleDownloadAll}
               className="gap-1"
             >
-              {downloadAllMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
+              <Download className="w-4 h-4" />
               Baixar Tudo
             </Button>
           )}
