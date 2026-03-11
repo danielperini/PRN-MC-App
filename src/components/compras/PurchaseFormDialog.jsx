@@ -543,84 +543,26 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
             </div>
           </div>
 
-          {/* Orçamentos */}
-          <div className="space-y-3 p-4 border border-gray-100 rounded-xl">
-            <div className="flex items-center justify-between mb-2">
-              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Orçamentos</Label>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => {
-                  setForm(f => ({ ...f, orcamentos: [...f.orcamentos, { id: Date.now(), nome: '', arquivo: null }] }));
-                }}
-                className="gap-1 text-xs"
-              >
-                <Upload className="w-3 h-3" />
-                Novo Orçamento
-              </Button>
+          {/* Documentos - Orçamentos e Notas Fiscais */}
+          <div className="space-y-6">
+            {/* Orçamentos */}
+            <div className="space-y-3 p-4 border border-gray-100 rounded-xl">
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">📋 Orçamentos do Fornecedor</Label>
+              <PurchaseDocumentUpload 
+                documents={form.orcamentos_docs || []}
+                onDocumentsChange={(docs) => set('orcamentos_docs', docs)}
+                type="orcamento"
+              />
             </div>
 
-            {/* Lista de orçamentos */}
-            {form.orcamentos.length > 0 && (
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {form.orcamentos.map((orc, idx) => (
-                  <div key={orc.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="flex-1">
-                      <Input
-                        placeholder="Nome do orçamento"
-                        value={orc.nome}
-                        onChange={(e) => {
-                          const newOrcs = [...form.orcamentos];
-                          newOrcs[idx].nome = e.target.value;
-                          set('orcamentos', newOrcs);
-                        }}
-                        className="text-xs h-7 mb-1"
-                      />
-                      {orc.arquivo && (
-                        <p className="text-[9px] text-green-700">✓ {orc.arquivo.name}</p>
-                      )}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        const newOrcs = form.orcamentos.filter((_, i) => i !== idx);
-                        set('orcamentos', newOrcs);
-                      }}
-                      className="h-7 w-7"
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Upload area */}
-            <div className="grid grid-cols-1 gap-3 p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center">
-              <Upload className="w-6 h-6 mx-auto text-gray-400" />
-              <div>
-                <Label className="text-xs font-medium text-gray-700 block">Selecione arquivo para upload</Label>
-                <p className="text-[11px] text-gray-500 mt-1">PDF, imagem ou documentos</p>
-                <Input 
-                  key={fileInputKey}
-                  type="file" 
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                  className="mt-2 text-xs"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file && form.orcamentos.length > 0) {
-                      const newOrcs = [...form.orcamentos];
-                      newOrcs[form.orcamentos.length - 1].arquivo = file;
-                      set('orcamentos', newOrcs);
-                      toast.success(`${file.name} adicionado`);
-                      setFileInputKey(prev => prev + 1);
-                    } else if (!form.orcamentos.length) {
-                      toast.error('Adicione um novo orçamento antes de fazer upload');
-                    }
-                  }}
-                />
-              </div>
+            {/* Notas Fiscais */}
+            <div className="space-y-3 p-4 border border-gray-100 rounded-xl">
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">🧾 Notas Fiscais</Label>
+              <PurchaseDocumentUpload 
+                documents={form.notas_fiscais_docs || []}
+                onDocumentsChange={(docs) => set('notas_fiscais_docs', docs)}
+                type="nota_fiscal"
+              />
             </div>
           </div>
 
