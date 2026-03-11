@@ -80,6 +80,7 @@ import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
 import ViadutoMap from './pages/ViadutoMap';
 import ApprovalsMobile from './pages/ApprovalsMobile';
+import GaleriaFotos from './pages/GaleriaFotos';
 import __Layout from './Layout.jsx';
 
 
@@ -117,6 +118,7 @@ export const PAGES = {
     "UserManagement": UserManagement,
     "ViadutoMap": ViadutoMap,
     "ApprovalsMobile": ApprovalsMobile,
+    "GaleriaFotos": GaleriaFotos,
 }
 
 export const pagesConfig = {

@@ -536,5 +536,5 @@ function GestorArquivosInner() {
         }
 
         export default function GestorArquivos() {
-        return <RequireAuth><GestorArquivosInner /></RequireAuth>;
+        return <RequireAuth requireRole="COORDENADOR"><GestorArquivosInner /></RequireAuth>;
         }
