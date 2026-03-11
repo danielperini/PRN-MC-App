@@ -226,25 +226,13 @@ Retorne em JSON com os campos:
             </div>
 
             <div>
-              <Label>Função / Cargo</Label>
+              <Label>Função / Cargo (conforme Plano de Trabalho 3º Aditivo)</Label>
               <Select value={form.funcao} onValueChange={v => set('funcao', v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione a função" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Coordenador Geral">Coordenador Geral</SelectItem>
-                  <SelectItem value="Coordenador Administrativo">Coordenador Administrativo</SelectItem>
-                  <SelectItem value="Produtor Cultural">Produtor Cultural</SelectItem>
-                  <SelectItem value="Educador">Educador</SelectItem>
-                  <SelectItem value="Designer">Designer</SelectItem>
-                  <SelectItem value="Fotógrafo">Fotógrafo</SelectItem>
-                  <SelectItem value="Videomaker">Videomaker</SelectItem>
-                  <SelectItem value="Comunicador">Comunicador</SelectItem>
-                  <SelectItem value="Assistente Administrativo">Assistente Administrativo</SelectItem>
-                  <SelectItem value="Consultor">Consultor</SelectItem>
-                  <SelectItem value="Acessibilidade">Acessibilidade</SelectItem>
-                  <SelectItem value="Monitor">Monitor</SelectItem>
-                  <SelectItem value="Segurança">Segurança</SelectItem>
-                  <SelectItem value="Limpeza">Limpeza</SelectItem>
-                  <SelectItem value="Outro">Outro</SelectItem>
+                  {CARGOS_PLANO_TRABALHO.map(cargo => (
+                    <SelectItem key={cargo} value={cargo}>{cargo}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
