@@ -69,6 +69,19 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
     setActionLoading(false);
   };
 
+  const handleDelete = async () => {
+    if (!window.confirm('Tem certeza que deseja deletar esta solicitação?')) return;
+    setActionLoading(true);
+    try {
+      await base44.entities.PurchaseRequest.delete(purchase.id);
+      toast.success('Solicitação deletada!');
+      onRefresh();
+    } catch (e) {
+      toast.error('Erro ao deletar: ' + e.message);
+    }
+    setActionLoading(false);
+  };
+
   const META_LABELS = {
     'MC3A-20': 'Ações Educativas', 'MC3A-21': 'Exposição / Produção',
     'MC3A-22': 'Comunicação', 'MC3A-23': 'Noturno 2026',
