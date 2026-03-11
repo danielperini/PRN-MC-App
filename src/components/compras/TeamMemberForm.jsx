@@ -41,6 +41,13 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [form, setForm] = useState(editingMember || EMPTY_FORM);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  React.useEffect(() => {
+    base44.auth.me().then(user => setCurrentUser(user)).catch(() => setCurrentUser(null));
+  }, []);
+
+  const isEditingOwnData = editingMember && currentUser && editingMember.user_email === currentUser.email;
 
   const { data: users = [] } = useQuery({
     queryKey: ['users-list'],
