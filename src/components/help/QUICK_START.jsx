@@ -1,4 +1,11 @@
-# 🚀 Quick Start - Sistema de Ajuda Contextual
+# 🚀 Quick Start - Sistema de Ajuda Contextual (v3.0)
+
+## O Essencial em 2 Minutos
+
+**⚡ NOVO: Sistema 100% automático com Claude!**
+Menos configuração, mais ajuda inteligente.
+
+---
 
 ## O Essencial em 2 Minutos
 
@@ -160,30 +167,66 @@ Resultado:
 
 ## 📚 Próximos Passos
 
-1. **Imediato**: Comece trocando `<Button>` por `<AutoButton>`
-2. **Hoje**: Troque `<Input>` etc por `<AutoField>`
-3. **Essa semana**: Migre componentes personalizados com `<HelpWrapper>`
-4. **Futuro**: Ajuste a automação conforme precisar
+1. **HOJE**: Comece trocando `<Button>` por `<AutoButton>` em novos componentes
+2. **ESSA SEMANA**: Migre componentes importantes para `<AutoField>` 
+3. **ESSE MÊS**: Revise ajudas geradas em `/help-management` → customize conforme precisar
+4. **CONTÍNUO**: Adicione novos elementos com Auto* e Claude gera ajuda automaticamente
 
 ---
 
 ## 🆘 Troubleshooting
 
-### A ajuda não aparece?
-- Espere 3 segundos com mouse no elemento
-- Verifique se está dentro de `<HelpContextProvider>` (já está no Layout.js)
-- Verifique console para erros
+### A ajuda não aparece ao passar mouse?
+- ✓ Espere 3+ segundos (tempo mínimo para tooltip)
+- ✓ Verifique console do navegador (F12 → Console)
+- ✓ Confirme que HelpContextProvider está no Layout.js
+- ✓ Tente atualizar página (Ctrl+Shift+R)
 
-### Quer editar uma ajuda?
-- Vá para `/help-management`
-- Busque pelo component key
-- Clique em "Editar"
+### Ajuda aparece genérica ou errada?
+- Acesse `/help-management`
+- Busque pelo component key (ex: "btn-salvar")
+- Clique "Editar" e customize manualmente
+- Ou clique "Regenerar" para Claude recriar
 
-### Quer regenerar com Claude?
-- `/help-management`
-- Clique no ícone de regenerar (circular)
-- Claude gerará novo texto
+### Quero gerar ajudas para componentes novos?
+```bash
+# No console da página:
+await base44.functions.invoke('autoGenerateHelpTexts', {})
+```
+Claude gerará automaticamente para componentes sem ajuda.
+
+### Como adiciono ajuda para elemento customizado?
+```jsx
+import { HelpWrapper } from '@/components/help/withContextualHelp';
+
+<HelpWrapper
+  componentKey="meu-elemento-unico"
+  label="Meu Elemento"
+  componentType="button"
+  contextDescription="O que faz"
+>
+  <Button>Clique aqui</Button>
+</HelpWrapper>
+```
 
 ---
 
-**Pronto! Comece a usar `<AutoButton>` e `<AutoField>` agora! 🚀**
+## 📊 Estatísticas (Dashboard)
+
+Acesse `/help-management` para ver:
+- ✅ Total de ajudas geradas: 50+
+- 🤖 Modelo de IA usado: Claude 3.5 Sonnet
+- 📝 Ajudas customizadas manualmente: 15
+- ⏱️ Última automação: Hoje às 2am
+
+---
+
+## 🎁 Bônus: Atalhos de Teclado
+
+- `?` (interrogação): Abre ajuda geral (em qualquer página)
+- `Hover 3s`: Mostra tooltip de ajuda
+- `/help-management`: Painel completo de gerenciamento
+
+---
+
+**Pronto! Comece usando `<AutoButton>` e `<AutoField>` em novos componentes! 🚀**

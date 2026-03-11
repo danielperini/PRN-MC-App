@@ -1,4 +1,7 @@
-# Exemplos de Implementação - Sistema de Ajuda Contextual
+# Exemplos de Implementação - Sistema de Ajuda Contextual (v3.0)
+
+> **⚡ NOVO em v3.0**: Exemplos agora usam `AutoButton` e `AutoField` para 90% dos casos.
+> Só use `HelpWrapper` para elementos muito customizados.
 
 ## 1. Sidebar (✅ JÁ IMPLEMENTADO)
 
@@ -446,47 +449,49 @@ import { HelpWrapper } from '@/components/help/withContextualHelp';
 
 ---
 
-## ⚡ Aplicação Rápida
+## ⚡ Padrão Recomendado (v3.0)
 
-### 🚀 NOVO: AutoButton - Detecção Automática
+### ✨ SIMPLIFICADO: AutoButton - Use para 90% dos botões
 
 ```jsx
-// Antes (manual):
+// Antes (manual, verboso):
 <HelpButton
   componentKey="btn-salvar"
   label="Salvar"
-  contextDescription="Salva as alterações"
+  contextDescription="Salva as alterações do relatório"
   onClick={handleSave}
 >
   Salvar
 </HelpButton>
 
-// Depois (automático):
-<AutoButton onClick={handleSave}>
-  Salvar
-</AutoButton>
+// Depois (automático, 1 linha!):
+<AutoButton onClick={handleSave}>Salvar</AutoButton>
 ```
 
-Funciona com: **Novo**, **Salvar**, **Editar**, **Excluir**, **Submeter**, **Aprovar**, **Rejeitar**, **Exportar**, **Filtrar**, **Buscar**, **Cancelar**
+✅ Funciona com: `Novo` | `Salvar` | `Editar` | `Excluir` | `Submeter` | `Aprovar` | `Rejeitar` | `Exportar` | `Filtrar` | `Buscar` | `Cancelar` | `Voltar` | `Próximo` | `Anterior`
 
-### 🚀 NOVO: AutoField - Detecção Automática
+🎯 Claude detecta automaticamente e gera ajuda contextual baseada no tipo!
+
+### ✨ SIMPLIFICADO: AutoField - Use para 90% dos campos
 
 ```jsx
-// Antes (manual):
+// Antes (manual, verboso):
 <HelpFormField
   label="Email"
-  contextDescription="Endereço de email do usuário"
+  contextDescription="Endereço de email do usuário para contato"
 >
-  <Input type="email" />
+  <Input type="email" placeholder="seu@email.com" />
 </HelpFormField>
 
-// Depois (automático):
+// Depois (automático, 1 linha!):
 <AutoField label="Email">
-  <Input type="email" />
+  <Input type="email" placeholder="seu@email.com" />
 </AutoField>
 ```
 
-Funciona com: **Titulo**, **Descrição**, **Email**, **Data**, **Status**
+✅ Funciona com: `Titulo` | `Descrição` | `Email` | `Data` | `Status` | `Nome` | `Telefone` | `Endereço`
+
+🎯 Claude detecta automaticamente o tipo de campo e gera ajuda relevante!
 
 ### Template Genérico (Manual):
 

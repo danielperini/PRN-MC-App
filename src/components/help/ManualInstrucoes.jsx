@@ -7,26 +7,30 @@ import { toast } from 'sonner';
 const MANUAL_CONTENT = {
   title: 'Manual de Instruções - Plataforma Museu Centro',
   subtitle: 'Guia Completo com Passo a Passo Ilustrado',
-  version: 'v2.0 - Março de 2026',
+  version: 'v3.0 - Março de 2026 (Atualizado com Claude)',
   sections: [
     {
       id: 'guia-rapido',
       title: '⚡ Guia Rápido (3 Minutos)',
       icon: '⚡',
-      content: `PARA PROFISSIONAIS:
-1️⃣ Clique em "Novo Relatório" no Painel
-2️⃣ Selecione: Mês, Ano, Função, Museu
-3️⃣ Adicione atividades com "+ Adicionar Atividade"
-4️⃣ Complete avaliação do mês
-5️⃣ Clique em "Enviar para Revisão"
+      content: `PARA PROFISSIONAIS - Criar e Enviar Relatório:
+1️⃣ No Dashboard → "Novo Relatório" (canto superior direito)
+2️⃣ Preencha dados básicos: Mês, Ano, Função, Museu, Equipe
+3️⃣ Escreva resumo executivo (use "Gerar com IA" para ajuda)
+4️⃣ Aba "Atividades" → "+ Adicionar Atividade" (preencha título, data, público)
+5️⃣ Aba "Avaliação" → Pontos positivos, desafios, sugestões
+6️⃣ ☑️ Marque responsabilidade e clique "Enviar para Revisão"
 
-PARA COORDENADORES:
-1️⃣ Acesse "Revisão" no menu
-2️⃣ Clique em "Assumir Revisão"
-3️⃣ Leia e analise o relatório
-4️⃣ Clique "Aprovar" ou "Devolver"
+PARA COORDENADORES - Revisar e Aprovar:
+1️⃣ Menu esquerdo → "Revisão"
+2️⃣ Clique no relatório → "Assumir Revisão"
+3️⃣ Leia todas as seções com atenção
+4️⃣ Escolha:
+   ✅ APROVAR = relatório OK, vai ser arquivado
+   ↩️ DEVOLVER = precisa ajustes, profissional edita e resubmete
 
-✅ Auto-save a cada 5 segundos - você nunca perde dados!`
+💡 DICA OURO: Sistema salva AUTOMATICAMENTE a cada 5 segundos
+   Você nunca perde dados mesmo desconectando!`
     },
     {
       id: 'primeiro-acesso',
@@ -243,43 +247,48 @@ INTEGRAÇÃO COM IA
       id: 'dicas-profissionais',
       title: '💡 Dicas Profissionais',
       icon: '💡',
-      content: `ANTES DE COMEÇAR
-☑️ Organize seus dados:
-   ├─ Lista de atividades realizadas
-   ├─ Datas exatas
-   ├─ Números de público
-   ├─ Fotos ou documentos
-   └─ Observações de desafios
+      content: `🎯 PREPARAÇÃO ANTES DE COMEÇAR
+├─ Reúna lista completa de atividades do mês
+├─ Anote datas EXATAS (não "aproximadamente")
+├─ Conte público com precisão (não estimativas)
+├─ Tenha fotos ou documentos em mãos
+└─ Identifique desafios e oportunidades
 
-DURANTE A EDIÇÃO
-✅ Preencha as seções em ordem (de cima para baixo)
-✅ Seja específico e honesto nos dados
-✅ Use "Gerar com IA" para ganhar tempo
-✅ Salve a cada seção importante
-✅ Se desconectar, continue do rascunho
-✅ Revise tudo antes de enviar
+✏️ DURANTE A EDIÇÃO DO RELATÓRIO
+✅ Preencha de cima para baixo: Identificação → Resumo → Atividades → Avaliação
+✅ Seja específico: "30 alunos" em vez de "alguns"
+✅ Use "Gerar com IA" → revise e adapte o texto
+✅ Salve após cada seção importante
+✅ Se desconectar, clique "Continuar Editando" (salvo automaticamente)
+✅ Releia tudo antes de submeter
 
-ANTES DE ENVIAR
-✅ Verifique todas as seções com ✅
-✅ Releia o texto gerado pela IA
-✅ Corrija erros de digitação
-✅ Revise datas e números
-✅ Marque o checkbox de responsabilidade
-✅ Clique em "Enviar para Revisão"
+🔍 CHECKLIST FINAL ANTES DE ENVIAR
+├─ ☑️ Todas as seções têm ✅ (verde)?
+├─ ☑️ Nenhuma campo obrigatório em branco?
+├─ ☑️ Datas fazem sentido? (não há 30/02)
+├─ ☑️ Números são realistas?
+├─ ☑️ Checkbox de responsabilidade MARCADO?
+└─ ☑️ Texto profissional e sem erros?
 
-SE DEVOLVER PARA VOCÊ
-✅ Leia cuidadosamente os comentários
-✅ Abra a aba "Devoluções" para ver feedback
-✅ Faça os ajustes solicitados
-✅ Explique mudanças importantes
-✅ Envie novamente
+↩️ SE COORDENADOR DEVOLVER
+├─ Leia comentário na aba "Comentários de Revisão"
+├─ Identifique o que precisa mudar
+├─ Faça os ajustes cuidadosamente
+├─ Explique grandes mudanças em nota
+└─ Reenvie dentro de 2-3 dias
 
-COMUNICAÇÃO COM COORDENADOR
-✅ Envie antes do final do mês
-✅ Se tiver dúvida, pergunte logo
-✅ Ao devolver, respeite os prazos
-✅ Mantenha dados precisos
-✅ Comunique qualquer problema`
+💬 COMUNICAÇÃO COM SEU COORDENADOR
+✅ Envie ANTES do dia 25 (final de mês)
+✅ Se tiver dúvida, pergunte HOJE (não deixe para última hora)
+✅ Responda devoluções rapidamente
+✅ Mantenha dados honestos e precisos
+✅ Avise se não conseguir submeter no prazo
+
+⚡ DICAS PARA ECONOMIZAR TEMPO
+• Use "Carregar Template" se já criou relatório similar
+• Copie texto de relatório anterior (mude datas/números)
+• "Gerar com IA" economiza ~30 minutos por relatório
+• Organize cronograma: dias 1-10 atividades, dias 11-20 avaliação, dias 21-25 envio`
     },
     {
       id: 'troubleshooting',
