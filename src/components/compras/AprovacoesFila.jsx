@@ -49,7 +49,7 @@ export default function AprovacoesFila({ purchases, budgetLines, statusConfig, o
         purchaseId: purchase.id,
         action: action === 'approve_coord' ? 'approve_coord' : action === 'approve_admin' ? 'approve_admin' : 'reject',
         comentario,
-        valor_aprovado,
+        valor_aprovado: action === 'approve_admin' ? valor_aprovado : undefined,
       });
 
       const msgs = {
