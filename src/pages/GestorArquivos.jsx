@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import BackupMonthlyDialog from '../components/backup/BackupMonthlyDialog';
-import BackupButton from '../components/backup/BackupButton';
 import BackupHistoryTable from '../components/backup/BackupHistoryTable';
 import FileHierarchy from '../components/gallery/FileHierarchy';
 import FilePreviewModal from '../components/gallery/FilePreviewModal';
