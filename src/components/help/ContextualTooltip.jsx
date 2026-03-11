@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useHelp } from '@/contexts/HelpContextProvider';
+import { useHelp } from '@/components/help/HelpContextProvider';
 import { cn } from '@/lib/utils';
 
 export function ContextualTooltip({ 
