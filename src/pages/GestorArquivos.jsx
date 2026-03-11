@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
 import { Cloud, Calendar, AlertTriangle, HardDrive, ChevronDown, Loader2, FileText, Info, Download } from 'lucide-react';
@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 
 function GestorArquivosInner() {
     const { user: currentUser } = useCurrentUser();
+    const queryClient = useQueryClient();
     const [selectedDate, setSelectedDate] = useState('');
     const [searchFileName, setSearchFileName] = useState('');
     const [searchContent, setSearchContent] = useState('');
@@ -332,6 +333,11 @@ function GestorArquivosInner() {
       isOpen={showPreview} 
       onClose={() => setShowPreview(false)} 
       />
+      <GoogleDriveImporter
+        isOpen={showDriveImporter}
+        onClose={() => setShowDriveImporter(false)}
+        onImportComplete={handleImportComplete}
+      />
       <div className="min-h-screen bg-white">
       <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
         {/* Header */}
@@ -347,6 +353,13 @@ function GestorArquivosInner() {
             >
               <FileText className="w-4 h-4" />
               Adicionar Arquivo
+            </Button>
+            <Button 
+              onClick={() => setShowDriveImporter(true)}
+              className="bg-green-600 hover:bg-green-700 text-white gap-2 flex-1 md:flex-none"
+            >
+              <Download className="w-4 h-4" />
+              Google Drive
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
