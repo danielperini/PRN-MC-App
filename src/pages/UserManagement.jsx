@@ -842,60 +842,6 @@ function UserManagementInner() {
         </DialogContent>
       </Dialog>
 
-      {/* Create / Edit Dialog — apenas para convidar novo usuário */}
-       <Dialog open={showDialog && !editingUser} onOpenChange={setShowDialog}>
-         <DialogContent>
-           <DialogHeader>
-             <DialogTitle>Convidar Novo Usuário</DialogTitle>
-             <DialogDescription>Convide um novo profissional para a plataforma</DialogDescription>
-           </DialogHeader>
-
-           <div className="space-y-4 mt-2">
-             <div>
-               <Label>Email <span className="text-red-500">*</span></Label>
-               <Input
-                 type="email"
-                 placeholder="email@exemplo.com"
-                 value={formData.email}
-                 onChange={e => setFormData({ ...formData, email: e.target.value })}
-               />
-             </div>
-
-             <div>
-                <Label>Cargo <span className="text-red-500">*</span></Label>
-                <Select value={formData.role} onValueChange={v => setFormData({ ...formData, role: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CARGO_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-400 mt-1">
-                  {CARGO_OPTIONS.find(o => o.value === formData.role)?.description}
-                </p>
-              </div>
-
-             <div>
-                <Label>Equipe</Label>
-                <Select value={formData.equipe} onValueChange={v => setFormData({ ...formData, equipe: v })}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-             </div>
-
-             <DialogFooter className="mt-6">
-              <Button variant="outline" onClick={() => { setShowDialog(false); }}>Cancelar</Button>
-              <Button className="bg-black hover:bg-gray-800 text-white" onClick={handleSubmit} disabled={isPending}>
-                Convidar
-              </Button>
-             </DialogFooter>
-             </DialogContent>
-             </Dialog>
-
       {/* Create Direct User Dialog */}
       <Dialog open={showCreateDirect} onOpenChange={setShowCreateDirect}>
         <DialogContent>
