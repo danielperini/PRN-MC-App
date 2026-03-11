@@ -79,58 +79,55 @@ async function getCoordinatorEmails(base44) {
 
 function formatCoordinatorSubmissionEmail(report, coordEmail) {
   return `
-Olá Coordenador,
+Oi!
 
-Um novo relatório foi enviado para revisão:
+Temos um novo relatório de ${report.author_name} aguardando sua análise! 📋
 
-📋 Relatório: ${report.numero_protocolo || 'N/A'}
-👤 Profissional: ${report.author_name}
-🏛️ Museu: ${report.museu}
-📅 Período: ${report.mes_referencia}/${report.ano}
-📊 Atividades: ${(report.atividades || []).length} atividade(s)
+✨ Detalhes rápidos:
+• Período: ${report.mes_referencia}/${report.ano}
+• Museu: ${report.museu}
+• ${(report.atividades || []).length} atividade(s) registrada(s)
+• Protocolo: ${report.numero_protocolo || 'N/A'}
 
-O relatório está aguardando sua revisão. Acesse a plataforma para visualizar os detalhes e tomar as ações necessárias (aprovar, devolver para revisão, etc).
+Quando tiver um tempinho, é só acessar a plataforma para revisar. Pode aprovar direto ou deixar um comentário se precisar de ajustes. Confiamos no seu olhar! 👀
 
-Abraços,
+Grande abraço,
 Plataforma de Relatórios
   `.trim();
 }
 
 function formatUserReturnedEmail(report) {
-  const comment = report.return_comment || 'Nenhum comentário específico';
+  const comment = report.return_comment || 'Sem comentários específicos';
   return `
-Olá ${report.author_name},
+Oi ${report.author_name}!
 
-Seu relatório foi devolvido para revisão com comentários do coordenador:
+Seu relatório retornou com alguns apontamentos do coordenador. Nada de preocupante — só alguns detalhes para ajustar! 🔄
 
-📋 Relatório: ${report.numero_protocolo || 'N/A'}
-📅 Período: ${report.mes_referencia}/${report.ano}
+📋 Período: ${report.mes_referencia}/${report.ano}
 
-💬 Comentários:
+💭 Feedback recebido:
 ${comment}
 
-Por favor, faça as correções necessárias e reenvie o relatório para nova análise.
+Depois que fizer os ajustes, é só reenviar. Confiamos no seu trabalho! 💪
 
-Abraços,
+Um abraço,
 Plataforma de Relatórios
   `.trim();
 }
 
 function formatUserApprovedEmail(report) {
   return `
-Olá ${report.author_name},
+Oi ${report.author_name}! 🎉
 
-Excelentes notícias! Seu relatório foi aprovado pela coordenação. 🎉
+Que legal! Seu relatório foi aprovado! Parabéns pelo excelente trabalho! ✨
 
-📋 Relatório: ${report.numero_protocolo || 'N/A'}
-📅 Período: ${report.mes_referencia}/${report.ano}
+📋 Período: ${report.mes_referencia}/${report.ano}
 🏛️ Museu: ${report.museu}
+${report.reviewer_name ? `👍 Aprovado por: ${report.reviewer_name}` : ''}
 
-${report.reviewer_name ? `✅ Aprovado por: ${report.reviewer_name}` : ''}
+Obrigado por manter tudo em dia. Seu compromisso com a qualidade faz toda a diferença! 🙌
 
-Obrigado pelo excelente trabalho!
-
-Abraços,
+Um grande abraço,
 Plataforma de Relatórios
   `.trim();
 }
