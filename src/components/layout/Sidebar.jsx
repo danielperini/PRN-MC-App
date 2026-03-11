@@ -53,6 +53,8 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       items: [
         { name: 'Compras', icon: ShoppingCart, label: 'Compras e Equipe', show: true },
         { name: 'GeradorTermoCompromisso', icon: FileText, label: 'Termos de Compromisso', show: isCoordenador },
+        { name: 'Fornecedores', icon: Building2, label: 'Fornecedores', show: isCoordenador },
+        { name: 'PrestacaoDeContas', icon: FileText, label: 'Prestação de Contas', show: isCoordenador },
         { name: 'DashboardFinanceiro', icon: BarChart3, label: 'Dashboard Financeiro', show: isCoordenador && canViewMenu('gestao_compras') },
         { name: 'GestaoPagamentos', icon: Banknote, label: 'Pagamentos', show: isCoordenador },
         { name: 'ConsolidacaoFinanceira', icon: DollarSign, label: 'Consolidação Financeira', show: isCoordenador },
