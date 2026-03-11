@@ -38,6 +38,10 @@ function GestorArquivosInner() {
     const [uploading, setUploading] = useState(false);
     const [showDriveImporter, setShowDriveImporter] = useState(false);
     const isCoordinator = currentUser?.role === 'admin';
+    const isGeneralCoordinator = isCoordinator && (
+      currentUser?.email === 'daniel@periniprojetos.com.br' || 
+      currentUser?.email === 'danielperini.mc@vidadutodasartes.org.br'
+    );
 
   const { data: backups = [], isLoading } = useQuery({
     queryKey: ['google-drive-backups', selectedDate, searchFileName, searchContent, currentUser?.email],
@@ -124,6 +128,13 @@ function GestorArquivosInner() {
   const handlePreviewFile = (backup) => {
     setPreviewFile(backup);
     setShowPreview(true);
+  };
+
+  const canManageFile = (backup) => {
+    // Coordenador geral (Daniel) pode gerenciar tudo
+    if (isGeneralCoordinator) return true;
+    // Outros usuários só podem gerenciar seus próprios arquivos
+    return backup.created_by === currentUser?.email;
   };
 
   const handleBackupFull = async () => {
@@ -361,30 +372,32 @@ function GestorArquivosInner() {
               <Download className="w-4 h-4" />
               Google Drive
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="bg-black hover:bg-gray-800 text-white gap-2 flex-1 md:flex-none">
-                  <HardDrive className="w-4 h-4" />
-                  Backup
-                  <ChevronDown className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem onClick={handleBackupDrive} disabled={backupDriveLoading}>
-                  {backupDriveLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Cloud className="w-4 h-4 mr-2 text-blue-500" />}
-                  Backup Drive (Pastas)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowMonthlyBackup(true)}>
-                  <Calendar className="w-4 h-4 mr-2 text-green-600" />
-                  Backup Relatórios do Mês
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleBackupFull} disabled={backupFullLoading}>
-                  {backupFullLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <HardDrive className="w-4 h-4 mr-2 text-gray-600" />}
-                  Backup Completo (Drive)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {isGeneralCoordinator && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="bg-black hover:bg-gray-800 text-white gap-2 flex-1 md:flex-none">
+                    <HardDrive className="w-4 h-4" />
+                    Backup
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem onClick={handleBackupDrive} disabled={backupDriveLoading}>
+                    {backupDriveLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Cloud className="w-4 h-4 mr-2 text-blue-500" />}
+                    Backup Drive (Pastas)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowMonthlyBackup(true)}>
+                    <Calendar className="w-4 h-4 mr-2 text-green-600" />
+                    Backup Relatórios do Mês
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleBackupFull} disabled={backupFullLoading}>
+                    {backupFullLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <HardDrive className="w-4 h-4 mr-2 text-gray-600" />}
+                    Backup Completo (Drive)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
 
@@ -491,6 +504,8 @@ function GestorArquivosInner() {
               <FileHierarchy 
                 backups={backups} 
                 onPreview={handlePreviewFile}
+                canManageFile={canManageFile}
+                isGeneralCoordinator={isGeneralCoordinator}
               />
             )
           ) : (
@@ -501,8 +516,19 @@ function GestorArquivosInner() {
           )}
         </div>
 
+        {/* Status de Permissões */}
+        <div className="mt-6 md:mt-8 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-xs md:text-sm text-blue-800">
+            {isGeneralCoordinator ? (
+              <span><strong>👨‍💼 Coordenador Geral:</strong> Você pode gerenciar todos os arquivos da plataforma</span>
+            ) : (
+              <span><strong>👤 Usuário Regular:</strong> Você pode gerenciar apenas seus próprios arquivos</span>
+            )}
+          </p>
+        </div>
+
         {/* Alertas de Duplicação */}
-        {isCoordinator && duplicateWarnings.length > 0 && (
+        {isGeneralCoordinator && duplicateWarnings.length > 0 && (
          <div className="mt-6 md:mt-8 space-y-3">
            {duplicateWarnings.map((dup, idx) => (
              <div key={idx} className="p-3 md:p-4 bg-amber-50 border border-amber-200 rounded-lg md:rounded-xl">
