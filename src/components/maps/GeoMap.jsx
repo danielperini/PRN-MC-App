@@ -1,15 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-
-// Fix leaflet default icon issue
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png'
-});
+import L from 'leaflet';
 
 const categoryColors = {
   'Escolas Municipais': '#3B82F6',
@@ -33,16 +25,15 @@ function MapBounds({ opportunities }) {
   const map = useMap();
 
   useEffect(() => {
-    if (opportunities.length > 0 && opportunities[0].coordenadas_lat && opportunities[0].coordenadas_lon) {
-      const bounds = opportunities
-        .filter(o => o.coordenadas_lat && o.coordenadas_lon)
-        .map(o => [o.coordenadas_lat, o.coordenadas_lon]);
-      
-      if (bounds.length > 0) {
-        const group = new L.featureGroup(bounds.map(b => L.marker(b)));
-        map.fitBounds(group.getBounds(), { padding: [50, 50] });
-      }
-    }
+    if (!map || opportunities.length === 0) return;
+    
+    const validPoints = opportunities.filter(o => o.coordenadas_lat && o.coordenadas_lon);
+    if (validPoints.length === 0) return;
+
+    const bounds = L.latLngBounds(
+      validPoints.map(o => [o.coordenadas_lat, o.coordenadas_lon])
+    );
+    map.fitBounds(bounds, { padding: [50, 50] });
   }, [opportunities, map]);
 
   return null;
@@ -77,51 +68,62 @@ function createCustomIcon(categoria) {
 }
 
 export default function GeoMap({ opportunities, selectedOpportunity, onSelectOpportunity, nomeMuseu }) {
+  const [mapReady, setMapReady] = useState(false);
+
   // Centro padrão: Belo Horizonte
   const defaultCenter = [-19.9191, -43.9386];
   const defaultZoom = 13;
 
-  // Se houver oportunidades com coordenadas, usar a primeira
-  const hasCoordinates = opportunities.some(o => o.coordenadas_lat && o.coordenadas_lon);
-  const center = hasCoordinates && opportunities[0]?.coordenadas_lat 
-    ? [opportunities[0].coordenadas_lat, opportunities[0].coordenadas_lon]
-    : defaultCenter;
+  useEffect(() => {
+    // Fixar ícone padrão do Leaflet
+    if (L.Icon?.Default?.prototype) {
+      delete L.Icon.Default.prototype._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png'
+      });
+    }
+    setMapReady(true);
+  }, []);
+
+  if (!mapReady) {
+    return <div className="w-full h-full bg-gray-100 flex items-center justify-center">Carregando mapa...</div>;
+  }
+
+  const center = defaultCenter;
 
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full relative">
       <MapContainer 
         center={center} 
         zoom={defaultZoom} 
         scrollWheelZoom={true}
-        style={{ width: '100%', height: '100%' }}
+        style={{ width: '100%', height: '100%', zIndex: 1 }}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         />
         
-        {opportunities.map((opp) => {
-          if (!opp.coordenadas_lat || !opp.coordenadas_lon) return null;
-          
-          return (
-            <Marker
-              key={opp.id}
-              position={[opp.coordenadas_lat, opp.coordenadas_lon]}
-              icon={createCustomIcon(opp.categoria)}
-              eventHandlers={{
-                click: () => onSelectOpportunity(opp),
-              }}
-            >
-              <Popup>
-                <div className="text-sm">
-                  <p className="font-semibold text-gray-900">{opp.nome}</p>
-                  <p className="text-xs text-gray-600">{opp.categoria}</p>
-                  <p className="text-xs text-gray-600">Aderência: {opp.nivel_aderencia}%</p>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
+        {opportunities.filter(o => o.coordenadas_lat && o.coordenadas_lon).map((opp) => (
+          <Marker
+            key={opp.id}
+            position={[opp.coordenadas_lat, opp.coordenadas_lon]}
+            icon={createCustomIcon(opp.categoria)}
+            eventHandlers={{
+              click: () => onSelectOpportunity(opp),
+            }}
+          >
+            <Popup>
+              <div className="text-sm">
+                <p className="font-semibold text-gray-900">{opp.nome}</p>
+                <p className="text-xs text-gray-600">{opp.categoria}</p>
+                <p className="text-xs text-gray-600">Aderência: {opp.nivel_aderencia}%</p>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
 
         <MapBounds opportunities={opportunities} />
       </MapContainer>
