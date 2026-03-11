@@ -299,6 +299,15 @@ export default function RubricaManager({ budgetLines, purchases = [] }) {
           setSelectedRubrica(null);
         }}
       />
+
+      <ImportarRubricasAtualizadas
+        isOpen={showImportDialog}
+        onClose={() => setShowImportDialog(false)}
+        onSuccess={() => {
+          setShowImportDialog(false);
+          queryClient.invalidateQueries(['budget-lines']);
+        }}
+      />
     </div>
   );
 }
