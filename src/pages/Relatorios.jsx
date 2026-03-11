@@ -236,8 +236,8 @@ function RelatoriosInner() {
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-semibold text-black tracking-tight">Gestão de Relatórios Museus Centro</h1>
-            <p className="text-gray-500 mt-1">
+            <h1 className="text-3xl font-semibold text-black tracking-tight">Relatórios</h1>
+            <p className="text-gray-500 mt-1 text-sm">
               {filtered.length} de {baseReports.length} relatório(s)
             </p>
           </div>
@@ -283,7 +283,7 @@ function RelatoriosInner() {
                  placeholder="Buscar por profissional, museu, mês, atividade..."
                  value={search}
                  onChange={e => setSearch(e.target.value)}
-                 className="pl-9 h-10 border-gray-200"
+                 className="pl-9 h-10 border border-gray-100"
                />
                {search && (
                  <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -293,7 +293,7 @@ function RelatoriosInner() {
              </div>
              <Button
                variant="outline"
-               className={`gap-2 h-10 ${showFilters ? 'border-black bg-gray-50' : 'border-gray-200'}`}
+               className={`gap-2 h-10 border border-gray-100 ${showFilters ? 'bg-gray-50' : ''}`}
                onClick={() => setShowFilters(p => !p)}
              >
                <SlidersHorizontal className="w-4 h-4" />
@@ -312,7 +312,7 @@ function RelatoriosInner() {
            </div>
 
            {showFilters && (
-             <div className="flex flex-wrap gap-2 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+             <div className="flex flex-wrap gap-2 p-4 bg-white border border-gray-100 rounded-2xl">
                <FilterSel placeholder="Mês" value={filters.mes} onChange={v => setFilter('mes', v)}
                  options={MESES.map(m => ({ value: m, label: m }))} />
                <FilterSel placeholder="Museu" value={filters.museu} onChange={v => setFilter('museu', v)}
@@ -351,7 +351,7 @@ function RelatoriosInner() {
 
         {/* Selection Bar */}
         {filtered.length > 0 && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between flex-wrap gap-3">
+          <div className="mb-6 p-4 bg-white border border-gray-100 rounded-2xl flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
               <input
                 type="checkbox"
@@ -397,7 +397,7 @@ function RelatoriosInner() {
                      const canDelete = report.created_by === currentUser?.email && (!isComunicacao || report.funcao === 'Comunicador');
                      const isSelected = selectedReports.has(report.id);
                      return (
-                       <div key={report.id} className={`group relative border rounded-lg transition-all ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+                       <div key={report.id} className={`group relative border rounded-xl transition-all ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-100 bg-white'}`}>
                          <div className="absolute left-0 top-0 bottom-0 w-4 flex items-center pl-2">
                            <input
                              type="checkbox"
