@@ -64,10 +64,18 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  // Carregar atividades do usuário para vincular
+  // Carregar atividades em aberto do usuário para vincular
   useEffect(() => {
     if (currentUser?.email) {
-      base44.entities.Activity.filter({}, '-created_date', 30).then(setActivities).catch(() => {});
+      base44.entities.Activity.list('-created_date', 100).then(allActivities => {
+        // Filtrar apenas atividades em aberto (data_realizacao >= hoje)
+        const today = new Date().toISOString().split('T')[0];
+        const openActivities = allActivities.filter(a => {
+          if (!a.data_realizacao) return true; // Sem data = em aberto
+          return a.data_realizacao >= today;
+        });
+        setActivities(openActivities);
+      }).catch(() => {});
     }
   }, [currentUser]);
 
