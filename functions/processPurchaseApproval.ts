@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
     return Response.json({ 
       success: true, 
       status: novoStatus,
-      message: `Compra ${action === 'approve_coord' ? 'aprovada pelo coordenador' : action === 'approve_admin' ? 'aprovada administrativamente' : 'recusada'}`
+      message: `Compra ${action === 'approve_coord' ? 'aprovada e comprometida' : 'recusada'}`
     });
   } catch (error) {
     console.error('Erro em processPurchaseApproval:', error);
