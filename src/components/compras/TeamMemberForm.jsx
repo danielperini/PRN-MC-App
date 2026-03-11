@@ -117,28 +117,39 @@ Retorne em JSON: {"valor_total": 0, "numero_parcelas": 0, "nome": "", "funcao": 
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Email do Usuário */}
-          <div>
-            <Label>Email *</Label>
-            <Input
-              type="email"
-              value={form.user_email}
-              onChange={e => setForm({ ...form, user_email: e.target.value })}
-              placeholder="usuario@exemplo.com"
-              required
-            />
-          </div>
-
-          {/* Nome */}
-          <div>
-            <Label>Nome Completo *</Label>
-            <Input
-              value={form.user_name}
-              onChange={e => setForm({ ...form, user_name: e.target.value })}
-              placeholder="Nome completo"
-              required
-            />
-          </div>
+          {/* Seleção de Usuário */}
+          {!editingMember ? (
+            <div>
+              <Label>Usuário *</Label>
+              <Select
+                value={form.user_email}
+                onValueChange={v => {
+                  const user = users.find(u => u.email === v);
+                  setForm({ ...form, user_email: v, user_name: user?.full_name || '' });
+                }}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um usuário" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map(u => (
+                    <SelectItem key={u.id} value={u.email}>
+                      {u.full_name} — {u.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {form.user_email && (
+                <p className="text-xs text-gray-500 mt-1">{form.user_name}</p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <Label>Email</Label>
+              <Input value={form.user_email} disabled className="bg-gray-50" />
+            </div>
+          )}
 
           {/* Função */}
           <div>
