@@ -522,7 +522,24 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
             <Label className="text-xs text-gray-600 mb-1 block">Observações</Label>
             <Textarea placeholder="Informações adicionais..." value={form.observacoes} onChange={e => set('observacoes', e.target.value)} rows={2} />
           </div>
-        </div>
+
+          {/* Botão Preencher com IA */}
+          {form.orcamentos.length > 0 && (
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              <Button 
+                type="button"
+                variant="outline" 
+                className="w-full gap-2 bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
+                onClick={() => preencherComIA()}
+                disabled={analyzingMeta}
+              >
+                {analyzingMeta ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                Preencher Formulário com IA a partir do Contrato
+              </Button>
+              <p className="text-xs text-blue-600 mt-2">A IA analisará o contrato anexado e preencherá os campos do formulário</p>
+            </div>
+          )}
+          </div>
 
         {/* Footer */}
         <div className="flex justify-between items-center p-6 border-t bg-gray-50 rounded-b-2xl sticky bottom-0">
