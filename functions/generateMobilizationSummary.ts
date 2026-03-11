@@ -78,11 +78,11 @@ Seja objetivo, específico e prático. Máximo 800 caracteres. Foque em ações 
     }));
 
     // Buscar notícias de eventos e datas comemorativas do mês
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth() + 1;
+    const currentYear = currentDate.getFullYear();
     
-    const monthlyEventsPrompt = `Quais são os principais eventos, datas comemorativas e campanhas do mês de ${now.toLocaleDateString('pt-BR', { month: 'long' })} de ${currentYear} no Brasil? Include: Dia das Crianças, Dia das Mulheres, Dia do Meio Ambiente, semanas temáticas, eventos culturais, etc.`;
+    const monthlyEventsPrompt = `Quais são os principais eventos, datas comemorativas e campanhas do mês de ${currentDate.toLocaleDateString('pt-BR', { month: 'long' })} de ${currentYear} no Brasil? Include: Dia das Crianças, Dia das Mulheres, Dia do Meio Ambiente, semanas temáticas, eventos culturais, etc.`;
     
     const eventsContext = await base44.integrations.Core.InvokeLLM({
       prompt: monthlyEventsPrompt,
@@ -94,7 +94,7 @@ Seja objetivo, específico e prático. Máximo 800 caracteres. Foque em ações 
     const programSuggestion = await base44.integrations.Core.InvokeLLM({
       prompt: `Você é um curador de programação cultural especializado em museus de patrimônio, moda, fotografia e audiovisual.
 
-MÊS ATUAL: ${now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+MÊS ATUAL: ${currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
 
 EVENTOS E DATAS COMEMORATIVAS DO MÊS:
 ${eventsContext}
@@ -113,7 +113,7 @@ Escreva em tom informativo e inspirador, com ideias práticas e exequíveis.`,
       model: 'claude_sonnet_4_6',
     });
 
-    const now = new Date().toISOString();
+    const now = currentDate.toISOString();
 
     return new Response(JSON.stringify({
       museu_sigla,
