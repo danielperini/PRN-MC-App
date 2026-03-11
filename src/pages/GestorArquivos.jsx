@@ -111,6 +111,18 @@ function GestorArquivosInner() {
     setShowPreview(true);
   };
 
+  const handleBackupFull = async () => {
+    setBackupFullLoading(true);
+    try {
+      await base44.functions.invoke('backupToGoogleDrive');
+      toast.success('Backup completo realizado com sucesso!');
+    } catch (error) {
+      toast.error('Erro no backup completo: ' + (error.message || 'desconhecido'));
+    } finally {
+      setBackupFullLoading(false);
+    }
+  };
+
   const handleBackupDrive = async () => {
     setBackupDriveLoading(true);
     try {
