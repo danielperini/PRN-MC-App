@@ -113,35 +113,35 @@ export default function UserPermissionsManager() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6 w-full">
       <div>
-        <h3 className="text-lg font-bold text-gray-900 mb-2">Gerenciar Permissões de Usuários</h3>
-        <p className="text-sm text-gray-600">Configure acessos específicos para cada membro da equipe</p>
+        <h3 className="text-base md:text-lg font-bold text-gray-900 mb-2">Gerenciar Permissões de Usuários</h3>
+        <p className="text-xs md:text-sm text-gray-600">Configure acessos específicos para cada membro da equipe</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 w-full">
         {/* Painel de Usuários */}
-        <Card className="lg:col-span-1 p-4 border border-gray-200">
-          <div className="space-y-4">
+        <Card className="lg:col-span-1 p-3 md:p-4 border border-gray-200 w-full">
+          <div className="space-y-3 md:space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
               <Input
                 placeholder="Buscar usuário..."
-                className="pl-9 text-sm"
+                className="pl-9 text-xs md:text-sm"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
             </div>
 
-            <div className="space-y-2 max-h-[600px] overflow-y-auto">
+            <div className="space-y-2 max-h-[400px] md:max-h-[600px] overflow-y-auto">
               {filteredUsers.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-8">Nenhum usuário encontrado</p>
+                <p className="text-xs md:text-sm text-gray-500 text-center py-8">Nenhum usuário encontrado</p>
               ) : (
                 filteredUsers.map(user => (
                   <button
                     key={user.id}
                     onClick={() => handleSelectUser(user)}
-                    className={`w-full text-left p-3 rounded-lg border transition-all ${
+                    className={`w-full text-left p-2 md:p-3 rounded-lg border transition-all text-xs md:text-sm ${
                       selectedUser?.id === user.id
                         ? 'bg-indigo-50 border-indigo-300'
                         : 'bg-white border-gray-200 hover:bg-gray-50'
@@ -168,34 +168,34 @@ export default function UserPermissionsManager() {
 
         {/* Painel de Permissões */}
         {selectedUser ? (
-          <Card className="lg:col-span-2 p-6 border border-gray-200">
-            <div className="space-y-6">
+          <Card className="lg:col-span-2 p-3 md:p-6 border border-gray-200 w-full">
+            <div className="space-y-4 md:space-y-6">
               {/* Informações do Usuário */}
-              <div className="pb-4 border-b border-gray-200">
+              <div className="pb-3 md:pb-4 border-b border-gray-200">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
                     <Shield className="w-5 h-5 text-indigo-600" />
                   </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">{selectedUser.full_name}</h4>
-                    <p className="text-sm text-gray-600">{selectedUser.email}</p>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-semibold text-gray-900 text-sm truncate">{selectedUser.full_name}</h4>
+                    <p className="text-xs md:text-sm text-gray-600 truncate">{selectedUser.email}</p>
                   </div>
                 </div>
               </div>
 
               {/* Papel Base */}
               <div>
-                <label className="text-sm font-semibold text-gray-700 block mb-3">
+                <label className="text-xs md:text-sm font-semibold text-gray-700 block mb-3">
                   Papel Principal
                 </label>
                 <Select value={editingPermissions.base_role || 'PROFISSIONAL'} onValueChange={handleRoleChange}>
-                  <SelectTrigger>
+                  <SelectTrigger className="text-xs md:text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
-                    <SelectItem value="COORDENADOR">Coordenador</SelectItem>
-                    <SelectItem value="ADMIN">Administrador</SelectItem>
+                    <SelectItem value="PROFISSIONAL" className="text-xs md:text-sm">Profissional</SelectItem>
+                    <SelectItem value="COORDENADOR" className="text-xs md:text-sm">Coordenador</SelectItem>
+                    <SelectItem value="ADMIN" className="text-xs md:text-sm">Administrador</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-gray-500 mt-2">
@@ -204,23 +204,24 @@ export default function UserPermissionsManager() {
               </div>
 
               {/* Permissões por Grupo */}
-              <div className="space-y-6 max-h-[500px] overflow-y-auto">
+              <div className="space-y-4 md:space-y-6 max-h-[300px] md:max-h-[500px] overflow-y-auto">
                 {Object.entries(PERMISSION_GROUPS).map(([groupName, permissions]) => (
-                  <div key={groupName} className="border-l-4 border-indigo-300 pl-4">
-                    <h5 className="font-semibold text-gray-900 text-sm mb-3">{groupName}</h5>
-                    <div className="space-y-3">
+                  <div key={groupName} className="border-l-4 border-indigo-300 pl-3 md:pl-4">
+                    <h5 className="font-semibold text-gray-900 text-xs md:text-sm mb-2 md:mb-3">{groupName}</h5>
+                    <div className="space-y-2 md:space-y-3">
                       {permissions.map(perm => (
-                        <div key={perm.key} className="flex items-center gap-3">
+                        <div key={perm.key} className="flex items-start gap-2 md:gap-3">
                           <Checkbox
                             id={perm.key}
                             checked={editingPermissions[perm.key] === true}
                             onCheckedChange={(value) =>
                               handlePermissionChange(perm.key, value)
                             }
+                            className="mt-0.5"
                           />
                           <label
                             htmlFor={perm.key}
-                            className="text-sm text-gray-700 cursor-pointer flex-1"
+                            className="text-xs md:text-sm text-gray-700 cursor-pointer flex-1"
                           >
                             {perm.label}
                           </label>
@@ -232,13 +233,13 @@ export default function UserPermissionsManager() {
               </div>
 
               {/* Botão de Salvar */}
-              <div className="pt-4 border-t border-gray-200 flex gap-2">
+              <div className="pt-3 md:pt-4 border-t border-gray-200 flex gap-2">
                 <Button
                   onClick={() => savePermissions()}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 flex-1"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 flex-1 text-xs md:text-sm py-2 md:py-2.5"
                 >
                   <Save className="w-4 h-4" />
-                  Salvar Permissões
+                  Salvar
                 </Button>
                 <Button
                   onClick={() => {
@@ -246,7 +247,7 @@ export default function UserPermissionsManager() {
                     setEditingPermissions({});
                   }}
                   variant="outline"
-                  className="flex-1"
+                  className="flex-1 text-xs md:text-sm"
                 >
                   Cancelar
                 </Button>
@@ -254,18 +255,18 @@ export default function UserPermissionsManager() {
             </div>
           </Card>
         ) : (
-          <Card className="lg:col-span-2 p-6 border border-gray-200 flex items-center justify-center min-h-96">
+          <Card className="lg:col-span-2 p-4 md:p-6 border border-gray-200 flex items-center justify-center min-h-64 md:min-h-96 w-full">
             <div className="text-center">
-              <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">Selecione um usuário para gerenciar suas permissões</p>
+              <Shield className="w-10 md:w-12 h-10 md:h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-xs md:text-base text-gray-500 font-medium">Selecione um usuário para gerenciar suas permissões</p>
             </div>
           </Card>
         )}
       </div>
 
       {/* Legenda */}
-      <Card className="p-4 bg-blue-50 border border-blue-200">
-        <p className="text-xs text-blue-900">
+      <Card className="p-3 md:p-4 bg-blue-50 border border-blue-200 w-full">
+        <p className="text-xs md:text-sm text-blue-900">
           <span className="font-semibold">💡 Nota:</span> Apenas coordenadores e administradores podem modificar permissões. As alterações entram em vigor imediatamente.
         </p>
       </Card>
