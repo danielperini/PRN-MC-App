@@ -389,7 +389,37 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
             </div>
 
             <div>
-              <Label>Descrição Completa do Contrato</Label>
+              <div className="flex items-center justify-between mb-2">
+                <Label>Descrição Completa do Contrato</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    if (!form.contrato_url) {
+                      toast.error('Envie o contrato primeiro');
+                      return;
+                    }
+                    setAiLoading(true);
+                    try {
+                      const res = await base44.integrations.Core.InvokeLLM({
+                        prompt: `Leia este contrato e forneça um resumo conciso e claro em português, destacando: 1) Objeto/Escopo, 2) Duração, 3) Valor, 4) Principais obrigações. Seja objetivo e direto.`,
+                        file_urls: [form.contrato_url],
+                      });
+                      set('descricao_contrato', res);
+                      toast.success('✨ Resumo gerado pela IA!');
+                    } catch (error) {
+                      toast.error('Erro ao gerar resumo: ' + error.message);
+                    } finally {
+                      setAiLoading(false);
+                    }
+                  }}
+                  disabled={aiLoading || !form.contrato_url}
+                >
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  Resumir com IA
+                </Button>
+              </div>
               <Textarea value={form.descricao_contrato} onChange={e => set('descricao_contrato', e.target.value)} rows={5} className="text-sm" placeholder="Resumo completo do contrato" />
             </div>
 
