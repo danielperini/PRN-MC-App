@@ -63,7 +63,8 @@ Gere um resumo executivo que:
 Escriba em português do Brasil, de forma concisa, profissional e orientada a resultados.`;
 
     const result = await base44.integrations.Core.InvokeLLM({
-      prompt
+      prompt,
+      model: 'claude_sonnet_4_6'
     }).catch(() => null);
 
     if (result) {

@@ -69,7 +69,6 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
 
       const extracted = await base44.integrations.Core.InvokeLLM({
         prompt: `Analise este contrato em PDF e extraia TODOS os dados abaixo. Seja preciso e minucioso.
-
 Retorne em JSON com os campos:
 - valor_total (número - valor total do contrato)
 - numero_parcelas (número)
@@ -89,41 +88,7 @@ Retorne em JSON com os campos:
 - tipo_conta (string: "Corrente" ou "Poupança")
 - pix_key (string - chave PIX se houver)
 - cronograma_parcelas (array de objetos com: numero, vencimento (YYYY-MM-DD), valor, descricao)`,
-        file_urls: [file_url],
-        response_json_schema: {
-          type: 'object',
-          properties: {
-            valor_total: { type: 'number' },
-            numero_parcelas: { type: 'number' },
-            valor_parcela: { type: 'number' },
-            nome: { type: 'string' },
-            funcao: { type: 'string' },
-            cpf: { type: 'string' },
-            cnpj: { type: 'string' },
-            tipo_pessoa: { type: 'string' },
-            data_inicio: { type: 'string' },
-            data_fim: { type: 'string' },
-            objeto_contrato: { type: 'string' },
-            descricao_contrato: { type: 'string' },
-            banco: { type: 'string' },
-            agencia: { type: 'string' },
-            conta: { type: 'string' },
-            tipo_conta: { type: 'string' },
-            pix_key: { type: 'string' },
-            cronograma_parcelas: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  numero: { type: 'number' },
-                  vencimento: { type: 'string' },
-                  valor: { type: 'number' },
-                  descricao: { type: 'string' }
-                }
-              }
-            }
-          }
-        }
+        file_urls: [file_url]
       });
 
       setForm(prev => ({
