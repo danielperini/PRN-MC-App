@@ -173,15 +173,17 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
             contrato_url: driveRes.data.driveLink,
           });
 
-          // Criar Attachment para registro adicional
-          const fileName = `Contrato_${form.user_name?.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`;
-          await base44.entities.Attachment.create({
-            activity_id: memberId,
-            file_name: fileName,
-            file_type: 'application/pdf',
-            file_url: driveRes.data.driveLink,
-            description: `Contrato vinculado a ${form.user_name} | Objeto: ${form.objeto_contrato?.substring(0, 80) || 'N/A'}`,
-          });
+          // Criar Attachment para registro adicional - vinculado ao usuário específico
+           const fileName = `Contrato_${form.user_name?.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`;
+           await base44.entities.Attachment.create({
+             activity_id: memberId,
+             file_name: fileName,
+             file_type: 'application/pdf',
+             file_url: driveRes.data.driveLink,
+             description: `Contrato vinculado a ${form.user_name} (${form.user_email}) | Objeto: ${form.objeto_contrato?.substring(0, 80) || 'N/A'}`,
+             user_email: form.user_email,
+             team_member_id: memberId,
+           });
 
           toast.success('✅ Contrato vinculado e armazenado no Google Drive com sucesso!');
         } catch (driveError) {
