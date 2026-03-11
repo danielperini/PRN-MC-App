@@ -72,8 +72,6 @@ const ROLE_COLORS = {
   ADMIN: 'bg-black text-white border border-black',
 };
 
-const EMPTY_FORM = { email: '', role: 'PROFISSIONAL', equipe: '' };
-
 const CADASTRO_URL = `${window.location.origin}/app/${window.location.pathname.split('/')[2] || ''}/Cadastro`;
 
 function UserManagementInner() {
