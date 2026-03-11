@@ -66,6 +66,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         { name: 'CoordReview', icon: Eye, label: 'Revisão', show: isCoordenador && canViewMenu('can_review_reports') },
         { name: 'UserManagement', icon: Users, label: 'Usuários', show: isCoordenador && canViewMenu('can_manage_users') },
         { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: isCoordenador && canViewMenu('can_manage_files') },
+        { name: 'GaleriaFotos', icon: Images, label: 'Galeria de Fotos', show: isCoordenador && canViewMenu('can_manage_files') },
         { name: 'ActivityLog', icon: History, label: 'Auditoria', show: isCoordenador },
         { name: 'PlataformaAdmin', icon: Settings, label: 'Plataforma', show: isCoordenador && canViewMenu('can_manage_platform') },
       ],
