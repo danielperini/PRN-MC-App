@@ -51,6 +51,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       label: 'Financeiro',
       items: [
         { name: 'Compras', icon: ShoppingCart, label: 'Compras e Equipe', show: true },
+        { name: 'DashboardFinanceiro', icon: BarChart3, label: 'Dashboard Financeiro', show: isCoordenador && canViewMenu('gestao_compras') },
         { name: 'GestaoPagamentos', icon: Banknote, label: 'Pagamentos', show: isCoordenador },
         { name: 'RelatorioMeta', icon: Target, label: 'Rel. por Meta', show: isCoordenador },
       ],
