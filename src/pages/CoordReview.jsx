@@ -407,10 +407,6 @@ function CoordReviewInner() {
                            <Eye className="w-3.5 h-3.5" />Ver
                          </Button>
                        </Link>
-                       <Button size="sm" variant="outline" className="gap-1 text-blue-600 border-blue-300"
-                         onClick={() => setDebugPanel({ open: true, reportId: report.id })}>
-                         <Zap className="w-3.5 h-3.5" />Debug
-                       </Button>
                        {report.status === 'SUBMITTED' && (!isComunicacao || report.funcao === 'Comunicador') && (
                          <>
                            <Button size="sm" variant="outline" className="border-black gap-1"
