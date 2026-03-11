@@ -1,7 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { PDFDocument, StandardFonts, rgb } from 'npm:pdf-lib@1.17.1';
 
 const ROOT_FOLDER_ID = '1lUvhkeMp-yZ4nNnS33jDw3eekhbpp1R7';
 const MIRROR_FOLDER_NAME = 'App_Mirror_Sincronizado';
+const APPROVED_PDF_FOLDER = 'Relatorios_Aprovados_PDF';
 
 // Busca ou cria pasta
 async function findOrCreateFolder(accessToken, folderName, parentFolderId) {
