@@ -28,7 +28,7 @@ function GestorArquivosInner() {
     const [duplicateWarnings, setDuplicateWarnings] = useState([]);
     const [previewFile, setPreviewFile] = useState(null);
     const [showPreview, setShowPreview] = useState(false);
-    const [showHistory, setShowHistory] = useState(false);
+    const [showHistory, setShowHistory] = useState('contratos');
     const [showMonthlyBackup, setShowMonthlyBackup] = useState(false);
     const [backupDriveLoading, setBackupDriveLoading] = useState(false);
     const [backupFullLoading, setBackupFullLoading] = useState(false);
