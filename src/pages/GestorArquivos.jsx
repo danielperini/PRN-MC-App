@@ -712,17 +712,29 @@ function GestorArquivosInner() {
                              <p className="font-medium text-black">{nf.userName}</p>
                              <p className="text-sm text-gray-500">NF {nf.numero} • {nf.fornecedor} • R$ {nf.valor?.toLocaleString('pt-BR')}</p>
                            </div>
-                           {nf.file_url && (
-                             <a 
-                               href={nf.file_url} 
-                               target="_blank" 
-                               rel="noopener noreferrer"
-                               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
-                             >
-                               <Download className="w-4 h-4" />
-                               Download
-                             </a>
-                           )}
+                           <div className="flex gap-2">
+                             {nf.file_url && (
+                               <a 
+                                 href={nf.file_url} 
+                                 target="_blank" 
+                                 rel="noopener noreferrer"
+                                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                               >
+                                 <Download className="w-4 h-4" />
+                                 Download
+                               </a>
+                             )}
+                             {(isCoordinator || nf.userEmail === currentUser?.email) && (
+                               <Button
+                                 size="sm"
+                                 variant="outline"
+                                 onClick={() => handleDeleteInvoice(nf.submissionId, invoiceSubmissions.find(s => s.id === nf.submissionId)?.notas_fiscais.indexOf(nf))}
+                                 className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                               >
+                                 <Trash2 className="w-4 h-4" />
+                               </Button>
+                             )}
+                           </div>
                          </div>
                        ))}
                    </div>
