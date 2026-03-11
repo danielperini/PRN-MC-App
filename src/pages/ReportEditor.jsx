@@ -83,12 +83,13 @@ function ReportEditorInner() {
    const reportId = urlParams.get('id');
 
    const [formData, setFormData] = useState(EMPTY_FORM);
-    const [declaracaoAceita, setDeclaracaoAceita] = useState(false);
-    const [currentTab, setCurrentTab] = useState('identificacao');
-    const [autoSaveTimer, setAutoSaveTimer] = useState(null);
-      const [showSaveAlert, setShowSaveAlert] = useState(false);
-      const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
-      const [showLoadTemplateDialog, setShowLoadTemplateDialog] = useState(false);
+     const [declaracaoAceita, setDeclaracaoAceita] = useState(false);
+     const [currentTab, setCurrentTab] = useState('identificacao');
+     const [autoSaveTimer, setAutoSaveTimer] = useState(null);
+       const [showSaveAlert, setShowSaveAlert] = useState(false);
+       const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
+       const [showLoadTemplateDialog, setShowLoadTemplateDialog] = useState(false);
+       const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
       const set = (key, value) => {
       if (formData === null || typeof formData !== 'object') return;
       setFormData(prev => ({ ...prev, [key]: value }));
@@ -202,6 +203,7 @@ function ReportEditorInner() {
         : base44.entities.Report.create(data);
     },
     onSuccess: () => {
+      setShowSubmitConfirm(false);
       queryClient.invalidateQueries(['my-reports']);
       toast.success('Relatório enviado para revisão!', { description: '✓ O coordenador será notificado em breve.' });
       setTimeout(() => navigate(createPageUrl('Dashboard')), 1500);
@@ -211,6 +213,18 @@ function ReportEditorInner() {
       if (!silentErrors.includes(e.message)) toast.error('Erro ao enviar relatório', { description: 'Não foi possível enviar. Tente novamente.' });
     },
   });
+
+  const handleSubmitClick = () => {
+    if (!declaracaoAceita) {
+      toast.error('Aceite a declaração de responsabilidade antes de enviar.');
+      return;
+    }
+    if (!(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0)) {
+      toast.error('Preencha atividades ou oportunidades para enviar');
+      return;
+    }
+    setShowSubmitConfirm(true);
+  };
 
   const workflowMutation = useMutation({
     mutationFn: ({ action, comment }) => {
@@ -505,7 +519,7 @@ function ReportEditorInner() {
                   </Button>
                   <Button
                     className="bg-black hover:bg-gray-800 text-white"
-                    onClick={() => submitMutation.mutate()}
+                    onClick={handleSubmitClick}
                     disabled={submitMutation.isPending || !declaracaoAceita || (!(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0))}
                     title={!declaracaoAceita ? 'Aceite a declaração (aba Avaliação) para enviar' : !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0) ? 'Preencha atividades ou oportunidades para enviar' : ''}
                   >
@@ -556,7 +570,7 @@ function ReportEditorInner() {
                   </Button>
                   <Button
                     className="bg-black hover:bg-gray-800 text-white"
-                    onClick={() => submitMutation.mutate()}
+                    onClick={handleSubmitClick}
                     disabled={submitMutation.isPending || !declaracaoAceita || (!(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0))}
                     title={!declaracaoAceita ? 'Aceite a declaração (aba Avaliação) para enviar' : !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0) ? 'Preencha atividades ou oportunidades para enviar' : ''}
                   >
@@ -905,6 +919,49 @@ function ReportEditorInner() {
           onClose={() => setShowLoadTemplateDialog(false)}
           onSelectTemplate={handleLoadFromTemplate}
         />
+
+        {/* Dialog de Confirmação de Envio */}
+        <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
+          <AlertDialogContent className="max-w-md">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-blue-600" />
+                Atestado de Veracidade
+              </AlertDialogTitle>
+              <AlertDialogDescription className="mt-3 text-sm text-gray-700 space-y-3">
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="font-semibold text-blue-900 text-sm mb-2">Confirmação de Envio</p>
+                  <p className="text-xs text-blue-800 leading-relaxed">
+                    Ao prosseguir, você atesta que:
+                  </p>
+                  <ul className="text-xs text-blue-800 space-y-1.5 mt-2 list-disc list-inside">
+                    <li><strong>Todas as informações</strong> deste relatório são verdadeiras e completas</li>
+                    <li><strong>Os dados foram revisados</strong> e conferidos com atenção</li>
+                    <li>Você <strong>assume responsabilidade formal</strong> pelas informações registradas</li>
+                    <li><strong>Compreende</strong> que este documento será utilizado para prestação de contas oficial</li>
+                  </ul>
+                </div>
+
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-xs font-semibold text-amber-900 mb-1">⚠️ Atenção:</p>
+                  <p className="text-xs text-amber-800">
+                    Apenas relatórios <strong>aprovados</strong> são considerados na prestação de contas. Ao enviar, você está solicitando revisão por um coordenador.
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex justify-end gap-3 mt-6">
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={() => submitMutation.mutate()} 
+                disabled={submitMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {submitMutation.isPending ? 'Enviando...' : 'Confirmar Envio'}
+              </AlertDialogAction>
+            </div>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Alert Dialog para salvar rascunho */}
          <AlertDialog open={showSaveAlert} onOpenChange={setShowSaveAlert}>
