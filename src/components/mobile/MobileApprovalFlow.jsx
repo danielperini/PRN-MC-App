@@ -107,21 +107,21 @@ export default function MobileApprovalFlow({ type = 'report' }) {
 
   if (!selectedItem) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white pb-20">
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white pb-20 md:pb-0">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 z-10">
-          <div className="px-4 py-4">
-            <h1 className="text-2xl font-bold text-gray-900">
+          <div className="px-4 md:px-6 py-4 md:py-6 max-w-6xl mx-auto">
+            <h1 className="text-xl md:text-3xl font-bold text-gray-900">
               {type === 'report' ? 'Relatórios' : 'Compras'} Pendentes
             </h1>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm md:text-base text-gray-600 mt-1">
               {pendingItems.length} item(ns) aguardando aprovação
             </p>
           </div>
         </div>
 
         {/* Lista de Items */}
-        <div className="px-4 py-4 space-y-3">
+        <div className="px-4 md:px-6 py-4 md:py-6 max-w-6xl mx-auto space-y-3 md:space-y-4 md:grid md:grid-cols-2 md:gap-4">
           {pendingItems.length === 0 ? (
             <div className="text-center py-16">
               <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
@@ -133,19 +133,19 @@ export default function MobileApprovalFlow({ type = 'report' }) {
               <button
                 key={item.id}
                 onClick={() => setSelectedItem(item)}
-                className="w-full text-left"
+                className="w-full md:w-auto text-left md:col-span-1"
               >
-                <Card className="p-4 hover:shadow-md transition-shadow border-l-4 border-blue-400">
+                <Card className="p-4 md:p-5 hover:shadow-lg transition-all border-l-4 border-blue-400">
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 text-sm truncate">
+                      <h3 className="font-semibold text-gray-900 text-sm md:text-base truncate">
                         {item.title}
                       </h3>
-                      <p className="text-xs text-gray-600 mt-1">{item.subtitle}</p>
+                      <p className="text-xs md:text-sm text-gray-600 mt-1 truncate">{item.subtitle}</p>
                     </div>
-                    <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 hidden md:block" />
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
+                  <div className="flex items-center gap-2 text-xs md:text-sm text-gray-500 mt-2">
                     <Calendar className="w-3 h-3" />
                     {new Date(item.date).toLocaleDateString('pt-BR')}
                   </div>
@@ -161,25 +161,25 @@ export default function MobileApprovalFlow({ type = 'report' }) {
   return (
     <div className="min-h-screen bg-white">
       {/* Header com Voltar */}
-      <div className="sticky top-0 bg-white border-b border-gray-200 z-10 flex items-center gap-3 px-4 py-4">
-        <button onClick={() => setSelectedItem(null)}>
+      <div className="sticky top-0 bg-white border-b border-gray-200 z-10 flex items-center gap-3 px-4 md:px-6 py-4 md:py-6 max-w-6xl mx-auto w-full">
+        <button onClick={() => setSelectedItem(null)} className="hover:bg-gray-100 p-2 rounded-lg transition">
           <ArrowLeft className="w-6 h-6 text-gray-900" />
         </button>
-        <h1 className="text-lg font-bold text-gray-900 flex-1">
+        <h1 className="text-lg md:text-2xl font-bold text-gray-900 flex-1">
           {selectedItem.type === 'report' ? 'Relatório' : 'Compra'}
         </h1>
       </div>
 
       {/* Conteúdo */}
-      <div className="px-4 py-6 pb-40 space-y-6">
+      <div className="px-4 md:px-6 py-6 md:py-8 pb-40 md:pb-24 space-y-6 max-w-6xl mx-auto w-full">
         {/* Card Principal */}
-        <Card className="p-6 bg-gradient-to-br from-indigo-50 to-blue-50 border-indigo-200">
-          <div className="space-y-4">
+        <Card className="p-6 md:p-8 bg-gradient-to-br from-indigo-50 to-blue-50 border-indigo-200">
+          <div className="space-y-4 md:space-y-6">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 break-words">
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900 break-words">
                 {selectedItem.title}
               </h2>
-              <p className="text-sm text-gray-600 mt-2">{selectedItem.subtitle}</p>
+              <p className="text-sm md:text-base text-gray-600 mt-2">{selectedItem.subtitle}</p>
             </div>
 
             {selectedItem.type === 'report' && selectedItem.fullData && (
@@ -236,8 +236,8 @@ export default function MobileApprovalFlow({ type = 'report' }) {
         )}
 
         {/* Campo de Comentário */}
-        <div className="space-y-2">
-          <label className="text-sm font-semibold text-gray-900">
+        <div className="space-y-2 md:space-y-3">
+          <label className="text-sm md:text-base font-semibold text-gray-900">
             <MessageSquare className="w-4 h-4 inline mr-2" />
             Comentário (opcional)
           </label>
@@ -245,14 +245,14 @@ export default function MobileApprovalFlow({ type = 'report' }) {
             placeholder="Adicione um comentário para o autor..."
             value={comment}
             onChange={e => setComment(e.target.value)}
-            className="min-h-24 text-sm"
+            className="min-h-24 md:min-h-32 text-sm md:text-base"
           />
         </div>
 
         {/* Alerta */}
-        <div className="flex gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+        <div className="flex gap-3 p-4 md:p-5 bg-amber-50 border border-amber-200 rounded-lg">
           <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-800">
+          <p className="text-sm md:text-base text-amber-800">
             {selectedItem.type === 'report'
               ? 'Verifique os dados antes de aprovar. Esta ação não pode ser desfeita.'
               : 'Confirme o valor e fornecedor antes de prosseguir.'}
@@ -261,11 +261,11 @@ export default function MobileApprovalFlow({ type = 'report' }) {
       </div>
 
       {/* Botões Flutuantes */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 flex gap-3">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 md:p-6 flex gap-3 md:gap-4 md:max-w-6xl md:mx-auto md:rounded-t-xl md:static md:border-t-0 md:border-0 md:p-0 md:mt-8">
         <Button
           onClick={() => rejectMutation.mutate(selectedItem.id)}
           disabled={rejectMutation.isPending || approveMutation.isPending}
-          className="flex-1 bg-red-600 hover:bg-red-700 text-white gap-2"
+          className="flex-1 bg-red-600 hover:bg-red-700 text-white gap-2 md:text-base"
         >
           {rejectMutation.isPending ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -277,7 +277,7 @@ export default function MobileApprovalFlow({ type = 'report' }) {
         <Button
           onClick={() => approveMutation.mutate(selectedItem.id)}
           disabled={approveMutation.isPending || rejectMutation.isPending}
-          className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2"
+          className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2 md:text-base"
         >
           {approveMutation.isPending ? (
             <Loader2 className="w-4 h-4 animate-spin" />
