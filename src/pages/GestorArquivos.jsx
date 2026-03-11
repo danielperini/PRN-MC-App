@@ -3,13 +3,12 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
-import { Download, Cloud, Calendar, AlertTriangle, HardDrive, ChevronDown } from 'lucide-react';
+import { Cloud, Calendar, AlertTriangle, HardDrive, ChevronDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import BackupButton from '../components/backup/BackupButton';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import BackupMonthlyDialog from '../components/backup/BackupMonthlyDialog';
 import BackupHistoryTable from '../components/backup/BackupHistoryTable';
 import FileHierarchy from '../components/gallery/FileHierarchy';
@@ -152,35 +151,14 @@ function GestorArquivosInner() {
             </p>
           </div>
           <div className="w-full md:w-auto flex gap-2 flex-wrap">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="gap-2 bg-black hover:bg-gray-800 text-white">
-                  <HardDrive className="w-4 h-4" />
-                  Backup
-                  <ChevronDown className="w-3.5 h-3.5 opacity-70" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuLabel className="text-xs text-gray-500">Opções de Backup</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setShowMonthlyBackup(true)} className="gap-2 cursor-pointer">
-                  <Calendar className="w-4 h-4 text-blue-500" />
-                  Backup de Relatórios do Mês
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => document.getElementById('backup-drive-trigger')?.click()} className="gap-2 cursor-pointer">
-                  <Cloud className="w-4 h-4 text-blue-500" />
-                  Sincronizar Pastas no Drive
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => document.getElementById('backup-full-trigger')?.click()} className="gap-2 cursor-pointer">
-                  <HardDrive className="w-4 h-4 text-gray-600" />
-                  Backup Completo (Drive)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {/* Hidden triggers for backup components */}
-            <div className="hidden">
-              <BackupButton userRole={currentUser?.role} triggerId="backup-full-trigger" />
-            </div>
+            <BackupDriveFoldersButton />
+            <button
+              onClick={() => setShowMonthlyBackup(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
+            >
+              📅 Backup Relatórios
+            </button>
+            <BackupButton userRole={currentUser?.role} />
           </div>
         </div>
 
