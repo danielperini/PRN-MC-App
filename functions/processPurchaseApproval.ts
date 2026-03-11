@@ -85,6 +85,17 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Notificar solicitante via função dedicada
+      try {
+        await base44.asServiceRole.functions.invoke('notifyPurchaseStatusChange', {
+          purchaseId: purchaseId,
+          newStatus: novoStatus,
+          comentario: comentario
+        });
+      } catch (e) {
+        console.error('Erro ao notificar mudança de status:', e.message);
+      }
+
       // Notificar solicitante que foi aprovado
       const notificacao = {
         user_email: p.created_by || emailAtor,
@@ -96,24 +107,6 @@ Deno.serve(async (req) => {
       };
 
       await base44.asServiceRole.entities.Notification.create(notificacao);
-
-      // Enviar email de aprovação
-      try {
-        await base44.integrations.Core.SendEmail({
-          to: p.created_by || emailAtor,
-          subject: 'Solicitação de Compra Aprovada',
-          body: `
-            <h2>✅ Solicitação Aprovada</h2>
-            <p><strong>Descrição:</strong> ${p.descricao_item}</p>
-            <p><strong>Valor Aprovado:</strong> R$ ${parseFloat(valorFinal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-            <p><strong>Aprovado por:</strong> ${nomeAtor}</p>
-            ${comentario ? `<p><strong>Comentário:</strong> ${comentario}</p>` : ''}
-          `,
-          from_name: 'Sistema de Compras'
-        });
-      } catch (emailError) {
-        console.error('Erro ao enviar email:', emailError.message);
-      }
 
     } else if (action === 'reject') {
       novoStatus = 'RECUSADO';
