@@ -77,19 +77,40 @@ Seja objetivo, específico e prático. Máximo 800 caracteres. Foque em ações 
       endereco: opp.endereco || 'Não informado'
     }));
 
-    // Sugerir programação com base na análise
-    const programSuggestion = await base44.integrations.Core.InvokeLLM({
-      prompt: `Como especialista em programação cultural para museus, analise os 10 locais mais aderentes (acima de 80%) listados abaixo e sugira atividades/programações que podem gerar sinergia com a instituição ${museu_sigla}:
-
-LOCAIS PRINCIPAIS:
-${contactsAndPrograms.map(c => `- ${c.nome} (${c.categoria}, aderência: ${c.aderencia}%) em ${c.bairro}`).join('\n')}
-
-CONTEXTO:
-${knowledgeContext.substring(0, 300)}
-
-Sugira 3-4 ideias concretas de programação colaborativa e viável. Máximo 400 caracteres.`,
-      add_context_from_internet: false,
+    // Buscar notícias de eventos e datas comemorativas do mês
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    
+    const monthlyEventsPrompt = `Quais são os principais eventos, datas comemorativas e campanhas do mês de ${now.toLocaleDateString('pt-BR', { month: 'long' })} de ${currentYear} no Brasil? Include: Dia das Crianças, Dia das Mulheres, Dia do Meio Ambiente, semanas temáticas, eventos culturais, etc.`;
+    
+    const eventsContext = await base44.integrations.Core.InvokeLLM({
+      prompt: monthlyEventsPrompt,
+      add_context_from_internet: true,
       model: 'gemini_3_flash',
+    });
+
+    // Sugerir programação dinâmica com análise de Claude
+    const programSuggestion = await base44.integrations.Core.InvokeLLM({
+      prompt: `Você é um curador de programação cultural especializado em museus de patrimônio, moda, fotografia e audiovisual.
+
+MÊS ATUAL: ${now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+
+EVENTOS E DATAS COMEMORATIVAS DO MÊS:
+${eventsContext}
+
+PARCEIROS/LOCAIS ESTRATÉGICOS (≥80% aderência):
+${contactsAndPrograms.map(c => `- ${c.nome} (${c.categoria}) em ${c.bairro}`).join('\n')}
+
+TAREFA: Gere um texto em prosa coeso e envolvente (400-600 caracteres) com SUGESTÕES DE PROGRAMAÇÃO COLABORATIVA que explore:
+1. As datas comemorativas do mês (ex: Dia das Mulheres = palestras sobre mulheres na moda/fotografia)
+2. Parcerias com casas de apoio, escolas e instituições listadas
+3. Atividades de alcance cultural e educativo específicas para cada tipo de local
+4. Estratégias de mobilização adequadas a cada público
+
+Escreva em tom informativo e inspirador, com ideias práticas e exequíveis.`,
+      add_context_from_internet: false,
+      model: 'claude_sonnet_4_6',
     });
 
     const now = new Date().toISOString();
