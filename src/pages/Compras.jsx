@@ -16,6 +16,7 @@ import RubricaManager from '@/components/compras/RubricaManager';
 import TeamManager from '@/components/compras/TeamManager';
 import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
 import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
+import FinancialExcelExporter from '@/components/financeiro/FinancialExcelExporter';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -248,6 +249,13 @@ function ComprasInner() {
              currentUser={currentUser}
            />
          )}
+
+        {/* Exportar Excel */}
+        {tab === 'lista' && isCoordenador && (
+          <div className="mt-8">
+            <FinancialExcelExporter />
+          </div>
+        )}
         </div>
 
       {showForm && (
