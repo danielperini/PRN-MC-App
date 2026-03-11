@@ -98,23 +98,12 @@ export default function AttachmentsSection({ reportId, canEdit }) {
     onError: () => toast.error('Erro ao atualizar descrição'),
   });
 
-  const downloadAllMutation = useMutation({
-    mutationFn: async () => {
-      const zip = await import('jszip').then(m => new m.default());
-      attachments.forEach(att => {
-        zip.file(att.file_name, fetch(att.file_url).then(r => r.blob()));
-      });
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `relatorio_anexos_${new Date().toISOString().slice(0,10)}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
-    },
-    onSuccess: () => toast.success('Arquivos baixados'),
-    onError: () => toast.error('Erro ao baixar arquivos'),
-  });
+  const handleDownloadAll = () => {
+    attachments.forEach(att => {
+      window.open(att.file_url, '_blank');
+    });
+    toast.success(`${attachments.length} arquivo(s) abertos para download`);
+  };
 
   const handleFiles = async (files) => {
     const fileList = Array.from(files);
