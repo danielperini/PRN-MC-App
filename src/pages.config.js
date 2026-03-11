@@ -72,6 +72,11 @@ import RelatorioMeta from './pages/RelatorioMeta';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
+import MuseusNoMapa from './pages/MuseusNoMapa';
+import MhaabMap from './pages/MhaabMap';
+import MisMap from './pages/MisMap';
+import MumoMap from './pages/MumoMap';
+import ViadutoMap from './pages/ViadutoMap';
 import __Layout from './Layout.jsx';
 
 
@@ -101,6 +106,11 @@ export const PAGES = {
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
+    "MuseusNoMapa": MuseusNoMapa,
+    "MhaabMap": MhaabMap,
+    "MisMap": MisMap,
+    "MumoMap": MumoMap,
+    "ViadutoMap": ViadutoMap,
 }
 
 export const pagesConfig = {

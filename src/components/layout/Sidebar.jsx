@@ -5,7 +5,8 @@ import { base44 } from '@/api/base44Client';
 import {
   Building2, FileText, Users, Eye, Paperclip, Settings, Shield,
   HelpCircle, BarChart3, History, ChevronLeft, ChevronRight,
-  CalendarDays, Layers, BookOpen, ShoppingCart, Banknote, Target, Newspaper
+  CalendarDays, Layers, BookOpen, ShoppingCart, Banknote, Target, Newspaper,
+  Map
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SuggestionForm from '@/components/sidebar/SuggestionForm';
@@ -61,6 +62,12 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: isCoordenador && canViewMenu('can_manage_files') },
         { name: 'ActivityLog', icon: History, label: 'Auditoria', show: isCoordenador },
         { name: 'PlataformaAdmin', icon: Settings, label: 'Plataforma', show: isCoordenador && canViewMenu('can_manage_platform') },
+      ],
+    },
+    {
+      label: 'Territorialidade',
+      items: [
+        { name: 'MuseusNoMapa', icon: Map, label: 'Museus Centro no Mapa', show: true },
       ],
     },
     {
