@@ -66,6 +66,12 @@ export default function FileHierarchy({ backups = [], onPreview, canManageFile, 
   };
 
   const handleDelete = async (file) => {
+    // Validar permissão antes de deletar
+    if (!canManageFile || !canManageFile(file)) {
+      toast.error('Você não tem permissão para deletar este arquivo');
+      return;
+    }
+
     if (!confirm(`Tem certeza que deseja deletar "${file.fileName}"?`)) {
       return;
     }
