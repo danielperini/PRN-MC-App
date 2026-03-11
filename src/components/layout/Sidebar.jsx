@@ -39,7 +39,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
     {
       label: 'Trabalho',
       items: [
-        { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true },
+        { name: 'Relatorios', icon: FileText, label: 'Ajuda, Plano de Trabalho e Relatórios', show: true },
         { name: 'NovaAtividade', icon: Layers, label: 'Atividades', show: true },
         { name: 'CalendarioAtividades', icon: CalendarDays, label: 'Calendário', show: true },
       ],
@@ -66,7 +66,6 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       label: 'Recursos',
       items: [
         { name: 'AssistentePlanejamento', icon: HelpCircle, label: 'Assistente de IA do MC', show: true },
-        { name: 'Relatorios', icon: FileText, label: 'Ajuda, Plano de Trabalho e Relatórios', show: true },
         { name: 'LeitorNoticias', icon: Newspaper, label: 'Curadoria Notícias', show: isCoordenador },
         { name: 'BaseConhecimento', icon: BookOpen, label: 'Conhecimento', show: currentUser?.role === 'admin' },
       ],

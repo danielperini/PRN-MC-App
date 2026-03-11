@@ -9,7 +9,7 @@ import MobileHeader from '@/components/mobile/MobileHeader';
 const PAGE_TITLES = {
   Dashboard: 'Painel',
   DashboardProfissional: 'Meu Painel',
-  Relatorios: 'Relatórios',
+  Relatorios: 'Ajuda, Plano de Trabalho e Relatórios',
   ReportEditor: 'Relatório',
   NovaAtividade: 'Atividades',
   CalendarioAtividades: 'Calendário',
@@ -21,7 +21,7 @@ const PAGE_TITLES = {
   GestorArquivos: 'Arquivos',
   ActivityLog: 'Auditoria',
   PlataformaAdmin: 'Plataforma',
-  AssistentePlanejamento: 'Assistente IA',
+  AssistentePlanejamento: 'Assistente de IA do MC',
   Perfil: 'Perfil',
   BaseConhecimento: 'Conhecimento',
   LeitorNoticias: 'Notícias',
