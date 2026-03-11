@@ -39,7 +39,7 @@ const EMPTY = {
   tipo_gasto: '', centro_custo: '', descricao_item: '', qtd: 1, unidade: 'un',
   valor_solicitado: '', fornecedor_nome: '', fornecedor_cnpj: '', fornecedor_contato: '',
   meio_pagamento: '', detalhe_pagamento: '', observacoes: '', orcamentos: [],
-  activity_id: '', report_id: '',
+  activity_id: '', report_id: '', orcamentos_docs: [], notas_fiscais_docs: [],
 };
 
 export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, onSuccess, prefill }) {
