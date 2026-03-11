@@ -48,6 +48,14 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
     enabled: isOpen && !editingMember,
   });
 
+  const { data: existingMembers = [] } = useQuery({
+    queryKey: ['team-members'],
+    queryFn: () => base44.entities.TeamMember.list(),
+    enabled: isOpen && !editingMember,
+  });
+
+  const availableUsers = users.filter(u => !existingMembers.some(m => m.user_email === u.email));
+
   const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
   const handleContratoUpload = async (file) => {
