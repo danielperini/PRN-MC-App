@@ -126,6 +126,12 @@ function GestorArquivosInner() {
     enabled: !!currentUser?.email
   });
 
+  const { data: invoiceSubmissions = [] } = useQuery({
+    queryKey: ['invoice-submissions'],
+    queryFn: () => base44.entities.InvoiceSubmission.list(),
+    enabled: !!currentUser?.email
+  });
+
   React.useEffect(() => {
     if (duplicates.length > 0 && isCoordinator) {
       setDuplicateWarnings(duplicates);
