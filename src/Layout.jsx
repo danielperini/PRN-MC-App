@@ -5,6 +5,7 @@ import TopNav from '@/components/layout/TopNav';
 import AssistantChat from '@/components/chat/AssistantChat';
 import MobileBottomTab from '@/components/mobile/MobileBottomTab';
 import MobileHeader from '@/components/mobile/MobileHeader';
+import { HelpContextProvider } from '@/components/help/HelpContextProvider';
 
 const PAGE_TITLES = {
   Dashboard: 'Painel',
@@ -38,7 +39,8 @@ export default function Layout({ children, currentPageName }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white">
+    <HelpContextProvider>
+      <div className="min-h-screen bg-white">
       {/* Desktop Sidebar */}
       <div className="hidden md:block">
         <Sidebar 
@@ -71,6 +73,7 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Assistant Chat */}
       <AssistantChat />
-    </div>
+      </div>
+    </HelpContextProvider>
   );
 }
