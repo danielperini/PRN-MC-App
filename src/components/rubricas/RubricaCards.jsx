@@ -5,8 +5,11 @@ import { Card, CardContent } from '@/components/ui/card';
 export default function RubricaCards({ rubricas }) {
   if (!rubricas || rubricas.length === 0) return null;
 
-  const totalValor = rubricas.reduce((sum, r) => sum + (r.valor_rubrica || 0), 0);
-  const totalUtilizado = rubricas.reduce((sum, r) => sum + (r.valor_utilizado || 0), 0);
+  // Filtrar apenas rubricas ativas (sem admin)
+  const activeRubricas = rubricas.filter(r => r.ativo !== false && !r.grupo?.toLowerCase().includes('admin'));
+
+  const totalValor = activeRubricas.reduce((sum, r) => sum + (r.valor_rubrica || 0), 0);
+  const totalUtilizado = activeRubricas.reduce((sum, r) => sum + (r.valor_utilizado || 0), 0);
   const totalSaldo = totalValor - totalUtilizado;
   const percentualGeral = totalValor > 0 ? (totalUtilizado / totalValor) * 100 : 0;
 
