@@ -287,8 +287,6 @@ function DashboardInner() {
               </>
             )}
             </div>
-            )}
-            </div>
             </div>
             </div>
 
