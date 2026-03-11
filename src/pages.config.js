@@ -77,6 +77,7 @@ import MhaabMap from './pages/MhaabMap';
 import MisMap from './pages/MisMap';
 import MumoMap from './pages/MumoMap';
 import ViadutoMap from './pages/ViadutoMap';
+import HelpManagement from './pages/HelpManagement';
 import __Layout from './Layout.jsx';
 
 
@@ -111,6 +112,7 @@ export const PAGES = {
     "MisMap": MisMap,
     "MumoMap": MumoMap,
     "ViadutoMap": ViadutoMap,
+    "HelpManagement": HelpManagement,
 }
 
 export const pagesConfig = {
