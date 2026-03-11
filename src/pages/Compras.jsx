@@ -20,6 +20,9 @@ import ContractActivityReportGenerator from '@/components/compras/ContractActivi
 import FinancialExcelExporter from '@/components/financeiro/FinancialExcelExporter';
 import ExportRubricasExcelButton from '@/components/compras/ExportRubricasExcelButton';
 import { useBudgetLines } from '@/components/compras/useBudgetLines';
+import RubricaDetail from '@/components/rubricas/RubricaDetail';
+import RubricaCards from '@/components/rubricas/RubricaCards';
+import RubricaTable from '@/components/rubricas/RubricaTable';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -36,6 +39,7 @@ function ComprasInner() {
    const [showForm, setShowForm] = useState(false);
    const [showReportGen, setShowReportGen] = useState(false);
    const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '' });
+   const [selectedRubrica, setSelectedRubrica] = useState(null);
    const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -71,6 +75,11 @@ function ComprasInner() {
   });
 
   const { budgetLines } = useBudgetLines();
+
+  const { data: rubricas = [] } = useQuery({
+    queryKey: ['rubricas'],
+    queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 100),
+  });
 
   const filtered = purchases.filter(p => {
     const matchStatus = filters.status === 'all' || p.status === filters.status;
@@ -133,7 +142,8 @@ function ComprasInner() {
                { id: 'lista', label: 'Solicitações' },
                ...(podeVerSaude ? [{ id: 'saude', label: 'Saúde Orçamentária' }] : []),
                { id: 'orcamento', label: 'Orçamento' },
-               ...(podeGerenciarRubricas ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
+               { id: 'rubricas', label: 'Rubricas' },
+               ...(podeGerenciarRubricas ? [{ id: 'rubricas-admin', label: 'Rubricas (Admin)' }] : []),
                ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
                ...(podeAprovarSolicitacoes ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
                ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
@@ -231,13 +241,21 @@ function ComprasInner() {
           </div>
         )}
 
-        {/* Rubricas — apenas para pode_gerenciar_rubricas */}
-         {tab === 'rubricas' && podeGerenciarRubricas && (
+        {/* Rubricas — visão geral para todos */}
+        {tab === 'rubricas' && (
+          <div className="space-y-6">
+            <RubricaCards rubricas={rubricas} />
+            <RubricaTable rubricas={rubricas} onSelectRubrica={setSelectedRubrica} />
+          </div>
+        )}
+
+        {/* Rubricas Admin — apenas para pode_gerenciar_rubricas */}
+        {tab === 'rubricas-admin' && podeGerenciarRubricas && (
             <div className="space-y-6">
               <div className="flex justify-end">
                 <ExportRubricasExcelButton />
               </div>
-              <RubricasGrid budgetLines={budgetLines} purchases={purchases} />
+              <RubricasGrid purchases={purchases} />
             </div>
           )}
 
@@ -286,6 +304,14 @@ function ComprasInner() {
         <ContractActivityReportGenerator
           isOpen={showReportGen}
           onClose={() => setShowReportGen(false)}
+        />
+      )}
+
+      {selectedRubrica && (
+        <RubricaDetail
+          rubrica={selectedRubrica}
+          onClose={() => setSelectedRubrica(null)}
+          onRefresh={() => queryClient.invalidateQueries(['rubricas'])}
         />
       )}
       </div>
