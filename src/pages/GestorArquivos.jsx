@@ -636,114 +636,57 @@ function GestorArquivosInner() {
                 )}
               </div>
            ) : showHistory === 'invoices' ? (
-             <div className="space-y-8">
-               {/* Seção de Notas Fiscais Principais */}
-               <div className="bg-white border border-gray-200 rounded-lg p-6">
-                 <h3 className="text-lg font-semibold mb-4 text-black flex items-center gap-2">
-                   <File className="w-5 h-5" /> Nota Fiscal Principal
-                 </h3>
-                 {invoiceSubmissions.some(inv => inv.notas_fiscais?.length > 0) ? (
-                   <div className="space-y-3">
-                     {invoiceSubmissions
-                       .filter(inv => inv.notas_fiscais?.length > 0)
-                       .flatMap(inv => inv.notas_fiscais.map(nf => ({ ...nf, submissionId: inv.id, userEmail: inv.user_email, userName: inv.user_name })))
-                       .map((nf, idx) => (
-                         <div key={idx} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
-                           <div>
-                             <p className="font-medium text-black">{nf.userName}</p>
-                             <p className="text-sm text-gray-500">NF {nf.numero} • {nf.fornecedor} • R$ {nf.valor?.toLocaleString('pt-BR')}</p>
-                           </div>
-                           <div className="flex gap-2">
-                             {nf.file_url && (
-                               <a 
-                                 href={nf.file_url} 
-                                 target="_blank" 
-                                 rel="noopener noreferrer"
-                                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
-                               >
-                                 <Download className="w-4 h-4" />
-                                 Download
-                               </a>
-                             )}
-                             {(isCoordinator || nf.userEmail === currentUser?.email) && (
-                               <Button
-                                 size="sm"
-                                 variant="outline"
-                                 onClick={() => handleDeleteInvoice(nf.submissionId, invoiceSubmissions.find(s => s.id === nf.submissionId)?.notas_fiscais.indexOf(nf))}
-                                 className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                               >
-                                 <Trash2 className="w-4 h-4" />
-                               </Button>
-                             )}
-                           </div>
+             <div className="bg-white border border-gray-200 rounded-lg p-6">
+               <h3 className="text-lg font-semibold mb-4 text-black flex items-center gap-2">
+                 <File className="w-5 h-5" /> Notas Fiscais
+               </h3>
+               {invoiceSubmissions.some(inv => inv.notas_fiscais?.length > 0) ? (
+                 <div className="space-y-3">
+                   {invoiceSubmissions
+                     .filter(inv => inv.notas_fiscais?.length > 0)
+                     .flatMap(inv => inv.notas_fiscais.map(nf => ({ ...nf, submissionId: inv.id, userEmail: inv.user_email, userName: inv.user_name, data_submissao: inv.data_submissao })))
+                     .sort((a, b) => (b.data_submissao || '').localeCompare(a.data_submissao || ''))
+                     .map((nf, idx) => (
+                       <div key={idx} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                         <div>
+                           <p className="font-medium text-black">{nf.userName}</p>
+                           <p className="text-sm text-gray-500">
+                             NF {nf.numero} • {nf.fornecedor} • R$ {nf.valor?.toLocaleString('pt-BR')}
+                             {nf.data_submissao && ` • ${new Date(nf.data_submissao).toLocaleDateString('pt-BR')}`}
+                           </p>
                          </div>
-                       ))}
-                   </div>
-                 ) : (
-                   <div className="text-center py-8">
-                     <FileText className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                     <p className="text-gray-500">Nenhuma nota fiscal anexada</p>
-                   </div>
-                 )}
-               </div>
-
-               {/* Seção de Notas Fiscais por Período */}
-               <div className="bg-white border border-gray-200 rounded-lg p-6">
-                 <h3 className="text-lg font-semibold mb-4 text-black">Notas Fiscais por Período de Submissão</h3>
-                 {invoiceSubmissions.some(inv => inv.notas_fiscais?.length > 0) ? (
-                   <div className="space-y-4">
-                     {Array.from(new Map(
-                       invoiceSubmissions
-                         .filter(inv => inv.notas_fiscais?.length > 0)
-                         .map(inv => [inv.data_submissao?.substring(0, 7), inv])
-                     ).entries())
-                       .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
-                       .map(([period]) => {
-                         const monthYear = new Date(period + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                         const periodSubmissions = invoiceSubmissions.filter(inv => inv.notas_fiscais?.length > 0 && inv.data_submissao?.substring(0, 7) === period);
-                         return (
-                           <div key={period} className="border border-gray-200 rounded-lg p-4">
-                             <h4 className="font-semibold text-black mb-3">{monthYear}</h4>
-                             <div className="space-y-2">
-                               {periodSubmissions
-                                 .flatMap(inv => inv.notas_fiscais.map(nf => ({ ...nf, userName: inv.user_name })))
-                                 .map((nf, idx) => (
-                                   <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                                     <div>
-                                       <p className="text-sm font-medium text-gray-800">{nf.userName}</p>
-                                       <p className="text-xs text-gray-600">NF {nf.numero} • {nf.fornecedor}</p>
-                                     </div>
-                                     <div className="flex gap-2">
-                                       {nf.file_url && (
-                                         <a 
-                                           href={nf.file_url} 
-                                           target="_blank" 
-                                           rel="noopener noreferrer"
-                                           className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm"
-                                         >
-                                           <ExternalLink className="w-3 h-3" />
-                                         </a>
-                                       )}
-                                       {(isCoordinator || nf.userEmail === currentUser?.email) && (
-                                         <button
-                                           onClick={() => handleDeleteInvoice(nf.submissionId, invoiceSubmissions.find(s => s.id === nf.submissionId)?.notas_fiscais.indexOf(nf))}
-                                           className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 text-sm"
-                                         >
-                                           <Trash2 className="w-3 h-3" />
-                                         </button>
-                                       )}
-                                     </div>
-                                   </div>
-                                 ))}
-                             </div>
-                           </div>
-                         );
-                       })}
-                   </div>
-                 ) : (
-                   <p className="text-center text-gray-500 py-8">Nenhuma nota fiscal com período de submissão</p>
-                 )}
-               </div>
+                         <div className="flex gap-2">
+                           {nf.file_url && (
+                             <a 
+                               href={nf.file_url} 
+                               target="_blank" 
+                               rel="noopener noreferrer"
+                               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                             >
+                               <Download className="w-4 h-4" />
+                               Download
+                             </a>
+                           )}
+                           {(isCoordinator || nf.userEmail === currentUser?.email) && (
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               onClick={() => handleDeleteInvoice(nf.submissionId, invoiceSubmissions.find(s => s.id === nf.submissionId)?.notas_fiscais.indexOf(nf))}
+                               className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                             >
+                               <Trash2 className="w-4 h-4" />
+                             </Button>
+                           )}
+                         </div>
+                       </div>
+                     ))}
+                 </div>
+               ) : (
+                 <div className="text-center py-8">
+                   <FileText className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                   <p className="text-gray-500">Nenhuma nota fiscal anexada</p>
+                 </div>
+               )}
              </div>
            ) : showHistory === 'arquivos' ? (
              <div>
