@@ -127,7 +127,12 @@ export function HelpContextProvider({ children }) {
 export function useHelp() {
   const context = useContext(HelpContext);
   if (!context) {
-    throw new Error('useHelp deve ser usado dentro de HelpContextProvider');
+    // Fallback seguro: retorna funções vazias se usado fora do provider
+    return {
+      getHelpText: async () => null,
+      isHelpEnabled: false,
+      setIsHelpEnabled: () => {},
+    };
   }
   return context;
 }
