@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { BookOpen, Upload, Trash2, Eye, EyeOff, FileText, Plus, X, AlertTriangle, Loader2 } from 'lucide-react';
+import { BookOpen, Upload, Trash2, Eye, EyeOff, FileText, Plus, X, AlertTriangle, Loader2, ListChecks, Users } from 'lucide-react';
+import { METAS_3_ADITIVO, CARGOS_PLANO_TRABALHO, INFO_PROJETO } from '@/components/planoTrabalho';
 
 const CATEGORIAS = ['Contrato', 'Plano de Trabalho', 'Manual', 'Meta', 'Relatório', 'Outro'];
 
