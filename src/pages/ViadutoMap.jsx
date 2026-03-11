@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
-import GoogleMapViewer from '@/components/maps/GoogleMapViewer';
+import SimplifiedMapViewer from '@/components/maps/SimplifiedMapViewer';
 import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, FileText } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function ViadutoMap() {
-  const [selectedPonto, setSelectedPonto] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const { data: pontos = [], refetch } = useQuery({
@@ -20,89 +20,75 @@ export default function ViadutoMap() {
       await base44.functions.invoke('analisarOportunidadesMuseu', {
         museu_sigla: 'Viaduto das Artes',
       });
-      refetch();
+      await refetch();
+      toast.success('Análise concluída!');
     } catch (error) {
-      console.error('Erro ao analisar:', error);
+      toast.error('Erro ao analisar: ' + error.message);
     } finally {
       setIsAnalyzing(false);
     }
   };
 
+  const analise = {
+    total: pontos.length,
+    altaPrioridade: pontos.filter(p => p.prioridade === 'Alta').length,
+    aderenciaMedia: pontos.length > 0 ? Math.round(pontos.reduce((s, p) => s + (p.aderencia_tematica || 0), 0) / pontos.length) : 0,
+    categorias: [...new Set(pontos.map(p => p.categoria).filter(Boolean))],
+    bairros: [...new Set(pontos.map(p => p.bairro).filter(Boolean))],
+  };
+
   return (
-    <div className="h-full flex flex-col">
-      <div className="bg-white border-b p-4 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Viaduto das Artes - Análise Territorial</h1>
-          <p className="text-sm text-gray-600 mt-1">Avenida Olinto Meireles, 45, Barreiro</p>
-        </div>
-        <Button
-          onClick={handleAnalyzeOpportunities}
-          disabled={isAnalyzing}
-          className="gap-2"
-        >
-          <RefreshCw className={`w-4 h-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
-          {isAnalyzing ? 'Analisando...' : 'Analisar com IA'}
-        </Button>
-      </div>
-
-      <div className="flex-1">
-        <GoogleMapViewer
-          pontos={pontos}
-          museKey="Viaduto"
-          onSelectPonto={setSelectedPonto}
-        />
-      </div>
-
-      {selectedPonto && (
-        <div className="absolute bottom-0 right-0 w-80 bg-white rounded-tl-lg shadow-lg border-l border-t p-4 max-h-96 overflow-y-auto">
-          <div className="flex justify-between items-start mb-4">
-            <h2 className="font-bold text-gray-900">{selectedPonto.nome}</h2>
-            <button onClick={() => setSelectedPonto(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+    <div className="min-h-screen bg-white">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
+        <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-semibold text-black tracking-tight">Viaduto das Artes - Análise Territorial</h1>
+            <p className="text-gray-600 mt-2">Avenida Olinto Meireles, 45, Barreiro</p>
           </div>
-          
-          <div className="space-y-3 text-sm">
-            <div>
-              <p className="text-gray-600">Categoria</p>
-              <p className="font-semibold text-gray-900">{selectedPonto.categoria}</p>
-            </div>
-            
-            <div>
-              <p className="text-gray-600">Aderência Temática</p>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                <div
-                  className="bg-blue-600 h-2 rounded-full"
-                  style={{ width: `${selectedPonto.aderencia_tematica || 0}%` }}
-                />
-              </div>
-              <p className="text-gray-700 mt-1">{selectedPonto.aderencia_tematica || 0}%</p>
-            </div>
+          <Button
+            onClick={handleAnalyzeOpportunities}
+            disabled={isAnalyzing}
+            className="bg-black hover:bg-gray-800 text-white gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
+            {isAnalyzing ? 'Analisando...' : 'Analisar com IA'}
+          </Button>
+        </div>
 
-            <div>
-              <p className="text-gray-600">Prioridade</p>
-              <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mt-1 ${
-                selectedPonto.prioridade === 'Alta' ? 'bg-red-100 text-red-800' :
-                selectedPonto.prioridade === 'Média' ? 'bg-yellow-100 text-yellow-800' :
-                'bg-gray-100 text-gray-800'
-              }`}>
-                {selectedPonto.prioridade}
-              </span>
-            </div>
-
-            {selectedPonto.oportunidades_sugeridas?.length > 0 && (
-              <div>
-                <p className="text-gray-600 mb-2">Oportunidades Sugeridas</p>
-                <div className="flex flex-wrap gap-1">
-                  {selectedPonto.oportunidades_sugeridas.map((opp, i) => (
-                    <span key={i} className="bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded">
-                      {opp}
-                    </span>
-                  ))}
+        {pontos.length > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-8">
+            <div className="flex items-start gap-3 mb-4">
+              <FileText className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h2 className="font-semibold text-gray-900 mb-3">📊 Resumo da Análise Territorial</h2>
+                <div className="space-y-2 text-sm text-gray-700">
+                  <p>
+                    <strong>Total de Pontos Identificados:</strong> {analise.total} instituições/locais mapeados para mobilização do Viaduto das Artes
+                  </p>
+                  <p>
+                    <strong>Prioridade Alta:</strong> {analise.altaPrioridade} {analise.altaPrioridade === 1 ? 'ponto' : 'pontos'} com potencial imediato
+                  </p>
+                  <p>
+                    <strong>Aderência Temática Média:</strong> {analise.aderenciaMedia}% de alinhamento com artes visuais, expressão e cultura urbana
+                  </p>
+                  {analise.categorias.length > 0 && (
+                    <p>
+                      <strong>Tipos de Instituições:</strong> {analise.categorias.slice(0, 5).join(', ')}{analise.categorias.length > 5 ? `... (+${analise.categorias.length - 5})` : ''}
+                    </p>
+                  )}
+                  {analise.bairros.length > 0 && (
+                    <p>
+                      <strong>Bairros Cobertos:</strong> {analise.bairros.slice(0, 5).join(', ')}{analise.bairros.length > 5 ? `... (+${analise.bairros.length - 5})` : ''}
+                    </p>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        <SimplifiedMapViewer pontos={pontos} museu="Viaduto das Artes" />
+      </div>
     </div>
   );
 }
