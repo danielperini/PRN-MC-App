@@ -24,6 +24,7 @@ import RubricaDetail from '@/components/rubricas/RubricaDetail';
 import RubricaCards from '@/components/rubricas/RubricaCards';
 import RubricaTable from '@/components/rubricas/RubricaTable';
 import RubricaStatusReport from '@/components/rubricas/RubricaStatusReport';
+import GestaoDocumental from '@/pages/GestaoDocumental';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -138,12 +139,13 @@ function ComprasInner() {
         </div>
 
         {/* Tabs */}
-         <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+         <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit overflow-x-auto">
             {[
                { id: 'lista', label: 'Solicitações' },
                ...(podeVerSaude ? [{ id: 'saude', label: 'Saúde Orçamentária' }] : []),
                { id: 'orcamento', label: 'Orçamento' },
                { id: 'rubricas', label: 'Rubricas' },
+               { id: 'documentos', label: 'Documentos' },
                ...(podeGerenciarRubricas ? [{ id: 'rubricas-admin', label: 'Rubricas (Admin)' }] : []),
                ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
                ...(podeAprovarSolicitacoes ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
@@ -243,18 +245,25 @@ function ComprasInner() {
         )}
 
         {/* Rubricas — visão geral para todos */}
-        {tab === 'rubricas' && (
-          <div className="space-y-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-900">
-                <strong>📊 Integração com Compras:</strong> Esta aba sincroniza automaticamente com as compras aprovadas. Toda solicitação aprovada na aba Compras será mapeada automaticamente para sua rubrica correspondente.
-              </p>
-            </div>
-            <RubricaCards rubricas={rubricas} />
-            <RubricaStatusReport rubricas={rubricas} />
-            <RubricaTable rubricas={rubricas} onSelectRubrica={setSelectedRubrica} />
-          </div>
-        )}
+         {tab === 'rubricas' && (
+           <div className="space-y-6">
+             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+               <p className="text-sm text-blue-900">
+                 <strong>📊 Integração com Compras:</strong> Esta aba sincroniza automaticamente com as compras aprovadas. Toda solicitação aprovada na aba Compras será mapeada automaticamente para sua rubrica correspondente.
+               </p>
+             </div>
+             <RubricaCards rubricas={rubricas} />
+             <RubricaStatusReport rubricas={rubricas} />
+             <RubricaTable rubricas={rubricas} onSelectRubrica={setSelectedRubrica} />
+           </div>
+         )}
+
+         {/* Documentos */}
+         {tab === 'documentos' && (
+           <div className="max-w-7xl">
+             <GestaoDocumental />
+           </div>
+         )}
 
         {/* Rubricas Admin — apenas para pode_gerenciar_rubricas */}
         {tab === 'rubricas-admin' && podeGerenciarRubricas && (
