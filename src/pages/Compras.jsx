@@ -123,7 +123,7 @@ function ComprasInner() {
              ...(hasGestaoCompras ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
              ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
              ...(isCoordenador ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
-             ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Equipe' }] : []),
+             ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
            ].map(t => (
             <button
               key={t.id}
