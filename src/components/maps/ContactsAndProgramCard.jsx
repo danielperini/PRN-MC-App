@@ -23,13 +23,16 @@ export default function ContactsAndProgramCard({ contacts, programmingSuggestion
           {contacts.map((contact, idx) => (
             <div key={idx} className="bg-white rounded-lg p-4 border border-amber-100">
               <button
-                onClick={() => setExpandedIndex(expandedIndex === idx ? null : idx)}
-                className="w-full text-left flex items-center justify-between hover:bg-amber-50 -m-4 p-4 rounded-lg"
+               onClick={() => setExpandedIndex(expandedIndex === idx ? null : idx)}
+               className="w-full text-left flex items-center justify-between hover:bg-amber-50 -m-4 p-4 rounded-lg"
               >
-                <div>
-                  <div className="font-semibold text-gray-900">{contact.nome}</div>
-                  <div className="text-xs text-gray-500">{contact.categoria} • Aderência: {contact.aderencia}%</div>
-                </div>
+               <div className="flex-1">
+                 <div className="font-semibold text-gray-900">{contact.nome}</div>
+                 <div className="text-xs text-gray-500">{contact.categoria} • Aderência: {contact.aderencia}%</div>
+                 {contact.bairro && (
+                   <div className="text-xs text-gray-500 mt-0.5">{contact.bairro}</div>
+                 )}
+               </div>
                 {expandedIndex === idx ? (
                   <ChevronUp className="w-5 h-5 text-gray-400" />
                 ) : (
