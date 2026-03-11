@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { X, Sparkles, AlertTriangle, CheckCircle, Loader2, Upload, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import OrcamentoUploadDialog from './OrcamentoUploadDialog';
+import PurchaseDocumentUpload from './PurchaseDocumentUpload';
 import { METAS_3_ADITIVO } from '@/components/planoTrabalho';
 
 const METAS = METAS_3_ADITIVO.map(m => ({
