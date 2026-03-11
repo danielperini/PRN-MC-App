@@ -10,11 +10,9 @@ import { toast } from 'sonner';
 export default function AprovacoesFila({ purchases, budgetLines, statusConfig, onRefresh, currentUser }) {
   const [loading, setLoading] = useState({});
   const [comentarios, setComentarios] = useState({});
-  const [valoresAdmin, setValoresAdmin] = useState({});
   const [saldos, setSaldos] = useState({});
 
   const pendentes_coord = purchases.filter(p => p.status === 'SOLICITADO');
-  const pendentes_admin = purchases.filter(p => p.status === 'APROVADO_COORD');
 
   const getBudgetLine = (id) => budgetLines.find(l => l.id === id);
 
