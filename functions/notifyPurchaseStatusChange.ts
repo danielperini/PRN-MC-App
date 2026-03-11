@@ -14,19 +14,14 @@ Deno.serve(async (req) => {
     const p = purchase[0];
 
     // Apenas notificar em status específicos
-    if (!['APROVADO_COORD', 'APROVADO_ADMIN', 'RECUSADO'].includes(newStatus)) {
+    if (!['APROVADO', 'RECUSADO'].includes(newStatus)) {
       return Response.json({ success: true, message: 'Status does not require notification' });
     }
 
     // Determinar mensagem baseada no status
     const statusMessages = {
-      APROVADO_COORD: {
-        title: '✅ Sua solicitação foi aprovada pela Coordenação!',
-        desc: 'Sua solicitação foi aprovada e enviada para aprovação administrativa.',
-        icon: '✅'
-      },
-      APROVADO_ADMIN: {
-        title: '✅ Sua solicitação foi completamente aprovada!',
+      APROVADO: {
+        title: '✅ Sua solicitação foi aprovada!',
         desc: 'Sua compra foi aprovada e está pronta para pagamento.',
         icon: '✅'
       },
