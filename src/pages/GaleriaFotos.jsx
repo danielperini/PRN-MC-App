@@ -183,7 +183,9 @@ function GaleriaFotosInner() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-semibold text-black tracking-tight mb-2">Galeria de Fotos</h1>
-          <p className="text-gray-600">Explore as imagens compartilhadas pelos relatórios aprovados</p>
+          <p className="text-gray-600">
+            {canSeeAll ? '📋 Você está vendo todas as fotos' : '👤 Você está vendo apenas suas fotos'}
+          </p>
         </div>
 
         {/* Filtros */}
