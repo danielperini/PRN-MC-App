@@ -66,6 +66,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       label: 'Recursos',
       items: [
         { name: 'AssistentePlanejamento', icon: HelpCircle, label: 'Assistente IA', show: true },
+        { name: 'LeitorNoticias', icon: Newspaper, label: 'Curadoria Notícias', show: isCoordenador },
         { name: 'BaseConhecimento', icon: BookOpen, label: 'Conhecimento', show: currentUser?.role === 'admin' },
       ],
     },
