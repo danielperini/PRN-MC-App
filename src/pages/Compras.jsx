@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShoppingCart, Plus, Search, ShieldCheck, User } from 'lucide-react';
+import { ShoppingCart, Plus, Search, ShieldCheck, User, FileText } from 'lucide-react';
 import RequireAuth from '@/components/auth/RequireAuth';
 import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
 import PurchaseCard from '@/components/compras/PurchaseCard';
@@ -15,6 +15,7 @@ import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
 import RubricaManager from '@/components/compras/RubricaManager';
 import TeamManager from '@/components/compras/TeamManager';
 import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
+import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -27,11 +28,12 @@ const STATUS_CONFIG = {
 };
 
 function ComprasInner() {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [tab, setTab] = useState('lista');
-  const [showForm, setShowForm] = useState(false);
-  const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '' });
-  const queryClient = useQueryClient();
+   const [currentUser, setCurrentUser] = useState(null);
+   const [tab, setTab] = useState('lista');
+   const [showForm, setShowForm] = useState(false);
+   const [showReportGen, setShowReportGen] = useState(false);
+   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '' });
+   const queryClient = useQueryClient();
 
   useEffect(() => {
     base44.auth.me().then(u => setCurrentUser(u));
@@ -105,10 +107,16 @@ function ComprasInner() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button className="bg-black hover:bg-gray-800 text-white" onClick={() => setShowForm(true)}>
-              <Plus className="w-4 h-4 mr-2" />Nova Solicitação
-            </Button>
-          </div>
+             {isCoordenador && (
+               <Button variant="outline" className="border-black gap-2" onClick={() => setShowReportGen(true)}>
+                 <FileText className="w-4 h-4" />
+                 Relatório PDF
+               </Button>
+             )}
+             <Button className="bg-black hover:bg-gray-800 text-white" onClick={() => setShowForm(true)}>
+               <Plus className="w-4 h-4 mr-2" />Nova Solicitação
+             </Button>
+           </div>
         </div>
 
         {/* Tabs */}
@@ -253,10 +261,17 @@ function ComprasInner() {
           }}
         />
       )}
-    </div>
-  );
-}
 
-export default function Compras() {
-  return <RequireAuth><ComprasInner /></RequireAuth>;
-}
+      {showReportGen && (
+        <ContractActivityReportGenerator
+          isOpen={showReportGen}
+          onClose={() => setShowReportGen(false)}
+        />
+      )}
+      </div>
+      );
+      }
+
+      export default function Compras() {
+      return <RequireAuth><ComprasInner /></RequireAuth>;
+      }
