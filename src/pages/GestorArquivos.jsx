@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
-import { Cloud, Calendar, AlertTriangle, HardDrive, ChevronDown, Loader2, FileText, Info, Download, File, ExternalLink, Eye } from 'lucide-react';
+import { Cloud, Calendar, AlertTriangle, HardDrive, ChevronDown, Loader2, FileText, Info, Download, File, ExternalLink, Eye, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -253,6 +253,51 @@ function GestorArquivosInner() {
   const handleImportComplete = () => {
     // Recarregar lista de arquivos
     queryClient.invalidateQueries({ queryKey: ['google-drive-backups'] });
+  };
+
+  const handleDeleteContract = async (memberId) => {
+    if (!window.confirm('Tem certeza que deseja deletar este contrato?')) return;
+    
+    try {
+      await base44.entities.TeamMember.update(memberId, {
+        contrato_url: '',
+        descricao_contrato: '',
+        objeto_contrato: ''
+      });
+      
+      // Deletar anexo relacionado
+      const attachments = await base44.entities.Attachment.filter({ activity_id: memberId });
+      for (const att of attachments) {
+        if (att.description?.includes('Contrato')) {
+          await base44.entities.Attachment.delete(att.id);
+        }
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      toast.success('Contrato deletado com sucesso');
+    } catch (error) {
+      toast.error('Erro ao deletar contrato: ' + error.message);
+    }
+  };
+
+  const handleDeleteInvoice = async (submissionId, nfIndex) => {
+    if (!window.confirm('Tem certeza que deseja deletar esta nota fiscal?')) return;
+    
+    try {
+      const submission = invoiceSubmissions.find(s => s.id === submissionId);
+      const updatedInvoices = submission.notas_fiscais.filter((_, idx) => idx !== nfIndex);
+      const newTotal = updatedInvoices.reduce((sum, nf) => sum + (nf.valor || 0), 0);
+      
+      await base44.entities.InvoiceSubmission.update(submissionId, {
+        notas_fiscais: updatedInvoices,
+        valor_total: newTotal
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ['invoice-submissions'] });
+      toast.success('Nota fiscal deletada com sucesso');
+    } catch (error) {
+      toast.error('Erro ao deletar nota fiscal: ' + error.message);
+    }
   };
 
   if (!currentUser) {
