@@ -20,8 +20,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import MediaUploader from './MediaUploader';
-import MediaGalleryViewer from './MediaGalleryViewer';
+import MediaUploader from '@/components/gallery/MediaUploader';
+import MediaGalleryViewer from '@/components/gallery/MediaGalleryViewer';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const MAX_FILES_PER_REPORT = 30;
