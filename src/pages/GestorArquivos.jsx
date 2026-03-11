@@ -157,6 +157,70 @@ function GestorArquivosInner() {
    }
   };
 
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
+    let totalSize = uploadFiles.reduce((sum, f) => sum + f.size, 0);
+    const validFiles = [];
+
+    files.forEach(file => {
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`${file.name} excede o limite de 100MB`);
+        return;
+      }
+      totalSize += file.size;
+      if (totalSize > MAX_FILE_SIZE) {
+        toast.error('Total de arquivos excede 100MB');
+        return;
+      }
+      validFiles.push(file);
+    });
+
+    setUploadFiles([...uploadFiles, ...validFiles]);
+  };
+
+  const handleUploadFiles = async () => {
+    if (uploadFiles.length === 0) {
+      toast.error('Selecione pelo menos um arquivo');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      for (const file of uploadFiles) {
+        // Fazer upload do arquivo
+        const uploadedFile = await base44.integrations.Core.UploadFile({
+          file: file
+        });
+
+        // Se for PDF, adicionar na base de conhecimento
+        if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+          await base44.asServiceRole.entities.KnowledgeDocument.create({
+            titulo: file.name.replace('.pdf', ''),
+            categoria: 'Documento de Referência',
+            versao: new Date().toLocaleDateString('pt-BR'),
+            descricao: uploadNotes || `Documento adicionado em ${new Date().toLocaleDateString('pt-BR')}`,
+            file_url: uploadedFile.file_url,
+            conteudo_extraido: `Arquivo: ${file.name}`,
+            ativo: true,
+            created_by_email: currentUser.email,
+          });
+          toast.success(`PDF "${file.name}" adicionado à base de conhecimento`);
+        }
+      }
+
+      toast.success(`${uploadFiles.length} arquivo(s) enviado(s) com sucesso`);
+      setUploadFiles([]);
+      setUploadNotes('');
+      setShowUploadDialog(false);
+    } catch (error) {
+      toast.error('Erro ao fazer upload: ' + (error.message || 'desconhecido'));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-6">
