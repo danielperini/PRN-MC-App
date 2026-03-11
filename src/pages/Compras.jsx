@@ -113,14 +113,15 @@ function ComprasInner() {
 
         {/* Tabs */}
          <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
-           {[
-             { id: 'lista', label: 'Solicitações' },
-             { id: 'orcamento', label: 'Orçamento' },
-             ...(hasGestaoCompras ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
-             ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
-             ...(isCoordenador ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
-             ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
-           ].map(t => (
+            {[
+              { id: 'lista', label: 'Solicitações' },
+              { id: 'saude', label: 'Saúde Orçamentária' },
+              { id: 'orcamento', label: 'Orçamento' },
+              ...(hasGestaoCompras ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
+              ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
+              ...(isCoordenador ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
+              ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
+            ].map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
