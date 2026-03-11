@@ -3,7 +3,7 @@ import { ChevronRight, ChevronDown, FileIcon, FolderIcon, Download } from 'lucid
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
-export default function FileHierarchy({ backups = [], onPreview }) {
+export default function FileHierarchy({ backups = [], onPreview, canManageFile, isGeneralCoordinator }) {
   const [expandedReports, setExpandedReports] = useState(new Set());
   const [expandedActivities, setExpandedActivities] = useState(new Set());
 
@@ -141,15 +141,27 @@ export default function FileHierarchy({ backups = [], onPreview }) {
                               {new Date(file.timestamp).toLocaleString('pt-BR')} · {file.size}
                             </p>
                           </div>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDownload(file)}
-                            className="flex-shrink-0"
-                            title="Download"
-                          >
-                            <Download className="w-4 h-4" />
-                          </Button>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDownload(file)}
+                              className="text-blue-600 hover:bg-blue-50"
+                              title="Download"
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                            {canManageFile && canManageFile(file) && isGeneralCoordinator && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-red-600 hover:bg-red-50"
+                                title="Deletar arquivo"
+                              >
+                                🗑️
+                              </Button>
+                            )}
+                          </div>
                         </div>
                         );
                       })}
