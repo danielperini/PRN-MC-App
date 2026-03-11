@@ -59,11 +59,13 @@ Deno.serve(async (req) => {
 
     // Atualizar TeamMember com URL do Drive
     if (member_id) {
-      const memberData = await base44.asServiceRole.entities.TeamMember.get(member_id);
-      await base44.asServiceRole.entities.TeamMember.update(member_id, {
-        ...memberData,
-        contrato_url: `https://drive.google.com/file/d/${driveFile.id}/view`,
-      });
+      try {
+        await base44.asServiceRole.entities.TeamMember.update(member_id, {
+          contrato_url: `https://drive.google.com/file/d/${driveFile.id}/view`,
+        });
+      } catch (e) {
+        console.warn('Aviso ao atualizar TeamMember:', e.message);
+      }
     }
 
     return Response.json({
