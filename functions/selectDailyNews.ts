@@ -222,59 +222,98 @@ Deno.serve(async (req) => {
       selectedHistoricos.push(created);
     }
 
-    // === PARTE 3: 5 ARTIGOS DE REVISTAS SOBRE MUSEOLOGIA/HISTÓRIA/MODA/CINEMA MINEIRO ===
-    const aiArticles = await base44.integrations.Core.InvokeLLM({
-      prompt: `Você é especialista em revistas e artigos acadêmicos sobre: museologia, história de Belo Horizonte, moda mineira, cinema mineiro e história de Minas Gerais.
-    Encontre 5 artigos em revistas GRATUITAS (acesso aberto) sobre esses temas. Priorize:
-    1. Revistas de museologia e patrimônio (ICOM, Anais do Museu...)
-    2. História de Belo Horizonte e Minas Gerais
-    3. Moda mineira e história do design
-    4. Cinema de Minas Gerais
-    5. Revistas de história brasileira com foco regional
+    // === PARTE 3: 5 ARTIGOS DE REVISTAS SOBRE MUSEOLOGIA/ARTE/CULTURA/CINEMA ===
+     const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
-    Retorne links reais de revistas que oferecem acesso gratuito/aberto.
-    Formato: {"artigos":[{"titulo":"...","resumo":"resumo em 2 frases...","link":"https://...","revista":"nome da revista","data_publicacao":"YYYY-MM-DD ou vazio"}]}`,
-      add_context_from_internet: true,
-      response_json_schema: {
-        type: 'object',
-        properties: {
-          artigos: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                titulo: { type: 'string' },
-                resumo: { type: 'string' },
-                link: { type: 'string' },
-                revista: { type: 'string' },
-                data_publicacao: { type: 'string' }
-              }
-            }
-          }
-        }
-      }
-    });
+     const aiArticles = await base44.integrations.Core.InvokeLLM({
+       model: 'claude_sonnet_4_6',
+       prompt: `Você é especialista em revistas especializadas em: museologia, arte, cultura, história de Belo Horizonte, moda mineira e cinema mineiro.
 
-    const existingArticleLinks = new Set(allNews.filter(n => n.fonte === 'artigos_revistas').map(n => n.link));
-    for (const article of (aiArticles?.artigos || [])) {
-      if (selectedArtigos.length >= 5 || !article?.link || existingArticleLinks.has(article.link)) continue;
+    CRITÉRIO ESSENCIAL: Busque APENAS artigos publicados nos últimos 3 meses (desde ${threeMonthsAgo.toLocaleDateString('pt-BR')}).
 
-      const created = await base44.asServiceRole.entities.NewsHighlight.create({
-        titulo: article.titulo || 'Sem título',
-        resumo: `${article.revista ? `[${article.revista}] ` : ''}${article.resumo || ''}`,
-        link: article.link,
-        fonte: 'artigos_revistas',
-        imagem_url: '',
-        data_encontrada: new Date().toISOString(),
-        data_publicacao: article.data_publicacao || '',
-        data_selecao: today,
-        ativo: true,
-        visualizacoes: 0
-      });
+    Encontre 8 artigos em revistas GRATUITAS (acesso aberto) sobre esses temas. Priorize:
+    1. Revistas de museologia e patrimônio (ICOM, Anais do Museu, Museus.br)
+    2. Arte e cultura contemporânea
+    3. História de Belo Horizonte e Minas Gerais
+    4. Moda mineira e história do design
+    5. Cinema de Minas Gerais e videoarte
+    6. Revistas de história brasileira com foco regional
 
-      existingArticleLinks.add(article.link);
-      selectedArtigos.push(created);
-    }
+    IMPORTANTE: Retorne APENAS artigos com data de publicação verificável (últimos 90 dias).
+
+    Formato: {"artigos":[{"titulo":"...","resumo":"resumo em 2 frases...","link":"https://...","revista":"nome da revista","data_publicacao":"YYYY-MM-DD"}]}`,
+       add_context_from_internet: true,
+       response_json_schema: {
+         type: 'object',
+         properties: {
+           artigos: {
+             type: 'array',
+             items: {
+               type: 'object',
+               properties: {
+                 titulo: { type: 'string' },
+                 resumo: { type: 'string' },
+                 link: { type: 'string' },
+                 revista: { type: 'string' },
+                 data_publicacao: { type: 'string' }
+               }
+             }
+           }
+         }
+       }
+     });
+
+     const existingArticleLinks = new Set(allNews.filter(n => n.fonte === 'artigos_revistas').map(n => n.link));
+
+     for (const article of (aiArticles?.artigos || [])) {
+       if (selectedArtigos.length >= 5 || !article?.link || existingArticleLinks.has(article.link)) continue;
+
+       // Validar data de publicação (máximo 3 meses atrás)
+       let pubDate = null;
+       if (article.data_publicacao) {
+         pubDate = new Date(article.data_publicacao);
+         if (isNaN(pubDate.getTime()) || pubDate < threeMonthsAgo) {
+           continue; // Skip artigos fora do prazo
+         }
+       }
+
+       // Verificar se o artigo existe e tem conteúdo válido
+       try {
+         const contentCheck = await base44.integrations.Core.InvokeLLM({
+           model: 'claude_sonnet_4_6',
+           prompt: `Verifique rapidamente este artigo: "${article.titulo}"
+           Link: ${article.link}
+           Data: ${article.data_publicacao}
+
+           É um artigo legítimo sobre museologia, arte, cultura ou cinema? Responda: {"valido": true/false, "motivo": "breve motivo se inválido"}`,
+           response_json_schema: {
+             type: 'object',
+             properties: { valido: { type: 'boolean' }, motivo: { type: 'string' } }
+           }
+         });
+
+         if (!contentCheck?.valido) continue;
+       } catch (e) {
+         // Se não conseguir verificar, pula
+         continue;
+       }
+
+       const created = await base44.asServiceRole.entities.NewsHighlight.create({
+         titulo: article.titulo || 'Sem título',
+         resumo: `${article.revista ? `[${article.revista}] ` : ''}${article.resumo || ''}`,
+         link: article.link,
+         fonte: 'artigos_revistas',
+         imagem_url: '',
+         data_encontrada: new Date().toISOString(),
+         data_publicacao: article.data_publicacao || '',
+         data_selecao: today,
+         ativo: true,
+         visualizacoes: 0
+       });
+
+       existingArticleLinks.add(article.link);
+       selectedArtigos.push(created);
+     }
 
     // Combine all selected
     const selected = [...selectedNoticias, ...selectedHistoricos, ...selectedArtigos];
