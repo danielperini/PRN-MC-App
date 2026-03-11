@@ -1,222 +1,449 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, Loader2, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2, RefreshCw, Download, BookOpen, Video, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MANUAL_CONTENT = {
   title: 'Manual de Instruções - Plataforma Museu Centro',
-  subtitle: 'Relatório Mensal Individual 2026',
-  version: '1.0 - Março de 2026',
+  subtitle: 'Guia Completo com Passo a Passo Ilustrado',
+  version: 'v2.0 - Março de 2026',
   sections: [
     {
-      id: 'visao-geral',
-      title: '🎯 Visão Geral',
-      content: `A Plataforma Museu Centro é um sistema centralizado para registro, acompanhamento e aprovação de relatórios mensais dos profissionais dos museus.
+      id: 'guia-rapido',
+      title: '⚡ Guia Rápido (3 Minutos)',
+      icon: '⚡',
+      content: `PARA PROFISSIONAIS:
+1️⃣ Clique em "Novo Relatório" no Painel
+2️⃣ Selecione: Mês, Ano, Função, Museu
+3️⃣ Adicione atividades com "+ Adicionar Atividade"
+4️⃣ Complete avaliação do mês
+5️⃣ Clique em "Enviar para Revisão"
 
-Objetivos Principais:
-• Facilitar o registro de atividades mensais
-• Documentar oportunidades e desafios
-• Acompanhar aprovação de relatórios
-• Manter histórico centralizado de dados
+PARA COORDENADORES:
+1️⃣ Acesse "Revisão" no menu
+2️⃣ Clique em "Assumir Revisão"
+3️⃣ Leia e analise o relatório
+4️⃣ Clique "Aprovar" ou "Devolver"
 
-Usuários do Sistema:
-• Profissionais: Criam e editam seus relatórios mensais
-• Coordenadores: Revisam e aprovam relatórios
-• Administradores: Gerenciam configurações e usuários`
+✅ Auto-save a cada 5 segundos - você nunca perde dados!`
     },
     {
-      id: 'primeiros-passos',
-      title: '🚀 Primeiros Passos',
-      content: `1. Acessando o Sistema
-  • Acesse a plataforma através do link fornecido
-  • Faça login com seu email corporativo
-  • Complete seu registro se for primeira vez
+      id: 'primeiro-acesso',
+      title: '🚀 Seu Primeiro Acesso',
+      icon: '🚀',
+      content: `PASSO 1: FAZER LOGIN
+└─ Acesse o link da plataforma
+└─ Use seu email corporativo
+└─ Se for primeira vez, complete o registro
 
-2. Sua Primeira Página
-Ao entrar no sistema, você verá o Painel Inicial com:
-  • Números do Projeto: Visão consolidada de atividades e público
-  • Atalhos Rápidos: Acesso rápido às principais funcionalidades
-  • Relatórios Recentes: Últimos relatórios criados/editados
-  • Alertas de Pendências: Se houver relatórios aguardando revisão`
+PASSO 2: CONHECER O PAINEL
+Você verá:
+├─ 📊 Números do Projeto (visão consolidada)
+├─ ⚡ Atalhos Rápidos (botões principais)
+├─ 📋 Relatórios Recentes (últimas ações)
+└─ 🔔 Alertas (se houver pendências)
+
+PASSO 3: EXPLORAR MENU LATERAL
+Clique em cada seção para entender:
+├─ Dashboard: Visão geral
+├─ Relatórios: Seus relatórios
+├─ Calendário: Atividades agendadas
+├─ Suprimentos: Gestão de compras
+└─ Configurações: Sua conta`
     },
     {
-      id: 'para-profissionais',
-      title: '👤 Para Profissionais',
-      content: `CRIANDO UM NOVO RELATÓRIO
+      id: 'criar-relatorio',
+      title: '📝 Criando seu Primeiro Relatório',
+      icon: '📝',
+      content: `PASSO 1: INICIAR
+└─ Na página Dashboard, clique no botão "✚ Novo Relatório" (canto superior direito)
+└─ Você será levado para o editor
 
-Passo 1: Iniciar Novo Relatório
-  • Clique em "Novo Relatório" (botão preto no canto superior direito)
-  • Você será redirecionado para o editor
+PASSO 2: IDENTIFICAÇÃO (Parte superior do editor)
+Preencha:
+├─ Mês de Referência: Qual mês você está reportando?
+├─ Ano: 2026 (já preenchido)
+├─ Nome: Seu nome (automático)
+├─ Função: Educador, Produtor, etc.
+├─ Museu: MHAB, MIS, MUMO ou Viaduto
+└─ Equipe: Comunicação, Educativo, Produção
 
-Passo 2: Preencher Identificação
-  • Mês de Referência: Selecione o mês
-  • Ano: Ano do relatório (padrão: 2026)
-  • Nome do Profissional: Seu nome (pré-preenchido)
-  • Função: Sua função (Educador, Produtor Cultural, etc.)
-  • Museu Principal: Selecione seu museu
+PASSO 3: RESUMO EXECUTIVO
+├─ Campo de texto para resumir o mês
+├─ Dica: Use "Gerar com IA" para sugestões
+└─ Você pode editar o texto livremente
 
-Passo 3: Resumo Executivo
-  • Escreva um resumo das principais atividades
-  • Use "Gerar com IA" para sugestões
-  • Você pode editar o texto gerado livremente
+PASSO 4: ADICIONAR ATIVIDADES (Tab "Atividades")
+Clique em "+ Adicionar Atividade"
 
-Passo 4: Registrar Atividades
-  • Clique em "Atividades"
-  • Clique em "+ Adicionar Atividade"
-  • Preencha: Título, Descrição, Data, Público Estimado, Classificação
-  • Para META: Selecione código, resultado e status
+Para cada atividade, preencha:
+├─ Título: Nome da atividade (obrigatório)
+├─ Descrição: O que foi feito
+├─ Data: Quando realizou
+├─ Público Estimado: Quantas pessoas?
+├─ Quantas Repetições: Se repetiu no mês
+├─ Classificação: META, ROTINA ou EXTRA
+│
+└─ Se META, adicione:
+   ├─ Código Meta
+   ├─ Meta Quantitativa
+   └─ Resultado Alcançado
 
-Passo 5: Adicionar Oportunidades
-  • Clique em "Oportunidades"
-  • Momentos Especiais: Histórias e depoimentos (opcional)
-  • Oportunidades: Descreva oportunidades encontradas
+PASSO 5: OPORTUNIDADES (Tab "Oportunidades")
+├─ Momentos Especiais: Histórias impactantes (opcional)
+└─ Oportunidades: Parcerias/desafios identificados
 
-Passo 6: Avaliação do Mês
-  • Preencha: Pontos Positivos, Dificuldades, Sugestões
-  • MARQUE a checkbox de declaração de responsabilidade
-  • Clique em "Enviar para Revisão"
+PASSO 6: AVALIAÇÃO (Tab "Avaliação")
+Preencha 3 campos obrigatórios:
+├─ Pontos Positivos: O que deu certo?
+├─ Dificuldades: Desafios enfrentados
+└─ Sugestões: Melhorias para próximo mês
 
-SALVANDO E ENVIANDO
-  • Auto-save: Sistema salva a cada 5 segundos
-  • Salvar Rascunho: Fica como DRAFT
-  • Enviar para Revisão: Notifica o coordenador`
+IMPORTANTE:
+└─ ☑️ MARQUE a checkbox de responsabilidade
+└─ ☑️ VERIFIQUE se todas as seções têm ✅
+
+PASSO 7: SALVAR E ENVIAR
+├─ "Salvar Rascunho": Continua editando depois (status DRAFT)
+└─ "Enviar para Revisão": Envia ao coordenador (status SUBMITTED)
+
+💡 Sistema salva automaticamente a cada 5 segundos!`
     },
     {
-      id: 'para-coordenadores',
-      title: '👔 Para Coordenadores',
-      content: `REVISANDO RELATÓRIOS
+      id: 'workflow-coordenador',
+      title: '👔 Workflow para Coordenadores',
+      icon: '👔',
+      content: `ACESSAR RELATÓRIOS PENDENTES
+Caminho: Menu Esquerdo > "Revisão"
 
-1. Acessar Relatórios Pendentes
-  • Clique em "Revisão"
-  • Filtre por museu ou status
-  • Use a busca para encontrar relatórios específicos
+PASSO 1: VER LISTA
+├─ Você vê todos os relatórios aguardando revisão
+├─ Filtre por museu ou status
+└─ Use busca para encontrar específico
 
-2. Workflow de Revisão
+PASSO 2: ASSUMIR REVISÃO
+├─ Clique no relatório
+├─ Clique em "Assumir Revisão"
+└─ Agora você é responsável (status muda para IN_REVIEW)
 
-INICIAR REVISÃO:
-  • Clique em "Assumir Revisão"
-  • Relatório muda para IN_REVIEW
-  • Você é responsável pela revisão
+PASSO 3: REVISAR
+├─ Leia todas as seções com atenção
+├─ Verifique dados e datas
+├─ Analise se as metas foram cumpridas
+└─ Revise comentários dos campos
 
-REVISAR:
-  • Clique em "Ver" para abrir o relatório
-  • Leia todas as seções
-  • Analise dados e observações
+PASSO 4: TOMAR DECISÃO
 
-DEVOLVER (se necessário):
-  • Clique em "Devolver"
-  • Escreva comentários por seção
-  • Profissional receberá notificação
+OPÇÃO A: DEVOLVER (precisa ajustes)
+├─ Clique em "Devolver"
+├─ Adicione comentários por seção
+├─ Explique o que precisa melhorar
+└─ Profissional será notificado
 
-APROVAR:
-  • Clique em "Aprovar"
-  • (Opcional) Adicione observação
-  • Relatório muda para APPROVED
+OPÇÃO B: APROVAR (tudo OK)
+├─ Clique em "Aprovar"
+├─ Adicione observação (opcional)
+├─ Relatório muda para APPROVED
+└─ Será arquivado automaticamente
 
 PAINEL DE COORDENAÇÃO
-  • Visão geral de números
-  • Carousel de momentos publicados
-  • Métricas de atividades
-  • Análise de oportunidades
-  • Compliance Panel
-  • Log completo de aprovações`
+├─ Números consolidados
+├─ Carousel de momentos
+├─ Análise de oportunidades
+├─ Compliance tracking
+└─ Log completo de aprovações
+
+💡 Cada ação é registrada no histórico!`
     },
     {
-      id: 'funcionalidades-avancadas',
-      title: '✨ Funcionalidades Avançadas',
+      id: 'recursos-avancados',
+      title: '✨ Recursos Avançados',
+      icon: '✨',
       content: `EXPORTAR EM PDF
-  • Abra um relatório
-  • Clique em "Gerar PDF"
-  • Arquivo é baixado automaticamente
+├─ Abra um relatório aprovado
+├─ Clique em "Gerar PDF" (canto superior)
+└─ Arquivo baixa automaticamente
 
 BUSCA E FILTROS
-  • Use barra de busca por nome, museu, mês ou atividade
-  • Clique em "Filtros" para filtrar por múltiplos critérios
-  • Aplique os filtros desejados
+├─ Barra de busca: Nome, museu, mês ou atividade
+├─ Botão "Filtros": Múltiplos critérios
+└─ "Limpar Filtros": Volta ao padrão
 
 TEMPLATES DE RELATÓRIOS
-  Salvar Como Template:
-    • Clique em "Salvar como Template"
-    • Dê nome e descrição
-    • Escolha seções a incluir
-  
-  Carregar de Template:
-    • Clique em "Carregar Template"
-    • Selecione de seus templates ou públicos
-    • Dados são pré-preenchidos
+Economize tempo reutilizando estruturas!
 
-ANÁLISE DE ATIVIDADES
-  • Visualize gráficos consolidados
-  • Filtre por equipe, museu e período
-  • Veja resumos de público e tipos
+Salvar como Template:
+├─ Clique em "Salvar como Template"
+├─ Dê nome descritivo
+├─ Escolha quais seções incluir
+└─ Público ou privado
 
-EXPORTAR CSV
-  • Clique em "Exportar CSV"
-  • Dados estruturados para análise em Excel`
+Carregar de Template:
+├─ Clique em "Carregar Template"
+├─ Selecione um modelo
+└─ Dados são pré-preenchidos
+
+ANÁLISE DE ATIVIDADES (Dashboard)
+├─ Gráficos consolidados
+├─ Filtro por equipe, museu, período
+├─ Resumo de público por tipo
+└─ Tendências e insights
+
+GALERIA DE ARQUIVOS
+├─ Armazene anexos de relatórios
+├─ Backup automático para Google Drive
+├─ Histórico de versões
+└─ Download de qualquer arquivo
+
+INTEGRAÇÃO COM IA
+├─ "Gerar com IA": Sugestões para seções
+├─ Análise automática de compliance
+├─ Detecção de duplicatas
+└─ Resumos inteligentes`
     },
     {
-      id: 'duvidas-frequentes',
-      title: '❓ Dúvidas Frequentes',
-      content: `P: Perdi meu relatório em rascunho?
-R: Todos os rascunhos são salvos automaticamente. Acesse "Relatórios" e procure pelo status DRAFT.
+      id: 'status-entender',
+      title: '🔄 Entender os Status',
+      icon: '🔄',
+      content: `Cada relatório passa por um ciclo de vida:
 
-P: Posso editar após enviar?
-R: Não. Se o coordenador devolver (status RETURNED), você poderá editar novamente.
+🟢 DRAFT (Rascunho)
+└─ Status inicial, você está editando
+└─ Pode editar, deletar, ou enviar
+└─ Ninguém vê este relatório ainda
 
-P: O que significa cada status?
-• DRAFT: Rascunho em progresso
-• SUBMITTED: Enviado, aguardando revisão
-• IN_REVIEW: Coordenador está revisando
-• RETURNED: Devolvido para ajustes
-• APPROVED: Aprovado, pode exportar
-• ARCHIVED: Arquivado, não pode editar
+🔵 SUBMITTED (Enviado)
+└─ Você clicou "Enviar para Revisão"
+└─ Aguardando coordenador revisar
+└─ Você NÃO pode mais editar
 
-P: Como vejo comentários do coordenador?
-R: Ao abrir relatório RETURNED, comentários aparecem em caixa vermelha no topo.
+🟡 IN_REVIEW (Em Revisão)
+└─ Coordenador clicou "Assumir Revisão"
+└─ Está sendo analisado
+└─ Profissional aguarda decisão
 
-P: Existe limite de tempo para enviar?
-R: Recomenda-se enviar até o final do mês.
+🔴 RETURNED (Devolvido)
+└─ Coordenador pediu ajustes
+└─ Você PODE editar novamente
+└─ Após ajustar, envie novamente
 
-P: Posso deletar um relatório?
-R: Apenas relatórios DRAFT podem ser deletados por você.
+🟢 APPROVED (Aprovado)
+└─ Coordenador aprovou ✅
+└─ Relatório está finalizado
+└─ Pode ser exportado em PDF
+└─ Será automaticamente arquivado em 30 dias
 
-P: Profissionais podem ver relatórios uns dos outros?
-R: Não. Cada profissional vê apenas seus relatórios.`
+⚫ ARCHIVED (Arquivado)
+└─ Relatório foi arquivado
+└─ Ainda está acessível para leitura
+└─ Não pode mais ser editado`
     },
     {
-      id: 'glossario',
-      title: '📚 Glossário',
-      content: `META: Atividades relacionadas a objetivos específicos do 3º Aditivo
-ROTINA: Atividades habituais do departamento
-EXTRA: Atividades adicionais ou extraordinárias
-Público Estimado: Quantidade aproximada de pessoas impactadas
-Template: Modelo reutilizável de relatório
-Draft: Rascunho não enviado
-Compliance: Conformidade com requisitos de envio
-Auto-save: Salvamento automático de dados`
+      id: 'dicas-profissionais',
+      title: '💡 Dicas Profissionais',
+      icon: '💡',
+      content: `ANTES DE COMEÇAR
+☑️ Organize seus dados:
+   ├─ Lista de atividades realizadas
+   ├─ Datas exatas
+   ├─ Números de público
+   ├─ Fotos ou documentos
+   └─ Observações de desafios
+
+DURANTE A EDIÇÃO
+✅ Preencha as seções em ordem (de cima para baixo)
+✅ Seja específico e honesto nos dados
+✅ Use "Gerar com IA" para ganhar tempo
+✅ Salve a cada seção importante
+✅ Se desconectar, continue do rascunho
+✅ Revise tudo antes de enviar
+
+ANTES DE ENVIAR
+✅ Verifique todas as seções com ✅
+✅ Releia o texto gerado pela IA
+✅ Corrija erros de digitação
+✅ Revise datas e números
+✅ Marque o checkbox de responsabilidade
+✅ Clique em "Enviar para Revisão"
+
+SE DEVOLVER PARA VOCÊ
+✅ Leia cuidadosamente os comentários
+✅ Abra a aba "Devoluções" para ver feedback
+✅ Faça os ajustes solicitados
+✅ Explique mudanças importantes
+✅ Envie novamente
+
+COMUNICAÇÃO COM COORDENADOR
+✅ Envie antes do final do mês
+✅ Se tiver dúvida, pergunte logo
+✅ Ao devolver, respeite os prazos
+✅ Mantenha dados precisos
+✅ Comunique qualquer problema`
     },
     {
-      id: 'dicas-uteis',
-      title: '🎓 Dicas Úteis',
-      content: `✅ Salve frequentemente enquanto edita
+      id: 'troubleshooting',
+      title: '❓ Solução de Problemas',
+      icon: '❓',
+      content: `PROBLEMA: Meu relatório desapareceu
+SOLUÇÃO:
+├─ Acesse "Relatórios" no menu
+├─ Procure pelo status "DRAFT"
+├─ Procure por data
+└─ Sistema salva automaticamente, sempre está lá!
+
+PROBLEMA: Não consigo editar após enviar
+SOLUÇÃO:
+└─ Normal! Só pode editar se coordenador devolver (RETURNED)
+└─ Aguarde decisão do coordenador
+
+PROBLEMA: Esqueci o que escrevi em uma seção
+SOLUÇÃO:
+├─ Abra o relatório
+├─ Clique em cada aba para revisar
+└─ Histórico de versões está disponível
+
+PROBLEMA: Quero editar um relatório aprovado
+SOLUÇÃO:
+└─ Não é possível editar APPROVED
+└─ Crie um novo relatório para o mês seguinte
+└─ Ou contate um administrador
+
+PROBLEMA: Não consigo fazer upload de arquivo
+SOLUÇÃO:
+├─ Verifique tamanho (máx 100MB)
+├─ Tente outro formato
+├─ Verifique conexão internet
+└─ Acesse "Galeria de Arquivos"
+
+PROBLEMA: Não recebi notificação do coordenador
+SOLUÇÃO:
+├─ Verifique email spam/lixo
+├─ Acesse "Notificações" no app
+├─ Contate coordenador diretamente
+└─ Verifique se email está atualizado
+
+PROBLEMA: Gráficos não estão mostrando
+SOLUÇÃO:
+├─ Atualize a página (F5)
+├─ Limpe cache do navegador
+├─ Tente outro navegador
+└─ Contate suporte se persistir
+
+PRECISO DE AJUDA?
+├─ Esta página: "Manual de Instruções"
+├─ Passe o mouse sobre elementos → aparece ajuda
+├─ Contate seu coordenador
+└─ Email suporte: projeto@museuscentro.sp.gov.br`
+    },
+    {
+      id: 'glossario-termos',
+      title: '📚 Glossário de Termos',
+      icon: '📚',
+      content: `TERMOS PRINCIPAIS:
+
+META
+└─ Atividades relacionadas aos objetivos do 3º Aditivo
+└─ Exemplo: "Realizar 20 visitas escolares"
+└─ Obrigatório informar resultado
+
+ROTINA
+└─ Atividades habituais do departamento
+└─ Exemplo: "Atender visitantes"
+└─ Contínua durante o mês
+
+EXTRA
+└─ Atividades adicionais ou extraordinárias
+└─ Exemplo: "Reparos no museu"
+└─ Sem período definido
+
+PÚBLICO ESTIMADO
+└─ Número aproximado de pessoas impactadas
+└─ Exemplo: 50 alunos em uma oficina
+└─ Multiplicar por repetições para total
+
+TEMPLATE
+└─ Modelo reutilizável de relatório
+└─ Economiza tempo nos próximos meses
+└─ Pode ser pessoal ou compartilhado
+
+DRAFT (Rascunho)
+└─ Relatório em edição, não enviado ainda
+└─ Salvo automaticamente
+└─ Apenas você vê
+
+COMPLIANCE
+└─ Conformidade com requisitos
+└─ Todas as seções preenchidas?
+└─ Dados válidos?
+
+AUTO-SAVE
+└─ Salvamento automático a cada 5 segundos
+└─ Você nunca perde dados
+└─ Funciona mesmo desconectado (sincroniza depois)
+
+PROTOCOLO
+└─ Número único do relatório
+└─ Formato: MC-MESANO-XXXXX
+└─ Gerado automaticamente ao enviar
+
+DEVOLVER
+└─ Coordenador pediu ajustes
+└─ Você pode editar novamente
+└─ Enviar de novo após corrigir`
+    },
+    {
+      id: 'boas-praticas',
+      title: '⭐ Boas Práticas',
+      icon: '⭐',
+      content: `ORGANIZAÇÃO
+✅ Use títulos descritivos nas atividades
+✅ Datas exatas, não "aproximadamente"
+✅ Números precisos, não estimativas
+✅ Agrupe atividades similares
+✅ Revise antes de enviar
+
+QUALIDADE DOS DADOS
+✅ Público realista (não exagerar)
+✅ Datas consistentes (sem contradições)
+✅ Descrições claras e profissionais
+✅ Erros corrigidos antes de enviar
+✅ Evidências (fotos, documentos) anexadas
+
+COMUNICAÇÃO
+✅ Texto profissional e respeitoso
+✅ Explique desafios, não reclame
+✅ Sugira soluções, não apenas problemas
+✅ Reconheça successo da equipe
+✅ Cite parcerias
+
+PRAZOS
+✅ Envie com antecedência (até dia 25)
+✅ Se devolver, corrija em 2-3 dias
+✅ Não deixe acumular relatórios
+✅ Acompanhe status regularmente
+✅ Comunique atrasos ao coordenador
+
+SEGURANÇA
+✅ Nunca compartilhe senha
+✅ Faça logout ao terminar (se público)
+✅ Não deixe dados sensíveis abertos
+✅ Verifique integridade dos arquivos
+✅ Reporte problemas de segurança
+
+EFICIÊNCIA
 ✅ Use templates para relatórios similares
-✅ Revise antes de enviar - não há volta atrás
-✅ Complete todas as seções obrigatórias
-✅ Inclua dados precisos em públicos e datas
-✅ Aproveite a IA para sugestões rápidas
-✅ Comunique-se com coordenadores sobre prazos
-✅ Revise os comentários devolvidos com atenção
-✅ Mantenha um histórico local dos seus dados
-✅ Use filtros para encontrar relatórios rapidamente`
+✅ Copie de relatórios anteriores se similar
+✅ Use IA para sugestões iniciais
+✅ Organise cronograma de envio
+✅ Mantenha histórico local (backup próprio)`
     }
   ]
 };
 
 export default function ManualInstrucoes() {
   const [expandedSections, setExpandedSections] = useState({});
-  const [generatedSections, setGeneratedSections] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [printMode, setPrintMode] = useState(false);
 
   const toggleSection = (id) => {
     setExpandedSections(prev => ({
@@ -225,72 +452,97 @@ export default function ManualInstrucoes() {
     }));
   };
 
-  const handleGenerateManual = async () => {
-    setLoading(true);
-    try {
-      const response = await base44.functions.invoke('generatePageManual', {});
-      if (response.data.success) {
-        setGeneratedSections(response.data.sections);
-        toast.success('Manual gerado com sucesso!');
-      } else {
-        toast.error('Erro ao gerar manual');
-      }
-    } catch (error) {
-      toast.error('Erro: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
+  const expandAll = () => {
+    const all = {};
+    MANUAL_CONTENT.sections.forEach(s => {
+      all[s.id] = true;
+    });
+    setExpandedSections(all);
+  };
+
+  const collapseAll = () => {
+    setExpandedSections({});
   };
 
   return (
-    <div className="min-h-screen bg-white py-12 px-6">
-      <div className="max-w-3xl mx-auto">
+    <div className={`min-h-screen bg-gradient-to-br from-slate-50 to-white py-8 md:py-12 px-4 md:px-6 ${printMode ? 'print:bg-white' : ''}`}>
+      <div className="max-w-4xl mx-auto">
+        
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-black mb-2">{MANUAL_CONTENT.title}</h1>
-          <p className="text-gray-500 text-lg mb-2">{MANUAL_CONTENT.subtitle}</p>
-          <p className="text-xs text-gray-400">{MANUAL_CONTENT.version}</p>
+        <div className="text-center mb-10 md:mb-14 print:mb-6">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <BookOpen className="w-8 h-8 md:w-10 md:h-10 text-blue-600" />
+            <h1 className="text-3xl md:text-4xl font-bold text-slate-900">{MANUAL_CONTENT.title}</h1>
+          </div>
+          <p className="text-lg text-slate-600 mb-1">{MANUAL_CONTENT.subtitle}</p>
+          <p className="text-xs text-slate-500">{MANUAL_CONTENT.version}</p>
         </div>
 
         {/* Table of Contents */}
-        <div className="mb-12 p-6 bg-gray-50 rounded-2xl border border-gray-100">
-          <h2 className="text-base font-semibold text-black mb-4">📋 Índice</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="mb-10 p-6 md:p-8 bg-white border-2 border-slate-200 rounded-2xl shadow-sm print:border-slate-400">
+          <h2 className="text-lg font-bold text-slate-900 mb-4">📖 Índice Interativo</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             {MANUAL_CONTENT.sections.map(section => (
-              <a
+              <button
                 key={section.id}
-                href={`#${section.id}`}
-                className="text-sm text-gray-600 hover:text-black transition-colors"
+                onClick={() => {
+                  const el = document.getElementById(section.id);
+                  el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  toggleSection(section.id);
+                }}
+                className="text-left p-3 rounded-lg hover:bg-blue-50 transition-colors group"
               >
-                • {section.title}
-              </a>
+                <span className="text-xl mr-2">{section.icon}</span>
+                <span className="text-slate-700 group-hover:text-blue-700 font-medium">{section.title.replace(/^[^a-zA-Z]+\s+/, '')}</span>
+              </button>
             ))}
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              onClick={expandAll}
+              variant="outline"
+              size="sm"
+              className="text-xs border-slate-300"
+            >
+              ↗️ Expandir Tudo
+            </Button>
+            <Button
+              onClick={collapseAll}
+              variant="outline"
+              size="sm"
+              className="text-xs border-slate-300"
+            >
+              ↙️ Recolher Tudo
+            </Button>
           </div>
         </div>
 
         {/* Sections */}
-        <div className="space-y-4">
+        <div className="space-y-4 print:space-y-3">
           {MANUAL_CONTENT.sections.map(section => (
             <div
               key={section.id}
               id={section.id}
-              className="border border-gray-200 rounded-xl overflow-hidden"
+              className="border-2 border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white print:page-break-inside-avoid"
             >
               <button
                 onClick={() => toggleSection(section.id)}
-                className="w-full p-6 bg-white hover:bg-gray-50 flex items-center justify-between transition-colors"
+                className="w-full p-5 md:p-6 hover:bg-slate-50 flex items-center justify-between transition-colors print:pointer-events-none print:bg-white print:p-4"
               >
-                <h2 className="text-lg font-semibold text-black text-left">{section.title}</h2>
-                {expandedSections[section.id] ? (
-                  <ChevronUp className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl md:text-3xl">{section.icon}</span>
+                  <h2 className="text-lg md:text-xl font-bold text-slate-900 text-left">{section.title}</h2>
+                </div>
+                {!printMode && (expandedSections[section.id] ? (
+                  <ChevronUp className="w-5 h-5 text-slate-400 flex-shrink-0" />
                 ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                )}
+                  <ChevronDown className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                ))}
               </button>
 
-              {expandedSections[section.id] && (
-                <div className="border-t border-gray-100 p-6 bg-gray-50">
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+              {(expandedSections[section.id] || printMode) && (
+                <div className="border-t-2 border-slate-100 p-5 md:p-6 bg-slate-50 print:bg-white">
+                  <div className="text-sm md:text-base text-slate-700 whitespace-pre-wrap leading-relaxed font-mono space-y-2">
                     {section.content}
                   </div>
                 </div>
@@ -299,61 +551,41 @@ export default function ManualInstrucoes() {
           ))}
         </div>
 
-        {/* Footer */}
-        <div className="mt-12 pt-8 border-t border-gray-200 text-center text-xs text-gray-500">
-          <p>Última atualização: Março de 2026</p>
-          <p className="mt-1">Entre em contato com seu coordenador para dúvidas não abordadas</p>
+        {/* Footer & Actions */}
+        <div className="mt-10 md:mt-14 pt-6 md:pt-8 border-t-2 border-slate-200">
+          <div className="text-center mb-6 md:mb-8 text-sm text-slate-600 print:text-slate-700">
+            <p className="font-medium">Última atualização: Março de 2026</p>
+            <p className="mt-1">Dúvidas não abordadas? Contate seu coordenador ou acesse a base de conhecimento</p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-center gap-3 print:hidden">
+            <Button
+              onClick={() => setPrintMode(!printMode)}
+              className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+            >
+              <BookOpen className="w-4 h-4" />
+              {printMode ? 'Sair do Modo Impressão' : 'Modo Impressão'}
+            </Button>
+            <Button
+              onClick={() => window.print()}
+              className="bg-slate-800 hover:bg-slate-900 text-white gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Imprimir / Salvar como PDF
+            </Button>
+          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="mt-8 flex flex-col md:flex-row justify-center gap-4">
-          <Button
-            onClick={() => window.print()}
-            className="bg-black hover:bg-gray-800 text-white"
-          >
-            📄 Imprimir Manual
-          </Button>
-          <Button
-            onClick={handleGenerateManual}
-            disabled={loading}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-            {loading ? 'Gerando...' : 'Atualizar com IA'}
-          </Button>
-        </div>
-
-        {/* Generated Sections */}
-        {generatedSections && (
-          <div className="mt-12 pt-8 border-t border-gray-200">
-            <h2 className="text-2xl font-bold text-black mb-6">📚 Documentação Gerada por IA</h2>
-            <div className="space-y-4">
-              {generatedSections.map((section, idx) => (
-                <div key={idx} className="border border-gray-200 rounded-xl overflow-hidden">
-                  <button
-                    onClick={() => toggleSection(`gen-${idx}`)}
-                    className="w-full p-6 bg-blue-50 hover:bg-blue-100 flex items-center justify-between transition-colors"
-                  >
-                    <h3 className="text-lg font-semibold text-blue-900 text-left">{section.displayName}</h3>
-                    {expandedSections[`gen-${idx}`] ? (
-                      <ChevronUp className="w-5 h-5 text-blue-400 flex-shrink-0" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-blue-400 flex-shrink-0" />
-                    )}
-                  </button>
-
-                  {expandedSections[`gen-${idx}`] && (
-                    <div className="border-t border-blue-100 p-6 bg-white">
-                      <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed font-sans">
-                        {section.content}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+        {/* Info Box */}
+        <div className="mt-8 p-4 md:p-6 bg-blue-50 border-l-4 border-blue-600 rounded-lg print:hidden">
+          <div className="flex gap-3">
+            <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-blue-900 space-y-1">
+              <p><strong>💡 Dica:</strong> Passe o mouse sobre botões e campos na plataforma para receber ajuda contextual automática.</p>
+              <p><strong>📞 Suporte:</strong> Se tiver dúvidas, seu coordenador está sempre disponível para ajudar.</p>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
