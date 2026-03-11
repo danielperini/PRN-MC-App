@@ -192,7 +192,12 @@ Responda em JSON com: { "seguro": true/false, "risco_nivel": "baixo|medio|alto",
                 size="sm"
                 variant={showApproval ? 'default' : 'outline'}
                 className={showApproval ? 'bg-black text-white text-xs' : 'text-xs'}
-                onClick={() => setShowApproval(!showApproval)}
+                onClick={() => {
+                  setShowApproval(!showApproval);
+                  if (!showApproval && !aiSecurityAnalysis) {
+                    analyzeSecurityPayment();
+                  }
+                }}
               >
                 {showApproval ? 'Fechar' : 'Analisar'}
               </Button>
