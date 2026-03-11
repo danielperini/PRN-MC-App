@@ -78,6 +78,7 @@ import MisMap from './pages/MisMap';
 import MumoMap from './pages/MumoMap';
 import ViadutoMap from './pages/ViadutoMap';
 import HelpManagement from './pages/HelpManagement';
+import DashboardFinanceiro from './pages/DashboardFinanceiro';
 import __Layout from './Layout.jsx';
 
 
@@ -113,6 +114,7 @@ export const PAGES = {
     "MumoMap": MumoMap,
     "ViadutoMap": ViadutoMap,
     "HelpManagement": HelpManagement,
+    "DashboardFinanceiro": DashboardFinanceiro,
 }
 
 export const pagesConfig = {
