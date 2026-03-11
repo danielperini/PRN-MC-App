@@ -70,6 +70,7 @@ import GestorArquivos from './pages/GestorArquivos';
 import HelpManagement from './pages/HelpManagement';
 import Home from './pages/Home';
 import LeitorNoticias from './pages/LeitorNoticias';
+import MeusDados from './pages/MeusDados';
 import MhaabMap from './pages/MhaabMap';
 import MisMap from './pages/MisMap';
 import MonitoringPanel from './pages/MonitoringPanel';
@@ -86,7 +87,6 @@ import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
 import ViadutoMap from './pages/ViadutoMap';
-import MeusDados from './pages/MeusDados';
 import __Layout from './Layout.jsx';
 
 
@@ -114,6 +114,7 @@ export const PAGES = {
     "HelpManagement": HelpManagement,
     "Home": Home,
     "LeitorNoticias": LeitorNoticias,
+    "MeusDados": MeusDados,
     "MhaabMap": MhaabMap,
     "MisMap": MisMap,
     "MonitoringPanel": MonitoringPanel,
@@ -130,7 +131,6 @@ export const PAGES = {
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
     "ViadutoMap": ViadutoMap,
-    "MeusDados": MeusDados,
 }
 
 export const pagesConfig = {

@@ -227,5 +227,5 @@ function Section({ title, children }) {
 }
 
 export default function MeusDados() {
-  return <RequireAuth><MeusDadosInner /></RequireAuth>;
+  return <RequireAuth requireRole={['admin', 'COORDENADOR', 'user']}><MeusDadosInner /></RequireAuth>;
 }
