@@ -83,6 +83,8 @@ import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
 import ViadutoMap from './pages/ViadutoMap';
 import GeradorTermoCompromisso from './pages/GeradorTermoCompromisso';
+import Fornecedores from './pages/Fornecedores';
+import PrestacaoDeContas from './pages/PrestacaoDeContas';
 import __Layout from './Layout.jsx';
 
 
@@ -123,6 +125,8 @@ export const PAGES = {
     "UserManagement": UserManagement,
     "ViadutoMap": ViadutoMap,
     "GeradorTermoCompromisso": GeradorTermoCompromisso,
+    "Fornecedores": Fornecedores,
+    "PrestacaoDeContas": PrestacaoDeContas,
 }
 
 export const pagesConfig = {
