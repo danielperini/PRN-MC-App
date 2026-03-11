@@ -3,42 +3,50 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const { user_email, user_name, purchase_description, old_status, new_status, comments } = await req.json();
+    const { purchaseId, newStatus, comentario } = await req.json();
 
-    if (!user_email || !new_status) {
-      return Response.json({ error: 'Parâmetros obrigatórios faltando' }, { status: 400 });
+    if (!purchaseId || !newStatus) {
+      return Response.json({ error: 'purchaseId e newStatus são obrigatórios' }, { status: 400 });
     }
 
-    const statusLabels = {
-      'pendente': 'Pendente de Análise',
-      'aprovado': 'Aprovado ✅',
-      'rejeitado': 'Rejeitado ❌',
-      'pago': 'Pago',
+    // Buscar a compra para obter dados do usuário e descrição
+    const purchases = await base44.asServiceRole.entities.PurchaseRequest.filter({ id: purchaseId });
+    if (!purchases || purchases.length === 0) {
+      return Response.json({ error: 'Compra não encontrada' }, { status: 404 });
+    }
+
+    const purchase = purchases[0];
+    const userEmail = purchase.created_by;
+    const userName = purchase.created_by; // Usar email como fallback
+
+    // Mapeamento de status para labels em português
+    const statusMap = {
+      'RASCUNHO': { label: 'Rascunho', emoji: '📝' },
+      'ENVIADO_COORD': { label: 'Enviado para Coordenação', emoji: '📨' },
+      'APROVADO_COORD': { label: 'Aprovado pela Coordenação ✅', emoji: '✅' },
+      'RECUSADO': { label: 'Recusado ❌', emoji: '❌' },
+      'PAGO': { label: 'Pago 💳', emoji: '💳' },
     };
 
-    const statusEmojis = {
-      'aprovado': '✅',
-      'rejeitado': '❌',
-      'pago': '💳',
-      'pendente': '⏳',
-    };
+    const statusInfo = statusMap[newStatus] || { label: newStatus, emoji: '📋' };
 
-    const subject = `${statusEmojis[new_status] || '📋'} Sua solicitação de compra foi ${statusLabels[new_status] || new_status}`;
-
-    let body = `Olá ${user_name},\n\n`;
+    let subject = `${statusInfo.emoji} Sua solicitação de compra: ${statusInfo.label}`;
+    
+    let body = `Olá,\n\n`;
     body += `Sua solicitação de compra foi atualizada:\n\n`;
-    body += `📝 Descrição: ${purchase_description || 'Sem descrição'}\n`;
-    body += `Status anterior: ${statusLabels[old_status] || old_status}\n`;
-    body += `Novo status: ${statusLabels[new_status] || new_status}\n`;
+    body += `📝 Item: ${purchase.descricao_item || 'Sem descrição'}\n`;
+    body += `💰 Valor: R$ ${parseFloat(purchase.valor_solicitado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+    body += `📊 Novo Status: ${statusInfo.label}\n`;
 
-    if (comments) {
-      body += `\n💬 Comentários:\n${comments}\n`;
+    if (comentario) {
+      body += `\n💬 Comentários do Coordenador:\n${comentario}\n`;
     }
 
-    body += `\nAcesse a plataforma para mais detalhes.\n\nPlataforma Museus Centro`;
+    body += `\nAcesse a plataforma para mais detalhes sobre sua solicitação.\n\n`;
+    body += `Plataforma Museus Centro`;
 
     await base44.integrations.Core.SendEmail({
-      to: user_email,
+      to: userEmail,
       subject,
       body,
     });
