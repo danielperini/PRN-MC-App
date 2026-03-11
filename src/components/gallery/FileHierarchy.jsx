@@ -72,7 +72,7 @@ export default function FileHierarchy({ backups = [], onPreview }) {
 
   return (
     <div className="space-y-2">
-      {Object.entries(hierarchy).map(([reportId, activities]) => (
+      {Object.entries(hierarchy).map(([reportId, { label, files: activities }]) => (
         <div key={reportId} className="border border-gray-200 rounded-lg overflow-hidden">
           {/* Relatório */}
           <button
@@ -86,7 +86,7 @@ export default function FileHierarchy({ backups = [], onPreview }) {
             )}
             <FolderIcon className="w-4 h-4 text-blue-500" />
             <span className="font-medium text-sm text-gray-900">
-              Relatório {reportId === 'sem-relatorio' ? '(Sem ID)' : reportId}
+              {label}
             </span>
             <span className="ml-auto text-xs text-gray-500">
               {Object.values(activities).flat().length} arquivos
