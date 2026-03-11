@@ -82,18 +82,12 @@ Deno.serve(async (req) => {
     } else if (action === 'reject') {
       novoStatus = 'RECUSADO';
 
-      // Salvar motivo no campo correto conforme o estágio de aprovação
-      const isAdminStage = p.status === 'APROVADO_COORD';
-      const rejectUpdate = { status: novoStatus };
-      if (isAdminStage) {
-        rejectUpdate.aprov_admin_nome = nomeAtor;
-        rejectUpdate.aprov_admin_data = dataAprovacao;
-        rejectUpdate.aprov_admin_comentario = comentario || 'Solicitação recusada';
-      } else {
-        rejectUpdate.aprov_coord_nome = nomeAtor;
-        rejectUpdate.aprov_coord_data = dataAprovacao;
-        rejectUpdate.aprov_coord_comentario = comentario || 'Solicitação recusada';
-      }
+      const rejectUpdate = { 
+        status: novoStatus,
+        aprov_coord_nome: nomeAtor,
+        aprov_coord_data: dataAprovacao,
+        aprov_coord_comentario: comentario || 'Solicitação recusada',
+      };
 
       await base44.entities.PurchaseRequest.update(purchaseId, rejectUpdate);
 
