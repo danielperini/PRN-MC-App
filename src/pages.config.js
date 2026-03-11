@@ -72,6 +72,7 @@ import RelatorioMeta from './pages/RelatorioMeta';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
+import MapaMobilizacao from './pages/MapaMobilizacao';
 import __Layout from './Layout.jsx';
 
 
@@ -101,6 +102,7 @@ export const PAGES = {
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
+    "MapaMobilizacao": MapaMobilizacao,
 }
 
 export const pagesConfig = {
