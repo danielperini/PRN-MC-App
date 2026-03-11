@@ -57,6 +57,9 @@ function ComprasInner() {
   });
 
   const hasGestaoCompras = isCoordenador || userPermission?.gestao_compras === true;
+  const podeVerSaude = isCoordenador || userPermission?.pode_ver_saude_orcamentaria === true;
+  const podeGerenciarRubricas = isCoordenador || userPermission?.pode_gerenciar_rubricas === true;
+  const podeAprovarSolicitacoes = isCoordenador || userPermission?.pode_aprovar_solicitacoes === true;
 
   const { data: purchases = [], isLoading } = useQuery({
     queryKey: ['purchases', isCoordenador, currentUser?.email],
@@ -130,14 +133,14 @@ function ComprasInner() {
         {/* Tabs */}
          <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
             {[
-              { id: 'lista', label: 'Solicitações' },
-              { id: 'saude', label: 'Saúde Orçamentária' },
-              { id: 'orcamento', label: 'Orçamento' },
-              ...(hasGestaoCompras ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
-              ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
-              ...(isCoordenador ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
-              ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
-            ].map(t => (
+               { id: 'lista', label: 'Solicitações' },
+               ...(podeVerSaude ? [{ id: 'saude', label: 'Saúde Orçamentária' }] : []),
+               { id: 'orcamento', label: 'Orçamento' },
+               ...(podeGerenciarRubricas ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
+               ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
+               ...(podeAprovarSolicitacoes ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
+               ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
+             ].map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -217,9 +220,9 @@ function ComprasInner() {
         )}
 
         {/* Saúde Orçamentária */}
-        {tab === 'saude' && (
-          <BudgetHealthDashboard budgetLines={budgetLines} purchases={purchases} />
-        )}
+         {tab === 'saude' && podeVerSaude && (
+           <BudgetHealthDashboard budgetLines={budgetLines} purchases={purchases} />
+         )}
 
         {/* Orçamento */}
         {tab === 'orcamento' && (
@@ -231,10 +234,10 @@ function ComprasInner() {
           </div>
         )}
 
-        {/* Rubricas — apenas para gestao_compras */}
-        {tab === 'rubricas' && hasGestaoCompras && (
-          <RubricaManager budgetLines={budgetLines} purchases={purchases} />
-        )}
+        {/* Rubricas — apenas para pode_gerenciar_rubricas */}
+         {tab === 'rubricas' && podeGerenciarRubricas && (
+           <RubricaManager budgetLines={budgetLines} purchases={purchases} />
+         )}
 
         {/* Equipe */}
         {tab === 'equipe' && isCoordenador && (
@@ -247,15 +250,15 @@ function ComprasInner() {
         )}
 
         {/* Aprovações */}
-         {tab === 'aprovacoes' && isCoordenador && (
-           <AprovacoesFila
-             purchases={purchases}
-             budgetLines={budgetLines}
-             statusConfig={STATUS_CONFIG}
-             onRefresh={() => queryClient.invalidateQueries(['purchases'])}
-             currentUser={currentUser}
-           />
-         )}
+          {tab === 'aprovacoes' && podeAprovarSolicitacoes && (
+            <AprovacoesFila
+              purchases={purchases}
+              budgetLines={budgetLines}
+              statusConfig={STATUS_CONFIG}
+              onRefresh={() => queryClient.invalidateQueries(['purchases'])}
+              currentUser={currentUser}
+            />
+          )}
 
         {/* Exportar Excel */}
         {tab === 'lista' && isCoordenador && (
