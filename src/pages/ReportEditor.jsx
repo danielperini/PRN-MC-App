@@ -844,6 +844,15 @@ function ReportEditorInner() {
             )}
           </TabsContent>
 
+          {/* ANEXOS */}
+          <TabsContent value="anexos" className="space-y-6">
+            {reportId ? (
+              <AttachmentsSection reportId={reportId} canEdit={canEdit} />
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">Salve o relatório para anexar arquivos</p>
+            )}
+          </TabsContent>
+
           {/* COMENTÁRIOS */}
           <TabsContent value="comentarios" className="space-y-6">
            {reportId ? (
