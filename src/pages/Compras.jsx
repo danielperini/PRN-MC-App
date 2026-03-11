@@ -20,10 +20,6 @@ import ContractActivityReportGenerator from '@/components/compras/ContractActivi
 import FinancialExcelExporter from '@/components/financeiro/FinancialExcelExporter';
 import ExportRubricasExcelButton from '@/components/compras/ExportRubricasExcelButton';
 import { useBudgetLines } from '@/components/compras/useBudgetLines';
-import RubricaDetail from '@/components/rubricas/RubricaDetail';
-import RubricaCards from '@/components/rubricas/RubricaCards';
-import RubricaTable from '@/components/rubricas/RubricaTable';
-import RubricaStatusReport from '@/components/rubricas/RubricaStatusReport';
 import GestaoDocumental from '@/pages/GestaoDocumental';
 
 const STATUS_CONFIG = {
@@ -41,7 +37,6 @@ function ComprasInner() {
    const [showForm, setShowForm] = useState(false);
    const [showReportGen, setShowReportGen] = useState(false);
    const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '' });
-   const [selectedRubrica, setSelectedRubrica] = useState(null);
    const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -77,11 +72,6 @@ function ComprasInner() {
   });
 
   const { budgetLines } = useBudgetLines();
-
-  const { data: rubricas = [] } = useQuery({
-    queryKey: ['rubricas'],
-    queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 100),
-  });
 
   const filtered = purchases.filter(p => {
     const matchStatus = filters.status === 'all' || p.status === filters.status;
@@ -144,7 +134,6 @@ function ComprasInner() {
                { id: 'lista', label: 'Solicitações' },
                ...(podeVerSaude ? [{ id: 'saude', label: 'Saúde Orçamentária' }] : []),
                { id: 'orcamento', label: 'Orçamento' },
-               { id: 'rubricas', label: 'Rubricas' },
                { id: 'documentos', label: 'Documentos' },
                ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
                ...(podeAprovarSolicitacoes ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
@@ -243,19 +232,7 @@ function ComprasInner() {
           </div>
         )}
 
-        {/* Rubricas — visão geral para todos */}
-         {tab === 'rubricas' && (
-           <div className="space-y-6">
-             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-               <p className="text-sm text-blue-900">
-                 <strong>📊 Integração com Compras:</strong> Esta aba sincroniza automaticamente com as compras aprovadas. Toda solicitação aprovada na aba Compras será mapeada automaticamente para sua rubrica correspondente.
-               </p>
-             </div>
-             <RubricaCards rubricas={rubricas} />
-             <RubricaStatusReport rubricas={rubricas} />
-             <RubricaTable rubricas={rubricas} onSelectRubrica={setSelectedRubrica} />
-           </div>
-         )}
+
 
          {/* Documentos */}
          {tab === 'documentos' && (
@@ -314,13 +291,7 @@ function ComprasInner() {
         />
       )}
 
-      {selectedRubrica && (
-        <RubricaDetail
-          rubrica={selectedRubrica}
-          onClose={() => setSelectedRubrica(null)}
-          onRefresh={() => queryClient.invalidateQueries(['rubricas'])}
-        />
-      )}
+
       </div>
       );
       }
