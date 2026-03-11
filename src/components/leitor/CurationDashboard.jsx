@@ -128,18 +128,10 @@ export default function CurationDashboard() {
   useEffect(() => {
     const interval = setInterval(() => {
       setShuffleSeed(prev => prev + 1);
+      queryClient.invalidateQueries({ queryKey: ['news-published-curated'] });
     }, 3600000); // 1 hora
     return () => clearInterval(interval);
-  }, []);
-
-  // Shufflar notícias publicadas baseado em seed
-  const shuffledPublished = useEffect(() => {
-    if (shuffleSeed !== 0) {
-      const sorted = [...published].sort(() => Math.random() - 0.5);
-      return sorted;
-    }
-    return published;
-  }, [published, shuffleSeed]);
+  }, [queryClient]);
 
   const { data: pending = [], isLoading: loadingPending } = useQuery({
     queryKey: ['news-pending-curated'],
