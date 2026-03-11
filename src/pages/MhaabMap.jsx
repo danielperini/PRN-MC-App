@@ -22,11 +22,12 @@ function MhaabMapInner() {
 
   const { data: opportunities = [], refetch: refetchOps } = useQuery({
     queryKey: ['territorial-opportunities', 'MHAB'],
-    queryFn: () =>
-      base44.entities.TerritorialOpportunity.filter({
+    queryFn: async () => {
+      const res = await base44.functions.invoke('enrichOpportunitiesWithProgramacoes', {
         museu_sigla: 'MHAB',
-        ativo: true,
-      }),
+      });
+      return res.data.opportunities || [];
+    },
   });
 
   const filtradas = opportunities.filter(opp => {
