@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { BarChart3, FileText, Download } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 import RubricaCards from '@/components/rubricas/RubricaCards';
 import RubricaTable from '@/components/rubricas/RubricaTable';
 import RubricaDetail from '@/components/rubricas/RubricaDetail';
+import RubricaExporter from '@/components/rubricas/RubricaExporter';
 import RequireAuth from '@/components/auth/RequireAuth';
 
 function RubricasInner() {
@@ -17,19 +18,16 @@ function RubricasInner() {
     queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 100),
   });
 
-  const handleExportPDF = () => {
-    // Implementar exportação PDF
-    alert('Função de exportação PDF em desenvolvimento');
-  };
-
-  const handleExportExcel = () => {
-    // Implementar exportação Excel
-    alert('Função de exportação Excel em desenvolvimento');
-  };
-
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-8">
+        {/* Texto de Apoio */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+          <p className="text-sm text-blue-900">
+            <strong>ℹ️ Como funciona:</strong> As rubricas serão utilizadas para gestão e execução do projeto. Os valores lançados, tanto automaticamente pela aba Compras quanto manualmente pelos usuários, serão acumulados no campo de utilização da rubrica. O saldo será calculado pela diferença entre o valor previsto e o valor utilizado, e o percentual utilizado permitirá o acompanhamento contínuo da execução financeira.
+          </p>
+        </div>
+
         {/* Header */}
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div className="flex items-center gap-3">
@@ -38,19 +36,10 @@ function RubricasInner() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-black">Rubricas Orçamentárias</h1>
-              <p className="text-sm text-gray-500">Gestão centralizada de rubricas e alocações</p>
+              <p className="text-sm text-gray-500">Gestão centralizada de rubricas e alocações do Projeto Museus Centro</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" className="gap-2" onClick={handleExportPDF}>
-              <FileText className="w-4 h-4" />
-              PDF
-            </Button>
-            <Button variant="outline" className="gap-2" onClick={handleExportExcel}>
-              <Download className="w-4 h-4" />
-              Excel
-            </Button>
-          </div>
+          {!isLoading && <RubricaExporter rubricas={rubricas} />}
         </div>
 
         {/* Cards Resumo */}
