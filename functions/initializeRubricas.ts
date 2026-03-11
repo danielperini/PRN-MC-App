@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+// Dados validados conforme documento PDF v1.0
+// Total previsto: 617.400 | Total utilizado: 67.900 | Saldo: 549.500
 const RUBRICAS_INICIAIS = [
   { 
     grupo: 'Equipe e gestão',
@@ -8,7 +10,8 @@ const RUBRICAS_INICIAIS = [
     valor_rubrica: 70000,
     valor_utilizado: 7000,
     observacao_uso: 'Valor utilizado acumulado',
-    ordem_exibicao: 1
+    ordem_exibicao: 1,
+    ativo: true
   },
   { 
     grupo: 'Equipe e gestão',
@@ -17,7 +20,8 @@ const RUBRICAS_INICIAIS = [
     valor_rubrica: 50000,
     valor_utilizado: 5000,
     observacao_uso: 'Valor utilizado acumulado',
-    ordem_exibicao: 2
+    ordem_exibicao: 2,
+    ativo: true
   },
   { 
     grupo: 'Equipe e gestão',
@@ -26,7 +30,8 @@ const RUBRICAS_INICIAIS = [
     valor_rubrica: 60000,
     valor_utilizado: 6000,
     observacao_uso: 'Valor utilizado acumulado',
-    ordem_exibicao: 3
+    ordem_exibicao: 3,
+    ativo: true
   },
   { 
     grupo: 'Equipe e gestão',
@@ -35,7 +40,8 @@ const RUBRICAS_INICIAIS = [
     valor_rubrica: 50000,
     valor_utilizado: 5000,
     observacao_uso: 'Valor utilizado acumulado',
-    ordem_exibicao: 4
+    ordem_exibicao: 4,
+    ativo: true
   },
   { 
     grupo: 'Equipe e gestão',
@@ -44,7 +50,8 @@ const RUBRICAS_INICIAIS = [
     valor_rubrica: 40000,
     valor_utilizado: 4000,
     observacao_uso: 'Valor utilizado acumulado',
-    ordem_exibicao: 5
+    ordem_exibicao: 5,
+    ativo: true
   },
   { 
     grupo: 'Equipe e gestão',
@@ -53,7 +60,8 @@ const RUBRICAS_INICIAIS = [
     valor_rubrica: 113400,
     valor_utilizado: 12600,
     observacao_uso: 'Soma de 3 produtoras',
-    ordem_exibicao: 6
+    ordem_exibicao: 6,
+    ativo: true
   },
   { 
     grupo: 'Equipe e gestão',
@@ -62,7 +70,8 @@ const RUBRICAS_INICIAIS = [
     valor_rubrica: 27000,
     valor_utilizado: 3000,
     observacao_uso: 'Valor utilizado acumulado',
-    ordem_exibicao: 7
+    ordem_exibicao: 7,
+    ativo: true
   },
   { 
     grupo: 'Equipe e gestão',
@@ -71,7 +80,8 @@ const RUBRICAS_INICIAIS = [
     valor_rubrica: 52000,
     valor_utilizado: 5200,
     observacao_uso: 'Soma de 2 designers',
-    ordem_exibicao: 8
+    ordem_exibicao: 8,
+    ativo: true
   },
   { 
     grupo: 'Manutenção e operação',
@@ -80,7 +90,8 @@ const RUBRICAS_INICIAIS = [
     valor_rubrica: 138000,
     valor_utilizado: 18400,
     observacao_uso: 'Soma de 4 educadoras',
-    ordem_exibicao: 9
+    ordem_exibicao: 9,
+    ativo: true
   },
   { 
     grupo: 'Despesas gerais',
@@ -89,7 +100,8 @@ const RUBRICAS_INICIAIS = [
     valor_rubrica: 17000,
     valor_utilizado: 1700,
     observacao_uso: 'Valor utilizado acumulado',
-    ordem_exibicao: 10
+    ordem_exibicao: 10,
+    ativo: true
   },
 ];
 
@@ -115,10 +127,23 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Apenas admin pode inicializar' }, { status: 403 });
     }
 
-    // Limpar dados existentes (opcional)
+    // Limpar dados existentes - remove rubricas admin e antigas
     const existingRubricas = await base44.entities.Rubrica.list('', 100);
-    if (existingRubricas.length > 0) {
-      return Response.json({ success: false, message: 'Rubricas já existem. Delete manualmente se quiser reinicializar.' });
+    for (const r of existingRubricas) {
+      if (r.grupo === 'admin' || r.rubrica?.includes('Admin')) {
+        await base44.entities.Rubrica.delete(r.id);
+      }
+    }
+
+    // Validar que não temos duplicatas das 10 rubricas principais
+    const mainRubricas = RUBRICAS_INICIAIS.map(r => r.rubrica);
+    const existingMain = existingRubricas.filter(r => mainRubricas.includes(r.rubrica));
+    
+    if (existingMain.length > 0) {
+      return Response.json({ 
+        success: false, 
+        message: `${existingMain.length} rubrica(s) principal(is) já existem. Delete antes de reinicializar.` 
+      });
     }
 
     // Criar rubricas
@@ -147,6 +172,17 @@ Deno.serve(async (req) => {
 
     const totalValor = RUBRICAS_INICIAIS.reduce((sum, r) => sum + r.valor_rubrica, 0);
     const totalUtilizado = RUBRICAS_INICIAIS.reduce((sum, r) => sum + r.valor_utilizado, 0);
+    const totalSaldo = totalValor - totalUtilizado;
+
+    // Validações conforme PDF
+    const expectedUtilizado = 67900;
+    const expectedSaldo = 549500;
+    
+    const validation = {
+      total_previsto: totalValor === 617400 ? '✓ OK' : `❌ Esperado 617.400, obteve ${totalValor}`,
+      total_utilizado: totalUtilizado === expectedUtilizado ? '✓ OK' : `❌ Esperado ${expectedUtilizado}, obteve ${totalUtilizado}`,
+      saldo_total: totalSaldo === expectedSaldo ? '✓ OK' : `❌ Esperado ${expectedSaldo}, obteve ${totalSaldo}`,
+    };
 
     return Response.json({ 
       success: true, 
@@ -155,8 +191,10 @@ Deno.serve(async (req) => {
       totais: {
         valor_total: totalValor,
         valor_utilizado: totalUtilizado,
-        saldo_total: totalValor - totalUtilizado,
-      }
+        saldo_total: totalSaldo,
+      },
+      validacao: validation,
+      mensagem: 'Dados inicializados conforme PDF v1.0'
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
