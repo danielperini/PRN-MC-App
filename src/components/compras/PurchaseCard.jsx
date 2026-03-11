@@ -227,9 +227,47 @@ Responda em JSON com: { "seguro": true/false, "risco_nivel": "baixo|medio|alto",
         {/* Painel de aprovação inline */}
         {showApproval && (
           <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
-            <p className="text-sm font-semibold text-black">
-              {canApproveCoord ? '✅ Aprovação — Coordenador Geral' : '✅ Aprovação — Coordenador Administrativo'}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-black">
+                {canApproveCoord ? '✅ Aprovação — Coordenador Geral' : '✅ Aprovação — Coordenador Administrativo'}
+              </p>
+              {loadingAnalysis && (
+                <span className="text-xs text-gray-500 flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Analisando segurança...
+                </span>
+              )}
+            </div>
+
+            {/* Análise de Segurança da IA */}
+            {aiSecurityAnalysis && (
+              <div className={`p-3 rounded-lg border text-xs ${
+                aiSecurityAnalysis.risco_nivel === 'alto' 
+                  ? 'bg-red-50 border-red-200' 
+                  : aiSecurityAnalysis.risco_nivel === 'medio'
+                  ? 'bg-amber-50 border-amber-200'
+                  : 'bg-green-50 border-green-200'
+              }`}>
+                <div className="flex items-start gap-2 mb-2">
+                  <Sparkles className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
+                    aiSecurityAnalysis.risco_nivel === 'alto' ? 'text-red-600' 
+                    : aiSecurityAnalysis.risco_nivel === 'medio' ? 'text-amber-600' 
+                    : 'text-green-600'
+                  }`} />
+                  <div className="flex-1">
+                    <p className="font-semibold mb-1">Análise de Segurança da IA</p>
+                    <p className="text-gray-700 mb-2">{aiSecurityAnalysis.justificativa}</p>
+                    {aiSecurityAnalysis.observacoes && (
+                      <p className="text-gray-600 italic">Observações: {aiSecurityAnalysis.observacoes}</p>
+                    )}
+                    <p className={`mt-2 font-medium ${
+                      aiSecurityAnalysis.recomendacao === 'aprovar' ? 'text-green-700' : 'text-red-700'
+                    }`}>
+                      💡 Recomendação: {aiSecurityAnalysis.recomendacao === 'aprovar' ? '✅ Aprovar' : '❌ Recusar'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Saldo */}
             {budgetLine && (
