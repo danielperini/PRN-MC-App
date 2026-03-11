@@ -51,8 +51,16 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
   const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
   const handleContratoUpload = async (file) => {
-    if (file.type !== 'application/pdf') {
-      toast.error('Apenas PDFs são aceitos');
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain'
+    ];
+    const allowedExts = ['.pdf', '.doc', '.docx', '.txt'];
+    
+    if (!allowedTypes.includes(file.type) && !allowedExts.some(ext => file.name.toLowerCase().endsWith(ext))) {
+      toast.error('Aceitos: PDF, DOC, DOCX ou TXT');
       return;
     }
     setAiLoading(true);
@@ -273,7 +281,7 @@ Retorne em JSON com os campos:
           {/* ── Contrato ── */}
           <Section title="Contrato">
             <div>
-              <Label>Contrato em PDF *</Label>
+              <Label>Contrato (PDF, DOC, DOCX ou TXT) *</Label>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
                 {aiLoading ? (
                   <div className="flex flex-col items-center gap-2 py-2">
@@ -293,9 +301,9 @@ Retorne em JSON com os campos:
                 ) : (
                   <label className="cursor-pointer">
                     <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600">Clique para enviar contrato PDF</p>
-                    <p className="text-xs text-gray-400 mt-1">A IA preencherá os campos automaticamente</p>
-                    <input type="file" accept=".pdf" onChange={e => handleContratoUpload(e.target.files[0])} className="hidden" />
+                    <p className="text-sm text-gray-600">Clique para enviar contrato</p>
+                    <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX ou TXT — A IA preencherá os campos automaticamente</p>
+                    <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={e => handleContratoUpload(e.target.files[0])} className="hidden" />
                   </label>
                 )}
               </div>
