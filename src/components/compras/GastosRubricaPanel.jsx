@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import GastoRubricaForm from './GastoRubricaForm';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 
 const fmt = (v) => `R$ ${(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
@@ -28,6 +29,7 @@ const CATEGORIA_COLORS = {
 
 export default function GastosRubricaPanel({ rubricaId, rubricaCodigo, rubrica }) {
   const [showForm, setShowForm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: gastos = [] } = useQuery({
@@ -37,11 +39,13 @@ export default function GastosRubricaPanel({ rubricaId, rubricaCodigo, rubrica }
 
   const deleteMutation = useMutation({
     mutationFn: (gastoId) => base44.entities.GastoRubrica.delete(gastoId),
-    onSuccess: () => {
+    onSuccess: (_, gastoId) => {
+      const gasto = gastos.find(g => g.id === gastoId);
       queryClient.invalidateQueries(['gastos-rubrica', rubricaId]);
-      toast.success('Gasto removido');
+      toast.success(`Gasto de R$ ${(gasto?.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} removido`);
+      setDeleteConfirm(null);
     },
-    onError: (e) => toast.error('Erro: ' + e.message),
+    onError: (e) => toast.error('Erro ao remover: ' + e.message),
   });
 
   const totalGastos = gastos.reduce((s, g) => s + (g.valor || 0), 0);
@@ -109,7 +113,7 @@ export default function GastosRubricaPanel({ rubricaId, rubricaCodigo, rubrica }
               <div className="flex items-center gap-3 ml-4">
                 <span className="text-sm font-bold text-gray-800 whitespace-nowrap">{fmt(gasto.valor)}</span>
                 <button
-                  onClick={() => deleteMutation.mutate(gasto.id)}
+                  onClick={() => setDeleteConfirm(gasto)}
                   disabled={deleteMutation.isPending}
                   className="text-gray-400 hover:text-red-600 transition-colors p-1"
                   title="Remover gasto"
@@ -129,6 +133,19 @@ export default function GastosRubricaPanel({ rubricaId, rubricaCodigo, rubrica }
         onClose={() => setShowForm(false)}
         onSuccess={() => queryClient.invalidateQueries(['gastos-rubrica', rubricaId])}
       />
+
+      {deleteConfirm && (
+        <ConfirmDialog
+          isOpen={!!deleteConfirm}
+          title="Remover gasto"
+          description={`Remover gasto de R$ ${deleteConfirm.valor?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} de ${deleteConfirm.fornecedor_nome}?`}
+          confirmText="Remover"
+          variant="destructive"
+          onConfirm={() => deleteMutation.mutate(deleteConfirm.id)}
+          onCancel={() => setDeleteConfirm(null)}
+          isLoading={deleteMutation.isPending}
+        />
+      )}
     </div>
   );
 }
