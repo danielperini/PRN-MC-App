@@ -511,19 +511,101 @@ function GestorArquivosInner() {
           </div>
 
           {!showHistory ? (
-            isLoading ? (
-              <div className="text-center py-12 text-gray-400">
-                Carregando arquivos...
-              </div>
-            ) : (
-              <FileHierarchy 
-                backups={backups} 
-                onPreview={handlePreviewFile}
-                canManageFile={canManageFile}
-                isGeneralCoordinator={isGeneralCoordinator}
-              />
-            )
-          ) : (
+             <div className="space-y-8">
+               {/* Seção de Contratos Principais */}
+               <div className="bg-white border border-gray-200 rounded-lg p-6">
+                 <h3 className="text-lg font-semibold mb-4 text-black flex items-center gap-2">
+                   <File className="w-5 h-5" /> Contrato Principal
+                 </h3>
+                 {teamMembers.some(m => m.contrato_url) ? (
+                   <div className="space-y-3">
+                     {teamMembers
+                       .filter(m => m.contrato_url)
+                       .map(member => (
+                         <div key={member.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                           <div>
+                             <p className="font-medium text-black">{member.user_name}</p>
+                             <p className="text-sm text-gray-500">{member.funcao} • {member.valor_total ? `R$ ${member.valor_total.toLocaleString('pt-BR')}` : 'Valor não especificado'}</p>
+                           </div>
+                           <a 
+                             href={member.contrato_url} 
+                             target="_blank" 
+                             rel="noopener noreferrer"
+                             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                           >
+                             <Download className="w-4 h-4" />
+                             Download
+                           </a>
+                         </div>
+                       ))}
+                   </div>
+                 ) : (
+                   <div className="text-center py-8">
+                     <FileText className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                     <p className="text-gray-500">Nenhum contrato anexado ao cadastro</p>
+                   </div>
+                 )}
+               </div>
+
+               {/* Seção de Contratos por Período */}
+               <div className="bg-white border border-gray-200 rounded-lg p-6">
+                 <h3 className="text-lg font-semibold mb-4 text-black">Contratos por Período de Envio</h3>
+                 {teamMembers.some(m => m.contrato_url && m.data_criacao) ? (
+                   <div className="space-y-4">
+                     {Array.from(new Map(
+                       teamMembers
+                         .filter(m => m.contrato_url && m.data_criacao)
+                         .map(m => [m.data_criacao?.substring(0, 7), m])
+                     ).entries())
+                       .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+                       .map(([period, members]) => {
+                         const monthYear = new Date(period + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                         const periodMembers = teamMembers.filter(m => m.contrato_url && m.data_criacao?.substring(0, 7) === period);
+                         return (
+                           <div key={period} className="border border-gray-200 rounded-lg p-4">
+                             <h4 className="font-semibold text-black mb-3">{monthYear}</h4>
+                             <div className="space-y-2">
+                               {periodMembers.map(member => (
+                                 <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                                   <span className="text-sm text-gray-700">{member.user_name}</span>
+                                   <a 
+                                     href={member.contrato_url} 
+                                     target="_blank" 
+                                     rel="noopener noreferrer"
+                                     className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm"
+                                   >
+                                     <ExternalLink className="w-3 h-3" />
+                                   </a>
+                                 </div>
+                               ))}
+                             </div>
+                           </div>
+                         );
+                       })}
+                   </div>
+                 ) : (
+                   <p className="text-center text-gray-500 py-8">Nenhum contrato com período de envio</p>
+                 )}
+               </div>
+
+               {/* Seção de Arquivos Anexados */}
+               <div>
+                 <h3 className="text-lg font-semibold mb-4 text-black">Arquivos</h3>
+                 {isLoading ? (
+                   <div className="text-center py-12 text-gray-400">
+                     Carregando arquivos...
+                   </div>
+                 ) : (
+                   <FileHierarchy 
+                     backups={backups} 
+                     onPreview={handlePreviewFile}
+                     canManageFile={canManageFile}
+                     isGeneralCoordinator={isGeneralCoordinator}
+                   />
+                 )}
+               </div>
+             </div>
+           ) : (
             <div className="bg-white border border-gray-200 rounded-lg p-4 md:p-6">
               <h3 className="text-lg font-semibold mb-4 text-gray-900">Histórico de Backups</h3>
               <BackupHistoryTable />
