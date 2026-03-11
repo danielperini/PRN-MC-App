@@ -78,10 +78,13 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
     setActionLoading(true);
     try {
       await base44.entities.PurchaseRequest.delete(purchase.id);
-      toast.success('Solicitação deletada!');
+      toast.success('✅ Solicitação deletada com sucesso!', { 
+        description: purchase.descricao_item,
+        duration: 5000 
+      });
       onRefresh();
     } catch (e) {
-      toast.error('Erro ao deletar: ' + e.message);
+      toast.error(`❌ Erro ao deletar: ${e.message}`, { duration: 5000 });
     }
     setActionLoading(false);
   };
