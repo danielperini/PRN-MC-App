@@ -47,6 +47,11 @@ function GestorArquivosInner() {
             const report = approvedReports.find(r => r.id === att.report_id);
             const reportNumber = report?.numero_protocolo || '';
             
+            const authorName = report?.author_name || 'Desconhecido';
+            const mes = report?.mes_referencia || '';
+            const ano = report?.ano || '';
+            const reportLabel = `${authorName} — ${mes}${ano ? `/${ano}` : ''}`;
+
             return {
               id: att.id,
               date: att.created_date?.split('T')[0] || new Date().toISOString().split('T')[0],
@@ -57,6 +62,7 @@ function GestorArquivosInner() {
               fileUrl: att.file_url,
               summary: att.description || 'Arquivo anexado a relatório',
               reportId: att.report_id,
+              reportLabel,
               displayName: reportNumber ? `${reportNumber}` : att.file_name
             };
           });
