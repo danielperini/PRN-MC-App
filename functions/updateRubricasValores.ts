@@ -3,11 +3,6 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-
-    if (!user || user.role !== 'admin') {
-      return Response.json({ error: 'Admin access required' }, { status: 403 });
-    }
 
     const updates = [
       { rubrica: 'Coordenador Geral', valor_utilizado: 7000 },
@@ -25,7 +20,7 @@ Deno.serve(async (req) => {
     let atualizadas = 0;
 
     for (const update of updates) {
-      const existentes = await base44.entities.Rubrica.filter({ rubrica: update.rubrica });
+      const existentes = await base44.asServiceRole.entities.Rubrica.filter({ rubrica: update.rubrica });
       if (existentes.length > 0) {
         const rubrica = existentes[0];
         const saldo = rubrica.valor_rubrica - update.valor_utilizado;
@@ -33,7 +28,7 @@ Deno.serve(async (req) => {
           ? Math.round((update.valor_utilizado / rubrica.valor_rubrica) * 100) 
           : 0;
         
-        await base44.entities.Rubrica.update(rubrica.id, {
+        await base44.asServiceRole.entities.Rubrica.update(rubrica.id, {
           valor_utilizado: update.valor_utilizado,
           saldo,
           percentual_utilizado: percentualUtilizado,
