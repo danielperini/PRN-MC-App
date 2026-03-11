@@ -522,6 +522,19 @@ function CoordReviewInner() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Debug Panel Modal */}
+      <Dialog open={debugPanel.open} onOpenChange={o => !o && setDebugPanel({ open: false, reportId: null })}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>🔍 Análise Automática de Qualidade</DialogTitle>
+          </DialogHeader>
+          <DebugPanel 
+            reportId={debugPanel.reportId} 
+            onClose={() => setDebugPanel({ open: false, reportId: null })}
+          />
+        </DialogContent>
+      </Dialog>
       </div>
       );
       }
