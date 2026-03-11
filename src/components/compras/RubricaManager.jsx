@@ -248,15 +248,20 @@ export default function RubricaManager({ budgetLines, purchases = [] }) {
         </div>
       </div>
 
-      {/* Header + botão */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-800">
-          {budgetLines.length} Rubrica(s) Orçamentária(s)
-        </h3>
-        <Button size="sm" className="bg-black text-white h-8 gap-1" onClick={() => setAddingNew(true)}>
-          <Plus className="w-3.5 h-3.5" />Nova Rubrica
-        </Button>
-      </div>
+      {/* Header + botões */}
+       <div className="flex items-center justify-between gap-3 flex-wrap">
+         <h3 className="text-sm font-semibold text-gray-800">
+           {budgetLines.length} Rubrica(s) Orçamentária(s)
+         </h3>
+         <div className="flex gap-2">
+           <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => setShowImportDialog(true)}>
+             <Download className="w-3.5 h-3.5" />Importar Atualizadas
+           </Button>
+           <Button size="sm" className="bg-black text-white h-8 gap-1" onClick={() => setAddingNew(true)}>
+             <Plus className="w-3.5 h-3.5" />Nova Rubrica
+           </Button>
+         </div>
+       </div>
 
       {addingNew && (
         <AddRubricaForm onSaved={refresh} onCancel={() => setAddingNew(false)} />
