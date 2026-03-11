@@ -163,10 +163,12 @@ Deno.serve(async (req) => {
       'Projeto Museus Centro Belo Horizonte',
       'notícias viaduto das artes belo horizonte',
       'agenda viaduto das artes bh',
-      'programação viaduto das artes 2025',
+      'programação viaduto das artes 2026',
       'novidades viaduto das artes belo horizonte',
       'eventos projeto museus centro belo horizonte',
-      'programação projeto museus centro 2025',
+      'programação projeto museus centro 2026',
+      'Quebradas de BH MIS Belo Horizonte',
+      'Projeção Quebradas de BH quintal MIS',
     ];
 
     const shortTailTerms = [
