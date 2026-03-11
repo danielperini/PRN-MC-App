@@ -261,6 +261,7 @@ IMPORTANTE: Retorne OBRIGATORIAMENTE um JSON válido com TODOS os campos abaixo,
                       tipo_conta: user?.tipo_conta || 'Corrente',
                       pix_key: user?.pix_key || '',
                     }));
+                    preencherFormComTermo(v);
                   }}
                 >
                   <SelectTrigger><SelectValue placeholder="Selecione um usuário" /></SelectTrigger>
