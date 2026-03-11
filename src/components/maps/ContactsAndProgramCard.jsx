@@ -15,7 +15,7 @@ export default function ContactsAndProgramCard({ contacts, programmingSuggestion
       {/* Contatos */}
       <Card className="p-6 bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
         <div className="mb-4">
-          <h3 className="font-bold text-lg text-gray-900 mb-1">5 Locais Mais Aderentes</h3>
+          <h3 className="font-bold text-lg text-gray-900 mb-1">10 Locais com Aderência ≥ 80%</h3>
           <p className="text-xs text-gray-600">Contatos e programação atual</p>
         </div>
 

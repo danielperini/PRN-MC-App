@@ -62,10 +62,11 @@ Seja objetivo, específico e prático. Máximo 800 caracteres. Foque em ações 
     // Limitar a 800 caracteres
     const summary = claudeAnalysis.substring(0, 800);
 
-    // Top 5 oportunidades mais aderentes
+    // Top 10 oportunidades com aderência >= 80%
     const topOpportunities = opportunities
+      .filter(opp => (opp.nivel_aderencia || 0) >= 80)
       .sort((a, b) => (b.nivel_aderencia || 0) - (a.nivel_aderencia || 0))
-      .slice(0, 5);
+      .slice(0, 10);
 
     // Contatos simplificados (sem mais chamadas de IA para cada um)
     const contactsAndPrograms = topOpportunities.map(opp => ({
@@ -78,7 +79,7 @@ Seja objetivo, específico e prático. Máximo 800 caracteres. Foque em ações 
 
     // Sugerir programação com base na análise
     const programSuggestion = await base44.integrations.Core.InvokeLLM({
-      prompt: `Como especialista em programação cultural para museus, analise os 5 locais mais aderentes listados abaixo e sugira atividades/programações que podem gerar sinergia com a instituição ${museu_sigla}:
+      prompt: `Como especialista em programação cultural para museus, analise os 10 locais mais aderentes (acima de 80%) listados abaixo e sugira atividades/programações que podem gerar sinergia com a instituição ${museu_sigla}:
 
 LOCAIS PRINCIPAIS:
 ${contactsAndPrograms.map(c => `- ${c.nome} (${c.categoria}, aderência: ${c.aderencia}%) em ${c.bairro}`).join('\n')}
