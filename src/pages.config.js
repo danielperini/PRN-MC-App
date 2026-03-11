@@ -71,6 +71,7 @@ import RelatorioMeta from './pages/RelatorioMeta';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
+import LeitorNoticias from './pages/LeitorNoticias';
 import __Layout from './Layout.jsx';
 
 
@@ -99,6 +100,7 @@ export const PAGES = {
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
+    "LeitorNoticias": LeitorNoticias,
 }
 
 export const pagesConfig = {
