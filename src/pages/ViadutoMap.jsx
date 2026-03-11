@@ -42,7 +42,7 @@ export default function ViadutoMap() {
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
           <div>
-            <h1 className="text-3xl font-semibold text-black tracking-tight">Viaduto das Artes - Análise Territorial</h1>
+            <h1 className="text-3xl font-semibold text-black tracking-tight">Viaduto das Artes - Museu e Território</h1>
             <p className="text-gray-600 mt-2">Avenida Olinto Meireles, 45, Barreiro</p>
           </div>
           <Button

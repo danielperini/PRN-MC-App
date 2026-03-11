@@ -44,7 +44,7 @@ export default function MhaabMap() {
         {/* Header */}
         <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
           <div>
-            <h1 className="text-3xl font-semibold text-black tracking-tight">MHAB - Análise Territorial</h1>
+            <h1 className="text-3xl font-semibold text-black tracking-tight">MHAB - Museu e Território</h1>
             <p className="text-gray-600 mt-2">Avenida Prudente de Morais, 202, Cidade Jardim</p>
           </div>
           <Button
