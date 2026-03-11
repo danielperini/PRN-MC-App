@@ -10,6 +10,7 @@ import {
   Send, Eye, Archive, ChevronRight, Download, X, Search, SlidersHorizontal, Paperclip, Trash2, FileX
 } from 'lucide-react';
 import BatchPDFExport from '../components/reports/BatchPDFExport';
+import PDFGeneratorDialog from '../components/reports/PDFGeneratorDialog';
 import ActivityFilters from '../components/reports/ActivityFilters';
 import ActivitySummary from '../components/reports/ActivitySummary';
 import CompliancePanel from '../components/reports/CompliancePanel';
@@ -93,6 +94,7 @@ function RelatoriosInner() {
     const [activityFilters, setActivityFilters] = useState({ team: '', museum: '', dateStart: '', dateEnd: '' });
    const [selectedReports, setSelectedReports] = useState(new Set());
    const [generatingPDF, setGeneratingPDF] = useState(false);
+   const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Report.delete(id),
@@ -241,14 +243,25 @@ function RelatoriosInner() {
           </div>
           <div className="flex gap-2 flex-wrap">
             {selectedReports.size > 0 && (
-              <Button
-                className="bg-green-600 hover:bg-green-700 text-white gap-2"
-                onClick={exportSelectedPDF}
-                disabled={generatingPDF}
-              >
-                <Download className="w-4 h-4" />
-                {generatingPDF ? 'Gerando...' : `PDF (${selectedReports.size})`}
-              </Button>
+              <>
+                <Button
+                  className="bg-green-600 hover:bg-green-700 text-white gap-2"
+                  onClick={() => setPdfDialogOpen(true)}
+                  disabled={generatingPDF}
+                >
+                  <Download className="w-4 h-4" />
+                  PDF Customizado ({selectedReports.size})
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-green-600 text-green-600 gap-2"
+                  onClick={exportSelectedPDF}
+                  disabled={generatingPDF}
+                >
+                  <Download className="w-4 h-4" />
+                  {generatingPDF ? 'Gerando...' : 'PDF Rápido'}
+                </Button>
+              </>
             )}
             <Button
               variant="outline"
@@ -458,6 +471,15 @@ function RelatoriosInner() {
            </div>
          )}
       </div>
+
+      {/* PDF Generator Dialog */}
+      <PDFGeneratorDialog
+        open={pdfDialogOpen}
+        onClose={() => setPdfDialogOpen(false)}
+        selectedReports={selectedReports}
+        reports={filtered}
+        museus={[...new Set(filtered.map(r => r.museu))]}
+      />
 
       {/* Delete Confirm */}
       <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
