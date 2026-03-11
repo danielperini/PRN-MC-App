@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Upload } from 'lucide-react';
+import { Plus, Upload, FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -18,6 +18,7 @@ export default function ServicosMensaisForm({ rubricaId, rubrica, isOpen, onClos
     data_fim: '',
     dia_pagamento: '1',
   });
+  const [contrato, setContrato] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const queryClient = useQueryClient();
@@ -26,6 +27,17 @@ export default function ServicosMensaisForm({ rubricaId, rubrica, isOpen, onClos
     queryKey: ['fornecedores-mensais'],
     queryFn: () => base44.entities.Fornecedor.filter({ tem_contrato_mensal: true }, 'nome', 100),
   });
+
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      if (selectedFile.size > 20 * 1024 * 1024) {
+        toast.error('Arquivo muito grande (máx 20MB)');
+        return;
+      }
+      setContrato(selectedFile);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!form.fornecedor_nome || !form.valor_mensal || !form.data_inicio || !form.data_fim) {
@@ -39,6 +51,12 @@ export default function ServicosMensaisForm({ rubricaId, rubrica, isOpen, onClos
     setSaving(true);
     try {
       const fornecedor = fornecedores.find(f => f.nome === form.fornecedor_nome);
+      
+      let contrato_url = '';
+      if (contrato) {
+        const uploadRes = await base44.integrations.Core.UploadFile({ file: contrato });
+        contrato_url = uploadRes.file_url;
+      }
       
       await base44.entities.GastoRubrica.create({
         rubrica_id: rubricaId,
@@ -55,6 +73,8 @@ export default function ServicosMensaisForm({ rubricaId, rubrica, isOpen, onClos
         data_inicio_servico: form.data_inicio,
         data_fim_servico: form.data_fim,
         dia_pagamento_mensal: parseInt(form.dia_pagamento),
+        contrato_url: contrato_url,
+        contrato_nome: contrato?.name || '',
       });
 
       toast.success(`Serviço mensal de R$ ${parseFloat(form.valor_mensal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} adicionado!`);
@@ -69,6 +89,7 @@ export default function ServicosMensaisForm({ rubricaId, rubrica, isOpen, onClos
         data_fim: '',
         dia_pagamento: '1',
       });
+      setContrato(null);
       onSuccess?.();
       onClose();
     } catch (e) {
@@ -145,8 +166,39 @@ export default function ServicosMensaisForm({ rubricaId, rubrica, isOpen, onClos
             </div>
           </div>
 
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-2">Contrato (PDF/Imagem)</label>
+            <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-3 text-center hover:border-gray-400 transition-colors">
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={handleFileChange}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+              {contrato ? (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-gray-400" />
+                    <span className="text-xs text-gray-700 font-medium truncate">{contrato.name}</span>
+                  </div>
+                  <button
+                    onClick={() => setContrato(null)}
+                    className="text-gray-400 hover:text-red-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <Upload className="w-4 h-4 text-gray-400 mx-auto mb-1" />
+                  <p className="text-xs text-gray-600">Clique para anexar contrato</p>
+                </div>
+              )}
+            </div>
+          </div>
+
           <p className="text-xs text-gray-500 bg-blue-50 p-2 rounded border border-blue-100">
-            📋 Após criar, você poderá anexar notas fiscais mensais no histórico de gastos
+            📋 Você poderá anexar notas fiscais mensais no histórico de gastos
           </p>
         </div>
 
