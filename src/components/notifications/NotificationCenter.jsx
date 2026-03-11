@@ -8,12 +8,27 @@ const NOTIFICATION_ICONS = {
   REPORT_SUBMITTED: AlertCircle,
   REPORT_RETURNED: AlertCircle,
   REPORT_APPROVED: CheckCircle2,
+  COMMENT_ADDED: AlertCircle,
+  PERMISSION_GRANTED: CheckCircle2,
+  USER_APPROVED: CheckCircle2,
 };
 
 const NOTIFICATION_COLORS = {
   REPORT_SUBMITTED: 'bg-blue-50 border-blue-200',
   REPORT_RETURNED: 'bg-red-50 border-red-200',
   REPORT_APPROVED: 'bg-green-50 border-green-200',
+  COMMENT_ADDED: 'bg-blue-50 border-blue-200',
+  PERMISSION_GRANTED: 'bg-purple-50 border-purple-200',
+  USER_APPROVED: 'bg-green-50 border-green-200',
+};
+
+const NOTIFICATION_EMOJIS = {
+  REPORT_SUBMITTED: '📤',
+  REPORT_RETURNED: '⚠️',
+  REPORT_APPROVED: '✅',
+  COMMENT_ADDED: '💬',
+  PERMISSION_GRANTED: '🔓',
+  USER_APPROVED: '👤',
 };
 
 export default function NotificationCenter() {
@@ -96,38 +111,42 @@ export default function NotificationCenter() {
             <>
               <div className="divide-y divide-gray-100">
                 {notifications.map(notif => {
-                  const Icon = NOTIFICATION_ICONS[notif.type] || AlertCircle;
-                  const colorClass = NOTIFICATION_COLORS[notif.type] || 'bg-gray-50 border-gray-200';
+                   const Icon = NOTIFICATION_ICONS[notif.type] || AlertCircle;
+                   const colorClass = NOTIFICATION_COLORS[notif.type] || 'bg-gray-50 border-gray-200';
+                   const emoji = NOTIFICATION_EMOJIS[notif.type] || '📢';
 
-                  return (
-                    <div
-                      key={notif.id}
-                      className={`p-4 border-l-4 ${colorClass} flex gap-3 hover:bg-opacity-75 transition-colors`}
-                    >
-                      <Icon className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm text-gray-900">{notif.title}</h4>
-                        <p className="text-xs text-gray-600 mt-1 line-clamp-2">{notif.message}</p>
-                        {notif.action_url && (
-                          <a
-                            href={notif.action_url}
-                            className="text-xs text-blue-600 hover:text-blue-700 mt-2 inline-block font-medium"
-                            onClick={() => setOpen(false)}
-                          >
-                            Ver →
-                          </a>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => handleMarkAsRead(notif.id)}
-                        className="p-1 hover:bg-gray-300 rounded transition-colors flex-shrink-0"
-                        title="Marcar como lida"
-                      >
-                        <Check className="w-4 h-4 text-gray-500" />
-                      </button>
-                    </div>
-                  );
-                })}
+                   return (
+                     <div
+                       key={notif.id}
+                       className={`p-4 border-l-4 ${colorClass} flex gap-3 hover:bg-opacity-75 transition-colors`}
+                     >
+                       <span className="text-lg flex-shrink-0">{emoji}</span>
+                       <div className="flex-1 min-w-0">
+                         <h4 className="font-medium text-sm text-gray-900">{notif.title}</h4>
+                         <p className="text-xs text-gray-600 mt-1 line-clamp-2">{notif.message}</p>
+                         <p className="text-xs text-gray-400 mt-1">
+                           {new Date(notif.created_date).toLocaleString('pt-BR')}
+                         </p>
+                         {notif.action_url && (
+                           <a
+                             href={notif.action_url}
+                             className="text-xs text-blue-600 hover:text-blue-700 mt-2 inline-block font-medium"
+                             onClick={() => setOpen(false)}
+                           >
+                             Ver →
+                           </a>
+                         )}
+                       </div>
+                       <button
+                         onClick={() => handleMarkAsRead(notif.id)}
+                         className="p-1 hover:bg-gray-300 rounded transition-colors flex-shrink-0"
+                         title="Marcar como lida"
+                       >
+                         <Check className="w-4 h-4 text-gray-500" />
+                       </button>
+                     </div>
+                   );
+                 })}
               </div>
 
               {unreadCount > 0 && (
