@@ -342,7 +342,7 @@ function GestorArquivosInner() {
         isOpen={showMonthlyBackup} 
         onClose={() => setShowMonthlyBackup(false)} 
       />
-      <FilePreviewModal 
+      <FilePreviewViewer 
       file={previewFile} 
       isOpen={showPreview} 
       onClose={() => setShowPreview(false)} 
