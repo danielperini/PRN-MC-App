@@ -36,16 +36,33 @@ function calcularPosicoes(opportunities) {
 }
 
 export default function NetworkMap({ opportunities, selectedOpportunity, onSelectOpportunity, nomeMuseu }) {
-  const width = 800;
-  const height = 600;
+  const containerRef = React.useRef(null);
+  const [size, setSize] = React.useState({ width: 800, height: 600 });
+  
+  React.useEffect(() => {
+    const updateSize = () => {
+      if (containerRef.current) {
+        setSize({
+          width: Math.min(800, containerRef.current.clientWidth - 40),
+          height: 600
+        });
+      }
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
+
+  const width = size.width;
+  const height = size.height;
   const centerX = width / 2;
   const centerY = height / 2;
 
   const posicionadas = useMemo(() => calcularPosicoes(opportunities), [opportunities]);
 
   return (
-    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <svg width={width} height={height} className="drop-shadow-lg">
+    <div ref={containerRef} className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+      <svg width={width} height={height} className="drop-shadow-lg" style={{ maxWidth: '100%', height: 'auto' }}>
         {/* Conexões (espessura baseada em aderência) */}
         {posicionadas.map((opp) => {
           const strokeWidth = Math.max(0.5, (opp.nivel_aderencia / 100) * 3);

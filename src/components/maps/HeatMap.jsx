@@ -19,8 +19,25 @@ const categoryColors = {
 };
 
 export default function HeatMap({ opportunities, selectedOpportunity, onSelectOpportunity, nomeMuseu }) {
-  const width = 800;
-  const height = 600;
+  const containerRef = React.useRef(null);
+  const [size, setSize] = React.useState({ width: 800, height: 600 });
+  
+  React.useEffect(() => {
+    const updateSize = () => {
+      if (containerRef.current) {
+        setSize({
+          width: Math.min(800, containerRef.current.clientWidth - 40),
+          height: 600
+        });
+      }
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
+
+  const width = size.width;
+  const height = size.height;
   const cellSize = 40;
   const cols = Math.floor(width / cellSize);
   const rows = Math.floor(height / cellSize);
@@ -55,8 +72,8 @@ export default function HeatMap({ opportunities, selectedOpportunity, onSelectOp
   }
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <svg width={width} height={height} className="drop-shadow-lg">
+    <div ref={containerRef} className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+      <svg width={width} height={height} className="drop-shadow-lg" style={{ maxWidth: '100%', height: 'auto' }}>
         {/* Grid de calor */}
         {grid.map((row, r) =>
           row.map((intensity, c) => (
