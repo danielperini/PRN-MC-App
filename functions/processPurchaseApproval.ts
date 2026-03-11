@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
 
     const {
       purchaseId,
-      action, // 'approve' | 'reject'
+      action, // 'approve_coord' | 'approve_admin' | 'reject'
       comentario = '',
       valor_aprovado
     } = await req.json();
@@ -34,18 +34,43 @@ Deno.serve(async (req) => {
     let emailAtor = user.email;
     let dataAprovacao = new Date().toISOString().split('T')[0];
 
-    if (action === 'approve') {
-      novoStatus = 'APROVADO';
-      const valorFinal = valor_aprovado || p.valor_solicitado;
-
-      // Atualizar dados de aprovação
+    if (action === 'approve_coord') {
+      novoStatus = 'APROVADO_COORD';
+      // Atualizar dados de aprovação coord
       await base44.entities.PurchaseRequest.update(purchaseId, {
         status: novoStatus,
-        aprovado_por_nome: nomeAtor,
-        aprovado_por_email: emailAtor,
-        data_aprovacao: dataAprovacao,
-        comentario_aprovacao: comentario,
-        valor_aprovado: parseFloat(valorFinal),
+        aprov_coord_nome: nomeAtor,
+        aprov_coord_data: dataAprovacao,
+        aprov_coord_comentario: comentario,
+      });
+
+      // Notificar admin
+      const admins = await base44.asServiceRole.entities.UserPermission.filter({
+        base_role: 'ADMIN'
+      });
+
+      const notificacoes = admins.map(admin => ({
+        user_email: admin.user_email,
+        type: 'REPORT_NEEDS_ATTENTION',
+        title: 'Solicitação Aprovada pelo Coordenador',
+        message: `Compra "${p.descricao_item}" foi aprovada pelo coordenador. Aguarda aprovação administrativa.`,
+        read: false,
+        email_sent: false,
+      }));
+
+      await base44.asServiceRole.entities.Notification.bulkCreate(notificacoes);
+
+    } else if (action === 'approve_admin') {
+      novoStatus = 'APROVADO_ADMIN';
+      const valorFinal = valor_aprovado || p.valor_solicitado;
+
+      // Atualizar dados de aprovação admin
+      await base44.entities.PurchaseRequest.update(purchaseId, {
+        status: novoStatus,
+        aprov_admin_nome: nomeAtor,
+        aprov_admin_data: dataAprovacao,
+        aprov_admin_comentario: comentario,
+        valor_aprovado_admin: parseFloat(valorFinal),
       });
 
       // Atualizar saldo da rubrica
@@ -128,7 +153,7 @@ Deno.serve(async (req) => {
     return Response.json({ 
       success: true, 
       status: novoStatus,
-      message: `Compra ${action === 'approve' ? 'aprovada' : 'recusada'}`
+      message: `Compra ${action === 'approve_coord' ? 'aprovada pelo coordenador' : action === 'approve_admin' ? 'aprovada administrativamente' : 'recusada'}`
     });
   } catch (error) {
     console.error('Erro em processPurchaseApproval:', error);
