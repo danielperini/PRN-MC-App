@@ -57,9 +57,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Notificar solicitante que foi aprovado
+      // Notificar solicitante que foi aprovado via email
       try {
-        await base44.asServiceRole.functions.invoke('notifyPurchaseStatusChange', {
+        await base44.asServiceRole.functions.invoke('notifyUserOnPurchaseStatusChange', {
           purchaseId: purchaseId,
           newStatus: novoStatus,
           comentario: comentario
