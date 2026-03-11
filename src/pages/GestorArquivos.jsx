@@ -234,6 +234,88 @@ function GestorArquivosInner() {
 
       return (
       <>
+      {/* Dialog Upload */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Adicionar Arquivos à Biblioteca</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Info Box */}
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex gap-2">
+                <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-blue-700 space-y-1">
+                  <p><strong>Limite:</strong> 100MB por lote</p>
+                  <p><strong>PDFs:</strong> Serão automaticamente adicionados à base de conhecimento</p>
+                  <p><strong>Suporte:</strong> PDF, Word, Excel, imagens</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Upload Area */}
+            <div>
+              <Label className="text-sm font-medium">Selecionar Arquivos</Label>
+              <input
+                type="file"
+                multiple
+                onChange={handleFileSelect}
+                disabled={uploading}
+                className="mt-2 w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 disabled:opacity-50"
+              />
+            </div>
+
+            {/* Arquivos Selecionados */}
+            {uploadFiles.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Arquivos Selecionados ({uploadFiles.length})</Label>
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {uploadFiles.map((file, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-xs p-2 bg-gray-50 rounded">
+                      <span className="text-gray-700">{file.name}</span>
+                      <span className="text-gray-500">{(file.size / 1024 / 1024).toFixed(2)}MB</span>
+                      <button
+                        onClick={() => setUploadFiles(uploadFiles.filter((_, i) => i !== idx))}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Notas */}
+            <div>
+              <Label className="text-sm font-medium">Notas / Descrição (opcional)</Label>
+              <Textarea
+                placeholder="Adicione informações sobre estes arquivos (Ex: Relatório de janeiro, documentação técnica, etc)"
+                value={uploadNotes}
+                onChange={(e) => setUploadNotes(e.target.value)}
+                className="mt-2 text-sm resize-none h-20"
+                disabled={uploading}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUploadDialog(false)} disabled={uploading}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleUploadFiles} 
+              disabled={uploading || uploadFiles.length === 0}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Enviar {uploadFiles.length > 0 ? `(${uploadFiles.length})` : ''}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <BackupMonthlyDialog 
         isOpen={showMonthlyBackup} 
         onClose={() => setShowMonthlyBackup(false)} 
