@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
-import { Cloud, Calendar, AlertTriangle, HardDrive, ChevronDown, Loader2, FileText, Info, Download, File, ExternalLink } from 'lucide-react';
+import { Cloud, Calendar, AlertTriangle, HardDrive, ChevronDown, Loader2, FileText, Info, Download, File, ExternalLink, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -547,15 +547,27 @@ function GestorArquivosInner() {
                              <p className="font-medium text-black">{member.user_name}</p>
                              <p className="text-sm text-gray-500">{member.funcao} • {member.valor_total ? `R$ ${member.valor_total.toLocaleString('pt-BR')}` : 'Valor não especificado'}</p>
                            </div>
-                           <a 
-                             href={member.contrato_url} 
-                             target="_blank" 
-                             rel="noopener noreferrer"
-                             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
-                           >
-                             <Download className="w-4 h-4" />
-                             Download
-                           </a>
+                           <div className="flex gap-2">
+                             <a 
+                               href={member.contrato_url} 
+                               target="_blank" 
+                               rel="noopener noreferrer"
+                               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                             >
+                               <Eye className="w-4 h-4" />
+                               Ler
+                             </a>
+                             <a 
+                               href={member.contrato_url} 
+                               target="_blank" 
+                               rel="noopener noreferrer"
+                               download={member.user_name}
+                               className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
+                             >
+                               <Download className="w-4 h-4" />
+                               Baixar
+                             </a>
+                           </div>
                          </div>
                        ))}
                    </div>
@@ -588,14 +600,25 @@ function GestorArquivosInner() {
                                {periodMembers.map(member => (
                                  <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
                                    <span className="text-sm text-gray-700">{member.user_name}</span>
-                                   <a 
-                                     href={member.contrato_url} 
-                                     target="_blank" 
-                                     rel="noopener noreferrer"
-                                     className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm"
-                                   >
-                                     <ExternalLink className="w-3 h-3" />
-                                   </a>
+                                   <div className="flex gap-2">
+                                     <a 
+                                       href={member.contrato_url} 
+                                       target="_blank" 
+                                       rel="noopener noreferrer"
+                                       className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm"
+                                     >
+                                       <Eye className="w-3 h-3" />
+                                     </a>
+                                     <a 
+                                       href={member.contrato_url} 
+                                       target="_blank" 
+                                       rel="noopener noreferrer"
+                                       download={member.user_name}
+                                       className="inline-flex items-center gap-1 text-green-600 hover:text-green-700 text-sm"
+                                     >
+                                       <Download className="w-3 h-3" />
+                                     </a>
+                                   </div>
                                  </div>
                                ))}
                              </div>
