@@ -9,16 +9,12 @@ import { Badge } from '@/components/ui/badge';
 import { X, Sparkles, AlertTriangle, CheckCircle, Loader2, Upload, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import OrcamentoUploadDialog from './OrcamentoUploadDialog';
+import { METAS_3_ADITIVO } from '@/components/planoTrabalho';
 
-const METAS = [
-  { id: 'MC3A-20', label: 'MC3A-20 — Ações Educativas/Culturais' },
-  { id: 'MC3A-21', label: 'MC3A-21 — Exposição e Produção Cultural' },
-  { id: 'MC3A-22', label: 'MC3A-22 — Comunicação e Divulgação' },
-  { id: 'MC3A-23', label: 'MC3A-23 — Noturno nos Museus 2026' },
-  { id: 'MC3A-24', label: 'MC3A-24 — Emenda Parlamentar' },
-  { id: 'MC3A-25', label: 'MC3A-25 — Outras Ações' },
-  { id: 'MC3A-EXTRA', label: 'MC3A-EXTRA — Ações Extras' },
-];
+const METAS = METAS_3_ADITIVO.map(m => ({
+  id: m.codigo,
+  label: `${m.codigo} — ${m.titulo}`,
+}));
 
 const CATEGORIAS = [
   'Serviços (equipe/coordenação)',
