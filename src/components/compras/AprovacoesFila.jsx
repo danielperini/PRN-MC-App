@@ -29,6 +29,12 @@ export default function AprovacoesFila({ purchases, budgetLines, statusConfig, o
   };
 
   const handleAction = async (purchase, action) => {
+    // Restringir aprovação apenas para coordenador geral (admin)
+    if (action === 'approve_coord' && currentUser?.role !== 'admin' && currentUser?.role !== 'ADMIN') {
+      toast.error('Apenas o coordenador geral pode aprovar solicitações.');
+      return;
+    }
+
     setLoading(l => ({ ...l, [purchase.id]: true }));
     try {
       const comentario = comentarios[purchase.id] || '';
@@ -42,20 +48,26 @@ export default function AprovacoesFila({ purchases, budgetLines, statusConfig, o
         }
       }
 
-      await base44.functions.invoke('processPurchaseApproval', {
+      const res = await base44.functions.invoke('processPurchaseApproval', {
         purchaseId: purchase.id,
         action: action === 'approve_coord' ? 'approve_coord' : 'reject',
         comentario,
       });
 
-      const msgs = {
-        approve_coord: 'Compra aprovada e comprometida!',
-        recusar: 'Solicitação recusada.',
-      };
-      toast.success(msgs[action] || 'Ação realizada!');
+      if (action === 'approve_coord') {
+        toast.success('✅ Solicitação aprovada com sucesso e saldo comprometido!', {
+          duration: 4000,
+          icon: '✅',
+        });
+      } else {
+        toast.success('❌ Solicitação recusada.', {
+          duration: 3000,
+        });
+      }
+      
       onRefresh();
     } catch (e) {
-      toast.error('Erro: ' + e.message);
+      toast.error('❌ Erro ao processar: ' + e.message);
     }
     setLoading(l => ({ ...l, [purchase.id]: false }));
   };
