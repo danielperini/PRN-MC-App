@@ -27,6 +27,8 @@ const FONTE_COLORS = {
 function NewsCard({ news, onApprove, onArchive, onDelete, onTagChange, processingId }) {
   const [localTags, setLocalTags] = useState(news.tags || []);
   const [classifying, setClassifying] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [aiVerdict, setAiVerdict] = useState(null); // { decisao: 'PUBLICAR'|'ARQUIVAR', motivo: string }
   const isProcessing = processingId === news.id;
 
   const toggleTag = (tag) => {
@@ -58,6 +60,44 @@ Retorne JSON com as tags mais relevantes (máximo 3).`,
       console.error('Erro ao classificar:', e);
     } finally {
       setClassifying(false);
+    }
+  };
+
+  const analyzeUrl = async () => {
+    if (!news.link) return;
+    setAnalyzing(true);
+    setAiVerdict(null);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const result = await base44.integrations.Core.InvokeLLM({
+        prompt: `Você é curador de conteúdo do Projeto Museus Centro de Belo Horizonte (MHAB, MIS, MUMO, Viaduto das Artes).
+Hoje é ${today}. Acesse e leia o conteúdo da URL: ${news.link}
+
+Avalie se esta notícia deve ser PUBLICADA ou ARQUIVADA com base nos critérios:
+1. RELEVÂNCIA: Fala sobre os museus municipais de BH (MHAB, MIS, MUMO, Viaduto das Artes, Projeto Museus Centro)? Ou sobre temas relacionados: museologia, patrimônio cultural, cinema, moda histórica, história de BH?
+2. ATUALIDADE: A data de publicação/evento é recente (nos últimos 180 dias a partir de hoje)? Eventos passados de mais de 6 meses atrás devem ser ARQUIVADOS.
+3. CONTEÚDO: É conteúdo informativo/institucional relevante ou apenas uma agenda de eventos já realizados?
+
+Decisão: Se NÃO for relevante OU for muito antiga/evento passado → ARQUIVAR. Caso contrário → PUBLICAR.
+
+Retorne JSON com sua decisão.`,
+        add_context_from_internet: true,
+        model: 'gemini_3_flash',
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            decisao: { type: 'string', enum: ['PUBLICAR', 'ARQUIVAR'] },
+            motivo: { type: 'string' }
+          },
+          required: ['decisao', 'motivo']
+        }
+      });
+      setAiVerdict(result);
+    } catch (e) {
+      console.error('Erro ao analisar URL:', e);
+      setAiVerdict({ decisao: 'ERRO', motivo: 'Não foi possível acessar o conteúdo da URL.' });
+    } finally {
+      setAnalyzing(false);
     }
   };
 
