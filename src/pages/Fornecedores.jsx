@@ -13,12 +13,18 @@ export default function Fornecedores() {
   const [formData, setFormData] = useState({
     nome: '',
     tipo: 'pessoa_fisica',
-    cpf_cnpj: '',
+    cpf: '',
+    cnpj: '',
     email: '',
     telefone: '',
+    endereco_completo: '',
+    contato_vendedor_nome: '',
+    contato_vendedor_telefone: '',
+    contato_vendedor_email: '',
     banco: '',
     agencia: '',
     conta: '',
+    tipo_conta: 'corrente',
     pix: '',
     categorias_servico: []
   });
@@ -70,12 +76,18 @@ export default function Fornecedores() {
     setFormData({
       nome: '',
       tipo: 'pessoa_fisica',
-      cpf_cnpj: '',
+      cpf: '',
+      cnpj: '',
       email: '',
       telefone: '',
+      endereco_completo: '',
+      contato_vendedor_nome: '',
+      contato_vendedor_telefone: '',
+      contato_vendedor_email: '',
       banco: '',
       agencia: '',
       conta: '',
+      tipo_conta: 'corrente',
       pix: '',
       categorias_servico: []
     });
@@ -99,13 +111,13 @@ export default function Fornecedores() {
           {fornecedores.map(fornecedor => (
             <Card key={fornecedor.id} className="p-4 hover:shadow-lg transition-shadow">
               <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-blue-600" />
-                  <div>
-                    <h3 className="font-semibold text-sm">{fornecedor.nome}</h3>
-                    <p className="text-xs text-gray-500">{fornecedor.cpf_cnpj}</p>
-                  </div>
-                </div>
+                 <div className="flex items-center gap-2">
+                   <Building2 className="w-5 h-5 text-blue-600" />
+                   <div>
+                     <h3 className="font-semibold text-sm">{fornecedor.nome}</h3>
+                     <p className="text-xs text-gray-500">{fornecedor.cpf || fornecedor.cnpj}</p>
+                   </div>
+                 </div>
                 <div className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => handleEdit(fornecedor)}>
                     <Edit2 className="w-4 h-4" />
@@ -125,6 +137,16 @@ export default function Fornecedores() {
                 {fornecedor.telefone && (
                   <div className="flex items-center gap-2 text-gray-600">
                     <Phone className="w-4 h-4" /> {fornecedor.telefone}
+                  </div>
+                )}
+                {fornecedor.endereco_completo && (
+                  <p className="text-xs text-gray-500">{fornecedor.endereco_completo}</p>
+                )}
+                {fornecedor.contato_vendedor_nome && (
+                  <div className="bg-gray-50 p-2 rounded text-xs">
+                    <p className="font-semibold text-gray-700">Vendedor: {fornecedor.contato_vendedor_nome}</p>
+                    {fornecedor.contato_vendedor_telefone && <p>{fornecedor.contato_vendedor_telefone}</p>}
+                    {fornecedor.contato_vendedor_email && <p>{fornecedor.contato_vendedor_email}</p>}
                   </div>
                 )}
                 {fornecedor.categorias_servico?.length > 0 && (
@@ -152,53 +174,128 @@ export default function Fornecedores() {
           <DialogHeader>
             <DialogTitle>{editingId ? 'Editar Fornecedor' : 'Novo Fornecedor'}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              placeholder="Nome"
-              value={formData.nome}
-              onChange={(e) => setFormData({...formData, nome: e.target.value})}
-              required
-            />
-            <Input
-              placeholder="CPF/CNPJ"
-              value={formData.cpf_cnpj}
-              onChange={(e) => setFormData({...formData, cpf_cnpj: e.target.value})}
-              required
-            />
-            <Input
-              placeholder="Email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
-            />
-            <Input
-              placeholder="Telefone"
-              value={formData.telefone}
-              onChange={(e) => setFormData({...formData, telefone: e.target.value})}
-            />
-            <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="space-y-4 max-h-96 overflow-y-auto">
+            {/* Dados do Fornecedor */}
+            <div className="border-b pb-3">
+              <h4 className="font-semibold text-sm mb-3 text-gray-700">Fornecedor</h4>
               <Input
-                placeholder="Banco"
-                value={formData.banco}
-                onChange={(e) => setFormData({...formData, banco: e.target.value})}
+                placeholder="Nome *"
+                value={formData.nome}
+                onChange={(e) => setFormData({...formData, nome: e.target.value})}
+                required
               />
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label className="text-xs text-gray-600 block mb-1">CPF</label>
+                  <Input
+                    placeholder="123.456.789-00"
+                    value={formData.cpf}
+                    onChange={(e) => setFormData({...formData, cpf: e.target.value})}
+                    disabled={formData.tipo === 'pessoa_juridica'}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600 block mb-1">CNPJ</label>
+                  <Input
+                    placeholder="12.345.678/0001-00"
+                    value={formData.cnpj}
+                    onChange={(e) => setFormData({...formData, cnpj: e.target.value})}
+                    disabled={formData.tipo === 'pessoa_fisica'}
+                  />
+                </div>
+              </div>
+              <div className="mt-3">
+                <label className="text-xs text-gray-600 block mb-1">Tipo</label>
+                <select 
+                  value={formData.tipo} 
+                  onChange={(e) => setFormData({...formData, tipo: e.target.value})}
+                  className="w-full px-3 py-2 border rounded text-sm"
+                >
+                  <option value="pessoa_fisica">Pessoa Física</option>
+                  <option value="pessoa_juridica">Pessoa Jurídica</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Endereço */}
+            <div className="border-b pb-3">
+              <h4 className="font-semibold text-sm mb-3 text-gray-700">Endereço</h4>
               <Input
-                placeholder="Agência"
-                value={formData.agencia}
-                onChange={(e) => setFormData({...formData, agencia: e.target.value})}
+                placeholder="Endereço completo (rua, nº, bairro, cidade, estado)"
+                value={formData.endereco_completo}
+                onChange={(e) => setFormData({...formData, endereco_completo: e.target.value})}
               />
             </div>
-            <Input
-              placeholder="Conta"
-              value={formData.conta}
-              onChange={(e) => setFormData({...formData, conta: e.target.value})}
-            />
-            <Input
-              placeholder="PIX"
-              value={formData.pix}
-              onChange={(e) => setFormData({...formData, pix: e.target.value})}
-            />
-            <div className="flex justify-end gap-2">
+
+            {/* Contatos */}
+            <div className="border-b pb-3">
+              <h4 className="font-semibold text-sm mb-3 text-gray-700">Contatos</h4>
+              <Input
+                placeholder="Email do fornecedor"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                className="mb-3"
+              />
+              <Input
+                placeholder="Telefone do fornecedor"
+                value={formData.telefone}
+                onChange={(e) => setFormData({...formData, telefone: e.target.value})}
+              />
+            </div>
+
+            {/* Contato de Vendedor */}
+            <div className="border-b pb-3 bg-amber-50 p-3 rounded">
+              <h4 className="font-semibold text-sm mb-3 text-amber-900">Contato de Vendedor/Representante</h4>
+              <Input
+                placeholder="Nome do vendedor ou representante"
+                value={formData.contato_vendedor_nome}
+                onChange={(e) => setFormData({...formData, contato_vendedor_nome: e.target.value})}
+                className="mb-3"
+              />
+              <Input
+                placeholder="Telefone do vendedor"
+                value={formData.contato_vendedor_telefone}
+                onChange={(e) => setFormData({...formData, contato_vendedor_telefone: e.target.value})}
+                className="mb-3"
+              />
+              <Input
+                placeholder="Email do vendedor"
+                type="email"
+                value={formData.contato_vendedor_email}
+                onChange={(e) => setFormData({...formData, contato_vendedor_email: e.target.value})}
+              />
+            </div>
+
+            {/* Dados Bancários */}
+            <div className="pb-3">
+              <h4 className="font-semibold text-sm mb-3 text-gray-700">Dados Bancários</h4>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <Input
+                  placeholder="Banco"
+                  value={formData.banco}
+                  onChange={(e) => setFormData({...formData, banco: e.target.value})}
+                />
+                <Input
+                  placeholder="Agência"
+                  value={formData.agencia}
+                  onChange={(e) => setFormData({...formData, agencia: e.target.value})}
+                />
+              </div>
+              <Input
+                placeholder="Conta"
+                value={formData.conta}
+                onChange={(e) => setFormData({...formData, conta: e.target.value})}
+                className="mb-3"
+              />
+              <Input
+                placeholder="PIX"
+                value={formData.pix}
+                onChange={(e) => setFormData({...formData, pix: e.target.value})}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 border-t pt-4">
               <Button type="button" variant="outline" onClick={resetForm}>Cancelar</Button>
               <Button type="submit">Salvar</Button>
             </div>
