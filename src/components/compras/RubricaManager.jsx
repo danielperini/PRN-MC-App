@@ -4,9 +4,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Check, X, DollarSign, TrendingDown, TrendingUp, Target } from 'lucide-react';
+import { Plus, Pencil, Check, X, DollarSign, TrendingDown, TrendingUp, Target, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import EditRubricaDialog from '@/components/compras/EditRubricaDialog';
+import ImportarRubricasAtualizadas from '@/components/compras/ImportarRubricasAtualizadas';
 
 const fmt = (v) => `R$ ${(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
