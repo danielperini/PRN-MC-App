@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
@@ -10,7 +11,6 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { useState } from 'react';
 
 function GaleriaFotosInner() {
   const { user: currentUser } = useCurrentUser();
@@ -107,64 +107,64 @@ function GaleriaFotosInner() {
         }
 
         return filteredByUser.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
-      } catch (error) {
+        } catch (error) {
         toast.error('Erro ao carregar imagens');
         return [];
-      }
-      },
-      enabled: !!currentUser
-      });
+        }
+        },
+        enabled: !!currentUser
+        });
 
-      const canEditOrDelete = (image) => {
-      if (isCoordinador) return true; // Coordenador pode editar/deletar tudo
-      return image.authorEmail === currentUser?.email || image.author === currentUser?.full_name;
-      };
+        const canEditOrDelete = (image) => {
+        if (isCoordinador) return true; // Coordenador pode editar/deletar tudo
+        return image.authorEmail === currentUser?.email || image.author === currentUser?.full_name;
+        };
 
-      const handleSaveDescription = async () => {
-      if (!editingImage) return;
-      setSaving(true);
-      try {
-      // Atualizar Attachment ou ReportPhoto baseado no tipo
-      if (editingImage.type === 'attachment') {
-       await base44.entities.Attachment.update(editingImage.attachmentId, {
-         description: editDescription
-       });
-      } else if (editingImage.type === 'report_photo') {
-       await base44.entities.ReportPhoto.update(editingImage.attachmentId, {
-         caption: editDescription
-       });
-      }
-      queryClient.invalidateQueries(['galeria-fotos']);
-      setEditingImage(null);
-      toast.success('Descrição atualizada com sucesso');
-      } catch (error) {
-      toast.error('Erro ao atualizar descrição');
-      } finally {
-      setSaving(false);
-      }
-      };
+        const handleSaveDescription = async () => {
+        if (!editingImage) return;
+        setSaving(true);
+        try {
+        // Atualizar Attachment ou ReportPhoto baseado no tipo
+        if (editingImage.type === 'attachment') {
+        await base44.entities.Attachment.update(editingImage.attachmentId, {
+          description: editDescription
+        });
+        } else if (editingImage.type === 'report_photo') {
+        await base44.entities.ReportPhoto.update(editingImage.attachmentId, {
+          caption: editDescription
+        });
+        }
+        queryClient.invalidateQueries(['galeria-fotos']);
+        setEditingImage(null);
+        toast.success('Descrição atualizada com sucesso');
+        } catch (error) {
+        toast.error('Erro ao atualizar descrição');
+        } finally {
+        setSaving(false);
+        }
+        };
 
-      const handleDeleteImage = async (image) => {
-      if (!canEditOrDelete(image)) {
-      toast.error('Você não tem permissão para deletar esta imagem');
-      return;
-      }
-      setDeleting(true);
-      try {
-      if (image.type === 'attachment') {
-       await base44.entities.Attachment.delete(image.attachmentId);
-      } else if (image.type === 'report_photo') {
-       await base44.entities.ReportPhoto.delete(image.attachmentId);
-      }
-      queryClient.invalidateQueries(['galeria-fotos']);
-      setSelectedImage(null);
-      toast.success('Imagem deletada com sucesso');
-      } catch (error) {
-      toast.error('Erro ao deletar imagem');
-      } finally {
-      setDeleting(false);
-      }
-      });
+        const handleDeleteImage = async (image) => {
+        if (!canEditOrDelete(image)) {
+        toast.error('Você não tem permissão para deletar esta imagem');
+        return;
+        }
+        setDeleting(true);
+        try {
+        if (image.type === 'attachment') {
+        await base44.entities.Attachment.delete(image.attachmentId);
+        } else if (image.type === 'report_photo') {
+        await base44.entities.ReportPhoto.delete(image.attachmentId);
+        }
+        queryClient.invalidateQueries(['galeria-fotos']);
+        setSelectedImage(null);
+        toast.success('Imagem deletada com sucesso');
+        } catch (error) {
+        toast.error('Erro ao deletar imagem');
+        } finally {
+        setDeleting(false);
+        }
+        };
 
   if (isLoading) {
     return (
