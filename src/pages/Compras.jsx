@@ -9,6 +9,7 @@ import RequireAuth from '@/components/auth/RequireAuth';
 import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
 import PurchaseCard from '@/components/compras/PurchaseCard';
 import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
+import BudgetHealthDashboard from '@/components/compras/BudgetHealthDashboard';
 import AprovacoesFila from '@/components/compras/AprovacoesFila';
 import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
 import RubricaManager from '@/components/compras/RubricaManager';
