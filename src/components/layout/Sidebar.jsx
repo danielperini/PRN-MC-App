@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SuggestionForm from '@/components/sidebar/SuggestionForm';
+import { HelpWrapper } from '@/components/help/withContextualHelp';
 
 export default function Sidebar({ currentPageName, collapsed, onToggle, currentUser }) {
   const [customPerms, setCustomPerms] = useState(null);
@@ -132,29 +133,37 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
             )}
 
             {section.items.map(item => {
-              const Icon = item.icon;
-              const isActive = currentPageName === item.name;
-              return (
-                <Link key={item.name} to={createPageUrl(item.name)}>
-                  <Button
-                    variant="ghost"
-                    className={`w-full h-9 gap-2.5 text-[13px] font-medium transition-all duration-150 ${
-                      collapsed ? 'justify-center px-0' : 'justify-start px-3'
-                    } ${
-                      isActive
-                        ? 'bg-white text-black shadow-sm'
-                        : 'text-white/60 hover:text-white hover:bg-white/8'
-                    }`}
-                    title={collapsed ? item.label : ''}
-                  >
-                    <Icon className={`flex-shrink-0 ${collapsed ? 'w-5 h-5' : 'w-4 h-4'}`} />
-                    {!collapsed && <span>{item.label}</span>}
-                    {isActive && !collapsed && (
-                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-black/30" />
-                    )}
-                  </Button>
-                </Link>
-              );
+               const Icon = item.icon;
+               const isActive = currentPageName === item.name;
+               return (
+                 <HelpWrapper
+                   key={item.name}
+                   componentKey={`sidebar-${item.name.toLowerCase()}`}
+                   label={item.label}
+                   componentType="sidebar_item"
+                   contextDescription={`Item de menu para acessar ${item.label}`}
+                 >
+                   <Link to={createPageUrl(item.name)} className="block">
+                     <Button
+                       variant="ghost"
+                       className={`w-full h-9 gap-2.5 text-[13px] font-medium transition-all duration-150 ${
+                         collapsed ? 'justify-center px-0' : 'justify-start px-3'
+                       } ${
+                         isActive
+                           ? 'bg-white text-black shadow-sm'
+                           : 'text-white/60 hover:text-white hover:bg-white/8'
+                       }`}
+                       title={collapsed ? item.label : ''}
+                     >
+                       <Icon className={`flex-shrink-0 ${collapsed ? 'w-5 h-5' : 'w-4 h-4'}`} />
+                       {!collapsed && <span>{item.label}</span>}
+                       {isActive && !collapsed && (
+                         <span className="ml-auto w-1.5 h-1.5 rounded-full bg-black/30" />
+                       )}
+                     </Button>
+                   </Link>
+                 </HelpWrapper>
+               );
             })}
           </div>
         ))}
