@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 
 const MANUAL_CONTENT = {
   title: 'Manual de Instruções - Plataforma Museu Centro',
@@ -213,12 +215,31 @@ Auto-save: Salvamento automático de dados`
 
 export default function ManualInstrucoes() {
   const [expandedSections, setExpandedSections] = useState({});
+  const [generatedSections, setGeneratedSections] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const toggleSection = (id) => {
     setExpandedSections(prev => ({
       ...prev,
       [id]: !prev[id]
     }));
+  };
+
+  const handleGenerateManual = async () => {
+    setLoading(true);
+    try {
+      const response = await base44.functions.invoke('generatePageManual', {});
+      if (response.data.success) {
+        setGeneratedSections(response.data.sections);
+        toast.success('Manual gerado com sucesso!');
+      } else {
+        toast.error('Erro ao gerar manual');
+      }
+    } catch (error) {
+      toast.error('Erro: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -284,15 +305,55 @@ export default function ManualInstrucoes() {
           <p className="mt-1">Entre em contato com seu coordenador para dúvidas não abordadas</p>
         </div>
 
-        {/* Action Button */}
-        <div className="mt-8 flex justify-center">
+        {/* Action Buttons */}
+        <div className="mt-8 flex flex-col md:flex-row justify-center gap-4">
           <Button
             onClick={() => window.print()}
             className="bg-black hover:bg-gray-800 text-white"
           >
             📄 Imprimir Manual
           </Button>
+          <Button
+            onClick={handleGenerateManual}
+            disabled={loading}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            {loading ? 'Gerando...' : 'Atualizar com IA'}
+          </Button>
         </div>
+
+        {/* Generated Sections */}
+        {generatedSections && (
+          <div className="mt-12 pt-8 border-t border-gray-200">
+            <h2 className="text-2xl font-bold text-black mb-6">📚 Documentação Gerada por IA</h2>
+            <div className="space-y-4">
+              {generatedSections.map((section, idx) => (
+                <div key={idx} className="border border-gray-200 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => toggleSection(`gen-${idx}`)}
+                    className="w-full p-6 bg-blue-50 hover:bg-blue-100 flex items-center justify-between transition-colors"
+                  >
+                    <h3 className="text-lg font-semibold text-blue-900 text-left">{section.displayName}</h3>
+                    {expandedSections[`gen-${idx}`] ? (
+                      <ChevronUp className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                    )}
+                  </button>
+
+                  {expandedSections[`gen-${idx}`] && (
+                    <div className="border-t border-blue-100 p-6 bg-white">
+                      <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed font-sans">
+                        {section.content}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
