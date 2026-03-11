@@ -150,18 +150,20 @@ function ComprasInner() {
                 </SelectContent>
               </Select>
               <Select value={filters.meta_id} onValueChange={v => setFilters(f => ({ ...f, meta_id: v }))}>
-                <SelectTrigger className="w-44"><SelectValue placeholder="Meta" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as metas</SelectItem>
-                  <SelectItem value="MC3A-20">MC3A-20 — Ações Educativas</SelectItem>
-                  <SelectItem value="MC3A-21">MC3A-21 — Exposição / Produção Cultural</SelectItem>
-                  <SelectItem value="MC3A-22">MC3A-22 — Comunicação e Divulgação</SelectItem>
-                  <SelectItem value="MC3A-23">MC3A-23 — Noturno nos Museus 2026</SelectItem>
-                  <SelectItem value="MC3A-24">MC3A-24 — Emenda Parlamentar</SelectItem>
-                  <SelectItem value="MC3A-25">MC3A-25 — Outras Ações</SelectItem>
-                  <SelectItem value="MC3A-EXTRA">MC3A-EXTRA — Ações Extras</SelectItem>
-                </SelectContent>
-              </Select>
+                 <SelectTrigger className="w-48"><SelectValue placeholder="Meta / Tipo" /></SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="all">Todas as metas / tipos</SelectItem>
+                   <SelectItem value="produto">— Apenas Produtos</SelectItem>
+                   <SelectItem value="servico">— Apenas Serviços</SelectItem>
+                   <SelectItem value="MC3A-20">MC3A-20 — Ações Educativas</SelectItem>
+                   <SelectItem value="MC3A-21">MC3A-21 — Exposição / Produção Cultural</SelectItem>
+                   <SelectItem value="MC3A-22">MC3A-22 — Comunicação e Divulgação</SelectItem>
+                   <SelectItem value="MC3A-23">MC3A-23 — Noturno nos Museus 2026</SelectItem>
+                   <SelectItem value="MC3A-24">MC3A-24 — Emenda Parlamentar</SelectItem>
+                   <SelectItem value="MC3A-25">MC3A-25 — Outras Ações</SelectItem>
+                   <SelectItem value="MC3A-EXTRA">MC3A-EXTRA — Ações Extras</SelectItem>
+                 </SelectContent>
+               </Select>
             </div>
 
             {isLoading ? (
