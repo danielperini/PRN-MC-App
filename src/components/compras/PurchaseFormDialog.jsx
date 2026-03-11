@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import OrcamentoUploadDialog from './OrcamentoUploadDialog';
 import PurchaseDocumentUpload from './PurchaseDocumentUpload';
 import { METAS_3_ADITIVO } from '@/components/planoTrabalho';
+import { useBudgetLines } from './useBudgetLines';
 
 const METAS = METAS_3_ADITIVO.map(m => ({
   id: m.codigo,
