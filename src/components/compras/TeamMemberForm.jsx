@@ -8,13 +8,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMember }) {
+export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMember, budgetLines = [] }) {
   const [loading, setLoading] = useState(false);
   const [contrato, setContrato] = useState(null);
   const [form, setForm] = useState(editingMember || {
     user_email: '',
     user_name: '',
     funcao: '',
+    budgetline_id: '',
     contrato_url: '',
     valor_total: 0,
     numero_parcelas: 1,
@@ -140,6 +141,25 @@ Retorne em JSON: {"valor_total": 0, "numero_parcelas": 0, "nome": "", "funcao": 
               placeholder="Ex: Designer, Produtor"
             />
           </div>
+
+          {/* Rubrica */}
+          {budgetLines.length > 0 && (
+            <div>
+              <Label>Rubrica Orçamentária Correspondente</Label>
+              <Select value={form.budgetline_id || ''} onValueChange={v => setForm({ ...form, budgetline_id: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a rubrica" />
+                </SelectTrigger>
+                <SelectContent>
+                  {budgetLines.map(bl => (
+                    <SelectItem key={bl.id} value={bl.id}>
+                      {bl.codigo} — {bl.descricao?.substring(0, 50)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Upload Contrato */}
           <div>

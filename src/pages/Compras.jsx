@@ -216,7 +216,7 @@ function ComprasInner() {
 
         {/* Equipe */}
         {tab === 'equipe' && isCoordenador && (
-          <TeamManager />
+          <TeamManager budgetLines={budgetLines} />
         )}
 
         {/* Meus Pagamentos */}
