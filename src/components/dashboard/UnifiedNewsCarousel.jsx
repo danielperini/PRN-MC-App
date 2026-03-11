@@ -36,36 +36,17 @@ export default function UnifiedNewsCarousel() {
   const [selectedTags, setSelectedTags] = useState([]);
   const queryClient = useQueryClient();
 
-  // Fetch news — exclude old ones, randomize order per session
+  // Fetch news — apenas notícias publicadas em curadoria
   const { data: todayNews = [], isLoading: loadingNews, refetch: refetchNews } = useQuery({
     queryKey: ['today-news', today],
     queryFn: async () => {
-      const pubCutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);  // 90 dias publicação
-      const foundCutoff = new Date(Date.now() - 25 * 24 * 60 * 60 * 1000); // 25 dias desde que foi indexada
+      // Buscar apenas notícias com data_selecao definida (publicadas em curadoria)
+      const all = await base44.entities.NewsHighlight.filter({ ativo: true }, '-data_selecao', 400);
 
-      const all = await base44.entities.NewsHighlight.filter({ ativo: true }, '-created_date', 400);
-
-      const fresh = all.filter(n => {
-        // Internas (destaques fixos) sempre aparecem
-        if (n.fonte === 'internal') return true;
-
-        // Filtro por data de publicação
-        if (n.data_publicacao) {
-          const pub = new Date(n.data_publicacao);
-          if (!isNaN(pub.getTime()) && pub < pubCutoff) return false;
-        }
-
-        // Filtro por data de indexação (quando foi encontrada/cadastrada)
-        if (n.data_encontrada) {
-          const found = new Date(n.data_encontrada);
-          if (!isNaN(found.getTime()) && found < foundCutoff) return false;
-        }
-
-        return true;
-      });
+      const curated = all.filter(n => n.data_selecao); // Apenas com data_selecao (curadoria)
 
       // Deduplicate by link
-      const unique = Array.from(new Map(fresh.map(n => [n.link || n.id, n])).values());
+      const unique = Array.from(new Map(curated.map(n => [n.link || n.id, n])).values());
 
       // Shuffle randomly (different order every session)
       for (let i = unique.length - 1; i > 0; i--) {

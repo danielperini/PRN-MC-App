@@ -9,30 +9,15 @@ export default function DailyNewsHighlight() {
   useEffect(() => {
     const fetchDailyNews = async () => {
       try {
-        const today = new Date().toISOString().split('T')[0];
-        
-        // Buscar notícia selecionada para hoje
-        const selectedNews = await base44.entities.NewsHighlight.filter({
-          data_selecao: today,
-          ativo: true
-        });
+        // Buscar notícia curada mais recente (com data_selecao)
+        const selectedNews = await base44.entities.NewsHighlight.filter(
+          { ativo: true },
+          '-data_selecao',
+          1
+        );
 
-        if (selectedNews.length > 0) {
+        if (selectedNews.length > 0 && selectedNews[0].data_selecao) {
           setNews(selectedNews[0]);
-        } else {
-          // Se não houver seleção para hoje, buscar a mais recente
-          const allNews = await base44.entities.NewsHighlight.filter(
-            { ativo: true },
-            '-data_encontrada',
-            1
-          );
-          if (allNews.length > 0) {
-            setNews(allNews[0]);
-            // Marcar como seleção de hoje
-            await base44.entities.NewsHighlight.update(allNews[0].id, {
-              data_selecao: today
-            });
-          }
         }
       } catch (error) {
         console.error('Erro ao buscar notícia do dia:', error);
