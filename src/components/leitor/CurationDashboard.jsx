@@ -110,6 +110,7 @@ export default function CurationDashboard() {
   const [processingId, setProcessingId] = useState(null);
   const [curatingNow, setCuratingNow] = useState(false);
   const [shuffleSeed, setShuffleSeed] = useState(0);
+  const [expandedHelp, setExpandedHelp] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: published = [], isLoading: loadingPublished } = useQuery({
@@ -262,10 +263,24 @@ export default function CurationDashboard() {
       </div>
 
       {/* Published Section */}
-      <div className="mb-8">
-        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <Eye className="w-5 h-5" /> Publicados ({published.length})
-        </h2>
+       <div className="mb-8">
+         <div className="flex items-center justify-between mb-4">
+           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+             <Eye className="w-5 h-5" /> Publicados ({published.length})
+           </h2>
+           <button
+             onClick={() => setExpandedHelp(expandedHelp === 'published' ? null : 'published')}
+             className="text-xs text-gray-500 hover:text-gray-900 flex items-center gap-1"
+           >
+             <ChevronDown className={`w-4 h-4 transition-transform ${expandedHelp === 'published' ? 'rotate-180' : ''}`} />
+             Sobre
+           </button>
+         </div>
+         {expandedHelp === 'published' && (
+           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm text-blue-800">
+             Conteúdo aprovado manualmente ou publicado automaticamente. Clique no lixo para deletar e substituir por pendente.
+           </div>
+         )}
         {loadingPublished ? (
           <div className="flex items-center justify-center h-32 gap-2 text-gray-400">
             <Loader2 className="w-5 h-5 animate-spin" /> Carregando...
@@ -293,14 +308,23 @@ export default function CurationDashboard() {
       {/* Pending Section */}
       {pending.length > 0 && (
         <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-amber-600" /> Pendentes de Curadoria ({pending.length})
-          </h2>
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-            <p className="text-sm text-amber-800">
-              Esses conteúdos têm score de pertinência entre 60-79%. Revise e decida se deseja publicar ou rejeitar.
-            </p>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-amber-600" /> Pendentes de Curadoria ({pending.length})
+            </h2>
+            <button
+              onClick={() => setExpandedHelp(expandedHelp === 'pending' ? null : 'pending')}
+              className="text-xs text-gray-500 hover:text-gray-900 flex items-center gap-1"
+            >
+              <ChevronDown className={`w-4 h-4 transition-transform ${expandedHelp === 'pending' ? 'rotate-180' : ''}`} />
+              Sobre
+            </button>
           </div>
+          {expandedHelp === 'pending' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm text-amber-800">
+              Score 60-79%: conteúdo relevante mas requer validação. Publicar ou rejeitar manualmente.
+            </div>
+          )}
           <div className="space-y-3">
             {pending.map(news => (
               <NewsCardCurated
