@@ -1,177 +1,168 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-const MUSEOLOGY_SOURCES = [
-  'https://www.patrimoniocultural.gov.pt/publicacoes/revista-museologia-pt-pt/',
-  'https://www.relici.org.br/index.php/relici/announcement',
+const CUTOFF_DATE = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+const CUTOFF_STR = CUTOFF_DATE.toISOString().split('T')[0];
+
+const STATIC_SOURCES = [
   'https://dasartes.com.br/',
   'https://dobras.emnuvens.com.br/dobras',
-  'https://ufjf.repositorio.federado.br/', // Repositório UFJF
-  'https://funartemaisdigital.funarte.gov.br/periodico-bd/revista-educacao-artes-e-inclusao/?view_mode=masonry&perpage=12&paged=1&order=ASC&orderby=date&fetch_only=thumbnail%2Ccreation_date%2Ctitle%2Cdescription&fetch_only_meta='
+  'https://funartemaisdigital.funarte.gov.br/periodico-bd/',
+  'https://www.relici.org.br/index.php/relici/issue/current',
 ];
-
-const THREE_MONTHS_AGO = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Step 1: Use AI with internet to find recent article URLs (last 90 days)
+    const discoveryResponse = await base44.integrations.Core.InvokeLLM({
+      prompt: `Você é um especialista em pesquisa acadêmica e cultural. Busque artigos e publicações recentes publicados APÓS ${CUTOFF_STR} (últimos 90 dias) sobre os seguintes temas:
 
-    // Fetch articles from known sources
-    const sourceArticles = await Promise.all(
-      MUSEOLOGY_SOURCES.map(async (url) => {
-        try {
-          const response = await fetch(url, { 
-            headers: { 'User-Agent': 'Mozilla/5.0' },
-            signal: AbortSignal.timeout(5000)
-          });
-          if (response.ok) {
-            const text = await response.text();
-            // Extract basic info from page content
-            const titleMatch = text.match(/<title>(.*?)<\/title>/i);
-            return {
-              titulo: titleMatch ? titleMatch[1] : url,
-              resumo: 'Artigo de museuologia de fonte reconhecida',
-              link: url,
-              fonte: 'web_search',
-              imagem_url: null,
-              data_publicacao: new Date().toISOString().split('T')[0]
-            };
-          }
-        } catch {
-          return null;
-        }
-      })
-    );
+1. Museologia, curadoria, gestão de museus (especialmente Belo Horizonte / Minas Gerais)
+2. Cinema brasileiro, cinemas de rua, cinematecas, história do cinema em MG
+3. Moda, design de moda, história da indumentária no Brasil
+4. História e patrimônio cultural de Belo Horizonte e Minas Gerais
+5. Educação patrimonial e cultural
 
-    // Use AI to find recent academic articles and sources
-    const aiResponse = await base44.integrations.Core.InvokeLLM({
-      prompt: `Você é especialista em história do cinema, museuologia, moda e história cultural. Busque APENAS fontes e artigos acadêmicos/científicos publicados após ${THREE_MONTHS_AGO} (últimos 3 meses). 
+Fontes prioritárias:
+- Revistas acadêmicas brasileiras (Scielo, CAPES, BDTD)
+- Repositórios: UFMG, UFJF, PUC-MG
+- Portais culturais: Funarte, IBRAM, Iphan
+- Portais de cultura e arte: dasartes.com.br, select.art.br, artebrasileiros.com.br
 
-      Prioridades:
-      1. CINEMAS DE RUA EM MINAS GERAIS - artigos e pesquisas sobre história dos cinemas de rua, cinema de bairro em MG
-      2. Repositórios acadêmicos: UFJF, UFMG, PUC-MG, UNIMONTES
-      3. Revistas científicas sobre:
-         - Cinema brasileiro e história
-         - Patrimônio cultural arquitetônico
-         - Memória urbana de Minas Gerais
-         - Museologia e curadoria
-         - História cultural de Belo Horizonte
-      4. Artigos sobre cinemas históricos desativados em cidades mineiras
-      5. Pesquisas sobre espaços culturais urbanos
-      
-      IMPORTANTE:
-      - Apenas publicações de ${THREE_MONTHS_AGO} em diante
-      - Priorize artigos revisados por pares e acadêmicos
-      - Inclua repositórios institucionais de universidades
-      
-      Formato: Uma URL por linha, apenas a URL sem descrição.
-      Liste 10 URLs.`,
+REGRAS OBRIGATÓRIAS:
+- Apenas artigos com data de publicação APÓS ${CUTOFF_STR}
+- Prefira artigos com URL direta ao conteúdo
+- Mínimo 12 URLs, máximo 20
+- NÃO inclua URLs de buscadores, apenas páginas de artigos
+
+Retorne apenas as URLs.`,
+      add_context_from_internet: true,
+      model: 'gemini_3_pro',
       response_json_schema: {
         type: 'object',
         properties: {
           urls: {
             type: 'array',
             items: { type: 'string' },
-            description: 'URLs de artigos científicos recentes sobre cinemas de rua MG'
           }
         }
-      },
-      add_context_from_internet: true,
-      model: 'claude_sonnet_4_6'
+      }
     });
 
-    // Fetch from AI-discovered links (recent academic articles)
-    const aiUrls = aiResponse.urls || [];
-    // Adicionar a URL FUNARTE se não estiver já na lista
-    const allUrls = [
-      'https://funartemaisdigital.funarte.gov.br/periodico-bd/revista-educacao-artes-e-inclusao/?view_mode=masonry&perpage=12&paged=1&order=ASC&orderby=date&fetch_only=thumbnail%2Ccreation_date%2Ctitle%2Cdescription&fetch_only_meta=',
-      ...aiUrls
-    ];
-    const aiArticles = await Promise.all(
-      allUrls.slice(0, 10).map(async (url) => {
+    const discoveredUrls = discoveryResponse.urls || [];
+
+    // Step 2: Fetch and read each URL, extract content for AI analysis
+    const allUrls = [...new Set([...STATIC_SOURCES, ...discoveredUrls])].slice(0, 20);
+
+    const articlesWithContent = await Promise.all(
+      allUrls.map(async (url) => {
         try {
-          const response = await fetch(url, { 
+          const res = await fetch(url, {
             headers: { 'User-Agent': 'Mozilla/5.0' },
-            signal: AbortSignal.timeout(5000)
+            signal: AbortSignal.timeout(6000)
           });
-          if (response.ok) {
-            const text = await response.text();
-            const titleMatch = text.match(/<title>(.*?)<\/title>/i);
-            const isAcademic = url.includes('repositorio') || url.includes('ufjf') || url.includes('ufmg') || url.includes('scielo') || url.includes('.edu');
-            
-            // Classificar artigo com IA
-            let tags = [];
-            try {
-              const classificationResponse = await base44.integrations.Core.InvokeLLM({
-                prompt: `Classifique este artigo/recurso em até 3 categorias principais:
+          if (!res.ok) return null;
+          const html = await res.text();
 
-Título: ${titleMatch ? titleMatch[1] : url}
-URL: ${url}
+          // Extract readable text (strip HTML tags, keep meaningful content)
+          const text = html
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 3000); // Limit to 3000 chars for AI
 
-Categorias disponíveis:
-- Museuologia
-- Cinema
-- Moda
-- História de BH
-- Patrimônio Cultural
-- Curadoria
-- Educação
-
-Retorne APENAS as categorias mais relevantes, sem explicações.`,
-                response_json_schema: {
-                  type: 'object',
-                  properties: {
-                    tags: {
-                      type: 'array',
-                      items: { type: 'string' }
-                    }
-                  }
-                }
-              });
-              tags = classificationResponse.tags || [];
-            } catch {
-              // Fallback: classificação simples por URL
-              if (url.includes('cinema') || url.includes('cinemateca')) tags.push('Cinema');
-              if (url.includes('museu') || url.includes('museo')) tags.push('Museuologia');
-              if (url.includes('moda') || url.includes('fashion')) tags.push('Moda');
-              if (url.includes('belo horizonte') || url.includes('bh') || url.includes('mineiro')) tags.push('História de BH');
-            }
-            
-            return {
-              titulo: titleMatch ? titleMatch[1] : url,
-              resumo: isAcademic 
-                ? 'Artigo científico sobre cinemas de rua e história cultural de Minas Gerais' 
-                : 'Artigo sobre história do cinema em Minas Gerais',
-              link: url,
-              fonte: isAcademic ? 'academic' : 'web_search',
-              imagem_url: null,
-              data_publicacao: new Date().toISOString().split('T')[0],
-              tags: tags
-            };
-          }
+          return { url, text };
         } catch {
           return null;
         }
       })
     );
 
-    // Combine and filter
-    const allArticles = [...sourceArticles, ...aiArticles].filter(a => a !== null);
+    const validPages = articlesWithContent.filter(Boolean);
 
-    // Save to database or return directly
-    const uniqueArticles = Array.from(
-      new Map(allArticles.map(item => [item.link, item])).values()
+    // Step 3: Use AI to analyze each page content and extract structured data
+    const analyzedArticles = await Promise.all(
+      validPages.map(async ({ url, text }) => {
+        try {
+          const analysis = await base44.integrations.Core.InvokeLLM({
+            prompt: `Analise o conteúdo desta página e extraia as informações do artigo/publicação mais relevante encontrada.
+
+URL: ${url}
+Conteúdo da página: ${text}
+
+Data de corte: ${CUTOFF_STR} — DESCARTE artigos com data de publicação anterior a esta data.
+
+Categorias possíveis: Museuologia, Cinema, Moda, História de BH, Patrimônio Cultural, Curadoria, Educação
+
+Instruções:
+- Se não houver artigo relevante ou a data for anterior a ${CUTOFF_STR}, retorne is_valid: false
+- Se o conteúdo for irrelevante para os temas culturais/acadêmicos, retorne is_valid: false
+- Extraia o título real do artigo (não o título do site)
+- Escreva um resumo claro e informativo em português (2-3 frases)
+- Identifique a data de publicação se houver no conteúdo
+- Classifique até 3 tags relevantes da lista de categorias`,
+            response_json_schema: {
+              type: 'object',
+              properties: {
+                is_valid: { type: 'boolean', description: 'true se o artigo for recente e relevante' },
+                titulo: { type: 'string', description: 'Título real do artigo' },
+                resumo: { type: 'string', description: 'Resumo em 2-3 frases em português' },
+                data_publicacao: { type: 'string', description: 'Data no formato YYYY-MM-DD, ou null se não identificada' },
+                tags: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Até 3 categorias da lista disponível'
+                }
+              }
+            }
+          });
+
+          if (!analysis.is_valid) return null;
+          if (!analysis.titulo || !analysis.resumo) return null;
+
+          // Double-check date if extracted
+          if (analysis.data_publicacao) {
+            const pubDate = new Date(analysis.data_publicacao);
+            if (!isNaN(pubDate.getTime()) && pubDate < CUTOFF_DATE) return null;
+          }
+
+          return {
+            titulo: analysis.titulo,
+            resumo: analysis.resumo,
+            link: url,
+            fonte: 'academic',
+            imagem_url: null,
+            data_publicacao: analysis.data_publicacao || new Date().toISOString().split('T')[0],
+            tags: (analysis.tags || []).filter(t =>
+              ['Museuologia', 'Cinema', 'Moda', 'História de BH', 'Patrimônio Cultural', 'Curadoria', 'Educação'].includes(t)
+            ),
+            ativo: true,
+          };
+        } catch {
+          return null;
+        }
+      })
     );
 
-    return Response.json({ 
-      articles: uniqueArticles,
-      count: uniqueArticles.length,
-      sources: MUSEOLOGY_SOURCES.length + aiUrls.length
+    const articles = analyzedArticles.filter(Boolean);
+
+    // Deduplicate by link
+    const unique = Array.from(new Map(articles.map(a => [a.link, a])).values());
+
+    // Sort by most recent first
+    unique.sort((a, b) => new Date(b.data_publicacao) - new Date(a.data_publicacao));
+
+    return Response.json({
+      articles: unique,
+      count: unique.length,
+      cutoff: CUTOFF_STR,
     });
+
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
