@@ -375,6 +375,41 @@ IMPORTANTE: Retorne OBRIGATORIAMENTE um JSON válido com TODOS os campos abaixo,
                 </>
               )}
             </div>
+
+            {form.tipo_pessoa !== 'PF' && (
+              <div className="space-y-4 border-t pt-4">
+                <h4 className="font-semibold text-black">Dados da Empresa</h4>
+                <div>
+                  <Label>Razão Social / Nome da Empresa</Label>
+                  <Input value={form.empresa_nome} onChange={e => set('empresa_nome', e.target.value)} placeholder="Nome da empresa" />
+                </div>
+                <div>
+                  <Label>Endereço</Label>
+                  <Input value={form.empresa_endereco} onChange={e => set('empresa_endereco', e.target.value)} placeholder="Endereço completo" />
+                </div>
+                <div>
+                  <Label>Nome do Representante Legal</Label>
+                  <Input value={form.representante_legal_nome} onChange={e => set('representante_legal_nome', e.target.value)} placeholder="Nome completo" />
+                </div>
+                <div>
+                  <Label>CPF do Representante</Label>
+                  <Input value={form.representante_legal_cpf} onChange={e => set('representante_legal_cpf', e.target.value)} placeholder="000.000.000-00" />
+                </div>
+                <div>
+                  <Label>Cargo do Representante</Label>
+                  <Select value={form.cargo_representante} onValueChange={v => set('cargo_representante', v)}>
+                    <SelectTrigger><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Sócio-Gerente">Sócio-Gerente</SelectItem>
+                      <SelectItem value="Diretor">Diretor</SelectItem>
+                      <SelectItem value="Gerente">Gerente</SelectItem>
+                      <SelectItem value="Procurador">Procurador</SelectItem>
+                      <SelectItem value="Outro">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
           </Section>
 
           {/* ── Contrato ── */}
