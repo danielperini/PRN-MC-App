@@ -4,7 +4,7 @@ import { LogOut, UserCircle, Home } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
-import NotificationBell from '@/components/notifications/NotificationBell';
+import NotificationCenter from '@/components/notifications/NotificationCenter';
 import GlobalSearch from './GlobalSearch';
 
 export default function TopNav({ currentUser }) {
@@ -22,7 +22,7 @@ export default function TopNav({ currentUser }) {
             <Home className="w-5 h-5" />
           </Button>
         </Link>
-        {currentUser?.email && <NotificationBell userEmail={currentUser.email} />}
+        {currentUser?.email && <NotificationCenter />}
         
         <Link to={createPageUrl('Perfil')}>
            <Button variant="ghost" size="icon" className="text-black hover:bg-black hover:text-white h-11 w-11">
