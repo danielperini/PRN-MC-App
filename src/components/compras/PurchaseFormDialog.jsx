@@ -113,6 +113,96 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
     setAnalyzingMeta(false);
   };
 
+  const preencherComIA = async () => {
+    if (form.orcamentos.length === 0) {
+      toast.error('Nenhum contrato anexado para analisar.');
+      return;
+    }
+
+    setAnalyzingMeta(true);
+    try {
+      const orcamento = form.orcamentos[form.orcamentos.length - 1];
+      
+      // Se o arquivo tem URL, fazer upload e análise
+      if (orcamento.url) {
+        const res = await base44.integrations.Core.InvokeLLM({
+          prompt: `Analise este contrato/orçamento e extraia os seguintes campos em JSON:
+{
+  "fornecedor_nome": "Nome da empresa/pessoa fornecedora",
+  "fornecedor_cnpj": "CNPJ ou CPF",
+  "fornecedor_contato": "Telefone ou email",
+  "fornecedor_cidade": "Cidade",
+  "descricao_item": "Descrição detalhada do produto/serviço",
+  "valor_solicitado": número do valor total,
+  "valor_unitario": número do valor unitário,
+  "qtd": quantidade,
+  "unidade": "un, diária, serviço, mês, ano, hora, km ou evento",
+  "prazo_entrega": "Prazo em dias ou data",
+  "garantia": "Período de garantia",
+  "condicoes_pagamento": "Condições de pagamento descritas",
+  "meios_pagamento": "PIX, TED/Transferência, Boleto, Cartão ou Dinheiro"
+}
+
+Retorne APENAS o JSON, sem explicações adicionais.`,
+          file_urls: [orcamento.url],
+          response_json_schema: {
+            type: 'object',
+            properties: {
+              fornecedor_nome: { type: 'string' },
+              fornecedor_cnpj: { type: 'string' },
+              fornecedor_contato: { type: 'string' },
+              fornecedor_cidade: { type: 'string' },
+              descricao_item: { type: 'string' },
+              valor_solicitado: { type: 'number' },
+              valor_unitario: { type: 'number' },
+              qtd: { type: 'number' },
+              unidade: { type: 'string' },
+              prazo_entrega: { type: 'string' },
+              garantia: { type: 'string' },
+              condicoes_pagamento: { type: 'string' },
+              meios_pagamento: { type: 'string' }
+            }
+          }
+        });
+
+        const data = res.data;
+
+        // Preencher campos com dados extraídos
+        if (data.fornecedor_nome) set('fornecedor_nome', data.fornecedor_nome);
+        if (data.fornecedor_cnpj) set('fornecedor_cnpj', data.fornecedor_cnpj);
+        if (data.fornecedor_contato) set('fornecedor_contato', data.fornecedor_contato);
+        if (data.descricao_item) set('descricao_item', data.descricao_item);
+        if (data.valor_solicitado) set('valor_solicitado', data.valor_solicitado.toString());
+        if (data.valor_unitario) set('valor_unitario', data.valor_unitario.toString());
+        if (data.qtd) set('qtd', data.qtd.toString());
+        if (data.unidade) set('unidade', data.unidade);
+        if (data.meios_pagamento) {
+          const meio = data.meios_pagamento.includes('PIX') ? 'PIX' :
+                      data.meios_pagamento.includes('TED') || data.meios_pagamento.includes('Transferência') ? 'TED/Transferência' :
+                      data.meios_pagamento.includes('Boleto') ? 'Boleto' :
+                      data.meios_pagamento.includes('Cartão') ? 'Cartão' :
+                      data.meios_pagamento.includes('Dinheiro') ? 'Dinheiro' : '';
+          if (meio) set('meio_pagamento', meio);
+        }
+
+        // Atualizar observações com informações adicionais
+        let obs = form.observacoes || '';
+        if (data.garantia) obs += (obs ? '\n' : '') + `Garantia: ${data.garantia}`;
+        if (data.condicoes_pagamento) obs += (obs ? '\n' : '') + `Condições: ${data.condicoes_pagamento}`;
+        if (data.prazo_entrega) obs += (obs ? '\n' : '') + `Prazo: ${data.prazo_entrega}`;
+        if (data.fornecedor_cidade) obs += (obs ? '\n' : '') + `Cidade: ${data.fornecedor_cidade}`;
+        if (obs) set('observacoes', obs);
+
+        toast.success('Formulário preenchido com sucesso!');
+      } else {
+        toast.error('Arquivo não tem URL válido. Tente anexar novamente.');
+      }
+    } catch (e) {
+      toast.error('Erro ao preencher com IA: ' + e.message);
+    }
+    setAnalyzingMeta(false);
+  };
+
   const handleSave = async (submeter = false) => {
     if (!form.descricao_item || !form.meta_id || !form.budgetline_id || !form.categoria || !form.tipo_gasto || !form.valor_solicitado) {
       toast.error('Preencha todos os campos obrigatórios.');
