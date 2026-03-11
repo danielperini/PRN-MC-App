@@ -52,12 +52,11 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
     {
       label: 'Financeiro',
       items: [
-        { name: 'Compras', icon: ShoppingCart, label: 'Compras e Equipe', show: true },
-        { name: 'Fornecedores', icon: Building2, label: 'Fornecedores', show: isCoordenador },
-        { name: 'PrestacaoDeContas', icon: FileText, label: 'Prestação de Contas', show: isCoordenador },
-        { name: 'DashboardFinanceiro', icon: BarChart3, label: 'Dashboard Financeiro', show: isCoordenador && canViewMenu('gestao_compras') },
-        { name: 'GestaoPagamentos', icon: Banknote, label: 'Pagamentos', show: isCoordenador },
-        { name: 'ConsolidacaoFinanceira', icon: DollarSign, label: 'Consolidação Financeira', show: isCoordenador },
+        { name: 'Fornecedores', icon: Building2, label: 'Fornecedores', show: isCoordenador, permission: 'can_manage_suppliers' },
+        { name: 'PrestacaoDeContas', icon: FileText, label: 'Prestação de Contas', show: isCoordenador, permission: 'can_view_accountability' },
+        { name: 'DashboardFinanceiro', icon: BarChart3, label: 'Dashboard Financeiro', show: isCoordenador && canViewMenu('gestao_compras'), permission: 'gestao_compras' },
+        { name: 'GestaoPagamentos', icon: Banknote, label: 'Pagamentos', show: isCoordenador, permission: 'can_manage_payments' },
+        { name: 'ConsolidacaoFinanceira', icon: DollarSign, label: 'Consolidação Financeira', show: isCoordenador, permission: 'can_view_consolidation' },
         { name: 'RelatorioMeta', icon: Target, label: 'Rel. por Meta', show: isCoordenador },
       ],
     },
