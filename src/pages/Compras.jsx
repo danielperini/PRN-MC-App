@@ -18,6 +18,7 @@ import TeamManager from '@/components/compras/TeamManager';
 import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
 import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
 import FinancialExcelExporter from '@/components/financeiro/FinancialExcelExporter';
+import ExportRubricasExcelButton from '@/components/compras/ExportRubricasExcelButton';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -236,7 +237,12 @@ function ComprasInner() {
 
         {/* Rubricas — apenas para pode_gerenciar_rubricas */}
          {tab === 'rubricas' && podeGerenciarRubricas && (
-           <RubricaManager budgetLines={budgetLines} purchases={purchases} />
+           <div className="space-y-6">
+             <div className="flex justify-end">
+               <ExportRubricasExcelButton />
+             </div>
+             <RubricaManager budgetLines={budgetLines} purchases={purchases} />
+           </div>
          )}
 
         {/* Equipe */}
