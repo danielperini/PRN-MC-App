@@ -85,6 +85,7 @@ import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
 import ViadutoMap from './pages/ViadutoMap';
+import GeradorListaPresenca from './pages/GeradorListaPresenca';
 import __Layout from './Layout.jsx';
 
 
@@ -127,6 +128,7 @@ export const PAGES = {
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
     "ViadutoMap": ViadutoMap,
+    "GeradorListaPresenca": GeradorListaPresenca,
 }
 
 export const pagesConfig = {
