@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
 
     const {
       purchaseId,
-      action, // 'approve_coord' | 'approve_admin' | 'reject'
+      action, // 'approve' | 'reject'
       comentario = '',
       valor_aprovado
     } = await req.json();
@@ -34,34 +34,8 @@ Deno.serve(async (req) => {
     let emailAtor = user.email;
     let dataAprovacao = new Date().toISOString().split('T')[0];
 
-    if (action === 'approve_coord') {
-      novoStatus = 'APROVADO_COORD';
-      // Atualizar dados de aprovação coord
-      await base44.entities.PurchaseRequest.update(purchaseId, {
-        status: novoStatus,
-        aprov_coord_nome: nomeAtor,
-        aprov_coord_data: dataAprovacao,
-        aprov_coord_comentario: comentario,
-      });
-
-      // Notificar admin
-      const admins = await base44.asServiceRole.entities.UserPermission.filter({
-        base_role: 'ADMIN'
-      });
-
-      const notificacoes = admins.map(admin => ({
-        user_email: admin.user_email,
-        type: 'REPORT_NEEDS_ATTENTION',
-        title: 'Solicitação Aprovada pelo Coordenador',
-        message: `Compra "${p.descricao_item}" foi aprovada pelo coordenador. Aguarda aprovação administrativa.`,
-        read: false,
-        email_sent: false,
-      }));
-
-      await base44.asServiceRole.entities.Notification.bulkCreate(notificacoes);
-
-    } else if (action === 'approve_admin') {
-      novoStatus = 'APROVADO_ADMIN';
+    if (action === 'approve') {
+      novoStatus = 'APROVADO';
       const valorFinal = valor_aprovado || p.valor_solicitado;
 
       // Atualizar dados de aprovação admin
