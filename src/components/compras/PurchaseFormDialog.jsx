@@ -416,10 +416,7 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
                 <Label className="text-xs text-gray-600 mb-1 block">Contato</Label>
                 <Input placeholder="Telefone ou e-mail" value={form.fornecedor_contato} onChange={e => set('fornecedor_contato', e.target.value)} />
               </div>
-              <div>
-                <Label className="text-xs text-gray-600 mb-1 block">Link da proposta</Label>
-                <Input placeholder="https://..." value={form.link_proposta} onChange={e => set('link_proposta', e.target.value)} />
-              </div>
+
             </div>
           </div>
 
@@ -441,19 +438,28 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
           {/* Anexos */}
           <div className="space-y-3 p-4 border border-gray-100 rounded-xl">
             <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Anexos</Label>
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-3 p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center">
+              <Upload className="w-6 h-6 mx-auto text-gray-400" />
               <div>
-                <Label className="text-xs text-gray-600 mb-1 block">Link do Orçamento / Proposta</Label>
-                <Input placeholder="https://drive.google.com/..." value={form.orcamento_url || ''} onChange={e => set('orcamento_url', e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-xs text-gray-600 mb-1 block">Link da Nota Fiscal</Label>
-                <Input placeholder="https://..." value={form.nota_fiscal_url || ''} onChange={e => set('nota_fiscal_url', e.target.value)} />
-                <p className="text-[10px] text-gray-400 mt-0.5">Visível apenas para coordenadores após aprovação.</p>
-              </div>
-              <div>
-                <Label className="text-xs text-gray-600 mb-1 block">Link do Comprovante de Pagamento</Label>
-                <Input placeholder="https://..." value={form.comprovante_url || ''} onChange={e => set('comprovante_url', e.target.value)} />
+                <Label className="text-xs font-medium text-gray-700 block">Upload de Orçamentos / Notas Fiscais</Label>
+                <p className="text-[11px] text-gray-500 mt-1">Arraste PDFs ou clique para selecionar arquivos</p>
+                <Input 
+                  type="file" 
+                  accept=".pdf" 
+                  multiple
+                  className="mt-2 text-xs"
+                  onChange={(e) => {
+                    const files = e.target.files;
+                    if (files?.length) {
+                      const fileNames = Array.from(files).map(f => f.name).join(', ');
+                      set('arquivos_anexos', fileNames);
+                      toast.success(`${files.length} arquivo(s) selecionado(s)`);
+                    }
+                  }}
+                />
+                {form.arquivos_anexos && (
+                  <p className="text-[10px] text-green-700 mt-2">✓ {form.arquivos_anexos}</p>
+                )}
               </div>
             </div>
           </div>
