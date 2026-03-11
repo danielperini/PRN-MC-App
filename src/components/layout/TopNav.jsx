@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
 import PendingActionsAlert from '@/components/notifications/PendingActionsAlert';
 import PurchaseNotificationBell from '@/components/notifications/PurchaseNotificationBell';
+import ReportNotificationBell from '@/components/notifications/ReportNotificationBell';
 import GlobalSearch from './GlobalSearch';
 
 export default function TopNav({ currentUser }) {
@@ -25,6 +26,7 @@ export default function TopNav({ currentUser }) {
           </Button>
         </Link>
         {currentUser?.email && <PendingActionsAlert />}
+        {currentUser?.email && <ReportNotificationBell currentUser={currentUser} />}
         {currentUser?.email && <NotificationCenter />}
         {currentUser?.email && <PurchaseNotificationBell currentUser={currentUser} />}
         
