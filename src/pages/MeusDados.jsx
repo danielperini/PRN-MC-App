@@ -43,7 +43,9 @@ function MeusDadosInner() {
         return;
       }
       setUser(u);
-      setFormData({
+      // Inicializar com dados do usuário
+      setFormData(prev => ({
+        ...prev,
         email_pessoal: u.email_pessoal || '',
         telefone: u.telefone || '',
         cpf: u.cpf || '',
@@ -52,14 +54,14 @@ function MeusDadosInner() {
         conta: u.conta || '',
         tipo_conta: u.tipo_conta || 'Corrente',
         pix_key: u.pix_key || '',
-      });
+      }));
     }).catch(() => setUser(null));
   }, []);
 
   const { data: teamData = [] } = useQuery({
-    queryKey: ['team-members'],
+    queryKey: ['team-members', user?.email],
     queryFn: () => base44.entities.TeamMember.list(),
-    enabled: !!user && user.equipe,
+    enabled: !!user?.email,
   });
 
   useEffect(() => {
