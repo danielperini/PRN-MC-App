@@ -331,10 +331,7 @@ function RelatoriosInner() {
            )}
          </div>
 
-         {/* Compliance Stats (only for coordinators) */}
-         {isCoordenador && (
-           <ComplianceStats currentMonth={MESES[new Date().getMonth()]} currentYear={new Date().getFullYear()} />
-         )}
+
 
          {/* Activity Filters & Summary */}
           <div className="mb-8 space-y-4">
