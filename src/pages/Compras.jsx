@@ -200,6 +200,11 @@ function ComprasInner() {
           </div>
         )}
 
+        {/* Saúde Orçamentária */}
+        {tab === 'saude' && (
+          <BudgetHealthDashboard budgetLines={budgetLines} purchases={purchases} />
+        )}
+
         {/* Orçamento */}
         {tab === 'orcamento' && (
           <div className="space-y-8">
