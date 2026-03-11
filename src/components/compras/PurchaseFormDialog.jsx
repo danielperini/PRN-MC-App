@@ -115,17 +115,16 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
     setAnalyzingMeta(false);
   };
 
-  const preencherComIA = async () => {
+  const analisarOrcamentoComIA = async () => {
     if (form.orcamentos.length === 0) {
-      toast.error('Nenhum contrato anexado para analisar.');
+      toast.error('Nenhum orçamento anexado para analisar.');
       return;
     }
 
-    setAnalyzingMeta(true);
+    setAnalisandoOrcamento(true);
     try {
       const orcamento = form.orcamentos[form.orcamentos.length - 1];
       
-      // Se o arquivo tem URL, fazer upload e análise
       if (orcamento.url) {
         const res = await base44.integrations.Core.InvokeLLM({
           prompt: `Analise este contrato/orçamento e extraia os seguintes campos em JSON:
@@ -167,42 +166,51 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
           }
         });
 
-        const data = res.data;
-
-        // Preencher campos com dados extraídos
-        if (data.fornecedor_nome) set('fornecedor_nome', data.fornecedor_nome);
-        if (data.fornecedor_cnpj) set('fornecedor_cnpj', data.fornecedor_cnpj);
-        if (data.fornecedor_contato) set('fornecedor_contato', data.fornecedor_contato);
-        if (data.descricao_item) set('descricao_item', data.descricao_item);
-        if (data.valor_solicitado) set('valor_solicitado', data.valor_solicitado.toString());
-        if (data.valor_unitario) set('valor_unitario', data.valor_unitario.toString());
-        if (data.qtd) set('qtd', data.qtd.toString());
-        if (data.unidade) set('unidade', data.unidade);
-        if (data.meios_pagamento) {
-          const meio = data.meios_pagamento.includes('PIX') ? 'PIX' :
-                      data.meios_pagamento.includes('TED') || data.meios_pagamento.includes('Transferência') ? 'TED/Transferência' :
-                      data.meios_pagamento.includes('Boleto') ? 'Boleto' :
-                      data.meios_pagamento.includes('Cartão') ? 'Cartão' :
-                      data.meios_pagamento.includes('Dinheiro') ? 'Dinheiro' : '';
-          if (meio) set('meio_pagamento', meio);
-        }
-
-        // Atualizar observações com informações adicionais
-        let obs = form.observacoes || '';
-        if (data.garantia) obs += (obs ? '\n' : '') + `Garantia: ${data.garantia}`;
-        if (data.condicoes_pagamento) obs += (obs ? '\n' : '') + `Condições: ${data.condicoes_pagamento}`;
-        if (data.prazo_entrega) obs += (obs ? '\n' : '') + `Prazo: ${data.prazo_entrega}`;
-        if (data.fornecedor_cidade) obs += (obs ? '\n' : '') + `Cidade: ${data.fornecedor_cidade}`;
-        if (obs) set('observacoes', obs);
-
-        toast.success('Formulário preenchido com sucesso!');
+        setOrcamentoAnalysis(res.data);
       } else {
         toast.error('Arquivo não tem URL válido. Tente anexar novamente.');
       }
     } catch (e) {
-      toast.error('Erro ao preencher com IA: ' + e.message);
+      toast.error('Erro ao analisar orçamento: ' + e.message);
     }
-    setAnalyzingMeta(false);
+    setAnalisandoOrcamento(false);
+  };
+
+  const preencherComDadosOrcamento = (dados) => {
+    if (dados.fornecedor_nome) set('fornecedor_nome', dados.fornecedor_nome);
+    if (dados.fornecedor_cnpj) set('fornecedor_cnpj', dados.fornecedor_cnpj);
+    if (dados.fornecedor_contato) set('fornecedor_contato', dados.fornecedor_contato);
+    if (dados.descricao_item) set('descricao_item', dados.descricao_item);
+    if (dados.valor_solicitado) set('valor_solicitado', dados.valor_solicitado.toString());
+    if (dados.valor_unitario) set('valor_unitario', dados.valor_unitario.toString());
+    if (dados.qtd) set('qtd', dados.qtd.toString());
+    if (dados.unidade) set('unidade', dados.unidade);
+    if (dados.meios_pagamento) {
+      const meio = dados.meios_pagamento.includes('PIX') ? 'PIX' :
+                  dados.meios_pagamento.includes('TED') || dados.meios_pagamento.includes('Transferência') ? 'TED/Transferência' :
+                  dados.meios_pagamento.includes('Boleto') ? 'Boleto' :
+                  dados.meios_pagamento.includes('Cartão') ? 'Cartão' :
+                  dados.meios_pagamento.includes('Dinheiro') ? 'Dinheiro' : '';
+      if (meio) set('meio_pagamento', meio);
+    }
+
+    let obs = form.observacoes || '';
+    if (dados.garantia) obs += (obs ? '\n' : '') + `Garantia: ${dados.garantia}`;
+    if (dados.condicoes_pagamento) obs += (obs ? '\n' : '') + `Condições: ${dados.condicoes_pagamento}`;
+    if (dados.prazo_entrega) obs += (obs ? '\n' : '') + `Prazo: ${dados.prazo_entrega}`;
+    if (dados.fornecedor_cidade) obs += (obs ? '\n' : '') + `Cidade: ${dados.fornecedor_cidade}`;
+    if (obs) set('observacoes', obs);
+
+    setOrcamentoAnalysis(null);
+    toast.success('Formulário preenchido com dados do orçamento!');
+  };
+
+  const preencherComIA = async () => {
+    if (!orcamentoAnalysis) {
+      toast.error('Analise o orçamento primeiro.');
+      return;
+    }
+    preencherComDadosOrcamento(orcamentoAnalysis);
   };
 
   const handleSave = async (submeter = false) => {
