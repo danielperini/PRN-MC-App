@@ -98,6 +98,8 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
   const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
   const handleContratoUpload = async (file) => {
+    if (!file) return;
+
     const allowedTypes = [
       'application/pdf',
       'application/msword',
@@ -110,13 +112,18 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
       toast.error('Aceitos: PDF, DOC, DOCX ou TXT');
       return;
     }
+    
     setAiLoading(true);
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setForm(prev => ({
-        ...prev,
-        contrato_url: file_url,
-      }));
+      
+      // Preservar todos os dados anteriores, apenas adicionar a URL do contrato
+      setForm(prev => {
+        const updated = { ...prev };
+        updated.contrato_url = file_url;
+        return updated;
+      });
+      
       toast.success('Contrato anexado com sucesso');
     } catch (error) {
       console.error('Erro no upload do contrato:', error);
