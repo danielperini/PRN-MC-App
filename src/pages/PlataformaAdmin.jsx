@@ -8,6 +8,7 @@ import { createPageUrl } from '@/utils';
 import MetadadosManager from '../components/admin/MetadadosManager';
 import MuseuManager from '../components/admin/MuseuManager';
 import EquipeManager from '../components/admin/EquipeManager';
+import UserPermissionsManager from '../components/admin/UserPermissionsManager';
 import {
   Users, FileText, History, Settings, ShieldCheck,
   CheckCircle, XCircle, Pencil, Trash2, ChevronRight,
@@ -157,12 +158,18 @@ function PlataformaAdminInner() {
 
         <Tabs defaultValue="relatorios">
           <TabsList className="mb-6 bg-gray-100 p-1 rounded-xl">
+            <TabsTrigger value="permissoes" className="gap-2"><ShieldCheck className="w-3.5 h-3.5" />Permissões</TabsTrigger>
             <TabsTrigger value="museus" className="gap-2"><Building2 className="w-3.5 h-3.5" />Museus</TabsTrigger>
             <TabsTrigger value="equipes" className="gap-2"><Users2 className="w-3.5 h-3.5" />Equipes</TabsTrigger>
             <TabsTrigger value="relatorios" className="gap-2"><FileText className="w-3.5 h-3.5" />Relatórios</TabsTrigger>
             <TabsTrigger value="auditoria" className="gap-2"><History className="w-3.5 h-3.5" />Auditoria</TabsTrigger>
             <TabsTrigger value="metadados" className="gap-2"><Database className="w-3.5 h-3.5" />Metadados</TabsTrigger>
           </TabsList>
+
+          {/* ── PERMISSÕES ── */}
+          <TabsContent value="permissoes">
+            <UserPermissionsManager />
+          </TabsContent>
 
           {/* ── RELATÓRIOS ── */}
           <TabsContent value="relatorios">
