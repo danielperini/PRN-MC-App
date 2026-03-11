@@ -246,40 +246,44 @@ IMPORTANTE: Retorne OBRIGATORIAMENTE um JSON válido com TODOS os campos abaixo,
 
           {/* ── Seleção / Identificação ── */}
           <Section title="Identificação">
-            {!editingMember ? (
+            {!editingMember || isEditingOwnData ? (
               <div>
                 <Label>Usuário da Plataforma *</Label>
-                <Select
-                  value={form.user_email}
-                  onValueChange={v => {
-                    const user = users.find(u => u.email === v);
-                    setForm(prev => ({
-                      ...prev,
-                      user_email: v,
-                      user_name: user?.full_name || '',
-                      email_pessoal: user?.email_pessoal || '',
-                      telefone: user?.telefone || '',
-                      cpf: user?.cpf || '',
-                      cnpj: user?.cnpj || '',
-                      tipo_pessoa: user?.tipo_pessoa || 'PF',
-                      banco: user?.banco || '',
-                      agencia: user?.agencia || '',
-                      conta: user?.conta || '',
-                      tipo_conta: user?.tipo_conta || 'Corrente',
-                      pix_key: user?.pix_key || '',
-                    }));
-                    preencherFormComTermo(v);
-                  }}
-                >
-                  <SelectTrigger><SelectValue placeholder="Selecione um usuário" /></SelectTrigger>
-                  <SelectContent>
-                    {availableUsers.map(u => (
-                      <SelectItem key={u.id} value={u.email}>
-                        {u.full_name} — {u.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {editingMember && isEditingOwnData ? (
+                  <Input value={form.user_email} disabled className="bg-gray-50" />
+                ) : (
+                  <Select
+                    value={form.user_email}
+                    onValueChange={v => {
+                      const user = users.find(u => u.email === v);
+                      setForm(prev => ({
+                        ...prev,
+                        user_email: v,
+                        user_name: user?.full_name || '',
+                        email_pessoal: user?.email_pessoal || '',
+                        telefone: user?.telefone || '',
+                        cpf: user?.cpf || '',
+                        cnpj: user?.cnpj || '',
+                        tipo_pessoa: user?.tipo_pessoa || 'PF',
+                        banco: user?.banco || '',
+                        agencia: user?.agencia || '',
+                        conta: user?.conta || '',
+                        tipo_conta: user?.tipo_conta || 'Corrente',
+                        pix_key: user?.pix_key || '',
+                      }));
+                      preencherFormComTermo(v);
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Selecione um usuário" /></SelectTrigger>
+                    <SelectContent>
+                      {availableUsers.map(u => (
+                        <SelectItem key={u.id} value={u.email}>
+                          {u.full_name} — {u.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 {form.user_name && <p className="text-xs text-gray-500 mt-1">{form.user_name}</p>}
               </div>
             ) : (
