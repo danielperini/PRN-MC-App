@@ -189,7 +189,7 @@ export default function AssistantChat() {
     return (
       <Button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-black hover:bg-gray-800 text-white shadow-lg flex items-center justify-center z-40"
+        className="fixed bottom-20 md:bottom-6 right-4 md:right-6 w-12 h-12 md:w-14 md:h-14 rounded-full bg-black hover:bg-gray-800 text-white shadow-lg flex items-center justify-center z-50"
         title="Assistente de Ajuda"
       >
         <MessageCircle className="w-6 h-6" />
