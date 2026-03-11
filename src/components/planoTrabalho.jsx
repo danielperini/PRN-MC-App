@@ -10,6 +10,7 @@ export const CARGOS_PLANO_TRABALHO = [
   'Coordenação de Produção',
   'Coordenação de Programação',
   'Coordenação de Comunicação',
+  'Coordenação Administrativa',
   'Analista Administrativo Financeiro',
   'Assistente Administrativo',
   'Assessoria de Imprensa',
