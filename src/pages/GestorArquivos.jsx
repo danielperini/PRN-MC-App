@@ -530,7 +530,7 @@ function GestorArquivosInner() {
             </button>
           </div>
 
-          {!showHistory ? (
+          {showHistory === 'contratos' ? (
              <div className="space-y-8">
                {/* Seção de Contratos Principais */}
                <div className="bg-white border border-gray-200 rounded-lg p-6">
@@ -607,23 +607,110 @@ function GestorArquivosInner() {
                    <p className="text-center text-gray-500 py-8">Nenhum contrato com período de envio</p>
                  )}
                </div>
-
-               {/* Seção de Arquivos Anexados */}
-               <div>
-                 <h3 className="text-lg font-semibold mb-4 text-black">Arquivos</h3>
-                 {isLoading ? (
-                   <div className="text-center py-12 text-gray-400">
-                     Carregando arquivos...
+             </div>
+           ) : showHistory === 'invoices' ? (
+             <div className="space-y-8">
+               {/* Seção de Notas Fiscais Principais */}
+               <div className="bg-white border border-gray-200 rounded-lg p-6">
+                 <h3 className="text-lg font-semibold mb-4 text-black flex items-center gap-2">
+                   <File className="w-5 h-5" /> Nota Fiscal Principal
+                 </h3>
+                 {invoiceSubmissions.some(inv => inv.notas_fiscais?.length > 0) ? (
+                   <div className="space-y-3">
+                     {invoiceSubmissions
+                       .filter(inv => inv.notas_fiscais?.length > 0)
+                       .flatMap(inv => inv.notas_fiscais.map(nf => ({ ...nf, submissionId: inv.id, userEmail: inv.user_email, userName: inv.user_name })))
+                       .map((nf, idx) => (
+                         <div key={idx} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                           <div>
+                             <p className="font-medium text-black">{nf.userName}</p>
+                             <p className="text-sm text-gray-500">NF {nf.numero} • {nf.fornecedor} • R$ {nf.valor?.toLocaleString('pt-BR')}</p>
+                           </div>
+                           {nf.file_url && (
+                             <a 
+                               href={nf.file_url} 
+                               target="_blank" 
+                               rel="noopener noreferrer"
+                               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                             >
+                               <Download className="w-4 h-4" />
+                               Download
+                             </a>
+                           )}
+                         </div>
+                       ))}
                    </div>
                  ) : (
-                   <FileHierarchy 
-                     backups={backups} 
-                     onPreview={handlePreviewFile}
-                     canManageFile={canManageFile}
-                     isGeneralCoordinator={isGeneralCoordinator}
-                   />
+                   <div className="text-center py-8">
+                     <FileText className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                     <p className="text-gray-500">Nenhuma nota fiscal anexada</p>
+                   </div>
                  )}
                </div>
+
+               {/* Seção de Notas Fiscais por Período */}
+               <div className="bg-white border border-gray-200 rounded-lg p-6">
+                 <h3 className="text-lg font-semibold mb-4 text-black">Notas Fiscais por Período de Submissão</h3>
+                 {invoiceSubmissions.some(inv => inv.notas_fiscais?.length > 0) ? (
+                   <div className="space-y-4">
+                     {Array.from(new Map(
+                       invoiceSubmissions
+                         .filter(inv => inv.notas_fiscais?.length > 0)
+                         .map(inv => [inv.data_submissao?.substring(0, 7), inv])
+                     ).entries())
+                       .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+                       .map(([period]) => {
+                         const monthYear = new Date(period + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                         const periodSubmissions = invoiceSubmissions.filter(inv => inv.notas_fiscais?.length > 0 && inv.data_submissao?.substring(0, 7) === period);
+                         return (
+                           <div key={period} className="border border-gray-200 rounded-lg p-4">
+                             <h4 className="font-semibold text-black mb-3">{monthYear}</h4>
+                             <div className="space-y-2">
+                               {periodSubmissions
+                                 .flatMap(inv => inv.notas_fiscais.map(nf => ({ ...nf, userName: inv.user_name })))
+                                 .map((nf, idx) => (
+                                   <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                                     <div>
+                                       <p className="text-sm font-medium text-gray-800">{nf.userName}</p>
+                                       <p className="text-xs text-gray-600">NF {nf.numero} • {nf.fornecedor}</p>
+                                     </div>
+                                     {nf.file_url && (
+                                       <a 
+                                         href={nf.file_url} 
+                                         target="_blank" 
+                                         rel="noopener noreferrer"
+                                         className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm"
+                                       >
+                                         <ExternalLink className="w-3 h-3" />
+                                       </a>
+                                     )}
+                                   </div>
+                                 ))}
+                             </div>
+                           </div>
+                         );
+                       })}
+                   </div>
+                 ) : (
+                   <p className="text-center text-gray-500 py-8">Nenhuma nota fiscal com período de submissão</p>
+                 )}
+               </div>
+             </div>
+           ) : showHistory === 'arquivos' ? (
+             <div>
+               <h3 className="text-lg font-semibold mb-4 text-black">Arquivos</h3>
+               {isLoading ? (
+                 <div className="text-center py-12 text-gray-400">
+                   Carregando arquivos...
+                 </div>
+               ) : (
+                 <FileHierarchy 
+                   backups={backups} 
+                   onPreview={handlePreviewFile}
+                   canManageFile={canManageFile}
+                   isGeneralCoordinator={isGeneralCoordinator}
+                 />
+               )}
              </div>
            ) : (
             <div className="bg-white border border-gray-200 rounded-lg p-4 md:p-6">
