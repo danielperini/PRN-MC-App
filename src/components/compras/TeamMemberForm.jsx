@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Upload, X, Sparkles, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
+import { CARGOS_PLANO_TRABALHO } from '@/components/planoTrabalho';
 
 const EMPTY_FORM = {
   user_email: '',
