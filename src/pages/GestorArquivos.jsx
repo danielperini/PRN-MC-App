@@ -530,7 +530,7 @@ function GestorArquivosInner() {
           )}
         </div>
 
-        {/* Tabs: Contratos, Arquivos e Histórico */}
+        {/* Tabs: Contratos e Arquivos e Histórico */}
         <div className="space-y-4">
           <div className="flex gap-2 border-b">
             <button
@@ -541,17 +541,7 @@ function GestorArquivosInner() {
                   : 'border-transparent text-gray-600'
               }`}
             >
-              Contratos
-            </button>
-            <button
-              onClick={() => setShowHistory('invoices')}
-              className={`px-4 py-2 font-medium text-sm border-b-2 ${
-                showHistory === 'invoices'
-                  ? 'border-blue-600 text-blue-600' 
-                  : 'border-transparent text-gray-600'
-              }`}
-            >
-              Notas Fiscais
+              Contratos e Notas
             </button>
             <button
               onClick={() => setShowHistory('arquivos')}
