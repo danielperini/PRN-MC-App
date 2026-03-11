@@ -372,7 +372,7 @@ export default function AssistantChat() {
       const response = await base44.integrations.Core.InvokeLLM({
         prompt: `${systemPrompt}\n\n${TERCEIRO_ADITIVO_CONTEXT}\n\n${MANUAL_CONTEXT}${docsContext}\n\n${reportCtx}\n\nPergunta do usuário: ${textToSend}`,
         add_context_from_internet: false,
-        model: knowledgeDocs.length > 0 ? 'claude_sonnet_4_6' : undefined,
+        model: 'claude_sonnet_4_6',
       });
 
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
