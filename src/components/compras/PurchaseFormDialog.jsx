@@ -54,6 +54,8 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
   const [ano, setAno] = useState(prefill?.ano || new Date().getFullYear());
   const [showOrcamentoDialog, setShowOrcamentoDialog] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [orcamentoAnalysis, setOrcamentoAnalysis] = useState(null);
+  const [analisandoOrcamento, setAnalisandoOrcamento] = useState(false);
 
   // Campos travados quando vem de atividade
   const isFromActivity = !!(prefill?.activity_id);
