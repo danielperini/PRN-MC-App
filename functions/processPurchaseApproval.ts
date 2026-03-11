@@ -35,6 +35,8 @@ Deno.serve(async (req) => {
 
     if (action === 'approve_coord') {
       novoStatus = 'APROVADO_COORD';
+      const valorFinal = p.valor_solicitado;
+
       // Atualizar dados de aprovação coord
       await base44.entities.PurchaseRequest.update(purchaseId, {
         status: novoStatus,
@@ -43,36 +45,7 @@ Deno.serve(async (req) => {
         aprov_coord_comentario: comentario,
       });
 
-      // Notificar admin
-      const admins = await base44.asServiceRole.entities.UserPermission.filter({
-        base_role: 'ADMIN'
-      });
-
-      const notificacoes = admins.map(admin => ({
-        user_email: admin.user_email,
-        type: 'REPORT_NEEDS_ATTENTION',
-        title: 'Solicitação Aprovada pelo Coordenador',
-        message: `Compra "${p.descricao_item}" foi aprovada pelo coordenador. Aguarda aprovação administrativa.`,
-        read: false,
-        email_sent: false,
-      }));
-
-      await base44.asServiceRole.entities.Notification.bulkCreate(notificacoes);
-
-    } else if (action === 'approve_admin') {
-      novoStatus = 'APROVADO_ADMIN';
-      const valorFinal = valor_aprovado || p.valor_solicitado;
-
-      // Atualizar dados de aprovação admin
-      await base44.entities.PurchaseRequest.update(purchaseId, {
-        status: novoStatus,
-        aprov_admin_nome: nomeAtor,
-        aprov_admin_data: dataAprovacao,
-        aprov_admin_comentario: comentario,
-        valor_aprovado_admin: parseFloat(valorFinal),
-      });
-
-      // Atualizar saldo da rubrica
+      // Atualizar saldo da rubrica (comprometer)
       if (p.budgetline_id) {
         const budgetLine = await base44.entities.BudgetLine.filter({ id: p.budgetline_id });
         if (budgetLine && budgetLine.length > 0) {
@@ -84,7 +57,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Notificar solicitante via função dedicada
+      // Notificar solicitante que foi aprovado
       try {
         await base44.asServiceRole.functions.invoke('notifyPurchaseStatusChange', {
           purchaseId: purchaseId,
@@ -95,12 +68,11 @@ Deno.serve(async (req) => {
         console.error('Erro ao notificar mudança de status:', e.message);
       }
 
-      // Notificar solicitante que foi aprovado
       const notificacao = {
         user_email: p.created_by || emailAtor,
         type: 'REPORT_APPROVED',
         title: 'Sua Solicitação de Compra foi Aprovada',
-        message: `Compra "${p.descricao_item}" foi aprovada por ${nomeAtor}. Valor aprovado: R$ ${parseFloat(valorFinal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        message: `Compra "${p.descricao_item}" foi aprovada pelo Coordenador Geral. Valor: R$ ${parseFloat(valorFinal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         read: false,
         email_sent: false,
       };
