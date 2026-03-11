@@ -249,7 +249,7 @@ Deno.serve(async (req) => {
         data_publicacao: news.data_publicacao || '',
         fonte: 'culturadoria_museus',
         data_encontrada: new Date().toISOString(),
-        ativo: true
+        ativo: false  // pendente de revisão pelo curador
       });
     }
 
