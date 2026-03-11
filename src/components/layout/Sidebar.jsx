@@ -43,9 +43,10 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
     {
       label: 'Trabalho',
       items: [
-        { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true },
-        { name: 'NovaAtividade', icon: Layers, label: 'Atividades', show: true },
-        { name: 'CalendarioAtividades', icon: CalendarDays, label: 'Agenda', show: true },
+        { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true, permission: 'can_view_reports' },
+        { name: 'NovaAtividade', icon: Layers, label: 'Atividades', show: true, permission: 'can_view_activities' },
+        { name: 'CalendarioAtividades', icon: CalendarDays, label: 'Agenda', show: true, permission: 'can_view_calendar' },
+        { name: 'Compras', icon: ShoppingCart, label: 'Compras e Equipe', show: true, permission: 'can_view_purchases' },
       ],
     },
     {
