@@ -352,11 +352,11 @@ function RelatoriosInner() {
               onClear={() => setActivityFilters({ team: '', museum: '', dateStart: '', dateEnd: '' })}
             />
             {filteredActivityList.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-black uppercase tracking-wide">Resumo do Período</p>
-                <ActivitySummary activities={filteredActivityList} />
-              </div>
-            )}
+               <div className="space-y-3">
+                 <p className="text-xs font-semibold text-black uppercase tracking-wide">Resumo do Período</p>
+                 <ActivitySummary activities={filteredActivityList} dashboardPublico={dashboardTotalPublico} />
+               </div>
+             )}
           </div>
 
          {/* Selection Bar */}
