@@ -23,8 +23,7 @@ import ExportRubricasExcelButton from '@/components/compras/ExportRubricasExcelB
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
   SOLICITADO: { label: 'Solicitado', color: 'bg-blue-100 text-blue-700' },
-  APROVADO_COORD: { label: 'Aprv. Coord', color: 'bg-yellow-100 text-yellow-700' },
-  APROVADO_ADMIN: { label: 'Aprv. Admin', color: 'bg-green-100 text-green-700' },
+  APROVADO_COORD: { label: 'Aprovado', color: 'bg-green-100 text-green-700' },
   RECUSADO: { label: 'Recusado', color: 'bg-red-100 text-red-700' },
   CANCELADO: { label: 'Cancelado', color: 'bg-gray-100 text-gray-500' },
   PAGO: { label: 'Pago', color: 'bg-emerald-100 text-emerald-700' },
