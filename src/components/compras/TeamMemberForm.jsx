@@ -201,7 +201,21 @@ Retorne em JSON com os campos:
                   value={form.user_email}
                   onValueChange={v => {
                     const user = users.find(u => u.email === v);
-                    setForm(prev => ({ ...prev, user_email: v, user_name: user?.full_name || '' }));
+                    setForm(prev => ({
+                      ...prev,
+                      user_email: v,
+                      user_name: user?.full_name || '',
+                      email_pessoal: user?.email_pessoal || '',
+                      telefone: user?.telefone || '',
+                      cpf: user?.cpf || '',
+                      cnpj: user?.cnpj || '',
+                      tipo_pessoa: user?.tipo_pessoa || 'PF',
+                      banco: user?.banco || '',
+                      agencia: user?.agencia || '',
+                      conta: user?.conta || '',
+                      tipo_conta: user?.tipo_conta || 'Corrente',
+                      pix_key: user?.pix_key || '',
+                    }));
                   }}
                 >
                   <SelectTrigger><SelectValue placeholder="Selecione um usuário" /></SelectTrigger>
