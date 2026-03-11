@@ -54,13 +54,17 @@ TAREFA: Analise as oportunidades acima e o contexto da instituição. Gere um re
 3. Tipos de atividades que podem gerar impacto
 4. Estratégias de alcance para grupos sociais do entorno
 
-Seja objetivo, específico e prático. Máximo 800 caracteres. Foque em ações concretas de mobilização.`,
+Seja objetivo, específico e instigante. Máximo 800 caracteres. NÃO inclua "Ação prática:" ou sugestões de ações executáveis. Foque apenas na análise das oportunidades.`,
       add_context_from_internet: true,
       model: 'gemini_3_flash',
     });
 
-    // Limitar a 800 caracteres
-    const summary = claudeAnalysis.substring(0, 800);
+    // Limitar a 800 caracteres e remover "Ação prática:"
+    let summary = claudeAnalysis.substring(0, 800);
+    // Remove "Ação prática:" e suas variações
+    summary = summary.replace(/\*?\*?Ação prática:\*?\*?\s*/gi, '')
+                     .replace(/^[\s-]*/, '')
+                     .trim();
 
     // Top 10 oportunidades com aderência >= 80%
     const topOpportunities = opportunities
