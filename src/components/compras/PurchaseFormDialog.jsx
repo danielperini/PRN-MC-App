@@ -362,7 +362,7 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
               <SelectContent className="max-h-64">
                 {budgetLines.map(l => (
                   <SelectItem key={l.id} value={l.id}>
-                    [{l.codigo}] {l.descricao} — Saldo: R$ {((l.saldo_inicial || 0) - (l.saldo_comprometido || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    [{l.codigo}] {l.descricao}
                   </SelectItem>
                 ))}
               </SelectContent>
