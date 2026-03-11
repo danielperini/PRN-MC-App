@@ -477,6 +477,21 @@ IMPORTANTE: Retorne OBRIGATORIAMENTE um JSON válido com TODOS os campos abaixo,
           {/* ── Ações ── */}
           <div className="flex gap-2 justify-end border-t pt-4">
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+            {!form.contrato_url && (
+              <label className="cursor-pointer">
+                <Button type="button" variant="outline" className="cursor-pointer" disabled={aiLoading}>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  {aiLoading ? 'Processando...' : 'Preencher Automaticamente'}
+                </Button>
+                <input 
+                  type="file" 
+                  accept=".pdf,.doc,.docx,.txt" 
+                  onChange={e => handleContratoUpload(e.target.files[0])} 
+                  className="hidden" 
+                  disabled={aiLoading}
+                />
+              </label>
+            )}
             <Button type="submit" className="bg-black hover:bg-gray-800" disabled={loading || aiLoading}>
               {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : 'Salvar'}
             </Button>
