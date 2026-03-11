@@ -70,14 +70,7 @@ function ComprasInner() {
     enabled: !!currentUser,
   });
 
-  const { data: budgetLines = [] } = useQuery({
-    queryKey: ['budget-lines'],
-    queryFn: async () => {
-      const allLines = await base44.entities.BudgetLine.list('codigo', 200);
-      // Filtrar apenas rubricas do 3º Aditivo (MC3A)
-      return allLines.filter(line => line.codigo?.startsWith('MC3A'));
-    },
-  });
+  const { budgetLines } = useBudgetLines();
 
   const filtered = purchases.filter(p => {
     const matchStatus = filters.status === 'all' || p.status === filters.status;
