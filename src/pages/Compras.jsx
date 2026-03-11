@@ -101,14 +101,6 @@ function ComprasInner() {
             </div>
           </div>
           <div className="flex gap-2">
-            {isCoordenador && totalPendentes > 0 && (
-              <Button variant="outline" className="relative" onClick={() => setTab('aprovacoes')}>
-                Aprovações
-                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  {totalPendentes}
-                </span>
-              </Button>
-            )}
             <Button className="bg-black hover:bg-gray-800 text-white" onClick={() => setShowForm(true)}>
               <Plus className="w-4 h-4 mr-2" />Nova Solicitação
             </Button>
