@@ -296,15 +296,19 @@ Deno.serve(async (req) => {
     
     return Response.json({
       success: true,
-      message: 'Espelho sincronizado com sucesso',
-      mirror_folder: MIRROR_FOLDER_NAME,
+      message: 'Espelho e repositório sincronizados com sucesso',
+      folders: {
+        mirror: MIRROR_FOLDER_NAME,
+        approved_pdfs: APPROVED_PDF_FOLDER
+      },
       stats: {
         arquivos_criados: created,
         arquivos_atualizados: updated,
         arquivos_deletados: deleted,
-        pastas_renomeadas: renamed
+        pastas_renomeadas: renamed,
+        relatorios_aprovados: approvedReports.length
       },
-      changes: changes.slice(0, 50) // Últimas 50 mudanças
+      changes: changes.slice(0, 100)
     });
   } catch (error) {
     console.error('Erro na sincronização:', error);
