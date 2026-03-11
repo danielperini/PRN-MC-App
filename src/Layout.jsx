@@ -62,7 +62,8 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Mobile Layout */}
       <div className="md:hidden flex flex-col min-h-screen">
-        <main className="flex-1 overflow-auto bg-white pb-16 animate-slide-in">
+        <MobileHeader title={PAGE_TITLES[currentPageName] || 'Museus Centro'} />
+        <main className="flex-1 overflow-auto bg-white pt-14 pb-16 animate-slide-in">
           {children}
         </main>
         <MobileBottomTab currentPageName={currentPageName} />
