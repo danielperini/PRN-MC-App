@@ -231,7 +231,7 @@ Deno.serve(async (req) => {
         data_publicacao: news.data_publicacao || '',
         fonte: 'portal_museus_centro',
         data_encontrada: new Date().toISOString(),
-        ativo: true
+        ativo: false  // pendente de revisão pelo curador
       });
     }
 
