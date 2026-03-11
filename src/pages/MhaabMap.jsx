@@ -6,6 +6,7 @@ import { Zap, MapPin, List } from 'lucide-react';
 import RadialMap from '@/components/maps/RadialMap';
 import NetworkMap from '@/components/maps/NetworkMap';
 import HeatMap from '@/components/maps/HeatMap';
+import GeoMap from '@/components/maps/GeoMap';
 import OpportunityPanel from '@/components/maps/OpportunityPanel';
 import FilterBar from '@/components/maps/FilterBar';
 import CurationPanel from '@/components/maps/CurationPanel';
@@ -84,7 +85,7 @@ function MhaabMapInner() {
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-slate-600 uppercase">Visualização:</span>
-              {['radial', 'rede', 'calor'].map(tipo => (
+              {['radial', 'rede', 'calor', 'geo'].map(tipo => (
                 <Button
                   key={tipo}
                   size="sm"
@@ -92,7 +93,7 @@ function MhaabMapInner() {
                   onClick={() => setTipoMapa(tipo)}
                   className="capitalize"
                 >
-                  {tipo === 'radial' ? 'Radial' : tipo === 'rede' ? 'Rede' : 'Calor'}
+                  {tipo === 'radial' ? 'Radial' : tipo === 'rede' ? 'Rede' : tipo === 'calor' ? 'Calor' : 'Mapa'}
                 </Button>
               ))}
             </div>
@@ -156,6 +157,14 @@ function MhaabMapInner() {
           )}
           {tipoMapa === 'calor' && (
             <HeatMap
+              opportunities={filtradas}
+              selectedOpportunity={selectedOpp}
+              onSelectOpportunity={setSelectedOpp}
+              nomeMuseu="MHAB"
+            />
+          )}
+          {tipoMapa === 'geo' && (
+            <GeoMap
               opportunities={filtradas}
               selectedOpportunity={selectedOpp}
               onSelectOpportunity={setSelectedOpp}
