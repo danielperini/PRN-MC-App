@@ -150,6 +150,7 @@ Retorne em JSON com os campos:
 
       toast.success('Contrato analisado com sucesso pela IA');
     } catch (error) {
+      console.error('Erro na extração do contrato:', error);
       toast.error('Erro ao processar contrato: ' + error.message);
     } finally {
       setAiLoading(false);
