@@ -27,6 +27,7 @@ function GestorArquivosInner() {
    const [showHistory, setShowHistory] = useState(false);
    const [showMonthlyBackup, setShowMonthlyBackup] = useState(false);
    const [backupDriveLoading, setBackupDriveLoading] = useState(false);
+   const [backupFullLoading, setBackupFullLoading] = useState(false);
    const isCoordinator = currentUser?.role === 'admin';
 
   const { data: backups = [], isLoading } = useQuery({
