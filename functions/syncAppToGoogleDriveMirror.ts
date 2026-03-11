@@ -261,6 +261,39 @@ Deno.serve(async (req) => {
       }
     }
     
+    // Sincronizar repositório de PDFs aprovados
+    const approvedReports = reports.filter(r => r.status === 'APPROVED');
+    const approvedDriveFiles = await listDriveContents(accessToken, approvedPdfFolderId);
+    const approvedDriveMap = new Map(approvedDriveFiles.map(f => [f.name, f.id]));
+    
+    for (const report of approvedReports) {
+      const pdfFileName = `${report.numero_protocolo || report.id}_${report.author_name || 'Unknown'}.pdf`;
+      
+      if (!approvedDriveMap.has(pdfFileName)) {
+        try {
+          const reportActivities = activities.filter(a => a.report_id === report.id);
+          const pdfBuffer = await generateReportPDF(report, reportActivities);
+          await uploadFileToDrive(accessToken, pdfFileName, pdfBuffer, 'application/pdf', approvedPdfFolderId);
+          created++;
+          changes.push(`📄 PDF aprovado criado: ${pdfFileName}`);
+        } catch (e) {
+          changes.push(`✗ Erro ao gerar PDF ${report.id}: ${e.message}`);
+        }
+      }
+    }
+    
+    // Deletar PDFs de relatórios que foram reprovados ou removidos
+    for (const [fileName, fileId] of approvedDriveMap) {
+      const reportId = fileName.split('_')[0];
+      const shouldExist = approvedReports.some(r => (r.numero_protocolo || r.id) === reportId);
+      
+      if (!shouldExist) {
+        await deleteFromDrive(accessToken, fileId);
+        deleted++;
+        changes.push(`🗑 PDF removido (não mais aprovado): ${fileName}`);
+      }
+    }
+    
     return Response.json({
       success: true,
       message: 'Espelho sincronizado com sucesso',
