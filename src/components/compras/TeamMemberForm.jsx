@@ -89,7 +89,6 @@ Retorne em JSON com os campos:
 - pix_key (string - chave PIX se houver)
 - cronograma_parcelas (array de objetos com: numero, vencimento (YYYY-MM-DD), valor, descricao)`,
         file_urls: [file_url],
-        model: 'claude_sonnet_4_6',
         response_json_schema: {
           type: 'object',
           properties: {

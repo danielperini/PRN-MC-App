@@ -145,7 +145,6 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
 
 Retorne APENAS o JSON, sem explicações adicionais.`,
           file_urls: [orcamento.url],
-          model: 'claude_sonnet_4_6',
           response_json_schema: {
             type: 'object',
             properties: {
