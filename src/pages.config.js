@@ -82,6 +82,7 @@ import ViadutoMap from './pages/ViadutoMap';
 import ApprovalsMobile from './pages/ApprovalsMobile';
 import GaleriaFotos from './pages/GaleriaFotos';
 import ConsolidacaoFinanceira from './pages/ConsolidacaoFinanceira';
+import GeradorTermoCompromisso from './pages/GeradorTermoCompromisso';
 import __Layout from './Layout.jsx';
 
 
@@ -121,6 +122,7 @@ export const PAGES = {
     "ApprovalsMobile": ApprovalsMobile,
     "GaleriaFotos": GaleriaFotos,
     "ConsolidacaoFinanceira": ConsolidacaoFinanceira,
+    "GeradorTermoCompromisso": GeradorTermoCompromisso,
 }
 
 export const pagesConfig = {
