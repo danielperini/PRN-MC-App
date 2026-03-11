@@ -66,7 +66,7 @@ export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, o
       const file_url = uploadRes.file_url;
 
       // Criar registro do documento
-      await base44.entities.PurchaseDocument.create({
+      const docResult = await base44.entities.PurchaseDocument.create({
         purchase_id: purchaseId,
         rubrica_id: rubricaId,
         tipo_documento: formData.tipo_documento,
@@ -81,6 +81,17 @@ export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, o
         valor_documento: formData.valor_documento ? parseFloat(formData.valor_documento) : null,
         uploadado_por: user?.email,
       });
+
+      // Sincronizar com a rubrica se tiver valor
+      if (formData.valor_documento && (rubricaId || purchaseId)) {
+        try {
+          await base44.functions.invoke('syncDocumentToRubrica', {
+            documentId: docResult.id,
+          });
+        } catch (e) {
+          console.error('Erro ao sincronizar rubrica:', e);
+        }
+      }
 
       toast.success('✅ Documento anexado!');
       setFile(null);
