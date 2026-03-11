@@ -18,19 +18,23 @@ import FilePreviewModal from '../components/gallery/FilePreviewModal';
 import { toast } from 'sonner';
 
 function GestorArquivosInner() {
-   const { user: currentUser } = useCurrentUser();
-   const [selectedDate, setSelectedDate] = useState('');
-   const [searchFileName, setSearchFileName] = useState('');
-   const [searchContent, setSearchContent] = useState('');
-   const [sortBy, setSortBy] = useState('date-desc');
-   const [duplicateWarnings, setDuplicateWarnings] = useState([]);
-   const [previewFile, setPreviewFile] = useState(null);
-   const [showPreview, setShowPreview] = useState(false);
-   const [showHistory, setShowHistory] = useState(false);
-   const [showMonthlyBackup, setShowMonthlyBackup] = useState(false);
-   const [backupDriveLoading, setBackupDriveLoading] = useState(false);
-   const [backupFullLoading, setBackupFullLoading] = useState(false);
-   const isCoordinator = currentUser?.role === 'admin';
+    const { user: currentUser } = useCurrentUser();
+    const [selectedDate, setSelectedDate] = useState('');
+    const [searchFileName, setSearchFileName] = useState('');
+    const [searchContent, setSearchContent] = useState('');
+    const [sortBy, setSortBy] = useState('date-desc');
+    const [duplicateWarnings, setDuplicateWarnings] = useState([]);
+    const [previewFile, setPreviewFile] = useState(null);
+    const [showPreview, setShowPreview] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
+    const [showMonthlyBackup, setShowMonthlyBackup] = useState(false);
+    const [backupDriveLoading, setBackupDriveLoading] = useState(false);
+    const [backupFullLoading, setBackupFullLoading] = useState(false);
+    const [showUploadDialog, setShowUploadDialog] = useState(false);
+    const [uploadFiles, setUploadFiles] = useState([]);
+    const [uploadNotes, setUploadNotes] = useState('');
+    const [uploading, setUploading] = useState(false);
+    const isCoordinator = currentUser?.role === 'admin';
 
   const { data: backups = [], isLoading } = useQuery({
     queryKey: ['google-drive-backups', selectedDate, searchFileName, searchContent, currentUser?.email],
