@@ -21,6 +21,9 @@ const PERMISSION_GROUPS = {
   ],
   'Financeiro': [
     { key: 'gestao_compras', label: 'Gestão completa de compras e orçamento' },
+    { key: 'pode_ver_saude_orcamentaria', label: 'Visualizar saúde orçamentária' },
+    { key: 'pode_gerenciar_rubricas', label: 'Gerenciar rubricas' },
+    { key: 'pode_aprovar_solicitacoes', label: 'Aprovar solicitações e pagamentos' },
   ],
   'Usuários e Estrutura': [
     { key: 'can_manage_users', label: 'Gerenciar usuários' },
