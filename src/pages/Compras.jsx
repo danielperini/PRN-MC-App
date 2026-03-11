@@ -239,13 +239,13 @@ function ComprasInner() {
 
         {/* Rubricas — apenas para pode_gerenciar_rubricas */}
          {tab === 'rubricas' && podeGerenciarRubricas && (
-           <div className="space-y-6">
-             <div className="flex justify-end">
-               <ExportRubricasExcelButton />
-             </div>
-             <RubricaManager budgetLines={budgetLines} purchases={purchases} />
-           </div>
-         )}
+            <div className="space-y-6">
+              <div className="flex justify-end">
+                <ExportRubricasExcelButton />
+              </div>
+              <RubricasGrid budgetLines={budgetLines} purchases={purchases} />
+            </div>
+          )}
 
         {/* Equipe */}
         {tab === 'equipe' && isCoordenador && (
