@@ -191,6 +191,8 @@ function ComprasInner() {
                     budgetLines={budgetLines}
                     statusConfig={STATUS_CONFIG}
                     isCoordenador={isCoordenador}
+                    isAdmin={currentUser?.role === 'admin' || currentUser?.role === 'ADMIN'}
+                    currentUser={currentUser}
                     onRefresh={() => queryClient.invalidateQueries(['purchases'])}
                   />
                 ))}
