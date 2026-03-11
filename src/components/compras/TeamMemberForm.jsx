@@ -113,102 +113,14 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
     setAiLoading(true);
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
-
-      const extracted = await base44.integrations.Core.InvokeLLM({
-        model: 'gpt_5',
-        prompt: `Analise este contrato e extraia TODOS os dados solicitados. Seja MUITO preciso e minucioso.
-
-IMPORTANTE: Retorne OBRIGATORIAMENTE um JSON válido com TODOS os campos abaixo, mesmo que vazio (""):
-
-{
-  "valor_total": (número - valor total do contrato),
-  "numero_parcelas": (número de parcelas),
-  "valor_parcela": (valor de cada parcela),
-  "nome": (nome completo do beneficiário/contratado),
-  "funcao": (função, cargo ou objeto do serviço),
-  "cpf": (CPF se pessoa física),
-  "cnpj": (CNPJ se PJ/MEI/ME),
-  "tipo_pessoa": ("PF", "MEI" ou "ME"),
-  "data_inicio": (data YYYY-MM-DD de início de vigência),
-  "data_fim": (data YYYY-MM-DD de término de vigência),
-  "objeto_contrato": (descrição completa do objeto/escopo, 2-4 parágrafos),
-  "descricao_contrato": (resumo geral incluindo partes, objeto, valores, prazos e condições, 3-5 parágrafos),
-  "banco": (nome do banco),
-  "agencia": (número da agência),
-  "conta": (número da conta),
-  "tipo_conta": ("Corrente" ou "Poupança"),
-  "pix_key": (chave PIX se houver, senão ""),
-  "cronograma_parcelas": [
-    {"numero": 1, "vencimento": "YYYY-MM-DD", "valor": número, "descricao": "string"},
-    ...
-  ]
-}`,
-        file_urls: [file_url],
-        response_json_schema: {
-          type: 'object',
-          properties: {
-            valor_total: { type: 'number' },
-            numero_parcelas: { type: 'number' },
-            valor_parcela: { type: 'number' },
-            nome: { type: 'string' },
-            funcao: { type: 'string' },
-            cpf: { type: 'string' },
-            cnpj: { type: 'string' },
-            tipo_pessoa: { type: 'string' },
-            data_inicio: { type: 'string' },
-            data_fim: { type: 'string' },
-            objeto_contrato: { type: 'string' },
-            descricao_contrato: { type: 'string' },
-            banco: { type: 'string' },
-            agencia: { type: 'string' },
-            conta: { type: 'string' },
-            tipo_conta: { type: 'string' },
-            pix_key: { type: 'string' },
-            cronograma_parcelas: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  numero: { type: 'number' },
-                  vencimento: { type: 'string' },
-                  valor: { type: 'number' },
-                  descricao: { type: 'string' }
-                }
-              }
-            }
-          }
-        }
-      });
-
-      console.log('Dados extraídos do contrato:', extracted);
-
       setForm(prev => ({
         ...prev,
         contrato_url: file_url,
-        valor_total: Number(extracted?.valor_total) || 0,
-        numero_parcelas: Number(extracted?.numero_parcelas) || 1,
-        valor_parcela: Number(extracted?.valor_parcela) || (Number(extracted?.valor_total) / (Number(extracted?.numero_parcelas) || 1)) || 0,
-        user_name: extracted?.nome || prev.user_name,
-        funcao: extracted?.funcao || prev.funcao,
-        cpf: extracted?.cpf || prev.cpf,
-        cnpj: extracted?.cnpj || prev.cnpj,
-        tipo_pessoa: extracted?.tipo_pessoa || prev.tipo_pessoa,
-        data_inicio_contrato: extracted?.data_inicio || '',
-        data_fim_contrato: extracted?.data_fim || '',
-        objeto_contrato: extracted?.objeto_contrato || '',
-        descricao_contrato: extracted?.descricao_contrato || '',
-        banco: extracted?.banco || prev.banco,
-        agencia: extracted?.agencia || prev.agencia,
-        conta: extracted?.conta || prev.conta,
-        tipo_conta: extracted?.tipo_conta || prev.tipo_conta,
-        pix_key: extracted?.pix_key || prev.pix_key,
-        cronograma_parcelas: Array.isArray(extracted?.cronograma_parcelas) ? extracted.cronograma_parcelas : [],
       }));
-
-      toast.success('Contrato analisado com sucesso pela IA');
+      toast.success('Contrato anexado com sucesso');
     } catch (error) {
-      console.error('Erro na extração do contrato:', error);
-      toast.error('Erro ao processar contrato: ' + error.message);
+      console.error('Erro no upload do contrato:', error);
+      toast.error('Erro ao anexar contrato: ' + error.message);
     } finally {
       setAiLoading(false);
     }
@@ -442,13 +354,12 @@ IMPORTANTE: Retorne OBRIGATORIAMENTE um JSON válido com TODOS os campos abaixo,
                 {aiLoading ? (
                   <div className="flex flex-col items-center gap-2 py-2">
                     <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
-                    <p className="text-sm text-indigo-600 font-medium">Analisando contrato com IA...</p>
-                    <p className="text-xs text-gray-400">Extraindo valores, prazos, parcelas e dados do contratado</p>
+                    <p className="text-sm text-indigo-600 font-medium">Anexando contrato...</p>
                   </div>
                 ) : form.contrato_url ? (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-green-600 flex items-center gap-1">
-                      <Sparkles className="w-4 h-4" /> Contrato analisado pela IA
+                      ✅ Contrato anexado
                     </span>
                     <button type="button" onClick={() => set('contrato_url', '')} className="text-red-500 hover:text-red-700">
                       <X className="w-4 h-4" />
@@ -458,26 +369,22 @@ IMPORTANTE: Retorne OBRIGATORIAMENTE um JSON válido com TODOS os campos abaixo,
                   <label className="cursor-pointer">
                     <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                     <p className="text-sm text-gray-600">Clique para enviar contrato</p>
-                    <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX ou TXT — A IA preencherá os campos automaticamente</p>
+                    <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX ou TXT</p>
                     <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={e => handleContratoUpload(e.target.files[0])} className="hidden" />
                   </label>
                 )}
               </div>
             </div>
 
-            {form.objeto_contrato && (
-              <div>
-                <Label className="flex items-center gap-1"><Sparkles className="w-3 h-3 text-indigo-500" /> Objeto do Contrato (gerado por IA)</Label>
-                <Textarea value={form.objeto_contrato} onChange={e => set('objeto_contrato', e.target.value)} rows={3} className="text-sm" />
-              </div>
-            )}
+            <div>
+              <Label>Objeto do Contrato</Label>
+              <Textarea value={form.objeto_contrato} onChange={e => set('objeto_contrato', e.target.value)} rows={3} className="text-sm" placeholder="Descreva o objeto/escopo do contrato" />
+            </div>
 
-            {form.descricao_contrato && (
-              <div>
-                <Label className="flex items-center gap-1"><Sparkles className="w-3 h-3 text-indigo-500" /> Descrição Completa do Contrato (gerada por IA)</Label>
-                <Textarea value={form.descricao_contrato} onChange={e => set('descricao_contrato', e.target.value)} rows={5} className="text-sm" />
-              </div>
-            )}
+            <div>
+              <Label>Descrição Completa do Contrato</Label>
+              <Textarea value={form.descricao_contrato} onChange={e => set('descricao_contrato', e.target.value)} rows={5} className="text-sm" placeholder="Resumo completo do contrato" />
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -609,21 +516,6 @@ IMPORTANTE: Retorne OBRIGATORIAMENTE um JSON válido com TODOS os campos abaixo,
           {/* ── Ações ── */}
           <div className="flex gap-2 justify-end border-t pt-4">
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            {!form.contrato_url && (
-              <label className="cursor-pointer">
-                <Button type="button" variant="outline" className="cursor-pointer" disabled={aiLoading}>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  {aiLoading ? 'Processando...' : 'Preencher Automaticamente'}
-                </Button>
-                <input 
-                  type="file" 
-                  accept=".pdf,.doc,.docx,.txt" 
-                  onChange={e => handleContratoUpload(e.target.files[0])} 
-                  className="hidden" 
-                  disabled={aiLoading}
-                />
-              </label>
-            )}
             <Button type="submit" className="bg-black hover:bg-gray-800" disabled={loading || aiLoading}>
               {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : 'Salvar'}
             </Button>
