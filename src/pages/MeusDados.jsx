@@ -15,6 +15,13 @@ const FORM_FIELDS = [
   { name: 'cpf', label: 'CPF', type: 'text' },
 ];
 
+const EMPRESA_FIELDS = [
+  { name: 'empresa_nome', label: 'Razão Social / Nome da Empresa', type: 'text' },
+  { name: 'empresa_endereco', label: 'Endereço', type: 'text' },
+  { name: 'representante_legal_nome', label: 'Nome do Representante Legal', type: 'text' },
+  { name: 'representante_legal_cpf', label: 'CPF do Representante', type: 'text' },
+];
+
 const BANKING_FIELDS = [
   { name: 'banco', label: 'Banco', type: 'text' },
   { name: 'agencia', label: 'Agência', type: 'text' },
