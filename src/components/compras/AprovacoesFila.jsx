@@ -125,20 +125,7 @@ export default function AprovacoesFila({ purchases, budgetLines, statusConfig, o
           </div>
         )}
 
-        {/* Valor admin (apenas para fila admin) */}
-        {fila === 'admin' && (
-          <div>
-            <label className="text-xs text-gray-600 mb-1 block">Valor a aprovar (R$)</label>
-            <Input
-              type="number"
-              step="0.01"
-              placeholder={purchase.valor_solicitado}
-              value={valoresAdmin[purchase.id] || ''}
-              onChange={e => setValoresAdmin(v => ({ ...v, [purchase.id]: e.target.value }))}
-              className="max-w-48"
-            />
-          </div>
-        )}
+
 
         {/* Comentário */}
         <Textarea
