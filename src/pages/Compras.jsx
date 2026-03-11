@@ -13,7 +13,6 @@ import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
 import BudgetHealthDashboard from '@/components/compras/BudgetHealthDashboard';
 import AprovacoesFila from '@/components/compras/AprovacoesFila';
 import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
-import RubricasGrid from '@/components/compras/RubricasGrid';
 import TeamManager from '@/components/compras/TeamManager';
 import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
 import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
