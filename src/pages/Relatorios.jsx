@@ -290,132 +290,95 @@ function RelatoriosInner() {
 
 
 
-        {/* Cards grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {isLoading ? (
-            <div className="col-span-full text-center py-20 text-gray-400">Carregando relatórios...</div>
-          ) : filtered.length === 0 ? (
-            <div className="col-span-full text-center py-20 border border-dashed border-gray-200 rounded-2xl">
-              <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Nenhum relatório encontrado</p>
-              {hasFilters && <p className="text-xs text-gray-400 mt-1">Tente ajustar os filtros ou a busca</p>}
-            </div>
-          ) : (
-            filtered.map(report => {
-              const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.DRAFT;
-              const StatusIcon = cfg.icon;
-              const nMeta = (report.atividades || []).filter(a => a.classificacao === 'META').length;
-              const nRot  = (report.atividades || []).filter(a => a.classificacao === 'ROTINA').length;
-              const nExt  = (report.atividades || []).filter(a => a.classificacao === 'EXTRA').length;
-              const totalAtiv = (report.atividades || []).length;
-              const attachments = allAttachments.filter(att => att.report_id === report.id);
-              const nAttachments = attachments.length;
-              const canDelete = report.created_by === currentUser?.email && (!isComunicacao || report.funcao === 'Comunicador');
-              return (
-                <div key={report.id} className="block group relative">
-                  <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
-                  <div className={`h-full p-5 rounded-2xl border-2 border-black hover:shadow-md transition-all bg-white`}>
-                    {/* Status badge */}
-                    <div className="flex items-center justify-between mb-4">
-                      <Badge className={`${cfg.color} font-normal gap-1`}>
-                        <StatusIcon className="w-3 h-3" />{cfg.label}
-                      </Badge>
-                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
-                    </div>
-
-                    {/* Main info */}
-                     <h3 className="font-semibold text-black text-base leading-tight">
-                       {report.mes_referencia} {report.ano}
-                     </h3>
-                     <div className="flex items-center gap-2 mt-1">
-                       <p className="text-sm text-gray-500 truncate">{report.author_name}</p>
-                       {report.status === 'DRAFT' && (
-                         <span className="text-[11px] px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-700 font-medium whitespace-nowrap">Pendente</span>
-                       )}
-                     </div>
-                     <p className="text-xs text-gray-400 mt-0.5">{report.museu}{report.equipe ? ` · ${report.equipe}` : ''}</p>
-
-                    {/* Activity pills */}
-                     {totalAtiv > 0 && (
-                       <div className="flex gap-1.5 mt-4 flex-wrap">
-                         {nMeta > 0 && (
-                               <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>
-                              )}
-                              {nRot > 0 && (
-                                <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>
-                              )}
-                              {nExt > 0 && (
-                                <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>
-                              )}
+        {/* Reports by Month — List View */}
+         {isLoading ? (
+           <div className="text-center py-20 text-gray-400">Carregando relatórios...</div>
+         ) : filtered.length === 0 ? (
+           <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
+             <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+             <p className="text-gray-500">Nenhum relatório encontrado</p>
+             {hasFilters && <p className="text-xs text-gray-400 mt-1">Tente ajustar os filtros ou a busca</p>}
+           </div>
+         ) : (
+           <div className="space-y-6">
+             {Object.entries(
+               filtered.reduce((acc, report) => {
+                 const key = `${report.mes_referencia}/${report.ano}`;
+                 if (!acc[key]) acc[key] = [];
+                 acc[key].push(report);
+                 return acc;
+               }, {})
+             ).map(([monthKey, monthReports]) => (
+               <div key={monthKey} className="border-l-4 border-black pl-6">
+                 <h3 className="text-lg font-semibold text-black mb-4">{monthKey}</h3>
+                 <div className="space-y-2">
+                   {monthReports.map(report => {
+                     const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.DRAFT;
+                     const StatusIcon = cfg.icon;
+                     const attachments = allAttachments.filter(att => att.report_id === report.id);
+                     const canDelete = report.created_by === currentUser?.email && (!isComunicacao || report.funcao === 'Comunicador');
+                     return (
+                       <div key={report.id} className="group relative">
+                         <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
+                           <div className="p-4 border border-gray-200 rounded-lg hover:border-black hover:shadow-sm transition-all bg-white flex items-center justify-between">
+                             <div className="flex-1">
+                               <div className="flex items-center gap-3">
+                                 <div>
+                                   <div className="flex items-center gap-2">
+                                     <Badge className={`${cfg.color} font-normal gap-1`}>
+                                       <StatusIcon className="w-3 h-3" />{cfg.label}
+                                     </Badge>
+                                     <p className="text-sm font-medium text-black">{report.author_name}</p>
+                                   </div>
+                                   <p className="text-xs text-gray-500 mt-1">{report.museu}{report.equipe ? ` · ${report.equipe}` : ''}</p>
+                                 </div>
+                               </div>
+                             </div>
+                             <div className="flex items-center gap-2 text-gray-400 group-hover:text-gray-600">
+                               {attachments.length > 0 && (
+                                 <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">{attachments.length} arquivo{attachments.length > 1 ? 's' : ''}</span>
+                               )}
+                               <ChevronRight className="w-4 h-4" />
+                             </div>
+                           </div>
+                         </Link>
+                         {/* Action buttons */}
+                         <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                           {report.status === 'DRAFT' && (
+                             <>
+                               <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
+                                 <button onClick={e => e.preventDefault()} className="p-1.5 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-600" title="Ver rascunho">
+                                   <Eye className="w-3.5 h-3.5" />
+                                 </button>
+                               </Link>
+                               {isCoordenador && (
+                                 <button onClick={e => { e.preventDefault(); setDeleteTarget(report); }} className="p-1.5 rounded-lg bg-red-50 border border-red-200 hover:bg-red-100 text-red-600" title="Sem entrega este mês">
+                                   <FileX className="w-3.5 h-3.5" />
+                                 </button>
+                               )}
+                             </>
+                           )}
+                           {isCoordenador && report.status === 'SUBMITTED' && (
+                             <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
+                               <button onClick={e => e.preventDefault()} className="p-1.5 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-600" title="Revisar relatório">
+                                 <Eye className="w-3.5 h-3.5" />
+                               </button>
+                             </Link>
+                           )}
+                           {canDelete && report.status !== 'DRAFT' && (
+                             <button onClick={e => { e.preventDefault(); setDeleteTarget(report); }} className="p-1.5 rounded-lg bg-white border border-gray-200 hover:bg-red-50 hover:border-red-200 text-gray-400 hover:text-red-500" title="Excluir relatório">
+                               <Trash2 className="w-3.5 h-3.5" />
+                             </button>
+                           )}
+                         </div>
                        </div>
-                     )}
-
-                     {/* Attachments indicator */}
-                     {nAttachments > 0 && (
-                       <div className="flex items-center gap-1.5 mt-3 text-xs text-gray-500">
-                         <Paperclip className="w-3.5 h-3.5 text-gray-400" />
-                         <span>{nAttachments} arquivo{nAttachments > 1 ? 's' : ''}</span>
-                       </div>
-                     )}
-
-                    {/* Return comment warning */}
-                    {report.return_comment && report.status === 'RETURNED' && (
-                      <p className="mt-3 text-xs text-black bg-white border border-black rounded-lg px-2 py-1.5 leading-relaxed line-clamp-2">
-                        {report.return_comment}
-                      </p>
-                    )}
-                    </div>
-                    </Link>
-                    {/* Buttons overlay */}
-                    <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {report.status === 'DRAFT' && (
-                        <>
-                          <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
-                            <button
-                              onClick={e => e.preventDefault()}
-                              className="p-1.5 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-600"
-                              title="Ver rascunho"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
-                          </Link>
-                          {isCoordenador && (
-                            <button
-                              onClick={e => { e.preventDefault(); setDeleteTarget(report); }}
-                              className="p-1.5 rounded-lg bg-red-50 border border-red-200 hover:bg-red-100 text-red-600"
-                              title="Sem entrega este mês"
-                            >
-                              <FileX className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </>
-                      )}
-                      {isCoordenador && report.status === 'SUBMITTED' && (
-                        <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
-                          <button
-                            onClick={e => e.preventDefault()}
-                            className="p-1.5 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-600"
-                            title="Revisar relatório"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                        </Link>
-                      )}
-                      {canDelete && report.status !== 'DRAFT' && (
-                        <button
-                          onClick={e => { e.preventDefault(); setDeleteTarget(report); }}
-                          className="p-1.5 rounded-lg bg-white border border-gray-200 hover:bg-red-50 hover:border-red-200 text-gray-400 hover:text-red-500"
-                          title="Excluir relatório"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                    </div>
-                    );
-                    })
-                    )}
-                    </div>
+                     );
+                   })}
+                 </div>
+               </div>
+             ))}
+           </div>
+         )}
       </div>
 
       {/* Delete Confirm */}
