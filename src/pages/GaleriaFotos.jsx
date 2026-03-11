@@ -33,9 +33,12 @@ function GaleriaFotosInner() {
         // Buscar todos os anexos
         const allAttachments = await base44.entities.Attachment.list();
 
-        // Filtrar apenas imagens e mapear dados
+        // Buscar fotos dos relatórios
+        const reportPhotos = await base44.entities.ReportPhoto.list();
+
+        // Filtrar apenas imagens dos anexos
         const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
-        const imageData = allAttachments
+        const attachmentImages = allAttachments
           .filter(att => {
             const ext = att.file_name.split('.').pop().toLowerCase();
             return approvedReportIds.has(att.report_id) && imageExtensions.includes(ext);
@@ -44,27 +47,53 @@ function GaleriaFotosInner() {
             const report = approvedReports.find(r => r.id === att.report_id);
             return {
               id: att.id,
+              attachmentId: att.id,
               fileName: att.file_name,
               url: att.file_url,
               description: att.description || '',
               author: report?.author_name || 'Desconhecido',
+              authorEmail: report?.created_by || '',
               mes: report?.mes_referencia || '',
               ano: report?.ano || '',
-              created_date: att.created_date
+              created_date: att.created_date,
+              type: 'attachment'
             };
           });
+
+        // Mapear fotos dos relatórios com legendas
+        const reportPhotoImages = reportPhotos
+          .filter(photo => approvedReportIds.has(photo.report_id))
+          .map(photo => ({
+            id: photo.id,
+            attachmentId: photo.id,
+            fileName: photo.file_name,
+            url: photo.file_url,
+            description: photo.caption || '',
+            author: photo.author || 'Desconhecido',
+            authorEmail: '',
+            mes: photo.mes_referencia || '',
+            ano: photo.ano || '',
+            created_date: photo.created_date,
+            type: 'report_photo'
+          }));
+
+        // Combinar todas as imagens
+        const allImages = [...attachmentImages, ...reportPhotoImages];
+        const uniqueImages = Array.from(
+          new Map(allImages.map(img => [img.id, img])).values()
+        );
 
         // Filtrar por busca
         if (searchTerm.trim()) {
           const term = searchTerm.toLowerCase();
-          return imageData.filter(img =>
+          return uniqueImages.filter(img =>
             img.fileName.toLowerCase().includes(term) ||
             img.description.toLowerCase().includes(term) ||
             img.author.toLowerCase().includes(term)
           );
         }
 
-        return imageData.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+        return uniqueImages.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
       } catch (error) {
         toast.error('Erro ao carregar imagens');
         return [];
