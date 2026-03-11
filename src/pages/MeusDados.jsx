@@ -65,11 +65,29 @@ function MeusDadosInner() {
   });
 
   useEffect(() => {
-    if (teamData && user?.equipe) {
-      const teamColeagues = teamData.filter(m => m.tipo_equipe === user.equipe && m.user_email !== user.email);
-      setTeamMembers(teamColeagues);
+    if (teamData && user?.email) {
+      // Encontrar dados do próprio usuário na equipe e preencher dados faltantes
+      const currentMember = teamData.find(m => m.user_email === user.email);
+      if (currentMember) {
+        setFormData(prev => ({
+          email_pessoal: prev.email_pessoal || currentMember.email_pessoal || '',
+          telefone: prev.telefone || currentMember.telefone || '',
+          cpf: prev.cpf || currentMember.cpf || '',
+          banco: prev.banco || currentMember.banco || '',
+          agencia: prev.agencia || currentMember.agencia || '',
+          conta: prev.conta || currentMember.conta || '',
+          tipo_conta: prev.tipo_conta || currentMember.tipo_conta || 'Corrente',
+          pix_key: prev.pix_key || currentMember.pix_key || '',
+        }));
+      }
+      
+      // Mostrar colegas de equipe para referência
+      if (user?.equipe) {
+        const teamColeagues = teamData.filter(m => m.tipo_equipe === user.equipe && m.user_email !== user.email);
+        setTeamMembers(teamColeagues);
+      }
     }
-  }, [teamData, user]);
+  }, [teamData, user?.email]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
