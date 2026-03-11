@@ -576,124 +576,65 @@ function GestorArquivosInner() {
           </div>
 
           {showHistory === 'contratos' ? (
-             <div className="space-y-8">
-               {/* Seção de Contratos Principais */}
-               <div className="bg-white border border-gray-200 rounded-lg p-6">
-                 <h3 className="text-lg font-semibold mb-4 text-black flex items-center gap-2">
-                   <File className="w-5 h-5" /> Contrato Principal
-                 </h3>
-                 {teamMembers.some(m => m.contrato_url) ? (
-                   <div className="space-y-3">
-                     {teamMembers
-                       .filter(m => m.contrato_url)
-                       .map(member => (
-                         <div key={member.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
-                           <div>
-                             <p className="font-medium text-black">{member.user_name}</p>
-                             <p className="text-sm text-gray-500">{member.funcao} • {member.valor_total ? `R$ ${member.valor_total.toLocaleString('pt-BR')}` : 'Valor não especificado'}</p>
-                           </div>
-                           <div className="flex gap-2">
-                             <a 
-                               href={member.contrato_url} 
-                               target="_blank" 
-                               rel="noopener noreferrer"
-                               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
-                             >
-                               <Eye className="w-4 h-4" />
-                               Ler
-                             </a>
-                             <a 
-                               href={member.contrato_url} 
-                               target="_blank" 
-                               rel="noopener noreferrer"
-                               download={member.user_name}
-                               className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
-                             >
-                               <Download className="w-4 h-4" />
-                               Baixar
-                             </a>
-                             {(isCoordinator || member.user_email === currentUser?.email) && (
-                               <Button
-                                 size="sm"
-                                 variant="outline"
-                                 onClick={() => handleDeleteContract(member.id)}
-                                 className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                               >
-                                 <Trash2 className="w-4 h-4" />
-                               </Button>
-                             )}
-                           </div>
-                         </div>
-                       ))}
-                   </div>
-                 ) : (
-                   <div className="text-center py-8">
-                     <FileText className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                     <p className="text-gray-500">Nenhum contrato anexado ao cadastro</p>
-                   </div>
-                 )}
-               </div>
-
-               {/* Seção de Contratos por Período */}
-               <div className="bg-white border border-gray-200 rounded-lg p-6">
-                 <h3 className="text-lg font-semibold mb-4 text-black">Contratos por Período de Envio</h3>
-                 {teamMembers.some(m => m.contrato_url && m.data_criacao) ? (
-                   <div className="space-y-4">
-                     {Array.from(new Map(
-                       teamMembers
-                         .filter(m => m.contrato_url && m.data_criacao)
-                         .map(m => [m.data_criacao?.substring(0, 7), m])
-                     ).entries())
-                       .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
-                       .map(([period, members]) => {
-                         const monthYear = new Date(period + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                         const periodMembers = teamMembers.filter(m => m.contrato_url && m.data_criacao?.substring(0, 7) === period);
-                         return (
-                           <div key={period} className="border border-gray-200 rounded-lg p-4">
-                             <h4 className="font-semibold text-black mb-3">{monthYear}</h4>
-                             <div className="space-y-2">
-                               {periodMembers.map(member => (
-                                 <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                                   <span className="text-sm text-gray-700">{member.user_name}</span>
-                                   <div className="flex gap-2">
-                                     <a 
-                                       href={member.contrato_url} 
-                                       target="_blank" 
-                                       rel="noopener noreferrer"
-                                       className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm"
-                                     >
-                                       <Eye className="w-3 h-3" />
-                                     </a>
-                                     <a 
-                                       href={member.contrato_url} 
-                                       target="_blank" 
-                                       rel="noopener noreferrer"
-                                       download={member.user_name}
-                                       className="inline-flex items-center gap-1 text-green-600 hover:text-green-700 text-sm"
-                                     >
-                                       <Download className="w-3 h-3" />
-                                     </a>
-                                     {(isCoordinator || member.user_email === currentUser?.email) && (
-                                       <button
-                                         onClick={() => handleDeleteContract(member.id)}
-                                         className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 text-sm"
-                                       >
-                                         <Trash2 className="w-3 h-3" />
-                                       </button>
-                                     )}
-                                   </div>
-                                 </div>
-                               ))}
-                             </div>
-                           </div>
-                         );
-                       })}
-                   </div>
-                 ) : (
-                   <p className="text-center text-gray-500 py-8">Nenhum contrato com período de envio</p>
-                 )}
-               </div>
-             </div>
+             <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <h3 className="text-lg font-semibold mb-4 text-black flex items-center gap-2">
+                  <File className="w-5 h-5" /> Contratos
+                </h3>
+                {teamMembers.filter(m => m.contrato_url).length > 0 ? (
+                  <div className="space-y-3">
+                    {teamMembers
+                      .filter(m => m.contrato_url)
+                      .sort((a, b) => (b.data_criacao || '').localeCompare(a.data_criacao || ''))
+                      .map(member => (
+                        <div key={member.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                          <div>
+                            <p className="font-medium text-black">{member.user_name}</p>
+                            <p className="text-sm text-gray-500">
+                              {member.funcao} • {member.valor_total ? `R$ ${member.valor_total.toLocaleString('pt-BR')}` : 'Valor não especificado'}
+                              {member.data_criacao && ` • ${new Date(member.data_criacao).toLocaleDateString('pt-BR')}`}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <a 
+                              href={member.contrato_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                            >
+                              <Eye className="w-4 h-4" />
+                              Ler
+                            </a>
+                            <a 
+                              href={member.contrato_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              download={member.user_name}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
+                            >
+                              <Download className="w-4 h-4" />
+                              Baixar
+                            </a>
+                            {(isCoordinator || member.user_email === currentUser?.email) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDeleteContract(member.id)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <FileText className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-500">Nenhum contrato anexado</p>
+                  </div>
+                )}
+              </div>
            ) : showHistory === 'invoices' ? (
              <div className="space-y-8">
                {/* Seção de Notas Fiscais Principais */}
