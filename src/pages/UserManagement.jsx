@@ -78,9 +78,6 @@ const CADASTRO_URL = `${window.location.origin}/app/${window.location.pathname.s
 
 function UserManagementInner() {
    const queryClient = useQueryClient();
-   const [showDialog, setShowDialog] = useState(false);
-   const [editingUser, setEditingUser] = useState(null);
-   const [formData, setFormData] = useState(EMPTY_FORM);
    const [deleteTarget, setDeleteTarget] = useState(null);
    const [reviewingReg, setReviewingReg] = useState(null);
    const [regNote, setRegNote] = useState('');
