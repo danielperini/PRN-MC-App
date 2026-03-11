@@ -417,12 +417,6 @@ function DashboardInner() {
 
 
 
-
-
-    </div>);
-
-}
-
 export default function Dashboard() {
   return <RequireAuth><DashboardInner /></RequireAuth>;
 }
