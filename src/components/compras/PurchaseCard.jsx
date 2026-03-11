@@ -2,43 +2,85 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, ExternalLink, Sparkles, Activity, DollarSign } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { ChevronDown, ChevronUp, ExternalLink, Sparkles, Activity, DollarSign, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import PurchaseTimeline from './PurchaseTimeline';
 
-export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCoordenador, onRefresh }) {
+export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCoordenador, isAdmin, onRefresh, currentUser }) {
   const [expanded, setExpanded] = useState(false);
   const [relatedActivity, setRelatedActivity] = useState(null);
-  
+  const [showApproval, setShowApproval] = useState(false);
+  const [comentario, setComentario] = useState('');
+  const [valorAdmin, setValorAdmin] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+
   const s = statusConfig[purchase.status] || { label: purchase.status, color: 'bg-gray-100 text-gray-700' };
   const budgetLine = budgetLines.find(l => l.id === purchase.budgetline_id);
-  
-  // Buscar atividade relacionada
+
+  const canApproveCoord = (isCoordenador || isAdmin) && purchase.status === 'SOLICITADO';
+  const canApproveAdmin = isAdmin && purchase.status === 'APROVADO_COORD';
+  const canAct = canApproveCoord || canApproveAdmin;
+
+  const filaCoord = purchase.status === 'SOLICITADO';
+
   useEffect(() => {
-    const fetchActivity = async () => {
-      if (purchase.activity_id) {
-        try {
-          const activity = await base44.entities.Activity.list('-created_date', 1);
-          const found = activity.find(a => a.id === purchase.activity_id);
-          setRelatedActivity(found);
-        } catch (e) {
-          // Silently fail
-        }
-      }
-    };
-    fetchActivity();
+    if (purchase.activity_id) {
+      base44.entities.Activity.list('-created_date', 50)
+        .then(list => setRelatedActivity(list.find(a => a.id === purchase.activity_id)))
+        .catch(() => {});
+    }
   }, [purchase.activity_id]);
 
-  const META_LABELS = {
-    'MC3A-20': 'Ações Educativas',
-    'MC3A-21': 'Exposição MUMO',
-    'MC3A-22': 'Consultorias',
-    'MC3A-EXTRA': 'Meta Extra',
+  const handleAction = async (action) => {
+    setActionLoading(true);
+    try {
+      const valor_aprovado = parseFloat(valorAdmin) || purchase.valor_solicitado;
+
+      if (action === 'approve_admin') {
+        const saldoDisponivel = budgetLine ? (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0) : Infinity;
+        if (saldoDisponivel < valor_aprovado) {
+          toast.error(`Saldo insuficiente! Disponível: R$ ${saldoDisponivel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+          setActionLoading(false);
+          return;
+        }
+      }
+
+      await base44.functions.invoke('processPurchaseApproval', {
+        purchaseId: purchase.id,
+        action: action === 'approve_coord' ? 'approve_coord' : action === 'approve_admin' ? 'approve_admin' : 'reject',
+        comentario,
+        valor_aprovado,
+      });
+
+      const msgs = {
+        approve_coord: 'Aprovado! Aguarda aprovação administrativa.',
+        approve_admin: 'Aprovação administrativa concluída!',
+        recusar: 'Solicitação recusada.',
+      };
+      toast.success(msgs[action] || 'Ação realizada!');
+      setShowApproval(false);
+      setComentario('');
+      onRefresh();
+    } catch (e) {
+      toast.error('Erro: ' + e.message);
+    }
+    setActionLoading(false);
   };
 
-  const scoreColor = purchase.ai_meta_score >= 80 ? 'text-green-700 bg-green-50' : purchase.ai_meta_score >= 50 ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50';
+  const META_LABELS = {
+    'MC3A-20': 'Ações Educativas', 'MC3A-21': 'Exposição / Produção',
+    'MC3A-22': 'Comunicação', 'MC3A-23': 'Noturno 2026',
+    'MC3A-24': 'Emenda Parlamentar', 'MC3A-25': 'Outras Ações', 'MC3A-EXTRA': 'Extra',
+  };
+
+  const scoreColor = purchase.ai_meta_score >= 80
+    ? 'text-green-700 bg-green-50' : purchase.ai_meta_score >= 50
+    ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50';
 
   return (
-    <div className="border border-gray-100 rounded-xl hover:border-gray-200 transition-colors">
+    <div className={`border rounded-xl transition-colors ${canAct && !showApproval ? 'border-blue-100 hover:border-blue-200' : 'border-gray-100 hover:border-gray-200'}`}>
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
@@ -66,35 +108,98 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
                 </div>
               )}
             </div>
-            {budgetLine && (
-              <div className="flex flex-wrap gap-2 mt-2 text-xs">
-                <Badge variant="outline" className="text-xs">
-                  Valor PO: R$ {(budgetLine.valor_total_previsto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </Badge>
-                <Badge variant="outline" className="text-xs">
-                  Saldo: R$ {Math.max(0, (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </Badge>
-              </div>
-            )}
-            {relatedActivity && (
-              <div className="flex items-center gap-1 mt-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit">
-                <Activity className="w-3 h-3" />
-                Atividade: {relatedActivity.titulo?.substring(0, 40)}
-              </div>
-            )}
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <div className="text-right">
               <p className="font-bold text-black">R$ {(purchase.valor_solicitado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
               {purchase.valor_aprovado_admin && purchase.valor_aprovado_admin !== purchase.valor_solicitado && (
                 <p className="text-xs text-green-600">Aprv: R$ {purchase.valor_aprovado_admin.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
               )}
             </div>
+            {canAct && (
+              <Button
+                size="sm"
+                variant={showApproval ? 'default' : 'outline'}
+                className={showApproval ? 'bg-black text-white text-xs' : 'text-xs'}
+                onClick={() => setShowApproval(!showApproval)}
+              >
+                {showApproval ? 'Fechar' : 'Analisar'}
+              </Button>
+            )}
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpanded(!expanded)}>
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </Button>
           </div>
         </div>
+
+        {/* Timeline sempre visível */}
+        <div className="mt-3">
+          <PurchaseTimeline purchase={purchase} />
+        </div>
+
+        {/* Painel de aprovação inline */}
+        {showApproval && (
+          <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+            <p className="text-sm font-semibold text-black">
+              {canApproveCoord ? '✅ Aprovação — Coordenador Geral' : '✅ Aprovação — Coordenador Administrativo'}
+            </p>
+
+            {/* Saldo */}
+            {budgetLine && (
+              <div className="text-xs bg-white border rounded-lg px-3 py-2">
+                <span className="text-gray-500">[{budgetLine.codigo}] Saldo disponível: </span>
+                <strong className={((budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)) >= (purchase.valor_solicitado || 0) ? 'text-green-700' : 'text-red-700'}>
+                  R$ {Math.max(0, (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </strong>
+              </div>
+            )}
+
+            {/* Valor a aprovar (admin) */}
+            {canApproveAdmin && (
+              <div>
+                <label className="text-xs text-gray-600 mb-1 block">Valor a aprovar (R$)</label>
+                <Input
+                  type="number" step="0.01"
+                  placeholder={purchase.valor_solicitado}
+                  value={valorAdmin}
+                  onChange={e => setValorAdmin(e.target.value)}
+                  className="max-w-48 text-sm"
+                />
+              </div>
+            )}
+
+            {/* Justificativa */}
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Justificativa / Comentário</label>
+              <Textarea
+                placeholder="Adicione um comentário ou justificativa (obrigatório para recusar)..."
+                rows={2}
+                value={comentario}
+                onChange={e => setComentario(e.target.value)}
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                className="text-red-600 border-red-200 hover:bg-red-50 text-sm"
+                onClick={() => handleAction('recusar')}
+                disabled={actionLoading || !comentario.trim()}
+              >
+                {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <XCircle className="w-3.5 h-3.5 mr-1" />}
+                Recusar
+              </Button>
+              <Button
+                className="bg-black hover:bg-gray-800 text-white text-sm"
+                onClick={() => handleAction(canApproveCoord ? 'approve_coord' : 'approve_admin')}
+                disabled={actionLoading}
+              >
+                {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <CheckCircle className="w-3.5 h-3.5 mr-1" />}
+                {canApproveCoord ? 'Aprovar → Admin' : 'Aprovar e Comprometer'}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {expanded && (
@@ -110,7 +215,7 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
             </div>
           )}
 
-          {/* Rubrica e Saldo */}
+          {/* Rubrica */}
           {budgetLine && (
             <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
               <p className="font-semibold text-xs mb-2 text-blue-900">📋 Rubrica Orçamentária</p>
@@ -119,8 +224,7 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
                 <div><span className="text-blue-600 font-medium">Natureza:</span> {budgetLine.natureza_codigo}</div>
                 <div><span className="text-blue-600 font-medium">Valor PO:</span> R$ {(budgetLine.valor_total_previsto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                 <div><span className="text-blue-600 font-medium">Comprometido:</span> R$ {(budgetLine.saldo_comprometido || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                <div><span className="text-blue-600 font-medium">Saldo Atual:</span> R$ {Math.max(0, (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                {budgetLine.ativo === false && <div className="col-span-1"><Badge className="bg-red-100 text-red-800 text-xs">Inativa</Badge></div>}
+                <div><span className="text-blue-600 font-medium">Saldo:</span> R$ {Math.max(0, (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
               </div>
             </div>
           )}
@@ -131,8 +235,6 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
             {purchase.centro_custo && <div><span className="text-gray-400">Centro de custo</span><p className="font-medium text-gray-700">{purchase.centro_custo}</p></div>}
             {purchase.meio_pagamento && <div><span className="text-gray-400">Pagamento</span><p className="font-medium text-gray-700">{purchase.meio_pagamento}</p></div>}
             {purchase.qtd && <div><span className="text-gray-400">Qtd</span><p className="font-medium text-gray-700">{purchase.qtd} {purchase.unidade}</p></div>}
-            {purchase.aprov_coord_nome && <div><span className="text-gray-400">Coord. aprovou</span><p className="font-medium text-gray-700">{purchase.aprov_coord_nome} — {purchase.aprov_coord_data}</p></div>}
-            {purchase.aprov_admin_nome && <div><span className="text-gray-400">Admin aprovou</span><p className="font-medium text-gray-700">{purchase.aprov_admin_nome} — {purchase.aprov_admin_data}</p></div>}
             {purchase.data_pagamento && <div><span className="text-gray-400">Data pgto</span><p className="font-medium text-gray-700">{purchase.data_pagamento}</p></div>}
           </div>
 
@@ -144,19 +246,22 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
               </p>
               <div className="space-y-1 text-xs text-purple-800">
                 <p><span className="font-medium">Título:</span> {relatedActivity.titulo}</p>
-                {relatedActivity.descricao && <p><span className="font-medium">Descrição:</span> {relatedActivity.descricao.substring(0, 80)}</p>}
                 {relatedActivity.data_realizacao && <p><span className="font-medium">Data:</span> {relatedActivity.data_realizacao}</p>}
-                {relatedActivity.publico_total && <p><span className="font-medium">Público:</span> {relatedActivity.publico_total} pessoas</p>}
               </div>
             </div>
           )}
 
           {/* Links */}
-          {(purchase.link_proposta || purchase.comprovante_url) && (
-            <div className="flex gap-2">
+          {(purchase.link_proposta || purchase.comprovante_url || purchase.orcamento_url) && (
+            <div className="flex gap-2 flex-wrap">
               {purchase.link_proposta && (
                 <a href={purchase.link_proposta} target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" size="sm" className="text-xs gap-1"><ExternalLink className="w-3 h-3" />Ver Proposta</Button>
+                </a>
+              )}
+              {purchase.orcamento_url && (
+                <a href={purchase.orcamento_url} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" size="sm" className="text-xs gap-1"><ExternalLink className="w-3 h-3" />Orçamento</Button>
                 </a>
               )}
               {purchase.comprovante_url && (
@@ -164,14 +269,6 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
                   <Button variant="outline" size="sm" className="text-xs gap-1"><ExternalLink className="w-3 h-3" />Comprovante/NF</Button>
                 </a>
               )}
-            </div>
-          )}
-
-          {/* Comentários de aprovação */}
-          {(purchase.aprov_coord_comentario || purchase.aprov_admin_comentario) && (
-            <div className="p-3 bg-gray-50 rounded-lg text-xs space-y-1">
-              {purchase.aprov_coord_comentario && <p><strong>Coord:</strong> {purchase.aprov_coord_comentario}</p>}
-              {purchase.aprov_admin_comentario && <p><strong>Admin:</strong> {purchase.aprov_admin_comentario}</p>}
             </div>
           )}
         </div>
