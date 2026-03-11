@@ -479,7 +479,7 @@ function GestorArquivosInner() {
           )}
         </div>
 
-        {/* Tabs: Arquivos e Histórico */}
+        {/* Tabs: Contratos, Arquivos e Histórico */}
         <div className="space-y-4">
           <div className="flex gap-2 border-b">
             <button
@@ -489,6 +489,12 @@ function GestorArquivosInner() {
                   ? 'border-blue-600 text-blue-600' 
                   : 'border-transparent text-gray-600'
               }`}
+            >
+              Contratos
+            </button>
+            <button
+              onClick={() => setShowHistory(false)}
+              className={`px-4 py-2 font-medium text-sm border-b-2 border-transparent text-gray-600 hover:text-gray-900`}
             >
               Arquivos
             </button>
