@@ -16,7 +16,7 @@ export default function ActivitySummary({ activities = [], dateRange = null, das
   const aprovados = activities.filter(a => a.status === 'APROVADO').length;
 
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-2 gap-4">
       <div className="rounded-2xl bg-black text-white p-6 flex flex-col gap-1">
         <Users className="w-7 h-7 text-white mb-2" />
         <p className="text-4xl font-bold text-white leading-none">{totalPublico.toLocaleString('pt-BR')}</p>
