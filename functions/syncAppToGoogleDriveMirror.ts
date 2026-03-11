@@ -144,13 +144,15 @@ Deno.serve(async (req) => {
     
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
     
-    // Obter ou criar pasta espelho
+    // Obter ou criar pastas
     const mirrorFolderId = await findOrCreateFolder(accessToken, MIRROR_FOLDER_NAME, ROOT_FOLDER_ID);
+    const approvedPdfFolderId = await findOrCreateFolder(accessToken, APPROVED_PDF_FOLDER, ROOT_FOLDER_ID);
     
     // Buscar relatórios e anexos do app
-    const [reports, attachments] = await Promise.all([
+    const [reports, attachments, activities] = await Promise.all([
       base44.asServiceRole.entities.Report.list('-updated_date', 1000),
-      base44.asServiceRole.entities.Attachment.list('-updated_date', 5000)
+      base44.asServiceRole.entities.Attachment.list('-updated_date', 5000),
+      base44.asServiceRole.entities.Activity.list('-updated_date', 1000)
     ]);
     
     // Estrutura esperada no Drive
