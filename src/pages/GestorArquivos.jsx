@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import BackupMonthlyDialog from '../components/backup/BackupMonthlyDialog';
 import BackupHistoryTable from '../components/backup/BackupHistoryTable';
 import FileHierarchy from '../components/gallery/FileHierarchy';
-import FilePreviewModal from '../components/gallery/FilePreviewModal';
+import FilePreviewViewer from '../components/gallery/FilePreviewViewer';
 import GoogleDriveImporter from '../components/drive/GoogleDriveImporter';
 import { toast } from 'sonner';
 
