@@ -229,11 +229,17 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
       });
       const report_id = reportRes.data.report_id;
 
+      // Preparar URLs dos documentos
+      const orcamento_url = form.orcamentos_docs?.[0]?.url || null;
+      const nota_fiscal_url = form.notas_fiscais_docs?.[0]?.url || null;
+
       const created = await base44.entities.PurchaseRequest.create({
         ...form,
         report_id,
         valor_solicitado: parseFloat(form.valor_solicitado) || 0,
         qtd: parseFloat(form.qtd) || 1,
+        orcamento_url,
+        nota_fiscal_url,
         ai_meta_score: aiAnalysis?.score,
         ai_meta_sugerida: aiAnalysis?.meta_sugerida,
         ai_analise: aiAnalysis?.justificativa,
