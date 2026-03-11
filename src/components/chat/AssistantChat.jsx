@@ -223,14 +223,130 @@ export default function AssistantChat() {
   });
 
   const suggestedQuestions = [
+    // BÁSICO - CRIAR E ENVIAR
     'Como criar um novo relatório?',
+    'Como salvar meu relatório como rascunho?',
+    'Como enviar relatório para revisão?',
+    'O que significa cada status (DRAFT, SUBMITTED, IN_REVIEW, etc)?',
+    
+    // ATIVIDADES E CLASSIFICAÇÃO
     'O que é uma atividade META?',
-    'Como usar templates?',
-    'Como coordenador: como revisar?',
-    'Como exportar em PDF?',
+    'Qual a diferença entre META, ROTINA e EXTRA?',
+    'Como preencher uma atividade META?',
+    'O que é Público Estimado?',
+    'Como registrar atividades com múltiplas ocorrências?',
+    
+    // CAMPOS ESPECÍFICOS
+    'Como preencher o Resumo Executivo?',
+    'O que colocar em Pontos Positivos?',
+    'Como descrever Dificuldades e Desafios?',
+    'O que são Sugestões de Melhoria?',
+    'Como adicionar Momentos Especiais?',
+    
+    // TEMPLATES
+    'Como salvar um relatório como Template?',
+    'Como carregar um Template?',
+    'Posso compartilhar Templates com minha equipe?',
+    'Como reutilizar um Template salvo?',
+    
+    // EXPORTAÇÃO E COMPARTILHAMENTO
+    'Como exportar relatório em PDF?',
+    'Como exportar dados em CSV?',
+    'O relatório é sincronizado para Google Drive?',
+    'Como compartilhar relatório aprovado?',
+    'Posso imprimir meu relatório?',
+    
+    // BUSCA E FILTROS
+    'Como usar a busca de relatórios?',
+    'Como filtrar por museu, mês ou status?',
+    'Como encontrar relatórios de um profissional específico?',
+    'Posso filtrar por classificação de atividade?',
+    
+    // IA E SUGESTÕES
+    'Como usar IA para gerar sugestões?',
+    'A IA pode criar resumo executivo?',
+    'Posso pedir IA para revisar pontos positivos?',
+    'Como usar análise de tendências?',
+    
+    // PARA COORDENADORES
+    'Como coordenador: como revisar relatórios?',
+    'Como "Assumir Revisão" de um relatório?',
+    'Como devolver relatório com feedback?',
+    'Como adicionar comentários por seção?',
+    'Como aprovar um relatório?',
+    'Como delegar revisão a outro coordenador?',
+    'Como visualizar o Painel de Coordenação?',
+    'Como ver log de aprovações?',
+    
+    // PROBLEMAS E DÚVIDAS
+    'Perdi meu relatório em rascunho. O que faço?',
+    'Posso editar após enviar?',
+    'Meu relatório foi devolvido. Como editar novamente?',
+    'Qual o limite de tempo para enviar?',
+    'Posso deletar um relatório?',
+    'Como vejo comentários do coordenador?',
+    
+    // PLANO DE TRABALHO E METAS
     'Quais são as metas do 3º Aditivo?',
-    'Como usar busca e filtros?',
-    'O que fazer se relatório foi devolvido?'
+    'Qual o Plano de Trabalho vigente?',
+    'Quantas ações educativas devem ser feitas?',
+    'Quantas ações culturais devem ser feitas?',
+    'Qual é a vigência do contrato?',
+    'O que é o Noturno nos Museus?',
+    'Quais são os objetivos do MUMO, MIS e MHAB?',
+    'Como atividades impactam as metas?',
+    'O que são "Diárias de Educadores"?',
+    'O que são "Consultorias"?',
+    'O que é "Acessibilidade" no contrato?',
+    
+    // MUSEUS
+    'Informações sobre MUMO (Museu da Moda)?',
+    'Informações sobre MIS BH (Imagem e Som)?',
+    'Informações sobre MHAB (Histórico)?',
+    'Qual é a exposição atual de cada museu?',
+    
+    // PÚBLICO E IMPACTO
+    'Como calcular público estimado?',
+    'Como registrar público por faixa etária?',
+    'Como documentar acessibilidade da atividade?',
+    'O que é "Classificação Indicativa LIVRE"?',
+    
+    // EQUIPES
+    'Qual é minha equipe?',
+    'Como filtrar atividades por equipe?',
+    'Como ver atividades de outras equipes?',
+    
+    // PRAZOS E COMPLIANCE
+    'Qual é o prazo para enviar relatório?',
+    'Como funciona Compliance?',
+    'Sou obrigado a submeter relatório mensal?',
+    'Posso pedir Isenção de Relatório?',
+    
+    // SEGURANÇA E PRIVACIDADE
+    'Quem pode ver meu relatório?',
+    'Meu relatório é privado?',
+    'Como funciona a sincronização Google Drive?',
+    'Meu relatório é seguro?',
+    
+    // FUNCIONALIDADES AVANÇADAS
+    'Como usar Auto-save?',
+    'O que é Versionamento de Relatório?',
+    'Como ver histórico de alterações?',
+    'Como adicionar anexos/arquivos?',
+    'Posso fazer backup do meu relatório?',
+    
+    // NOTIFICAÇÕES
+    'Como recebo notificações?',
+    'Serei notificado quando relatório for aprovado?',
+    'Como funcionam alertas de prazos?',
+    'Posso customizar notificações?',
+    
+    // GERAL
+    'Me explique o 3º Termo Aditivo vigente',
+    'Qual é a estrutura completa da plataforma?',
+    'Como funciona o workflow de relatórios?',
+    'Qual é o público-alvo da plataforma?',
+    'Preciso de ajuda técnica, para quem falo?'
   ];
 
   const handleSuggestedQuestion = (question) => {
