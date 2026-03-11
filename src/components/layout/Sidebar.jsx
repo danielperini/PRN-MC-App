@@ -6,7 +6,7 @@ import {
   Building2, FileText, Users, Eye, Paperclip, Settings, Shield,
   HelpCircle, BarChart3, History, ChevronLeft, ChevronRight,
   CalendarDays, Layers, BookOpen, ShoppingCart, Banknote, Target, Newspaper,
-  Map
+  Map, DollarSign
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SuggestionForm from '@/components/sidebar/SuggestionForm';
@@ -53,6 +53,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         { name: 'Compras', icon: ShoppingCart, label: 'Compras e Equipe', show: true },
         { name: 'DashboardFinanceiro', icon: BarChart3, label: 'Dashboard Financeiro', show: isCoordenador && canViewMenu('gestao_compras') },
         { name: 'GestaoPagamentos', icon: Banknote, label: 'Pagamentos', show: isCoordenador },
+        { name: 'ConsolidacaoFinanceira', icon: DollarSign, label: 'Consolidação Financeira', show: isCoordenador },
         { name: 'RelatorioMeta', icon: Target, label: 'Rel. por Meta', show: isCoordenador },
       ],
     },
