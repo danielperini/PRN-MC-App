@@ -36,34 +36,44 @@ export default function UnifiedNewsCarousel() {
   const [selectedTags, setSelectedTags] = useState([]);
   const queryClient = useQueryClient();
 
-  // Fetch today's selected news and museology articles
+  // Fetch news from last 90 days, most recent first
   const { data: todayNews = [], isLoading: loadingNews, refetch: refetchNews } = useQuery({
     queryKey: ['today-news', today],
     queryFn: async () => {
-      const all = await base44.entities.NewsHighlight.filter({ ativo: true }, '-created_date', 200);
-      const selected = all.filter(n => n.data_selecao === today).slice(0, 10);
-      
-      // Include museology articles
-      const museologyArticles = all.filter(n => 
-        n.titulo?.toLowerCase().includes('museu') || 
-        n.resumo?.toLowerCase().includes('museu') ||
-        n.titulo?.toLowerCase().includes('museolog')
-      ).slice(0, 3);
-      
-      // Fetch additional museology articles from curated sources
+      const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      const cutoffStr = cutoff.toISOString().split('T')[0];
+
+      const all = await base44.entities.NewsHighlight.filter({ ativo: true }, '-created_date', 300);
+
+      // Filter to last 90 days only
+      const recent = all.filter(n => {
+        const dateStr = n.data_publicacao || n.data_encontrada || n.created_date;
+        if (!dateStr) return false;
+        const date = new Date(dateStr);
+        return !isNaN(date.getTime()) && date >= cutoff;
+      });
+
+      // Fetch external museology articles
       let externalArticles = [];
       try {
         const response = await base44.functions.invoke('fetchMuseologyArticles', {});
-        externalArticles = response.articles || [];
+        externalArticles = (response.articles || []).filter(a => {
+          if (!a.data_publicacao) return true; // include if no date (assume recent)
+          return new Date(a.data_publicacao) >= cutoff;
+        });
       } catch (e) {
         console.error('Error fetching external museology articles:', e);
       }
-      
-      const combined = [...selected, ...museologyArticles, ...externalArticles];
+
+      const combined = [...recent, ...externalArticles];
       const unique = Array.from(new Map(combined.map(item => [item.id || item.link, item])).values());
-      
-      // Shuffle randomly
-      return unique.sort(() => Math.random() - 0.5).slice(0, 15);
+
+      // Sort by most recent first (no random shuffle)
+      return unique.sort((a, b) => {
+        const dateA = new Date(a.data_publicacao || a.data_encontrada || a.created_date || 0);
+        const dateB = new Date(b.data_publicacao || b.data_encontrada || b.created_date || 0);
+        return dateB - dateA;
+      }).slice(0, 20);
     },
     refetchInterval: 120000,
     staleTime: 60000,
@@ -119,8 +129,12 @@ export default function UnifiedNewsCarousel() {
       );
     }
     
-    // Shuffle randomly on every load
-    return filtered.sort(() => Math.random() - 0.5);
+    // Sort by most recent first
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.data_publicacao || a.created_date || 0);
+      const dateB = new Date(b.data_publicacao || b.created_date || 0);
+      return dateB - dateA;
+    });
   }, [momentos, todayNews, selectedTags]);
 
   const allAvailableTags = React.useMemo(() => {
