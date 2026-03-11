@@ -94,10 +94,13 @@ Deno.serve(async (req) => {
 
       const searchTerms = aiResult?.termos?.length >= 3 ? aiResult.termos : [
         `Viaduto das Artes programação ${month} ${year}`,
-        'Museus Centro BH exposição',
-        'MUMO moda belo horizonte',
-        'MIS BH atividade educativa',
-        'MHAB historia belo horizonte'
+        'Museus Centro BH exposição arte cultura',
+        'MUMO Museu Moda BH design',
+        'MIS BH cinema audiovisual documentário',
+        'MHAB Museu Histórico Belo Horizonte patrimônio',
+        'Cinema mineiro produção audiovisual',
+        'Moda mineira designers belo horizonte',
+        'História Belo Horizonte planejamento urbano'
       ];
 
       const existingLinks = new Set(allNews.map(n => n.link).filter(Boolean));
@@ -107,9 +110,14 @@ Deno.serve(async (req) => {
 
         const result = await base44.integrations.Core.InvokeLLM({
           prompt: `Pesquise notícias recentes sobre: "${term}"
-    Foco em Belo Horizonte — Museus Centro, Viaduto das Artes, MUMO, MIS BH, MHAB.
-    Retorne 3 notícias reais com links verificados. Não invente URLs.
-    Formato: {"noticias":[{"titulo":"...","resumo":"resumo em 2 frases...","link":"https://...","imagem_url":"https://... ou vazio","data_publicacao":"YYYY-MM-DD ou vazio"}]}`,
+
+        FOCO: Cultura, História, Cinema Mineiro, Moda em Belo Horizonte
+        Prioridade: Viaduto das Artes, Museus Centro, MUMO (moda), MIS BH (cinema), MHAB (história)
+
+        Retorne 3 notícias reais com links verificados (não invente URLs).
+        Priorize: portalbelohorizonte, culturadoria.com.br, agendabh, imprensa local BH
+
+        Formato: {"noticias":[{"titulo":"...","resumo":"resumo em 2 frases...","link":"https://...","imagem_url":"https://... ou vazio","data_publicacao":"YYYY-MM-DD ou vazio"}]}`,
           add_context_from_internet: true,
           response_json_schema: {
             type: 'object',
