@@ -15,6 +15,8 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
   const [comentario, setComentario] = useState('');
   const [valorAdmin, setValorAdmin] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [aiSecurityAnalysis, setAiSecurityAnalysis] = useState(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
 
   const s = statusConfig[purchase.status] || { label: purchase.status, color: 'bg-gray-100 text-gray-700' };
   const budgetLine = budgetLines.find(l => l.id === purchase.budgetline_id);
