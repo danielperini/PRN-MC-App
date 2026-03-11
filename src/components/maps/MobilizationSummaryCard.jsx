@@ -3,9 +3,12 @@ import { base44 } from '@/api/base44Client';
 import { Card } from '@/components/ui/card';
 import { Loader2, RefreshCw, Lightbulb } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import ContactsAndProgramCard from './ContactsAndProgramCard';
 
 export default function MobilizationSummaryCard({ museu_sigla, title }) {
   const [summary, setSummary] = useState('');
+  const [contacts, setContacts] = useState([]);
+  const [programmingSuggestion, setProgrammingSuggestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [lastGenerated, setLastGenerated] = useState(null);
@@ -13,10 +16,14 @@ export default function MobilizationSummaryCard({ museu_sigla, title }) {
   useEffect(() => {
     // Tentar carregar resumo do localStorage primeiro
     const cached = localStorage.getItem(`mobilization_${museu_sigla}`);
+    const cachedContacts = localStorage.getItem(`mobilization_${museu_sigla}_contacts`);
+    const cachedProgram = localStorage.getItem(`mobilization_${museu_sigla}_program`);
     const cachedDate = localStorage.getItem(`mobilization_${museu_sigla}_date`);
     
     if (cached && cachedDate) {
       setSummary(cached);
+      setContacts(cachedContacts ? JSON.parse(cachedContacts) : []);
+      setProgrammingSuggestion(cachedProgram || '');
       setLastGenerated(new Date(cachedDate));
     } else {
       generateSummary();
@@ -33,9 +40,13 @@ export default function MobilizationSummaryCard({ museu_sigla, title }) {
 
       if (response.data?.summary) {
         setSummary(response.data.summary);
+        setContacts(response.data.topContacts || []);
+        setProgrammingSuggestion(response.data.programmingSuggestion || '');
         setLastGenerated(new Date(response.data.generated_at));
         localStorage.setItem(`mobilization_${museu_sigla}`, response.data.summary);
         localStorage.setItem(`mobilization_${museu_sigla}_date`, response.data.generated_at);
+        localStorage.setItem(`mobilization_${museu_sigla}_contacts`, JSON.stringify(response.data.topContacts));
+        localStorage.setItem(`mobilization_${museu_sigla}_program`, response.data.programmingSuggestion);
       }
     } catch (err) {
       setError('Erro ao gerar resumo de mobilização');
@@ -77,20 +88,28 @@ export default function MobilizationSummaryCard({ museu_sigla, title }) {
       )}
 
       {summary && (
-        <div className="space-y-3">
-          <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-            {summary}
-          </p>
-          <div className="flex items-center justify-between pt-2 border-t border-indigo-200">
-            <span className="text-xs text-gray-500">
-              {summary.length} / 800 caracteres
-            </span>
-            {lastGenerated && (
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+              {summary}
+            </p>
+            <div className="flex items-center justify-between pt-2 border-t border-indigo-200 mt-3">
               <span className="text-xs text-gray-500">
-                Atualizado: {lastGenerated.toLocaleDateString('pt-BR')}
+                {summary.length} / 800 caracteres
               </span>
-            )}
+              {lastGenerated && (
+                <span className="text-xs text-gray-500">
+                  Atualizado: {lastGenerated.toLocaleDateString('pt-BR')}
+                </span>
+              )}
+            </div>
           </div>
+
+          {/* Contatos e Programação */}
+          <ContactsAndProgramCard 
+            contacts={contacts} 
+            programmingSuggestion={programmingSuggestion}
+          />
         </div>
       )}
 
