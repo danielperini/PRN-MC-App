@@ -106,7 +106,6 @@ Deno.serve(async (req) => {
     currentY += 8;
 
     addField('Profissional', report.author_name);
-    addField('Função', report.funcao);
     addField('Museu', report.museu);
     addField('Equipe', report.equipe);
 
