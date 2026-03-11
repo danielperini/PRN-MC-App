@@ -91,9 +91,9 @@ Deno.serve(async (req) => {
 
       await base44.entities.PurchaseRequest.update(purchaseId, rejectUpdate);
 
-      // Notificar solicitante via função dedicada
+      // Notificar solicitante via email que foi rejeitado
       try {
-        await base44.asServiceRole.functions.invoke('notifyPurchaseStatusChange', {
+        await base44.asServiceRole.functions.invoke('notifyUserOnPurchaseStatusChange', {
           purchaseId: purchaseId,
           newStatus: novoStatus,
           comentario: comentario
