@@ -27,11 +27,7 @@ export default function ActivitySummary({ activities = [], dateRange = null, das
         <p className="text-4xl font-bold text-white leading-none">{totalActividades}</p>
         <p className="text-sm text-gray-300">Atividades realizadas</p>
       </div>
-      <div className="rounded-2xl bg-black text-white p-6 flex flex-col gap-1">
-        <Award className="w-7 h-7 text-white mb-2" />
-        <p className="text-4xl font-bold text-white leading-none">{aprovados}</p>
-        <p className="text-sm text-gray-300">Atividades aprovadas</p>
-      </div>
+
     </div>
   );
 }
