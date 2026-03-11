@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
+import PendingActionsAlert from '@/components/notifications/PendingActionsAlert';
 import GlobalSearch from './GlobalSearch';
 
 export default function TopNav({ currentUser }) {
@@ -22,6 +23,7 @@ export default function TopNav({ currentUser }) {
             <Home className="w-5 h-5" />
           </Button>
         </Link>
+        {currentUser?.email && <PendingActionsAlert />}
         {currentUser?.email && <NotificationCenter />}
         
         <Link to={createPageUrl('Perfil')}>
