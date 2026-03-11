@@ -129,12 +129,8 @@ export default function UnifiedNewsCarousel() {
       );
     }
     
-    // Sort by most recent first
-    return filtered.sort((a, b) => {
-      const dateA = new Date(a.data_publicacao || a.created_date || 0);
-      const dateB = new Date(b.data_publicacao || b.created_date || 0);
-      return dateB - dateA;
-    });
+    // Momentos sempre primeiro, depois ordem aleatória (já embaralhada no fetch)
+    return filtered;
   }, [momentos, todayNews, selectedTags]);
 
   const allAvailableTags = React.useMemo(() => {
