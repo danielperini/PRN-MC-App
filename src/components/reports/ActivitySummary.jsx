@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Activity, Award } from 'lucide-react';
+import { Users, Activity } from 'lucide-react';
 
 export default function ActivitySummary({ activities = [], dateRange = null, dashboardPublico = null }) {
   if (activities.length === 0) {
