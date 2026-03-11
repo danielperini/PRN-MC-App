@@ -55,54 +55,146 @@ Coordenações OSC: Geral, Programação, Comunicação, Produção
 `;
 
 const MANUAL_CONTEXT = `
-MANUAL PLATAFORMA MUSEU CENTRO - Referência Rápida:
+MANUAL COMPLETO - PLATAFORMA MUSEU CENTRO:
 
-PARA PROFISSIONAIS:
-1. Novo Relatório: Identificação → Resumo → Atividades → Oportunidades → Avaliação
-2. Status: DRAFT (rascunho) → SUBMITTED (enviado) → IN_REVIEW → APPROVED/RETURNED
-3. Atividades: Título, Descrição, Data, Público, Classificação (META/ROTINA/EXTRA)
-4. META: Selecione código, informe resultado e status (Em andamento/Parcial/Cumprida/Superada)
-5. Salvar: Auto-save a cada 5 segundos ou clique "Salvar Rascunho"
-6. Enviar: Marque declaração de responsabilidade e clique "Enviar para Revisão"
+=== VISÃO GERAL ===
+Sistema centralizado para registro, acompanhamento e aprovação de relatórios mensais.
+Públicos: Profissionais (criam relatórios), Coordenadores (revisam), Administradores (configurar).
 
-PARA COORDENADORES:
-1. Revisão: Acesse "Revisão" → Filtre por museu/status → "Assumir Revisão"
-2. Comentários: Detalhados por seção (Identificação/Atividades/Avaliação)
-3. Ações: Devolver (com feedback) ou Aprovar
-4. Dashboard: Visão consolidada, métricas, compliance, log de aprovações
+=== PARA PROFISSIONAIS ===
+CRIAR RELATÓRIO:
+1. Clique "Novo Relatório" → Editor abrirá
+2. Preencha Identificação: Mês, Ano, Museu, Equipe
+3. Resumo Executivo: Principais atividades (use "Gerar com IA" para sugestões)
+4. Atividades: Clique "+ Adicionar" → Título, Descrição, Data, Público
+   - Classificação: META (contrato), ROTINA (habitual), EXTRA (extraordinária)
+   - Se META: Selecione código, informe resultado e status
+5. Oportunidades: Momentos especiais (histórias) e oportunidades encontradas
+6. Avaliação: Pontos positivos, dificuldades, sugestões
+7. MARQUE checkbox de responsabilidade
+8. Clique "Enviar para Revisão"
 
-FUNCIONALIDADES CHAVE:
-- Templates: Salvar/Carregar modelos de relatórios
-- PDF: Exportar relatório completo
-- CSV: Exportar dados para análise
-- IA: Gerar sugestões para resumo e pontos positivos
-- Filtros: Por mês, museu, equipe, status, classificação
-- Momentos: Histórias e depoimentos para carousel
+SALVAMENTO:
+- Auto-save a cada 5 segundos (automático)
+- Salvar Rascunho: Mantém como DRAFT
+- Status: DRAFT → SUBMITTED → IN_REVIEW → APPROVED/RETURNED
 
-GLOSSÁRIO:
-- META: Objetivos do 3º Aditivo (contrato vigente)
-- ROTINA: Atividades habituais
-- EXTRA: Atividades adicionais
-- Draft: Rascunho (editável)
-- Compliance: Conformidade de envio
+DÚVIDAS COMUNS:
+- Perdeu rascunho? Está em "Relatórios" com status DRAFT
+- Pode editar após enviar? Só se Coordenador devolver (RETURNED)
+- Limite de tempo? Envie até fim do mês (consulte coordenador)
+
+=== PARA COORDENADORES ===
+REVISAR RELATÓRIOS:
+1. Acesse "Revisão" → Filtre por museu/status
+2. Clique "Assumir Revisão" (muda para IN_REVIEW)
+3. Leia todas as seções
+4. Ações:
+   - DEVOLVER: Escreva comentários por seção, profissional edita
+   - APROVAR: Marque como APPROVED, pronto para exportação
+
+PAINEL DE COORDENAÇÃO:
+- Números consolidados e métricas
+- Carousel de Momentos publicados
+- Análise de atividades por equipe
+- Oportunidades identificadas
+- Compliance Panel (quem deveria ter enviado)
+- Log completo de aprovações
+
+GESTÃO:
+- Delegar revisão a outro coordenador
+- Comentários estruturados por seção
+- Histórico de versões (quem alterou quando)
+
+=== FUNCIONALIDADES CHAVE ===
+TEMPLATES:
+- Salvar como Template: Reutilize estrutura
+- Carregar de Template: Pré-preenche dados
+
+PDF & EXPORTAÇÃO:
+- Gerar PDF: Relatório completo com todas as seções
+- Exportar CSV: Dados estruturados para análise
+- PDFs Aprovados: Sincronizam para Google Drive automaticamente
+
+BUSCA & FILTROS:
+- Busca global por: Nome, museu, mês, protocolo
+- Filtros avançados: Status, período, equipe, classificação
+
+IA ASSISTENTE:
+- Gerar resumo executivo
+- Sugestões de pontos positivos
+- Análise de tendências
+- Feedback em tempo real
+
+GOOGLE DRIVE:
+- Backup automático de relatórios
+- Sincronização de PDFs aprovados em pasta estruturada
+- Compartilhamento seguro
+
+NOTIFICAÇÕES:
+- Ao enviar relatório
+- Quando devolvido (com feedback)
+- Ao ser aprovado
+- Lembretes de prazos (último dia do mês)
+
+=== GLOSSÁRIO ===
+- META: Atividade do 3º Aditivo (contrato vigente)
+- ROTINA: Atividade habitual e regular
+- EXTRA: Atividade adicionais/extraordinárias
+- DRAFT: Rascunho em edição
+- SUBMITTED: Enviado para revisão
+- IN_REVIEW: Coordenador revisando
+- RETURNED: Devolvido para ajustes
+- APPROVED: Aprovado, exportável
+- ARCHIVED: Arquivado, não editável
+- Compliance: Conformidade com prazos
+- Auto-save: Salvamento automático (5 segundos)
+- Template: Modelo reutilizável
+- Momento: Histórias/depoimentos para publicação
+- Público Estimado: Quantidade aproximada de pessoas impactadas
 `;
 
-const systemPrompt = `Você é um assistente inteligente da Plataforma Museu Centro. 
-Você tem acesso ao 3º Termo Aditivo (contrato vigente) e ajuda com:
-- Orientações sobre preenchimento de relatórios mensais
-- Dúvidas sobre metas do 3º Aditivo e indicadores culturais
-- Informações sobre o plano de trabalho vigente
-- Detalhes sobre os 3 museus (MUMO, MIS, MHAB)
-- Boas práticas em documentação de atividades culturais
-- Explicações sobre processo de aprovação de relatórios
-- Noturno nos Museus e eventos especiais
-- Instruções sobre como usar a plataforma
+const systemPrompt = `Você é um assistente inteligente da Plataforma Museu Centro especializado em:
 
-IMPORTANTE: 
-- Sempre mencione que o 3º Termo Aditivo é o instrumento vigente
-- Todas as ações são GRATUITAS e com classificação LIVRE
-- Use o contexto do 3º Aditivo para respostas sobre metas e prazos
-- Seja amigável, profissional e conciso`;
+ORIENTAÇÕES GERAIS:
+- Preenchimento completo de relatórios mensais
+- Workflow de aprovação e revisão
+- Uso de todas as funcionalidades da plataforma
+- Boas práticas em documentação cultural
+
+CONTRATO VIGENTE:
+- 3º Termo Aditivo (FMC 001/2024)
+- Metas, indicadores e prazos
+- Museus (MUMO, MIS, MHAB)
+
+FUNCIONALIDADES AVANÇADAS:
+- Templates de relatórios (salvar/carregar)
+- Exportação (PDF, CSV, Google Drive)
+- IA para sugestões de conteúdo
+- Busca e filtros avançados
+- Sincronização automática
+- Gestão de momentos e destaques
+
+INSTRUÇÕES PASSO-A-PASSO:
+- Como criar relatório novo
+- Como usar IA para sugestões
+- Como revisar (se coordenador)
+- Como exportar e compartilhar
+- Como usar templates
+- Resolução de problemas comuns
+
+CONTEXTO IMPORTANTE:
+- Todas as ações são GRATUITAS e classificação LIVRE
+- Vigência até 29 de novembro de 2026
+- Trabalho colaborativo FMC + OSC
+- Acessibilidade garantida
+
+RESPONDA COM:
+- Instruções claras e passo-a-passo
+- Exemplos práticos
+- Sempre mencione status atual quando relevante
+- Direcione a coordenador quando necessário
+- Seja profissional, amigável e conciso`;
 
 export default function AssistantChat() {
   const [open, setOpen] = useState(false);
@@ -131,12 +223,14 @@ export default function AssistantChat() {
   });
 
   const suggestedQuestions = [
-    'Quais são as metas do 3º Aditivo?',
+    'Como criar um novo relatório?',
     'O que é uma atividade META?',
-    'Como preencher o resumo executivo?',
-    'Quantas ações educativas devem ser feitas?',
-    'O que é o Noturno nos Museus?',
-    'Como enviar meu relatório?'
+    'Como usar templates?',
+    'Como coordenador: como revisar?',
+    'Como exportar em PDF?',
+    'Quais são as metas do 3º Aditivo?',
+    'Como usar busca e filtros?',
+    'O que fazer se relatório foi devolvido?'
   ];
 
   const handleSuggestedQuestion = (question) => {
