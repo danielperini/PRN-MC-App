@@ -598,7 +598,7 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
               <Select value={form.budgetline_id || ''} onValueChange={v => set('budgetline_id', v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione a rubrica" /></SelectTrigger>
                 <SelectContent>
-                  {budgetLines.filter(bl => bl.ativo && bl.aditivo === 3).map(bl => (
+                  {budgetLines.filter(bl => bl.ativo && bl.aditivo === 3 && bl.equipe === form.tipo_equipe).map(bl => (
                     <SelectItem key={bl.id} value={bl.id}>
                       {bl.codigo} — {bl.descricao?.substring(0, 60)}
                     </SelectItem>
