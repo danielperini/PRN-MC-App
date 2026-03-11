@@ -296,6 +296,54 @@ function BaseConhecimentoInner() {
         </div>
       )}
 
+      {/* Referência do Plano de Trabalho */}
+      <div className="mt-10 space-y-6 border-t border-gray-100 pt-8">
+        <h2 className="text-sm font-semibold text-black flex items-center gap-2">
+          <ListChecks className="w-4 h-4" />
+          Referência Rápida — 3º Termo Aditivo
+        </h2>
+
+        {/* Info Projeto */}
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-xs space-y-1.5 text-gray-700">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+            <span><strong>Projeto:</strong> {INFO_PROJETO.nome}</span>
+            <span><strong>OSC:</strong> {INFO_PROJETO.osc}</span>
+            <span><strong>Instrumento:</strong> {INFO_PROJETO.instrumento}</span>
+            <span><strong>Vigência:</strong> {INFO_PROJETO.vigencia}</span>
+            <span><strong>Valor Total:</strong> R$ {INFO_PROJETO.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <span><strong>Prazo:</strong> {INFO_PROJETO.prazo_meses} meses</span>
+          </div>
+        </div>
+
+        {/* Metas */}
+        <div>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">Quadro de Metas (23 metas)</h3>
+          <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+            {METAS_3_ADITIVO.map(meta => (
+              <div key={meta.codigo} className="flex items-start gap-2 p-2.5 border border-gray-100 rounded-lg hover:bg-gray-50">
+                <span className="font-mono text-xs font-semibold text-black bg-gray-100 px-2 py-0.5 rounded flex-shrink-0">{meta.codigo}</span>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-black">{meta.titulo}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{meta.periodo} · {meta.tipo}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Cargos */}
+        <div>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3 flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5" />Cargos do Plano de Trabalho
+          </h3>
+          <div className="flex flex-wrap gap-1.5">
+            {CARGOS_PLANO_TRABALHO.map(cargo => (
+              <Badge key={cargo} variant="outline" className="text-xs font-normal text-gray-600">{cargo}</Badge>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <UploadDialog open={showUpload} onClose={() => setShowUpload(false)} onSaved={handleSaved} />
       <PreviewDialog doc={previewDoc} onClose={() => setPreviewDoc(null)} />
     </div>
