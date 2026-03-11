@@ -38,13 +38,14 @@ Deno.serve(async (req) => {
       novoStatus = 'APROVADO';
       const valorFinal = valor_aprovado || p.valor_solicitado;
 
-      // Atualizar dados de aprovação admin
+      // Atualizar dados de aprovação
       await base44.entities.PurchaseRequest.update(purchaseId, {
         status: novoStatus,
-        aprov_admin_nome: nomeAtor,
-        aprov_admin_data: dataAprovacao,
-        aprov_admin_comentario: comentario,
-        valor_aprovado_admin: parseFloat(valorFinal),
+        aprovado_por_nome: nomeAtor,
+        aprovado_por_email: emailAtor,
+        data_aprovacao: dataAprovacao,
+        comentario_aprovacao: comentario,
+        valor_aprovado: parseFloat(valorFinal),
       });
 
       // Atualizar saldo da rubrica
