@@ -219,13 +219,31 @@ IMPORTANTE: Retorne OBRIGATORIAMENTE um JSON válido com TODOS os campos abaixo,
         data_criacao: new Date().toISOString().split('T')[0],
         status: form.status || 'ATIVO',
       };
+      
+      let memberId;
       if (editingMember?.id) {
         await base44.entities.TeamMember.update(editingMember.id, data);
+        memberId = editingMember.id;
         toast.success('Membro atualizado');
       } else {
-        await base44.entities.TeamMember.create(data);
+        const created = await base44.entities.TeamMember.create(data);
+        memberId = created.id;
         toast.success('Membro adicionado à equipe');
       }
+
+      // Se há contrato, criar Attachment vinculado
+      if (form.contrato_url && memberId) {
+        const fileName = `contrato_${form.user_name?.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+        await base44.entities.Attachment.create({
+          activity_id: memberId,
+          file_name: fileName,
+          file_type: 'application/pdf',
+          file_url: form.contrato_url,
+          description: `Contrato de ${form.user_name} - ${form.objeto_contrato?.substring(0, 50)}`,
+        });
+        toast.success('Contrato anexado ao membro');
+      }
+
       onSuccess();
       onClose();
     } catch (error) {
