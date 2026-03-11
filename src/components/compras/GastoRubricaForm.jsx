@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 
 export default function GastoRubricaForm({ rubricaId, rubrica, isOpen, onClose, onSuccess }) {
   const [form, setForm] = useState({
@@ -18,6 +19,7 @@ export default function GastoRubricaForm({ rubricaId, rubrica, isOpen, onClose, 
     tipo_pagamento: 'transferencia',
   });
   const [saving, setSaving] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const queryClient = useQueryClient();
 
   // Detecta tipo de rubrica pela unidade ou descrição
@@ -46,7 +48,10 @@ export default function GastoRubricaForm({ rubricaId, rubrica, isOpen, onClose, 
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
+    setShowConfirm(true);
+  };
 
+  const confirmSubmit = async () => {
     setSaving(true);
     try {
       let fornecedor = null;
@@ -63,7 +68,16 @@ export default function GastoRubricaForm({ rubricaId, rubrica, isOpen, onClose, 
         categoria = form.categoria || fornecedor?.categoria || '';
       }
       
-      await base44.entities.GastoRubrica.create({
+      console.log('Criando gasto com dados:', {
+        rubrica_id: rubricaId,
+        fornecedor_id: fornecedor?.id,
+        fornecedor_nome: form.fornecedor_nome,
+        categoria: categoria,
+        valor: parseFloat(form.valor),
+        data_gasto: form.data_gasto,
+      });
+
+      const result = await base44.entities.GastoRubrica.create({
         rubrica_id: rubricaId,
         fornecedor_id: fornecedor?.id || '',
         fornecedor_nome: form.fornecedor_nome,
@@ -76,8 +90,14 @@ export default function GastoRubricaForm({ rubricaId, rubrica, isOpen, onClose, 
         status: 'pago',
       });
 
-      toast.success('Gasto adicionado!');
+      console.log('Gasto criado com sucesso:', result);
+
+      toast.success(`Gasto de R$ ${parseFloat(form.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} adicionado!`, {
+        description: `${form.fornecedor_nome} - ${form.data_gasto}`,
+      });
+
       queryClient.invalidateQueries(['gastos-rubrica', rubricaId]);
+      setShowConfirm(false);
       setForm({
         fornecedor_nome: '',
         categoria: '',
@@ -89,7 +109,8 @@ export default function GastoRubricaForm({ rubricaId, rubrica, isOpen, onClose, 
       onSuccess?.();
       onClose();
     } catch (e) {
-      toast.error('Erro: ' + e.message);
+      console.error('Erro ao criar gasto:', e);
+      toast.error('Erro ao adicionar gasto: ' + e.message);
     } finally {
       setSaving(false);
     }
@@ -183,12 +204,22 @@ export default function GastoRubricaForm({ rubricaId, rubrica, isOpen, onClose, 
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
           <Button className="bg-black text-white" onClick={handleSubmit} disabled={saving}>
             <Plus className="w-4 h-4 mr-2" />{saving ? 'Salvando...' : 'Adicionar'}
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <ConfirmDialog
+        isOpen={showConfirm}
+        title="Confirmar adição de gasto"
+        description={`Adicionar R$ ${parseFloat(form.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} de ${form.fornecedor_nome} em ${form.data_gasto}?`}
+        confirmText="Adicionar Gasto"
+        onConfirm={confirmSubmit}
+        onCancel={() => setShowConfirm(false)}
+        isLoading={saving}
+      />
     </Dialog>
   );
 }
