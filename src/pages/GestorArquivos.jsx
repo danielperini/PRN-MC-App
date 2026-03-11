@@ -253,10 +253,17 @@ function GestorArquivosInner() {
               Todos os arquivos são mantidos permanentemente
             </p>
           </div>
-          <div className="w-full md:w-auto">
+          <div className="flex gap-2 w-full md:w-auto">
+            <Button 
+              onClick={() => setShowUploadDialog(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white gap-2 flex-1 md:flex-none"
+            >
+              <FileText className="w-4 h-4" />
+              Adicionar Arquivo
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button className="bg-black hover:bg-gray-800 text-white gap-2 w-full md:w-auto">
+                <Button className="bg-black hover:bg-gray-800 text-white gap-2 flex-1 md:flex-none">
                   <HardDrive className="w-4 h-4" />
                   Backup
                   <ChevronDown className="w-4 h-4" />
