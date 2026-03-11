@@ -81,55 +81,55 @@ export default function FinancialExcelExporter() {
   };
 
   return (
-    <Card className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-      <div className="space-y-6">
+    <Card className="p-4 md:p-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 w-full">
+      <div className="space-y-4 md:space-y-6">
         {/* Cabeçalho */}
         <div>
-          <h3 className="font-bold text-lg text-gray-900">Exportar Relatório Financeiro</h3>
-          <p className="text-xs text-gray-600 mt-1">
+          <h3 className="font-bold text-base md:text-lg text-gray-900">Exportar Relatório Financeiro</h3>
+          <p className="text-xs md:text-sm text-gray-600 mt-1">
             Selecione colunas, filtros e baixe em Excel com fórmulas
           </p>
         </div>
 
         {/* Filtros de Data */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-2">
+            <label className="text-xs md:text-sm font-semibold text-gray-700 block mb-2">
               Data Inicial
             </label>
             <input
               type="date"
               value={dateFrom}
               onChange={e => setDateFrom(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 md:py-2.5 border border-gray-300 rounded-lg text-xs md:text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-2">
+            <label className="text-xs md:text-sm font-semibold text-gray-700 block mb-2">
               Data Final
             </label>
             <input
               type="date"
               value={dateTo}
               onChange={e => setDateTo(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 md:py-2.5 border border-gray-300 rounded-lg text-xs md:text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
           </div>
         </div>
 
         {/* Filtro de Status */}
         <div>
-          <label className="text-xs font-semibold text-gray-700 block mb-2">
+          <label className="text-xs md:text-sm font-semibold text-gray-700 block mb-2">
             Status (opcional)
           </label>
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger>
+            <SelectTrigger className="text-xs md:text-sm">
               <SelectValue placeholder="Todos os status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={null}>Todos os status</SelectItem>
               {statuses.map(s => (
-                <SelectItem key={s} value={s}>
+                <SelectItem key={s} value={s} className="text-xs md:text-sm">
                   {s}
                 </SelectItem>
               ))}
@@ -139,10 +139,10 @@ export default function FinancialExcelExporter() {
 
         {/* Seleção de Colunas */}
         <div>
-          <label className="text-xs font-semibold text-gray-700 block mb-3">
+          <label className="text-xs md:text-sm font-semibold text-gray-700 block mb-3">
             Colunas a Exportar
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
             {AVAILABLE_COLUMNS.map(col => (
               <div key={col.id} className="flex items-center gap-2">
                 <Checkbox
@@ -152,7 +152,7 @@ export default function FinancialExcelExporter() {
                 />
                 <label
                   htmlFor={col.id}
-                  className="text-sm text-gray-700 cursor-pointer"
+                  className="text-xs md:text-sm text-gray-700 cursor-pointer"
                 >
                   {col.label}
                 </label>
@@ -165,7 +165,7 @@ export default function FinancialExcelExporter() {
         <Button
           onClick={handleExport}
           disabled={loading || selectedColumns.length === 0}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 py-2 md:py-2.5 text-sm md:text-base"
         >
           {loading ? (
             <>
@@ -181,9 +181,9 @@ export default function FinancialExcelExporter() {
         </Button>
 
         {/* Informações */}
-        <div className="text-xs text-gray-600 bg-white/50 p-3 rounded border border-blue-200">
+        <div className="text-xs md:text-sm text-gray-600 bg-white/50 p-3 md:p-4 rounded border border-blue-200">
           <p className="font-semibold mb-2">Incluído no relatório:</p>
-          <ul className="space-y-1 list-disc list-inside">
+          <ul className="space-y-1 list-disc list-inside text-xs md:text-sm">
             <li>4 abas: Detalhado, Por Atividade, Por Status, Por Rubrica</li>
             <li>Somas, percentuais e médias calculadas automaticamente</li>
             <li>Formatação de moeda e células bloqueadas</li>
