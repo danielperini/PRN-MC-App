@@ -1,17 +1,26 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
-import { Image as ImageIcon, Search, Grid, List, Loader2 } from 'lucide-react';
+import { useCurrentUser } from '../components/auth/useCurrentUser';
+import { Image as ImageIcon, Search, Grid, List, Loader2, Trash2, Edit2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 
 function GaleriaFotosInner() {
+  const { user: currentUser } = useCurrentUser();
+  const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState('grid'); // 'grid' ou 'list'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
+  const [editingImage, setEditingImage] = useState(null);
+  const [editDescription, setEditDescription] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const { data: images = [], isLoading } = useQuery({
     queryKey: ['galeria-fotos', searchTerm],
@@ -146,6 +155,7 @@ function GaleriaFotosInner() {
                         src={img.url}
                         alt={img.fileName}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => { e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23f0f0f0" width="100" height="100"/%3E%3C/svg%3E'; }}
                       />
                     </div>
                     <div className="p-3 bg-white">
@@ -209,12 +219,40 @@ function GaleriaFotosInner() {
             >
               <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
                 <h2 className="font-semibold text-gray-900">{selectedImage.fileName}</h2>
-                <button
-                  onClick={() => setSelectedImage(null)}
-                  className="text-gray-500 hover:text-gray-700 text-2xl"
-                >
-                  ✕
-                </button>
+                <div className="flex gap-2 items-center">
+                  {canEditOrDelete(selectedImage) && (
+                    <>
+                      <Button
+                        onClick={() => {
+                          setEditingImage(selectedImage);
+                          setEditDescription(selectedImage.description);
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                        Editar
+                      </Button>
+                      <Button
+                        onClick={() => handleDeleteImage(selectedImage)}
+                        variant="destructive"
+                        size="sm"
+                        disabled={deleting}
+                        className="gap-2"
+                      >
+                        {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        Deletar
+                      </Button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => setSelectedImage(null)}
+                    className="text-gray-500 hover:text-gray-700 text-2xl ml-2"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
 
               <div className="p-6">
@@ -222,6 +260,7 @@ function GaleriaFotosInner() {
                   src={selectedImage.url}
                   alt={selectedImage.fileName}
                   className="w-full h-auto rounded-lg mb-6"
+                  onError={(e) => { e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23f0f0f0" width="400" height="300"/%3E%3C/svg%3E'; }}
                 />
 
                 <div className="space-y-4">
@@ -244,20 +283,59 @@ function GaleriaFotosInner() {
                     </div>
                   )}
 
-                  <div>
-                    <a
-                      href={selectedImage.url}
-                      download
-                      className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
-                    >
-                      Baixar imagem
-                    </a>
-                  </div>
+                  <a
+                    href={selectedImage.url}
+                    download
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                  >
+                    <Download className="w-4 h-4" />
+                    Baixar imagem
+                  </a>
                 </div>
               </div>
             </div>
           </div>
         )}
+
+        {/* Dialog de Edição */}
+        <Dialog open={!!editingImage} onOpenChange={(open) => !open && setEditingImage(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Descrição</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Descrição</Label>
+                <Textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Descreva a imagem..."
+                  className="resize-none h-24"
+                  disabled={saving}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setEditingImage(null)}
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSaveDescription}
+                disabled={saving}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Salvar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
