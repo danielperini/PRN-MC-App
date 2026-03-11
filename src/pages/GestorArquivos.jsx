@@ -37,11 +37,12 @@ function GestorArquivosInner() {
     const [uploadNotes, setUploadNotes] = useState('');
     const [uploading, setUploading] = useState(false);
     const [showDriveImporter, setShowDriveImporter] = useState(false);
-    const isCoordinator = currentUser?.role === 'admin';
+    const isCoordinator = currentUser?.role === 'admin' || currentUser?.role === 'COORDENADOR';
     const isGeneralCoordinator = isCoordinator && (
       currentUser?.email === 'daniel@periniprojetos.com.br' || 
       currentUser?.email === 'danielperini.mc@vidadutodasartes.org.br'
     );
+    const isOtherCoordinator = isCoordinator && !isGeneralCoordinator;
 
   const { data: backups = [], isLoading } = useQuery({
     queryKey: ['google-drive-backups', selectedDate, searchFileName, searchContent, currentUser?.email],
@@ -131,9 +132,11 @@ function GestorArquivosInner() {
   };
 
   const canManageFile = (backup) => {
-    // Coordenador geral (Daniel) pode gerenciar tudo
+    // Coordenador geral pode gerenciar tudo
     if (isGeneralCoordinator) return true;
-    // Outros usuários só podem gerenciar seus próprios arquivos
+    // Outros coordenadores podem gerenciar todos os arquivos
+    if (isOtherCoordinator) return true;
+    // Usuários regulares só podem gerenciar seus próprios arquivos
     return backup.created_by === currentUser?.email;
   };
 
@@ -520,7 +523,9 @@ function GestorArquivosInner() {
         <div className="mt-6 md:mt-8 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-xs md:text-sm text-blue-800">
             {isGeneralCoordinator ? (
-              <span><strong>👨‍💼 Coordenador Geral:</strong> Você pode gerenciar todos os arquivos da plataforma</span>
+              <span><strong>👨‍💼 Coordenador Geral:</strong> Você tem acesso total à plataforma e pode conceder permissões</span>
+            ) : isOtherCoordinator ? (
+              <span><strong>🔐 Coordenador:</strong> Você pode gerenciar arquivos e recursos (exceto gerenciamento de usuários)</span>
             ) : (
               <span><strong>👤 Usuário Regular:</strong> Você pode gerenciar apenas seus próprios arquivos</span>
             )}
