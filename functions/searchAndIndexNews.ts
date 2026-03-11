@@ -310,7 +310,7 @@ Retorne apenas JSON no formato solicitado.`,
             palavra_chave_encontrada: news.palavra_chave_encontrada || '',
             fonte: 'web_search',
             data_encontrada: new Date().toISOString(),
-            ativo: true
+            ativo: false  // pendente de revisão pelo curador
           });
         }
       }
