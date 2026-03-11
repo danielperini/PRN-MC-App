@@ -7,17 +7,17 @@ export default function FileHierarchy({ backups = [], onPreview }) {
   const [expandedReports, setExpandedReports] = useState(new Set());
   const [expandedActivities, setExpandedActivities] = useState(new Set());
 
-  // Agrupar por relatório > atividade
+  // Agrupar por relatório > tipo de arquivo
   const hierarchy = backups.reduce((acc, file) => {
     const reportId = file.reportId || 'sem-relatorio';
     if (!acc[reportId]) {
-      acc[reportId] = {};
+      acc[reportId] = { label: file.reportLabel || reportId, files: {} };
     }
     const activityId = `atividade-${file.fileType?.split('/')[0] || 'outro'}`;
-    if (!acc[reportId][activityId]) {
-      acc[reportId][activityId] = [];
+    if (!acc[reportId].files[activityId]) {
+      acc[reportId].files[activityId] = [];
     }
-    acc[reportId][activityId].push(file);
+    acc[reportId].files[activityId].push(file);
     return acc;
   }, {});
 
