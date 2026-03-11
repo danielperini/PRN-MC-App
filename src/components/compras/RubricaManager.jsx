@@ -204,6 +204,7 @@ export default function RubricaManager({ budgetLines, purchases = [] }) {
   const [addingNew, setAddingNew] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedRubrica, setSelectedRubrica] = useState(null);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const queryClient = useQueryClient();
 
   const refresh = () => {
