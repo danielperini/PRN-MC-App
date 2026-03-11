@@ -9,6 +9,7 @@ import HeatMap from '@/components/maps/HeatMap';
 import OpportunityPanel from '@/components/maps/OpportunityPanel';
 import FilterBar from '@/components/maps/FilterBar';
 import CurationPanel from '@/components/maps/CurationPanel';
+import MobilizationSummaryCard from '@/components/maps/MobilizationSummaryCard';
 import RequireAuth from '@/components/auth/RequireAuth';
 
 function MumoMapInner() {
@@ -181,6 +182,11 @@ function MumoMapInner() {
             />
           </div>
         )}
+      </div>
+
+      {/* Resumo de Mobilização */}
+      <div className="max-w-7xl mx-auto px-6 pb-12">
+        <MobilizationSummaryCard museu_sigla="MUMO" title="Museu de Moda" />
       </div>
     </div>
   );

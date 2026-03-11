@@ -57,12 +57,18 @@ import CalendarioAtividades from './pages/CalendarioAtividades';
 import Compras from './pages/Compras';
 import CoordReview from './pages/CoordReview';
 import Dashboard from './pages/Dashboard';
+import DashboardFinanceiro from './pages/DashboardFinanceiro';
 import DashboardProfissional from './pages/DashboardProfissional';
 import GestaoPagamentos from './pages/GestaoPagamentos';
 import GestorArquivos from './pages/GestorArquivos';
+import HelpManagement from './pages/HelpManagement';
 import Home from './pages/Home';
 import LeitorNoticias from './pages/LeitorNoticias';
+import MhaabMap from './pages/MhaabMap';
+import MisMap from './pages/MisMap';
 import MonitoringPanel from './pages/MonitoringPanel';
+import MumoMap from './pages/MumoMap';
+import MuseusNoMapa from './pages/MuseusNoMapa';
 import NovaAtividade from './pages/NovaAtividade';
 import Perfil from './pages/Perfil';
 import PlataformaAdmin from './pages/PlataformaAdmin';
@@ -72,13 +78,7 @@ import RelatorioMeta from './pages/RelatorioMeta';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
-import MuseusNoMapa from './pages/MuseusNoMapa';
-import MhaabMap from './pages/MhaabMap';
-import MisMap from './pages/MisMap';
-import MumoMap from './pages/MumoMap';
 import ViadutoMap from './pages/ViadutoMap';
-import HelpManagement from './pages/HelpManagement';
-import DashboardFinanceiro from './pages/DashboardFinanceiro';
 import __Layout from './Layout.jsx';
 
 
@@ -93,12 +93,18 @@ export const PAGES = {
     "Compras": Compras,
     "CoordReview": CoordReview,
     "Dashboard": Dashboard,
+    "DashboardFinanceiro": DashboardFinanceiro,
     "DashboardProfissional": DashboardProfissional,
     "GestaoPagamentos": GestaoPagamentos,
     "GestorArquivos": GestorArquivos,
+    "HelpManagement": HelpManagement,
     "Home": Home,
     "LeitorNoticias": LeitorNoticias,
+    "MhaabMap": MhaabMap,
+    "MisMap": MisMap,
     "MonitoringPanel": MonitoringPanel,
+    "MumoMap": MumoMap,
+    "MuseusNoMapa": MuseusNoMapa,
     "NovaAtividade": NovaAtividade,
     "Perfil": Perfil,
     "PlataformaAdmin": PlataformaAdmin,
@@ -108,13 +114,7 @@ export const PAGES = {
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
-    "MuseusNoMapa": MuseusNoMapa,
-    "MhaabMap": MhaabMap,
-    "MisMap": MisMap,
-    "MumoMap": MumoMap,
     "ViadutoMap": ViadutoMap,
-    "HelpManagement": HelpManagement,
-    "DashboardFinanceiro": DashboardFinanceiro,
 }
 
 export const pagesConfig = {

@@ -40,23 +40,35 @@ export function HelpContextProvider({ children }) {
   }, []);
 
   const getFromCache = useCallback((componentKey) => {
+    if (!isClient) return null;
     if (cacheRef.current[componentKey]) {
       return cacheRef.current[componentKey];
     }
-    const cached = localStorage.getItem(`help_${componentKey}`);
-    if (cached) {
-      cacheRef.current[componentKey] = JSON.parse(cached);
-      return cacheRef.current[componentKey];
+    try {
+      const cached = localStorage.getItem(`help_${componentKey}`);
+      if (cached) {
+        cacheRef.current[componentKey] = JSON.parse(cached);
+        return cacheRef.current[componentKey];
+      }
+    } catch {
+      return null;
     }
     return null;
-  }, []);
+  }, [isClient]);
 
   const saveToCache = useCallback((componentKey, text) => {
+    if (!isClient) return;
     cacheRef.current[componentKey] = text;
-    localStorage.setItem(`help_${componentKey}`, JSON.stringify(text));
-  }, []);
+    try {
+      localStorage.setItem(`help_${componentKey}`, JSON.stringify(text));
+    } catch {
+      console.error('Erro ao salvar cache');
+    }
+  }, [isClient]);
 
   const getHelpText = useCallback(async (componentKey, label, componentType, contextDescription) => {
+    if (!isClient) return null;
+    
     const cached = getFromCache(componentKey);
     if (cached) return cached;
 
@@ -75,18 +87,22 @@ export function HelpContextProvider({ children }) {
       const generated = await generateWithClaude(label, componentType, contextDescription);
       
       if (generated) {
-        await base44.asServiceRole.entities.HelpText.create({
-          component_key: componentKey,
-          page_route: typeof window !== 'undefined' ? window.location.pathname : '',
-          component_type: componentType,
-          label,
-          context_description: contextDescription,
-          help_text_ptbr: generated,
-          generated_by_model: 'claude-3-5-sonnet',
-          last_generated_at: new Date().toISOString(),
-          active: true,
-          manually_edited: false,
-        });
+        try {
+          await base44.asServiceRole.entities.HelpText.create({
+            component_key: componentKey,
+            page_route: typeof window !== 'undefined' ? window.location.pathname : '',
+            component_type: componentType,
+            label,
+            context_description: contextDescription,
+            help_text_ptbr: generated,
+            generated_by_model: 'claude-3-5-sonnet',
+            last_generated_at: new Date().toISOString(),
+            active: true,
+            manually_edited: false,
+          });
+        } catch {
+          // Falha ao salvar não deve impedir retorno
+        }
 
         saveToCache(componentKey, generated);
         return generated;
@@ -95,7 +111,7 @@ export function HelpContextProvider({ children }) {
       console.error('Erro ao gerar ajuda:', error);
     }
     return null;
-  }, [getFromCache, saveToCache]);
+  }, [getFromCache, saveToCache, isClient]);
 
   if (!isClient) {
     return <>{children}</>;
