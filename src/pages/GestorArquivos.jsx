@@ -142,7 +142,7 @@ function GestorArquivosInner() {
       onClose={() => setShowPreview(false)} 
       />
       <div className="min-h-screen bg-white">
-      <div className="w-full py-6 md:py-10">
+      <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 md:mb-8">
           <div className="flex-1">
