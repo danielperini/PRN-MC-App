@@ -406,34 +406,111 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label>Descrição Completa do Contrato</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={async () => {
-                    if (!form.contrato_url) {
-                      toast.error('Envie o contrato primeiro');
-                      return;
-                    }
-                    setAiLoading(true);
-                    try {
-                      const res = await base44.integrations.Core.InvokeLLM({
-                        prompt: `Leia este contrato e forneça um resumo conciso e claro em português, destacando: 1) Objeto/Escopo, 2) Duração, 3) Valor, 4) Principais obrigações. Seja objetivo e direto.`,
-                        file_urls: [form.contrato_url],
-                      });
-                      set('descricao_contrato', res);
-                      toast.success('✨ Resumo gerado pela IA!');
-                    } catch (error) {
-                      toast.error('Erro ao gerar resumo: ' + error.message);
-                    } finally {
-                      setAiLoading(false);
-                    }
-                  }}
-                  disabled={aiLoading || !form.contrato_url}
-                >
-                  <Sparkles className="w-3 h-3 mr-1" />
-                  Resumir com IA
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={async () => {
+                      if (!form.contrato_url) {
+                        toast.error('Envie o contrato primeiro');
+                        return;
+                      }
+                      setAiLoading(true);
+                      try {
+                        const res = await base44.integrations.Core.InvokeLLM({
+                          prompt: `Leia este contrato e forneça um resumo conciso e claro em português, destacando: 1) Objeto/Escopo, 2) Duração, 3) Valor, 4) Principais obrigações. Seja objetivo e direto.`,
+                          file_urls: [form.contrato_url],
+                        });
+                        set('descricao_contrato', res);
+                        toast.success('✨ Resumo gerado pela IA!');
+                      } catch (error) {
+                        toast.error('Erro ao gerar resumo: ' + error.message);
+                      } finally {
+                        setAiLoading(false);
+                      }
+                    }}
+                    disabled={aiLoading || !form.contrato_url}
+                  >
+                    <Sparkles className="w-3 h-3 mr-1" />
+                    Resumir com IA
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      if (!form.contrato_url) {
+                        toast.error('Envie o contrato primeiro');
+                        return;
+                      }
+                      setAiLoading(true);
+                      try {
+                        const res = await base44.integrations.Core.InvokeLLM({
+                          prompt: `Leia este contrato e extraia TODOS os dados estruturados. Retorne um JSON com: data_inicio (YYYY-MM-DD), data_fim (YYYY-MM-DD), valor_total (número), numero_parcelas (número), cronograma_parcelas (array com {numero, vencimento (YYYY-MM-DD), valor (número)}), banco, agencia, conta, tipo_conta (Corrente ou Poupança), pix_key, objeto_contrato (texto breve), descricao_contrato (resumo completo). Se não encontrar algum campo, deixe vazio/nulo.`,
+                          file_urls: [form.contrato_url],
+                          response_json_schema: {
+                            type: 'object',
+                            properties: {
+                              data_inicio: { type: 'string' },
+                              data_fim: { type: 'string' },
+                              valor_total: { type: 'number' },
+                              numero_parcelas: { type: 'number' },
+                              cronograma_parcelas: {
+                                type: 'array',
+                                items: {
+                                  type: 'object',
+                                  properties: {
+                                    numero: { type: 'number' },
+                                    vencimento: { type: 'string' },
+                                    valor: { type: 'number' },
+                                    descricao: { type: 'string' }
+                                  }
+                                }
+                              },
+                              banco: { type: 'string' },
+                              agencia: { type: 'string' },
+                              conta: { type: 'string' },
+                              tipo_conta: { type: 'string' },
+                              pix_key: { type: 'string' },
+                              objeto_contrato: { type: 'string' },
+                              descricao_contrato: { type: 'string' }
+                            }
+                          }
+                        });
+                        
+                        const extracted = res;
+                        setForm(prev => ({
+                          ...prev,
+                          data_inicio_contrato: extracted.data_inicio || prev.data_inicio_contrato,
+                          data_fim_contrato: extracted.data_fim || prev.data_fim_contrato,
+                          valor_total: extracted.valor_total || prev.valor_total,
+                          numero_parcelas: extracted.numero_parcelas || prev.numero_parcelas,
+                          valor_parcela: extracted.valor_total && extracted.numero_parcelas 
+                            ? extracted.valor_total / extracted.numero_parcelas 
+                            : prev.valor_parcela,
+                          cronograma_parcelas: extracted.cronograma_parcelas || prev.cronograma_parcelas,
+                          banco: extracted.banco || prev.banco,
+                          agencia: extracted.agencia || prev.agencia,
+                          conta: extracted.conta || prev.conta,
+                          tipo_conta: extracted.tipo_conta || prev.tipo_conta,
+                          pix_key: extracted.pix_key || prev.pix_key,
+                          objeto_contrato: extracted.objeto_contrato || prev.objeto_contrato,
+                          descricao_contrato: extracted.descricao_contrato || prev.descricao_contrato,
+                        }));
+                        toast.success('✨ Formulário preenchido automaticamente!');
+                      } catch (error) {
+                        toast.error('Erro ao extrair dados: ' + error.message);
+                      } finally {
+                        setAiLoading(false);
+                      }
+                    }}
+                    disabled={aiLoading || !form.contrato_url}
+                  >
+                    <Sparkles className="w-3 h-3 mr-1" />
+                    Preencher Tudo com IA
+                  </Button>
+                </div>
               </div>
               <Textarea value={form.descricao_contrato} onChange={e => set('descricao_contrato', e.target.value)} rows={5} className="text-sm" placeholder="Resumo completo do contrato" />
             </div>
