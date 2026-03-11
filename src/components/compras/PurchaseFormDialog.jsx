@@ -251,6 +251,16 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
           action: 'submeter',
           purchaseId: created.id,
         });
+        
+        // Notificar coordenadores
+        await base44.functions.invoke('notifyCoordinatorOnPurchaseSubmitted', {
+          purchase_id: created.id,
+          purchase_description: form.descricao_item,
+          requester_name: currentUser?.full_name || 'Usuário',
+          requester_email: currentUser?.email || '',
+          amount: parseFloat(form.valor_solicitado) || 0,
+        }).catch(() => {});
+        
         toast.success('✅ Solicitação de compra enviada para aprovação!', {
           description: `Item: ${form.descricao_item}\nValor: R$ ${parseFloat(form.valor_solicitado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
           duration: 5000
