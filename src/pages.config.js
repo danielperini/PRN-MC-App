@@ -61,6 +61,7 @@ import DashboardProfissional from './pages/DashboardProfissional';
 import GestaoPagamentos from './pages/GestaoPagamentos';
 import GestorArquivos from './pages/GestorArquivos';
 import Home from './pages/Home';
+import LeitorNoticias from './pages/LeitorNoticias';
 import MonitoringPanel from './pages/MonitoringPanel';
 import NovaAtividade from './pages/NovaAtividade';
 import Perfil from './pages/Perfil';
@@ -71,7 +72,6 @@ import RelatorioMeta from './pages/RelatorioMeta';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
-import LeitorNoticias from './pages/LeitorNoticias';
 import __Layout from './Layout.jsx';
 
 
@@ -90,6 +90,7 @@ export const PAGES = {
     "GestaoPagamentos": GestaoPagamentos,
     "GestorArquivos": GestorArquivos,
     "Home": Home,
+    "LeitorNoticias": LeitorNoticias,
     "MonitoringPanel": MonitoringPanel,
     "NovaAtividade": NovaAtividade,
     "Perfil": Perfil,
@@ -100,7 +101,6 @@ export const PAGES = {
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
-    "LeitorNoticias": LeitorNoticias,
 }
 
 export const pagesConfig = {
