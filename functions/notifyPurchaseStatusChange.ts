@@ -14,19 +14,14 @@ Deno.serve(async (req) => {
     const p = purchase[0];
 
     // Apenas notificar em status específicos
-    if (!['APROVADO_COORD', 'APROVADO_ADMIN', 'RECUSADO'].includes(newStatus)) {
+    if (!['APROVADO', 'RECUSADO'].includes(newStatus)) {
       return Response.json({ success: true, message: 'Status does not require notification' });
     }
 
     // Determinar mensagem baseada no status
     const statusMessages = {
-      APROVADO_COORD: {
-        title: '✅ Sua solicitação foi aprovada pela Coordenação!',
-        desc: 'Sua solicitação foi aprovada e enviada para aprovação administrativa.',
-        icon: '✅'
-      },
-      APROVADO_ADMIN: {
-        title: '✅ Sua solicitação foi completamente aprovada!',
+      APROVADO: {
+        title: '✅ Sua solicitação foi aprovada!',
         desc: 'Sua compra foi aprovada e está pronta para pagamento.',
         icon: '✅'
       },
@@ -51,9 +46,9 @@ ${msg.desc}
 - Item: ${p.descricao_item}
 - Valor: R$ ${(p.valor_solicitado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
 - Categoria: ${p.categoria}
-- Status: ${newStatus === 'APROVADO_COORD' ? 'Aprovada pela Coordenação' : newStatus === 'APROVADO_ADMIN' ? 'Aprovada Completamente' : 'Recusada'}
+- Status: ${newStatus === 'APROVADO' ? 'Aprovada' : 'Recusada'}
 
-${newStatus === 'APROVADO_ADMIN' ? '\n⏭️ Próxima etapa: Aguarde o pagamento conforme cronograma.' : ''}
+${newStatus === 'APROVADO' ? '\n⏭️ Próxima etapa: Aguarde o pagamento conforme cronograma.' : ''}
 
 ${newStatus === 'RECUSADO' && comentario ? `\n📝 Comentário:\n${comentario}` : ''}
 
