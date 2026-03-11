@@ -61,7 +61,9 @@ import CoordReview from './pages/CoordReview';
 import Dashboard from './pages/Dashboard';
 import DashboardFinanceiro from './pages/DashboardFinanceiro';
 import DashboardProfissional from './pages/DashboardProfissional';
+import Fornecedores from './pages/Fornecedores';
 import GaleriaFotos from './pages/GaleriaFotos';
+import GeradorTermoCompromisso from './pages/GeradorTermoCompromisso';
 import GestaoPagamentos from './pages/GestaoPagamentos';
 import GestorArquivos from './pages/GestorArquivos';
 import HelpManagement from './pages/HelpManagement';
@@ -76,15 +78,13 @@ import NovaAtividade from './pages/NovaAtividade';
 import Perfil from './pages/Perfil';
 import PlataformaAdmin from './pages/PlataformaAdmin';
 import PlataformaConfig from './pages/PlataformaConfig';
+import PrestacaoDeContas from './pages/PrestacaoDeContas';
 import ProgramacoesAgenda from './pages/ProgramacoesAgenda';
 import RelatorioMeta from './pages/RelatorioMeta';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
 import ViadutoMap from './pages/ViadutoMap';
-import GeradorTermoCompromisso from './pages/GeradorTermoCompromisso';
-import Fornecedores from './pages/Fornecedores';
-import PrestacaoDeContas from './pages/PrestacaoDeContas';
 import __Layout from './Layout.jsx';
 
 
@@ -103,7 +103,9 @@ export const PAGES = {
     "Dashboard": Dashboard,
     "DashboardFinanceiro": DashboardFinanceiro,
     "DashboardProfissional": DashboardProfissional,
+    "Fornecedores": Fornecedores,
     "GaleriaFotos": GaleriaFotos,
+    "GeradorTermoCompromisso": GeradorTermoCompromisso,
     "GestaoPagamentos": GestaoPagamentos,
     "GestorArquivos": GestorArquivos,
     "HelpManagement": HelpManagement,
@@ -118,15 +120,13 @@ export const PAGES = {
     "Perfil": Perfil,
     "PlataformaAdmin": PlataformaAdmin,
     "PlataformaConfig": PlataformaConfig,
+    "PrestacaoDeContas": PrestacaoDeContas,
     "ProgramacoesAgenda": ProgramacoesAgenda,
     "RelatorioMeta": RelatorioMeta,
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
     "ViadutoMap": ViadutoMap,
-    "GeradorTermoCompromisso": GeradorTermoCompromisso,
-    "Fornecedores": Fornecedores,
-    "PrestacaoDeContas": PrestacaoDeContas,
 }
 
 export const pagesConfig = {

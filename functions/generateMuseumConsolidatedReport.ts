@@ -18,10 +18,7 @@ Deno.serve(async (req) => {
 
     // Fetch reports within the date range for the museum
     const reports = await base44.asServiceRole.entities.Report.list('-created_date', 500);
-    const filteredReports = reports.filter(r => {
-      if (r.museu !== museum) return false;
-      return true;
-    });
+    const filteredReports = reports.filter(r => r.museu === museum);
 
     // Fetch purchase requests for the museum and date range
     const purchaseRequests = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', 500);
@@ -32,7 +29,7 @@ Deno.serve(async (req) => {
       const to = new Date(dateTo);
       to.setHours(23, 59, 59, 999);
       return createdDate >= from && createdDate <= to;
-    });
+    }).filter(Boolean);
 
     // Aggregate activities and calculate totals
     const allActivities = filteredReports.flatMap(r => {

@@ -6,16 +6,14 @@ import { useCurrentUser } from '../components/auth/useCurrentUser';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import {
-  FileText, Plus, Clock, CheckCircle, AlertCircle,
-  Send, Eye, Archive, ChevronRight, Download, X, Search, SlidersHorizontal, Paperclip, Trash2, FileX
+  FileText, Clock, CheckCircle, AlertCircle,
+  Send, Eye, Archive, ChevronRight, Download, X, Search, SlidersHorizontal, Trash2, FileX
 } from 'lucide-react';
-import BatchPDFExport from '../components/reports/BatchPDFExport';
 import PDFGeneratorDialog from '../components/reports/PDFGeneratorDialog';
 import PeriodExportDialog from '../components/reports/PeriodExportDialog';
 import ActivityFilters from '../components/reports/ActivityFilters';
 import ActivitySummary from '../components/reports/ActivitySummary';
-import CompliancePanel from '../components/reports/CompliancePanel';
-import ComplianceStats from '../components/dashboard/ComplianceStats';
+
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -130,11 +128,7 @@ function RelatoriosInner() {
     staleTime: 30_000,
   });
 
-  const { data: allUsers = [] } = useQuery({
-    queryKey: ['all-users'],
-    queryFn: () => base44.entities.User.list(),
-    staleTime: 60_000,
-  });
+
 
   const isLoading = isCoordenador ? loadingAll : loadingMy;
   const baseReports = isCoordenador ? allReports : myReports;
@@ -357,9 +351,7 @@ function RelatoriosInner() {
             )}
           </div>
 
-
-
-        {/* Selection Bar */}
+         {/* Selection Bar */}
         {filtered.length > 0 && (
           <div className="mb-6 p-4 bg-white border border-gray-100 rounded-2xl flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
