@@ -13,7 +13,6 @@ import PDFGeneratorDialog from '../components/reports/PDFGeneratorDialog';
 import PeriodExportDialog from '../components/reports/PeriodExportDialog';
 import ActivityFilters from '../components/reports/ActivityFilters';
 import ActivitySummary from '../components/reports/ActivitySummary';
-import ComplianceStats from '../components/dashboard/ComplianceStats';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
