@@ -18,7 +18,6 @@ import TeamManager from '@/components/compras/TeamManager';
 import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
 import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
 import FinancialExcelExporter from '@/components/financeiro/FinancialExcelExporter';
-import ExportRubricasExcelButton from '@/components/compras/ExportRubricasExcelButton';
 import { useBudgetLines } from '@/components/compras/useBudgetLines';
 import GestaoDocumental from '@/pages/GestaoDocumental';
 import RubricasGrid from '@/components/rubricas/RubricasGrid';
