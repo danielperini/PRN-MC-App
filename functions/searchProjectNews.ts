@@ -59,6 +59,7 @@ Deno.serve(async (req) => {
         resumo: n.resumo,
         link: n.link || '',
         fonte: 'web_search',
+        tipo_conteudo: 'noticia',
         data_encontrada: new Date().toISOString(),
         data_publicacao: n.data_publicacao,
         ativo: true,
