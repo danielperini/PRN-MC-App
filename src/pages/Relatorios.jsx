@@ -91,6 +91,8 @@ function RelatoriosInner() {
     const [showFilters, setShowFilters] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [activityFilters, setActivityFilters] = useState({ team: '', museum: '', dateStart: '', dateEnd: '' });
+   const [selectedReports, setSelectedReports] = useState(new Set());
+   const [generatingPDF, setGeneratingPDF] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Report.delete(id),
@@ -184,8 +186,48 @@ function RelatoriosInner() {
   });
 
   const hasFilters = Object.values(filters).some(Boolean) || !!search;
-  const setFilter = (k, v) => setFilters(p => ({ ...p, [k]: v }));
-  const clearFilters = () => { setFilters({ mes: '', museu: '', equipe: '', status: '', classificacao: '' }); setSearch(''); };
+   const setFilter = (k, v) => setFilters(p => ({ ...p, [k]: v }));
+   const clearFilters = () => { setFilters({ mes: '', museu: '', equipe: '', status: '', classificacao: '' }); setSearch(''); };
+
+   const toggleReportSelection = (reportId) => {
+     const newSelected = new Set(selectedReports);
+     if (newSelected.has(reportId)) {
+       newSelected.delete(reportId);
+     } else {
+       newSelected.add(reportId);
+     }
+     setSelectedReports(newSelected);
+   };
+
+   const selectAllFiltered = () => {
+     if (selectedReports.size === filtered.length) {
+       setSelectedReports(new Set());
+     } else {
+       setSelectedReports(new Set(filtered.map(r => r.id)));
+     }
+   };
+
+   const exportSelectedPDF = async () => {
+     if (selectedReports.size === 0) {
+       toast.error('Selecione ao menos um relatório');
+       return;
+     }
+     setGeneratingPDF(true);
+     try {
+       const response = await base44.functions.invoke('generateConsolidatedReportsPDF', {
+         reportIds: Array.from(selectedReports)
+       });
+       if (response.data && response.data.error) {
+         toast.error(response.data.error);
+       } else {
+         toast.success('PDF consolidado gerado com sucesso!');
+       }
+     } catch (err) {
+       toast.error('Erro ao gerar PDF: ' + (err?.message || 'tente novamente'));
+     } finally {
+       setGeneratingPDF(false);
+     }
+   };
 
   return (
     <div className="min-h-screen bg-white">
@@ -198,6 +240,16 @@ function RelatoriosInner() {
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
+            {selectedReports.size > 0 && (
+              <Button
+                className="bg-green-600 hover:bg-green-700 text-white gap-2"
+                onClick={exportSelectedPDF}
+                disabled={generatingPDF}
+              >
+                <Download className="w-4 h-4" />
+                {generatingPDF ? 'Gerando...' : `PDF (${selectedReports.size})`}
+              </Button>
+            )}
             <Button
               variant="outline"
               className="border-black gap-2"
@@ -290,17 +342,36 @@ function RelatoriosInner() {
 
 
 
+        {/* Selection Bar */}
+        {filtered.length > 0 && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={selectedReports.size === filtered.length && filtered.length > 0}
+                onChange={selectAllFiltered}
+                className="w-5 h-5 cursor-pointer"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                {selectedReports.size === 0 
+                  ? `Selecionar todos os ${filtered.length} relatório(s)` 
+                  : `${selectedReports.size} de ${filtered.length} selecionado(s)`}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Reports by Month — List View */}
-         {isLoading ? (
-           <div className="text-center py-20 text-gray-400">Carregando relatórios...</div>
-         ) : filtered.length === 0 ? (
-           <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
-             <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-             <p className="text-gray-500">Nenhum relatório encontrado</p>
-             {hasFilters && <p className="text-xs text-gray-400 mt-1">Tente ajustar os filtros ou a busca</p>}
-           </div>
-         ) : (
-           <div className="space-y-6">
+          {isLoading ? (
+            <div className="text-center py-20 text-gray-400">Carregando relatórios...</div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
+              <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">Nenhum relatório encontrado</p>
+              {hasFilters && <p className="text-xs text-gray-400 mt-1">Tente ajustar os filtros ou a busca</p>}
+            </div>
+          ) : (
+            <div className="space-y-6">
              {Object.entries(
                filtered.reduce((acc, report) => {
                  const key = `${report.mes_referencia}/${report.ano}`;
@@ -317,10 +388,23 @@ function RelatoriosInner() {
                      const StatusIcon = cfg.icon;
                      const attachments = allAttachments.filter(att => att.report_id === report.id);
                      const canDelete = report.created_by === currentUser?.email && (!isComunicacao || report.funcao === 'Comunicador');
+                     const isSelected = selectedReports.has(report.id);
                      return (
-                       <div key={report.id} className="group relative">
+                       <div key={report.id} className={`group relative border rounded-lg transition-all ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+                         <div className="absolute left-0 top-0 bottom-0 w-4 flex items-center pl-2">
+                           <input
+                             type="checkbox"
+                             checked={isSelected}
+                             onChange={(e) => {
+                               e.stopPropagation();
+                               toggleReportSelection(report.id);
+                             }}
+                             className="w-4 h-4 cursor-pointer"
+                             onClick={e => e.stopPropagation()}
+                           />
+                         </div>
                          <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
-                           <div className="p-4 border border-gray-200 rounded-lg hover:border-black hover:shadow-sm transition-all bg-white flex items-center justify-between">
+                           <div className="p-4 pl-10 flex items-center justify-between hover:shadow-sm transition-all">
                              <div className="flex-1">
                                <div className="flex items-center gap-3">
                                  <div>
