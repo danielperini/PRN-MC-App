@@ -167,22 +167,9 @@ export default function AprovacoesFila({ purchases, budgetLines, statusConfig, o
           Aguardando Aprovação do Coordenador Geral
         </h2>
         {pendentes_coord.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-6 border-2 border-dashed border-gray-100 rounded-xl">Nenhuma solicitação aguardando coord. geral</p>
+          <p className="text-sm text-gray-400 text-center py-6 border-2 border-dashed border-gray-100 rounded-xl">Nenhuma solicitação pendente</p>
         ) : (
-          <div className="space-y-4">{pendentes_coord.map(p => renderCard(p, 'coord'))}</div>
-        )}
-      </section>
-
-      {/* Fila Admin */}
-      <section>
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4 flex items-center gap-2">
-          <span className="w-5 h-5 bg-yellow-100 text-yellow-700 rounded-full flex items-center justify-center text-xs font-bold">{pendentes_admin.length}</span>
-          Aguardando Aprovação Administrativa
-        </h2>
-        {pendentes_admin.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-6 border-2 border-dashed border-gray-100 rounded-xl">Nenhuma solicitação aguardando coord. admin</p>
-        ) : (
-          <div className="space-y-4">{pendentes_admin.map(p => renderCard(p, 'admin'))}</div>
+          <div className="space-y-4">{pendentes_coord.map(p => renderCard(p))}</div>
         )}
       </section>
     </div>
