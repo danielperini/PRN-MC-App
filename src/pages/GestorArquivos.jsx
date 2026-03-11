@@ -196,19 +196,12 @@ function GestorArquivosInner() {
                   Backup Relatórios do Mês
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => {
-                  const btn = document.getElementById('backup-full-trigger');
-                  if (btn) btn.click();
-                }}>
-                  <HardDrive className="w-4 h-4 mr-2 text-gray-600" />
+                <DropdownMenuItem onClick={handleBackupFull} disabled={backupFullLoading}>
+                  {backupFullLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <HardDrive className="w-4 h-4 mr-2 text-gray-600" />}
                   Backup Completo (Drive)
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {/* Hidden trigger for full backup dialog */}
-            <div id="backup-full-trigger" className="hidden">
-              <BackupButton userRole={currentUser?.role} />
-            </div>
           </div>
         </div>
 
