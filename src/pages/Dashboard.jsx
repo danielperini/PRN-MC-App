@@ -46,8 +46,12 @@ function DashboardInner() {
     queryKey: ['my-reports', currentUser?.email],
     queryFn: async () => {
       if (!currentUser?.email) return [];
-      const data = await base44.entities.Report.filter({ created_by: currentUser.email }, '-created_date');
-      return Array.isArray(data) ? data : [];
+      try {
+        const data = await base44.entities.Report.filter({ created_by: currentUser.email }, '-created_date');
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
     },
     enabled: !!currentUser?.email && !userLoading
   });
@@ -55,8 +59,12 @@ function DashboardInner() {
   const { data: allReports = [], isLoading: loadingAll, refetch: refetchAll } = useQuery({
     queryKey: ['all-reports'],
     queryFn: async () => {
-      const data = await base44.entities.Report.list('-created_date', 200);
-      return Array.isArray(data) ? data : [];
+      try {
+        const data = await base44.entities.Report.list('-created_date', 200);
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
     },
     enabled: isCoordenador
   });
@@ -190,12 +198,12 @@ function DashboardInner() {
         <UnifiedNewsCarousel />
 
         {/* Coordenador: dashboard completo */}
-         {showCoordView ? (
-           <>
-             <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
-             <CoordDashboard reports={allReports} isLoading={loadingAll} />
-           </>
-         ) : (
+        {showCoordView ? (
+          <>
+            <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
+            <CoordDashboard reports={allReports} isLoading={loadingAll} />
+          </>
+        ) : (
           <div>
             {/* Filtros */}
             <AdvancedFilters onFilterChange={setFilters} activeFilters={filters} />
@@ -245,10 +253,10 @@ function DashboardInner() {
                   {isLoading ? (
                     <div className="col-span-full text-center py-20 text-gray-400">Carregando...</div>
                   ) : recentReports.length === 0 ? (
-                     <div className="col-span-full text-center py-16 border border-dashed border-gray-200 rounded-2xl">
-                       <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                       <p className="text-gray-500">Nenhum relatório encontrado</p>
-                     </div>
+                    <div className="col-span-full text-center py-16 border border-dashed border-gray-200 rounded-2xl">
+                      <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500">Nenhum relatório encontrado</p>
+                    </div>
                   ) : (
                     recentReports.map(report => {
                       const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.DRAFT;
@@ -286,134 +294,12 @@ function DashboardInner() {
                 </div>
               </>
             )}
-            </div>
-            )}
-            </div>
-            )}
-            </div>
-            );
-            }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   return <RequireAuth><DashboardInner /></RequireAuth>;
