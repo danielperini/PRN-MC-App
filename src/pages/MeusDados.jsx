@@ -183,7 +183,7 @@ function MeusDadosInner() {
           <Section title="Dados Pessoais">
             {FORM_FIELDS.map(field => (
               <div key={field.name} className="space-y-1.5">
-                <Label>{field.icon} {field.label} *</Label>
+                <Label>{field.label} *</Label>
                 <Input
                   type={field.type}
                   value={formData[field.name]}
