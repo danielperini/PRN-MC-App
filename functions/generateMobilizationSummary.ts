@@ -67,74 +67,27 @@ Seja objetivo, específico e prático. Máximo 800 caracteres. Foque em ações 
       .sort((a, b) => (b.nivel_aderencia || 0) - (a.nivel_aderencia || 0))
       .slice(0, 5);
 
-    // Pesquisar contatos e programação para cada um
-    const contactsAndPrograms = await Promise.all(
-      topOpportunities.map(async (opp) => {
-        try {
-          const programSearch = await base44.integrations.Core.InvokeLLM({
-            prompt: `Busque informações sobre: ${opp.nome} em ${opp.bairro}, ${museu_sigla === 'MHAB' ? 'Belo Horizonte' : 'Belo Horizonte'}.
-            
-Encontre se possível:
-1. Email de contato
-2. Telefone de contato  
-3. Horário de funcionamento
-4. Programação atual de atividades
-5. Atividades educacionais ou culturais que realiza
-
-Retorne um JSON com estes campos (deixe em branco se não encontrar):
-{"email": "", "phone": "", "hours": "", "program": "", "activities": ""}`,
-            add_context_from_internet: true,
-            model: 'gemini_3_flash',
-          });
-
-          try {
-            const parsed = JSON.parse(programSearch);
-            return {
-              nome: opp.nome,
-              categoria: opp.categoria,
-              aderencia: opp.nivel_aderencia,
-              ...parsed,
-            };
-          } catch {
-            return {
-              nome: opp.nome,
-              categoria: opp.categoria,
-              aderencia: opp.nivel_aderencia,
-              email: '',
-              phone: '',
-              hours: '',
-              program: programSearch.substring(0, 200),
-              activities: '',
-            };
-          }
-        } catch (err) {
-          console.error(`Erro ao buscar contatos para ${opp.nome}:`, err);
-          return {
-            nome: opp.nome,
-            categoria: opp.categoria,
-            aderencia: opp.nivel_aderencia,
-            email: '',
-            phone: '',
-            hours: '',
-            program: 'Não foi possível recuperar informações',
-            activities: '',
-          };
-        }
-      })
-    );
+    // Contatos simplificados (sem mais chamadas de IA para cada um)
+    const contactsAndPrograms = topOpportunities.map(opp => ({
+      nome: opp.nome,
+      categoria: opp.categoria,
+      aderencia: opp.nivel_aderencia,
+      bairro: opp.bairro || 'Barreiro',
+      endereco: opp.endereco || 'Não informado'
+    }));
 
     // Sugerir programação com base na análise
     const programSuggestion = await base44.integrations.Core.InvokeLLM({
       prompt: `Como especialista em programação cultural para museus, analise os 5 locais mais aderentes listados abaixo e sugira atividades/programações que podem gerar sinergia com a instituição ${museu_sigla}:
 
 LOCAIS PRINCIPAIS:
-${contactsAndPrograms.map(c => `- ${c.nome} (${c.categoria}, aderência: ${c.aderencia}%): ${c.program}`).join('\n')}
+${contactsAndPrograms.map(c => `- ${c.nome} (${c.categoria}, aderência: ${c.aderencia}%) em ${c.bairro}`).join('\n')}
 
-CONTEXTO DE CONHECIMENTO:
-${knowledgeContext.substring(0, 500)}
+CONTEXTO:
+${knowledgeContext.substring(0, 300)}
 
-Sugira 3-4 ideias concretas de programação colaborativa, inovadora e viável. Máximo 600 caracteres.`,
-      add_context_from_internet: true,
+Sugira 3-4 ideias concretas de programação colaborativa e viável. Máximo 400 caracteres.`,
+      add_context_from_internet: false,
       model: 'gemini_3_flash',
     });
 
