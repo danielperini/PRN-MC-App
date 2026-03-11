@@ -1,12 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
-import { Loader2, Upload, CheckCircle2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Loader2, Upload, CheckCircle2, Sparkles, Plus } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 export default function InvoiceUploader({ prestacaoId }) {
   const [uploading, setUploading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [extracted, setExtracted] = useState(null);
+  const [selectedFornecedorId, setSelectedFornecedorId] = useState('');
+  const [showNewFornecedorDialog, setShowNewFornecedorDialog] = useState(false);
+  const [novoFornecedor, setNovoFornecedor] = useState({
+    nome: '',
+    tipo: 'pessoa_juridica',
+    cpf: '',
+    cnpj: '',
+    email: '',
+    telefone: '',
+    categoria: 'outro',
+    banco: '',
+    agencia: '',
+    conta: '',
+    tipo_conta: 'corrente',
+    pix: '',
+  });
+
+  const { data: fornecedores = [] } = useQuery({
+    queryKey: ['fornecedores'],
+    queryFn: () => base44.entities.Fornecedor.list(),
+  });
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
