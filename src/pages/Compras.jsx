@@ -146,7 +146,6 @@ function ComprasInner() {
                { id: 'orcamento', label: 'Orçamento' },
                { id: 'rubricas', label: 'Rubricas' },
                { id: 'documentos', label: 'Documentos' },
-               ...(podeGerenciarRubricas ? [{ id: 'rubricas-admin', label: 'Rubricas (Admin)' }] : []),
                ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
                ...(podeAprovarSolicitacoes ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
                ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
@@ -265,15 +264,7 @@ function ComprasInner() {
            </div>
          )}
 
-        {/* Rubricas Admin — apenas para pode_gerenciar_rubricas */}
-        {tab === 'rubricas-admin' && podeGerenciarRubricas && (
-            <div className="space-y-6">
-              <div className="flex justify-end">
-                <ExportRubricasExcelButton />
-              </div>
-              <RubricasGrid purchases={purchases} />
-            </div>
-          )}
+
 
         {/* Equipe */}
         {tab === 'equipe' && isCoordenador && (

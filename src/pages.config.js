@@ -65,6 +65,7 @@ import Fornecedores from './pages/Fornecedores';
 import GaleriaFotos from './pages/GaleriaFotos';
 import GeradorListaPresenca from './pages/GeradorListaPresenca';
 import GeradorTermoCompromisso from './pages/GeradorTermoCompromisso';
+import GestaoDocumental from './pages/GestaoDocumental';
 import GestaoPagamentos from './pages/GestaoPagamentos';
 import GestorArquivos from './pages/GestorArquivos';
 import HelpManagement from './pages/HelpManagement';
@@ -85,10 +86,9 @@ import ProgramacoesAgenda from './pages/ProgramacoesAgenda';
 import RelatorioMeta from './pages/RelatorioMeta';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
+import Rubricas from './pages/Rubricas';
 import UserManagement from './pages/UserManagement';
 import ViadutoMap from './pages/ViadutoMap';
-import Rubricas from './pages/Rubricas';
-import GestaoDocumental from './pages/GestaoDocumental';
 import __Layout from './Layout.jsx';
 
 
@@ -111,6 +111,7 @@ export const PAGES = {
     "GaleriaFotos": GaleriaFotos,
     "GeradorListaPresenca": GeradorListaPresenca,
     "GeradorTermoCompromisso": GeradorTermoCompromisso,
+    "GestaoDocumental": GestaoDocumental,
     "GestaoPagamentos": GestaoPagamentos,
     "GestorArquivos": GestorArquivos,
     "HelpManagement": HelpManagement,
@@ -131,10 +132,9 @@ export const PAGES = {
     "RelatorioMeta": RelatorioMeta,
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
+    "Rubricas": Rubricas,
     "UserManagement": UserManagement,
     "ViadutoMap": ViadutoMap,
-    "Rubricas": Rubricas,
-    "GestaoDocumental": GestaoDocumental,
 }
 
 export const pagesConfig = {
