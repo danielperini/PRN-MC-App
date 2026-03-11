@@ -1,18 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-import jsPDFModule from 'npm:jspdf@4.0.0';
-
-const { jsPDF } = jsPDFModule;
-
-const COLORS = {
-  text: '#000000',
-  border: '#000000',
-};
-
-const PAGE_WIDTH = 210;
-const PAGE_HEIGHT = 297;
-const MARGIN = 15;
-const CONTENT_WIDTH = PAGE_WIDTH - (MARGIN * 2);
-const LINE_HEIGHT = 5;
+import { jsPDF } from 'npm:jspdf@4.0.0';
+import 'npm:jspdf-autotable@3.5.31';
 
 Deno.serve(async (req) => {
   try {
@@ -20,250 +8,244 @@ Deno.serve(async (req) => {
     const { reportId } = await req.json();
 
     if (!reportId) {
-      return Response.json({ error: 'reportId required' }, { status: 400 });
+      return Response.json({ error: 'reportId é obrigatório' }, { status: 400 });
     }
 
-    const report = await base44.asServiceRole.entities.Report.get(reportId);
+    const report = await base44.entities.Report.get(reportId);
     if (!report) {
-      return Response.json({ error: 'Report not found' }, { status: 404 });
+      return Response.json({ error: 'Relatório não encontrado' }, { status: 404 });
     }
 
-    // Busca atividades e comentários
-    const atividades = await base44.asServiceRole.entities.Activity.filter({ report_id: reportId });
-    const comentarios = await base44.asServiceRole.entities.Comment.filter({ report_id: reportId });
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
 
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    let currentY = MARGIN;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPosition = 15;
 
-    // ========== HELPER FUNCTIONS ==========
-    const addTitle = (text, size = 18) => {
-      pdf.setFontSize(size);
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFont(undefined, 'bold');
-      const lines = pdf.splitTextToSize(text, CONTENT_WIDTH);
-      pdf.text(lines, MARGIN, currentY);
-      currentY += (lines.length * LINE_HEIGHT) + 5;
-      if (currentY > PAGE_HEIGHT - MARGIN) pdf.addPage();
-    };
+    // ===== CABEÇALHO =====
+    doc.setFillColor(30, 30, 30);
+    doc.rect(0, 0, pageWidth, 25, 'F');
 
-    const addHeading = (text) => {
-      pdf.setFontSize(12);
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFont(undefined, 'bold');
-      pdf.text(text, MARGIN, currentY);
-      currentY += 7;
-      pdf.setDrawColor(0, 0, 0);
-      pdf.setLineWidth(0.5);
-      pdf.line(MARGIN, currentY, PAGE_WIDTH - MARGIN, currentY);
-      currentY += 4;
-      if (currentY > PAGE_HEIGHT - MARGIN) pdf.addPage();
-    };
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.setFont(undefined, 'bold');
+    doc.text('MUSEUS CENTRO', 15, 12);
 
-    const addText = (text, size = 10, bold = false) => {
-      pdf.setFontSize(size);
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFont(undefined, bold ? 'bold' : 'normal');
-      const lines = pdf.splitTextToSize(text, CONTENT_WIDTH);
-      pdf.text(lines, MARGIN, currentY);
-      currentY += (lines.length * LINE_HEIGHT) + 2;
-      if (currentY > PAGE_HEIGHT - MARGIN) pdf.addPage();
-    };
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text('Belo Horizonte', 15, 19);
 
-    const addField = (label, value) => {
-      pdf.setFontSize(9);
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFont(undefined, 'bold');
-      pdf.text(label, MARGIN, currentY);
-      currentY += 4;
-      pdf.setFont(undefined, 'normal');
-      const lines = pdf.splitTextToSize(value || '—', CONTENT_WIDTH - 5);
-      pdf.text(lines, MARGIN + 5, currentY);
-      currentY += (lines.length * LINE_HEIGHT) + 3;
-      if (currentY > PAGE_HEIGHT - MARGIN) pdf.addPage();
-    };
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'italic');
+    doc.text(`Protocolo: ${report.numero_protocolo}`, pageWidth - 15, 12, { align: 'right' });
+    doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth - 15, 19, { align: 'right' });
 
-    const addSeparator = () => {
-      pdf.setDrawColor(0, 0, 0);
-      pdf.setLineWidth(0.3);
-      pdf.line(MARGIN, currentY, PAGE_WIDTH - MARGIN, currentY);
-      currentY += 4;
-    };
+    yPosition = 35;
 
-    // ========== CAPA ==========
-    addTitle('RELATÓRIO MENSAL', 20);
-    currentY += 5;
+    // ===== SEÇÃO: IDENTIFICAÇÃO =====
+    doc.setFillColor(70, 130, 180);
+    doc.rect(10, yPosition - 4, pageWidth - 20, 7, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('IDENTIFICAÇÃO DO RELATÓRIO', 15, yPosition + 1);
 
-    addText(`${report.mes_referencia} de ${report.ano}`, 14, true);
-    currentY += 8;
+    yPosition += 12;
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
 
-    pdf.setFontSize(11);
-    pdf.setTextColor(0, 0, 0);
-    pdf.setFont(undefined, 'normal');
-    pdf.text('Protocolo:', MARGIN, currentY);
-    pdf.setTextColor(0, 0, 0);
-    pdf.setFont(undefined, 'bold');
-    pdf.text(report.numero_protocolo || '—', MARGIN + 30, currentY);
-    currentY += 8;
+    const identData = [
+      ['Profissional:', report.author_name || 'N/A'],
+      ['Função:', report.funcao || 'N/A'],
+      ['Museu:', report.museu || 'N/A'],
+      ['Museu Secundário:', report.museu_secundario || '-'],
+      ['Equipe:', report.equipe || 'N/A'],
+      ['Período:', `${report.mes_referencia}/${report.ano}`],
+      ['Status:', report.status || 'DRAFT']
+    ];
 
-    addField('Profissional', report.author_name);
-    addField('Museu', report.museu);
-    addField('Equipe', report.equipe);
+    identData.forEach(([label, value]) => {
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(9);
+      doc.text(label, 15, yPosition);
+      doc.setFont(undefined, 'normal');
+      doc.text(String(value), 50, yPosition);
+      yPosition += 5;
+    });
 
-    currentY += 10;
-    pdf.setDrawColor(0, 0, 0);
-    pdf.setLineWidth(1);
-    pdf.rect(MARGIN, currentY - 5, CONTENT_WIDTH, 0.5);
+    yPosition += 5;
 
-    // ========== RESUMO EXECUTIVO ==========
-    pdf.addPage();
-    currentY = MARGIN;
-
-    addHeading('Resumo Executivo');
+    // ===== SEÇÃO: RESUMO EXECUTIVO =====
     if (report.resumo_executivo) {
-      // Remove HTML tags se houver
-      const cleanText = report.resumo_executivo.replace(/<[^>]*>/g, '');
-      addText(cleanText);
-    } else {
-      addText('Não informado');
+      doc.setFillColor(70, 130, 180);
+      doc.rect(10, yPosition - 4, pageWidth - 20, 7, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.text('RESUMO EXECUTIVO', 15, yPosition + 1);
+
+      yPosition += 10;
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+
+      const splitText = doc.splitTextToSize(report.resumo_executivo, pageWidth - 30);
+      doc.text(splitText, 15, yPosition);
+      yPosition += splitText.length * 5 + 8;
     }
 
-    // ========== ATIVIDADES ==========
-    currentY += 5;
-    addHeading('Atividades Realizadas');
+    // ===== SEÇÃO: ATIVIDADES =====
+    if (report.atividades && report.atividades.length > 0) {
+      if (yPosition > pageHeight - 50) {
+        doc.addPage();
+        yPosition = 15;
+      }
 
-    if (!atividades || atividades.length === 0) {
-      addText('Nenhuma atividade registrada.');
-    } else {
-      atividades.forEach((ativ, idx) => {
-        pdf.setFontSize(10);
-        pdf.setTextColor(0, 0, 0);
-        pdf.setFont(undefined, 'bold');
-        pdf.text(`${idx + 1}. ${ativ.titulo}`, MARGIN, currentY);
-        currentY += 6;
+      doc.setFillColor(70, 130, 180);
+      doc.rect(10, yPosition - 4, pageWidth - 20, 7, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.text('ATIVIDADES REALIZADAS', 15, yPosition + 1);
 
-        pdf.setFontSize(9);
-        pdf.setTextColor(0, 0, 0);
-        pdf.setFont(undefined, 'normal');
-        const fields = [
-          ['Tipo', ativ.tipo_equipe],
-          ['Classificação', ativ.classificacao],
-          ['Data', ativ.data_realizacao ? new Date(ativ.data_realizacao).toLocaleDateString('pt-BR') : '—'],
-          ['Público', `${ativ.publico_total || 0} pessoas`],
+      yPosition += 10;
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(9);
+
+      report.atividades.forEach((activity, idx) => {
+        if (yPosition > pageHeight - 30) {
+          doc.addPage();
+          yPosition = 15;
+        }
+
+        doc.setFont(undefined, 'bold');
+        doc.text(`${idx + 1}. ${activity.titulo || 'Sem título'}`, 15, yPosition);
+        yPosition += 5;
+
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(8);
+
+        const details = [
+          `Equipe: ${activity.tipo_equipe || 'N/A'}`,
+          `Classificação: ${activity.classificacao || 'N/A'}`,
+          `Data: ${activity.data_realizacao || 'N/A'}`,
+          `Público: ${activity.publico_total || 0} pessoas`
         ];
 
-        fields.forEach(([label, value]) => {
-          pdf.text(`${label}: `, MARGIN + 5, currentY);
-          pdf.setFont(undefined, 'bold');
-          pdf.text(String(value), MARGIN + 35, currentY);
-          pdf.setFont(undefined, 'normal');
-          currentY += 4;
+        details.forEach(detail => {
+          doc.text(detail, 20, yPosition);
+          yPosition += 4;
         });
 
-        if (ativ.descricao) {
-          const lines = pdf.splitTextToSize(ativ.descricao, CONTENT_WIDTH - 10);
-          pdf.text(lines, MARGIN + 5, currentY);
-          currentY += (lines.length * 3.5) + 2;
+        if (activity.descricao) {
+          const descSplit = doc.splitTextToSize(activity.descricao, pageWidth - 40);
+          doc.setFontSize(8);
+          doc.text('Descrição:', 20, yPosition);
+          yPosition += 3;
+          doc.text(descSplit, 25, yPosition);
+          yPosition += descSplit.length * 3 + 2;
         }
 
-        currentY += 3;
-        if (currentY > PAGE_HEIGHT - MARGIN - 10) {
-          pdf.addPage();
-          currentY = MARGIN;
-        }
+        yPosition += 3;
       });
+
+      yPosition += 2;
     }
 
-    // ========== AVALIAÇÃO ==========
-    if (currentY > PAGE_HEIGHT - MARGIN - 30) pdf.addPage();
-    currentY = Math.max(currentY, MARGIN);
+    // ===== SEÇÃO: AVALIAÇÃO =====
+    const hasEvaluation = report.avaliacao_pontos_positivos || 
+                          report.avaliacao_desafios || 
+                          report.avaliacao_sugestoes;
 
-    addHeading('Avaliação do Período');
+    if (hasEvaluation) {
+      if (yPosition > pageHeight - 50) {
+        doc.addPage();
+        yPosition = 15;
+      }
 
-    if (report.avaliacao_pontos_positivos) {
-      pdf.setFontSize(10);
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFont(undefined, 'bold');
-      pdf.text('Pontos Positivos:', MARGIN, currentY);
-      currentY += 5;
-      const cleanText = report.avaliacao_pontos_positivos.replace(/<[^>]*>/g, '');
-      addText(cleanText);
+      doc.setFillColor(70, 130, 180);
+      doc.rect(10, yPosition - 4, pageWidth - 20, 7, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.text('AVALIAÇÃO', 15, yPosition + 1);
+
+      yPosition += 10;
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+
+      if (report.avaliacao_pontos_positivos) {
+        doc.setFont(undefined, 'bold');
+        doc.text('Pontos Positivos:', 15, yPosition);
+        yPosition += 5;
+        doc.setFont(undefined, 'normal');
+        const posSplit = doc.splitTextToSize(report.avaliacao_pontos_positivos, pageWidth - 30);
+        doc.setFontSize(9);
+        doc.text(posSplit, 15, yPosition);
+        yPosition += posSplit.length * 5 + 5;
+      }
+
+      if (report.avaliacao_desafios) {
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(10);
+        doc.text('Desafios:', 15, yPosition);
+        yPosition += 5;
+        doc.setFont(undefined, 'normal');
+        const chalSplit = doc.splitTextToSize(report.avaliacao_desafios, pageWidth - 30);
+        doc.setFontSize(9);
+        doc.text(chalSplit, 15, yPosition);
+        yPosition += chalSplit.length * 5 + 5;
+      }
+
+      if (report.avaliacao_sugestoes) {
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(10);
+        doc.text('Sugestões de Melhoria:', 15, yPosition);
+        yPosition += 5;
+        doc.setFont(undefined, 'normal');
+        const sugSplit = doc.splitTextToSize(report.avaliacao_sugestoes, pageWidth - 30);
+        doc.setFontSize(9);
+        doc.text(sugSplit, 15, yPosition);
+        yPosition += sugSplit.length * 5 + 5;
+      }
     }
 
-    if (report.avaliacao_desafios) {
-      pdf.setFontSize(10);
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFont(undefined, 'bold');
-      pdf.text('Dificuldades:', MARGIN, currentY);
-      currentY += 5;
-      const cleanText = report.avaliacao_desafios.replace(/<[^>]*>/g, '');
-      addText(cleanText);
-    }
-
-    if (report.avaliacao_sugestoes) {
-      pdf.setFontSize(10);
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFont(undefined, 'bold');
-      pdf.text('Sugestões de Melhoria:', MARGIN, currentY);
-      currentY += 5;
-      const cleanText = report.avaliacao_sugestoes.replace(/<[^>]*>/g, '');
-      addText(cleanText);
-    }
-
-    // ========== COMENTÁRIOS (se houver) ==========
-    if (comentarios && comentarios.length > 0) {
-      if (currentY > PAGE_HEIGHT - MARGIN - 30) pdf.addPage();
-      currentY = Math.max(currentY, MARGIN);
-
-      addHeading('Feedback e Comentários');
-      const rootComments = comentarios.filter(c => !c.eh_resposta_a);
-
-      rootComments.forEach((comment) => {
-        pdf.setFontSize(9);
-        pdf.setTextColor(0, 0, 0);
-        pdf.setFont(undefined, 'bold');
-        pdf.text(`${comment.author_name} (${comment.author_role})`, MARGIN, currentY);
-        currentY += 4;
-
-        const lines = pdf.splitTextToSize(comment.conteudo, CONTENT_WIDTH - 5);
-        pdf.setFont(undefined, 'normal');
-        pdf.text(lines, MARGIN + 5, currentY);
-        currentY += (lines.length * 3.5) + 3;
-
-        if (currentY > PAGE_HEIGHT - MARGIN - 20) {
-          pdf.addPage();
-          currentY = MARGIN;
-        }
-      });
-    }
-
-    // ========== RODAPÉ ==========
-    const pageCount = pdf.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      pdf.setPage(i);
-      pdf.setFontSize(8);
-      pdf.setTextColor(0, 0, 0);
-      pdf.text(
-        `Página ${i} de ${pageCount}`,
-        PAGE_WIDTH / 2,
-        PAGE_HEIGHT - 8,
+    // ===== RODAPÉ =====
+    const totalPages = doc.internal.pages.length - 1;
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(
+        `Página ${i} de ${totalPages}`,
+        pageWidth / 2,
+        pageHeight - 8,
         { align: 'center' }
       );
-      pdf.text(
-        `Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`,
-        PAGE_WIDTH / 2,
-        PAGE_HEIGHT - 5,
+      doc.text(
+        'Plataforma Museus Centro - Relatório Oficial',
+        pageWidth / 2,
+        pageHeight - 4,
         { align: 'center' }
       );
     }
 
-    const pdfBytes = pdf.output('arraybuffer');
+    // Gerar PDF em bytes
+    const pdfBytes = doc.output('arraybuffer');
 
+    // Retornar com headers apropriados para download
     return new Response(pdfBytes, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="Relatorio_${report.mes_referencia}_${report.ano}.pdf"`,
-      },
+        'Content-Disposition': `attachment; filename="relatorio-${report.numero_protocolo}-${Date.now()}.pdf"`
+      }
     });
   } catch (error) {
     console.error('Erro ao gerar PDF:', error);
