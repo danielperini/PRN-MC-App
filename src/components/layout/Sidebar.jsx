@@ -152,6 +152,11 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         ))}
       </nav>
 
+      {/* Suggestion Form */}
+      <div className={`border-t border-white/5 px-2 py-2 ${collapsed ? 'flex justify-center' : ''}`}>
+        <SuggestionForm currentUser={currentUser} collapsed={collapsed} />
+      </div>
+
       {/* User info */}
       {currentUser && (
         <div className={`border-t border-white/5 ${collapsed ? 'p-3 flex justify-center' : 'p-4'}`}>
