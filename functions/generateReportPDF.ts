@@ -5,7 +5,7 @@ import 'npm:jspdf-autotable@3.5.31';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const { reportId } = await req.json();
+    const { reportId, coverPhotoIds } = await req.json();
 
     if (!reportId) {
       return Response.json({ error: 'reportId é obrigatório' }, { status: 400 });
@@ -14,6 +14,17 @@ Deno.serve(async (req) => {
     const report = await base44.entities.Report.get(reportId);
     if (!report) {
       return Response.json({ error: 'Relatório não encontrado' }, { status: 404 });
+    }
+
+    // Buscar fotos selecionadas
+    let coverPhotos = [];
+    if (coverPhotoIds && coverPhotoIds.length > 0) {
+      const attachments = await base44.entities.Attachment.filter(
+        { id: { $in: coverPhotoIds } },
+        'created_date',
+        3
+      );
+      coverPhotos = attachments || [];
     }
 
     const doc = new jsPDF({
@@ -26,24 +37,54 @@ Deno.serve(async (req) => {
     const pageHeight = doc.internal.pageSize.getHeight();
     let yPosition = 15;
 
-    // ===== CABEÇALHO =====
-    doc.setFillColor(30, 30, 30);
-    doc.rect(0, 0, pageWidth, 25, 'F');
+    // ===== CABEÇALHO COM FOTOS =====
+    let headerHeight = 40;
 
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
+    // Se houver fotos, adicionar galeria no topo
+    if (coverPhotos.length > 0) {
+      const photoWidth = (pageWidth - 30) / Math.min(coverPhotos.length, 3);
+      let xPos = 15;
+
+      for (const photo of coverPhotos) {
+        try {
+          const response = await fetch(photo.file_url);
+          const arrayBuffer = await response.arrayBuffer();
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+          const imgData = `data:image/jpeg;base64,${base64}`;
+          doc.addImage(imgData, 'JPEG', xPos, 15, photoWidth - 2, 20);
+          xPos += photoWidth;
+        } catch (err) {
+          console.error('Erro ao processar foto:', err);
+        }
+      }
+      yPosition += 25;
+      headerHeight += 25;
+    }
+
+    // Logo e Identificação
+    doc.setFillColor(245, 245, 245);
+    doc.rect(0, yPosition - 5, pageWidth, 30, 'F');
+
+    doc.setTextColor(40, 40, 40);
+    doc.setFontSize(20);
     doc.setFont(undefined, 'bold');
-    doc.text('MUSEUS CENTRO', 15, 12);
+    doc.text('MUSEUS CENTRO', 15, yPosition + 5);
 
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont(undefined, 'normal');
-    doc.text('Belo Horizonte', 15, 19);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Relatório Executivo | Belo Horizonte', 15, yPosition + 12);
+
+    doc.setTextColor(60, 60, 60);
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'italic');
+    doc.text(`Protocolo: ${report.numero_protocolo} | Data: ${new Date().toLocaleDateString('pt-BR')}`, 15, yPosition + 18);
+
+    yPosition += 35;
 
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(9);
     doc.setFont(undefined, 'italic');
-    doc.text(`Protocolo: ${report.numero_protocolo}`, pageWidth - 15, 12, { align: 'right' });
-    doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth - 15, 19, { align: 'right' });
 
     yPosition = 35;
 
