@@ -109,6 +109,7 @@ function NewsCardCurated({ news, onApprove, onReject, onDelete, processingId, is
 export default function CurationDashboard() {
   const [processingId, setProcessingId] = useState(null);
   const [curatingNow, setCuratingNow] = useState(false);
+  const [shuffleSeed, setShuffleSeed] = useState(0);
   const queryClient = useQueryClient();
 
   const { data: published = [], isLoading: loadingPublished } = useQuery({
@@ -122,6 +123,23 @@ export default function CurationDashboard() {
     },
     refetchInterval: 30000,
   });
+
+  // Rotação aleatória a cada hora
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setShuffleSeed(prev => prev + 1);
+    }, 3600000); // 1 hora
+    return () => clearInterval(interval);
+  }, []);
+
+  // Shufflar notícias publicadas baseado em seed
+  const shuffledPublished = useEffect(() => {
+    if (shuffleSeed !== 0) {
+      const sorted = [...published].sort(() => Math.random() - 0.5);
+      return sorted;
+    }
+    return published;
+  }, [published, shuffleSeed]);
 
   const { data: pending = [], isLoading: loadingPending } = useQuery({
     queryKey: ['news-pending-curated'],
@@ -173,7 +191,27 @@ export default function CurationDashboard() {
   const handleRunCuration = async () => {
     setCuratingNow(true);
     try {
+      // Rodar curadoria IA
       await base44.functions.invoke('runDailyCuration', {});
+      
+      // Substituir 50% das notícias publicadas por pendentes
+      const publishedNews = await base44.entities.NewsHighlight.filter({ ativo: true }, '-created_date', 100);
+      const toDelete = Math.ceil(publishedNews.length * 0.5);
+      const idsToDelete = publishedNews.slice(0, toDelete).map(n => n.id);
+      
+      const pending = await base44.entities.NewsHighlight.filter({ status_curadoria: 'PENDENTE' }, '-created_date', toDelete);
+      
+      // Deletar 50% aleatoriamente
+      for (const id of idsToDelete) {
+        await base44.entities.NewsHighlight.delete(id);
+      }
+      
+      // Substituir com pendentes e publicar
+      for (const news of pending) {
+        await base44.entities.NewsHighlight.update(news.id, { ativo: true, status_curadoria: 'APROVADO_MANUAL' });
+      }
+      
+      setShuffleSeed(prev => prev + 1);
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['news-published-curated'] });
         queryClient.invalidateQueries({ queryKey: ['news-pending-curated'] });
@@ -247,16 +285,16 @@ export default function CurationDashboard() {
           </div>
         ) : (
           <div className="space-y-3">
-            {published.map(news => (
-              <NewsCardCurated
-                key={news.id}
-                news={news}
-                onDelete={handleDelete}
-                processingId={processingId}
-                isPublished={true}
-              />
-            ))}
-          </div>
+             {([...published].sort(() => Math.random() - 0.5)).map(news => (
+               <NewsCardCurated
+                 key={news.id}
+                 news={news}
+                 onDelete={handleDelete}
+                 processingId={processingId}
+                 isPublished={true}
+               />
+             ))}
+           </div>
         )}
       </div>
 
