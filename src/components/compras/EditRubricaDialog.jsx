@@ -114,7 +114,7 @@ export default function EditRubricaDialog({ rubrica, isOpen, onClose, onSuccess 
           </TabsContent>
 
           <TabsContent value="gastos" className="max-h-96 overflow-y-auto">
-            <GastosRubricaPanel rubricaId={rubrica.id} rubricaCodigo={rubrica.codigo} />
+            <GastosRubricaPanel rubricaId={rubrica.id} rubricaCodigo={rubrica.codigo} rubrica={rubrica} />
           </TabsContent>
         </Tabs>
 
