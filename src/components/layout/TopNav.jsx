@@ -6,6 +6,7 @@ import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
 import PendingActionsAlert from '@/components/notifications/PendingActionsAlert';
+import PurchaseNotificationBell from '@/components/notifications/PurchaseNotificationBell';
 import GlobalSearch from './GlobalSearch';
 
 export default function TopNav({ currentUser }) {
@@ -25,6 +26,7 @@ export default function TopNav({ currentUser }) {
         </Link>
         {currentUser?.email && <PendingActionsAlert />}
         {currentUser?.email && <NotificationCenter />}
+        {currentUser?.email && <PurchaseNotificationBell currentUser={currentUser} />}
         
         <Link to={createPageUrl('Perfil')}>
            <Button variant="ghost" size="icon" className="text-black hover:bg-black hover:text-white h-11 w-11">
