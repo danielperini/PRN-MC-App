@@ -139,6 +139,17 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
                 {showApproval ? 'Fechar' : 'Analisar'}
               </Button>
             )}
+            {isCoordenador && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-red-600 hover:bg-red-50 text-xs h-8 w-8 p-0"
+                onClick={handleDelete}
+                disabled={actionLoading}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpanded(!expanded)}>
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </Button>
