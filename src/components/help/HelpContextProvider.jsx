@@ -1,11 +1,43 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 
 const HelpContext = createContext(null);
 
+async function generateWithClaude(label, componentType, contextDescription) {
+  try {
+    const response = await base44.integrations.Core.InvokeLLM({
+      prompt: `Você é um especialista em ajuda contextual de interface. Gere um texto curto e útil para esta funcionalidade:
+
+Tipo: ${componentType}
+Label: "${label}"
+Contexto: ${contextDescription || 'N/A'}
+
+Padrão de resposta:
+1. Primeira frase: o que é / o que faz
+2. Segunda frase: para que serve / quando usar
+3. Opcional: efeito esperado da ação
+
+Escreva SEMPRE em português do Brasil. Seja claro, objetivo, elegante e profissional. Sem texto genérico. Máximo 3 linhas.
+
+Responda APENAS com o texto de ajuda, sem explicações adicionais.`,
+      model: 'gpt_5_mini',
+    });
+
+    return response || null;
+  } catch (error) {
+    console.error('Erro ao chamar Claude:', error);
+    return null;
+  }
+}
+
 export function HelpContextProvider({ children }) {
   const [isHelpEnabled, setIsHelpEnabled] = useState(true);
+  const [isClient, setIsClient] = useState(false);
   const cacheRef = useRef({});
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const getFromCache = useCallback((componentKey) => {
     if (cacheRef.current[componentKey]) {
@@ -65,6 +97,10 @@ export function HelpContextProvider({ children }) {
     return null;
   }, [getFromCache, saveToCache]);
 
+  if (!isClient) {
+    return <>{children}</>;
+  }
+
   return (
     <HelpContext.Provider value={{ getHelpText, isHelpEnabled, setIsHelpEnabled }}>
       {children}
@@ -78,31 +114,4 @@ export function useHelp() {
     throw new Error('useHelp deve ser usado dentro de HelpContextProvider');
   }
   return context;
-}
-
-async function generateWithClaude(label, componentType, contextDescription) {
-  try {
-    const response = await base44.integrations.Core.InvokeLLM({
-      prompt: `Você é um especialista em ajuda contextual de interface. Gere um texto curto e útil para esta funcionalidade:
-
-Tipo: ${componentType}
-Label: "${label}"
-Contexto: ${contextDescription || 'N/A'}
-
-Padrão de resposta:
-1. Primeira frase: o que é / o que faz
-2. Segunda frase: para que serve / quando usar
-3. Opcional: efeito esperado da ação
-
-Escreva SEMPRE em português do Brasil. Seja claro, objetivo, elegante e profissional. Sem texto genérico. Máximo 3 linhas.
-
-Responda APENAS com o texto de ajuda, sem explicações adicionais.`,
-      model: 'gpt_5_mini',
-    });
-
-    return response || null;
-  } catch (error) {
-    console.error('Erro ao chamar Claude:', error);
-    return null;
-  }
 }
