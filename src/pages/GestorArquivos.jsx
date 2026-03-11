@@ -3,12 +3,13 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
-import { Cloud, Calendar, AlertTriangle, HardDrive, ChevronDown, Loader2 } from 'lucide-react';
+import { Cloud, Calendar, AlertTriangle, HardDrive, ChevronDown, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import BackupMonthlyDialog from '../components/backup/BackupMonthlyDialog';
 import BackupHistoryTable from '../components/backup/BackupHistoryTable';
 import FileHierarchy from '../components/gallery/FileHierarchy';
@@ -26,8 +27,27 @@ function GestorArquivosInner() {
    const [showPreview, setShowPreview] = useState(false);
    const [showHistory, setShowHistory] = useState(false);
    const [showMonthlyBackup, setShowMonthlyBackup] = useState(false);
-   const [backupDriveLoading, setBackupDriveLoading] = useState(false);
+   const [backupType, setBackupType] = useState(null); // 'drive' | 'full'
+   const [backupLoading, setBackupLoading] = useState(false);
+   const [backupResult, setBackupResult] = useState(null);
    const isCoordinator = currentUser?.role === 'admin';
+
+   const runBackup = async (type) => {
+     setBackupType(type);
+     setBackupResult(null);
+     setBackupLoading(true);
+     try {
+       const fn = type === 'drive' ? 'backupDriveFolders' : 'backupToGoogleDrive';
+       const response = await base44.functions.invoke(fn, {});
+       setBackupResult({ success: true, data: response.data });
+       toast.success('Backup realizado com sucesso!');
+     } catch (error) {
+       setBackupResult({ success: false, message: error.message || 'Erro desconhecido' });
+       toast.error('Erro no backup: ' + (error.message || 'Erro desconhecido'));
+     } finally {
+       setBackupLoading(false);
+     }
+   };
 
   const { data: backups = [], isLoading } = useQuery({
     queryKey: ['google-drive-backups', selectedDate, searchFileName, searchContent, currentUser?.email],
@@ -110,19 +130,6 @@ function GestorArquivosInner() {
     setShowPreview(true);
   };
 
-  const handleBackupDrive = async () => {
-    setBackupDriveLoading(true);
-    try {
-      const response = await base44.functions.invoke('backupDriveFolders', {});
-      const count = response.data?.totalFilesCopied || 0;
-      toast.success(count > 0 ? `Backup Drive: ${count} arquivo(s) copiado(s)` : 'Backup Drive: nenhum arquivo novo.');
-    } catch (error) {
-      toast.error('Erro no backup Drive: ' + (error.message || 'desconhecido'));
-    } finally {
-      setBackupDriveLoading(false);
-    }
-  };
-
   const handleDownloadBackup = async (backup) => {
    if (backup.fileUrl) {
      window.open(backup.fileUrl, '_blank');
@@ -164,15 +171,32 @@ function GestorArquivosInner() {
               Todos os arquivos são mantidos permanentemente
             </p>
           </div>
-          <div className="w-full md:w-auto flex gap-2 flex-wrap">
-            <BackupDriveFoldersButton />
-            <button
-              onClick={() => setShowMonthlyBackup(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
-            >
-              📅 Backup Relatórios
-            </button>
-            <BackupButton userRole={currentUser?.role} />
+          <div className="w-full md:w-auto">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="gap-2 bg-black hover:bg-gray-800 text-white w-full md:w-auto" disabled={backupLoading}>
+                  {backupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <HardDrive className="w-4 h-4" />}
+                  {backupLoading ? 'Fazendo backup...' : 'Backup'}
+                  <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-xs text-gray-500">Opções de Backup</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowMonthlyBackup(true)} className="gap-2 cursor-pointer">
+                  <Calendar className="w-4 h-4 text-blue-500" />
+                  Relatórios do Mês (Drive)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => runBackup('drive')} className="gap-2 cursor-pointer">
+                  <Cloud className="w-4 h-4 text-blue-500" />
+                  Sincronizar Pastas no Drive
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => runBackup('full')} className="gap-2 cursor-pointer">
+                  <HardDrive className="w-4 h-4 text-gray-600" />
+                  Backup Completo (Drive)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
