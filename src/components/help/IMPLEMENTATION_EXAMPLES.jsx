@@ -448,7 +448,47 @@ import { HelpWrapper } from '@/components/help/withContextualHelp';
 
 ## ⚡ Aplicação Rápida
 
-### Template Genérico:
+### 🚀 NOVO: AutoButton - Detecção Automática
+
+```jsx
+// Antes (manual):
+<HelpButton
+  componentKey="btn-salvar"
+  label="Salvar"
+  contextDescription="Salva as alterações"
+  onClick={handleSave}
+>
+  Salvar
+</HelpButton>
+
+// Depois (automático):
+<AutoButton onClick={handleSave}>
+  Salvar
+</AutoButton>
+```
+
+Funciona com: **Novo**, **Salvar**, **Editar**, **Excluir**, **Submeter**, **Aprovar**, **Rejeitar**, **Exportar**, **Filtrar**, **Buscar**, **Cancelar**
+
+### 🚀 NOVO: AutoField - Detecção Automática
+
+```jsx
+// Antes (manual):
+<HelpFormField
+  label="Email"
+  contextDescription="Endereço de email do usuário"
+>
+  <Input type="email" />
+</HelpFormField>
+
+// Depois (automático):
+<AutoField label="Email">
+  <Input type="email" />
+</AutoField>
+```
+
+Funciona com: **Titulo**, **Descrição**, **Email**, **Data**, **Status**
+
+### Template Genérico (Manual):
 
 ```jsx
 <HelpWrapper
@@ -461,16 +501,22 @@ import { HelpWrapper } from '@/components/help/withContextualHelp';
 </HelpWrapper>
 ```
 
-### Shortcuts Recomendados:
+### Shortcuts Disponíveis:
 
 ```jsx
-// Para botões: use HelpButton
+// Para botões com detecção automática:
+<AutoButton onClick={...}>Salvar</AutoButton>
+
+// Para campos com detecção automática:
+<AutoField label="Email"><Input /></AutoField>
+
+// Para botões customizados:
 <HelpButton componentKey="..." label="..." contextDescription="...">...</HelpButton>
 
-// Para campos: use HelpFormField
+// Para campos customizados:
 <HelpFormField label="..." contextDescription="..."><Input /></HelpFormField>
 
-// Para o resto: use HelpWrapper
+// Para o resto (manual):
 <HelpWrapper componentKey="..." label="..." componentType="..." contextDescription="...">
   {/* elemento */}
 </HelpWrapper>
