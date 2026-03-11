@@ -151,7 +151,7 @@ export default function FileHierarchy({ backups = [], onPreview, canManageFile, 
                             >
                               <Download className="w-4 h-4" />
                             </Button>
-                            {canManageFile && canManageFile(file) && isGeneralCoordinator && (
+                            {canManageFile && canManageFile(file) && (
                               <Button
                                 size="sm"
                                 variant="ghost"
