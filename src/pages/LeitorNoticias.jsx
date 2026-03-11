@@ -288,6 +288,12 @@ export default function LeitorNoticias() {
     try {
       await base44.entities.NewsHighlight.delete(id);
       invalidateAll();
+    } catch (error) {
+      if (error?.response?.status === 404 || error?.message?.includes('not found')) {
+        invalidateAll();
+      } else {
+        console.error('Erro ao deletar:', error);
+      }
     } finally {
       setProcessingId(null);
     }
