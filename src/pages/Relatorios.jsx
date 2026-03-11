@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import BatchPDFExport from '../components/reports/BatchPDFExport';
 import PDFGeneratorDialog from '../components/reports/PDFGeneratorDialog';
+import PeriodExportDialog from '../components/reports/PeriodExportDialog';
 import ActivityFilters from '../components/reports/ActivityFilters';
 import ActivitySummary from '../components/reports/ActivitySummary';
 import CompliancePanel from '../components/reports/CompliancePanel';
@@ -95,6 +96,7 @@ function RelatoriosInner() {
    const [selectedReports, setSelectedReports] = useState(new Set());
    const [generatingPDF, setGeneratingPDF] = useState(false);
    const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
+   const [periodExportOpen, setPeriodExportOpen] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Report.delete(id),
@@ -263,6 +265,14 @@ function RelatoriosInner() {
                 </Button>
               </>
             )}
+            <Button
+              variant="outline"
+              className="border-black gap-2"
+              onClick={() => setPeriodExportOpen(true)}
+            >
+              <Download className="w-4 h-4" />
+              Consolidado por Período
+            </Button>
             <Button
               variant="outline"
               className="border-black gap-2"
@@ -479,6 +489,13 @@ function RelatoriosInner() {
         selectedReports={selectedReports}
         reports={filtered}
         museus={[...new Set(filtered.map(r => r.museu))]}
+      />
+
+      {/* Period Export Dialog */}
+      <PeriodExportDialog
+        open={periodExportOpen}
+        onClose={() => setPeriodExportOpen(false)}
+        museusUnicos={[...new Set(baseReports.map(r => r.museu).filter(Boolean))]}
       />
 
       {/* Delete Confirm */}
