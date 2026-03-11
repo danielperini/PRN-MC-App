@@ -88,6 +88,7 @@ import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
 import ViadutoMap from './pages/ViadutoMap';
+import Rubricas from './pages/Rubricas';
 import __Layout from './Layout.jsx';
 
 
@@ -133,6 +134,7 @@ export const PAGES = {
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
     "ViadutoMap": ViadutoMap,
+    "Rubricas": Rubricas,
 }
 
 export const pagesConfig = {
