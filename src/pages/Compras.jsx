@@ -62,7 +62,10 @@ function ComprasInner() {
 
   const filtered = purchases.filter(p => {
     const matchStatus = filters.status === 'all' || p.status === filters.status;
-    const matchMeta = filters.meta_id === 'all' || p.meta_id === filters.meta_id;
+    let matchMeta = filters.meta_id === 'all';
+    if (!matchMeta && filters.meta_id === 'produto') matchMeta = p.tipo_item === 'produto';
+    if (!matchMeta && filters.meta_id === 'servico') matchMeta = p.tipo_item === 'servico';
+    if (!matchMeta) matchMeta = p.meta_id === filters.meta_id;
     const matchSearch = !filters.search
       || p.descricao_item?.toLowerCase().includes(filters.search.toLowerCase())
       || p.fornecedor_nome?.toLowerCase().includes(filters.search.toLowerCase());
