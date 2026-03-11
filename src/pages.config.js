@@ -63,6 +63,7 @@ import DashboardFinanceiro from './pages/DashboardFinanceiro';
 import DashboardProfissional from './pages/DashboardProfissional';
 import Fornecedores from './pages/Fornecedores';
 import GaleriaFotos from './pages/GaleriaFotos';
+import GeradorListaPresenca from './pages/GeradorListaPresenca';
 import GeradorTermoCompromisso from './pages/GeradorTermoCompromisso';
 import GestaoPagamentos from './pages/GestaoPagamentos';
 import GestorArquivos from './pages/GestorArquivos';
@@ -85,7 +86,6 @@ import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
 import ViadutoMap from './pages/ViadutoMap';
-import GeradorListaPresenca from './pages/GeradorListaPresenca';
 import __Layout from './Layout.jsx';
 
 
@@ -106,6 +106,7 @@ export const PAGES = {
     "DashboardProfissional": DashboardProfissional,
     "Fornecedores": Fornecedores,
     "GaleriaFotos": GaleriaFotos,
+    "GeradorListaPresenca": GeradorListaPresenca,
     "GeradorTermoCompromisso": GeradorTermoCompromisso,
     "GestaoPagamentos": GestaoPagamentos,
     "GestorArquivos": GestorArquivos,
@@ -128,7 +129,6 @@ export const PAGES = {
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
     "ViadutoMap": ViadutoMap,
-    "GeradorListaPresenca": GeradorListaPresenca,
 }
 
 export const pagesConfig = {

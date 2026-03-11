@@ -161,7 +161,14 @@ function RelatoriosInner() {
   });
 
   // Get unique teams from activities
-  const uniqueTeams = Array.from(new Set(allActivities.map(a => a.equipe_responsavel).filter(Boolean))).sort();
+   const uniqueTeams = Array.from(new Set(allActivities.map(a => a.equipe_responsavel).filter(Boolean))).sort();
+
+   // Calcular público total igual ao Dashboard (apenas relatórios aprovados/submetidos/em revisão/arquivados)
+   const approvedReports = baseReports.filter(r => ['APPROVED', 'SUBMITTED', 'IN_REVIEW', 'ARCHIVED'].includes(r.status));
+   const dashboardTotalPublico = approvedReports.reduce((sum, r) => {
+     const acts = Array.isArray(r.atividades) ? r.atividades : [];
+     return sum + acts.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0);
+   }, 0);
 
   const filtered = baseReports.filter(r => {
     if (filters.mes && r.mes_referencia !== filters.mes) return false;
