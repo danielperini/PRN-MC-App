@@ -8,6 +8,7 @@ import {
   CalendarDays, Layers, BookOpen, ShoppingCart, Banknote, Target, Newspaper
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import SuggestionForm from '@/components/sidebar/SuggestionForm';
 
 export default function Sidebar({ currentPageName, collapsed, onToggle, currentUser }) {
   const [customPerms, setCustomPerms] = useState(null);
