@@ -772,16 +772,26 @@ function GestorArquivosInner() {
                                        <p className="text-sm font-medium text-gray-800">{nf.userName}</p>
                                        <p className="text-xs text-gray-600">NF {nf.numero} • {nf.fornecedor}</p>
                                      </div>
-                                     {nf.file_url && (
-                                       <a 
-                                         href={nf.file_url} 
-                                         target="_blank" 
-                                         rel="noopener noreferrer"
-                                         className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm"
-                                       >
-                                         <ExternalLink className="w-3 h-3" />
-                                       </a>
-                                     )}
+                                     <div className="flex gap-2">
+                                       {nf.file_url && (
+                                         <a 
+                                           href={nf.file_url} 
+                                           target="_blank" 
+                                           rel="noopener noreferrer"
+                                           className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm"
+                                         >
+                                           <ExternalLink className="w-3 h-3" />
+                                         </a>
+                                       )}
+                                       {(isCoordinator || nf.userEmail === currentUser?.email) && (
+                                         <button
+                                           onClick={() => handleDeleteInvoice(nf.submissionId, invoiceSubmissions.find(s => s.id === nf.submissionId)?.notas_fiscais.indexOf(nf))}
+                                           className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 text-sm"
+                                         >
+                                           <Trash2 className="w-3 h-3" />
+                                         </button>
+                                       )}
+                                     </div>
                                    </div>
                                  ))}
                              </div>
