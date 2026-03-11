@@ -4,8 +4,10 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, TrendingUp, ChevronDown, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useBudgetLines } from './useBudgetLines';
 
-export default function RubricasGrid({ budgetLines, purchases }) {
+export default function RubricasGrid({ purchases }) {
+  const { budgetLines } = useBudgetLines();
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setategoryFilter] = useState('all');
   const [expandedCards, setExpandedCards] = useState({});
