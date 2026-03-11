@@ -168,6 +168,23 @@ Retorne um JSON válido com array "opportunities" contendo os 15-20 itens sugeri
       await base44.asServiceRole.entities.TerritorialOpportunity.bulkCreate(dados);
     }
 
+    // Se nenhuma atividade, retornar oportunidades existentes (seed data)
+    if (allActivities.length === 0) {
+      const existentes = await base44.asServiceRole.entities.TerritorialOpportunity.filter({
+        museu_sigla,
+        ativo: true
+      });
+      return Response.json({
+        museu_sigla,
+        message: 'Nenhuma atividade para análise. Retornando oportunidades existentes.',
+        total_atividades_analisadas: 0,
+        temas_principais: [],
+        novas_oportunidades_adicionadas: 0,
+        total_oportunidades_ativas: existentes.length,
+        oportunidades: existentes.sort((a, b) => b.nivel_aderencia - a.nivel_aderencia)
+      });
+    }
+
     // Retornar todos os ativos para este museu
     const todasOportunidades = await base44.asServiceRole.entities.TerritorialOpportunity.filter({
       museu_sigla,
