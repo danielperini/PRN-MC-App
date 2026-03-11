@@ -6,7 +6,7 @@ import {
   Building2, FileText, Users, Eye, Paperclip, Settings, Shield,
   HelpCircle, BarChart3, History, ChevronLeft, ChevronRight,
   CalendarDays, Layers, BookOpen, ShoppingCart, Banknote, Target, Newspaper,
-  Map, DollarSign, ChevronDown
+  Map, DollarSign, ChevronDown, Images
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SuggestionForm from '@/components/sidebar/SuggestionForm';
