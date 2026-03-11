@@ -1,5 +1,4 @@
-import React, { useMemo } from 'react';
-import { MapPin, Zap } from 'lucide-react';
+import React, { useState } from 'react';
 
 const MUSEU_COORDS = {
   MHAB: { lat: -19.9191, lng: -43.9385, nome: 'MHAB' },
