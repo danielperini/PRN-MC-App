@@ -214,6 +214,7 @@ export default function AttachmentsSection({ reportId, canEdit }) {
             </div>
           )}
         </div>
+
         <input
            ref={fileInputRef}
            type="file"
@@ -222,7 +223,6 @@ export default function AttachmentsSection({ reportId, canEdit }) {
            className="hidden"
            onChange={handleInputChange}
          />
-        </div>
 
         {/* Galeria de Fotos e Vídeos */}
         <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
