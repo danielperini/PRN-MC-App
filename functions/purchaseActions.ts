@@ -71,6 +71,40 @@ Retorne um JSON com:
       return Response.json({ success: true, saldo_disponivel, aprovavel, linha: line });
     }
 
+    // --- AÇÃO: Aprovar compra (apenas coordenador/admin) ---
+    if (action === 'aprovar') {
+      const userPerms = await base44.asServiceRole.entities.UserPermission.filter({ user_email: user.email });
+      const isCoordinator = user.role === 'admin' || (userPerms.length > 0 && userPerms[0].can_review_reports);
+      
+      if (!isCoordinator) {
+        return Response.json({ error: 'Apenas coordenadores podem aprovar compras' }, { status: 403 });
+      }
+
+      const purchase = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
+      if (!purchase) return Response.json({ error: 'Solicitação não encontrada' }, { status: 404 });
+      if (purchase.status !== 'SOLICITADO') return Response.json({ error: 'Apenas solicitações pendentes podem ser aprovadas' }, { status: 400 });
+
+      await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, {
+        status: 'APROVADO_ADMIN',
+        aprovado_por_email: user.email,
+        aprovado_por_nome: user.full_name,
+        data_aprovacao: new Date().toISOString()
+      });
+
+      // Notificar solicitante
+      const solicitante = await base44.asServiceRole.entities.User.filter({ email: purchase.created_by });
+      if (solicitante.length > 0) {
+        await base44.asServiceRole.integrations.Core.SendEmail({
+          to: solicitante[0].email,
+          subject: `✅ Sua solicitação de compra foi aprovada`,
+          body: `Olá ${solicitante[0].full_name},\n\nSua solicitação de compra foi aprovada pelo coordenador ${user.full_name}.\n\n📋 Item: ${purchase.descricao_item}\n💰 Valor: R$ ${purchase.valor_solicitado?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\nAtenção: esta compra está pronta para pagamento.\n\nAtenciosamente,\nPlataforma — Museus Centro`,
+          from_name: 'Museus Centro'
+        });
+      }
+
+      return Response.json({ success: true, action: 'APROVADO_ADMIN' });
+    }
+
     // --- AÇÃO: Marcar como PAGO ---
     if (action === 'marcar_pago') {
       const { comprovante_url, data_pagamento } = data;
