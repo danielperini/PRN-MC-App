@@ -49,16 +49,19 @@
  */
 import ActivityLog from './pages/ActivityLog';
 import AdminUsers from './pages/AdminUsers';
+import ApprovalsMobile from './pages/ApprovalsMobile';
 import AssistentePlanejamento from './pages/AssistentePlanejamento';
 import AuditLog from './pages/AuditLog';
 import BaseConhecimento from './pages/BaseConhecimento';
 import Cadastro from './pages/Cadastro';
 import CalendarioAtividades from './pages/CalendarioAtividades';
 import Compras from './pages/Compras';
+import ConsolidacaoFinanceira from './pages/ConsolidacaoFinanceira';
 import CoordReview from './pages/CoordReview';
 import Dashboard from './pages/Dashboard';
 import DashboardFinanceiro from './pages/DashboardFinanceiro';
 import DashboardProfissional from './pages/DashboardProfissional';
+import GaleriaFotos from './pages/GaleriaFotos';
 import GestaoPagamentos from './pages/GestaoPagamentos';
 import GestorArquivos from './pages/GestorArquivos';
 import HelpManagement from './pages/HelpManagement';
@@ -79,9 +82,6 @@ import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import UserManagement from './pages/UserManagement';
 import ViadutoMap from './pages/ViadutoMap';
-import ApprovalsMobile from './pages/ApprovalsMobile';
-import GaleriaFotos from './pages/GaleriaFotos';
-import ConsolidacaoFinanceira from './pages/ConsolidacaoFinanceira';
 import GeradorTermoCompromisso from './pages/GeradorTermoCompromisso';
 import __Layout from './Layout.jsx';
 
@@ -89,16 +89,19 @@ import __Layout from './Layout.jsx';
 export const PAGES = {
     "ActivityLog": ActivityLog,
     "AdminUsers": AdminUsers,
+    "ApprovalsMobile": ApprovalsMobile,
     "AssistentePlanejamento": AssistentePlanejamento,
     "AuditLog": AuditLog,
     "BaseConhecimento": BaseConhecimento,
     "Cadastro": Cadastro,
     "CalendarioAtividades": CalendarioAtividades,
     "Compras": Compras,
+    "ConsolidacaoFinanceira": ConsolidacaoFinanceira,
     "CoordReview": CoordReview,
     "Dashboard": Dashboard,
     "DashboardFinanceiro": DashboardFinanceiro,
     "DashboardProfissional": DashboardProfissional,
+    "GaleriaFotos": GaleriaFotos,
     "GestaoPagamentos": GestaoPagamentos,
     "GestorArquivos": GestorArquivos,
     "HelpManagement": HelpManagement,
@@ -119,9 +122,6 @@ export const PAGES = {
     "ReportEditor": ReportEditor,
     "UserManagement": UserManagement,
     "ViadutoMap": ViadutoMap,
-    "ApprovalsMobile": ApprovalsMobile,
-    "GaleriaFotos": GaleriaFotos,
-    "ConsolidacaoFinanceira": ConsolidacaoFinanceira,
     "GeradorTermoCompromisso": GeradorTermoCompromisso,
 }
 

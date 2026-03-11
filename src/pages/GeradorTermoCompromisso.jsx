@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText, Plus, Eye, Download, Check } from 'lucide-react';
 import RequireAuth from '@/components/auth/RequireAuth';
+import TermoPDFUploader from '@/components/termos/TermoPDFUploader';
+import TermoMetaLinkage from '@/components/termos/TermoMetaLinkage';
 
 const TIPOS_TERMO = {
   monitoria_mediacao: 'Monitoria/Mediação',
@@ -44,12 +46,21 @@ function GeradorTermoContent() {
     tipo_termo: 'monitoria_mediacao',
     contratado_nome: '',
     contratado_cpf: '',
+    contratado_cnpj: '',
     contratado_telefone: '',
     contratado_email: '',
     contratado_endereco: '',
     contratado_banco: '',
     contratado_agencia: '',
     contratado_conta: '',
+    tipo_conta: 'Corrente',
+    pix_key: '',
+    representante_legal_nome: '',
+    representante_legal_cpf: '',
+    nacionalidade: 'Brasileira',
+    estado_civil: '',
+    profissao: '',
+    nome_social: '',
     objeto: '',
     escopo: '',
     local_execucao: 'Viaduto das Artes',
@@ -60,7 +71,14 @@ function GeradorTermoContent() {
     nota_fiscal_numero: '',
     nota_fiscal_data: '',
     museu: 'Viaduto das Artes',
-    observacoes: ''
+    observacoes: '',
+    cria_vinculado_activity: '',
+    descricao_relatorio: '',
+    produtos_termo: [],
+    publico_estimado: 0,
+    acessibilidade: 'Não',
+    eh_mobilizacao: false,
+    envolve_cadeia_cultura: false
   });
 
   const [preview, setPreview] = useState(false);
@@ -163,7 +181,14 @@ function GeradorTermoContent() {
               </CardContent>
             </Card>
 
-            {/* Dados do Contratado */}
+            {/* Upload de PDF */}
+            <TermoPDFUploader 
+              onDataExtracted={(data) => {
+                setFormData(prev => ({ ...prev, ...data }));
+              }}
+            />
+
+          {/* Dados do Contratado */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Dados do Contratado</CardTitle>
@@ -316,6 +341,80 @@ function GeradorTermoContent() {
                 />
               </CardContent>
             </Card>
+
+            {/* Representante Legal */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Representante Legal (opcional)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Input
+                  placeholder="Nome do representante legal"
+                  value={formData.representante_legal_nome}
+                  onChange={(e) => handleInputChange('representante_legal_nome', e.target.value)}
+                />
+                <Input
+                  placeholder="CPF do representante legal"
+                  value={formData.representante_legal_cpf}
+                  onChange={(e) => handleInputChange('representante_legal_cpf', e.target.value)}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Dados Pessoais */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Dados Pessoais do Contratado</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Input
+                  placeholder="Profissão"
+                  value={formData.profissao}
+                  onChange={(e) => handleInputChange('profissao', e.target.value)}
+                />
+                <Select value={formData.estado_civil} onValueChange={(value) => handleInputChange('estado_civil', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Estado civil" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Solteiro">Solteiro</SelectItem>
+                    <SelectItem value="Casado">Casado</SelectItem>
+                    <SelectItem value="Divorciado">Divorciado</SelectItem>
+                    <SelectItem value="Viúvo">Viúvo</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="Nacionalidade"
+                  value={formData.nacionalidade}
+                  onChange={(e) => handleInputChange('nacionalidade', e.target.value)}
+                />
+                <Input
+                  placeholder="Nome social (se aplicável)"
+                  value={formData.nome_social}
+                  onChange={(e) => handleInputChange('nome_social', e.target.value)}
+                />
+              </CardContent>
+            </Card>
+
+            {/* PIX */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">PIX (opcional)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Input
+                  placeholder="Chave PIX (CPF, email, telefone ou aleatória)"
+                  value={formData.pix_key}
+                  onChange={(e) => handleInputChange('pix_key', e.target.value)}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Meta Linkage */}
+            <TermoMetaLinkage 
+              formData={formData}
+              onChange={handleInputChange}
+            />
 
             {/* Observações */}
             <Card>
