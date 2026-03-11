@@ -70,11 +70,10 @@ export default function AprovacoesFila({ purchases, budgetLines, statusConfig, o
     'MC3A-EXTRA': 'Ações Extras',
   };
 
-  const renderCard = (purchase, fila) => {
+  const renderCard = (purchase) => {
     const line = getBudgetLine(purchase.budgetline_id);
     const saldoDisponivel = line ? (line.saldo_inicial || 0) - (line.saldo_comprometido || 0) : null;
-    const valorAprovado = parseFloat(valoresAdmin[purchase.id]) || purchase.valor_solicitado;
-    const saldoOk = saldoDisponivel === null || saldoDisponivel >= valorAprovado;
+    const saldoOk = saldoDisponivel === null || saldoDisponivel >= purchase.valor_solicitado;
     const isLoading = loading[purchase.id];
 
     return (
