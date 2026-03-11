@@ -152,14 +152,35 @@ function GestorArquivosInner() {
             </p>
           </div>
           <div className="w-full md:w-auto flex gap-2 flex-wrap">
-            <BackupDriveFoldersButton />
-            <button
-              onClick={() => setShowMonthlyBackup(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
-            >
-              📅 Backup Relatórios
-            </button>
-            <BackupButton userRole={currentUser?.role} />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="gap-2 bg-black hover:bg-gray-800 text-white">
+                  <HardDrive className="w-4 h-4" />
+                  Backup
+                  <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuLabel className="text-xs text-gray-500">Opções de Backup</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowMonthlyBackup(true)} className="gap-2 cursor-pointer">
+                  <Calendar className="w-4 h-4 text-blue-500" />
+                  Backup de Relatórios do Mês
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => document.getElementById('backup-drive-trigger')?.click()} className="gap-2 cursor-pointer">
+                  <Cloud className="w-4 h-4 text-blue-500" />
+                  Sincronizar Pastas no Drive
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => document.getElementById('backup-full-trigger')?.click()} className="gap-2 cursor-pointer">
+                  <HardDrive className="w-4 h-4 text-gray-600" />
+                  Backup Completo (Drive)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {/* Hidden triggers for backup components */}
+            <div className="hidden">
+              <BackupButton userRole={currentUser?.role} triggerId="backup-full-trigger" />
+            </div>
           </div>
         </div>
 
