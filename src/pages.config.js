@@ -81,6 +81,7 @@ import UserManagement from './pages/UserManagement';
 import ViadutoMap from './pages/ViadutoMap';
 import ApprovalsMobile from './pages/ApprovalsMobile';
 import GaleriaFotos from './pages/GaleriaFotos';
+import ConsolidacaoFinanceira from './pages/ConsolidacaoFinanceira';
 import __Layout from './Layout.jsx';
 
 
@@ -119,6 +120,7 @@ export const PAGES = {
     "ViadutoMap": ViadutoMap,
     "ApprovalsMobile": ApprovalsMobile,
     "GaleriaFotos": GaleriaFotos,
+    "ConsolidacaoFinanceira": ConsolidacaoFinanceira,
 }
 
 export const pagesConfig = {
