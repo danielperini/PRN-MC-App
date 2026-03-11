@@ -11,9 +11,8 @@ Deno.serve(async (req) => {
 
     const {
       purchaseId,
-      action, // 'approve_coord' | 'approve_admin' | 'reject'
-      comentario = '',
-      valor_aprovado
+      action, // 'approve_coord' | 'reject'
+      comentario = ''
     } = await req.json();
 
     if (!purchaseId || !action) {
