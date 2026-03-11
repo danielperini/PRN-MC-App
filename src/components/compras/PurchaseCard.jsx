@@ -41,7 +41,7 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
       if (action === 'approve_admin') {
         const saldoDisponivel = budgetLine ? (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0) : Infinity;
         if (saldoDisponivel < valor_aprovado) {
-          toast.error(`Saldo insuficiente! Disponível: R$ ${saldoDisponivel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+          toast.error(`❌ Saldo insuficiente! Disponível: R$ ${saldoDisponivel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, { duration: 5000 });
           setActionLoading(false);
           return;
         }
@@ -55,16 +55,20 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
       });
 
       const msgs = {
-        approve_coord: 'Aprovado! Aguarda aprovação administrativa.',
-        approve_admin: 'Aprovação administrativa concluída!',
-        recusar: 'Solicitação recusada.',
+        approve_coord: { title: '✅ Aprovado pela coordenação!', desc: 'Aguarda aprovação administrativa antes do pagamento.' },
+        approve_admin: { title: '✅ Aprovação completa!', desc: 'Compra pronta para pagamento.' },
+        recusar: { title: '❌ Solicitação recusada', desc: comentario },
       };
-      toast.success(msgs[action] || 'Ação realizada!');
+      const msg = msgs[action] || { title: '✅ Ação realizada!', desc: '' };
+      toast.success(msg.title, { 
+        description: msg.desc,
+        duration: 5000 
+      });
       setShowApproval(false);
       setComentario('');
       onRefresh();
     } catch (e) {
-      toast.error('Erro: ' + e.message);
+      toast.error(`❌ Erro: ${e.message}`, { duration: 5000 });
     }
     setActionLoading(false);
   };
