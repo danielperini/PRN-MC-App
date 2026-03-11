@@ -358,17 +358,6 @@ function UserManagementInner() {
     onError: () => toast.error('Erro ao remover usuário'),
   });
 
-  const handleSubmit = () => {
-    if (!formData.email && !editingUser) {
-      toast.error('Informe o email'); return;
-    }
-    if (editingUser) {
-      updateMutation.mutate({ id: editingUser.id, data: { role: formData.role, equipe: formData.equipe, email: editingUser.email } });
-    } else {
-      inviteMutation.mutate(formData);
-    }
-  };
-
   const createDirectMutation = useMutation({
     mutationFn: async (data) => {
       const response = await base44.functions.invoke('createUserWithPassword', data);
