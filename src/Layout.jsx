@@ -40,39 +40,43 @@ export default function Layout({ children, currentPageName }) {
 
   return (
     <HelpContextProvider>
-      <div className="min-h-screen bg-white">
-      {/* Desktop Sidebar */}
-      <div className="hidden md:block">
-        <Sidebar 
-          currentPageName={currentPageName} 
-          collapsed={sidebarCollapsed}
-          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-          currentUser={currentUser}
-        />
-      </div>
+      <div className="min-h-screen bg-white font-sans">
+        {/* Desktop Sidebar */}
+        <div className="hidden md:block border-r border-black/10">
+          <Sidebar 
+            currentPageName={currentPageName} 
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+            currentUser={currentUser}
+          />
+        </div>
 
-      {/* Main Content */}
-      <div className={`hidden md:flex md:flex-col ${sidebarCollapsed ? 'ml-20' : 'ml-64'} min-h-screen transition-all duration-300`}>
-        {/* Top Nav */}
-        <TopNav currentUser={currentUser} />
+        {/* Main Content */}
+        <div className={`hidden md:flex md:flex-col ${sidebarCollapsed ? 'ml-20' : 'ml-64'} min-h-screen transition-all duration-300`}>
+          {/* Top Nav */}
+          <div className="border-b border-black/10">
+            <TopNav currentUser={currentUser} />
+          </div>
 
-        {/* Content */}
-          <main className="flex-1 overflow-auto bg-white px-4 md:px-6">
+          {/* Content */}
+          <main className="flex-1 overflow-auto bg-white px-4 md:px-6 py-6">
             {children}
           </main>
-      </div>
+        </div>
 
-      {/* Mobile Layout */}
-      <div className="md:hidden flex flex-col min-h-screen">
-        <MobileHeader title={PAGE_TITLES[currentPageName] || 'Museus Centro'} />
-        <main className="flex-1 overflow-auto bg-white pt-14 pb-16 animate-slide-in">
-          {children}
-        </main>
-        <MobileBottomTab currentPageName={currentPageName} />
-      </div>
+        {/* Mobile Layout */}
+        <div className="md:hidden flex flex-col min-h-screen bg-white font-sans">
+          <div className="border-b border-black/10">
+            <MobileHeader title={PAGE_TITLES[currentPageName] || 'Museus Centro'} />
+          </div>
+          <main className="flex-1 overflow-auto bg-white pt-14 pb-16 px-4 animate-slide-in">
+            {children}
+          </main>
+          <MobileBottomTab currentPageName={currentPageName} />
+        </div>
 
-      {/* Assistant Chat */}
-      <AssistantChat />
+        {/* Assistant Chat */}
+        <AssistantChat />
       </div>
     </HelpContextProvider>
   );
