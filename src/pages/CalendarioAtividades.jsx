@@ -4,9 +4,8 @@ import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Calendar, Filter, ChevronDown } from 'lucide-react';
-import { format, parseISO, isValid, isBefore, isAfter, startOfDay } from 'date-fns';
+import { format, parseISO, isValid, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const MUSEUS = ['Todos', 'MHAB', 'MIS', 'MUMO', 'Externo'];
@@ -42,8 +41,8 @@ function CalendarioAtividadesInner() {
     for (const report of reports) {
       const atividades = Array.isArray(report.atividades) ? report.atividades : [];
       for (const ativ of atividades) {
-        if (!ativ.data_inicio) continue;
-        const date = parseISO(ativ.data_inicio);
+        if (!ativ.data_realizacao) continue;
+        const date = parseISO(ativ.data_realizacao);
         if (!isValid(date)) continue;
         result.push({
           ...ativ,
@@ -90,13 +89,13 @@ function CalendarioAtividadesInner() {
 
   return (
     <div className="w-full py-6 md:py-10">
-      <div className="max-w-6xl mx-auto px-4 md:px-6">
+      <div className="max-w-5xl mx-auto px-4 md:px-6">
 
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
             <Calendar className="w-6 h-6 text-black" />
-            <h1 className="text-2xl font-bold text-black">Calendário de Atividades</h1>
+            <h1 className="text-3xl font-bold text-black">Agenda</h1>
           </div>
           {/* Filtros */}
           <div className="flex items-center gap-2 flex-wrap">
@@ -114,128 +113,121 @@ function CalendarioAtividadesInner() {
               </SelectContent>
             </Select>
             <Badge variant="outline" className="text-xs">
-              {atividadesFiltradas.length} atividade(s)
+              {atividadesFiltradas.length} ações
             </Badge>
           </div>
         </div>
 
-        {/* Navegação do mês */}
-        <div className="flex items-center justify-between mb-4">
-          <Button variant="ghost" size="icon" onClick={prevMonth}><ChevronLeft className="w-5 h-5" /></Button>
-          <h2 className="text-lg font-semibold capitalize">
-            {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
-          </h2>
-          <Button variant="ghost" size="icon" onClick={nextMonth}><ChevronRight className="w-5 h-5" /></Button>
-        </div>
-
         {/* Legenda */}
-        <div className="flex flex-wrap gap-3 mb-4 text-xs">
+        <div className="flex flex-wrap gap-3 mb-6 text-xs">
           {Object.entries(CLASSIF_COLORS).map(([k, v]) => (
             <span key={k} className={`px-2 py-0.5 rounded-full font-medium ${v}`}>{k}</span>
           ))}
-          <span className="text-gray-400 ml-2">· Clique num dia para ver detalhes</span>
         </div>
 
-        {/* Grid calendário */}
+        {/* Lista de ações */}
         {isLoading ? (
-          <div className="text-center py-20 text-gray-400">Carregando atividades...</div>
-        ) : (
-          <div className="border border-gray-200 rounded-xl overflow-hidden">
-            {/* Cabeçalho dias da semana */}
-            <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
-              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
-                <div key={d} className="py-2 text-center text-xs font-semibold text-gray-500">{d}</div>
-              ))}
-            </div>
-            {/* Células */}
-            <div className="grid grid-cols-7">
-              {blanks.map((_, i) => (
-                <div key={`blank-${i}`} className="min-h-[80px] border-b border-r border-gray-100 bg-gray-50/50" />
-              ))}
-              {diasDoMes.map(dia => {
-                const key = format(dia, 'yyyy-MM-dd');
-                const ativs = atividadesPorDia[key] || [];
-                const isSelected = selectedDay && isSameDay(dia, selectedDay);
-                const isToday = isSameDay(dia, new Date());
-
-                return (
-                  <div
-                    key={key}
-                    onClick={() => setSelectedDay(isSelected ? null : dia)}
-                    className={`min-h-[80px] border-b border-r border-gray-100 p-1.5 cursor-pointer transition-colors ${
-                      isSelected ? 'bg-black/5 ring-2 ring-inset ring-black' :
-                      isToday ? 'bg-blue-50' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className={`text-xs font-semibold mb-1 w-6 h-6 flex items-center justify-center rounded-full ${
-                      isToday ? 'bg-black text-white' : 'text-gray-700'
-                    }`}>
-                      {format(dia, 'd')}
-                    </div>
-                    <div className="space-y-0.5">
-                      {ativs.slice(0, 3).map((a, i) => (
-                        <div
-                          key={i}
-                          className={`text-[10px] leading-tight px-1 py-0.5 rounded truncate ${
-                            CLASSIF_COLORS[a.classificacao] || 'bg-gray-200 text-gray-700'
-                          }`}
-                          title={a.nome || 'Atividade'}
-                        >
-                          {a.nome || 'Atividade'}
-                        </div>
-                      ))}
-                      {ativs.length > 3 && (
-                        <div className="text-[10px] text-gray-400 pl-1">+{ativs.length - 3} mais</div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="text-center py-20 text-gray-400">Carregando ações...</div>
+        ) : atividadesFiltradas.length === 0 ? (
+          <div className="text-center py-16 border border-dashed border-gray-200 rounded-xl">
+            <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500">Nenhuma ação cadastrada com os filtros aplicados</p>
           </div>
-        )}
+        ) : (
+          <div className="space-y-6">
 
-        {/* Painel de detalhes do dia selecionado */}
-        {selectedDay && (
-          <div className="mt-6 border border-gray-200 rounded-xl p-5">
-            <h3 className="font-semibold text-black mb-4">
-              {format(selectedDay, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}
-              <span className="ml-2 text-sm font-normal text-gray-500">
-                ({atividadesDoDiaSelected.length} atividade(s))
-              </span>
-            </h3>
-            {atividadesDoDiaSelected.length === 0 ? (
-              <p className="text-sm text-gray-400">Nenhuma atividade neste dia com os filtros aplicados.</p>
-            ) : (
-              <div className="space-y-3">
-                {atividadesDoDiaSelected.map((a, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 border border-gray-100 rounded-lg">
-                    <div className={`w-2 h-full min-h-[40px] rounded-full flex-shrink-0 ${MUSEU_COLORS[a._reportMuseu] || 'bg-gray-300'}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="font-medium text-sm text-black">{a.nome || 'Atividade sem nome'}</span>
-                        {a.classificacao && (
-                          <Badge className={`text-[10px] px-1.5 py-0 ${CLASSIF_COLORS[a.classificacao] || ''}`}>
-                            {a.classificacao}
-                          </Badge>
-                        )}
-                        {a._reportMuseu && (
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{a._reportMuseu}</Badge>
-                        )}
-                        {a.equipe_responsavel && (
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{a.equipe_responsavel}</Badge>
-                        )}
+            {/* Ações Próximas */}
+            {atividadesAgrupadasPeriodo.proximas.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setExpandedGroup(expandedGroup === 'proximas' ? null : 'proximas')}
+                  className="w-full flex items-center gap-3 mb-4 group"
+                >
+                  <ChevronDown className={`w-5 h-5 text-black transition-transform ${expandedGroup === 'proximas' ? 'rotate-180' : ''}`} />
+                  <h2 className="text-lg font-semibold text-black">Próximas Ações</h2>
+                  <Badge variant="outline" className="ml-auto">{atividadesAgrupadasPeriodo.proximas.length}</Badge>
+                </button>
+
+                {(expandedGroup === 'proximas' || expandedGroup === null) && (
+                  <div className="space-y-3 pl-8">
+                    {atividadesAgrupadasPeriodo.proximas.map((a, i) => (
+                      <div key={i} className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className={`w-3 h-3 rounded-full flex-shrink-0 mt-1.5 ${MUSEU_COLORS[a._reportMuseu] || 'bg-gray-300'}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-2">
+                            <span className="font-semibold text-black text-sm">{a.titulo || a.nome || 'Ação sem nome'}</span>
+                            {a.classificacao && (
+                              <Badge className={`text-[10px] px-1.5 py-0 ${CLASSIF_COLORS[a.classificacao] || ''}`}>
+                                {a.classificacao}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-gray-600 mb-2">
+                            <span className="font-medium">{format(a._date, "d 'de' MMMM", { locale: ptBR })}</span>
+                            {a._reportMuseu && <span>·</span>}
+                            {a._reportMuseu && <span>{a._reportMuseu}</span>}
+                            {a.equipe_responsavel && <span>·</span>}
+                            {a.equipe_responsavel && <span>{a.equipe_responsavel}</span>}
+                          </div>
+                          {a.descricao && <p className="text-xs text-gray-600 line-clamp-2 mb-2">{a.descricao}</p>}
+                          <p className="text-xs text-gray-400">
+                            {a._reportAuthor}
+                            {a.publico_estimado ? ` · ${a.publico_estimado} pessoas` : ''}
+                          </p>
+                        </div>
                       </div>
-                      {a.objetivo && <p className="text-xs text-gray-600 line-clamp-2">{a.objetivo}</p>}
-                      <p className="text-xs text-gray-400 mt-1">
-                        {a._reportAuthor} · {a._reportMes}
-                        {a.publico_estimado ? ` · ${a.publico_estimado} pessoas` : ''}
-                      </p>
-                    </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             )}
+
+            {/* Ações Passadas */}
+            {atividadesAgrupadasPeriodo.passadas.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setExpandedGroup(expandedGroup === 'passadas' ? null : 'passadas')}
+                  className="w-full flex items-center gap-3 mb-4 group"
+                >
+                  <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${expandedGroup === 'passadas' ? 'rotate-180' : ''}`} />
+                  <h2 className="text-lg font-semibold text-gray-600">Ações Passadas</h2>
+                  <Badge variant="outline" className="ml-auto">{atividadesAgrupadasPeriodo.passadas.length}</Badge>
+                </button>
+
+                {expandedGroup === 'passadas' && (
+                  <div className="space-y-3 pl-8">
+                    {atividadesAgrupadasPeriodo.passadas.map((a, i) => (
+                      <div key={i} className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors opacity-70">
+                        <div className={`w-3 h-3 rounded-full flex-shrink-0 mt-1.5 ${MUSEU_COLORS[a._reportMuseu] || 'bg-gray-300'}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-2">
+                            <span className="font-semibold text-gray-700 text-sm">{a.titulo || a.nome || 'Ação sem nome'}</span>
+                            {a.classificacao && (
+                              <Badge className={`text-[10px] px-1.5 py-0 ${CLASSIF_COLORS[a.classificacao] || ''}`}>
+                                {a.classificacao}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                            <span className="font-medium">{format(a._date, "d 'de' MMMM", { locale: ptBR })}</span>
+                            {a._reportMuseu && <span>·</span>}
+                            {a._reportMuseu && <span>{a._reportMuseu}</span>}
+                            {a.equipe_responsavel && <span>·</span>}
+                            {a.equipe_responsavel && <span>{a.equipe_responsavel}</span>}
+                          </div>
+                          {a.descricao && <p className="text-xs text-gray-500 line-clamp-2 mb-2">{a.descricao}</p>}
+                          <p className="text-xs text-gray-400">
+                            {a._reportAuthor}
+                            {a.publico_estimado ? ` · ${a.publico_estimado} pessoas` : ''}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
         )}
       </div>
