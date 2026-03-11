@@ -128,16 +128,14 @@ Retorne um JSON com:
 
       await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, { status: 'SOLICITADO' });
 
-      // Notificar coordenadores
-      const coords = await base44.asServiceRole.entities.User.filter({ role: 'admin' });
-      await Promise.all(coords.map(coord =>
-        base44.asServiceRole.integrations.Core.SendEmail({
-          to: coord.email,
-          subject: `📥 Nova solicitação de compra para aprovação`,
-          body: `Olá ${coord.full_name},\n\nUma nova solicitação de compra foi enviada e aguarda sua aprovação.\n\n📋 Item: ${purchase.descricao_item}\n💰 Valor: R$ ${purchase.valor_solicitado?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n🏷️ Categoria: ${purchase.categoria}\n🎯 Meta: ${purchase.meta_id}\n👤 Solicitante: ${user.full_name}\n\nAcesse a plataforma para revisar.\n\nAtenciosamente,\nPlataforma — Museus Centro`,
-          from_name: 'Museus Centro'
-        })
-      ));
+      // Notificar coordenadores via função dedicada
+      try {
+        await base44.asServiceRole.functions.invoke('notifyCoordinatorPurchaseSubmitted', {
+          purchaseId: purchaseId
+        });
+      } catch (e) {
+        console.error('Erro ao notificar coordenador:', e.message);
+      }
 
       return Response.json({ success: true, action: 'SOLICITADO' });
     }
