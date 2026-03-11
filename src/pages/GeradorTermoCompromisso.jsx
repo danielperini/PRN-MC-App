@@ -11,6 +11,7 @@ import { FileText, Plus, Eye, Download, Check } from 'lucide-react';
 import RequireAuth from '@/components/auth/RequireAuth';
 import TermoPDFUploader from '@/components/termos/TermoPDFUploader';
 import TermoMetaLinkage from '@/components/termos/TermoMetaLinkage';
+import TermoAttachments from '@/components/termos/TermoAttachments';
 
 const TIPOS_TERMO = {
   monitoria_mediacao: 'Monitoria/Mediação',
@@ -78,7 +79,8 @@ function GeradorTermoContent() {
     publico_estimado: 0,
     acessibilidade: 'Não',
     eh_mobilizacao: false,
-    envolve_cadeia_cultura: false
+    envolve_cadeia_cultura: false,
+    attachments: {}
   });
 
   const [preview, setPreview] = useState(false);
@@ -414,6 +416,12 @@ function GeradorTermoContent() {
             <TermoMetaLinkage 
               formData={formData}
               onChange={handleInputChange}
+            />
+
+            {/* Anexos */}
+            <TermoAttachments 
+              attachments={formData.attachments}
+              onUpdate={(attachments) => handleInputChange('attachments', attachments)}
             />
 
             {/* Observações */}
