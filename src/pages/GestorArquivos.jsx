@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
-import { Cloud, Calendar, AlertTriangle, HardDrive, ChevronDown, Loader2, FileText, Info } from 'lucide-react';
+import { Cloud, Calendar, AlertTriangle, HardDrive, ChevronDown, Loader2, FileText, Info, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,7 @@ import BackupMonthlyDialog from '../components/backup/BackupMonthlyDialog';
 import BackupHistoryTable from '../components/backup/BackupHistoryTable';
 import FileHierarchy from '../components/gallery/FileHierarchy';
 import FilePreviewModal from '../components/gallery/FilePreviewModal';
+import GoogleDriveImporter from '../components/drive/GoogleDriveImporter';
 import { toast } from 'sonner';
 
 function GestorArquivosInner() {
@@ -34,6 +35,7 @@ function GestorArquivosInner() {
     const [uploadFiles, setUploadFiles] = useState([]);
     const [uploadNotes, setUploadNotes] = useState('');
     const [uploading, setUploading] = useState(false);
+    const [showDriveImporter, setShowDriveImporter] = useState(false);
     const isCoordinator = currentUser?.role === 'admin';
 
   const { data: backups = [], isLoading } = useQuery({
@@ -219,6 +221,11 @@ function GestorArquivosInner() {
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleImportComplete = () => {
+    // Recarregar lista de arquivos
+    queryClient.invalidateQueries({ queryKey: ['google-drive-backups'] });
   };
 
   if (!currentUser) {
