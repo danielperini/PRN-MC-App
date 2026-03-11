@@ -120,6 +120,12 @@ function GestorArquivosInner() {
     enabled: isCoordinator && !!currentUser?.email
   });
 
+  const { data: teamMembers = [] } = useQuery({
+    queryKey: ['team-members'],
+    queryFn: () => base44.entities.TeamMember.list(),
+    enabled: !!currentUser?.email
+  });
+
   React.useEffect(() => {
     if (duplicates.length > 0 && isCoordinator) {
       setDuplicateWarnings(duplicates);
