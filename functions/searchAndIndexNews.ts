@@ -167,28 +167,44 @@ Deno.serve(async (req) => {
       'novidades viaduto das artes belo horizonte',
       'eventos projeto museus centro belo horizonte',
       'programação projeto museus centro 2026',
-      'Quebradas de BH MIS Belo Horizonte',
-      'Projeção Quebradas de BH quintal MIS',
+      'Cultura Belo Horizonte',
+      'História de Belo Horizonte',
+      'Cinema mineiro Belo Horizonte',
+      'Moda em Belo Horizonte',
     ];
 
     const shortTailTerms = [
       'Museu da Moda BH',
       'MUMO Belo Horizonte',
+      'MUMO Museu da Moda',
       'Museu da Imagem e do Som BH',
       'MIS BH',
+      'MIS cinema audiovisual',
       'Museu Histórico Abílio Barreto',
       'MHAB Belo Horizonte',
+      'MHAB história BH',
       'Museus Centro Belo Horizonte',
       'circuito museus centro BH',
+      'Viaduto das Artes cultural',
+      'Patrimônio cultural Belo Horizonte',
+      'História BH colonial e contemporânea',
+      'Cinema de Minas Gerais',
+      'Moda mineira história',
     ];
 
     const mediumTailTerms = [
       'programação cultural museus centro belo horizonte',
       'eventos museus centro de belo horizonte',
       'atividades museu da moda belo horizonte',
-      'exposição mis belo horizonte',
-      'museu histórico abílio barreto programação',
+      'exposição mis belo horizonte cinema',
+      'museu histórico abílio barreto programação história',
       'circuito cultural museus centro bh',
+      'história de belo horizonte século xx',
+      'moda mineira acervo têxtil',
+      'cinema mineiro documentário',
+      'cultura bh viaduto das artes programação',
+      'acervo audiovisual mis belo horizonte',
+      'patrimônio histórico abílio barreto',
     ];
 
     const longTailTerms = [
@@ -197,6 +213,16 @@ Deno.serve(async (req) => {
       'eventos e exposições no museu da imagem e do som de belo horizonte',
       'ações educativas do museu histórico abílio barreto em belo horizonte',
       'novidades do projeto museus centro e viaduto das artes em bh',
+      'história cultural de belo horizonte e região metropolitana',
+      'cinema mineiro produção audiovisual minas gerais',
+      'moda contemporânea mineira designers belo horizonte',
+      'patrimônio imaterial belo horizonte tradições culturais',
+      'exposições temporárias museus belo horizonte',
+      'acervo histórico belo horizonte planejamento urbano',
+      'documentários sobre história de minas gerais',
+      'programação educativa museus belo horizonte',
+      'produção têxtil moda mineira história',
+      'cinema experimental mineiro videoarte belo horizonte',
     ];
 
     const allSearchTerms = [
@@ -261,19 +287,29 @@ Deno.serve(async (req) => {
 
       const groupedTermsText = group.map((term) => '- ' + term).join('\n');
 
-      const searchResult = await base44.integrations.Core.InvokeLLM({
+       const searchResult = await base44.integrations.Core.InvokeLLM({
         prompt: `Pesquise notícias recentes e relevantes em Belo Horizonte relacionadas aos seguintes termos:
-${groupedTermsText}
+      ${groupedTermsText}
 
-Regras:
-1. Priorize SEMPRE notícias sobre "Viaduto das Artes" e "Projeto Museus Centro Belo Horizonte".
-2. Em segundo lugar, considere MUMO, MIS BH e Museu Histórico Abílio Barreto.
-3. DESCARTE notícias genéricas de museus no Brasil que não mencionem especificamente esses locais.
-4. Priorize fontes: portalbelohorizonte.com.br/museuscentro, culturadoria.com.br, agendabh.com.br e imprensa local de BH.
-5. Retorne no máximo 8 notícias para este grupo.
-6. Não invente links. Se não encontrar link real, omita a notícia.
-7. Sempre inclua data_publicacao quando conseguir identificar.
-8. Descarte notícias com mais de 60 dias se houver opções mais recentes disponíveis.
+      FOCO ESPECÍFICO:
+      - CULTURA em Belo Horizonte (exposições, eventos, programação)
+      - HISTÓRIA de Belo Horizonte (patrimônio, arquitetura, personagens históricos)
+      - CINEMA MINEIRO (produção audiovisual, cineastas, documentários)
+      - MODA em Belo Horizonte e Minas Gerais (designers, acervo têxtil, moda contemporânea)
+      - Viaduto das Artes, MUMO, MIS BH, MHAB
+
+      Priorização:
+      1. MÁXIMA: Viaduto das Artes + Projeto Museus Centro
+      2. ALTA: MUMO (Moda), MIS (Cinema/Audiovisual), MHAB (História)
+      3. ALTA: Histórias culturais de BH, cinema mineiro, moda mineira
+      4. DESCARTE: Notícias genéricas que não mencionem especificamente esses temas
+
+      Regras:
+      - Priorize fontes: portalbelohorizonte.com.br/museuscentro, culturadoria.com.br, agendabh.com.br, imprensa local BH
+      - Retorne máximo 8 notícias
+      - Não invente links (omita se não encontrar URL real)
+      - Sempre inclua data_publicacao
+      - Descarte notícias com +60 dias se houver opções recentes
 
 Retorne apenas JSON no formato solicitado.`,
         add_context_from_internet: true,
