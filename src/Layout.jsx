@@ -4,6 +4,28 @@ import Sidebar from '@/components/layout/Sidebar';
 import TopNav from '@/components/layout/TopNav';
 import AssistantChat from '@/components/chat/AssistantChat';
 import MobileBottomTab from '@/components/mobile/MobileBottomTab';
+import MobileHeader from '@/components/mobile/MobileHeader';
+
+const PAGE_TITLES = {
+  Dashboard: 'Painel',
+  DashboardProfissional: 'Meu Painel',
+  Relatorios: 'Relatórios',
+  ReportEditor: 'Relatório',
+  NovaAtividade: 'Atividades',
+  CalendarioAtividades: 'Calendário',
+  Compras: 'Suprimentos',
+  GestaoPagamentos: 'Pagamentos',
+  RelatorioMeta: 'Rel. por Meta',
+  CoordReview: 'Revisão',
+  UserManagement: 'Usuários',
+  GestorArquivos: 'Arquivos',
+  ActivityLog: 'Auditoria',
+  PlataformaAdmin: 'Plataforma',
+  AssistentePlanejamento: 'Assistente IA',
+  Perfil: 'Perfil',
+  BaseConhecimento: 'Conhecimento',
+  LeitorNoticias: 'Notícias',
+};
 
 export default function Layout({ children, currentPageName }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
