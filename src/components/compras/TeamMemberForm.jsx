@@ -12,6 +12,13 @@ import { useQuery } from '@tanstack/react-query';
 export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMember, budgetLines = [] }) {
   const [loading, setLoading] = useState(false);
   const [contrato, setContrato] = useState(null);
+
+  const { data: users = [] } = useQuery({
+    queryKey: ['users-list'],
+    queryFn: () => base44.entities.User.list(),
+    enabled: isOpen && !editingMember,
+  });
+
   const [form, setForm] = useState(editingMember || {
     user_email: '',
     user_name: '',
