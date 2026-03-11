@@ -37,7 +37,7 @@ const EMPTY = {
   meta_id: '', meta_extra_descricao: '', budgetline_id: '', categoria: '',
   tipo_gasto: '', centro_custo: '', descricao_item: '', qtd: 1, unidade: 'un',
   valor_solicitado: '', fornecedor_nome: '', fornecedor_cnpj: '', fornecedor_contato: '',
-  meio_pagamento: '', detalhe_pagamento: '', observacoes: '', arquivos_anexos: '',
+  meio_pagamento: '', detalhe_pagamento: '', observacoes: '', orcamentos: [],
   activity_id: '', report_id: '',
 };
 
@@ -53,6 +53,7 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
   const [mes, setMes] = useState(prefill?.mes_referencia || MESES[new Date().getMonth()]);
   const [ano, setAno] = useState(prefill?.ano || new Date().getFullYear());
   const [showOrcamentoDialog, setShowOrcamentoDialog] = useState(false);
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   // Campos travados quando vem de atividade
   const isFromActivity = !!(prefill?.activity_id);
@@ -435,31 +436,83 @@ export default function PurchaseFormDialog({ budgetLines, currentUser, onClose, 
             </div>
           </div>
 
-          {/* Anexos */}
+          {/* Orçamentos */}
           <div className="space-y-3 p-4 border border-gray-100 rounded-xl">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Anexos</Label>
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Orçamentos</Label>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  setForm(f => ({ ...f, orcamentos: [...f.orcamentos, { id: Date.now(), nome: '', arquivo: null }] }));
+                }}
+                className="gap-1 text-xs"
+              >
+                <Upload className="w-3 h-3" />
+                Novo Orçamento
+              </Button>
+            </div>
+
+            {/* Lista de orçamentos */}
+            {form.orcamentos.length > 0 && (
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {form.orcamentos.map((orc, idx) => (
+                  <div key={orc.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Nome do orçamento"
+                        value={orc.nome}
+                        onChange={(e) => {
+                          const newOrcs = [...form.orcamentos];
+                          newOrcs[idx].nome = e.target.value;
+                          set('orcamentos', newOrcs);
+                        }}
+                        className="text-xs h-7 mb-1"
+                      />
+                      {orc.arquivo && (
+                        <p className="text-[9px] text-green-700">✓ {orc.arquivo.name}</p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        const newOrcs = form.orcamentos.filter((_, i) => i !== idx);
+                        set('orcamentos', newOrcs);
+                      }}
+                      className="h-7 w-7"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Upload area */}
             <div className="grid grid-cols-1 gap-3 p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center">
               <Upload className="w-6 h-6 mx-auto text-gray-400" />
               <div>
-                <Label className="text-xs font-medium text-gray-700 block">Upload de Orçamentos / Notas Fiscais</Label>
-                <p className="text-[11px] text-gray-500 mt-1">Arraste PDFs ou clique para selecionar arquivos</p>
+                <Label className="text-xs font-medium text-gray-700 block">Selecione arquivo para upload</Label>
+                <p className="text-[11px] text-gray-500 mt-1">PDF, imagem ou documentos</p>
                 <Input 
+                  key={fileInputKey}
                   type="file" 
-                  accept=".pdf" 
-                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                   className="mt-2 text-xs"
                   onChange={(e) => {
-                    const files = e.target.files;
-                    if (files?.length) {
-                      const fileNames = Array.from(files).map(f => f.name).join(', ');
-                      set('arquivos_anexos', fileNames);
-                      toast.success(`${files.length} arquivo(s) selecionado(s)`);
+                    const file = e.target.files?.[0];
+                    if (file && form.orcamentos.length > 0) {
+                      const newOrcs = [...form.orcamentos];
+                      newOrcs[form.orcamentos.length - 1].arquivo = file;
+                      set('orcamentos', newOrcs);
+                      toast.success(`${file.name} adicionado`);
+                      setFileInputKey(prev => prev + 1);
+                    } else if (!form.orcamentos.length) {
+                      toast.error('Adicione um novo orçamento antes de fazer upload');
                     }
                   }}
                 />
-                {form.arquivos_anexos && (
-                  <p className="text-[10px] text-green-700 mt-2">✓ {form.arquivos_anexos}</p>
-                )}
               </div>
             </div>
           </div>
