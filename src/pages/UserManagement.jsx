@@ -431,7 +431,7 @@ function UserManagementInner() {
     onError: (err) => toast.error(err.message || 'Erro ao cadastrar usuário'),
   });
 
-  const isPending = inviteMutation.isPending || updateMutation.isPending || createDirectMutation.isPending;
+  const isPending = updateMutation.isPending || createDirectMutation.isPending;
 
   return (
     <div className="min-h-screen bg-white">
