@@ -46,9 +46,9 @@ ${msg.desc}
 - Item: ${p.descricao_item}
 - Valor: R$ ${(p.valor_solicitado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
 - Categoria: ${p.categoria}
-- Status: ${newStatus === 'APROVADO_COORD' ? 'Aprovada pela Coordenação' : newStatus === 'APROVADO_ADMIN' ? 'Aprovada Completamente' : 'Recusada'}
+- Status: ${newStatus === 'APROVADO' ? 'Aprovada' : 'Recusada'}
 
-${newStatus === 'APROVADO_ADMIN' ? '\n⏭️ Próxima etapa: Aguarde o pagamento conforme cronograma.' : ''}
+${newStatus === 'APROVADO' ? '\n⏭️ Próxima etapa: Aguarde o pagamento conforme cronograma.' : ''}
 
 ${newStatus === 'RECUSADO' && comentario ? `\n📝 Comentário:\n${comentario}` : ''}
 
