@@ -142,6 +142,25 @@
   }
 }
 
+/* Padronizar janelas/modais/dialogs */
+[role="dialog"],
+.dialog,
+.modal,
+.drawer,
+.popover {
+  @apply bg-white border border-black/10;
+}
+
+/* Shadcn Dialog */
+div[role="dialog"] {
+  @apply bg-white;
+}
+
+/* Sheets e Drawers */
+div[role="presentation"] > div {
+  @apply bg-white;
+}
+
 /* Rich Text Editor Styles */
 .rich-text-editor {
   display: flex;
