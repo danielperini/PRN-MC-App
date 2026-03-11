@@ -1,206 +1,108 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
+import GoogleMapViewer from '@/components/maps/GoogleMapViewer';
 import { Button } from '@/components/ui/button';
-import { Zap, MapPin, List } from 'lucide-react';
-import RadialMap from '@/components/maps/RadialMap';
-import NetworkMap from '@/components/maps/NetworkMap';
-import HeatMap from '@/components/maps/HeatMap';
-import GeoMap from '@/components/maps/GeoMap';
-import OpportunityPanel from '@/components/maps/OpportunityPanel';
-import FilterBar from '@/components/maps/FilterBar';
-import CurationPanel from '@/components/maps/CurationPanel';
-import MobilizationSummaryCard from '@/components/maps/MobilizationSummaryCard';
-import RequireAuth from '@/components/auth/RequireAuth';
+import { RefreshCw } from 'lucide-react';
 
-function ViadutoMapInner() {
-  const [tipoMapa, setTipoMapa] = useState('radial');
-  const [selectedOpp, setSelectedOpp] = useState(null);
-  const [filtroCategoria, setFiltroCategoria] = useState('');
-  const [filtroPublico, setFiltroPublico] = useState('');
-  const [filtroPrioridade, setFiltroPrioridade] = useState('');
-  const [showCuration, setShowCuration] = useState(false);
-  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
+export default function ViadutoMap() {
+  const [selectedPonto, setSelectedPonto] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const { data: opportunities = [], refetch: refetchOps } = useQuery({
-    queryKey: ['territorial-opportunities', 'Viaduto das Artes'],
-    queryFn: () =>
-      base44.entities.TerritorialOpportunity.filter({
-        museu_sigla: 'Viaduto das Artes',
-        ativo: true,
-      }),
+  const { data: pontos = [], refetch } = useQuery({
+    queryKey: ['pontos-viaduto'],
+    queryFn: () => base44.entities.PontoEntorno.filter({ museu_sigla: 'Viaduto das Artes', ativo: true }),
   });
 
-  const filtradas = opportunities.filter(opp => {
-    if (filtroCategoria && opp.categoria !== filtroCategoria) return false;
-    if (filtroPublico && !opp.publicos_alvo?.includes(filtroPublico)) return false;
-    if (filtroPrioridade && opp.prioridade !== filtroPrioridade) return false;
-    return true;
-  });
-
-  const handleRefreshAnalysis = async () => {
-    setIsLoadingAnalysis(true);
+  const handleAnalyzeOpportunities = async () => {
+    setIsAnalyzing(true);
     try {
-      const res = await base44.functions.invoke('analyzeTerritorialActivity', {
+      await base44.functions.invoke('analisarOportunidadesMuseu', {
         museu_sigla: 'Viaduto das Artes',
       });
-      if (res.data) {
-        await refetchOps();
-      }
-    } catch (err) {
-      console.error('Erro na análise:', err);
+      refetch();
+    } catch (error) {
+      console.error('Erro ao analisar:', error);
     } finally {
-      setIsLoadingAnalysis(false);
+      setIsAnalyzing(false);
     }
   };
 
-  const handleReset = () => {
-    setFiltroCategoria('');
-    setFiltroPublico('');
-    setFiltroPrioridade('');
-  };
-
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between mb-6">
+    <div className="h-full flex flex-col">
+      <div className="bg-white border-b p-4 flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Viaduto das Artes - Análise Territorial</h1>
+          <p className="text-sm text-gray-600 mt-1">Avenida Olinto Meireles, 45, Barreiro</p>
+        </div>
+        <Button
+          onClick={handleAnalyzeOpportunities}
+          disabled={isAnalyzing}
+          className="gap-2"
+        >
+          <RefreshCw className={`w-4 h-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
+          {isAnalyzing ? 'Analisando...' : 'Analisar com IA'}
+        </Button>
+      </div>
+
+      <div className="flex-1">
+        <GoogleMapViewer
+          pontos={pontos}
+          museKey="Viaduto"
+          onSelectPonto={setSelectedPonto}
+        />
+      </div>
+
+      {selectedPonto && (
+        <div className="absolute bottom-0 right-0 w-80 bg-white rounded-tl-lg shadow-lg border-l border-t p-4 max-h-96 overflow-y-auto">
+          <div className="flex justify-between items-start mb-4">
+            <h2 className="font-bold text-gray-900">{selectedPonto.nome}</h2>
+            <button onClick={() => setSelectedPonto(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+          </div>
+          
+          <div className="space-y-3 text-sm">
             <div>
-              <div className="flex items-center gap-2 text-sm text-slate-600 mb-2">
-                <MapPin className="w-4 h-4" />
-                VIADUTO
+              <p className="text-gray-600">Categoria</p>
+              <p className="font-semibold text-gray-900">{selectedPonto.categoria}</p>
+            </div>
+            
+            <div>
+              <p className="text-gray-600">Aderência Temática</p>
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                <div
+                  className="bg-blue-600 h-2 rounded-full"
+                  style={{ width: `${selectedPonto.aderencia_tematica || 0}%` }}
+                />
               </div>
-              <h1 className="text-3xl font-bold text-slate-900">
-                Viaduto das Artes
-              </h1>
-              <p className="text-slate-600 mt-1">
-                Formação artística, mobilização e participação comunitária
-              </p>
-            </div>
-          </div>
-
-          {/* Controles */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-600 uppercase">Visualização:</span>
-              {['radial', 'rede', 'calor', 'geo'].map(tipo => (
-                <Button
-                  key={tipo}
-                  size="sm"
-                  variant={tipoMapa === tipo ? 'default' : 'outline'}
-                  onClick={() => setTipoMapa(tipo)}
-                  className="capitalize"
-                >
-                  {tipo === 'radial' ? 'Radial' : tipo === 'rede' ? 'Rede' : tipo === 'calor' ? 'Calor' : 'Mapa'}
-                </Button>
-              ))}
+              <p className="text-gray-700 mt-1">{selectedPonto.aderencia_tematica || 0}%</p>
             </div>
 
-            <div className="flex-1" />
+            <div>
+              <p className="text-gray-600">Prioridade</p>
+              <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mt-1 ${
+                selectedPonto.prioridade === 'Alta' ? 'bg-red-100 text-red-800' :
+                selectedPonto.prioridade === 'Média' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
+                {selectedPonto.prioridade}
+              </span>
+            </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowCuration(!showCuration)}
-              className="gap-2"
-            >
-              <List className="w-4 h-4" />
-              {showCuration ? 'Ocultar' : 'Ver'} Curadoria
-            </Button>
-
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleRefreshAnalysis}
-              disabled={isLoadingAnalysis}
-              className="gap-2 bg-cyan-600 hover:bg-cyan-700"
-            >
-              <Zap className="w-4 h-4" />
-              {isLoadingAnalysis ? 'Analisando...' : 'Atualizar IA'}
-            </Button>
+            {selectedPonto.oportunidades_sugeridas?.length > 0 && (
+              <div>
+                <p className="text-gray-600 mb-2">Oportunidades Sugeridas</p>
+                <div className="flex flex-wrap gap-1">
+                  {selectedPonto.oportunidades_sugeridas.map((opp, i) => (
+                    <span key={i} className="bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded">
+                      {opp}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      </div>
-
-      {/* Filtros */}
-      <FilterBar
-        filtroCategoria={filtroCategoria}
-        setFiltroCategoria={setFiltroCategoria}
-        filtroPublico={filtroPublico}
-        setFiltroPublico={setFiltroPublico}
-        filtroPrioridade={filtroPrioridade}
-        setFiltroPrioridade={setFiltroPrioridade}
-        onReset={handleReset}
-      />
-
-      {/* Conteúdo */}
-      <div className="relative max-w-7xl mx-auto px-6 py-8 flex gap-8">
-        {/* Mapa */}
-        <div className="flex-1 min-h-[600px] bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          {tipoMapa === 'radial' && (
-            <RadialMap
-              opportunities={filtradas}
-              selectedOpportunity={selectedOpp}
-              onSelectOpportunity={setSelectedOpp}
-              nomeMuseu="Viaduto"
-            />
-          )}
-          {tipoMapa === 'rede' && (
-            <NetworkMap
-              opportunities={filtradas}
-              selectedOpportunity={selectedOpp}
-              onSelectOpportunity={setSelectedOpp}
-              nomeMuseu="Viaduto"
-            />
-          )}
-          {tipoMapa === 'calor' && (
-            <HeatMap
-              opportunities={filtradas}
-              selectedOpportunity={selectedOpp}
-              onSelectOpportunity={setSelectedOpp}
-              nomeMuseu="Viaduto"
-            />
-          )}
-          {tipoMapa === 'geo' && (
-            <GeoMap
-              opportunities={filtradas}
-              selectedOpportunity={selectedOpp}
-              onSelectOpportunity={setSelectedOpp}
-              nomeMuseu="Viaduto"
-            />
-          )}
-
-          {/* Painel de Oportunidade */}
-          {selectedOpp && (
-            <OpportunityPanel
-              opportunity={selectedOpp}
-              onClose={() => setSelectedOpp(null)}
-            />
-          )}
-        </div>
-
-        {/* Painel de Curadoria */}
-        {showCuration && (
-          <div className="w-96 max-h-[calc(100vh-200px)] overflow-y-auto">
-            <CurationPanel
-              opportunities={filtradas}
-              onRefreshAnalysis={handleRefreshAnalysis}
-              isLoadingAnalysis={isLoadingAnalysis}
-              nomeMuseu="Viaduto das Artes"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Resumo de Mobilização */}
-      <div className="max-w-7xl mx-auto px-6 pb-12">
-        <MobilizationSummaryCard museu_sigla="Viaduto das Artes" title="Viaduto das Artes" />
-      </div>
+      )}
     </div>
   );
-}
-
-export default function ViadutoMap() {
-  return <RequireAuth><ViadutoMapInner /></RequireAuth>;
 }
