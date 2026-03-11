@@ -4,13 +4,16 @@ import { AlertTriangle, AlertCircle, CheckCircle } from 'lucide-react';
 export default function RubricaStatusReport({ rubricas }) {
   if (!rubricas || rubricas.length === 0) return null;
 
-  const totalValor = rubricas.reduce((sum, r) => sum + (r.valor_rubrica || 0), 0);
-  const totalUtilizado = rubricas.reduce((sum, r) => sum + (r.valor_utilizado || 0), 0);
+  // Filtrar apenas rubricas ativas (sem admin)
+  const activeRubricas = rubricas.filter(r => r.ativo !== false && !r.grupo?.toLowerCase().includes('admin'));
+
+  const totalValor = activeRubricas.reduce((sum, r) => sum + (r.valor_rubrica || 0), 0);
+  const totalUtilizado = activeRubricas.reduce((sum, r) => sum + (r.valor_utilizado || 0), 0);
   const totalSaldo = totalValor - totalUtilizado;
 
-  const excedidas = rubricas.filter(r => (r.percentual_utilizado || 0) >= 100);
-  const alerta80 = rubricas.filter(r => (r.percentual_utilizado || 0) >= 80 && (r.percentual_utilizado || 0) < 100);
-  const normal = rubricas.filter(r => (r.percentual_utilizado || 0) < 80);
+  const excedidas = activeRubricas.filter(r => (r.percentual_utilizado || 0) >= 100);
+  const alerta80 = activeRubricas.filter(r => (r.percentual_utilizado || 0) >= 80 && (r.percentual_utilizado || 0) < 100);
+  const normal = activeRubricas.filter(r => (r.percentual_utilizado || 0) < 80);
 
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 space-y-4">

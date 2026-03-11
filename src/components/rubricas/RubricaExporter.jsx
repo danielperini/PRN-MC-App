@@ -11,8 +11,11 @@ export default function RubricaExporter({ rubricas }) {
         return;
       }
 
+      // Filtrar apenas ativas (sem admin)
+      const activeRubricas = rubricas.filter(r => r.ativo !== false && !r.grupo?.toLowerCase().includes('admin'));
+
       const headers = ['Grupo', 'Rubrica', 'Parcelas', 'Valor Total', 'Utilizado', 'Saldo', '% Utilizado', 'Observação'];
-      const rows = rubricas.map(r => [
+      const rows = activeRubricas.map(r => [
         r.grupo,
         r.rubrica,
         r.numero_parcelas_unidades || '',
@@ -27,10 +30,10 @@ export default function RubricaExporter({ rubricas }) {
         'TOTAL',
         '',
         '',
-        rubricas.reduce((sum, r) => sum + r.valor_rubrica, 0),
-        rubricas.reduce((sum, r) => sum + (r.valor_utilizado || 0), 0),
-        rubricas.reduce((sum, r) => sum + (r.saldo || 0), 0),
-        ((rubricas.reduce((sum, r) => sum + (r.valor_utilizado || 0), 0) / rubricas.reduce((sum, r) => sum + r.valor_rubrica, 0)) * 100).toFixed(2),
+        activeRubricas.reduce((sum, r) => sum + r.valor_rubrica, 0),
+        activeRubricas.reduce((sum, r) => sum + (r.valor_utilizado || 0), 0),
+        activeRubricas.reduce((sum, r) => sum + (r.saldo || 0), 0),
+        ((activeRubricas.reduce((sum, r) => sum + (r.valor_utilizado || 0), 0) / activeRubricas.reduce((sum, r) => sum + r.valor_rubrica, 0)) * 100).toFixed(2),
         '',
       ];
 
