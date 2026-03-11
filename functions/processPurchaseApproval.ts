@@ -126,6 +126,17 @@ Deno.serve(async (req) => {
 
       await base44.entities.PurchaseRequest.update(purchaseId, rejectUpdate);
 
+      // Notificar solicitante via função dedicada
+      try {
+        await base44.asServiceRole.functions.invoke('notifyPurchaseStatusChange', {
+          purchaseId: purchaseId,
+          newStatus: novoStatus,
+          comentario: comentario
+        });
+      } catch (e) {
+        console.error('Erro ao notificar mudança de status:', e.message);
+      }
+
       // Notificar solicitante que foi recusado
       const notificacao = {
         user_email: p.created_by || emailAtor,
@@ -137,26 +148,6 @@ Deno.serve(async (req) => {
       };
 
       await base44.asServiceRole.entities.Notification.create(notificacao);
-
-      // Enviar email de rejeição
-      try {
-        await base44.integrations.Core.SendEmail({
-          to: p.created_by || emailAtor,
-          subject: 'Solicitação de Compra Recusada',
-          body: `
-            <h2>❌ Solicitação Recusada</h2>
-            <p><strong>Descrição:</strong> ${p.descricao_item}</p>
-            <p><strong>Valor Solicitado:</strong> R$ ${(p.valor_solicitado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-            <p><strong>Recusado por:</strong> ${nomeAtor}</p>
-            ${comentario ? `<p><strong>Motivo:</strong> ${comentario}</p>` : ''}
-            <hr />
-            <p>Entre em contato com o coordenador para mais informações.</p>
-          `,
-          from_name: 'Sistema de Compras'
-        });
-      } catch (emailError) {
-        console.error('Erro ao enviar email:', emailError.message);
-      }
     }
 
     return Response.json({ 
