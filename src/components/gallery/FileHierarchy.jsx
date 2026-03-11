@@ -109,7 +109,7 @@ export default function FileHierarchy({ backups = [], onPreview }) {
                     )}
                     <FolderIcon className="w-4 h-4 text-amber-500" />
                     <span className="text-sm text-gray-700">
-                      {activityKey.replace('atividade-', 'Atividade - ')}
+                     {({'atividade-image': 'Imagens', 'atividade-video': 'Vídeos', 'atividade-audio': 'Áudios', 'atividade-application': 'Documentos', 'atividade-outro': 'Outros'})[activityKey] || activityKey.replace('atividade-', '')}
                     </span>
                     <span className="ml-auto text-xs text-gray-500">{files.length}</span>
                   </button>
