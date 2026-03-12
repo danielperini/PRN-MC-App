@@ -8,14 +8,14 @@ import { AlertCircle, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CATEGORIAS = [
-  { key: 'manutencao', label: 'Manutenção de Rotina' },
-  { key: 'diarias_educador', label: 'Diárias de Educador' },
-  { key: 'lanches', label: 'Lanches' },
-  { key: 'alimentacao_cartao', label: 'Alimentação Cartão' },
-  { key: 'material', label: 'Material' },
-  { key: 'acoes_educativas', label: 'Ações Educativas' },
-  { key: 'som_luz', label: 'Som e Luz' },
-  { key: 'exposicao', label: 'Exposição' },
+  { key: 'manutencao', label: 'Manutenção de Rotina', description: '' },
+  { key: 'diarias_educador', label: 'Diárias de Educador', description: '101 (cento e uma) diárias de educador' },
+  { key: 'lanches', label: 'Lanches', description: 'Custeios para atividades educativas contínuas' },
+  { key: 'alimentacao_cartao', label: 'Alimentação Cartão', description: 'Alimentação (fonte: atividade "Presente de Iemanjá" no 3º aditivo)' },
+  { key: 'material', label: 'Material', description: 'Custeios para atividades educativas contínuas' },
+  { key: 'acoes_educativas', label: 'Ações Educativas', description: 'Realizar no mínimo 60 (sessenta) ações educativas' },
+  { key: 'som_luz', label: 'Som e Luz', description: 'Contratação do serviço de iluminação monumental básica' },
+  { key: 'exposicao', label: 'Exposição', description: 'Realizar uma exposição e o evento de abertura' },
 ];
 
 export default function RubricasMuseuEditor({ museu }) {
@@ -135,7 +135,12 @@ export default function RubricasMuseuEditor({ museu }) {
       {rubricasPorCategoria.map(({ categoria, rubricas }) => (
         <Card key={categoria.key} className="border border-gray-200">
           <CardContent className="p-4">
-            <h3 className="font-semibold text-sm text-gray-900 mb-3">{categoria.label}</h3>
+            <div className="mb-3">
+              <h3 className="font-semibold text-sm text-gray-900">{categoria.label}</h3>
+              {categoria.description && (
+                <p className="text-xs text-gray-600 mt-1">{categoria.description}</p>
+              )}
+            </div>
             
             {rubricas.length === 0 ? (
               <div className="text-center py-6">
@@ -149,60 +154,34 @@ export default function RubricasMuseuEditor({ museu }) {
                   const temAlerta = rubrica.percentualUtilizado > 80 || rubrica.saldo < 0;
 
                   return (
-                    <div
-                      key={rubrica.id}
-                      className={`p-3 rounded-lg border ${
-                        temAlerta
-                          ? 'bg-red-50 border-red-200'
-                          : rubrica.percentualUtilizado > 50
-                          ? 'bg-yellow-50 border-yellow-200'
-                          : 'bg-green-50 border-green-200'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <h4 className="font-semibold text-xs text-black">{rubrica.rubrica}</h4>
-                        <div
-                          className={`text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                            temAlerta
-                              ? 'bg-red-100 text-red-700'
-                              : rubrica.percentualUtilizado > 50
-                              ? 'bg-yellow-100 text-yellow-700'
-                              : 'bg-green-100 text-green-700'
-                          }`}
-                        >
-                          {rubrica.percentualUtilizado}%
-                        </div>
-                      </div>
+                    <div key={rubrica.id} className="p-3 rounded-lg border border-gray-200 bg-white">
+                       <div className="flex items-start justify-between gap-2 mb-2">
+                         <h4 className="font-semibold text-xs text-black">{rubrica.rubrica}</h4>
+                       </div>
 
-                      <div className="space-y-1.5 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Previsto:</span>
-                          {isEditing ? (
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={editValues.valor_total}
-                              onChange={(e) =>
-                                setEditValues((prev) => ({
-                                  ...prev,
-                                  valor_total: e.target.value,
-                                }))
-                              }
-                              className="w-20 h-6 text-xs"
-                            />
-                          ) : (
-                            <span className="font-bold text-black">
-                              R$ {rubrica.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Saldo:</span>
-                          <span className={`font-bold ${rubrica.saldo < 0 ? 'text-red-700' : 'text-green-700'}`}>
-                            R$ {Math.abs(rubrica.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </span>
-                        </div>
-                      </div>
+                       <div className="space-y-1.5 text-xs">
+                         <div className="flex justify-between">
+                           <span className="text-gray-600">Orçado:</span>
+                           {isEditing ? (
+                             <Input
+                               type="number"
+                               step="0.01"
+                               value={editValues.valor_total}
+                               onChange={(e) =>
+                                 setEditValues((prev) => ({
+                                   ...prev,
+                                   valor_total: e.target.value,
+                                 }))
+                               }
+                               className="w-20 h-6 text-xs"
+                             />
+                           ) : (
+                             <span className="font-bold text-black">
+                               R$ {rubrica.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                             </span>
+                           )}
+                         </div>
+                       </div>
 
                       {isEditing ? (
                         <div className="flex gap-1 mt-2">
