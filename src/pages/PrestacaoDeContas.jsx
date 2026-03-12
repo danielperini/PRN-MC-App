@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Upload, FileText, Loader2, CheckCircle2 } from 'lucide-react';
 import InvoiceUploader from '@/components/contas/InvoiceUploader';
+import AnnualAccountingExport from '@/components/reports/AnnualAccountingExport';
 
 export default function PrestacaoDeContas() {
   const [showForm, setShowForm] = useState(false);
