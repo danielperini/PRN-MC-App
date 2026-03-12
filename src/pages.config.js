@@ -86,9 +86,9 @@ import ProgramacoesAgenda from './pages/ProgramacoesAgenda';
 import RelatorioMeta from './pages/RelatorioMeta';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
+import Rubricas from './pages/Rubricas';
 import UserManagement from './pages/UserManagement';
 import ViadutoMap from './pages/ViadutoMap';
-import Rubricas from './pages/Rubricas';
 import __Layout from './Layout.jsx';
 
 
@@ -132,9 +132,9 @@ export const PAGES = {
     "RelatorioMeta": RelatorioMeta,
     "Relatorios": Relatorios,
     "ReportEditor": ReportEditor,
+    "Rubricas": Rubricas,
     "UserManagement": UserManagement,
     "ViadutoMap": ViadutoMap,
-    "Rubricas": Rubricas,
 }
 
 export const pagesConfig = {

@@ -267,9 +267,6 @@ function RelatoriosInner() {
                 </Button>
               </>
             )}
-            {isCoordenador && (
-              <AnnualAccountingExport />
-            )}
             <Button
               variant="outline"
               className="border-black gap-2"
