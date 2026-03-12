@@ -417,27 +417,6 @@ function GeradorTermoContent() {
               formData={formData}
               onChange={handleInputChange}
             />
-
-            {/* Anexos */}
-            <TermoAttachments 
-              attachments={formData.attachments}
-              onUpdate={(attachments) => handleInputChange('attachments', attachments)}
-            />
-
-            {/* Observações */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Observações</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  placeholder="Observações adicionais (opcional)"
-                  value={formData.observacoes}
-                  onChange={(e) => handleInputChange('observacoes', e.target.value)}
-                  rows={3}
-                />
-              </CardContent>
-            </Card>
           </div>
 
           {/* Sidebar */}
