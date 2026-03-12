@@ -11,7 +11,6 @@ import { FileText, Plus, Eye, Download, Check } from 'lucide-react';
 import RequireAuth from '@/components/auth/RequireAuth';
 import TermoPDFUploader from '@/components/termos/TermoPDFUploader';
 import TermoMetaLinkage from '@/components/termos/TermoMetaLinkage';
-import TermoAttachments from '@/components/termos/TermoAttachments';
 
 const TIPOS_TERMO = {
   monitoria_mediacao: 'Monitoria/Mediação',
