@@ -20,7 +20,7 @@ export default function TermoMetaLinkage({ formData, onChange }) {
 
   // Filtrar atividades por museu se disponível
   const relatedActivities = activities.filter(a => 
-    !formData.museu || a.titulo?.toLowerCase().includes(formData.museu?.toLowerCase() || '')
+    !formData.museu || (a.titulo?.toLowerCase()?.includes(formData.museu?.toLowerCase() || '') ?? false)
   );
 
   return (
