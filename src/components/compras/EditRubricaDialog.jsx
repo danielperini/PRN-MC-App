@@ -57,7 +57,7 @@ export default function EditRubricaDialog({ rubrica, isOpen, onClose, onSuccess 
             <TabsTrigger value="gastos">Gastos</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="valores" className="space-y-4">
+          <TabsContent value="valores" className="space-y-4 overflow-y-auto flex-1">
             {/* Info rubrica */}
             <div className="p-3 bg-gray-50 rounded-lg text-sm">
               <p className="font-medium text-gray-900">{rubrica.codigo}</p>
