@@ -211,7 +211,6 @@ export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isC
           </tbody>
         </table>
       </div>
-    </div>
 
       {showForm && (
         <RubricaFormDialog
@@ -220,5 +219,6 @@ export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isC
           onSuccess={() => { setShowForm(false); setEditingRubrica(null); onRefresh?.(); }}
         />
       )}
+    </div>
   );
 }
