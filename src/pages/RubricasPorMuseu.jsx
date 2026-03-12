@@ -231,7 +231,7 @@ export default function RubricasPorMuseu() {
   const [showGerenciar, setShowGerenciar] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     base44.auth.me().then(setCurrentUser).catch(() => {});
   }, []);
 
