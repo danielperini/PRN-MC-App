@@ -43,12 +43,13 @@ export default function RubricasGrid({ purchases, filtroMuseu }) {
   // Agrupar por categoria
   const categorias = useMemo(() => {
     const grupos = {};
-    budgetLines.forEach(line => {
-      if (!grupos[line.categoria]) grupos[line.categoria] = [];
-      grupos[line.categoria].push(line);
+    linhasAUsar.forEach(line => {
+      const categoria = filtroMuseu ? (line.rubrica || 'Sem categoria') : line.categoria;
+      if (!grupos[categoria]) grupos[categoria] = [];
+      grupos[categoria].push(line);
     });
     return grupos;
-  }, [budgetLines]);
+  }, [linhasAUsar, filtroMuseu]);
 
   // Filtrar
   const filtered = useMemo(() => {
