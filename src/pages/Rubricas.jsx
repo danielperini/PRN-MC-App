@@ -32,10 +32,29 @@ export default function RubricasPage() {
   const [showMapeamento, setShowMapeamento] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: rubricas = [] } = useQuery({
+  const [initializing, setInitializing] = useState(false);
+
+  const { data: rubricas = [], isLoading: loadingRubricas } = useQuery({
     queryKey: ['rubricas'],
     queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 100),
   });
+
+  const handleInitialize = async () => {
+    setInitializing(true);
+    try {
+      const res = await base44.functions.invoke('reinitializeRubricas', {});
+      if (res.data?.success) {
+        toast.success(`Rubricas inicializadas: ${res.data.rubricas_processadas} processadas`);
+        queryClient.invalidateQueries({ queryKey: ['rubricas'] });
+      } else {
+        toast.error(res.data?.error || 'Erro ao inicializar rubricas');
+      }
+    } catch (e) {
+      toast.error('Erro ao inicializar rubricas: ' + (e.message || 'tente novamente'));
+    } finally {
+      setInitializing(false);
+    }
+  };
 
   const handleCloseDetail = () => {
     setSelectedRubrica(null);
