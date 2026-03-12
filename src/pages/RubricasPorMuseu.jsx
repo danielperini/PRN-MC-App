@@ -227,10 +227,11 @@ function ResumoGeral({ mapa }) {
 }
 
 export default function RubricasPorMuseu() {
-  const [museuAtivo, setMuseuAtivo] = useState('MHAB');
-  const [showGerenciar, setShowGerenciar] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
-  const queryClient = useQueryClient();
+   const [museuAtivo, setMuseuAtivo] = useState('MHAB');
+   const [showGerenciar, setShowGerenciar] = useState(false);
+   const [currentUser, setCurrentUser] = useState(null);
+   const [isRefreshing, setIsRefreshing] = useState(false);
+   const queryClient = useQueryClient();
 
   useEffect(() => {
     base44.auth.me().then(setCurrentUser).catch(() => {});
