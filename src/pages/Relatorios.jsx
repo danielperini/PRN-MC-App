@@ -415,7 +415,7 @@ function RelatoriosInner() {
                              onClick={e => e.stopPropagation()}
                            />
                          </div>
-                         <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
+                         <Link to={`/ReportEditor?id=${report.id}`}>
                            <div className="p-4 pl-10 flex items-center justify-between hover:shadow-sm transition-all">
                              <div className="flex-1">
                                <div className="flex items-center gap-3">
