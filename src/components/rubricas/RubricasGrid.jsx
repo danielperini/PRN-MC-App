@@ -211,14 +211,15 @@ export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isC
           </tbody>
         </table>
       </div>
-
-      {showForm && (
-        <RubricaFormDialog
-          rubrica={editingRubrica}
-          onClose={() => { setShowForm(false); setEditingRubrica(null); }}
-          onSuccess={() => { setShowForm(false); setEditingRubrica(null); onRefresh?.(); }}
-        />
-      )}
     </div>
+
+    {showForm && (
+      <RubricaFormDialog
+        rubrica={editingRubrica}
+        onClose={() => { setShowForm(false); setEditingRubrica(null); }}
+        onSuccess={() => { setShowForm(false); setEditingRubrica(null); onRefresh?.(); }}
+      />
+    )}
+  </>
   );
 }
