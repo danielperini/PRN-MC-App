@@ -1,28 +1,27 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Plus, Settings } from 'lucide-react';
+import { Trash2, Plus, Settings, AlertCircle } from 'lucide-react';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
-const CATEGORIAS = [
-  { key: 'manutencao', label: 'Manutenção de Rotina' },
-  { key: 'diarias_educador', label: 'Diárias de Educador' },
-  { key: 'lanches', label: 'Lanches' },
-  { key: 'alimentacao_cartao', label: 'Alimentação Cartão' },
-  { key: 'material', label: 'Material' },
-  { key: 'acoes_educativas', label: 'Ações Educativas' },
-  { key: 'som_luz', label: 'Som e Luz' },
-  { key: 'exposicao', label: 'Exposição' },
-];
 
 export default function GerenciarRubricasMuseuDialog({ open, onClose }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ rubrica_id: '', museu: '' });
   const [saving, setSaving] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    if (open) {
+      base44.auth.me().then(setCurrentUser).catch(() => {});
+    }
+  }, [open]);
+
+  const isCoordenador = currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
 
   const { data: rubricas = [] } = useQuery({
     queryKey: ['rubricas-all'],
@@ -59,6 +58,23 @@ export default function GerenciarRubricasMuseuDialog({ open, onClose }) {
     museu: m,
     items: configs.filter(c => c.museu === m),
   }));
+
+  if (!isCoordenador) {
+    return (
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="w-5 h-5" />
+              Acesso Restrito
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">Apenas coordenadores podem gerenciar rubricas por museu.</p>
+          <Button onClick={onClose} className="mt-4 w-full">Fechar</Button>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
