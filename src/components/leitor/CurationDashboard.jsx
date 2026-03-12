@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   CheckCircle, Archive, Trash2, RefreshCw, ExternalLink, Newspaper,
-  Eye, Clock, Tag, Loader2, Search, Wand2, TrendingUp, AlertCircle
+  Eye, Clock, Tag, Loader2, Search, Wand2, TrendingUp, AlertCircle, ChevronDown
 } from 'lucide-react';
 
 const FONTE_COLORS = {
