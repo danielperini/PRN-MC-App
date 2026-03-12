@@ -287,6 +287,12 @@ export default function RubricasPorMuseu() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
+    try {
+      // Recalcular valores das rubricas antes de atualizar
+      await base44.functions.invoke('recalculateAllRubricas', {});
+    } catch (e) {
+      console.error('Erro ao recalcular rubricas:', e);
+    }
     await queryClient.invalidateQueries({ queryKey: ['rubricas-all'] });
     await queryClient.invalidateQueries({ queryKey: ['rubrica-museu-configs'] });
     setIsRefreshing(false);
