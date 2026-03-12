@@ -55,9 +55,12 @@ export default function PrestacaoDeContas() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Prestação de Contas</h1>
-        <Button onClick={handleNewPrestacao} className="gap-2">
-          <Plus className="w-4 h-4" /> Nova Prestação
-        </Button>
+        <div className="flex gap-2">
+          <AnnualAccountingExport />
+          <Button onClick={handleNewPrestacao} className="gap-2">
+            <Plus className="w-4 h-4" /> Nova Prestação
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-4">
