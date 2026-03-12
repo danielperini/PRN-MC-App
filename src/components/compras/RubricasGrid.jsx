@@ -165,7 +165,9 @@ export default function RubricasGrid({ purchases, filtroMuseu }) {
                     </div>
 
                     {/* Descrição */}
-                    <p className="text-xs text-gray-600 line-clamp-2">{line.descricao}</p>
+                     {(line.descricao || line.categoria) && (
+                       <p className="text-xs text-gray-600 line-clamp-2">{line.descricao || line.categoria}</p>
+                     )}
 
                     {/* Grid de valores principais */}
                     <div className="grid grid-cols-2 gap-3">
