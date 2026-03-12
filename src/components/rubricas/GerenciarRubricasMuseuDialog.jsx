@@ -38,7 +38,11 @@ export default function GerenciarRubricasMuseuDialog({ open, onClose }) {
   async function handleAdd() {
     if (!form.rubrica_id || !form.museu) return;
     setSaving(true);
-    await base44.entities.RubricaMuseuConfig.create({ rubrica_id: form.rubrica_id, museu: form.museu });
+    await base44.entities.RubricaMuseuConfig.create({ 
+      rubrica_id: form.rubrica_id, 
+      museu: form.museu,
+      categoria_key: 'geral'
+    });
     await refetch();
     queryClient.invalidateQueries({ queryKey: ['rubrica-museu-configs'] });
     setForm({ rubrica_id: '', museu: '' });
