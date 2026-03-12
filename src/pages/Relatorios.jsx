@@ -442,7 +442,7 @@ function RelatoriosInner() {
                          <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                            {report.status === 'DRAFT' && (
                              <>
-                               <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
+                               <Link to={`/ReportEditor?id=${report.id}`}>
                                  <button onClick={e => e.preventDefault()} className="p-1.5 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-600" title="Ver rascunho">
                                    <Eye className="w-3.5 h-3.5" />
                                  </button>
@@ -455,7 +455,7 @@ function RelatoriosInner() {
                              </>
                            )}
                            {isCoordenador && report.status === 'SUBMITTED' && (
-                             <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
+                             <Link to={`/ReportEditor?id=${report.id}`}>
                                <button onClick={e => e.preventDefault()} className="p-1.5 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-600" title="Revisar relatório">
                                  <Eye className="w-3.5 h-3.5" />
                                </button>
