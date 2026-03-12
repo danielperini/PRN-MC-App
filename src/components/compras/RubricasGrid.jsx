@@ -149,9 +149,9 @@ export default function RubricasGrid({ purchases, filtroMuseu }) {
                     {/* Header com Badge */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
-                        <h3 className="font-bold text-black text-sm">{line.nome}</h3>
-                        <p className="text-xs text-gray-500 mt-1">{line.codigo}</p>
-                      </div>
+                             <h3 className="font-bold text-black text-sm">{line.nome || line.rubrica}</h3>
+                             <p className="text-xs text-gray-500 mt-1">{line.codigo || line.id}</p>
+                           </div>
                       <div className="flex gap-2">
                         {temAlerta && <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />}
                         <div className={`text-xs font-bold px-3 py-1.5 rounded-full flex-shrink-0 ${
