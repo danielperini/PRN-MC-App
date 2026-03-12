@@ -5,9 +5,37 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search, TrendingUp, ChevronDown, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useBudgetLines } from './useBudgetLines';
+import { useQuery } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
 
-export default function RubricasGrid({ purchases }) {
+export default function RubricasGrid({ purchases, filtroMuseu }) {
   const { budgetLines } = useBudgetLines();
+  
+  // Fetch rubricas e configs se filtroMuseu for fornecido
+  const { data: rubricas = [] } = useQuery({
+    queryKey: ['rubricas-all'],
+    queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 200),
+    enabled: !!filtroMuseu,
+  });
+  
+  const { data: configs = [] } = useQuery({
+    queryKey: ['rubrica-museu-configs'],
+    queryFn: () => base44.entities.RubricaMuseuConfig.list(),
+    enabled: !!filtroMuseu,
+  });
+  
+  // Se filtroMuseu foi fornecido, usar rubricas filtradas, senão usar budgetLines
+  const linhasAUsar = useMemo(() => {
+    if (!filtroMuseu) return budgetLines;
+    
+    // Filtrar rubricas por museu através das configs
+    const rubricasDoMuseu = new Set();
+    configs
+      .filter(c => c.museu === filtroMuseu)
+      .forEach(c => rubricasDoMuseu.add(c.rubrica_id));
+    
+    return rubricas.filter(r => rubricasDoMuseu.has(r.id) && r.ativo !== false);
+  }, [budgetLines, filtroMuseu, rubricas, configs]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setategoryFilter] = useState('all');
   const [expandedCards, setExpandedCards] = useState({});
