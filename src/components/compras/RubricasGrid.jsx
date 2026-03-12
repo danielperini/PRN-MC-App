@@ -67,6 +67,16 @@ export default function RubricasGrid({ purchases, filtroMuseu }) {
 
   // Calcular valores detalhados por rubrica
   const getValoresRubrica = (rubricaId) => {
+    if (!purchases) return {
+      valorAprovado: 0,
+      valorPago: 0,
+      valorEmAnalise: 0,
+      valorUtilizado: 0,
+      quantidadeAprovada: 0,
+      quantidadePaga: 0,
+      quantidadeEmAnalise: 0,
+    };
+    
     const comprasAprovadas = purchases.filter(p => p.budgetline_id === rubricaId && p.status === 'APROVADO_COORD');
     const comprasPagas = purchases.filter(p => p.budgetline_id === rubricaId && p.status === 'PAGO');
     const comprasEmAnalise = purchases.filter(p => p.budgetline_id === rubricaId && p.status === 'SOLICITADO');
