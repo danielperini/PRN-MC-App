@@ -55,6 +55,14 @@ export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isC
     return 'bg-white';
   };
 
+  const handleDelete = async (rubrica) => {
+    if (!window.confirm(`Deletar rubrica "${rubrica.rubrica}"? Esta ação não pode ser desfeita.`)) return;
+    setDeletingId(rubrica.id);
+    await base44.entities.Rubrica.delete(rubrica.id);
+    setDeletingId(null);
+    onRefresh?.();
+  };
+
   const getStatusIcon = (percentual) => {
     if (percentual >= 100) return <AlertCircle className="w-4 h-4 text-red-600" />;
     if (percentual >= 80) return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
