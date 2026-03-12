@@ -8,7 +8,7 @@ import MetaReportExport from '../components/relatorio/MetaReportExport.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { BarChart3, Target, TrendingUp } from 'lucide-react';
+import { Target } from 'lucide-react';
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const ANOS = [2025, 2026, 2027];
