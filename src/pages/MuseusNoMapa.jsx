@@ -31,14 +31,6 @@ const museus = [
     foco: 'Moda, Design, Criatividade',
     cor: 'from-purple-600 to-purple-700',
   },
-  {
-    sigla: 'Viaduto das Artes',
-    nome: 'Viaduto',
-    nomeFormal: 'Viaduto das Artes',
-    descricao: 'Formação artística, mobilização cultural e participação comunitária',
-    foco: 'Arte, Mobilização, Comunidade',
-    cor: 'from-cyan-600 to-cyan-700',
-  },
 ];
 
 function MuseusNoMapaInner() {
