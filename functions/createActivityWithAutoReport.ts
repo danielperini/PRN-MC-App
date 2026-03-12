@@ -2,9 +2,9 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 /**
  * createActivityWithAutoReport
- * Cria uma atividade na entidade Activity e vincula automaticamente
- * ao relatório mensal do utilizador logado (localizando ou criando o relatório).
- * Payload: { titulo, descricao, classificacao, data_realizacao, museu, equipe_responsavel, mes_referencia, ano, ...outros_campos }
+ * Cria uma atividade e vincula automaticamente ao relatório mensal do usuário.
+ * Se o relatório não existir, cria um novo em DRAFT.
+ * Payload: { titulo, descricao, classificacao, data_inicio, data_fim, meta_id?, rubrica_id?, usuario_responsavel_id? }
  */
 Deno.serve(async (req) => {
   try {
@@ -15,59 +15,52 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { mes_referencia, ano, ...atividadeData } = body;
+    const activityData = await req.json();
+    const { titulo, descricao, classificacao, data_inicio, data_fim } = activityData;
 
-    if (!mes_referencia || !ano) {
-      return Response.json({ error: 'Parâmetros obrigatórios: mes_referencia, ano' }, { status: 400 });
+    if (!titulo || !classificacao) {
+      return Response.json({ error: 'Parâmetros obrigatórios: titulo, classificacao' }, { status: 400 });
     }
 
-    if (!atividadeData.classificacao) {
-      return Response.json({ error: 'Campo obrigatório: classificacao' }, { status: 400 });
-    }
+    // Determinar mês/ano a partir de data_inicio ou hoje
+    const dataRef = data_inicio ? new Date(data_inicio) : new Date();
+    const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const mes_referencia = MESES[dataRef.getMonth()];
+    const ano = dataRef.getFullYear();
 
-    // Localizar ou criar relatório mensal
-    let report;
-    const existentes = await base44.asServiceRole.entities.Report.filter({
-      created_by: user.email,
+    // Obter ou criar relatório mensal
+    const getOrCreateResponse = await base44.functions.invoke('getOrCreateMonthlyReport', {
       mes_referencia,
-      ano,
+      ano
     });
 
-    if (existentes.length > 0) {
-      report = existentes[0];
-    } else {
-      // Criar relatório rascunho
-      const MESES_ABREV = {
-        'Janeiro': 'JAN', 'Fevereiro': 'FEV', 'Março': 'MAR', 'Abril': 'ABR',
-        'Maio': 'MAI', 'Junho': 'JUN', 'Julho': 'JUL', 'Agosto': 'AGO',
-        'Setembro': 'SET', 'Outubro': 'OUT', 'Novembro': 'NOV', 'Dezembro': 'DEZ'
-      };
-      const mesAbrev = MESES_ABREV[mes_referencia] || mes_referencia.substring(0, 3).toUpperCase();
-      const allReports = await base44.asServiceRole.entities.Report.list('-created_date', 9999);
-      const seq = String(allReports.length + 1).padStart(5, '0');
-
-      report = await base44.asServiceRole.entities.Report.create({
-        author_name: user.full_name || '',
-        museu: user.museu || '',
-        funcao: user.funcao || '',
-        mes_referencia,
-        ano,
-        status: 'DRAFT',
-        numero_protocolo: `MC-${mesAbrev}${ano}-${seq}`,
-        atividades: [],
-        oportunidades: [],
-      });
+    if (!getOrCreateResponse.data || getOrCreateResponse.data.error) {
+      return Response.json({ error: 'Erro ao obter/criar relatório: ' + (getOrCreateResponse.data?.error || 'desconhecido') }, { status: 500 });
     }
+
+    const report = getOrCreateResponse.data.report;
 
     // Criar atividade vinculada ao relatório
-    const atividade = await base44.asServiceRole.entities.Activity.create({
+    const newActivity = await base44.entities.Activity.create({
       report_id: report.id,
-      user_email: user.email,
-      ...atividadeData,
+      titulo,
+      descricao: descricao || '',
+      classificacao,
+      data_inicio: data_inicio || null,
+      data_fim: data_fim || null,
+      meta_id: activityData.meta_id || null,
+      rubrica_id: activityData.rubrica_id || null,
+      usuario_responsavel_id: activityData.usuario_responsavel_id || user.email,
+      tipo_equipe: activityData.tipo_equipe || 'EDUCATIVO',
+      fotos: [],
+      documentos: []
     });
 
-    return Response.json({ atividade, report_id: report.id, report_created: existentes.length === 0 });
+    return Response.json({
+      activity: newActivity,
+      report: report,
+      message: 'Atividade criada com sucesso e vinculada ao relatório'
+    });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

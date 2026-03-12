@@ -2,9 +2,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 /**
  * createProductLinkedToActivity
- * Cria um produto na entidade Product, herdando automaticamente
- * o report_id e user_email da atividade pai.
- * Payload: { activity_id, nome, tipo, descricao, quantidade, link_arquivo }
+ * Cria um produto vinculado a uma atividade e automaticamente ao seu relatório.
+ * Payload: { activity_id, nome, tipo, descricao, data_inicio?, data_fim?, meta_id?, rubrica_id?, usuario_responsavel_id? }
  */
 Deno.serve(async (req) => {
   try {
@@ -15,38 +14,43 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
-    const { activity_id, nome, tipo, descricao, quantidade, link_arquivo } = await req.json();
+    const productData = await req.json();
+    const { activity_id, nome, tipo, descricao } = productData;
 
-    if (!activity_id) {
-      return Response.json({ error: 'Parâmetro obrigatório: activity_id' }, { status: 400 });
-    }
-    if (!nome || !tipo) {
-      return Response.json({ error: 'Parâmetros obrigatórios: nome, tipo' }, { status: 400 });
+    if (!activity_id || !nome || !tipo) {
+      return Response.json({ error: 'Parâmetros obrigatórios: activity_id, nome, tipo' }, { status: 400 });
     }
 
-    // Buscar atividade para herdar report_id
-    const atividade = await base44.asServiceRole.entities.Activity.get(activity_id);
-    if (!atividade) {
+    // Buscar atividade para obter report_id
+    const activities = await base44.entities.Activity.filter({ id: activity_id });
+    if (!activities || activities.length === 0) {
       return Response.json({ error: 'Atividade não encontrada' }, { status: 404 });
     }
 
-    if (!atividade.report_id) {
-      return Response.json({ error: 'Atividade não possui report_id vinculado' }, { status: 400 });
-    }
+    const activity = activities[0];
 
-    // Criar produto vinculado
-    const produto = await base44.asServiceRole.entities.Product.create({
-      activity_id,
-      report_id: atividade.report_id,
-      user_email: user.email,
+    // Criar produto vinculado à atividade e ao relatório
+    const newProduct = await base44.entities.Product.create({
+      activity_id: activity.id,
+      report_id: activity.report_id,
       nome,
       tipo,
       descricao: descricao || '',
-      quantidade: quantidade || 1,
-      link_arquivo: link_arquivo || '',
+      data_inicio: productData.data_inicio || null,
+      data_fim: productData.data_fim || null,
+      meta_id: productData.meta_id || activity.meta_id || null,
+      rubrica_id: productData.rubrica_id || activity.rubrica_id || null,
+      usuario_responsavel_id: productData.usuario_responsavel_id || activity.usuario_responsavel_id || user.email,
+      user_email: user.email,
+      fotos: [],
+      documentos: []
     });
 
-    return Response.json({ produto, activity_id, report_id: atividade.report_id });
+    return Response.json({
+      product: newProduct,
+      activity: activity,
+      message: 'Produto criado com sucesso e vinculado à atividade e relatório'
+    });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
