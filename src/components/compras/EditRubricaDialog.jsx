@@ -40,7 +40,7 @@ export default function EditRubricaDialog({ rubrica, isOpen, onClose, onSuccess 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md flex flex-col max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <DollarSign className="w-5 h-5" />
