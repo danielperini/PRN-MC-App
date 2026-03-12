@@ -294,13 +294,14 @@ function ReportEditorInner() {
 
   const [conflictError, setConflictError] = useState(null);
   const [lastSaveTime, setLastSaveTime] = useState(null);
+  const autoSaveTimerRef = React.useRef(null);
 
   // Auto-save com detecção de conflito via função backend
   useEffect(() => {
     if (!canEdit || !reportId || !formData.mes_referencia) return;
 
-    clearTimeout(autoSaveTimer);
-    const timer = setTimeout(async () => {
+    clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
       try {
         const response = await base44.functions.invoke('autoSaveReport', {
           reportId,
@@ -319,12 +320,10 @@ function ReportEditorInner() {
       } catch (err) {
         console.error('Erro ao auto-salvar:', err);
       }
-    }, 5000); // Auto-save a cada 5 segundos de inatividade
+    }, 5000);
 
-    setAutoSaveTimer(timer);
-
-    return () => clearTimeout(timer);
-  }, [formData, canEdit, reportId, autoSaveTimer]);
+    return () => clearTimeout(autoSaveTimerRef.current);
+  }, [formData, canEdit, reportId]);
 
   if (isLoading && reportId) {
     return (
