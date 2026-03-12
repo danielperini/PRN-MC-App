@@ -3,7 +3,23 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const { rubricaId } = await req.json();
+    const body = await req.json().catch(() => ({}));
+
+    // Suporta chamada direta com rubricaId OU payload de automação de entidade (LancamentoRubrica)
+    let rubricaId = body.rubricaId;
+
+    if (!rubricaId && body.data) {
+      // Payload de automação: body.data é o LancamentoRubrica
+      rubricaId = body.data?.rubrica_id;
+    }
+
+    if (!rubricaId && body.event?.entity_id) {
+      // Buscar o lançamento para obter rubrica_id
+      const lancamentos = await base44.asServiceRole.entities.LancamentoRubrica.filter(
+        { id: body.event.entity_id }
+      );
+      rubricaId = lancamentos?.[0]?.rubrica_id;
+    }
 
     if (!rubricaId) {
       return Response.json({ error: 'rubricaId required' }, { status: 400 });
@@ -16,7 +32,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Rubrica not found' }, { status: 404 });
     }
 
-    // Buscar TODOS os lançamentos da rubrica (sem limite fixo)
+    // Buscar TODOS os lançamentos da rubrica com paginação
     const pageSize = 500;
     let allLancamentos = [];
     let page = 0;
