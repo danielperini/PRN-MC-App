@@ -56,7 +56,7 @@ export default function ActivitySummarizer({ atividades, canEdit, onApplySuggest
     checkShortDescriptions();
     
     // Agrupar atividades por tipo/museu/data
-    const ativitiesList = atividades.map((a, idx) => ({
+    const ativitiesList = atividades.filter(a => !!a).map((a, idx) => ({
       index: idx,
       nome: a.nome || `Atividade ${idx + 1}`,
       tipo: a.tipo_acao || 'Sem tipo',
