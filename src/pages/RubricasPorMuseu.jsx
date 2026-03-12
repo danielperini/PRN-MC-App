@@ -73,12 +73,10 @@ export default function RubricasPorMuseu() {
         ))}
       </Tabs>
 
-      {showGerenciar && (
-        <GerenciarRubricasMuseuDialog
-          open={showGerenciar}
-          onClose={() => setShowGerenciar(false)}
-        />
-      )}
+      <GerenciarRubricasMuseuDialog
+        open={showGerenciar}
+        onClose={() => setShowGerenciar(false)}
+      />
     </div>
   );
 }
