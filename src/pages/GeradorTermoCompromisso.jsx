@@ -493,23 +493,7 @@ function GeradorTermoContent() {
               </Button>
             </div>
 
-            {/* Histórico */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Últimos Termos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {termos.slice(-5).reverse().map(termo => (
-                    <div key={termo.id} className="text-xs p-2 bg-slate-50 rounded border border-slate-200">
-                      <p className="font-mono font-bold">{termo.numero_termo}</p>
-                      <p className="text-slate-600">{termo.contratado_nome}</p>
-                      <p className="text-slate-500">{TIPOS_TERMO[termo.tipo_termo]}</p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+
           </div>
         </div>
       </div>
