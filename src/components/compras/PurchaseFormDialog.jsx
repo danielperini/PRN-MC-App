@@ -401,14 +401,32 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
           {/* Rubrica */}
           <div className="space-y-2">
             <Label className="text-xs text-gray-600 mb-1 block">Rubrica orçamentária *</Label>
-            <Select value={form.budgetline_id} onValueChange={v => set('budgetline_id', v)}>
+            <Select value={form.rubrica_id || form.budgetline_id} onValueChange={v => set(v.startsWith('BL-') ? 'budgetline_id' : 'rubrica_id', v)}>
               <SelectTrigger><SelectValue placeholder="Selecione a rubrica..." /></SelectTrigger>
               <SelectContent className="max-h-64">
-                {budgetLines.map(l => (
-                  <SelectItem key={l.id} value={l.id}>
-                    [{l.codigo}] {l.descricao}
-                  </SelectItem>
-                ))}
+                {/* Rubricas da entidade Rubrica */}
+                {rubricas.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100">Rubricas Orçamentárias</div>
+                    {rubricas.filter(r => r.ativo !== false).map(r => (
+                      <SelectItem key={`rub-${r.id}`} value={r.id}>
+                        {r.rubrica} ({r.grupo})
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+
+                {/* Budget Lines como fallback */}
+                {budgetLines.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100">Linhas Orçamentárias Herdadas</div>
+                    {budgetLines.map(l => (
+                      <SelectItem key={l.id} value={`BL-${l.id}`}>
+                        [{l.codigo}] {l.descricao}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
               </SelectContent>
             </Select>
             {selectedLine && (
