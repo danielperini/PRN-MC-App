@@ -25,7 +25,7 @@ export default function RubricasGrid({ rubricas, onSelectRubrica }) {
 
   const filtradas = useMemo(() => {
     return rubricas.filter(r => {
-      const matchSearch = !search || r.rubrica.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = !search || (r.rubrica || '').toLowerCase().includes(search.toLowerCase());
       const matchGrupo = filtroGrupo === 'all' || r.grupo === filtroGrupo;
       let matchStatus = true;
 
