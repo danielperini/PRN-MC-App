@@ -230,6 +230,7 @@ export default function RubricasPorMuseu() {
   const [museuAtivo, setMuseuAtivo] = useState('MHAB');
   const [showGerenciar, setShowGerenciar] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     base44.auth.me().then(setCurrentUser).catch(() => {});
@@ -240,12 +241,30 @@ export default function RubricasPorMuseu() {
   const { data: rubricas = [], isLoading: loadingRubricas } = useQuery({
     queryKey: ['rubricas-all'],
     queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 200),
+    refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
 
   const { data: configs = [], isLoading: loadingConfigs } = useQuery({
     queryKey: ['rubrica-museu-configs'],
     queryFn: () => base44.entities.RubricaMuseuConfig.list(),
+    refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
+
+  // Subscrição em tempo real para Rubricas
+  useEffect(() => {
+    const unsubscribe = base44.entities.Rubrica.subscribe((event) => {
+      queryClient.invalidateQueries({ queryKey: ['rubricas-all'] });
+    });
+    return unsubscribe;
+  }, [queryClient]);
+
+  // Subscrição em tempo real para Configurações
+  useEffect(() => {
+    const unsubscribe = base44.entities.RubricaMuseuConfig.subscribe((event) => {
+      queryClient.invalidateQueries({ queryKey: ['rubrica-museu-configs'] });
+    });
+    return unsubscribe;
+  }, [queryClient]);
 
   const isLoading = loadingRubricas || loadingConfigs;
 
