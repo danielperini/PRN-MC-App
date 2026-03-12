@@ -57,18 +57,18 @@ export default function PhotoSelectorModal({ isOpen, onClose, reportId, onSelect
         </DialogHeader>
 
         <div className="space-y-4">
-          {isLoading ? (
-            <div className="text-center py-8 text-gray-400">Carregando fotos...</div>
-          ) : attachments && attachments.length === 0 ? (
-            <div className="text-center py-12 border border-dashed border-gray-300 rounded-xl">
-              <Upload className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-              <p className="text-sm text-gray-400">Nenhuma foto anexada neste relatório</p>
-              <p className="text-xs text-gray-400 mt-1">Adicione fotos na aba Anexos primeiro</p>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-96 overflow-y-auto p-2">
-                {attachments.map(attachment => (
+           {isLoading ? (
+             <div className="text-center py-8 text-gray-400">Carregando fotos...</div>
+           ) : !attachments || attachments.length === 0 ? (
+             <div className="text-center py-12 border border-dashed border-gray-300 rounded-xl">
+               <Upload className="w-8 h-8 mx-auto text-gray-300 mb-2" />
+               <p className="text-sm text-gray-400">Nenhuma foto anexada neste relatório</p>
+               <p className="text-xs text-gray-400 mt-1">Adicione fotos na aba Anexos primeiro</p>
+             </div>
+           ) : (
+             <>
+               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-96 overflow-y-auto p-2">
+                 {(attachments || []).map(attachment => (
                   <div
                     key={attachment.id}
                     className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
