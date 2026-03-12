@@ -194,6 +194,15 @@ function ComprasInner() {
                    <SelectItem value="MC3A-EXTRA">MC3A-EXTRA — Ações Extras</SelectItem>
                  </SelectContent>
                </Select>
+              <Select value={filters.rubrica_id} onValueChange={v => setFilters(f => ({ ...f, rubrica_id: v }))}>
+                 <SelectTrigger className="w-48"><SelectValue placeholder="Rubrica Orçamentária" /></SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="all">Todas as rubricas</SelectItem>
+                   {rubricas.filter(r => r.ativo !== false).map(r => (
+                     <SelectItem key={r.id} value={r.id}>{r.rubrica}</SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
             </div>
 
             {isLoading ? (
