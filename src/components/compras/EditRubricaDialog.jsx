@@ -118,7 +118,7 @@ export default function EditRubricaDialog({ rubrica, isOpen, onClose, onSuccess 
           </TabsContent>
         </Tabs>
 
-        <div className="flex gap-2 justify-end">
+        <div className="flex gap-2 justify-end pt-3 border-t mt-2 shrink-0">
           <Button variant="outline" onClick={onClose} disabled={saving}>
             Cancelar
           </Button>
