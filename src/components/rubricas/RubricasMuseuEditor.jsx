@@ -157,7 +157,7 @@ export default function RubricasMuseuEditor({ museu }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white p-3 rounded-lg border border-gray-200">
-                  <p className="text-[10px] text-gray-500 uppercase font-semibold">Orçamento</p>
+                  <p className="text-[10px] text-gray-500 uppercase font-semibold">Valor Previsto</p>
                   {isEditing ? (
                     <Input
                       type="number"
@@ -178,13 +178,6 @@ export default function RubricasMuseuEditor({ museu }) {
                   )}
                 </div>
 
-                <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                  <p className="text-[10px] text-blue-600 uppercase font-semibold">Utilizado</p>
-                  <p className="text-sm font-bold text-blue-700 mt-1">
-                    R$ {rubrica.valorUtilizado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </p>
-                </div>
-
                 <div
                   className={`p-3 rounded-lg border ${
                     rubrica.saldo < 0 ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'
@@ -203,13 +196,6 @@ export default function RubricasMuseuEditor({ museu }) {
                     }`}
                   >
                     R$ {Math.abs(rubrica.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </p>
-                </div>
-
-                <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
-                  <p className="text-[10px] text-purple-600 uppercase font-semibold">Compras</p>
-                  <p className="text-sm font-bold text-purple-700 mt-1">
-                    ✓ {rubrica.comprasAprovadas + rubrica.comprasPagas}
                   </p>
                 </div>
               </div>
