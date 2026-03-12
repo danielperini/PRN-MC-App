@@ -830,7 +830,7 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
     // Fetch attachment counts for each activity
     if (reportId) {
       atividades.forEach(async (ativ, idx) => {
-        if (ativ.activity_id) {
+        if (ativ && ativ.activity_id) {
           const attachments = await base44.entities.Attachment.filter({ 
             report_id: reportId, 
             activity_id: ativ.activity_id 
