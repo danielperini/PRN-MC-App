@@ -49,7 +49,7 @@ export default function TermoMetaLinkage({ formData, onChange }) {
             <SelectContent>
               {relatedActivities.map(act => (
                 <SelectItem key={act.id} value={act.id}>
-                  {act.titulo} ({new Date(act.data_realizacao).toLocaleDateString('pt-BR')})
+                  {act.titulo}{act.data_realizacao ? ` (${new Date(act.data_realizacao).toLocaleDateString('pt-BR')})` : ''}
                 </SelectItem>
               ))}
             </SelectContent>
