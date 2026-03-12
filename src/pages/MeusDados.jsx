@@ -121,26 +121,33 @@ function MeusDadosInner() {
     mutationFn: async () => {
       await base44.auth.updateMe(formData);
       
-      // Sincronizar dados com TeamMember vinculado
+      // Sincronizar dados com TeamMember vinculado (cria se não existir)
       const currentMember = teamData.find(m => m.user_email === user.email);
+      const teamPayload = {
+        user_email: user.email,
+        user_name: user.full_name,
+        tipo_equipe: user.equipe || '',
+        funcao: user.funcao || '',
+        email_pessoal: formData.email_pessoal,
+        telefone: formData.telefone,
+        cpf: formData.cpf,
+        tipo_pessoa: formData.tipo_pessoa,
+        cnpj: formData.cnpj,
+        empresa_nome: formData.empresa_nome,
+        empresa_endereco: formData.empresa_endereco,
+        representante_legal_nome: formData.representante_legal_nome,
+        representante_legal_cpf: formData.representante_legal_cpf,
+        cargo_representante: formData.cargo_representante,
+        banco: formData.banco,
+        agencia: formData.agencia,
+        conta: formData.conta,
+        tipo_conta: formData.tipo_conta,
+        pix_key: formData.pix_key,
+      };
       if (currentMember) {
-        await base44.entities.TeamMember.update(currentMember.id, {
-          email_pessoal: formData.email_pessoal,
-          telefone: formData.telefone,
-          cpf: formData.cpf,
-          tipo_pessoa: formData.tipo_pessoa,
-          cnpj: formData.cnpj,
-          empresa_nome: formData.empresa_nome,
-          empresa_endereco: formData.empresa_endereco,
-          representante_legal_nome: formData.representante_legal_nome,
-          representante_legal_cpf: formData.representante_legal_cpf,
-          cargo_representante: formData.cargo_representante,
-          banco: formData.banco,
-          agencia: formData.agencia,
-          conta: formData.conta,
-          tipo_conta: formData.tipo_conta,
-          pix_key: formData.pix_key,
-        }).catch(() => null);
+        await base44.entities.TeamMember.update(currentMember.id, teamPayload).catch(() => null);
+      } else {
+        await base44.entities.TeamMember.create(teamPayload).catch(() => null);
       }
       
       if (teamMembers.length > 0) {
