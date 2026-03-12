@@ -296,44 +296,7 @@ function UserManagementInner() {
     onError: () => toast.error('Erro ao rejeitar solicitação.'),
   });
 
-  const inviteMutation = useMutation({
-    mutationFn: async (data) => {
-      const matricula = await gerarMatricula();
-      const base44Role = ['COORDENADOR', 'ADMIN'].includes(data.role) ? 'admin' : 'user';
-      await base44.users.inviteUser(data.email, base44Role);
-
-      // Send email with configured sender and direct cadastro link
-      const appId = window.location.pathname.split('/')[2] || '';
-      const cadastroUrl = appId 
-        ? `${window.location.origin}/app/${appId}/Cadastro` 
-        : `${window.location.origin}/Cadastro`;
-
-      await base44.functions.invoke('sendInviteEmail', {
-        email: data.email,
-        full_name: data.full_name || data.email,
-        role: base44Role,
-        cadastroUrl
-      });
-
-      // Try to update extra fields after invite
-      const allUsers = await base44.entities.User.list();
-      const newUser = allUsers.find(u => u.email === data.email);
-      if (newUser) {
-        await base44.entities.User.update(newUser.id, {
-          role: data.role,
-          equipe: data.equipe,
-          matricula,
-        });
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['users']);
-      toast.success('Convite enviado com sucesso');
-      setShowDialog(false);
-      setFormData(EMPTY_FORM);
-    },
-    onError: () => toast.error('Erro ao convidar usuário'),
-  });
+  // inviteMutation handled via InviteDialog component
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }) => {
