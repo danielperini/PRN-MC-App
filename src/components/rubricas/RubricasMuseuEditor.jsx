@@ -8,14 +8,14 @@ import { AlertCircle, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CATEGORIAS = [
-  { key: 'manutencao', label: 'Manutenção de Rotina', description: '' },
-  { key: 'diarias_educador', label: 'Diárias de Educador', description: '101 (cento e uma) diárias de educador' },
-  { key: 'lanches', label: 'Lanches', description: 'Custeios para atividades educativas contínuas' },
-  { key: 'alimentacao_cartao', label: 'Alimentação Cartão', description: 'Alimentação (fonte: atividade "Presente de Iemanjá" no 3º aditivo)' },
-  { key: 'material', label: 'Material', description: 'Custeios para atividades educativas contínuas' },
-  { key: 'acoes_educativas', label: 'Ações Educativas', description: 'Realizar no mínimo 60 (sessenta) ações educativas' },
-  { key: 'som_luz', label: 'Som e Luz', description: 'Contratação do serviço de iluminação monumental básica' },
-  { key: 'exposicao', label: 'Exposição', description: 'Realizar uma exposição e o evento de abertura' },
+  { key: 'manutencao', label: 'Manutenção de Rotina' },
+  { key: 'diarias_educador', label: 'Diárias de Educador' },
+  { key: 'lanches', label: 'Lanches' },
+  { key: 'alimentacao_cartao', label: 'Alimentação Cartão' },
+  { key: 'material', label: 'Material' },
+  { key: 'acoes_educativas', label: 'Ações Educativas' },
+  { key: 'som_luz', label: 'Som e Luz' },
+  { key: 'exposicao', label: 'Exposição' },
 ];
 
 export default function RubricasMuseuEditor({ museu }) {
@@ -135,12 +135,7 @@ export default function RubricasMuseuEditor({ museu }) {
       {rubricasPorCategoria.map(({ categoria, rubricas }) => (
         <Card key={categoria.key} className="border border-gray-200">
           <CardContent className="p-4">
-            <div className="mb-3">
-              <h3 className="font-semibold text-sm text-gray-900">{categoria.label}</h3>
-              {categoria.description && (
-                <p className="text-xs text-gray-600 mt-1">{categoria.description}</p>
-              )}
-            </div>
+            <h3 className="font-semibold text-sm text-gray-900 mb-3">{categoria.label}</h3>
             
             {rubricas.length === 0 ? (
               <div className="text-center py-6">
