@@ -51,7 +51,7 @@ export default function EditRubricaDialog({ rubrica, isOpen, onClose, onSuccess 
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="valores" className="w-full">
+        <Tabs defaultValue="valores" className="w-full flex flex-col flex-1 min-h-0 overflow-hidden">
           <TabsList className="grid w-full grid-cols-2 mb-4">
             <TabsTrigger value="valores">Valores</TabsTrigger>
             <TabsTrigger value="gastos">Gastos</TabsTrigger>
