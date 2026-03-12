@@ -45,10 +45,16 @@ const EMPTY = {
 };
 
 export default function PurchaseFormDialog({ currentUser, onClose, onSuccess, prefill }) {
-  // Usar hook centralizado para rubricas
-  const { budgetLines } = useBudgetLines();
-  
-  const [form, setForm] = useState(() => prefill ? { ...EMPTY, ...prefill } : EMPTY);
+   // Usar hook centralizado para rubricas
+   const { budgetLines } = useBudgetLines();
+
+   // Carregar rubricas da entidade Rubrica
+   const { data: rubricas = [] } = useQuery({
+     queryKey: ['rubricas'],
+     queryFn: () => base44.entities.Rubrica.list('-created_date', 999),
+   });
+
+   const [form, setForm] = useState(() => prefill ? { ...EMPTY, ...prefill } : EMPTY);
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [analyzingMeta, setAnalyzingMeta] = useState(false);
   const [checkingSaldo, setCheckingSaldo] = useState(false);
