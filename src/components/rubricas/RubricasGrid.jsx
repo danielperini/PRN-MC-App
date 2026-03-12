@@ -190,14 +190,21 @@ export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isC
                   </div>
                 </td>
                 <td className="py-3 px-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => onSelectRubrica(rubrica)}
-                  >
-                    Detalhe
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button variant="outline" size="sm" className="text-xs" onClick={() => onSelectRubrica(rubrica)}>
+                      Detalhe
+                    </Button>
+                    {isCoordenador && (
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingRubrica(rubrica); setShowForm(true); }}>
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={() => handleDelete(rubrica)} disabled={deletingId === rubrica.id}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
