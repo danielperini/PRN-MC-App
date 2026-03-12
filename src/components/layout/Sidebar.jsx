@@ -54,9 +54,6 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         { name: 'Fornecedores', icon: Building2, label: 'Fornecedores', show: isCoordenador, permission: 'can_manage_suppliers' },
          { name: 'DashboardFinanceiro', icon: BarChart3, label: 'Dashboard Financeiro', show: isCoordenador && canViewMenu('gestao_compras'), permission: 'gestao_compras' },
         { name: 'RubricasPorMuseu', icon: Building2, label: 'Rubricas por Museu', show: true },
-        { name: 'GestaoPagamentos', icon: Banknote, label: 'Pagamentos', show: isCoordenador, permission: 'can_manage_payments' },
-        { name: 'ConsolidacaoFinanceira', icon: DollarSign, label: 'Consolidação Financeira', show: isCoordenador, permission: 'can_view_consolidation' },
-        { name: 'RelatorioMeta', icon: Target, label: 'Rel. por Meta', show: isCoordenador },
       ],
     },
     {
