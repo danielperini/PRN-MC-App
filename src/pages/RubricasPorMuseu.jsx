@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Building2, TrendingUp, Settings, RefreshCw } from 'lucide-react';
 import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
-import RubricasGrid from '@/components/compras/RubricasGrid';
+import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 
@@ -68,7 +68,7 @@ export default function RubricasPorMuseu() {
 
         {MUSEUS.map(m => (
           <TabsContent key={m} value={m} className="mt-4">
-            <RubricasGrid filtroMuseu={m} />
+            <RubricasMuseuEditor museu={m} />
           </TabsContent>
         ))}
       </Tabs>
