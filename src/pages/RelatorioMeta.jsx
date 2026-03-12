@@ -175,20 +175,20 @@ function RelatorioMetaInner() {
         </div>
 
         {/* Totais gerais */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
-          {[
-            { label: 'Atividades / Meta', value: totals.atividades, icon: BarChart3, color: 'text-blue-700' },
-            { label: 'Público Total', value: totals.publico.toLocaleString('pt-BR'), icon: TrendingUp, color: 'text-green-700' },
-            { label: 'Solicitado', value: `R$ ${totals.solicitado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: null, color: 'text-gray-700' },
-            { label: 'Aprovado', value: `R$ ${totals.aprovado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: null, color: 'text-indigo-700' },
-            { label: 'Pago', value: `R$ ${totals.pago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: null, color: 'text-emerald-700' },
-          ].map(({ label, value, icon: Icon, color }) => (
-            <div key={label} className="bg-white border border-gray-200 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">{label}</p>
-              <p className={`text-lg font-bold ${color}`}>{value}</p>
-            </div>
-          ))}
-        </div>
+         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+           {[
+             { label: 'Atividades / Meta', value: totals.atividades, color: 'text-blue-700' },
+             { label: 'Público Total', value: totals.publico.toLocaleString('pt-BR'), color: 'text-green-700' },
+             { label: 'Solicitado', value: `R$ ${totals.solicitado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'text-gray-700' },
+             { label: 'Aprovado', value: `R$ ${totals.aprovado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'text-indigo-700' },
+             { label: 'Pago', value: `R$ ${totals.pago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'text-emerald-700' },
+           ].map(({ label, value, color }) => (
+             <div key={label} className="bg-white border border-gray-200 rounded-xl p-4">
+               <p className="text-xs text-gray-500 mb-1">{label}</p>
+               <p className={`text-lg font-bold ${color}`}>{value}</p>
+             </div>
+           ))}
+         </div>
 
         {/* Cards por meta */}
         <div className="space-y-6">
