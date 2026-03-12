@@ -294,7 +294,7 @@ function ReportEditorInner() {
 
   const [conflictError, setConflictError] = useState(null);
   const [lastSaveTime, setLastSaveTime] = useState(null);
-  const autoSaveTimerRef = React.useRef(null);
+  const autoSaveTimerRef = useRef(null);
 
   // Auto-save com detecção de conflito via função backend
   useEffect(() => {
