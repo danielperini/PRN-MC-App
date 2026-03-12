@@ -71,6 +71,15 @@ export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isC
 
   return (
     <div className="space-y-6">
+      {/* Ações de admin */}
+      {isCoordenador && (
+        <div className="flex justify-end">
+          <Button className="bg-black text-white" onClick={() => { setEditingRubrica(null); setShowForm(true); }}>
+            <Plus className="w-4 h-4 mr-2" />Nova Rubrica
+          </Button>
+        </div>
+      )}
+
       {/* Cards de resumo */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
         <div className="border border-gray-200 rounded-lg p-4 bg-blue-50">
