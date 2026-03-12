@@ -791,7 +791,7 @@ async function verificarDuplicata(novaAtiv, atividades) {
   if (!novaAtiv.nome && !novaAtiv.descricao_executado) return null;
   if (atividades.length === 0) return null;
 
-  const lista = atividades.map((a, i) => `${i + 1}. Nome: "${a.nome || ''}" | Tipo: ${a.tipo_acao || ''} | Data: ${a.data_inicio || ''} | Museu: ${a.museu || ''}`).join('\n');
+  const lista = atividades.filter(a => !!a).map((a, i) => `${i + 1}. Nome: "${a.nome || ''}" | Tipo: ${a.tipo_acao || ''} | Data: ${a.data_inicio || ''} | Museu: ${a.museu || ''}`).join('\n');
   const nova = `Nome: "${novaAtiv.nome || ''}" | Tipo: ${novaAtiv.tipo_acao || ''} | Data: ${novaAtiv.data_inicio || ''} | Museu: ${novaAtiv.museu || ''}`;
 
   const prompt = `Você é um assistente de controle de qualidade de relatórios de museus.
