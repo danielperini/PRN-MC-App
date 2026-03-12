@@ -901,7 +901,7 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
 
   const totalErrors = atividades.reduce((sum, a) => a ? sum + validateAtividade(a).length : sum, 0);
   const selectedCount = selectedIndices.size;
-  const selectedActivities = atividades.filter((_, idx) => selectedIndices.has(idx));
+  const selectedActivities = atividades.filter((a, idx) => a && selectedIndices.has(idx));
 
   const toggleSelection = (index) => {
     const newSet = new Set(selectedIndices);
