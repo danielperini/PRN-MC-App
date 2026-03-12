@@ -36,7 +36,7 @@ function ComprasInner() {
    const [tab, setTab] = useState('lista');
    const [showForm, setShowForm] = useState(false);
    const [showReportGen, setShowReportGen] = useState(false);
-   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '' });
+   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all' });
    const [selectedRubrica, setSelectedRubrica] = useState(null);
    const queryClient = useQueryClient();
 
