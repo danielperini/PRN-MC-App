@@ -5,14 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Building2, Wrench, BookOpen, Coffee, CreditCard, Package, Zap, Star, TrendingUp, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Building2, Wrench, BookOpen, Coffee, CreditCard, Package, Zap, Star, TrendingUp, AlertTriangle, CheckCircle, Settings } from 'lucide-react';
+import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 
 const MUSEU_COLORS = {
-  MHAB: { bg: 'bg-blue-50', border: 'border-blue-200', badge: 'bg-blue-100 text-blue-800', accent: 'text-blue-700', progress: 'bg-blue-500' },
-  MIS:  { bg: 'bg-emerald-50', border: 'border-emerald-200', badge: 'bg-emerald-100 text-emerald-800', accent: 'text-emerald-700', progress: 'bg-emerald-500' },
-  MUMO: { bg: 'bg-purple-50', border: 'border-purple-200', badge: 'bg-purple-100 text-purple-800', accent: 'text-purple-700', progress: 'bg-purple-500' },
+  MHAB: { bg: 'bg-blue-50', border: 'border-blue-200', badge: 'bg-blue-100 text-blue-800', accent: 'text-blue-700' },
+  MIS:  { bg: 'bg-emerald-50', border: 'border-emerald-200', badge: 'bg-emerald-100 text-emerald-800', accent: 'text-emerald-700' },
+  MUMO: { bg: 'bg-purple-50', border: 'border-purple-200', badge: 'bg-purple-100 text-purple-800', accent: 'text-purple-700' },
 };
 
 const CATEGORIAS = [
@@ -26,89 +28,26 @@ const CATEGORIAS = [
   { key: 'exposicao', label: 'Exposição', icon: Building2, color: 'text-purple-600' },
 ];
 
-/**
- * Regras de mapeamento:
- * - Se a rubrica contém o museu explicitamente no nome → atribuir só a ele
- * - Se é compartilhada (MIS/MUMO/MHAB) → dividir por 3
- * - Exposição MUMO → só MUMO (não divide)
- */
-function mapearRubricas(rubricas) {
-  // Resultado: { museu: { categoria: { valor_total, valor_utilizado, saldo, percentual, rubrica_nome, rubrica_id, divisor } } }
+function mapearPorConfig(rubricas, configs) {
+  const rubricaById = Object.fromEntries(rubricas.map(r => [r.id, r]));
+
   const mapa = {};
   for (const m of MUSEUS) {
     mapa[m] = {};
     for (const c of CATEGORIAS) {
-      mapa[m][c.key] = { valor_total: 0, valor_utilizado: 0, saldo: 0, rubricas: [] };
+      mapa[m][c.key] = { valor_total: 0, valor_utilizado: 0, saldo: 0, percentual: 0, rubricas: [] };
     }
   }
 
-  for (const r of rubricas) {
-    const nome = r.rubrica?.toLowerCase() || '';
-    const grupo = r.grupo?.toLowerCase() || '';
-
-    // ---- MANUTENÇÃO DE ROTINA ----
-    if (nome.includes('manutenção')) {
-      if (nome.includes('mis')) {
-        mapa['MIS']['manutencao'].rubricas.push({ ...r, divisor: 1, museu: 'MIS' });
-      } else if (nome.includes('mumo')) {
-        mapa['MUMO']['manutencao'].rubricas.push({ ...r, divisor: 1, museu: 'MUMO' });
-      } else if (nome.includes('mhab')) {
-        mapa['MHAB']['manutencao'].rubricas.push({ ...r, divisor: 1, museu: 'MHAB' });
-      } else if (nome.includes('mis') && nome.includes('mumo') && nome.includes('mhab')) {
-        for (const m of MUSEUS) mapa[m]['manutencao'].rubricas.push({ ...r, divisor: 3, museu: m });
-      }
-    }
-
-    // ---- DIÁRIAS DE EDUCADOR ----
-    else if (nome.includes('diária') || nome.includes('diaria')) {
-      for (const m of MUSEUS) mapa[m]['diarias_educador'].rubricas.push({ ...r, divisor: 3, museu: m });
-    }
-
-    // ---- LANCHES ----
-    else if (nome.includes('lanche')) {
-      if (nome.includes('mis')) mapa['MIS']['lanches'].rubricas.push({ ...r, divisor: 1, museu: 'MIS' });
-      else if (nome.includes('mumo')) mapa['MUMO']['lanches'].rubricas.push({ ...r, divisor: 1, museu: 'MUMO' });
-      else if (nome.includes('mhab')) mapa['MHAB']['lanches'].rubricas.push({ ...r, divisor: 1, museu: 'MHAB' });
-      else for (const m of MUSEUS) mapa[m]['lanches'].rubricas.push({ ...r, divisor: 3, museu: m });
-    }
-
-    // ---- ALIMENTAÇÃO CARTÃO ----
-    else if (nome.includes('alimentação') || nome.includes('cartão') || nome.includes('cartao')) {
-      if (nome.includes('mis')) mapa['MIS']['alimentacao_cartao'].rubricas.push({ ...r, divisor: 1, museu: 'MIS' });
-      else if (nome.includes('mumo')) mapa['MUMO']['alimentacao_cartao'].rubricas.push({ ...r, divisor: 1, museu: 'MUMO' });
-      else if (nome.includes('mhab')) mapa['MHAB']['alimentacao_cartao'].rubricas.push({ ...r, divisor: 1, museu: 'MHAB' });
-      else for (const m of MUSEUS) mapa[m]['alimentacao_cartao'].rubricas.push({ ...r, divisor: 3, museu: m });
-    }
-
-    // ---- MATERIAL ----
-    else if ((nome.includes('material') && (nome.includes('educativo') || nome.includes('ativ') || nome.includes('mis') || nome.includes('mumo') || nome.includes('mhab') || grupo.includes('alimentação'))) ) {
-      if (nome.includes('mis')) mapa['MIS']['material'].rubricas.push({ ...r, divisor: 1, museu: 'MIS' });
-      else if (nome.includes('mumo')) mapa['MUMO']['material'].rubricas.push({ ...r, divisor: 1, museu: 'MUMO' });
-      else if (nome.includes('mhab')) mapa['MHAB']['material'].rubricas.push({ ...r, divisor: 1, museu: 'MHAB' });
-      else for (const m of MUSEUS) mapa[m]['material'].rubricas.push({ ...r, divisor: 3, museu: m });
-    }
-
-    // ---- AÇÕES EDUCATIVAS ----
-    else if (nome.includes('ação educativa') || nome.includes('ações educativas') || nome.includes('acoes educativas') || nome.includes('acao educativa') || (nome.includes('ação') && grupo.includes('alimentação'))) {
-      if (nome.includes('mis')) mapa['MIS']['acoes_educativas'].rubricas.push({ ...r, divisor: 1, museu: 'MIS' });
-      else if (nome.includes('mumo')) mapa['MUMO']['acoes_educativas'].rubricas.push({ ...r, divisor: 1, museu: 'MUMO' });
-      else if (nome.includes('mhab')) mapa['MHAB']['acoes_educativas'].rubricas.push({ ...r, divisor: 1, museu: 'MHAB' });
-      else for (const m of MUSEUS) mapa[m]['acoes_educativas'].rubricas.push({ ...r, divisor: 3, museu: m });
-    }
-
-    // ---- SOM E LUZ ----
-    else if (nome.includes('som') || nome.includes('iluminação') || nome.includes('iluminacao')) {
-      for (const m of MUSEUS) mapa[m]['som_luz'].rubricas.push({ ...r, divisor: 3, museu: m });
-    }
-
-    // ---- EXPOSIÇÃO ----
-    else if (nome.includes('exposição') || nome.includes('exposicao')) {
-      // Só MUMO, não divide
-      mapa['MUMO']['exposicao'].rubricas.push({ ...r, divisor: 1, museu: 'MUMO' });
-    }
+  for (const cfg of configs) {
+    const r = rubricaById[cfg.rubrica_id];
+    if (!r || r.ativo === false) continue;
+    const cat = mapa[cfg.museu]?.[cfg.categoria_key];
+    if (!cat) continue;
+    const divisor = cfg.divisor || 1;
+    cat.rubricas.push({ ...r, divisor, museu: cfg.museu });
   }
 
-  // Calcular totais por categoria/museu
   for (const m of MUSEUS) {
     for (const c of CATEGORIAS) {
       const cat = mapa[m][c.key];
@@ -150,7 +89,7 @@ function CategoriaCard({ categoria, dados, museu }) {
       </CardHeader>
       <CardContent className="px-4 pb-4">
         {!temDados ? (
-          <p className="text-xs text-gray-400 italic">Não aplicável a este museu</p>
+          <p className="text-xs text-gray-400 italic">Sem rubricas configuradas</p>
         ) : (
           <div className="space-y-2">
             <div className="flex justify-between text-xs text-gray-500">
@@ -186,7 +125,7 @@ function CategoriaCard({ categoria, dados, museu }) {
 function MuseuPanel({ museu, mapa }) {
   const colors = MUSEU_COLORS[museu];
   const dados = mapa[museu];
-  
+
   const totalOrcado = Object.values(dados).reduce((s, c) => s + c.valor_total, 0);
   const totalUtilizado = Object.values(dados).reduce((s, c) => s + c.valor_utilizado, 0);
   const totalSaldo = totalOrcado - totalUtilizado;
@@ -194,7 +133,6 @@ function MuseuPanel({ museu, mapa }) {
 
   return (
     <div className="space-y-4">
-      {/* Header resumo do museu */}
       <div className={`rounded-xl border-2 ${colors.border} ${colors.bg} p-4`}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -230,15 +168,9 @@ function MuseuPanel({ museu, mapa }) {
         </div>
       </div>
 
-      {/* Grid de categorias */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {CATEGORIAS.map(cat => (
-          <CategoriaCard
-            key={cat.key}
-            categoria={cat}
-            dados={dados[cat.key]}
-            museu={museu}
-          />
+          <CategoriaCard key={cat.key} categoria={cat} dados={dados[cat.key]} museu={museu} />
         ))}
       </div>
     </div>
@@ -296,16 +228,32 @@ function ResumoGeral({ mapa }) {
 
 export default function RubricasPorMuseu() {
   const [museuAtivo, setMuseuAtivo] = useState('MHAB');
+  const [showGerenciar, setShowGerenciar] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
-  const { data: rubricas = [], isLoading } = useQuery({
+  React.useEffect(() => {
+    base44.auth.me().then(setCurrentUser).catch(() => {});
+  }, []);
+
+  const isCoordenador = currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
+
+  const { data: rubricas = [], isLoading: loadingRubricas } = useQuery({
     queryKey: ['rubricas-all'],
     queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 200),
   });
 
+  const { data: configs = [], isLoading: loadingConfigs } = useQuery({
+    queryKey: ['rubrica-museu-configs'],
+    queryFn: () => base44.entities.RubricaMuseuConfig.list(),
+  });
+
+  const isLoading = loadingRubricas || loadingConfigs;
+
   const mapa = useMemo(() => {
-    if (!rubricas.length) return null;
-    return mapearRubricas(rubricas.filter(r => r.ativo !== false));
-  }, [rubricas]);
+    const rubricasAtivas = rubricas.filter(r => r.ativo !== false);
+    if (!rubricasAtivas.length) return null;
+    return mapearPorConfig(rubricasAtivas, configs);
+  }, [rubricas, configs]);
 
   if (isLoading) {
     return (
@@ -325,14 +273,21 @@ export default function RubricasPorMuseu() {
             <TrendingUp className="w-6 h-6 text-gray-600" />
             Rubricas por Museu
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Acompanhamento orçamentário dividido por museu (1/3 por museu para rubricas compartilhadas)</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Acompanhamento orçamentário por museu
+            {configs.length > 0 && <span className="ml-2 text-gray-400">· {configs.length} rubrica(s) configurada(s)</span>}
+          </p>
         </div>
+        {isCoordenador && (
+          <Button variant="outline" className="gap-2" onClick={() => setShowGerenciar(true)}>
+            <Settings className="w-4 h-4" />
+            Gerenciar Rubricas
+          </Button>
+        )}
       </div>
 
-      {/* Resumo geral dos 3 museus */}
       <ResumoGeral mapa={mapa} />
 
-      {/* Tabs por museu */}
       <Tabs value={museuAtivo} onValueChange={setMuseuAtivo}>
         <TabsList className="grid grid-cols-3 w-full max-w-sm">
           {MUSEUS.map(m => (
@@ -346,6 +301,13 @@ export default function RubricasPorMuseu() {
           </TabsContent>
         ))}
       </Tabs>
+
+      {showGerenciar && (
+        <GerenciarRubricasMuseuDialog
+          open={showGerenciar}
+          onClose={() => setShowGerenciar(false)}
+        />
+      )}
     </div>
   );
 }
