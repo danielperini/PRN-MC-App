@@ -7,6 +7,17 @@ import { Input } from '@/components/ui/input';
 import { AlertCircle, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 
+const CATEGORIAS = [
+  { key: 'manutencao', label: 'Manutenção de Rotina' },
+  { key: 'diarias_educador', label: 'Diárias de Educador' },
+  { key: 'lanches', label: 'Lanches' },
+  { key: 'alimentacao_cartao', label: 'Alimentação Cartão' },
+  { key: 'material', label: 'Material' },
+  { key: 'acoes_educativas', label: 'Ações Educativas' },
+  { key: 'som_luz', label: 'Som e Luz' },
+  { key: 'exposicao', label: 'Exposição' },
+];
+
 export default function RubricasMuseuEditor({ museu }) {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState(null);
@@ -32,15 +43,15 @@ export default function RubricasMuseuEditor({ museu }) {
     enabled: !!museu,
   });
 
-  // Rubricas do museu selecionado
-  const rubricasDoMuseu = React.useMemo(() => {
+  // Rubricas agrupadas por categoria
+  const rubricasPorCategoria = React.useMemo(() => {
     const rubricasIds = new Set(
       configs
         .filter(c => c.museu === museu)
         .map(c => c.rubrica_id)
     );
 
-    return rubricas
+    const rubricasDoMuseu = rubricas
       .filter(r => rubricasIds.has(r.id) && r.ativo !== false)
       .map(r => {
         const comprasAprovadas = purchases.filter(
@@ -70,6 +81,15 @@ export default function RubricasMuseuEditor({ museu }) {
           comprasPagas: comprasPagas.length,
         };
       });
+
+    // Agrupar por categoria
+    return CATEGORIAS.map(cat => ({
+      categoria: cat,
+      rubricas: rubricasDoMuseu.filter(r => {
+        const configsCategoria = configs.filter(c => c.museu === museu && c.rubrica_id === r.id);
+        return configsCategoria.some(c => c.categoria_key === cat.key);
+      })
+    }));
   }, [rubricas, configs, purchases, museu]);
 
   const handleEditStart = (rubrica) => {
@@ -110,129 +130,119 @@ export default function RubricasMuseuEditor({ museu }) {
     }
   };
 
-  if (rubricasDoMuseu.length === 0) {
-    return (
-      <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
-        <AlertCircle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-        <p className="text-gray-400 text-sm">Nenhuma rubrica configurada para este museu</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      {rubricasDoMuseu.map((rubrica) => {
-        const isEditing = editingId === rubrica.id;
-        const temAlerta = rubrica.percentualUtilizado > 80 || rubrica.saldo < 0;
-
-        return (
-          <Card
-            key={rubrica.id}
-            className={`border-2 transition-all ${
-              temAlerta
-                ? 'border-red-300 bg-red-50/30'
-                : rubrica.percentualUtilizado > 50
-                ? 'border-yellow-300 bg-yellow-50/30'
-                : 'border-green-200 bg-green-50/30'
-            }`}
-          >
-            <CardContent className="p-5 space-y-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <h3 className="font-bold text-black text-sm">{rubrica.rubrica}</h3>
-                  <p className="text-xs text-gray-500 mt-1">{rubrica.categoria}</p>
-                </div>
-                <div
-                  className={`text-xs font-bold px-3 py-1.5 rounded-full ${
-                    rubrica.percentualUtilizado > 80
-                      ? 'bg-red-100 text-red-700'
-                      : rubrica.percentualUtilizado > 50
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-green-100 text-green-700'
-                  }`}
-                >
-                  {rubrica.percentualUtilizado}%
-                </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {rubricasPorCategoria.map(({ categoria, rubricas }) => (
+        <Card key={categoria.key} className="border border-gray-200">
+          <CardContent className="p-4">
+            <h3 className="font-semibold text-sm text-gray-900 mb-3">{categoria.label}</h3>
+            
+            {rubricas.length === 0 ? (
+              <div className="text-center py-6">
+                <AlertCircle className="w-6 h-6 text-gray-300 mx-auto mb-2" />
+                <p className="text-xs text-gray-400">Sem rubricas configuradas</p>
               </div>
+            ) : (
+              <div className="space-y-3">
+                {rubricas.map((rubrica) => {
+                  const isEditing = editingId === rubrica.id;
+                  const temAlerta = rubrica.percentualUtilizado > 80 || rubrica.saldo < 0;
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white p-3 rounded-lg border border-gray-200">
-                  <p className="text-[10px] text-gray-500 uppercase font-semibold">Valor Previsto</p>
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={editValues.valor_total}
-                      onChange={(e) =>
-                        setEditValues((prev) => ({
-                          ...prev,
-                          valor_total: e.target.value,
-                        }))
-                      }
-                      className="mt-1 text-sm font-bold"
-                    />
-                  ) : (
-                    <p className="text-sm font-bold text-black mt-1">
-                      R$ {rubrica.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </p>
-                  )}
-                </div>
+                  return (
+                    <div
+                      key={rubrica.id}
+                      className={`p-3 rounded-lg border ${
+                        temAlerta
+                          ? 'bg-red-50 border-red-200'
+                          : rubrica.percentualUtilizado > 50
+                          ? 'bg-yellow-50 border-yellow-200'
+                          : 'bg-green-50 border-green-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <h4 className="font-semibold text-xs text-black">{rubrica.rubrica}</h4>
+                        <div
+                          className={`text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                            temAlerta
+                              ? 'bg-red-100 text-red-700'
+                              : rubrica.percentualUtilizado > 50
+                              ? 'bg-yellow-100 text-yellow-700'
+                              : 'bg-green-100 text-green-700'
+                          }`}
+                        >
+                          {rubrica.percentualUtilizado}%
+                        </div>
+                      </div>
 
-                <div
-                  className={`p-3 rounded-lg border ${
-                    rubrica.saldo < 0 ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'
-                  }`}
-                >
-                  <p
-                    className={`text-[10px] uppercase font-semibold ${
-                      rubrica.saldo < 0 ? 'text-red-600' : 'text-green-600'
-                    }`}
-                  >
-                    Saldo
-                  </p>
-                  <p
-                    className={`text-sm font-bold mt-1 ${
-                      rubrica.saldo < 0 ? 'text-red-700' : 'text-green-700'
-                    }`}
-                  >
-                    R$ {Math.abs(rubrica.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </p>
-                </div>
+                      <div className="space-y-1.5 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Previsto:</span>
+                          {isEditing ? (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={editValues.valor_total}
+                              onChange={(e) =>
+                                setEditValues((prev) => ({
+                                  ...prev,
+                                  valor_total: e.target.value,
+                                }))
+                              }
+                              className="w-20 h-6 text-xs"
+                            />
+                          ) : (
+                            <span className="font-bold text-black">
+                              R$ {rubrica.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Saldo:</span>
+                          <span className={`font-bold ${rubrica.saldo < 0 ? 'text-red-700' : 'text-green-700'}`}>
+                            R$ {Math.abs(rubrica.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+
+                      {isEditing ? (
+                        <div className="flex gap-1 mt-2">
+                          <Button
+                            onClick={() => handleSave(rubrica.id)}
+                            disabled={saving}
+                            size="sm"
+                            className="flex-1 h-7 text-xs bg-green-600 hover:bg-green-700"
+                          >
+                            <Save className="w-3 h-3 mr-1" />
+                            Salvar
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={handleEditCancel}
+                            disabled={saving}
+                            size="sm"
+                            className="flex-1 h-7 text-xs"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full h-7 text-xs mt-2"
+                          onClick={() => handleEditStart(rubrica)}
+                        >
+                          Editar
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-
-              {isEditing ? (
-                <div className="flex gap-2 pt-2 border-t border-gray-200">
-                  <Button
-                    onClick={() => handleSave(rubrica.id)}
-                    disabled={saving}
-                    className="flex-1 gap-2 bg-green-600 hover:bg-green-700"
-                  >
-                    <Save className="w-4 h-4" />
-                    Salvar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleEditCancel}
-                    disabled={saving}
-                    className="flex-1 gap-2"
-                  >
-                    <X className="w-4 h-4" />
-                    Cancelar
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="outline"
-                  className="w-full text-sm"
-                  onClick={() => handleEditStart(rubrica)}
-                >
-                  Editar Orçamento
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+            )}
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
