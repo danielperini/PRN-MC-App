@@ -6,8 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Building2, Wrench, BookOpen, Coffee, CreditCard, Package, Zap, Star, TrendingUp, AlertTriangle, CheckCircle, Settings, RefreshCw } from 'lucide-react';
+import { Building2, TrendingUp, AlertTriangle, CheckCircle, Settings, RefreshCw } from 'lucide-react';
 import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
+import RubricasGrid from '@/components/compras/RubricasGrid';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 
