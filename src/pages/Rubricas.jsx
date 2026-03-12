@@ -116,6 +116,17 @@ export default function RubricasPage() {
               <Plus className="w-4 h-4" />
               Nova Rubrica
             </Button>
+            {rubricas.length === 0 && !loadingRubricas && (
+              <Button
+                variant="outline"
+                className="gap-2 border-orange-400 text-orange-700 hover:bg-orange-50"
+                onClick={handleInitialize}
+                disabled={initializing}
+              >
+                <RefreshCw className={`w-4 h-4 ${initializing ? 'animate-spin' : ''}`} />
+                {initializing ? 'Inicializando...' : 'Inicializar Rubricas Padrão'}
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => setShowMapeamento(true)}
