@@ -1,20 +1,15 @@
 import React, { useState, useMemo } from 'react';
+import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  AlertCircle,
-  AlertTriangle,
-  Search,
-} from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertCircle, AlertTriangle, Search, Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import RubricaFormDialog from './RubricaFormDialog';
 
-export default function RubricasGrid({ rubricas, onSelectRubrica }) {
+export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isCoordenador }) {
+  const [showForm, setShowForm] = useState(false);
+  const [editingRubrica, setEditingRubrica] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [search, setSearch] = useState('');
   const [filtroGrupo, setFiltroGrupo] = useState('all');
   const [filtroStatus, setFiltroStatus] = useState('all');
