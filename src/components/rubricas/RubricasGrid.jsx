@@ -212,5 +212,13 @@ export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isC
         </table>
       </div>
     </div>
+
+      {showForm && (
+        <RubricaFormDialog
+          rubrica={editingRubrica}
+          onClose={() => { setShowForm(false); setEditingRubrica(null); }}
+          onSuccess={() => { setShowForm(false); setEditingRubrica(null); onRefresh?.(); }}
+        />
+      )}
   );
 }
