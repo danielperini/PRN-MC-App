@@ -70,6 +70,7 @@ export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isC
   };
 
   return (
+    <>
     <div className="space-y-6">
       {/* Ações de admin */}
       {isCoordenador && (
