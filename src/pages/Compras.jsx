@@ -264,7 +264,12 @@ function ComprasInner() {
                  />
                </div>
              ) : (
-               <RubricasGrid rubricas={rubricas} onSelectRubrica={setSelectedRubrica} />
+               <RubricasGrid
+                 rubricas={rubricas}
+                 onSelectRubrica={setSelectedRubrica}
+                 onRefresh={() => queryClient.invalidateQueries(['rubricas'])}
+                 isCoordenador={isCoordenador}
+               />
              )}
            </div>
          )}
