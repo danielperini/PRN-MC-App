@@ -12,6 +12,7 @@ export default function ActivitySummarizer({ atividades, canEdit, onApplySuggest
   // Detectar descrições curtas ou genéricas
   const checkShortDescriptions = () => {
     const warnings = atividades
+      .filter(a => !!a)
       .map((a, idx) => {
         const desc = a.descricao_executado || '';
         const obj = a.objetivo || '';
