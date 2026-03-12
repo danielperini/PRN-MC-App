@@ -4,11 +4,15 @@ import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Plus, History, Edit2, Trash2, Link as LinkIcon, Filter, Activity, X, AlertTriangle, ShoppingCart } from 'lucide-react';
 import PurchaseFormDialog from '../components/compras/PurchaseFormDialog';
-import AtividadeFormDialog from '../components/atividades/AtividadeFormDialog';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
