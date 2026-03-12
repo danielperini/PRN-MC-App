@@ -65,7 +65,7 @@ function MuseusNoMapaInner() {
 
           <div className="flex flex-wrap gap-3 justify-center">
             <div className="px-4 py-2 bg-white/10 rounded-full text-sm text-slate-300 border border-white/20">
-              ✨ 4 Museus & Equipamentos
+              ✨ 3 Museus
             </div>
             <div className="px-4 py-2 bg-white/10 rounded-full text-sm text-slate-300 border border-white/20">
               🔍 Análise com IA
