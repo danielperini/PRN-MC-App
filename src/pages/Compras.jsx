@@ -85,10 +85,11 @@ function ComprasInner() {
     if (!matchMeta && filters.meta_id === 'produto') matchMeta = p.tipo_item === 'produto';
     if (!matchMeta && filters.meta_id === 'servico') matchMeta = p.tipo_item === 'servico';
     if (!matchMeta) matchMeta = p.meta_id === filters.meta_id;
+    const matchRubrica = filters.rubrica_id === 'all' || p.rubrica_id === filters.rubrica_id;
     const matchSearch = !filters.search
       || p.descricao_item?.toLowerCase().includes(filters.search.toLowerCase())
       || p.fornecedor_nome?.toLowerCase().includes(filters.search.toLowerCase());
-    return matchStatus && matchMeta && matchSearch;
+    return matchStatus && matchMeta && matchRubrica && matchSearch;
   });
 
   const pendentes_coord = purchases.filter(p => p.status === 'SOLICITADO').length;
