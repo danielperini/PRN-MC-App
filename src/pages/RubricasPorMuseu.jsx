@@ -285,26 +285,39 @@ export default function RubricasPorMuseu() {
 
   if (!mapa) return null;
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: ['rubricas-all'] });
+    await queryClient.invalidateQueries({ queryKey: ['rubrica-museu-configs'] });
+    setIsRefreshing(false);
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-10">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-gray-600" />
-            Rubricas por Museu
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Acompanhamento orçamentário por museu
-            {configs.length > 0 && <span className="ml-2 text-gray-400">· {configs.length} rubrica(s) configurada(s)</span>}
-          </p>
-        </div>
-        {isCoordenador && (
-          <Button variant="outline" className="gap-2" onClick={() => setShowGerenciar(true)}>
-            <Settings className="w-4 h-4" />
-            Gerenciar Rubricas
-          </Button>
-        )}
-      </div>
+       <div className="flex items-center justify-between">
+         <div>
+           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+             <TrendingUp className="w-6 h-6 text-gray-600" />
+             Rubricas por Museu
+           </h1>
+           <p className="text-sm text-gray-500 mt-1">
+             Acompanhamento orçamentário por museu
+             {configs.length > 0 && <span className="ml-2 text-gray-400">· {configs.length} rubrica(s) configurada(s)</span>}
+           </p>
+         </div>
+         <div className="flex gap-2">
+           <Button variant="outline" className="gap-2" onClick={handleRefresh} disabled={isRefreshing}>
+             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+             Atualizar
+           </Button>
+           {isCoordenador && (
+             <Button variant="outline" className="gap-2" onClick={() => setShowGerenciar(true)}>
+               <Settings className="w-4 h-4" />
+               Gerenciar Rubricas
+             </Button>
+           )}
+         </div>
+       </div>
 
       <ResumoGeral mapa={mapa} />
 
