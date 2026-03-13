@@ -339,6 +339,6 @@ function ComprasInner() {
       );
       }
 
-      export default function Compras() {
-      return <RequireAuth><RequireCoordinator><ComprasInner /></RequireCoordinator></RequireAuth>;
-      }
+export default function Compras() {
+  return <RequireAuth><ComprasInner /></RequireAuth>;
+}
