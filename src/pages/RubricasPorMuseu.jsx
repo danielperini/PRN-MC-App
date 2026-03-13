@@ -3,9 +3,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Building2, TrendingUp, Settings, RefreshCw } from 'lucide-react';
+import { TrendingUp, Settings, RefreshCw, Sparkles, BarChart2 } from 'lucide-react';
 import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
 import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
+import RubricasConsolidadoView from '@/components/rubricas/RubricasConsolidadoView';
+import { toast } from 'sonner';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 
