@@ -63,15 +63,31 @@ export default function RubricasPorMuseu() {
              Acompanhamento orçamentário centralizado
            </p>
          </div>
-         <div className="flex gap-2">
+         <div className="flex flex-wrap gap-2">
            <Button variant="outline" className="gap-2" onClick={handleRefresh} disabled={isRefreshing}>
              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
              Atualizar
            </Button>
+           <Button
+             variant="outline"
+             className="gap-2"
+             onClick={() => setViewMode(v => v === 'consolidado' ? 'editor' : 'consolidado')}
+           >
+             <BarChart2 className="w-4 h-4" />
+             {viewMode === 'consolidado' ? 'Ver Editor' : 'Ver Consolidado'}
+           </Button>
+           <Button
+             className="gap-2 bg-black text-white hover:bg-gray-800"
+             onClick={handleConsolidar}
+             disabled={isConsolidating}
+           >
+             <Sparkles className={`w-4 h-4 ${isConsolidating ? 'animate-spin' : ''}`} />
+             {isConsolidating ? 'Consolidando...' : 'Consolidar com IA'}
+           </Button>
            {isCoordenador && (
              <Button variant="outline" className="gap-2" onClick={() => setShowGerenciar(true)}>
                <Settings className="w-4 h-4" />
-               Gerenciar Rubricas
+               Gerenciar
              </Button>
            )}
          </div>
