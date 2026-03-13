@@ -170,9 +170,20 @@ export default function UserPermissionsManager() {
 
   return (
     <div className="space-y-4 md:space-y-6 w-full">
-      <div>
-        <h3 className="text-base md:text-lg font-bold text-gray-900 mb-2">Gerenciar Permissões de Usuários</h3>
-        <p className="text-xs md:text-sm text-gray-600">Configure acessos específicos para cada membro da equipe</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h3 className="text-base md:text-lg font-bold text-gray-900 mb-1">Gerenciar Permissões de Usuários</h3>
+          <p className="text-xs md:text-sm text-gray-600">Configure acessos específicos para cada membro da equipe</p>
+        </div>
+        <Button
+          onClick={handleApplyDefaultsToAll}
+          disabled={applyingAll}
+          variant="outline"
+          className="gap-2 text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-50 whitespace-nowrap"
+        >
+          {applyingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+          Aplicar padrão a todos
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 w-full">
