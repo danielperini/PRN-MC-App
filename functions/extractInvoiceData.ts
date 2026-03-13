@@ -54,7 +54,7 @@ Retorne APENAS o JSON válido, sem explicações adicionais.`,
           data_vencimento: { type: "string" }
         }
       },
-      model: 'claude_sonnet_4_6'
+      model: 'gemini_3_pro'
     });
 
     return Response.json({

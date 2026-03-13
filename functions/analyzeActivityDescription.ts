@@ -32,6 +32,7 @@ Responda em JSON com a seguinte estrutura:
 
     const response = await base44.integrations.Core.InvokeLLM({
       prompt,
+      model: 'claude_sonnet_4_6',
       response_json_schema: {
         type: 'object',
         properties: {

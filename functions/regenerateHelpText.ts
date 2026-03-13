@@ -31,7 +31,7 @@ Padrão de resposta:
 Escreva SEMPRE em português do Brasil. Seja claro, objetivo, elegante e profissional. Sem texto genérico. Máximo 3 linhas.
 
 Responda APENAS com o texto de ajuda, sem explicações adicionais.`,
-      model: 'gpt_5_mini',
+      model: 'automatic',
     });
 
     return Response.json({

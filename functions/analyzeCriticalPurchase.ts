@@ -85,7 +85,7 @@ Contexto: Sistema de gestão do 3º Termo Aditivo do convênio dos Museus de Bel
           recomendacao: { type: 'string' }
         }
       },
-      model: 'claude_sonnet_4_6'
+      model: 'claude_opus_4_6'
     });
 
     // Get all coordinators and admins

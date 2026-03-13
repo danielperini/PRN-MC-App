@@ -210,6 +210,7 @@ Priorize: coletivos de base comunitária, organizações sociais de juventude, e
     const prompt = promptsPorMuseu[museu_sigla] || promptsPorMuseu['MHAB'];
 
     const llmResponse = await base44.asServiceRole.integrations.Core.InvokeLLM({
+      model: 'claude_sonnet_4_6',
       prompt: prompt + `
 
 Retorne um JSON válido com array "opportunities" contendo 15-20 instituições.

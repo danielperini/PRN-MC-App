@@ -290,6 +290,7 @@ Deno.serve(async (req) => {
       const groupedTermsText = group.map((term) => '- ' + term).join('\n');
 
        const searchResult = await base44.integrations.Core.InvokeLLM({
+        model: 'gemini_3_flash',
         prompt: `Pesquise notícias recentes e relevantes em Belo Horizonte relacionadas aos seguintes termos:
       ${groupedTermsText}
 
@@ -377,6 +378,7 @@ Retorne apenas JSON no formato solicitado.`,
 
       try {
         const result = await base44.integrations.Core.InvokeLLM({
+          model: 'automatic',
           prompt,
           response_json_schema: {
             type: 'object',
