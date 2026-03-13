@@ -139,7 +139,7 @@ function ComprasInner() {
          <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit overflow-x-auto">
             {[
                { id: 'lista', label: 'Solicitações' },
-               ...(podeVerSaude ? [{ id: 'saude', label: 'Saúde Orçamentária' }] : []),
+
                { id: 'orcamento', label: 'Orçamento' },
                { id: 'rubricas', label: 'Rubricas' },
                { id: 'documentos', label: 'Documentos' },
