@@ -13,9 +13,11 @@ const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 
 export default function RubricasPorMuseu() {
    const [museuAtivo, setMuseuAtivo] = useState('MHAB');
+   const [viewMode, setViewMode] = useState('consolidado'); // 'consolidado' | 'editor'
    const [showGerenciar, setShowGerenciar] = useState(false);
    const [currentUser, setCurrentUser] = useState(null);
    const [isRefreshing, setIsRefreshing] = useState(false);
+   const [isConsolidating, setIsConsolidating] = useState(false);
    const queryClient = useQueryClient();
 
   useEffect(() => {
