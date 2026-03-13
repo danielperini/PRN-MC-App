@@ -11,7 +11,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Search, Save, Loader2, User, Shield } from 'lucide-react';
+import { Search, Save, Loader2, User, Shield, Users } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const PERMISSION_GROUPS = {
