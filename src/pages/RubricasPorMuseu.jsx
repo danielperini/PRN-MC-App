@@ -102,7 +102,10 @@ export default function RubricasPorMuseu() {
 
         {MUSEUS.map(m => (
           <TabsContent key={m} value={m} className="mt-4">
-            <RubricasMuseuEditor museu={m} />
+            {viewMode === 'consolidado'
+              ? <RubricasConsolidadoView museu={m} />
+              : <RubricasMuseuEditor museu={m} />
+            }
           </TabsContent>
         ))}
       </Tabs>
