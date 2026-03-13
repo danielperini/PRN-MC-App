@@ -3,21 +3,17 @@ import { useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, Settings, RefreshCw, Sparkles, BarChart2 } from 'lucide-react';
+import { Building2, TrendingUp, Settings, RefreshCw } from 'lucide-react';
 import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
 import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
-import RubricasConsolidadoView from '@/components/rubricas/RubricasConsolidadoView';
-import { toast } from 'sonner';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 
 export default function RubricasPorMuseu() {
    const [museuAtivo, setMuseuAtivo] = useState('MHAB');
-   const [viewMode, setViewMode] = useState('consolidado'); // 'consolidado' | 'editor'
    const [showGerenciar, setShowGerenciar] = useState(false);
    const [currentUser, setCurrentUser] = useState(null);
    const [isRefreshing, setIsRefreshing] = useState(false);
-   const [isConsolidating, setIsConsolidating] = useState(false);
    const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -37,20 +33,6 @@ export default function RubricasPorMuseu() {
     setIsRefreshing(false);
   };
 
-  const handleConsolidar = async () => {
-    setIsConsolidating(true);
-    try {
-      await base44.functions.invoke('consolidateRubricasAI', { museu: museuAtivo });
-      await queryClient.invalidateQueries({ queryKey: ['rubricas-consolidado', museuAtivo] });
-      toast.success(`Consolidação do ${museuAtivo} gerada com sucesso`);
-      setViewMode('consolidado');
-    } catch (e) {
-      toast.error('Erro ao consolidar: ' + e.message);
-    } finally {
-      setIsConsolidating(false);
-    }
-  };
-
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-10">
        <div className="flex items-center justify-between">
@@ -63,31 +45,15 @@ export default function RubricasPorMuseu() {
              Acompanhamento orçamentário centralizado
            </p>
          </div>
-         <div className="flex flex-wrap gap-2">
+         <div className="flex gap-2">
            <Button variant="outline" className="gap-2" onClick={handleRefresh} disabled={isRefreshing}>
              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
              Atualizar
            </Button>
-           <Button
-             variant="outline"
-             className="gap-2"
-             onClick={() => setViewMode(v => v === 'consolidado' ? 'editor' : 'consolidado')}
-           >
-             <BarChart2 className="w-4 h-4" />
-             {viewMode === 'consolidado' ? 'Ver Editor' : 'Ver Consolidado'}
-           </Button>
-           <Button
-             className="gap-2 bg-black text-white hover:bg-gray-800"
-             onClick={handleConsolidar}
-             disabled={isConsolidating}
-           >
-             <Sparkles className={`w-4 h-4 ${isConsolidating ? 'animate-spin' : ''}`} />
-             {isConsolidating ? 'Consolidando...' : 'Consolidar com IA'}
-           </Button>
            {isCoordenador && (
              <Button variant="outline" className="gap-2" onClick={() => setShowGerenciar(true)}>
                <Settings className="w-4 h-4" />
-               Gerenciar
+               Gerenciar Rubricas
              </Button>
            )}
          </div>
@@ -102,10 +68,7 @@ export default function RubricasPorMuseu() {
 
         {MUSEUS.map(m => (
           <TabsContent key={m} value={m} className="mt-4">
-            {viewMode === 'consolidado'
-              ? <RubricasConsolidadoView museu={m} />
-              : <RubricasMuseuEditor museu={m} />
-            }
+            <RubricasMuseuEditor museu={m} />
           </TabsContent>
         ))}
       </Tabs>
