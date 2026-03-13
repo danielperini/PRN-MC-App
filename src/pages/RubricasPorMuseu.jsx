@@ -37,6 +37,20 @@ export default function RubricasPorMuseu() {
     setIsRefreshing(false);
   };
 
+  const handleConsolidar = async () => {
+    setIsConsolidating(true);
+    try {
+      await base44.functions.invoke('consolidateRubricasAI', { museu: museuAtivo });
+      await queryClient.invalidateQueries({ queryKey: ['rubricas-consolidado', museuAtivo] });
+      toast.success(`Consolidação do ${museuAtivo} gerada com sucesso`);
+      setViewMode('consolidado');
+    } catch (e) {
+      toast.error('Erro ao consolidar: ' + e.message);
+    } finally {
+      setIsConsolidating(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-10">
        <div className="flex items-center justify-between">
