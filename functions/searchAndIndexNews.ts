@@ -54,6 +54,7 @@ function dedupeByLink(items) {
 
 async function fetchPortalMuseusCentro(base44) {
   const result = await base44.integrations.Core.InvokeLLM({
+    model: 'gemini_3_flash',
     prompt: `Acesse e analise prioritariamente esta página:
 https://portalbelohorizonte.com.br/museuscentro/2025/noticias
 
@@ -103,6 +104,7 @@ Retorne JSON no formato:
 
 async function fetchCulturadoriaMuseus(base44) {
   const result = await base44.integrations.Core.InvokeLLM({
+    model: 'gemini_3_flash',
     prompt: `Acesse e analise prioritariamente estas páginas:
 https://culturadoria.com.br/
 https://culturadoria.com.br/?s=MUSEUS
