@@ -109,6 +109,39 @@ export default function UserPermissionsManager() {
     }));
   };
 
+  const handleApplyDefaultsToAll = async () => {
+    if (!window.confirm('Isso aplicará as permissões padrão (acesso a relatórios, pedidos de compra, perfil e arquivos próprios) para TODOS os usuários sem role de COORDENADOR ou ADMIN. Confirmar?')) return;
+    setApplyingAll(true);
+    try {
+      const permissions = await base44.asServiceRole.entities.UserPermission.list('-updated_date', 500);
+      const permMap = {};
+      permissions.forEach(p => { permMap[p.user_email] = p; });
+
+      for (const user of users) {
+        if (user.permissions?.base_role === 'COORDENADOR' || user.permissions?.base_role === 'ADMIN') continue;
+        const existing = permMap[user.email];
+        if (existing) {
+          await base44.asServiceRole.entities.UserPermission.update(existing.id, {
+            ...DEFAULT_USER_PERMISSIONS,
+            user_email: user.email,
+            user_name: user.full_name,
+          });
+        } else {
+          await base44.asServiceRole.entities.UserPermission.create({
+            ...DEFAULT_USER_PERMISSIONS,
+            user_email: user.email,
+            user_name: user.full_name,
+          });
+        }
+      }
+      queryClient.invalidateQueries(['all-users-permissions']);
+      toast({ title: 'Permissões aplicadas!', description: 'Todos os usuários receberam as permissões padrão.' });
+    } catch (e) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    }
+    setApplyingAll(false);
+  };
+
   const { mutate: savePermissions } = useMutation({
     mutationFn: async () => {
       if (!editingPermissions.id) {
