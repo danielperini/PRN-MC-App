@@ -234,11 +234,6 @@ function ComprasInner() {
           </div>
         )}
 
-        {/* Saúde Orçamentária */}
-         {tab === 'saude' && podeVerSaude && (
-           <BudgetHealthDashboard budgetLines={budgetLines} purchases={purchases} />
-         )}
-
         {/* Orçamento */}
         {tab === 'orcamento' && (
           <div className="space-y-8">
