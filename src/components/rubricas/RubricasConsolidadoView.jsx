@@ -67,13 +67,7 @@ export default function RubricasConsolidadoView({ museu }) {
             R$ {(dado.totais?.saldo || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </p>
         </Card>
-        <Card className={`p-4 border ${saude.color.replace('text-', 'border-').replace('-800', '-200')}`}>
-          <p className="text-xs text-gray-500">Saúde Geral</p>
-          <div className="flex items-center gap-1.5 mt-1">
-            <SaudeIcon className="w-4 h-4" />
-            <span className={`text-sm font-bold ${saude.color.split(' ')[1]}`}>{saude.label}</span>
-          </div>
-        </Card>
+
       </div>
 
       {/* Categorias */}
