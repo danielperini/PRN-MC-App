@@ -139,9 +139,8 @@ function ComprasInner() {
          <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit overflow-x-auto">
             {[
                { id: 'lista', label: 'Solicitações' },
-
                { id: 'orcamento', label: 'Orçamento' },
-               { id: 'rubricas', label: 'Rubricas' },
+               ...(isCoordenador ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
                { id: 'documentos', label: 'Documentos' },
                ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
                ...(podeAprovarSolicitacoes ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
