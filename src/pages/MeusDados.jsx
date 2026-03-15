@@ -32,6 +32,8 @@ const BANKING_FIELDS = [
 
 function MeusDadosInner() {
   const [user, setUser] = useState(null);
+  const [coordGeral, setCoordGeral] = useState(false);
+  const [selectedUserEmail, setSelectedUserEmail] = useState(null); // null = próprio usuário
   const [formData, setFormData] = useState({
     email_pessoal: '',
     telefone: '',
