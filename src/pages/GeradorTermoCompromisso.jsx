@@ -35,7 +35,7 @@ const FORMAS_PAGAMENTO = {
 
 export default function GeradorTermoCompromisso() {
   return (
-    <RequireAuth requireRole={['COORDENADOR', 'ADMIN']}>
+    <RequireAuth>
       <GeradorTermoContent />
     </RequireAuth>
   );
