@@ -42,8 +42,16 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
-    if (!user || !['admin', 'ADMIN', 'COORDENADOR'].includes(user.role)) {
-      return Response.json({ error: 'Acesso negado' }, { status: 403 });
+    if (!user) return Response.json({ error: 'Não autenticado' }, { status: 401 });
+
+    // Permite coordenador, admin, ou quem tem gestao_compras / pode_gerenciar_rubricas
+    const isAdminOrCoord = ['admin', 'ADMIN', 'COORDENADOR'].includes(user.role);
+    if (!isAdminOrCoord) {
+      const perms = await base44.asServiceRole.entities.UserPermission.filter({ user_email: user.email });
+      const perm = perms?.[0];
+      if (!perm?.gestao_compras && !perm?.pode_gerenciar_rubricas) {
+        return Response.json({ error: 'Acesso negado' }, { status: 403 });
+      }
     }
 
     const rubricas = await base44.asServiceRole.entities.Rubrica.list('ordem_exibicao', 500);
