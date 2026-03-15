@@ -1138,6 +1138,26 @@ function UserManagementInner() {
   );
 }
 
+import { isCoordGeral } from '@/components/auth/permissions';
+
+function UserManagementGate({ children }) {
+  const [allowed, setAllowed] = React.useState(null);
+  React.useEffect(() => {
+    base44.auth.me().then(u => setAllowed(isCoordGeral(u))).catch(() => setAllowed(false));
+  }, []);
+  if (allowed === null) return <div className="min-h-screen flex items-center justify-center text-gray-400">Verificando acesso...</div>;
+  if (!allowed) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center max-w-sm">
+        <div className="text-4xl mb-4">🔒</div>
+        <p className="text-lg font-semibold text-black mb-2">Acesso Restrito</p>
+        <p className="text-sm text-gray-500">Apenas o Coordenador Geral pode gerenciar usuários.</p>
+      </div>
+    </div>
+  );
+  return children;
+}
+
 export default function UserManagement() {
-  return <RequireAuth requireRole={['ADMIN', 'COORDENADOR']}><UserManagementInner /></RequireAuth>;
+  return <RequireAuth><UserManagementGate><UserManagementInner /></UserManagementGate></RequireAuth>;
 }
