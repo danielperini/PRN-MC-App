@@ -1,24 +1,24 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 // Mapeamento de palavras-chave para categoria_key
-const KEYWORD_TO_CATEGORIA = {
-  'manutenc': 'manutencao',
-  'manuten': 'manutencao',
-  'diaria': 'diarias_educador',
-  'educador': 'diarias_educador',
-  'lanche': 'lanches',
-  'alimentac': 'alimentacao_cartao',
-  'cartao': 'alimentacao_cartao',
-  'cartão': 'alimentacao_cartao',
-  'material': 'material',
-  'acao educativa': 'acoes_educativas',
-  'ações educativas': 'acoes_educativas',
-  'acoes educativas': 'acoes_educativas',
-  'som': 'som_luz',
-  'luz': 'som_luz',
-  'exposi': 'exposicao',
-  'expograf': 'exposicao',
-};
+const KEYWORD_TO_CATEGORIA = [
+  ['exposi', 'exposicao'],
+  ['expograf', 'exposicao'],
+  ['som e luz', 'som_luz'],
+  ['acao educativa', 'acoes_educativas'],
+  ['ações educativas', 'acoes_educativas'],
+  ['acoes educativas', 'acoes_educativas'],
+  ['diaria', 'diarias_educador'],
+  ['diária', 'diarias_educador'],
+  ['lanche', 'lanches'],
+  ['buffet', 'lanches'],
+  ['alimentac', 'alimentacao_cartao'],
+  ['cartao', 'alimentacao_cartao'],
+  ['cartão', 'alimentacao_cartao'],
+  ['material', 'material'],
+  ['manutenc', 'manutencao'],
+  ['manuten', 'manutencao'],
+];
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 
