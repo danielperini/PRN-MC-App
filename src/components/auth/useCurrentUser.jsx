@@ -8,7 +8,7 @@ let fetchPromise = null;
 /**
  * Hook to get the current authenticated user.
  * Uses a module-level cache to avoid repeated API calls.
- * Returns { user, isLoading, isCoordenador }
+ * Returns { user, isLoading, isCoordenador, isCoordGeral }
  */
 export function useCurrentUser() {
   const [user, setUser] = useState(cachedUser);
@@ -32,12 +32,10 @@ export function useCurrentUser() {
     });
   }, []);
 
-  const isCoordenador = user?.role === 'COORDENADOR' || user?.role === 'admin' || user?.role === 'ADMIN';
+  const isCoordenador = _isCoordenador(user);
+  const coordGeral = _isCoordGeral(user);
 
-  // Daniel Perini é o único Coordenador Geral com gestão total de usuários
-  const isCoordGeral = user?.email === 'daniel@periniprojetos.com.br' || user?.can_manage_users === true;
-
-  return { user, isLoading, isCoordenador, isCoordGeral };
+  return { user, isLoading, isCoordenador, isCoordGeral: coordGeral };
 }
 
 // Call this after logout or role change to reset cache
