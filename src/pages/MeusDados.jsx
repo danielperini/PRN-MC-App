@@ -223,9 +223,32 @@ function MeusDadosInner() {
 
         {/* Header */}
         <div className="mb-10">
-          <h1 className="text-3xl font-semibold text-black mb-2">Meus Dados</h1>
+          <h1 className="text-3xl font-semibold text-black mb-2">
+            {selectedUserEmail ? `Dados de ${targetUser?.full_name || selectedUserEmail}` : 'Meus Dados'}
+          </h1>
           <p className="text-gray-600">Preencha suas informações pessoais e bancárias para a equipe</p>
         </div>
+
+        {/* Seletor de usuário — apenas Coordenador Geral */}
+        {coordGeral && (
+          <div className="mb-8 p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+            <Label className="text-sm font-semibold text-slate-700">Editar dados de outro usuário</Label>
+            <Select
+              value={selectedUserEmail || '__own__'}
+              onValueChange={v => setSelectedUserEmail(v === '__own__' ? null : v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__own__">— Meus próprios dados —</SelectItem>
+                {allUsers.filter(u => u.email !== user?.email).map(u => (
+                  <SelectItem key={u.email} value={u.email}>{u.full_name} ({u.email})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* Equipe Info */}
         {user.equipe && (
