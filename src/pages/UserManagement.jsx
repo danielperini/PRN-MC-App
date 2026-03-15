@@ -208,7 +208,7 @@ function UserManagementInner() {
   const openPermEdit = (perm) => setEditingPerm({ ...perm });
 
   const openPermCreate = (user) => {
-    const newForm = { user_email: user?.email || '', user_name: user?.full_name || '', base_role: user?.role || 'PROFISSIONAL' };
+    const newForm = { user_email: user?.email || '', user_name: user?.full_name || '', base_role: user?.role || 'PROFISSIONAL', must_submit_monthly_reports: false };
     PERMISSIONS.forEach(p => { newForm[p.key] = false; });
     setPermFormData(newForm);
     setShowPermDialog(true);
