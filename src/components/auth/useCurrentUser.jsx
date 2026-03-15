@@ -33,7 +33,10 @@ export function useCurrentUser() {
 
   const isCoordenador = user?.role === 'COORDENADOR' || user?.role === 'admin' || user?.role === 'ADMIN';
 
-  return { user, isLoading, isCoordenador };
+  // Daniel Perini é o único Coordenador Geral com gestão total de usuários
+  const isCoordGeral = user?.email === 'daniel@periniprojetos.com.br' || user?.can_manage_users === true;
+
+  return { user, isLoading, isCoordenador, isCoordGeral };
 }
 
 // Call this after logout or role change to reset cache
