@@ -9,7 +9,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText, Plus, Eye, Download, Check } from 'lucide-react';
 import RequireAuth from '@/components/auth/RequireAuth';
-import TermoPDFUploader from '@/components/termos/TermoPDFUploader';
 import TermoMetaLinkage from '@/components/termos/TermoMetaLinkage';
 
 const TIPOS_TERMO = {
