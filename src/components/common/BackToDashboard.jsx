@@ -1,20 +1,15 @@
-import { Link } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
-import { LayoutDashboard } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 
-/**
- * Botão reutilizável "Voltar para o Dashboard"
- * Use em qualquer página: <BackToDashboard />
- */
 export default function BackToDashboard({ className = '' }) {
+  const navigate = useNavigate();
   return (
-    <Link to={createPageUrl('Dashboard')}>
-      <button
-        className={`inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-black transition-colors group ${className}`}
-      >
-        <LayoutDashboard className="w-3.5 h-3.5 group-hover:text-black" />
-        <span>Voltar ao Dashboard</span>
-      </button>
-    </Link>
+    <button
+      onClick={() => navigate(-1)}
+      className={`inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-black transition-colors group ${className}`}
+    >
+      <ArrowLeft className="w-3.5 h-3.5 group-hover:text-black" />
+      <span>Voltar</span>
+    </button>
   );
 }
