@@ -18,17 +18,18 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
   const [expandedSections, setExpandedSections] = useState({});
 
   useEffect(() => {
-    if (currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role)) {
+    if (currentUser?.email) {
       base44.entities.UserPermission.filter({ user_email: currentUser.email })
         .then(perms => setCustomPerms(perms?.[0] || null))
         .catch(() => setCustomPerms(null));
     }
   }, [currentUser?.email]);
 
-  const isCoordenador = currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
+  const coord = checkCoordenador(currentUser);
+  const coordGeral = isCoordGeral(currentUser);
 
   const canViewMenu = (requiredPerm) => {
-    if (!isCoordenador) return true;
+    if (!coord) return true;
     if (!customPerms) return true;
     return customPerms[requiredPerm] !== false;
   };
@@ -38,34 +39,33 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       label: null,
       items: [
         { name: 'Dashboard', icon: BarChart3, label: 'Dashboard', show: true },
-        { name: 'DashboardProfissional', icon: FileText, label: 'Meu Painel', show: !isCoordenador },
       ],
     },
     {
       label: 'Trabalho',
       items: [
-        { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true, permission: 'can_view_reports' },
-        { name: 'CalendarioAtividades', icon: CalendarDays, label: 'Agenda', show: true, permission: 'can_view_calendar' },
-        { name: 'Compras', icon: ShoppingCart, label: 'Compras e Equipe', show: true, permission: 'can_view_purchases' },
+        { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true },
+        { name: 'CalendarioAtividades', icon: CalendarDays, label: 'Agenda', show: true },
+        { name: 'Compras', icon: ShoppingCart, label: 'Compras', show: true },
       ],
     },
     {
       label: 'Financeiro',
       items: [
-        { name: 'Fornecedores', icon: Building2, label: 'Fornecedores', show: isCoordenador, permission: 'can_manage_suppliers' },
-         { name: 'DashboardFinanceiro', icon: BarChart3, label: 'Dashboard Financeiro', show: isCoordenador && canViewMenu('gestao_compras'), permission: 'gestao_compras' },
         { name: 'RubricasPorMuseu', icon: Building2, label: 'Rubricas por Museu', show: true },
+        { name: 'Fornecedores', icon: Building2, label: 'Fornecedores', show: coord },
+        { name: 'DashboardFinanceiro', icon: BarChart3, label: 'Dashboard Financeiro', show: coord && canViewMenu('gestao_compras') },
       ],
     },
     {
       label: 'Gestão',
       items: [
-        { name: 'CoordReview', icon: Eye, label: 'Revisão', show: isCoordenador && canViewMenu('can_review_reports') },
-        { name: 'UserManagement', icon: Users, label: 'Usuários', show: isCoordenador && canViewMenu('can_manage_users') },
-        { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: isCoordenador && canViewMenu('can_manage_files') },
-        { name: 'GaleriaFotos', icon: Images, label: 'Galeria de Fotos', show: isCoordenador && canViewMenu('can_manage_files') },
-        { name: 'ActivityLog', icon: History, label: 'Auditoria', show: isCoordenador },
-        { name: 'PlataformaAdmin', icon: Settings, label: 'Plataforma', show: isCoordenador && canViewMenu('can_manage_platform') },
+        { name: 'CoordReview', icon: Eye, label: 'Revisão', show: coord && canViewMenu('can_review_reports') },
+        { name: 'UserManagement', icon: Users, label: 'Usuários', show: coordGeral },
+        { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: coord && canViewMenu('can_manage_files') },
+        { name: 'GaleriaFotos', icon: Images, label: 'Galeria de Fotos', show: coord && canViewMenu('can_manage_files') },
+        { name: 'ActivityLog', icon: History, label: 'Auditoria', show: coord },
+        { name: 'PlataformaAdmin', icon: Settings, label: 'Plataforma', show: coord && canViewMenu('can_manage_platform') },
       ],
     },
     {
@@ -90,8 +90,8 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       items: [
         { name: 'MeusDados', icon: Users, label: 'Meus Dados', show: true },
         { name: 'AssistentePlanejamento', icon: HelpCircle, label: 'Assistente de IA do MC', show: true },
-        { name: 'GeradorTermoCompromisso', icon: FileText, label: 'Termos de Compromisso', show: true, permission: 'can_manage_terms' },
-        { name: 'LeitorNoticias', icon: Newspaper, label: 'Curadoria Notícias', show: isCoordenador },
+        { name: 'GeradorTermoCompromisso', icon: ScrollText, label: 'Gerador de Termos de Compromisso', show: true },
+        { name: 'LeitorNoticias', icon: Newspaper, label: 'Curadoria Notícias', show: coord },
         { name: 'BaseConhecimento', icon: BookOpen, label: 'Conhecimento', show: currentUser?.role === 'admin' },
       ],
     },
