@@ -75,17 +75,6 @@ export default function RubricasPorMuseu() {
     setIsRefreshing(false);
   };
 
-  if (!canView && currentUser) {
-    return (
-      <div className="max-w-3xl mx-auto mt-20 text-center">
-        <TrendingUp className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-        <h2 className="text-lg font-semibold text-gray-700 mb-2">Acesso Restrito</h2>
-        <p className="text-gray-500 text-sm">Você não tem permissão para visualizar as rubricas orçamentárias.</p>
-        <p className="text-gray-400 text-xs mt-2">Solicite ao coordenador a permissão "Saúde Orçamentária" ou "Gerenciar Rubricas".</p>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-10">
       <div className="flex items-center justify-between">
