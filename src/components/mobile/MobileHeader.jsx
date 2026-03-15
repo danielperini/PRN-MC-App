@@ -31,7 +31,11 @@ export default function MobileHeader({ title, showBack = false, onBack }) {
           <div className="w-8" />
         )}
         <h1 className="text-base font-semibold text-black flex-1 text-center">{title}</h1>
-        <div className="w-8" />
+        <Link to={createPageUrl('Dashboard')}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2 text-gray-500">
+            <Home className="w-4 h-4" />
+          </Button>
+        </Link>
       </div>
     </div>
   );
