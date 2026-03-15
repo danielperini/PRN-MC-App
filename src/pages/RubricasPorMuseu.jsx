@@ -176,6 +176,10 @@ export default function RubricasPorMuseu() {
         open={showGerenciar}
         onClose={() => setShowGerenciar(false)}
       />
+      <CardRubricaEditor
+        open={showCardEditor}
+        onClose={() => setShowCardEditor(false)}
+      />
     </div>
   );
 }
