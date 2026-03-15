@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText, Plus, Eye, Download, Check } from 'lucide-react';
-import RequireAuth from '@/components/auth/RequireAuth';
 import TermoMetaLinkage from '@/components/termos/TermoMetaLinkage';
 
 const TIPOS_TERMO = {
