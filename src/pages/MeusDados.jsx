@@ -55,32 +55,32 @@ function MeusDadosInner() {
 
   useEffect(() => {
     base44.auth.me().then(u => {
-      if (!u) {
-        setUser(null);
-        return;
-      }
+      if (!u) { setUser(null); return; }
       setUser(u);
-      // Inicializar com dados do usuário
-      setFormData(prev => ({
-        ...prev,
-        email_pessoal: u.email_pessoal || '',
-        telefone: u.telefone || '',
-        cpf: u.cpf || '',
-        tipo_pessoa: u.tipo_pessoa || 'PF',
-        cnpj: u.cnpj || '',
-        empresa_nome: u.empresa_nome || '',
-        empresa_endereco: u.empresa_endereco || '',
-        representante_legal_nome: u.representante_legal_nome || '',
-        representante_legal_cpf: u.representante_legal_cpf || '',
-        cargo_representante: u.cargo_representante || '',
-        banco: u.banco || '',
-        agencia: u.agencia || '',
-        conta: u.conta || '',
-        tipo_conta: u.tipo_conta || 'Corrente',
-        pix_key: u.pix_key || '',
-      }));
+      setCoordGeral(isCoordGeral(u));
+      loadUserData(u);
     }).catch(() => setUser(null));
   }, []);
+
+  const loadUserData = (u) => {
+    setFormData({
+      email_pessoal: u.email_pessoal || '',
+      telefone: u.telefone || '',
+      cpf: u.cpf || '',
+      tipo_pessoa: u.tipo_pessoa || 'PF',
+      cnpj: u.cnpj || '',
+      empresa_nome: u.empresa_nome || '',
+      empresa_endereco: u.empresa_endereco || '',
+      representante_legal_nome: u.representante_legal_nome || '',
+      representante_legal_cpf: u.representante_legal_cpf || '',
+      cargo_representante: u.cargo_representante || '',
+      banco: u.banco || '',
+      agencia: u.agencia || '',
+      conta: u.conta || '',
+      tipo_conta: u.tipo_conta || 'Corrente',
+      pix_key: u.pix_key || '',
+    });
+  };
 
   const { data: teamData = [] } = useQuery({
     queryKey: ['team-members', user?.email],
