@@ -663,7 +663,13 @@ function UserManagementInner() {
                             <Key className="w-3 h-3" />Senha
                           </Button>
                           <Button size="sm" variant="outline" className="text-xs gap-1"
-                            onClick={() => openPermEdit(permMap[user.email] || { user_email: user.email, user_name: user.full_name, base_role: user.role })}
+                            onClick={() => {
+                              if (permMap[user.email]) {
+                                openPermEdit(permMap[user.email]);
+                              } else {
+                                openPermCreate(user);
+                              }
+                            }}
                           >
                             <Shield className="w-3 h-3" />Permissões
                           </Button>
