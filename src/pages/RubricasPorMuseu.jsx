@@ -8,12 +8,14 @@ import { TrendingUp, Settings, RefreshCw, Link } from 'lucide-react';
 import { toast } from 'sonner';
 import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
 import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
+import CardRubricaEditor from '@/components/rubricas/CardRubricaEditor';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 
 export default function RubricasPorMuseu() {
   const [museuAtivo, setMuseuAtivo] = useState('MHAB');
   const [showGerenciar, setShowGerenciar] = useState(false);
+  const [showCardEditor, setShowCardEditor] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [userPermission, setUserPermission] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
