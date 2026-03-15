@@ -1139,8 +1139,6 @@ function UserManagementInner() {
   );
 }
 
-import { isCoordGeral } from '@/components/auth/permissions';
-
 function UserManagementGate({ children }) {
   const [allowed, setAllowed] = React.useState(null);
   React.useEffect(() => {
