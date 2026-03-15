@@ -192,6 +192,7 @@ function UserManagementInner() {
       queryClient.invalidateQueries(['user-permissions']);
       toast.success('Permissões atualizadas');
       setEditingPerm(null);
+      setShowPermDialog(false);
     },
     onError: () => toast.error('Erro ao atualizar permissões'),
   });
