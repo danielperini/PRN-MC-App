@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useNavigate, Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
-export default function MobileHeader({ title, showBack = false, onBack }) {
+export default function MobileHeader({ title, showBack = true, onBack }) {
   const navigate = useNavigate();
   
   const handleBack = () => {
