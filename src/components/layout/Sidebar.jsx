@@ -6,11 +6,12 @@ import {
   Building2, FileText, Users, Eye, Paperclip, Settings, Shield,
   HelpCircle, BarChart3, History, ChevronLeft, ChevronRight,
   CalendarDays, Layers, BookOpen, ShoppingCart, Banknote, Target, Newspaper,
-  Map, DollarSign, ChevronDown, Images
+  Map, DollarSign, ChevronDown, Images, ScrollText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SuggestionForm from '@/components/sidebar/SuggestionForm';
 import { HelpWrapper } from '@/components/help/withContextualHelp';
+import { isCoordGeral, isCoordenador as checkCoordenador } from '@/components/auth/permissions';
 
 export default function Sidebar({ currentPageName, collapsed, onToggle, currentUser }) {
   const [customPerms, setCustomPerms] = useState(null);

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { isCoordGeral as _isCoordGeral, isCoordenador as _isCoordenador } from './permissions';
 
 let cachedUser = null;
 let fetchPromise = null;
