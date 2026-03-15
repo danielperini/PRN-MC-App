@@ -265,5 +265,5 @@ function GaleriaFotosInner() {
 }
 
 export default function GaleriaFotos() {
-  return <RequireAuth requireRole="COORDENADOR"><GaleriaFotosInner /></RequireAuth>;
+  return <RequireAuth><GaleriaFotosInner /></RequireAuth>;
 }
