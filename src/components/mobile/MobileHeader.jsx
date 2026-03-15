@@ -1,7 +1,8 @@
 import React from 'react';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 
 export default function MobileHeader({ title, showBack = false, onBack }) {
   const navigate = useNavigate();
