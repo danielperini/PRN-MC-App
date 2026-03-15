@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
 import { isCoordGeral } from '@/components/auth/permissions';
-
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, Plus, Pencil, Trash2, Bell, CheckCircle, XCircle, Copy, Check, Mail, Key, AlertCircle, Shield, ChevronDown, ChevronUp, Save, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
