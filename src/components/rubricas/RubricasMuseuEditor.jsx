@@ -180,7 +180,9 @@ export default function RubricasMuseuEditor({ museu, canEdit = false }) {
                       <div key={rubrica.id} className="border border-gray-100 rounded-lg p-3 bg-gray-50">
                         <div className="flex items-start justify-between gap-2 mb-1.5">
                           <div className="flex-1">
-                            <h4 className="font-semibold text-xs text-gray-900 leading-tight">{rubrica.rubrica}</h4>
+                            <h4 className="font-semibold text-xs text-gray-900 leading-tight">
+                              {rubrica.rubrica.replace(/ - (MIS|MUMO|MHAB)$/i, '')}
+                            </h4>
                             {rubrica.divisor > 1 && (
                               <span className="text-[10px] text-gray-400">Compartilhada ÷{rubrica.divisor} museus</span>
                             )}
