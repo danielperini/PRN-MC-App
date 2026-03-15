@@ -178,13 +178,6 @@ function GeradorTermoContent() {
               </CardContent>
             </Card>
 
-            {/* Upload de PDF */}
-            <TermoPDFUploader 
-              onDataExtracted={(data) => {
-                setFormData(prev => ({ ...prev, ...data }));
-              }}
-            />
-
           {/* Dados do Contratado */}
             <Card>
               <CardHeader>
