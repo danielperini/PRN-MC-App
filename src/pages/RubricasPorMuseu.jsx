@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { TrendingUp, Settings, RefreshCw, Link } from 'lucide-react';
+import { TrendingUp, Settings, RefreshCw, Link, LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner';
 import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
 import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
@@ -99,6 +99,10 @@ export default function RubricasPorMuseu() {
               <Button variant="outline" className="gap-2" onClick={handleSetupVinculos} disabled={isSetup}>
                 <Link className="w-4 h-4" />
                 {isSetup ? 'Configurando...' : 'Configurar vínculos'}
+              </Button>
+              <Button variant="outline" className="gap-2" onClick={() => setShowCardEditor(true)}>
+                <LayoutGrid className="w-4 h-4" />
+                Editor de Cards
               </Button>
               <Button variant="outline" className="gap-2" onClick={() => setShowGerenciar(true)}>
                 <Settings className="w-4 h-4" />
