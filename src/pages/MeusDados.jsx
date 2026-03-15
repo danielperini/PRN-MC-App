@@ -88,9 +88,39 @@ function MeusDadosInner() {
     enabled: !!user?.email,
   });
 
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ['all-users-meudados'],
+    queryFn: () => base44.entities.User.list(),
+    enabled: coordGeral,
+  });
+
+  // Quando coordGeral troca de usuário selecionado, carrega dados do TeamMember
   useEffect(() => {
-    if (teamData && user?.email) {
-      // Encontrar dados do próprio usuário na equipe e preencher dados faltantes
+    if (!selectedUserEmail || !teamData.length) return;
+    const member = teamData.find(m => m.user_email === selectedUserEmail);
+    if (member) {
+      setFormData({
+        email_pessoal: member.email_pessoal || '',
+        telefone: member.telefone || '',
+        cpf: member.cpf || '',
+        tipo_pessoa: member.tipo_pessoa || 'PF',
+        cnpj: member.cnpj || '',
+        empresa_nome: member.empresa_nome || '',
+        empresa_endereco: member.empresa_endereco || '',
+        representante_legal_nome: member.representante_legal_nome || '',
+        representante_legal_cpf: member.representante_legal_cpf || '',
+        cargo_representante: member.cargo_representante || '',
+        banco: member.banco || '',
+        agencia: member.agencia || '',
+        conta: member.conta || '',
+        tipo_conta: member.tipo_conta || 'Corrente',
+        pix_key: member.pix_key || '',
+      });
+    }
+  }, [selectedUserEmail, teamData]);
+
+  useEffect(() => {
+    if (teamData && user?.email && !selectedUserEmail) {
       const currentMember = teamData.find(m => m.user_email === user.email);
       if (currentMember) {
         setFormData(prev => ({
@@ -111,14 +141,12 @@ function MeusDadosInner() {
           pix_key: prev.pix_key || currentMember.pix_key || '',
         }));
       }
-      
-      // Mostrar colegas de equipe para referência
       if (user?.equipe) {
         const teamColeagues = teamData.filter(m => m.tipo_equipe === user.equipe && m.user_email !== user.email);
         setTeamMembers(teamColeagues);
       }
     }
-  }, [teamData, user?.email]);
+  }, [teamData, user?.email, selectedUserEmail]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
