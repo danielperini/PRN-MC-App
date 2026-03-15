@@ -163,8 +163,8 @@ function MeusDadosInner() {
       const teamPayload = {
         user_email: targetEmail,
         user_name: targetUser?.full_name || '',
-        tipo_equipe: user.equipe || '',
-        funcao: user.funcao || '',
+        tipo_equipe: targetUser?.equipe || '',
+        funcao: targetUser?.funcao || '',
         email_pessoal: formData.email_pessoal,
         telefone: formData.telefone,
         cpf: formData.cpf,
