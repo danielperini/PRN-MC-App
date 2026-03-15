@@ -27,7 +27,7 @@ const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 
 function inferirCategoria(rubrica) {
   const texto = ((rubrica.grupo || '') + ' ' + (rubrica.rubrica || '')).toLowerCase();
-  for (const [keyword, cat] of Object.entries(KEYWORD_TO_CATEGORIA)) {
+  for (const [keyword, cat] of KEYWORD_TO_CATEGORIA) {
     if (texto.includes(keyword)) return cat;
   }
   return null;
