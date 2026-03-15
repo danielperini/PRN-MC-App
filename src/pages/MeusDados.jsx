@@ -148,15 +148,21 @@ function MeusDadosInner() {
     }
   }, [teamData, user?.email, selectedUserEmail]);
 
+  const targetEmail = selectedUserEmail || user?.email;
+  const targetUser = selectedUserEmail ? allUsers.find(u => u.email === selectedUserEmail) : user;
+
   const saveMutation = useMutation({
     mutationFn: async () => {
-      await base44.auth.updateMe(formData);
-      
+      // Só atualiza via auth.updateMe se for o próprio usuário
+      if (!selectedUserEmail) {
+        await base44.auth.updateMe(formData);
+      }
+
       // Sincronizar dados com TeamMember vinculado (cria se não existir)
-      const currentMember = teamData.find(m => m.user_email === user.email);
+      const currentMember = teamData.find(m => m.user_email === targetEmail);
       const teamPayload = {
-        user_email: user.email,
-        user_name: user.full_name,
+        user_email: targetEmail,
+        user_name: targetUser?.full_name || '',
         tipo_equipe: user.equipe || '',
         funcao: user.funcao || '',
         email_pessoal: formData.email_pessoal,
