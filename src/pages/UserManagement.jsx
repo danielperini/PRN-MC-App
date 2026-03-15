@@ -221,8 +221,13 @@ function UserManagementInner() {
 
   const savePerm = () => {
     if (editingPerm) {
-      const data = {};
-      PERMISSIONS.forEach(p => { data[p.key] = editingPerm[p.key]; });
+      if (!editingPerm.id) {
+        // No existing UserPermission record — create one
+        createPermMutation.mutate(editingPerm);
+        return;
+      }
+      const data = { must_submit_monthly_reports: editingPerm.must_submit_monthly_reports || false };
+      PERMISSIONS.forEach(p => { data[p.key] = editingPerm[p.key] || false; });
       updatePermMutation.mutate({ id: editingPerm.id, data });
     } else {
       if (!permFormData.user_email) { toast.error('Selecione um usuário'); return; }
