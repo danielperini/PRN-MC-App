@@ -34,11 +34,7 @@ const FORMAS_PAGAMENTO = {
 };
 
 export default function GeradorTermoCompromisso() {
-  return (
-    <RequireAuth>
-      <GeradorTermoContent />
-    </RequireAuth>
-  );
+  return <GeradorTermoContent />;
 }
 
 function GeradorTermoContent() {
