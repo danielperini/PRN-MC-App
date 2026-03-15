@@ -1,7 +1,7 @@
 import React from 'react';
 import { base44 } from '@/api/base44Client';
-import { LogOut, UserCircle, Home } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { LogOut, UserCircle, Home, ArrowLeft } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
@@ -10,10 +10,14 @@ import PurchaseNotificationBell from '@/components/notifications/PurchaseNotific
 import GlobalSearch from './GlobalSearch';
 
 export default function TopNav({ currentUser }) {
+  const navigate = useNavigate();
   return (
     <nav className="h-16 border-b border-black bg-white flex items-center justify-between px-6 sticky top-0 z-30">
-      {/* Search */}
-      <div className="flex-1 max-w-md">
+      {/* Back button + Search */}
+      <div className="flex items-center gap-3 flex-1 max-w-lg">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-500 hover:text-black hover:bg-gray-100 h-8 w-8 shrink-0" title="Voltar página anterior">
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
         <GlobalSearch />
       </div>
 
