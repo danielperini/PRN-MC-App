@@ -75,7 +75,11 @@ function GestorArquivosInner() {
               summary: att.description || 'Arquivo anexado a relatório',
               reportId: att.report_id,
               reportLabel,
-              displayName: reportNumber ? `${reportNumber}` : att.file_name
+              displayName: reportNumber ? `${reportNumber}` : att.file_name,
+              // campos de backup
+              backup_done: att.backup_done || false,
+              drive_file_id: att.drive_file_id || null,
+              backup_date: att.backup_date || null,
             };
           });
 
