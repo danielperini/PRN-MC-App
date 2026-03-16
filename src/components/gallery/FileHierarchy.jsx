@@ -5,7 +5,7 @@ import { ChevronRight, ChevronDown, FileIcon, FolderIcon, Download, Trash2 } fro
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
-export default function FileHierarchy({ backups = [], onPreview, canManageFile, isGeneralCoordinator }) {
+export default function FileHierarchy({ backups = [], onPreview, canManageFile, isGeneralCoordinator, renderBackupStatus }) {
   const [expandedReports, setExpandedReports] = useState(new Set());
   const [expandedActivities, setExpandedActivities] = useState(new Set());
   const [deleting, setDeleting] = useState(null);
