@@ -18,7 +18,6 @@ import WidgetCustomizer from '../components/dashboard/WidgetCustomizer';
 import { useWidgetPreferences } from '../components/dashboard/useWidgetPreferences';
 import ActivityMetricsWidget from '../components/dashboard/ActivityMetricsWidget';
 import OpportunityMetricsWidget from '../components/dashboard/OpportunityMetricsWidget';
-import UnifiedNewsCarousel from '../components/dashboard/UnifiedNewsCarousel';
 
 const STATUS_CONFIG = {
   DRAFT: { label: 'Rascunho', color: 'bg-white text-black border border-black', icon: Clock },
