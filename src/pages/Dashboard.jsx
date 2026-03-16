@@ -42,6 +42,18 @@ function DashboardInner() {
   const currentMonth = monthNames[now.getMonth()];
   const currentYear = now.getFullYear();
 
+  const { data: myTeamMember } = useQuery({
+    queryKey: ['my-team-member-dashboard', currentUser?.email],
+    queryFn: () => base44.entities.TeamMember.filter({ user_email: currentUser.email }),
+    enabled: !!currentUser?.email && !userLoading,
+    select: data => data?.[0] ?? null,
+  });
+
+  const dadosCompletos = React.useMemo(() => {
+    const src = myTeamMember || currentUser || {};
+    return !!(src.cpf && src.telefone && src.email_pessoal && src.banco && src.agencia && src.conta);
+  }, [myTeamMember, currentUser]);
+
   const { data: myReports = [], isLoading: loadingMy, refetch: refetchMy } = useQuery({
     queryKey: ['my-reports', currentUser?.email],
     queryFn: async () => {
