@@ -106,7 +106,7 @@ export default function NewsCarousel() {
               </h3>
             </a>
             {item.resumo && (
-              <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{item.resumo}</p>
+              <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{item.resumo}</p>
             )}
           </div>
         </div>
