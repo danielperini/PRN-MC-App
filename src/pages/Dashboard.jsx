@@ -194,21 +194,26 @@ function DashboardInner() {
           </div>
         </div>
 
-        {/* Mensagem de Destaque - Atualizar Dados */}
-        <div className="mb-8 p-6 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-start gap-4">
-          <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold text-amber-900 mb-1">Atualize seus dados</h3>
-            <p className="text-amber-800 text-sm mb-4">
-              Para manter sua equipe sincronizada, preencha seus dados pessoais e bancários no formulário de cadastro.
-            </p>
-            <Link to={createPageUrl('MeusDados')}>
-              <Button className="bg-amber-600 hover:bg-amber-700 text-white">
+        {/* Aviso fixo - Atualizar Dados */}
+        <div className="mb-4 p-4 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-amber-900">Atualize seus dados</h3>
+              <p className="text-amber-800 text-xs mt-0.5">
+                Preencha seus dados pessoais e bancários no formulário de cadastro.
+              </p>
+            </div>
+            <Link to={createPageUrl('MeusDados')} className="flex-shrink-0">
+              <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white text-xs">
                 Preencher meus dados →
               </Button>
             </Link>
           </div>
         </div>
+
+        {/* Carrossel de Notícias */}
+        <UnifiedNewsCarousel />
 
         {/* Coordenador: dashboard completo */}
         {showCoordView ? (
