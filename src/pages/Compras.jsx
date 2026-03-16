@@ -261,9 +261,9 @@ function ComprasInner() {
                  <RubricaDetail
                    rubrica={selectedRubrica}
                    onClose={() => {
-                     setSelectedRubrica(null);
-                     queryClient.invalidateQueries(['rubricas']);
-                   }}
+                       setSelectedRubrica(null);
+                       refetchRubricas();
+                     }}
                  />
                </div>
              ) : (
