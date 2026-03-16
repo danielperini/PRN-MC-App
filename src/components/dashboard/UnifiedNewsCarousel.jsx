@@ -151,22 +151,15 @@ export default function UnifiedNewsCarousel() {
     try {
       await base44.functions.invoke('searchAndIndexNews', {});
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['today-news'] });
+        queryClient.invalidateQueries({ queryKey: ['today-news-v2'] });
         refetchNews();
-      }, 500);
+      }, 1000);
     } catch (e) {
       console.error('selectTodayNews error:', e);
     } finally {
       setIsSelecting(false);
     }
   }, [isSelecting, queryClient, refetchNews]);
-
-  // Auto-trigger selection if no news today
-  useEffect(() => {
-    if (!loadingNews && todayNews.length === 0 && !isSelecting) {
-      selectTodayNews();
-    }
-  }, [loadingNews, todayNews.length, isSelecting, selectTodayNews]);
 
   // Auto-play
   useEffect(() => {
