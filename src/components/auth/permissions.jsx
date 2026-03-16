@@ -50,8 +50,20 @@ export function canEditReport(currentUser, reportAuthorEmail) {
 }
 
 /**
- * Verifica se o usuário pode gerenciar usuários (aprovar, editar, excluir)
+ * Verifica se o usuário pode gerenciar usuários (aprovar, editar, excluir permissões)
+ * COORDENADOR também pode quando tem can_manage_users = true
  */
 export function canManageUsers(user) {
-  return isCoordGeral(user);
+  if (!user) return false;
+  if (isCoordGeral(user)) return true;
+  return user.can_manage_users === true || ['COORDENADOR', 'admin', 'ADMIN'].includes(user.role);
+}
+
+/**
+ * Verifica se o usuário pode gerenciar permissões de outros usuários
+ * Qualquer COORDENADOR ou ADMIN pode editar permissões
+ */
+export function canManagePermissions(user) {
+  if (!user) return false;
+  return isCoordenador(user);
 }
