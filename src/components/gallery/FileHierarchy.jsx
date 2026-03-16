@@ -164,9 +164,12 @@ export default function FileHierarchy({ backups = [], onPreview, canManageFile, 
                             <p className="text-sm font-medium text-gray-900 truncate cursor-pointer hover:text-blue-600" onClick={() => handlePreview(file)}>
                               {file.fileName}
                             </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {new Date(file.timestamp).toLocaleString('pt-BR')} · {file.size}
-                            </p>
+                            <div className="flex items-center gap-3 mt-1">
+                              <p className="text-xs text-gray-500">
+                                {new Date(file.timestamp).toLocaleString('pt-BR')} · {file.size}
+                              </p>
+                              {renderBackupStatus && renderBackupStatus(file)}
+                            </div>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
                             <Button
