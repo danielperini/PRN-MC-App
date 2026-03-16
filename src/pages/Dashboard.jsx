@@ -207,7 +207,7 @@ function DashboardInner() {
         </div>
 
         {/* Aviso fixo - Atualizar Dados */}
-        <div className="mb-4 p-4 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-start gap-3">
+        {!dadosCompletos && <div className="mb-4 p-4 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
