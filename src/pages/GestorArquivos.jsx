@@ -38,6 +38,11 @@ function GestorArquivosInner() {
   const [uploadNotes, setUploadNotes] = useState('');
   const [uploading, setUploading] = useState(false);
   const [showDriveImporter, setShowDriveImporter] = useState(false);
+  const [backupOverrides, setBackupOverrides] = useState({}); // { [attachment_id]: { backup_done, drive_file_id, backup_date } }
+
+  const handleBackupDone = (attachmentId, info) => {
+    setBackupOverrides(prev => ({ ...prev, [attachmentId]: { backup_done: true, ...info } }));
+  };
 
   const isCoordinator = currentUser?.role === 'admin' || currentUser?.role === 'COORDENADOR';
   const isGeneralCoordinator = isCoordinator && (
