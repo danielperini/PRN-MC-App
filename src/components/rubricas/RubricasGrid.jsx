@@ -11,6 +11,7 @@ export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isC
   const [showForm, setShowForm] = useState(false);
   const [editingRubrica, setEditingRubrica] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [filtroGrupo, setFiltroGrupo] = useState('all');
   const [filtroStatus, setFiltroStatus] = useState('all');
