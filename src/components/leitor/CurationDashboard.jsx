@@ -50,16 +50,14 @@ function NewsCardCurated({ news, onApprove, onReject, onDelete, processingId, is
                   <ExternalLink className="w-4 h-4" />
                 </a>
               )}
-              {isPublished && (
-                <button
-                  onClick={() => onDelete(news.id)}
-                  disabled={isProcessing}
-                  className="text-gray-400 hover:text-red-600 flex-shrink-0"
-                  title="Deletar e substituir"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
+              <button
+                onClick={() => onDelete(news.id)}
+                disabled={isProcessing}
+                className="text-gray-400 hover:text-red-600 flex-shrink-0"
+                title="Deletar"
+              >
+                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              </button>
             </div>
           </div>
           <h3 className="font-semibold text-gray-900 line-clamp-2 mb-1">{news.titulo}</h3>
