@@ -190,6 +190,34 @@ export default function CurationDashboard() {
     }
   };
 
+  const handleAddManual = async () => {
+    if (!manualUrl.trim() || !manualTitle.trim()) return;
+    setAddingManual(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      await base44.entities.NewsHighlight.create({
+        titulo: manualTitle.trim(),
+        resumo: manualResumo.trim() || '',
+        link: manualUrl.trim(),
+        fonte: 'web_search',
+        tipo_conteudo: 'NOTICIA',
+        ativo: true,
+        status_curadoria: 'APROVADO_MANUAL',
+        score_pertinencia: 100,
+        data_publicacao: today,
+        tags: [],
+      });
+      setManualUrl('');
+      setManualTitle('');
+      setManualResumo('');
+      setShowAddForm(false);
+      queryClient.invalidateQueries({ queryKey: ['news-published-curated'] });
+      queryClient.invalidateQueries({ queryKey: ['today-news-v2'] });
+    } finally {
+      setAddingManual(false);
+    }
+  };
+
   const handleRunCuration = async () => {
     setCuratingNow(true);
     try {
