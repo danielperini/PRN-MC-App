@@ -207,22 +207,24 @@ function DashboardInner() {
         </div>
 
         {/* Aviso fixo - Atualizar Dados */}
-        {!dadosCompletos && <div className="mb-4 p-4 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-semibold text-amber-900">Atualize seus dados</h3>
-              <p className="text-amber-800 text-xs mt-0.5">
-                Preencha seus dados pessoais e bancários no formulário de cadastro.
-              </p>
+        {!dadosCompletos && (
+          <div className="mb-4 p-4 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-amber-900">Atualize seus dados</h3>
+                <p className="text-amber-800 text-xs mt-0.5">
+                  Preencha seus dados pessoais e bancários no formulário de cadastro.
+                </p>
+              </div>
+              <Link to={createPageUrl('MeusDados')} className="flex-shrink-0">
+                <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white text-xs">
+                  Preencher meus dados →
+                </Button>
+              </Link>
             </div>
-            <Link to={createPageUrl('MeusDados')} className="flex-shrink-0">
-              <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white text-xs">
-                Preencher meus dados →
-              </Button>
-            </Link>
           </div>
-        </div>}
+        )}
 
         {/* Carrossel de Notícias */}
         <NewsCarousel />
