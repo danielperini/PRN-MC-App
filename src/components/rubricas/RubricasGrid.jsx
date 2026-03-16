@@ -94,7 +94,11 @@ export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isC
     <div className="space-y-6">
       {/* Ações de admin */}
       {isCoordenador && (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={handleSaveAlteracoes} disabled={refreshing}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Atualizando...' : 'Salvar alterações'}
+          </Button>
           <Button className="bg-black text-white" onClick={() => { setEditingRubrica(null); setShowForm(true); }}>
             <Plus className="w-4 h-4 mr-2" />Nova Rubrica
           </Button>
