@@ -211,9 +211,6 @@ function DashboardInner() {
           </div>
         </div>
 
-        {/* Carrossel de Notícias */}
-        <UnifiedNewsCarousel />
-
         {/* Coordenador: dashboard completo */}
         {showCoordView ? (
           <>
