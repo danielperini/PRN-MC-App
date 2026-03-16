@@ -27,6 +27,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
 
   const coord = checkCoordenador(currentUser);
   const coordGeral = isCoordGeral(currentUser);
+  const canManageUsersFlag = canManageUsers(currentUser) || customPerms?.can_manage_users === true;
 
   const canViewMenu = (requiredPerm) => {
     if (!coord) return true;
