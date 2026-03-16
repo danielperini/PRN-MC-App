@@ -114,7 +114,8 @@ export default function MetadadosManager() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.MetadadosConfig.update(id, data),
-    onSuccess: () => { queryClient.invalidateQueries(['metadados']); },
+    onSuccess: () => { queryClient.invalidateQueries(['metadados']); toast.success('Item atualizado'); },
+    onError: () => toast.error('Erro ao atualizar item'),
   });
 
   const deleteMutation = useMutation({
