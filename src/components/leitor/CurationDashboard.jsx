@@ -113,7 +113,13 @@ export default function CurationDashboard() {
   const [curatingNow, setCuratingNow] = useState(false);
   const [shuffleSeed, setShuffleSeed] = useState(0);
   const [expandedHelp, setExpandedHelp] = useState(null);
+  const [manualUrl, setManualUrl] = useState('');
+  const [manualTitle, setManualTitle] = useState('');
+  const [manualResumo, setManualResumo] = useState('');
+  const [addingManual, setAddingManual] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
   const queryClient = useQueryClient();
+  const { user, isCoordenador } = useCurrentUser();
 
   const { data: published = [], isLoading: loadingPublished } = useQuery({
     queryKey: ['news-published-curated'],
