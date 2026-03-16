@@ -74,7 +74,7 @@ function ComprasInner() {
 
   const { budgetLines } = useBudgetLines();
 
-  const { data: rubricas = [] } = useQuery({
+  const { data: rubricas = [], refetch: refetchRubricas } = useQuery({
     queryKey: ['rubricas'],
     queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 100),
   });
