@@ -289,9 +289,10 @@ export default function UserPermissionsManager() {
                           />
                           <label
                             htmlFor={perm.key}
-                            className="text-xs md:text-sm text-gray-700 cursor-pointer flex-1"
+                            className="cursor-pointer flex-1"
                           >
-                            {perm.label}
+                            <span className="text-xs md:text-sm text-gray-800 font-medium">{perm.label}</span>
+                            {perm.hint && <p className="text-xs text-gray-400 mt-0.5">{perm.hint}</p>}
                           </label>
                         </div>
                       ))}
