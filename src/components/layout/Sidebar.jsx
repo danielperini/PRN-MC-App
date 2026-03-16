@@ -62,7 +62,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       label: 'Gestão',
       items: [
         { name: 'CoordReview', icon: Eye, label: 'Revisão', show: coord && canViewMenu('can_review_reports') },
-        { name: 'UserManagement', icon: Users, label: 'Usuários', show: coordGeral },
+        { name: 'UserManagement', icon: Users, label: 'Usuários', show: canManageUsersFlag },
         { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: true },
         { name: 'GaleriaFotos', icon: Images, label: 'Galeria de Fotos', show: true },
         { name: 'ActivityLog', icon: History, label: 'Auditoria', show: coord },
