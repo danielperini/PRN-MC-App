@@ -75,7 +75,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         { name: 'MeusDados', icon: Users, label: 'Meus Dados', show: true },
         { name: 'AssistentePlanejamento', icon: HelpCircle, label: 'Assistente de IA do MC', show: true },
         { name: 'GeradorTermoCompromisso', icon: ScrollText, label: 'Gerador de Termos de Compromisso', show: true },
-        { name: 'LeitorNoticias', icon: Newspaper, label: 'Curadoria Notícias', show: coord },
+        { name: 'LeitorNoticias', icon: Newspaper, label: 'Curadoria Notícias', show: coord || customPerms?.can_curate_news === true },
         { name: 'BaseConhecimento', icon: BookOpen, label: 'Conhecimento', show: currentUser?.role === 'admin' },
       ],
     },
