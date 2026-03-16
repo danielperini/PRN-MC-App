@@ -338,7 +338,7 @@ export default function UserPermissionsManager() {
       {/* Legenda */}
       <Card className="p-3 md:p-4 bg-blue-50 border border-blue-200 w-full">
         <p className="text-xs md:text-sm text-blue-900">
-          <span className="font-semibold">💡 Nota:</span> Apenas coordenadores e administradores podem modificar permissões. As alterações entram em vigor imediatamente.
+          <span className="font-semibold">💡 Nota:</span> Coordenadores e administradores podem gerenciar permissões de qualquer usuário. As alterações entram em vigor imediatamente. Novas permissões: <strong>Curadoria de Notícias</strong> e <strong>Momentos Especiais</strong> permitem delegar a curadoria do dashboard para profissionais de comunicação.
         </p>
       </Card>
     </div>
