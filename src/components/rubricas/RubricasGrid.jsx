@@ -57,6 +57,18 @@ export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isC
     return 'bg-white';
   };
 
+  const handleSaveAlteracoes = async () => {
+    setRefreshing(true);
+    try {
+      await onRefresh?.();
+      toast.success('Dados atualizados! Totais recalculados.');
+    } catch (e) {
+      toast.error('Erro ao atualizar: ' + (e?.message || 'tente novamente'));
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleDelete = async (rubrica) => {
     if (!window.confirm(`Deletar rubrica "${rubrica.rubrica}"? Esta ação não pode ser desfeita.`)) return;
     setDeletingId(rubrica.id);
