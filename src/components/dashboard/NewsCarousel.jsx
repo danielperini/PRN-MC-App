@@ -69,7 +69,7 @@ export default function NewsCarousel() {
         />
       </div>
 
-      <div className="flex items-stretch min-h-[90px]">
+      <div className="flex items-stretch min-h-[113px]">
         {/* Imagem */}
         {item.imagem_url && (
           <div className="w-24 md:w-36 flex-shrink-0 overflow-hidden">
