@@ -96,9 +96,9 @@ function NewsCardCurated({ news, onApprove, onReject, onDelete, processingId, is
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onReject(news.id)}
+            onClick={() => onDelete(news.id)}
             disabled={isProcessing}
-            className="text-xs text-red-600 flex-1 sm:flex-none"
+            className="text-xs text-red-600 border-red-200 hover:bg-red-50 flex-1 sm:flex-none"
           >
             <Trash2 className="w-3 h-3" /> Rejeitar
           </Button>
