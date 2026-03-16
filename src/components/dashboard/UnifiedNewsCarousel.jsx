@@ -36,6 +36,16 @@ export default function UnifiedNewsCarousel() {
   const [selectedTags, setSelectedTags] = useState([]);
   const queryClient = useQueryClient();
 
+  // Real-time: recarrega o carrossel imediatamente quando uma notícia é aprovada/atualizada
+  useEffect(() => {
+    const unsub = base44.entities.NewsHighlight.subscribe((event) => {
+      if (event.type === 'update' || event.type === 'create') {
+        queryClient.invalidateQueries({ queryKey: ['today-news-v2'] });
+      }
+    });
+    return unsub;
+  }, [queryClient]);
+
   // Fetch news — publicadas automaticamente (score >= 80) OU aprovadas manualmente
   // NÃO lista notícias com score < 50
   const { data: todayNews = [], isLoading: loadingNews, refetch: refetchNews } = useQuery({
