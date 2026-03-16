@@ -162,10 +162,10 @@ export default function UserPermissionsManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['all-users-permissions']);
-      alert('Permissões atualizadas com sucesso!');
+      toast.success('Permissões salvas com sucesso!');
     },
     onError: (error) => {
-      alert(`Erro ao salvar: ${error.message}`);
+      toast.error('Erro ao salvar: ' + error.message);
     },
   });
 
