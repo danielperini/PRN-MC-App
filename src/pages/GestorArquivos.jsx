@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Textarea } from '@/components/ui/textarea';
 import BackupMonthlyDialog from '../components/backup/BackupMonthlyDialog';
 import BackupHistoryTable from '../components/backup/BackupHistoryTable';
+import FileBackupStatus from '../components/backup/FileBackupStatus';
 import FileHierarchy from '../components/gallery/FileHierarchy';
 import FilePreviewViewer from '../components/gallery/FilePreviewViewer';
 import GoogleDriveImporter from '../components/drive/GoogleDriveImporter';
