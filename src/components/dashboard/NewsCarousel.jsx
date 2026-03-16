@@ -54,89 +54,101 @@ export default function NewsCarousel() {
   if (news.length === 0) return null;
 
   const item = news[current];
+  // 3 itens visíveis: current, current+1, current+2
+  const visible = [0, 1, 2].map(offset => news[(current + offset) % news.length]);
 
   return (
     <div
-      className="relative w-full mb-6 border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm min-h-[113px]"
+      className="relative w-full mb-6"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {/* Barra de progresso */}
-      <div className="absolute top-0 left-0 right-0 h-0.5 bg-gray-100 z-10">
-        <div
-          className="h-full bg-black transition-all duration-300"
-          style={{ width: `${((current + 1) / news.length) * 100}%` }}
-        />
-      </div>
-
-      <div className="flex items-stretch min-h-[113px]">
-        {/* Imagem */}
-        {item.imagem_url && (
-          <div className="w-24 md:w-36 flex-shrink-0 overflow-hidden">
-            <img
-              src={item.imagem_url}
-              alt=""
-              className="w-full h-full object-cover"
-              onError={e => e.target.parentElement.style.display = 'none'}
-            />
-          </div>
-        )}
-
-        {/* Conteúdo */}
-        <div className="flex-1 px-4 py-3 flex flex-col justify-between min-w-0">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                {item.fonte?.replace(/_/g, ' ')}
-              </span>
-              {item.data_publicacao && (
-                <span className="text-[10px] text-gray-300">• {item.data_publicacao}</span>
-              )}
-              <span className="text-[10px] text-gray-300 ml-auto">{current + 1}/{news.length}</span>
-            </div>
-            <a
-              href={item.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group block"
-            >
-              <h3 className="font-semibold text-gray-900 text-sm leading-snug line-clamp-2 group-hover:underline">
-                {item.titulo}
-                <ExternalLink className="inline w-3 h-3 ml-1 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </h3>
-            </a>
-            {item.resumo && (
-              <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{item.resumo}</p>
+      {/* Grid de 3 colunas */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {visible.map((newsItem, idx) => (
+          <div
+            key={`${current}-${idx}`}
+            className="relative border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col"
+            style={{ minHeight: '136px' }}
+          >
+            {/* Barra de progresso apenas no primeiro */}
+            {idx === 0 && (
+              <div className="absolute top-0 left-0 right-0 h-0.5 bg-gray-100 z-10">
+                <div
+                  className="h-full bg-black transition-all duration-300"
+                  style={{ width: `${((current + 1) / news.length) * 100}%` }}
+                />
+              </div>
             )}
-          </div>
-        </div>
 
-        {/* Controles */}
-        <div className="flex flex-col items-center justify-center gap-1 px-2 border-l border-gray-100">
-          <button
-            onClick={prev}
-            className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-black transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            onClick={next}
-            className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-black transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
+            <div className="flex items-stretch flex-1">
+              {/* Imagem */}
+              {newsItem.imagem_url && (
+                <div className="w-20 flex-shrink-0 overflow-hidden">
+                  <img
+                    src={newsItem.imagem_url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    onError={e => e.target.parentElement.style.display = 'none'}
+                  />
+                </div>
+              )}
+
+              {/* Conteúdo */}
+              <div className="flex-1 px-3 py-3 flex flex-col justify-between min-w-0">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 truncate">
+                      {newsItem.fonte?.replace(/_/g, ' ')}
+                    </span>
+                    {idx === 0 && (
+                      <span className="text-[10px] text-gray-300 ml-auto flex-shrink-0">{current + 1}/{news.length}</span>
+                    )}
+                  </div>
+                  <a
+                    href={newsItem.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group block"
+                  >
+                    <h3 className="font-semibold text-gray-900 text-sm leading-snug line-clamp-2 group-hover:underline">
+                      {newsItem.titulo}
+                      <ExternalLink className="inline w-3 h-3 ml-1 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </h3>
+                  </a>
+                  {newsItem.resumo && (
+                    <p className="text-xs text-gray-500 line-clamp-2 mt-1">{newsItem.resumo}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Indicadores de ponto */}
-      <div className="flex justify-center gap-1 pb-2">
-        {news.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => setCurrent(i)}
-            className={`w-1.5 h-1.5 rounded-full transition-all ${i === current ? 'bg-black w-3' : 'bg-gray-300'}`}
-          />
-        ))}
+      {/* Controles e indicadores */}
+      <div className="flex items-center justify-center gap-3 mt-2">
+        <button
+          onClick={prev}
+          className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-black transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <div className="flex gap-1">
+          {news.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrent(i)}
+              className={`h-1.5 rounded-full transition-all ${i === current ? 'bg-black w-3' : 'bg-gray-300 w-1.5'}`}
+            />
+          ))}
+        </div>
+        <button
+          onClick={next}
+          className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-black transition-colors"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );
