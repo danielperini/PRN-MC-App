@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, AlertTriangle, Search, Plus, Pencil, Trash2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Search, Plus, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import RubricaFormDialog from './RubricaFormDialog';
 import { toast } from 'sonner';
