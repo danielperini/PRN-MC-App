@@ -48,7 +48,8 @@ const PERMISSION_GROUPS = {
 const DEFAULT_USER_PERMISSIONS = {
   base_role: 'PROFISSIONAL',
   can_view_all_reports: true,
-  can_manage_files: false,
+  can_review_reports: false,
+  must_submit_monthly_reports: true,
   gestao_compras: false,
   pode_ver_saude_orcamentaria: false,
   pode_gerenciar_rubricas: false,
@@ -56,10 +57,11 @@ const DEFAULT_USER_PERMISSIONS = {
   can_manage_users: false,
   can_manage_equipes: false,
   can_manage_museus: false,
+  can_manage_files: false,
   can_view_audit_log: false,
   can_manage_platform: false,
-  can_review_reports: false,
-  must_submit_monthly_reports: true,
+  can_curate_news: false,
+  can_manage_momentos: false,
 };
 
 export default function UserPermissionsManager() {
