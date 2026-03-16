@@ -242,7 +242,7 @@ export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isC
       <RubricaFormDialog
         rubrica={editingRubrica}
         onClose={() => { setShowForm(false); setEditingRubrica(null); }}
-        onSuccess={() => { setShowForm(false); setEditingRubrica(null); onRefresh?.(); }}
+        onSuccess={async () => { setShowForm(false); setEditingRubrica(null); await onRefresh?.(); }}
       />
     )}
   </>
