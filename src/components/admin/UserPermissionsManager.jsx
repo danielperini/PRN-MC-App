@@ -136,9 +136,9 @@ export default function UserPermissionsManager() {
         }
       }
       queryClient.invalidateQueries(['all-users-permissions']);
-      toast({ title: 'Permissões aplicadas!', description: 'Todos os usuários receberam as permissões padrão.' });
+      toast.success('Permissões aplicadas! Todos os usuários receberam as permissões padrão.');
     } catch (e) {
-      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+      toast.error('Erro: ' + e.message);
     }
     setApplyingAll(false);
   };
