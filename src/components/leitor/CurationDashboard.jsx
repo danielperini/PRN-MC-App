@@ -3,10 +3,12 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   CheckCircle, Archive, Trash2, RefreshCw, ExternalLink, Newspaper,
-  Eye, Clock, Tag, Loader2, Search, Wand2, TrendingUp, AlertCircle, ChevronDown
+  Eye, Clock, Tag, Loader2, Search, Wand2, TrendingUp, AlertCircle, ChevronDown, Plus, Link
 } from 'lucide-react';
+import { useCurrentUser } from '@/components/auth/useCurrentUser';
 
 const FONTE_COLORS = {
   web: 'bg-blue-100 text-blue-700',
