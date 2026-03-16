@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, ChevronLeft, ChevronRight, Newspaper } from 'lucide-react';
@@ -29,7 +29,7 @@ export default function NewsCarousel() {
     refetchInterval: 300000, // 5 min
   });
 
-  const news = React.useMemo(() => getDailyNews(published, 10), [published]);
+  const news = useMemo(() => getDailyNews(published, 10), [published]);
 
   // Auto-play
   useEffect(() => {
