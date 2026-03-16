@@ -9,6 +9,7 @@ import {
   Eye, Clock, Tag, Loader2, Search, Wand2, TrendingUp, AlertCircle, ChevronDown, Plus, Link
 } from 'lucide-react';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
+import { toast } from 'sonner';
 
 const FONTE_COLORS = {
   web: 'bg-blue-100 text-blue-700',
