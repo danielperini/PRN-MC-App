@@ -176,7 +176,7 @@ export default function UserPermissionsManager() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h3 className="text-base md:text-lg font-bold text-gray-900 mb-1">Gerenciar Permissões de Usuários</h3>
-          <p className="text-xs md:text-sm text-gray-600">Configure acessos específicos para cada membro da equipe</p>
+          <p className="text-xs md:text-sm text-gray-600">Configure acessos específicos para cada membro. Coordenadores podem editar permissões de qualquer usuário.</p>
         </div>
         <Button
           onClick={handleApplyDefaultsToAll}
