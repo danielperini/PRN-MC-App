@@ -57,7 +57,7 @@ export default function NewsCarousel() {
 
   return (
     <div
-      className="relative w-full mb-6 border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm"
+      className="relative w-full mb-6 border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm min-h-[113px]"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
