@@ -69,7 +69,6 @@ export default function UserPermissionsManager() {
   const [isLoading, setIsLoading] = useState(false);
   const [applyingAll, setApplyingAll] = useState(false);
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   const { data: users = [] } = useQuery({
     queryKey: ['all-users-permissions'],
