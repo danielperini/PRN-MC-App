@@ -643,10 +643,16 @@ function GestorArquivosInner() {
                   <div className="text-center py-12 text-gray-400">Carregando arquivos...</div>
                 ) : (
                   <FileHierarchy
-                    backups={backups}
+                    backups={backups.map(b => ({ ...b, ...(backupOverrides[b.id] || {}) }))}
                     onPreview={handlePreviewFile}
                     canManageFile={canManageFile}
                     isGeneralCoordinator={isGeneralCoordinator}
+                    renderBackupStatus={(backup) => (
+                      <FileBackupStatus
+                        attachment={backup}
+                        onBackupDone={(info) => handleBackupDone(backup.id, info)}
+                      />
+                    )}
                   />
                 )}
               </div>
