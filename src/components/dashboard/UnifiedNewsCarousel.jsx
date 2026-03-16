@@ -72,8 +72,8 @@ export default function UnifiedNewsCarousel() {
 
       return unique.slice(0, 20);
     },
-    refetchInterval: 300000,
-    staleTime: 120000,
+    refetchInterval: 30000,
+    staleTime: 0,
   });
 
   // Fetch momentos (internal highlights)
