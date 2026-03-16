@@ -415,21 +415,48 @@ Retorne apenas JSON no formato solicitado.`,
       }
     });
 
+    // Função para calcular score de pertinência de uma notícia
+    const calcScore = (news) => {
+      let score = 50;
+      const text = `${news.titulo} ${news.resumo}`.toLowerCase();
+      if (/viaduto das artes|museus centro|mumo|mis bh|mhab|abílio barreto/.test(text)) score += 20;
+      if (/belo horizonte|bh|minas gerais/.test(text)) score += 15;
+      if (/museu|patrimônio|memória|acervo/.test(text)) score += 10;
+      if (/cinema|audiovisual|fotografia|documentário/.test(text)) score += 10;
+      if (/moda|têxtil|design/.test(text)) score += 10;
+      if (/história|histórico/.test(text)) score += 5;
+      return Math.min(score, 100);
+    };
+
+    // Função para decidir status e ativo baseado no score
+    const getPublicationStatus = (score) => {
+      if (score >= 80) return { status_curadoria: 'PUBLICADO_AUTO', ativo: true };
+      if (score >= 50) return { status_curadoria: 'PENDENTE', ativo: false };
+      return null; // descartar
+    };
+
     // 5) Publicar SEMPRE primeiro as duas fontes prioritárias
     for (const news of uniquePriorityNews) {
       if (newNewsAdded >= maxNewsPerDay) break;
 
       const museuClassificacao = classificationMap[news.link];
+      const score = calcScore(news);
+      const pubStatus = getPublicationStatus(score);
+      if (!pubStatus) continue; // score < 50, descarta
 
       await base44.asServiceRole.entities.NewsHighlight.create({
         titulo: news.titulo,
         resumo: news.resumo,
         link: news.link,
-        tipo_conteudo: 'noticia',
+        tipo_conteudo: 'NOTICIA',
         fonte: news.fonte,
         imagem_url: news.imagem_url,
+        data_publicacao: news.data_publicacao || '',
         data_encontrada: news.data_encontrada,
-        ativo: news.ativo,
+        ativo: pubStatus.ativo,
+        status_curadoria: pubStatus.status_curadoria,
+        score_pertinencia: score,
+        publicado_por_ia: pubStatus.ativo,
         museu_classificacao: museuClassificacao || null
       });
 
@@ -451,16 +478,23 @@ Retorne apenas JSON no formato solicitado.`,
       if (existingLinks.has(news.link)) continue;
 
       const museuClassificacao = keywordClassificationMap[news.link];
+      const score = calcScore(news);
+      const pubStatus = getPublicationStatus(score);
+      if (!pubStatus) continue; // score < 50, descarta
 
       await base44.asServiceRole.entities.NewsHighlight.create({
         titulo: news.titulo,
         resumo: news.resumo,
         link: news.link,
-        tipo_conteudo: 'noticia',
+        tipo_conteudo: 'NOTICIA',
         fonte: news.fonte,
         imagem_url: news.imagem_url,
+        data_publicacao: news.data_publicacao || '',
         data_encontrada: news.data_encontrada,
-        ativo: news.ativo,
+        ativo: pubStatus.ativo,
+        status_curadoria: pubStatus.status_curadoria,
+        score_pertinencia: score,
+        publicado_por_ia: pubStatus.ativo,
         museu_classificacao: museuClassificacao || null
       });
 
