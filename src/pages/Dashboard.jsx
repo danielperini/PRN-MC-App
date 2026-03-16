@@ -222,7 +222,7 @@ function DashboardInner() {
               </Button>
             </Link>
           </div>
-        </div>
+        </div>}
 
         {/* Carrossel de Notícias */}
         <NewsCarousel />
