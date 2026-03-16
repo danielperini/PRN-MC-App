@@ -59,9 +59,15 @@ export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isC
   const handleDelete = async (rubrica) => {
     if (!window.confirm(`Deletar rubrica "${rubrica.rubrica}"? Esta ação não pode ser desfeita.`)) return;
     setDeletingId(rubrica.id);
-    await base44.entities.Rubrica.delete(rubrica.id);
-    setDeletingId(null);
-    onRefresh?.();
+    try {
+      await base44.entities.Rubrica.delete(rubrica.id);
+      toast.success(`Rubrica "${rubrica.rubrica}" deletada.`);
+      onRefresh?.();
+    } catch (e) {
+      toast.error('Erro ao deletar rubrica: ' + (e?.message || 'tente novamente'));
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const getStatusIcon = (percentual) => {

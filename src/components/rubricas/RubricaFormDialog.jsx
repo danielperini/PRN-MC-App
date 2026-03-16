@@ -35,10 +35,18 @@ export default function RubricaFormDialog({ rubrica, onClose, onSuccess }) {
       percentual_utilizado: valorRubrica > 0 ? Math.round((valorUtilizado / valorRubrica) * 100) : 0,
       ordem_exibicao: parseInt(form.ordem_exibicao) || 99,
     };
-    if (isEdit) {
-      await base44.entities.Rubrica.update(rubrica.id, payload);
-    } else {
-      await base44.entities.Rubrica.create(payload);
+    try {
+      if (isEdit) {
+        await base44.entities.Rubrica.update(rubrica.id, payload);
+        toast.success('Rubrica atualizada com sucesso!');
+      } else {
+        await base44.entities.Rubrica.create(payload);
+        toast.success('Rubrica criada com sucesso!');
+      }
+    } catch (e) {
+      toast.error('Erro ao salvar rubrica: ' + (e?.message || 'tente novamente'));
+      setSaving(false);
+      return;
     }
     setSaving(false);
     onSuccess();
