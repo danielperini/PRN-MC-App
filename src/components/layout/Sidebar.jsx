@@ -6,7 +6,7 @@ import {
   Building2, FileText, Users, Eye, Paperclip, Settings, Shield,
   HelpCircle, BarChart3, History, ChevronLeft, ChevronRight,
   CalendarDays, Layers, BookOpen, ShoppingCart, Banknote, Target, Newspaper,
-  Map, DollarSign, ChevronDown, Images, ScrollText
+  DollarSign, ChevronDown, Images, ScrollText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SuggestionForm from '@/components/sidebar/SuggestionForm';
@@ -68,23 +68,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         { name: 'PlataformaAdmin', icon: Settings, label: 'Plataforma', show: coord && canViewMenu('can_manage_platform') },
       ],
     },
-    {
-      label: 'Territorialidade',
-      items: [
-        { 
-          name: 'MuseusNoMapa', 
-          icon: Map, 
-          label: 'Museus Centro no Mapa', 
-          show: true,
-          submenu: [
-            { name: 'MhaabMap', label: 'MHAB' },
-            { name: 'MisMap', label: 'MIS' },
-            { name: 'MumoMap', label: 'MUMO' },
-            { name: 'ViadutoMap', label: 'Viaduto das Artes' },
-          ]
-        },
-      ],
-    },
+
     {
       label: 'Recursos',
       items: [
