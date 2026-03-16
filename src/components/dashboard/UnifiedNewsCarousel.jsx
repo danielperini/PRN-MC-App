@@ -36,28 +36,44 @@ export default function UnifiedNewsCarousel() {
   const [selectedTags, setSelectedTags] = useState([]);
   const queryClient = useQueryClient();
 
-  // Fetch news — apenas notícias publicadas em curadoria
+  // Fetch news — publicadas automaticamente (score >= 80) OU aprovadas manualmente
+  // NÃO lista notícias com score < 50
   const { data: todayNews = [], isLoading: loadingNews, refetch: refetchNews } = useQuery({
-    queryKey: ['today-news', today],
+    queryKey: ['today-news-v2', today],
     queryFn: async () => {
-      // Buscar apenas notícias com data_selecao definida (publicadas em curadoria)
-      const all = await base44.entities.NewsHighlight.filter({ ativo: true }, '-data_selecao', 400);
+      const all = await base44.entities.NewsHighlight.filter({ ativo: true }, '-created_date', 500);
 
-      const curated = all.filter(n => n.data_selecao); // Apenas com data_selecao (curadoria)
+      // Filtrar: apenas publicadas (PUBLICADO_AUTO ou APROVADO_MANUAL) e score >= 50
+      const published = all.filter(n => {
+        // Se tem status_curadoria definido, aplicar regras de score
+        if (n.status_curadoria === 'REJEITADO') return false;
+        if (n.status_curadoria === 'PENDENTE') return false; // aguarda aprovação manual
+        // Se score_pertinencia definido e < 50, não listar
+        if (n.score_pertinencia !== undefined && n.score_pertinencia !== null && n.score_pertinencia < 50) return false;
+        return true;
+      });
 
       // Deduplicate by link
-      const unique = Array.from(new Map(curated.map(n => [n.link || n.id, n])).values());
+      const unique = Array.from(new Map(published.map(n => [n.link || n.id, n])).values());
 
-      // Shuffle randomly (different order every session)
+      // Seed aleatório baseado na data (muda todo dia, mas consistente no mesmo dia)
+      const dateSeed = parseInt(today.replace(/-/g, ''), 10);
+      let seed = dateSeed;
+      const seededRandom = () => {
+        seed = (seed * 1664525 + 1013904223) & 0xffffffff;
+        return (seed >>> 0) / 0xffffffff;
+      };
+
+      // Shuffle com seed diário (notícias diferentes todo dia)
       for (let i = unique.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = Math.floor(seededRandom() * (i + 1));
         [unique[i], unique[j]] = [unique[j], unique[i]];
       }
 
       return unique.slice(0, 20);
     },
-    refetchInterval: 180000,
-    staleTime: 90000,
+    refetchInterval: 300000,
+    staleTime: 120000,
   });
 
   // Fetch momentos (internal highlights)
