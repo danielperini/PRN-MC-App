@@ -299,6 +299,70 @@ export default function CurationDashboard() {
         </div>
       </div>
 
+      {/* Add Manual Link — apenas coordenadores */}
+      {isCoordenador && (
+        <div className="mb-6">
+          {!showAddForm ? (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="flex items-center gap-2 text-sm font-semibold text-black border-2 border-dashed border-gray-300 hover:border-black rounded-lg px-4 py-3 w-full transition-all"
+            >
+              <Plus className="w-4 h-4" /> Adicionar link manualmente
+            </button>
+          ) : (
+            <div className="border-2 border-black rounded-lg p-4 bg-white">
+              <div className="flex items-center gap-2 mb-3">
+                <Link className="w-4 h-4" />
+                <span className="font-bold text-sm">Adicionar notícia manualmente</span>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 mb-1 block">URL da notícia *</label>
+                  <Input
+                    placeholder="https://..."
+                    value={manualUrl}
+                    onChange={e => setManualUrl(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 mb-1 block">Título *</label>
+                  <Input
+                    placeholder="Título da notícia"
+                    value={manualTitle}
+                    onChange={e => setManualTitle(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 mb-1 block">Resumo (opcional)</label>
+                  <Input
+                    placeholder="Breve descrição..."
+                    value={manualResumo}
+                    onChange={e => setManualResumo(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleAddManual}
+                    disabled={addingManual || !manualUrl.trim() || !manualTitle.trim()}
+                    className="bg-black text-white hover:bg-gray-800 gap-1"
+                  >
+                    {addingManual ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+                    Publicar
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => { setShowAddForm(false); setManualUrl(''); setManualTitle(''); setManualResumo(''); }}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Published Section */}
        <div className="mb-8">
          <div className="flex items-center justify-between mb-4">
