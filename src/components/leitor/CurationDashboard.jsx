@@ -157,6 +157,9 @@ export default function CurationDashboard() {
       queryClient.invalidateQueries({ queryKey: ['news-pending-curated'] });
       queryClient.invalidateQueries({ queryKey: ['news-published-curated'] });
       queryClient.invalidateQueries({ queryKey: ['today-news-v2'] });
+      toast.success('Notícia publicada com sucesso!');
+    } catch (e) {
+      toast.error('Erro ao publicar notícia: ' + (e?.message || 'tente novamente'));
     } finally {
       setProcessingId(null);
     }
@@ -168,6 +171,9 @@ export default function CurationDashboard() {
       await base44.entities.NewsHighlight.delete(id);
       queryClient.invalidateQueries({ queryKey: ['news-pending-curated'] });
       queryClient.invalidateQueries({ queryKey: ['today-news-v2'] });
+      toast.success('Notícia rejeitada.');
+    } catch (e) {
+      toast.error('Erro ao rejeitar notícia: ' + (e?.message || 'tente novamente'));
     } finally {
       setProcessingId(null);
     }
@@ -177,14 +183,15 @@ export default function CurationDashboard() {
     setProcessingId(id);
     try {
       await base44.entities.NewsHighlight.delete(id);
-      // Buscar notícia pendente para substituir
-      const pending = await base44.entities.NewsHighlight.filter({ status_curadoria: 'PENDENTE' }, '-created_date', 1);
-      if (pending.length > 0) {
-        // Substituir com primeira pendente
-        await base44.entities.NewsHighlight.update(pending[0].id, { ativo: true, status_curadoria: 'APROVADO_MANUAL' });
+      const pendingList = await base44.entities.NewsHighlight.filter({ status_curadoria: 'PENDENTE' }, '-created_date', 1);
+      if (pendingList.length > 0) {
+        await base44.entities.NewsHighlight.update(pendingList[0].id, { ativo: true, status_curadoria: 'APROVADO_MANUAL' });
       }
       queryClient.invalidateQueries({ queryKey: ['news-published-curated'] });
       queryClient.invalidateQueries({ queryKey: ['news-pending-curated'] });
+      toast.success('Notícia deletada.');
+    } catch (e) {
+      toast.error('Erro ao deletar notícia: ' + (e?.message || 'tente novamente'));
     } finally {
       setProcessingId(null);
     }
@@ -213,6 +220,9 @@ export default function CurationDashboard() {
       setShowAddForm(false);
       queryClient.invalidateQueries({ queryKey: ['news-published-curated'] });
       queryClient.invalidateQueries({ queryKey: ['today-news-v2'] });
+      toast.success('Notícia adicionada e publicada!');
+    } catch (e) {
+      toast.error('Erro ao adicionar notícia: ' + (e?.message || 'tente novamente'));
     } finally {
       setAddingManual(false);
     }
@@ -221,23 +231,17 @@ export default function CurationDashboard() {
   const handleRunCuration = async () => {
     setCuratingNow(true);
     try {
-      // Rodar curadoria IA
       await base44.functions.invoke('runDailyCuration', {});
       
-      // Substituir 50% das notícias publicadas por pendentes
       const publishedNews = await base44.entities.NewsHighlight.filter({ ativo: true }, '-created_date', 100);
       const toDelete = Math.ceil(publishedNews.length * 0.5);
       const idsToDelete = publishedNews.slice(0, toDelete).map(n => n.id);
+      const pendingList = await base44.entities.NewsHighlight.filter({ status_curadoria: 'PENDENTE' }, '-created_date', toDelete);
       
-      const pending = await base44.entities.NewsHighlight.filter({ status_curadoria: 'PENDENTE' }, '-created_date', toDelete);
-      
-      // Deletar 50% aleatoriamente
       for (const id of idsToDelete) {
         await base44.entities.NewsHighlight.delete(id);
       }
-      
-      // Substituir com pendentes e publicar
-      for (const news of pending) {
+      for (const news of pendingList) {
         await base44.entities.NewsHighlight.update(news.id, { ativo: true, status_curadoria: 'APROVADO_MANUAL' });
       }
       
@@ -246,8 +250,9 @@ export default function CurationDashboard() {
         queryClient.invalidateQueries({ queryKey: ['news-published-curated'] });
         queryClient.invalidateQueries({ queryKey: ['news-pending-curated'] });
       }, 2000);
+      toast.success('Curadoria executada com sucesso!');
     } catch (e) {
-      console.error('Erro ao rodar curadoria:', e);
+      toast.error('Erro ao rodar curadoria: ' + (e?.message || 'tente novamente'));
     } finally {
       setCuratingNow(false);
     }
