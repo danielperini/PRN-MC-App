@@ -149,6 +149,7 @@ export default function CurationDashboard() {
       await base44.functions.invoke('approveCuratedNews', { newsId: id });
       queryClient.invalidateQueries({ queryKey: ['news-pending-curated'] });
       queryClient.invalidateQueries({ queryKey: ['news-published-curated'] });
+      queryClient.invalidateQueries({ queryKey: ['today-news-v2'] });
     } finally {
       setProcessingId(null);
     }
