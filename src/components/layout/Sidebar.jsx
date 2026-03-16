@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import SuggestionForm from '@/components/sidebar/SuggestionForm';
 import { HelpWrapper } from '@/components/help/withContextualHelp';
-import { isCoordGeral, isCoordenador as checkCoordenador } from '@/components/auth/permissions';
+import { isCoordGeral, isCoordenador as checkCoordenador, canManageUsers } from '@/components/auth/permissions';
 
 export default function Sidebar({ currentPageName, collapsed, onToggle, currentUser }) {
   const [customPerms, setCustomPerms] = useState(null);
