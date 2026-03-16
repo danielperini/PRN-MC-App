@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertCircle, AlertTriangle, Search, Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import RubricaFormDialog from './RubricaFormDialog';
+import { toast } from 'sonner';
 
 export default function RubricasGrid({ rubricas, onSelectRubrica, onRefresh, isCoordenador }) {
   const [showForm, setShowForm] = useState(false);
