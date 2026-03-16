@@ -166,8 +166,9 @@ export default function CurationDashboard() {
   const handleReject = async (id) => {
     setProcessingId(id);
     try {
-      await base44.functions.invoke('rejectCuratedNews', { newsId: id });
+      await base44.entities.NewsHighlight.delete(id);
       queryClient.invalidateQueries({ queryKey: ['news-pending-curated'] });
+      queryClient.invalidateQueries({ queryKey: ['today-news-v2'] });
     } finally {
       setProcessingId(null);
     }
