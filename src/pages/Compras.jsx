@@ -307,12 +307,7 @@ function ComprasInner() {
             />
           )}
 
-        {/* Exportar Excel */}
-        {tab === 'lista' && isCoordenador && (
-          <div className="mt-8">
-            <FinancialExcelExporter />
-          </div>
-        )}
+
         </div>
 
       {showForm && (
