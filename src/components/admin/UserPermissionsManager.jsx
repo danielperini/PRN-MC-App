@@ -17,29 +17,31 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const PERMISSION_GROUPS = {
   'Relatórios': [
-    { key: 'can_view_all_reports', label: 'Visualizar todos os relatórios' },
-    { key: 'can_review_reports', label: 'Revisar e aprovar relatórios' },
+    { key: 'can_view_all_reports', label: 'Visualizar todos os relatórios', hint: 'Acesso de leitura a todos os relatórios do sistema' },
+    { key: 'can_review_reports', label: 'Revisar e aprovar relatórios', hint: 'Pode alterar status, devolver e aprovar relatórios' },
+    { key: 'must_submit_monthly_reports', label: 'Obrigado a submeter relatórios mensais', hint: 'Será notificado no final do mês' },
   ],
   'Financeiro': [
-    { key: 'gestao_compras', label: 'Gestão completa de compras e orçamento' },
-    { key: 'pode_ver_saude_orcamentaria', label: 'Visualizar saúde orçamentária' },
-    { key: 'pode_gerenciar_rubricas', label: 'Gerenciar rubricas' },
-    { key: 'pode_aprovar_solicitacoes', label: 'Aprovar solicitações e pagamentos' },
+    { key: 'gestao_compras', label: 'Gestão completa de compras e orçamento', hint: 'Acesso total ao módulo de compras' },
+    { key: 'pode_ver_saude_orcamentaria', label: 'Visualizar saúde orçamentária', hint: 'Ver dashboards e saldos de rubricas' },
+    { key: 'pode_gerenciar_rubricas', label: 'Gerenciar rubricas', hint: 'Criar, editar e excluir rubricas orçamentárias' },
+    { key: 'pode_aprovar_solicitacoes', label: 'Aprovar solicitações e pagamentos', hint: 'Aprovar compras e pagamentos a fornecedores' },
   ],
   'Usuários e Estrutura': [
-    { key: 'can_manage_users', label: 'Gerenciar usuários' },
-    { key: 'can_manage_equipes', label: 'Gerenciar equipes' },
-    { key: 'can_manage_museus', label: 'Gerenciar museus' },
+    { key: 'can_manage_users', label: 'Gerenciar usuários', hint: 'Convidar, editar e remover usuários' },
+    { key: 'can_manage_equipes', label: 'Gerenciar equipes', hint: 'Criar e editar equipes dos museus' },
+    { key: 'can_manage_museus', label: 'Gerenciar museus', hint: 'Editar dados e configurações dos museus' },
   ],
   'Arquivos': [
-    { key: 'can_manage_files', label: 'Gerenciar arquivos completamente' },
+    { key: 'can_manage_files', label: 'Gerenciar arquivos completamente', hint: 'Deletar e reorganizar arquivos de outros usuários' },
   ],
   'Auditoria e Plataforma': [
-    { key: 'can_view_audit_log', label: 'Visualizar log de auditoria' },
-    { key: 'can_manage_platform', label: 'Gerenciar configurações da plataforma' },
+    { key: 'can_view_audit_log', label: 'Visualizar log de auditoria', hint: 'Ver histórico completo de ações do sistema' },
+    { key: 'can_manage_platform', label: 'Gerenciar configurações da plataforma', hint: 'Acesso à aba Plataforma e metadados do sistema' },
   ],
-  'Relatórios Mensais': [
-    { key: 'must_submit_monthly_reports', label: 'Obrigado a submeter relatórios mensais' },
+  'Comunicação e Curadoria': [
+    { key: 'can_curate_news', label: 'Curadoria de notícias', hint: 'Aprovar, rejeitar e publicar notícias no carrossel' },
+    { key: 'can_manage_momentos', label: 'Gerenciar momentos especiais', hint: 'Criar e publicar momentos no carrossel do dashboard' },
   ],
 };
 
