@@ -55,7 +55,6 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       items: [
         { name: 'RubricasPorMuseu', icon: Building2, label: 'Rubricas por Museu', show: true },
         { name: 'Fornecedores', icon: Building2, label: 'Fornecedores', show: coord },
-        { name: 'DashboardFinanceiro', icon: BarChart3, label: 'Dashboard Financeiro', show: coord && canViewMenu('gestao_compras') },
       ],
     },
     {
