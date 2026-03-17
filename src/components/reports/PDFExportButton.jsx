@@ -49,31 +49,31 @@ export default function PDFExportButton({ reportId, reportProtocolo, disabled = 
           disabled={disabled}
           variant="outline"
           className="gap-2"
-          title="Adicionar fotos ao cabeçalho"
-        >
+          title="Adicionar fotos ao cabeçalho">
+          
           <Image className="w-4 h-4" />
           {selectedPhotoIds.length > 0 ? `${selectedPhotoIds.length} foto(s)` : 'Adicionar Fotos'}
         </Button>
 
-        <Button
-          onClick={handleExport}
-          disabled={disabled || isExporting}
-          variant="outline"
-          className="gap-2"
-          title="Exportar relatório em PDF"
-        >
-          {isExporting ? (
-            <>
-              <Loader className="w-4 h-4 animate-spin" />
-              Exportando...
-            </>
-          ) : (
-            <>
-              <FileDown className="w-4 h-4" />
-              Exportar PDF
-            </>
-          )}
-        </Button>
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
       </div>
 
       <PhotoSelectorModal
@@ -81,8 +81,8 @@ export default function PDFExportButton({ reportId, reportProtocolo, disabled = 
         onClose={() => setShowPhotoSelector(false)}
         reportId={reportId}
         selectedPhotoIds={selectedPhotoIds}
-        onSelect={setSelectedPhotoIds}
-      />
-    </>
-  );
+        onSelect={setSelectedPhotoIds} />
+      
+    </>);
+
 }
