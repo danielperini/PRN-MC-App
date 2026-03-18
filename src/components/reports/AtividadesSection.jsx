@@ -615,37 +615,81 @@ const produtosTotal = quantidadeProduto * repeticoes;
               </Select>
             </Field>
             <Field label="Público estimado (por ocorrência)">
-               <Input type="number" placeholder="0" value={atividade.publico_estimado ?? ''} onChange={e => onChange('publico_estimado', parseInt(e.target.value) || 0)} disabled={!canEdit} />
-            </Field>
-            <Field label="Quantas vezes ocorreu?">
-               <Input 
-                 type="number" 
-                 placeholder="1" 
-                 value={atividade.quantas_repeticoes || 1} 
-                 onChange={e => {
-                   const val = e.target.value === '' ? 1 : parseInt(e.target.value, 10);
-                   if (!isNaN(val) && val >= 1 && val <= 99) {
-                     onChange('quantas_repeticoes', val);
-                   }
-                 }} 
-                 disabled={!canEdit}
-                 min="1"
-                 max="99"
-               />
-            </Field>
+  <Input
+    type="number"
+    placeholder="0"
+    value={atividade.publico_estimado || ''}
+    onChange={e => onChange('publico_estimado', parseInt(e.target.value, 10) || 0)}
+    disabled={!canEdit}
+  />
+</Field>
 
-            <Field label="Produto realizado">
-              <Select value={atividade.produto_realizado || ''} onValueChange={v => onChange('produto_realizado', v)} disabled={!canEdit}>
-                <SelectTrigger><SelectValue placeholder="Selecione o produto" /></SelectTrigger>
-                <SelectContent>
-                  {PRODUTOS_OPCOES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Quantidade de produtos gerados">
-              <Input type="number" placeholder="Ex: 10 posts, 5 oficinas" value={atividade.quantidade_produto ?? ''} onChange={e => onChange('quantidade_produto', parseInt(e.target.value) || 0)} disabled={!canEdit} />
-            </Field>
-            </div>
+<Field label="Quantas vezes ocorreu?">
+  <Input 
+    type="number" 
+    placeholder="1" 
+    value={atividade.quantas_repeticoes || 1} 
+    onChange={e => {
+      const val = e.target.value === '' ? 1 : parseInt(e.target.value, 10);
+      if (!isNaN(val) && val >= 1 && val <= 99) {
+        onChange('quantas_repeticoes', val);
+        onChange('atividades_total', val);
+        onChange('produtos_total', (parseInt(atividade.quantidade_produto, 10) || 0) * val);
+      }
+    }} 
+    disabled={!canEdit}
+    min="1"
+    max="99"
+  />
+</Field>
+
+<Field label="Total de atividades realizadas">
+  <Input
+    type="number"
+    value={atividade.atividades_total || atividadesTotal || 0}
+    readOnly
+    disabled={true}
+  />
+</Field>
+
+<Field label="Produto realizado">
+  <Select
+    value={atividade.produto_realizado || ''}
+    onValueChange={v => onChange('produto_realizado', v)}
+    disabled={!canEdit}
+  >
+    <SelectTrigger><SelectValue placeholder="Selecione o produto" /></SelectTrigger>
+    <SelectContent>
+      {PRODUTOS_OPCOES.map(p => (
+        <SelectItem key={p} value={p}>{p}</SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</Field>
+
+<Field label="Quantidade de produtos gerados">
+  <Input
+    type="number"
+    placeholder="Ex: 10"
+    value={atividade.quantidade_produto || ''}
+    onChange={e => {
+      const qtd = parseInt(e.target.value, 10) || 0;
+      onChange('quantidade_produto', qtd);
+      onChange('produtos_total', qtd * (parseInt(atividade.quantas_repeticoes, 10) || 0));
+    }}
+    disabled={!canEdit}
+  />
+</Field>
+
+<Field label="Total de produtos gerados">
+  <Input
+    type="number"
+    value={atividade.produtos_total || produtosTotal || 0}
+    readOnly
+    disabled={true}
+  />
+</Field>
+</div>
 
             {/* Seção de Mobilização (condicional) */}
             {atividade.eh_mobilizacao && (
