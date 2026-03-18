@@ -306,30 +306,40 @@ Escreva em português do Brasil, de forma objetiva e profissional.`;
   };
 
   const handleAiJustificativa = async () => {
-    // Validar dados essenciais
-    if (!atividade.tipo_acao && !atividade.descricao_executado && !atividade.objetivo) {
-      toast.warning('Preencha o "Tipo de ação" e descrição antes de usar a IA', {
-        description: 'A IA precisa dessas informações para gerar uma justificativa adequada.'
-      });
-      return;
-    }
+  // Validar dados essenciais
+  if (!atividade.tipo_acao && !atividade.descricao_executado && !atividade.objetivo) {
+    toast.warning('Preencha o "Tipo de ação" e descrição antes de usar a IA', {
+      description: 'A IA precisa dessas informações para gerar uma justificativa adequada.'
+    });
+    return;
+  }
 
-    setAiLoading(true);
-    const prompt = `Com base na seguinte atividade de museu, escreva uma justificativa técnica clara explicando por que esta atividade é considerada "${atividade.classificacao}" (máximo 3 linhas):
+  setAiLoading(true);
+
+  const prompt = `Com base na seguinte atividade de museu, escreva uma justificativa técnica clara explicando por que esta atividade é considerada "${atividade.classificacao}" (máximo 3 linhas):
 Nome: ${atividade.nome || ''}
 Tipo de ação: ${atividade.tipo_acao || ''}
 Descrição: ${atividade.descricao_executado || atividade.objetivo || ''}
 Museu: ${atividade.museu || ''}
 Classificação: ${atividade.classificacao || ''}
 Escreva em português do Brasil, de forma técnica e concisa.`;
-    const result = await base44.integrations.Core.InvokeLLM({ prompt });
-    onChange('justificativa_tecnica', result);
-    toast.success('Sugestão gerada! ✨', {
-      description: 'Revise a justificativa proposta e ajuste se necessário.',
-      action: { label: 'OK', onClick: () => {} }
-    });
-    setAiLoading(false);
-  };
+
+  const result = await base44.integrations.Core.InvokeLLM({ prompt });
+  onChange('justificativa_tecnica', result);
+
+  toast.success('Sugestão gerada! ✨', {
+    description: 'Revise a justificativa proposta e ajuste se necessário.',
+    action: { label: 'OK', onClick: () => {} }
+  });
+
+  setAiLoading(false);
+};
+const repeticoes = parseInt(atividade.quantas_repeticoes || 0, 10);
+const quantidadeProduto = parseInt(atividade.quantidade_produto || 0, 10);
+
+const atividadesTotal = repeticoes;
+const produtosTotal = quantidadeProduto * repeticoes;
+
 
   return (
     <div className={`border rounded-xl overflow-hidden ${hasDupWarning ? 'border-amber-400' : errors.length > 0 ? 'border-red-200' : 'border-gray-200'}`}>
