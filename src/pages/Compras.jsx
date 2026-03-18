@@ -231,7 +231,7 @@ function ComprasInner() {
                     isCoordenador={isCoordenador}
                     isAdmin={currentUser?.role === 'admin' || currentUser?.role === 'ADMIN'}
                     currentUser={currentUser}
-                    onRefresh={() => queryClient.invalidateQueries(['purchases'])}
+                    onRefresh={() => queryClient.invalidateQueries({ queryKey: ['purchases'] })}
                   />
                 ))}
               </div>
@@ -326,7 +326,7 @@ function ComprasInner() {
           onClose={() => setShowForm(false)}
           onSuccess={() => {
             setShowForm(false);
-            queryClient.invalidateQueries(['purchases']);
+            queryClient.invalidateQueries({ queryKey: ['purchases'] });
           }}
         />
       )}
