@@ -81,11 +81,13 @@ const EMPTY_ATIVIDADE = {
   museu: '',
   tipo_acao: '',
   nome: '',
-  publico_estimado: '',
-  quantas_repeticoes: 1,
-  publico_total: '',
-  produto_realizado: '',
-  quantidade_produto: '',
+publico_estimado: '',
+quantas_repeticoes: '',
+publico_total: '',
+produto_realizado: '',
+quantidade_produto: '',
+atividades_total: 0,
+produtos_total: 0,
   objetivo: '',
   descricao_executado: '',
   equipe_envolvida: '',
@@ -655,7 +657,7 @@ const produtosTotal = quantidadeProduto * repeticoes;
 <Field label="Total de atividades realizadas">
   <Input
     type="number"
-    value={atividade.atividades_total || atividadesTotal || 0}
+    value={atividade.atividades_total || 0}
     readOnly
     disabled={true}
   />
@@ -675,25 +677,35 @@ const produtosTotal = quantidadeProduto * repeticoes;
     </SelectContent>
   </Select>
 </Field>
-
 <Field label="Quantidade de produtos gerados">
   <Input
     type="number"
-    placeholder="Ex: 10"
-    value={atividade.quantidade_produto || ''}
+    placeholder="0"
+    value={atividade.quantidade_produto === undefined || atividade.quantidade_produto === null ? '' : atividade.quantidade_produto}
     onChange={e => {
-      const qtd = parseInt(e.target.value, 10) || 0;
-      onChange('quantidade_produto', qtd);
-      onChange('produtos_total', qtd * (parseInt(atividade.quantas_repeticoes, 10) || 0));
+      const raw = e.target.value;
+
+      if (raw === '') {
+        onChange('quantidade_produto', '');
+        onChange('produtos_total', 0);
+        return;
+      }
+
+      const qtd = parseInt(raw, 10);
+      if (!isNaN(qtd) && qtd >= 0) {
+        onChange('quantidade_produto', qtd);
+        onChange('produtos_total', qtd * (parseInt(atividade.quantas_repeticoes, 10) || 0));
+      }
     }}
     disabled={!canEdit}
+    min="0"
   />
 </Field>
 
 <Field label="Total de produtos gerados">
   <Input
     type="number"
-    value={atividade.produtos_total || produtosTotal || 0}
+    value={atividade.produtos_total || 0}
     readOnly
     disabled={true}
   />
