@@ -625,20 +625,29 @@ const produtosTotal = quantidadeProduto * repeticoes;
 </Field>
 
 <Field label="Quantas vezes ocorreu?">
-  <Input 
-    type="number" 
-    placeholder="1" 
-    value={atividade.quantas_repeticoes || 1} 
+  <Input
+    type="number"
+    placeholder="1"
+    value={atividade.quantas_repeticoes === undefined || atividade.quantas_repeticoes === null ? '' : atividade.quantas_repeticoes}
     onChange={e => {
-      const val = e.target.value === '' ? 1 : parseInt(e.target.value, 10);
-      if (!isNaN(val) && val >= 1 && val <= 99) {
+      const raw = e.target.value;
+
+      if (raw === '') {
+        onChange('quantas_repeticoes', '');
+        onChange('atividades_total', 0);
+        onChange('produtos_total', 0);
+        return;
+      }
+
+      const val = parseInt(raw, 10);
+      if (!isNaN(val) && val >= 0 && val <= 99) {
         onChange('quantas_repeticoes', val);
         onChange('atividades_total', val);
         onChange('produtos_total', (parseInt(atividade.quantidade_produto, 10) || 0) * val);
       }
-    }} 
+    }}
     disabled={!canEdit}
-    min="1"
+    min="0"
     max="99"
   />
 </Field>
