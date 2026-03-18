@@ -37,11 +37,29 @@ const PAGAMENTOS = ['PIX', 'TED/Transferência', 'Boleto', 'Cartão', 'Dinheiro'
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 const EMPTY = {
-  meta_id: '', meta_extra_descricao: '', budgetline_id: '', categoria: '',
-  tipo_gasto: '', centro_custo: '', descricao_item: '', qtd: 1, unidade: 'un',
-  valor_solicitado: '', fornecedor_nome: '', fornecedor_cnpj: '', fornecedor_contato: '',
-  meio_pagamento: '', detalhe_pagamento: '', observacoes: '', orcamentos: [],
-  activity_id: '', report_id: '', orcamentos_docs: [], notas_fiscais_docs: [],
+  meta_id: '',
+  meta_extra_descricao: '',
+  budgetline_id: '',
+  rubrica_id: '',
+  categoria: '',
+  tipo_gasto: '',
+  centro_custo: '',
+  descricao_item: '',
+  qtd: 1,
+  unidade: 'un',
+  valor_unitario: '',
+  valor_solicitado: '',
+  fornecedor_nome: '',
+  fornecedor_cnpj: '',
+  fornecedor_contato: '',
+  meio_pagamento: '',
+  detalhe_pagamento: '',
+  observacoes: '',
+  orcamentos: [],
+  activity_id: '',
+  report_id: '',
+  orcamentos_docs: [],
+  notas_fiscais_docs: [],
 };
 
 export default function PurchaseFormDialog({ currentUser, onClose, onSuccess, prefill }) {
