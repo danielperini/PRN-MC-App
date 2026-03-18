@@ -12,10 +12,9 @@ export default function AprovacoesFila({
   budgetLines,
   statusConfig,
   onRefresh,
-  currentUser,
-  hasGestaoCompras,
-  podeAprovarSolicitacoes
+  currentUser
 }) {
+
   const [loading, setLoading] = useState({});
   const [comentarios, setComentarios] = useState({});
   const [saldos, setSaldos] = useState({});
@@ -191,7 +190,7 @@ export default function AprovacoesFila({
       <section>
         <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4 flex items-center gap-2">
           <span className="w-5 h-5 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold">{pendentes_coord.length}</span>
-          Aguardando Aprovação do Coordenador Geral
+          Aguardando Aprovação da Coordenação
         </h2>
         {pendentes_coord.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-6 border-2 border-dashed border-gray-100 rounded-xl">Nenhuma solicitação pendente</p>
