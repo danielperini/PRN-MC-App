@@ -305,14 +305,16 @@ function ComprasInner() {
 
         {/* Aprovações */}
           {tab === 'aprovacoes' && podeAprovarSolicitacoes && (
-            <AprovacoesFila
-              purchases={purchases}
-              budgetLines={budgetLines}
-              statusConfig={STATUS_CONFIG}
-              onRefresh={() => queryClient.invalidateQueries(['purchases'])}
-              currentUser={currentUser}
-            />
-          )}
+  <AprovacoesFila
+    purchases={purchases}
+    budgetLines={budgetLines}
+    statusConfig={STATUS_CONFIG}
+    onRefresh={() => queryClient.invalidateQueries({ queryKey: ['purchases'] })}
+    currentUser={currentUser}
+    hasGestaoCompras={hasGestaoCompras}
+    podeAprovarSolicitacoes={podeAprovarSolicitacoes}
+  />
+)}
 
 
         </div>
