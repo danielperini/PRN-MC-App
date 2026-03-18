@@ -226,10 +226,17 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
   };
 
   const handleSave = async (submeter = false) => {
-    if (!form.descricao_item || !form.meta_id || !form.budgetline_id || !form.categoria || !form.tipo_gasto || !form.valor_solicitado) {
-      toast.error('Preencha todos os campos obrigatórios.');
-      return;
-    }
+    if (
+  !form.descricao_item ||
+  !form.meta_id ||
+  (!form.budgetline_id && !form.rubrica_id) ||
+  !form.categoria ||
+  !form.tipo_gasto ||
+  !form.valor_solicitado
+) {
+  toast.error('Preencha todos os campos obrigatórios.');
+  return;
+}
     setSaving(true);
     try {
       // Garantir relatório mensal
