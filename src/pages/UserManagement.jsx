@@ -93,7 +93,11 @@ function UserManagementInner() {
    const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
    const [expandedUserId, setExpandedUserId] = useState(null);
    const [editingUserId, setEditingUserId] = useState(null);
-   const [editingUserData, setEditingUserData] = useState({});
+   const [editingUserData, setEditingUserData] = useState({
+  full_name: '',
+  role: 'PROFISSIONAL',
+  equipe: ''
+});
    const [editingPendingReg, setEditingPendingReg] = useState(null);
    const [editingPendingData, setEditingPendingData] = useState({});
    const [deleteRegTarget, setDeleteRegTarget] = useState(null);
@@ -313,7 +317,11 @@ function UserManagementInner() {
       queryClient.invalidateQueries(['users']);
       toast.success('Usuário atualizado');
       setEditingUserId(null);
-      setEditingUserData({});
+      setEditingUserData({
+  full_name: '',
+  role: 'PROFISSIONAL',
+  equipe: ''
+});
     },
     onError: () => toast.error('Erro ao atualizar usuário'),
   });
