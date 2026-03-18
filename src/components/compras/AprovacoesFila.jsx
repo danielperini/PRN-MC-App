@@ -7,10 +7,32 @@ import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, AlertTriangle, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function AprovacoesFila({ purchases, budgetLines, statusConfig, onRefresh, currentUser }) {
+export default function AprovacoesFila({
+  purchases,
+  budgetLines,
+  statusConfig,
+  onRefresh,
+  currentUser,
+  hasGestaoCompras,
+  podeAprovarSolicitacoes
+}) {
   const [loading, setLoading] = useState({});
   const [comentarios, setComentarios] = useState({});
   const [saldos, setSaldos] = useState({});
+
+  const isCoordenador = [
+    'admin',
+    'ADMIN',
+    'COORDENADOR',
+    'COORD_COMUNICACAO',
+    'COORD_ADMINISTRATIVA',
+    'COORD_PRODUCAO'
+  ].includes(currentUser?.role);
+
+  const podeAprovar =
+    isCoordenador ||
+    hasGestaoCompras === true ||
+    podeAprovarSolicitacoes === true;
 
   const pendentes_coord = purchases.filter(p => p.status === 'SOLICITADO');
 
@@ -30,10 +52,10 @@ export default function AprovacoesFila({ purchases, budgetLines, statusConfig, o
 
   const handleAction = async (purchase, action) => {
     // Restringir aprovação apenas para coordenador geral (admin)
-    if (action === 'approve_coord' && currentUser?.role !== 'admin' && currentUser?.role !== 'ADMIN') {
-      toast.error('Apenas o coordenador geral pode aprovar solicitações.');
-      return;
-    }
+    if (action === 'approve_coord' && !podeAprovar) {
+  toast.error('Você não tem permissão para aprovar solicitações.');
+  return;
+}
 
     setLoading(l => ({ ...l, [purchase.id]: true }));
     try {
