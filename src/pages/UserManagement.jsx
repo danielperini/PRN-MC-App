@@ -810,7 +810,14 @@ function UserManagementInner() {
             <Button className="bg-black hover:bg-gray-800 text-white" disabled={updateMutation.isPending}
               onClick={() => {
                 const user = users.find(u => u.id === editingUserId);
-                if (user) updateMutation.mutate({ id: user.id, data: { role: editingUserData.role, equipe: editingUserData.equipe } });
+                if (user) updateMutation.mutate({
+  id: user.id,
+  data: {
+    full_name: editingUserData.full_name || '',
+    role: editingUserData.role,
+    equipe: editingUserData.equipe
+  }
+});
               }}>
               {updateMutation.isPending ? 'Salvando...' : 'Salvar'}
             </Button>
