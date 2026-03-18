@@ -33,9 +33,9 @@ import LoadFromTemplateDialog from '../components/templates/LoadFromTemplateDial
 import AttachmentsSection from '../components/reports/AttachmentsSection';
 
 const MESES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-];
+'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const FUNCOES = ['Educador', 'Produtor Cultural', 'Comunicador', 'Administrador', 'Coordenador', 'Consultoria Programação', 'Outro'];
 const CATEGORIAS_OP = ['Programação', 'Parceria', 'Comunicação', 'Captação', 'Acessibilidade', 'Infraestrutura', 'Outro'];
@@ -54,15 +54,15 @@ const EMPTY_FORM = {
   avaliacao_desafios: '',
   avaliacao_sugestoes: '',
   status: 'DRAFT',
-  return_comment: '',
+  return_comment: ''
 };
 
 function SectionTitle({ children }) {
   return (
     <h2 className="text-base font-semibold text-black mb-4 pb-2 border-b border-gray-100">
       {children}
-    </h2>
-  );
+    </h2>);
+
 }
 
 function Field({ label, children }) {
@@ -70,39 +70,39 @@ function Field({ label, children }) {
     <div className="space-y-1.5">
       <Label className="text-sm text-gray-700">{label}</Label>
       {children}
-    </div>
-  );
+    </div>);
+
 }
 
 function ReportEditorInner() {
   const navigate = useNavigate();
-   const queryClient = useQueryClient();
-   const { user: currentUser, isCoordenador } = useCurrentUser();
-   const isComunicacao = currentUser?.role === 'COORD_COMUNICACAO';
-   const urlParams = new URLSearchParams(window.location.search);
-   const reportId = urlParams.get('id');
+  const queryClient = useQueryClient();
+  const { user: currentUser, isCoordenador } = useCurrentUser();
+  const isComunicacao = currentUser?.role === 'COORD_COMUNICACAO';
+  const urlParams = new URLSearchParams(window.location.search);
+  const reportId = urlParams.get('id');
 
-   const [formData, setFormData] = useState(EMPTY_FORM);
-     const [declaracaoAceita, setDeclaracaoAceita] = useState(false);
-     const [currentTab, setCurrentTab] = useState('identificacao');
-     const [autoSaveTimer, setAutoSaveTimer] = useState(null);
-       const [showSaveAlert, setShowSaveAlert] = useState(false);
-       const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
-       const [showLoadTemplateDialog, setShowLoadTemplateDialog] = useState(false);
-       const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
-      const set = (key, value) => {
-      if (formData === null || typeof formData !== 'object') return;
-      setFormData(prev => ({ ...prev, [key]: value }));
-    };
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [declaracaoAceita, setDeclaracaoAceita] = useState(false);
+  const [currentTab, setCurrentTab] = useState('identificacao');
+  const [autoSaveTimer, setAutoSaveTimer] = useState(null);
+  const [showSaveAlert, setShowSaveAlert] = useState(false);
+  const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
+  const [showLoadTemplateDialog, setShowLoadTemplateDialog] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const set = (key, value) => {
+    if (formData === null || typeof formData !== 'object') return;
+    setFormData((prev) => ({ ...prev, [key]: value }));
+  };
 
   // Pre-fill author from logged user on new reports
   useEffect(() => {
     if (currentUser && !reportId) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         author_name: currentUser.full_name || '',
         museu: currentUser.museu || '',
-        funcao: currentUser.funcao || '',
+        funcao: currentUser.funcao || ''
       }));
     }
   }, [currentUser, reportId]);
@@ -116,7 +116,7 @@ function ReportEditorInner() {
       return data || null;
     },
     enabled: !!reportId,
-    staleTime: 30_000,
+    staleTime: 30_000
   });
 
   useEffect(() => {
@@ -126,7 +126,7 @@ function ReportEditorInner() {
         ...reportData,
         atividades: Array.isArray(reportData.atividades) ? reportData.atividades : [],
         oportunidades: Array.isArray(reportData.oportunidades) ? reportData.oportunidades : [],
-        momentos: Array.isArray(reportData.momentos) ? reportData.momentos : [],
+        momentos: Array.isArray(reportData.momentos) ? reportData.momentos : []
       });
     }
   }, [reportData]);
@@ -154,15 +154,15 @@ function ReportEditorInner() {
   };
 
   const saveMutation = useMutation({
-    mutationFn: async data => {
+    mutationFn: async (data) => {
       // Strip internal fields that should not be sent to the API
       const { id, created_date, updated_date, created_by, ...payload } = data;
       if (!reportId && !payload.numero_protocolo) {
         payload.numero_protocolo = await gerarNumeroProtocolo(payload.mes_referencia || 'SEM', payload.ano || 2026);
       }
-      return reportId
-        ? base44.entities.Report.update(reportId, payload)
-        : base44.entities.Report.create(payload);
+      return reportId ?
+      base44.entities.Report.update(reportId, payload) :
+      base44.entities.Report.create(payload);
     },
     onSuccess: (saved) => {
       queryClient.invalidateQueries(['report', reportId]);
@@ -172,7 +172,7 @@ function ReportEditorInner() {
         navigate(createPageUrl(`ReportEditor?id=${saved.id}`), { replace: true });
       }
     },
-    onError: () => toast.error('Erro ao salvar rascunho', { description: 'Não foi possível gravar as alterações. Tente novamente.' }),
+    onError: () => toast.error('Erro ao salvar rascunho', { description: 'Não foi possível gravar as alterações. Tente novamente.' })
   });
 
   const submitMutation = useMutation({
@@ -198,9 +198,9 @@ function ReportEditorInner() {
         payload.numero_protocolo = await gerarNumeroProtocolo(payload.mes_referencia, payload.ano || 2026);
       }
       const data = { ...payload, status: 'SUBMITTED' };
-      return reportId
-        ? base44.entities.Report.update(reportId, data)
-        : base44.entities.Report.create(data);
+      return reportId ?
+      base44.entities.Report.update(reportId, data) :
+      base44.entities.Report.create(data);
     },
     onSuccess: () => {
       setShowSubmitConfirm(false);
@@ -211,7 +211,7 @@ function ReportEditorInner() {
     onError: (e) => {
       const silentErrors = ['Declaração não aceita', 'Mês obrigatório', 'Nome obrigatório', 'Museu obrigatório'];
       if (!silentErrors.includes(e.message)) toast.error('Erro ao enviar relatório', { description: 'Não foi possível enviar. Tente novamente.' });
-    },
+    }
   });
 
   const handleSubmitClick = () => {
@@ -245,24 +245,24 @@ function ReportEditorInner() {
         return: { title: 'Relatório devolvido', desc: '✓ Notificação enviada ao profissional.' },
         approve: { title: 'Relatório aprovado', desc: '✓ Status atualizado com sucesso.' },
         archive: { title: 'Arquivado', desc: '✓ Relatório movido para arquivo.' },
-        reopen: { title: 'Reabertura concluída', desc: '✓ Relatório reaberto como rascunho.' },
+        reopen: { title: 'Reabertura concluída', desc: '✓ Relatório reaberto como rascunho.' }
       };
       const msg = msgs[action] || { title: 'Status atualizado', desc: '' };
       toast.success(msg.title, { description: msg.desc });
     },
-    onError: (e) => toast.error('Erro ao atualizar', { description: e?.message || 'Não foi possível processar a ação.' }),
+    onError: (e) => toast.error('Erro ao atualizar', { description: e?.message || 'Não foi possível processar a ação.' })
   });
 
   // Oportunidades helpers
-  const addOp = () => setFormData(prev => ({
+  const addOp = () => setFormData((prev) => ({
     ...prev,
     oportunidades: [...(prev.oportunidades || []), { descricao: '', categoria: '', impacto: '' }]
   }));
-  const updateOp = (i, field, value) => setFormData(prev => ({
+  const updateOp = (i, field, value) => setFormData((prev) => ({
     ...prev,
     oportunidades: prev.oportunidades.map((o, idx) => idx === i ? { ...o, [field]: value } : o)
   }));
-  const removeOp = (i) => setFormData(prev => ({
+  const removeOp = (i) => setFormData((prev) => ({
     ...prev,
     oportunidades: prev.oportunidades.filter((_, idx) => idx !== i)
   }));
@@ -270,7 +270,7 @@ function ReportEditorInner() {
   // Template handlers
   const handleLoadFromTemplate = (template) => {
     if (template?.template_data) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...EMPTY_FORM,
         ...template.template_data,
         author_name: currentUser?.full_name || '',
@@ -280,8 +280,8 @@ function ReportEditorInner() {
     }
   };
 
-  const canEdit = (formData.status === 'DRAFT' || formData.status === 'RETURNED') && (!isComunicacao || (isComunicacao && formData.funcao === 'Comunicador'));
-  const canReview = isCoordenador && (!isComunicacao || (isComunicacao && formData.funcao === 'Comunicador'));
+  const canEdit = (formData.status === 'DRAFT' || formData.status === 'RETURNED') && (!isComunicacao || isComunicacao && formData.funcao === 'Comunicador');
+  const canReview = isCoordenador && (!isComunicacao || isComunicacao && formData.funcao === 'Comunicador');
 
   // Auto-save ao mudar de aba
   const handleTabChange = (newTab) => {
@@ -305,13 +305,13 @@ function ReportEditorInner() {
       try {
         const response = await base44.functions.invoke('autoSaveReport', {
           reportId,
-          formData,
+          formData
         });
         if (response.data.hasConflict) {
           setConflictError(response.data.conflictMessage);
           toast.error('Conflito de edição detectado!', {
             description: 'Outro usuário editou este relatório. Verifique as alterações.',
-            duration: 10000,
+            duration: 10000
           });
         } else {
           setLastSaveTime(new Date().toLocaleTimeString('pt-BR'));
@@ -329,8 +329,8 @@ function ReportEditorInner() {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <p className="text-gray-400">Carregando...</p>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -348,84 +348,84 @@ function ReportEditorInner() {
                 {reportId ? 'Editar Relatório' : 'Novo Relatório'}
               </h1>
               <div className="flex items-center gap-2 mt-0.5">
-                {formData.numero_protocolo && (
-                  <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                {formData.numero_protocolo &&
+                <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
                     {formData.numero_protocolo}
                   </span>
-                )}
-                {formData.status && formData.status !== 'DRAFT' && (
-                  <p className="text-xs text-gray-400">Status: {formData.status}</p>
-                )}
+                }
+                {formData.status && formData.status !== 'DRAFT' &&
+                <p className="text-xs text-gray-400">Status: {formData.status}</p>
+                }
               </div>
             </div>
           </div>
 
           <div className="flex gap-2 flex-wrap items-center">
-             <Button variant="outline" size="sm" onClick={() => setShowLoadTemplateDialog(true)} title="Criar novo relatório a partir de um template">
-               Carregar Template
-             </Button>
-             {reportId && (
-               <>
-                 <PDFExportButton 
-                   reportId={reportId} 
-                   reportProtocolo={formData.numero_protocolo}
-                 />
-                 <Button variant="outline" size="sm" onClick={() => setShowSaveTemplateDialog(true)}>
-                   Salvar como Template
-                 </Button>
+             
+
+            
+             {reportId &&
+            <>
+                 <PDFExportButton
+                reportId={reportId}
+                reportProtocolo={formData.numero_protocolo} />
+              
+                 
+
+              
                  <ReportGenerator reportId={reportId} report={formData} />
-               </>
-             ) || (
-               <span className="text-xs text-gray-400">Salve o relatório para exportar dados</span>
-             )}
-            {canReview && formData.status === 'SUBMITTED' && (
-               <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'start_review' })}>Iniciar Revisão</Button>
-             )}
-             {canReview && formData.status === 'IN_REVIEW' && (
-               <>
-                 <Button variant="outline" className="text-red-600 border-red-200" onClick={() => { const c = prompt('Motivo da devolução:'); if (c) workflowMutation.mutate({ action: 'return', comment: c }); }}>
+               </> ||
+
+            <span className="text-xs text-gray-400">Salve o relatório para exportar dados</span>
+            }
+            {canReview && formData.status === 'SUBMITTED' &&
+            <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'start_review' })}>Iniciar Revisão</Button>
+            }
+             {canReview && formData.status === 'IN_REVIEW' &&
+            <>
+                 <Button variant="outline" className="text-red-600 border-red-200" onClick={() => {const c = prompt('Motivo da devolução:');if (c) workflowMutation.mutate({ action: 'return', comment: c });}}>
                    <AlertCircle className="w-4 h-4 mr-2" />Devolver
                  </Button>
                  <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={() => workflowMutation.mutate({ action: 'approve' })}>
                    <CheckCircle className="w-4 h-4 mr-2" />Aprovar
                  </Button>
                </>
-             )}
-             {canReview && formData.status === 'APPROVED' && (
-               <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'archive' })}>Arquivar</Button>
-             )}
-             {canReview && ['ARCHIVED', 'APPROVED'].includes(formData.status) && (
-               <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'reopen' })}>
+            }
+             {canReview && formData.status === 'APPROVED' &&
+            <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'archive' })}>Arquivar</Button>
+            }
+             {canReview && ['ARCHIVED', 'APPROVED'].includes(formData.status) &&
+            <Button variant="outline" onClick={() => workflowMutation.mutate({ action: 'reopen' })}>
                  <RotateCcw className="w-4 h-4 mr-2" />Reabrir
                </Button>
-             )}
+            }
           </div>
         </div>
 
         {/* Return comment banner */}
-        {formData.return_comment && formData.status === 'RETURNED' && (
-          <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-xl">
+        {formData.return_comment && formData.status === 'RETURNED' &&
+        <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-xl">
             <p className="text-sm font-semibold text-red-800 mb-3 flex items-center gap-1.5">
               <AlertCircle className="w-4 h-4" />Relatório devolvido — comentários do coordenador:
             </p>
-            {formData.return_comment.includes('[') ? (
-              <div className="space-y-3">
+            {formData.return_comment.includes('[') ?
+          <div className="space-y-3">
                 {formData.return_comment.split('\n\n').map((block, i) => {
-                  const match = block.match(/^\[(.+?)\]\n([\s\S]*)/);
-                  if (!match) return <p key={i} className="text-sm text-red-700">{block}</p>;
-                  return (
-                    <div key={i} className="bg-white border border-red-100 rounded-lg p-3">
+              const match = block.match(/^\[(.+?)\]\n([\s\S]*)/);
+              if (!match) return <p key={i} className="text-sm text-red-700">{block}</p>;
+              return (
+                <div key={i} className="bg-white border border-red-100 rounded-lg p-3">
                       <p className="text-xs font-semibold text-red-600 uppercase tracking-wide mb-1">{match[1]}</p>
                       <p className="text-sm text-red-700 whitespace-pre-wrap">{match[2]}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-red-700 whitespace-pre-wrap">{formData.return_comment}</p>
-            )}
+                    </div>);
+
+            })}
+              </div> :
+
+          <p className="text-sm text-red-700 whitespace-pre-wrap">{formData.return_comment}</p>
+          }
           </div>
-        )}
+        }
 
         <ReportTabsNavigation currentTab={currentTab} formData={formData} onTabChange={handleTabChange} />
 
@@ -446,37 +446,37 @@ function ReportEditorInner() {
                 <SectionTitle>Identificação</SectionTitle>
                 <div className="grid md:grid-cols-2 gap-4">
                   <Field label="Mês de Referência">
-                    <Select value={formData.mes_referencia || ''} onValueChange={v => set('mes_referencia', v)} disabled={!canEdit}>
+                    <Select value={formData.mes_referencia || ''} onValueChange={(v) => set('mes_referencia', v)} disabled={!canEdit}>
                       <SelectTrigger><SelectValue placeholder="Selecione o mês" /></SelectTrigger>
                       <SelectContent>
-                        {MESES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                        {MESES.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </Field>
                   <Field label="Ano">
-                    <Input type="number" value={formData.ano || 2026} onChange={e => set('ano', parseInt(e.target.value) || 2026)} disabled={!canEdit} />
+                    <Input type="number" value={formData.ano || 2026} onChange={(e) => set('ano', parseInt(e.target.value) || 2026)} disabled={!canEdit} />
                   </Field>
                   <Field label="Nome do Profissional">
                     <Input
                       value={formData.author_name || ''}
-                      onChange={e => set('author_name', e.target.value)}
+                      onChange={(e) => set('author_name', e.target.value)}
                       disabled={!isCoordenador && !canEdit}
-                      className={!isCoordenador ? 'bg-gray-50' : ''}
-                    />
+                      className={!isCoordenador ? 'bg-gray-50' : ''} />
+                    
                   </Field>
                   <Field label="Função">
-                    <Select value={formData.funcao || ''} onValueChange={v => set('funcao', v)} disabled={!canEdit}>
+                    <Select value={formData.funcao || ''} onValueChange={(v) => set('funcao', v)} disabled={!canEdit}>
                       <SelectTrigger><SelectValue placeholder="Selecione a função" /></SelectTrigger>
                       <SelectContent>
-                        {FUNCOES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                        {FUNCOES.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </Field>
                   <Field label="Museu Principal">
-                    <Select value={formData.museu || ''} onValueChange={v => set('museu', v)} disabled={!canEdit}>
+                    <Select value={formData.museu || ''} onValueChange={(v) => set('museu', v)} disabled={!canEdit}>
                       <SelectTrigger><SelectValue placeholder="Selecione o museu" /></SelectTrigger>
                       <SelectContent>
-                        {MUSEUS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                        {MUSEUS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </Field>
@@ -485,260 +485,260 @@ function ReportEditorInner() {
               <section>
                 <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
                   <h2 className="text-base font-semibold text-black">Resumo Executivo</h2>
-                  {canEdit && (
-                    <div className="flex gap-1.5">
+                  {canEdit &&
+                  <div className="flex gap-1.5">
                       <ExecutiveSummaryAI
-                        atividades={formData.atividades}
-                        reportData={formData}
-                        onApply={text => set('resumo_executivo', text)}
-                        disabled={false}
-                      />
+                      atividades={formData.atividades}
+                      reportData={formData}
+                      onApply={(text) => set('resumo_executivo', text)}
+                      disabled={false} />
+                    
                       <AIAssistButton
-                        field="resumo_executivo"
-                        context={formData}
-                        onGenerate={text => set('resumo_executivo', text)}
-                        placeholder="Resumo das principais atividades e resultados do mês"
-                      />
+                      field="resumo_executivo"
+                      context={formData}
+                      onGenerate={(text) => set('resumo_executivo', text)}
+                      placeholder="Resumo das principais atividades e resultados do mês" />
+                    
                     </div>
-                  )}
+                  }
                 </div>
                 <RichTextEditor
-                   placeholder="Descreva sucintamente as atividades realizadas no mês..."
-                   value={formData.resumo_executivo || ''}
-                   onChange={text => set('resumo_executivo', text)}
-                   disabled={!canEdit}
-                 />
+                  placeholder="Descreva sucintamente as atividades realizadas no mês..."
+                  value={formData.resumo_executivo || ''}
+                  onChange={(text) => set('resumo_executivo', text)}
+                  disabled={!canEdit} />
+                
               </section>
 
               {/* Botões de salvar — aba identificacao */}
-              {canEdit && (
-                <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
+              {canEdit &&
+              <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
                   <Button variant="outline" onClick={handleSaveDraft} disabled={saveMutation.isPending}>
                     <Save className="w-4 h-4 mr-2" />Salvar Rascunho
                   </Button>
                   <Button
-                    className="bg-black hover:bg-gray-800 text-white"
-                    onClick={handleSubmitClick}
-                    disabled={submitMutation.isPending || !declaracaoAceita || (!(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0))}
-                    title={!declaracaoAceita ? 'Aceite a declaração (aba Avaliação) para enviar' : !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0) ? 'Preencha atividades ou oportunidades para enviar' : ''}
-                  >
+                  className="bg-black hover:bg-gray-800 text-white"
+                  onClick={handleSubmitClick}
+                  disabled={submitMutation.isPending || !declaracaoAceita || !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0)}
+                  title={!declaracaoAceita ? 'Aceite a declaração (aba Avaliação) para enviar' : !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0) ? 'Preencha atividades ou oportunidades para enviar' : ''}>
+                  
                     <Send className="w-4 h-4 mr-2" />Enviar para Revisão
                   </Button>
                 </div>
-              )}
+              }
             </div>
           </TabsContent>
 
           <TabsContent value="atividades">
             <div className="space-y-6">
               {/* Aviso de conflito de edição */}
-              {conflictError && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+              {conflictError &&
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-semibold text-red-800">Conflito de Edição</p>
                     <p className="text-xs text-red-700 mt-1">{conflictError}</p>
                   </div>
                 </div>
-              )}
+              }
 
               {/* Indicador de auto-save */}
-              {reportId && canEdit && (
-                <div className="flex items-center justify-between p-3 bg-green-50 border border-green-100 rounded-lg">
+              {reportId && canEdit &&
+              <div className="flex items-center justify-between p-3 bg-green-50 border border-green-100 rounded-lg">
                   <p className="text-xs text-green-700">
                     ✓ Auto-salvando... {lastSaveTime && <span>Última sincronização: {lastSaveTime}</span>}
                   </p>
                 </div>
-              )}
+              }
 
               {/* Detecção de duplicatas */}
               <AtividadesSection
                 atividades={formData.atividades || []}
                 canEdit={canEdit}
-                onChange={list => {
+                onChange={(list) => {
                   set('atividades', list);
                 }}
-                reportId={reportId}
-              />
+                reportId={reportId} />
+              
 
               {/* Botões de salvar — aba atividades */}
-              {canEdit && (
-                <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
+              {canEdit &&
+              <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
                   <Button variant="outline" onClick={handleSaveDraft} disabled={saveMutation.isPending}>
                     <Save className="w-4 h-4 mr-2" />Salvar Rascunho
                   </Button>
                   <Button
-                    className="bg-black hover:bg-gray-800 text-white"
-                    onClick={handleSubmitClick}
-                    disabled={submitMutation.isPending || !declaracaoAceita || (!(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0))}
-                    title={!declaracaoAceita ? 'Aceite a declaração (aba Avaliação) para enviar' : !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0) ? 'Preencha atividades ou oportunidades para enviar' : ''}
-                  >
+                  className="bg-black hover:bg-gray-800 text-white"
+                  onClick={handleSubmitClick}
+                  disabled={submitMutation.isPending || !declaracaoAceita || !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0)}
+                  title={!declaracaoAceita ? 'Aceite a declaração (aba Avaliação) para enviar' : !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0) ? 'Preencha atividades ou oportunidades para enviar' : ''}>
+                  
                     <Send className="w-4 h-4 mr-2" />Enviar para Revisão
                   </Button>
                 </div>
-              )}
+              }
             </div>
           </TabsContent>
 
           <TabsContent value="oportunidades">
             <section className="space-y-8">
               {/* MOMENTOS — Histórias e Depoimentos */}
-              {canEdit && (
-                <div className="p-4 border border-purple-100 bg-purple-50 rounded-xl">
+              {canEdit &&
+              <div className="p-4 border border-purple-100 bg-purple-50 rounded-xl">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-semibold text-black">Momentos Especiais e Depoimentos</h3>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setFormData(prev => ({ ...prev, momentos: [...(prev.momentos || []), { titulo: '', texto: '', imagem_url: '' }] }))}
-                    >
+                    <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFormData((prev) => ({ ...prev, momentos: [...(prev.momentos || []), { titulo: '', texto: '', imagem_url: '' }] }))}>
+                    
                       <Plus className="w-4 h-4 mr-1" />Adicionar
                     </Button>
                   </div>
-                  {(formData.momentos || []).map((momento, i) => (
-                    <div key={i} className="p-4 bg-white rounded-lg border border-purple-100 space-y-3 mb-3">
+                  {(formData.momentos || []).map((momento, i) =>
+                <div key={i} className="p-4 bg-white rounded-lg border border-purple-100 space-y-3 mb-3">
                       <div className="flex justify-between items-center">
                         <span className="text-xs font-medium text-gray-400 uppercase">Momento {i + 1}</span>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="text-red-400 h-7 w-7" 
-                          onClick={() => setFormData(prev => ({ ...prev, momentos: prev.momentos.filter((_, idx) => idx !== i) }))}
-                        >
+                        <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-red-400 h-7 w-7"
+                      onClick={() => setFormData((prev) => ({ ...prev, momentos: prev.momentos.filter((_, idx) => idx !== i) }))}>
+                      
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
-                      <Input 
-                        placeholder="Título do momento (ex: Depoimento de visitante)"
-                        value={momento.titulo || ''}
-                        onChange={e => setFormData(prev => ({
-                          ...prev,
-                          momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, titulo: e.target.value } : m)
-                        }))}
-                      />
+                      <Input
+                    placeholder="Título do momento (ex: Depoimento de visitante)"
+                    value={momento.titulo || ''}
+                    onChange={(e) => setFormData((prev) => ({
+                      ...prev,
+                      momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, titulo: e.target.value } : m)
+                    }))} />
+                  
                       <div>
                         <Label className="text-xs text-gray-600">Texto</Label>
-                        <Textarea 
-                          placeholder="Fala especial, depoimento ou momento importante..."
-                          value={momento.texto || ''}
-                          onChange={e => setFormData(prev => ({
-                            ...prev,
-                            momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, texto: e.target.value } : m)
-                          }))}
-                          rows={3}
-                        />
+                        <Textarea
+                      placeholder="Fala especial, depoimento ou momento importante..."
+                      value={momento.texto || ''}
+                      onChange={(e) => setFormData((prev) => ({
+                        ...prev,
+                        momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, texto: e.target.value } : m)
+                      }))}
+                      rows={3} />
+                    
                         <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5 text-xs mt-2"
-                          onClick={async () => {
-                            const prompt = `Com base no título e contexto abaixo, gere um texto inspirador e significativo sobre um momento especial vivido em um museu ou evento cultural (máximo 3 linhas):
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs mt-2"
+                      onClick={async () => {
+                        const prompt = `Com base no título e contexto abaixo, gere um texto inspirador e significativo sobre um momento especial vivido em um museu ou evento cultural (máximo 3 linhas):
                   Título: ${momento.titulo || '(não informado)'}
                   Contexto: ${formData.funcao || ''} no museu ${formData.museu || ''}
 
                   Escreva em português do Brasil, de forma pessoal e tocante.`;
-                            const result = await base44.integrations.Core.InvokeLLM({ prompt });
-                            setFormData(prev => ({
-                              ...prev,
-                              momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, texto: result } : m)
-                            }));
-                            toast.success('Texto gerado! ✨');
-                          }}
-                        >
+                        const result = await base44.integrations.Core.InvokeLLM({ prompt });
+                        setFormData((prev) => ({
+                          ...prev,
+                          momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, texto: result } : m)
+                        }));
+                        toast.success('Texto gerado! ✨');
+                      }}>
+                      
                           <Sparkles className="w-3 h-3" />Gerar com IA
                         </Button>
                       </div>
                       <div>
                         <Label className="text-xs text-gray-600">Imagem (URL quadrada)</Label>
-                        <Input 
-                          placeholder="https://exemplo.com/imagem.jpg"
-                          value={momento.imagem_url || ''}
-                          onChange={e => setFormData(prev => ({
-                            ...prev,
-                            momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, imagem_url: e.target.value } : m)
-                          }))}
-                        />
-                        {momento.imagem_url && (
-                          <div className="mt-2 w-20 h-20 rounded-lg overflow-hidden border border-gray-200">
+                        <Input
+                      placeholder="https://exemplo.com/imagem.jpg"
+                      value={momento.imagem_url || ''}
+                      onChange={(e) => setFormData((prev) => ({
+                        ...prev,
+                        momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, imagem_url: e.target.value } : m)
+                      }))} />
+                    
+                        {momento.imagem_url &&
+                    <div className="mt-2 w-20 h-20 rounded-lg overflow-hidden border border-gray-200">
                             <img src={momento.imagem_url} alt="preview" className="w-full h-full object-cover" />
                           </div>
-                        )}
+                    }
                       </div>
                       <div className="flex items-center gap-4 pt-2 border-t border-purple-50">
                         <div className="flex items-center gap-2">
-                          <input 
-                            type="checkbox" 
-                            id={`publish-${i}`}
-                            checked={momento.deve_ser_publicado || false}
-                            onChange={e => setFormData(prev => ({
-                              ...prev,
-                              momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, deve_ser_publicado: e.target.checked } : m)
-                            }))}
-                            className="w-4 h-4 rounded border-gray-300"
-                          />
+                          <input
+                        type="checkbox"
+                        id={`publish-${i}`}
+                        checked={momento.deve_ser_publicado || false}
+                        onChange={(e) => setFormData((prev) => ({
+                          ...prev,
+                          momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, deve_ser_publicado: e.target.checked } : m)
+                        }))}
+                        className="w-4 h-4 rounded border-gray-300" />
+                      
                           <Label htmlFor={`publish-${i}`} className="text-xs text-gray-600 cursor-pointer">Publicar no carrossel</Label>
                         </div>
                         <div className="flex items-center gap-2">
-                          <input 
-                            type="checkbox" 
-                            id={`pdf-${i}`}
-                            checked={momento.incluir_no_pdf || false}
-                            onChange={e => setFormData(prev => ({
-                              ...prev,
-                              momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, incluir_no_pdf: e.target.checked } : m)
-                            }))}
-                            className="w-4 h-4 rounded border-gray-300"
-                          />
+                          <input
+                        type="checkbox"
+                        id={`pdf-${i}`}
+                        checked={momento.incluir_no_pdf || false}
+                        onChange={(e) => setFormData((prev) => ({
+                          ...prev,
+                          momentos: prev.momentos.map((m, idx) => idx === i ? { ...m, incluir_no_pdf: e.target.checked } : m)
+                        }))}
+                        className="w-4 h-4 rounded border-gray-300" />
+                      
                           <Label htmlFor={`pdf-${i}`} className="text-xs text-gray-600 cursor-pointer">Incluir no PDF</Label>
                         </div>
                       </div>
                     </div>
-                  ))}
+                )}
                 </div>
-              )}
+              }
 
               {/* OPORTUNIDADES */}
               <div>
                 <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
                   <h2 className="text-base font-semibold text-black">Oportunidades Identificadas</h2>
-                  {canEdit && (
-                    <Button variant="outline" size="sm" onClick={addOp}>
+                  {canEdit &&
+                  <Button variant="outline" size="sm" onClick={addOp}>
                       <Plus className="w-4 h-4 mr-1" />Adicionar
                     </Button>
-                  )}
+                  }
                 </div>
-              {(formData.oportunidades || []).length === 0 ? (
+              {(formData.oportunidades || []).length === 0 ?
                 <p className="text-gray-400 text-sm text-center py-8 border border-dashed rounded-xl">
                   Nenhuma oportunidade adicionada
-                </p>
-              ) : (
+                </p> :
+
                 <div className="space-y-4">
-                  {(formData.oportunidades || []).map((op, i) => (
-                    <div key={i} className="p-5 border border-gray-100 rounded-xl">
+                  {(formData.oportunidades || []).map((op, i) =>
+                  <div key={i} className="p-5 border border-gray-100 rounded-xl">
                       <div className="flex justify-between items-center mb-3">
                         <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Oportunidade {i + 1}</span>
-                        {canEdit && (
-                          <Button variant="ghost" size="icon" className="text-red-400 h-7 w-7" onClick={() => removeOp(i)}>
+                        {canEdit &&
+                      <Button variant="ghost" size="icon" className="text-red-400 h-7 w-7" onClick={() => removeOp(i)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
-                        )}
+                      }
                       </div>
                       <div className="space-y-3">
                         <Textarea
-                          placeholder="Descrição da oportunidade"
-                          value={op.descricao || ''}
-                          onChange={e => updateOp(i, 'descricao', e.target.value)}
-                          disabled={!canEdit}
-                        />
+                        placeholder="Descrição da oportunidade"
+                        value={op.descricao || ''}
+                        onChange={(e) => updateOp(i, 'descricao', e.target.value)}
+                        disabled={!canEdit} />
+                      
                         <div className="grid grid-cols-2 gap-3">
-                          <Select value={op.categoria || ''} onValueChange={v => updateOp(i, 'categoria', v)} disabled={!canEdit}>
+                          <Select value={op.categoria || ''} onValueChange={(v) => updateOp(i, 'categoria', v)} disabled={!canEdit}>
                             <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
                             <SelectContent>
-                              {CATEGORIAS_OP.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                              {CATEGORIAS_OP.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                             </SelectContent>
                           </Select>
-                          <Select value={op.impacto || ''} onValueChange={v => updateOp(i, 'impacto', v)} disabled={!canEdit}>
+                          <Select value={op.impacto || ''} onValueChange={(v) => updateOp(i, 'impacto', v)} disabled={!canEdit}>
                             <SelectTrigger><SelectValue placeholder="Impacto" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="Baixo">Baixo</SelectItem>
@@ -749,28 +749,28 @@ function ReportEditorInner() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
+                }
               </div>
               </section>
 
               {/* Botões de salvar — aba oportunidades */}
-              {canEdit && (
-              <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
+              {canEdit &&
+            <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
                <Button variant="outline" onClick={handleSaveDraft} disabled={saveMutation.isPending}>
                  <Save className="w-4 h-4 mr-2" />Salvar Rascunho
                </Button>
                <Button
-                 className="bg-black hover:bg-gray-800 text-white"
-                 onClick={() => submitMutation.mutate()}
-                 disabled={submitMutation.isPending || !declaracaoAceita || (!(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0))}
-                 title={!declaracaoAceita ? 'Aceite a declaração (aba Avaliação) para enviar' : !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0) ? 'Preencha atividades ou oportunidades para enviar' : ''}
-               >
+                className="bg-black hover:bg-gray-800 text-white"
+                onClick={() => submitMutation.mutate()}
+                disabled={submitMutation.isPending || !declaracaoAceita || !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0)}
+                title={!declaracaoAceita ? 'Aceite a declaração (aba Avaliação) para enviar' : !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0) ? 'Preencha atividades ou oportunidades para enviar' : ''}>
+                
                  <Send className="w-4 h-4 mr-2" />Enviar para Revisão
                </Button>
               </div>
-              )}
+            }
               </TabsContent>
 
               <TabsContent value="avaliacao">
@@ -778,15 +778,15 @@ function ReportEditorInner() {
               <SectionTitle>Avaliação do Mês</SectionTitle>
 
               {/* Análise de Tendências */}
-              {reportId && formData.museu && (
-                <div className="p-4 border border-gray-100 rounded-xl bg-gray-50">
+              {reportId && formData.museu &&
+              <div className="p-4 border border-gray-100 rounded-xl bg-gray-50">
                   <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Análise de Tendências Históricas</p>
                   <TrendAnalysisAI museu={formData.museu} disabled={false} />
                 </div>
-              )}
+              }
 
-              {(formData.atividades || []).length === 0 && (
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+              {(formData.atividades || []).length === 0 &&
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-amber-800">Nenhuma atividade vinculada</p>
@@ -796,128 +796,128 @@ function ReportEditorInner() {
                     </p>
                   </div>
                 </div>
-              )}
+              }
               <div className="space-y-4">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm text-gray-700">Pontos Positivos</Label>
-                    {canEdit && <AIAssistButton field="avaliacao_pontos_positivos" context={formData} onGenerate={t => set('avaliacao_pontos_positivos', t)} />}
+                    {canEdit && <AIAssistButton field="avaliacao_pontos_positivos" context={formData} onGenerate={(t) => set('avaliacao_pontos_positivos', t)} />}
                   </div>
-                  <RichTextEditor placeholder="O que funcionou bem este mês..." value={formData.avaliacao_pontos_positivos || ''} onChange={text => set('avaliacao_pontos_positivos', text)} disabled={!canEdit} />
+                  <RichTextEditor placeholder="O que funcionou bem este mês..." value={formData.avaliacao_pontos_positivos || ''} onChange={(text) => set('avaliacao_pontos_positivos', text)} disabled={!canEdit} />
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm text-gray-700">Dificuldades</Label>
-                    {canEdit && <AIAssistButton field="avaliacao_desafios" context={formData} onGenerate={t => set('avaliacao_desafios', t)} />}
+                    {canEdit && <AIAssistButton field="avaliacao_desafios" context={formData} onGenerate={(t) => set('avaliacao_desafios', t)} />}
                   </div>
-                  <RichTextEditor placeholder="Principais dificuldades enfrentadas..." value={formData.avaliacao_desafios || ''} onChange={text => set('avaliacao_desafios', text)} disabled={!canEdit} />
+                  <RichTextEditor placeholder="Principais dificuldades enfrentadas..." value={formData.avaliacao_desafios || ''} onChange={(text) => set('avaliacao_desafios', text)} disabled={!canEdit} />
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm text-gray-700">Sugestões</Label>
-                    {canEdit && <AIAssistButton field="avaliacao_sugestoes" context={formData} onGenerate={t => set('avaliacao_sugestoes', t)} />}
+                    {canEdit && <AIAssistButton field="avaliacao_sugestoes" context={formData} onGenerate={(t) => set('avaliacao_sugestoes', t)} />}
                   </div>
-                  <RichTextEditor placeholder="Sugestões de melhoria..." value={formData.avaliacao_sugestoes || ''} onChange={text => set('avaliacao_sugestoes', text)} disabled={!canEdit} />
+                  <RichTextEditor placeholder="Sugestões de melhoria..." value={formData.avaliacao_sugestoes || ''} onChange={(text) => set('avaliacao_sugestoes', text)} disabled={!canEdit} />
                 </div>
               </div>
 
               {/* Declaração de responsabilidade — na aba de avaliação */}
-              {canEdit && (
-                <div className="p-4 border border-gray-200 rounded-xl bg-gray-50">
+              {canEdit &&
+              <div className="p-4 border border-gray-200 rounded-xl bg-gray-50">
                   <div className="flex items-start gap-3">
                     <Checkbox
-                      id="declaracao"
-                      checked={declaracaoAceita}
-                      onCheckedChange={v => setDeclaracaoAceita(!!v)}
-                      className="mt-1"
-                    />
+                    id="declaracao"
+                    checked={declaracaoAceita}
+                    onCheckedChange={(v) => setDeclaracaoAceita(!!v)}
+                    className="mt-1" />
+                  
                     <label htmlFor="declaracao" className="text-xs text-gray-700 leading-relaxed cursor-pointer">
                       Declaro que as informações registradas neste relatório são verdadeiras, completas e de minha inteira responsabilidade. Estou ciente de que o envio deste documento implica comprometimento formal com os dados informados.
                     </label>
                   </div>
                 </div>
-              )}
+              }
             </section>
 
             {/* Botões de salvar e enviar — aparecem apenas aqui */}
-            {canEdit && (
-              <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
+            {canEdit &&
+            <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
                 <Button variant="outline" onClick={handleSaveDraft} disabled={saveMutation.isPending}>
                   <Save className="w-4 h-4 mr-2" />Salvar Rascunho
                 </Button>
                 <Button
-                  className="bg-black hover:bg-gray-800 text-white"
-                  onClick={() => submitMutation.mutate()}
-                  disabled={submitMutation.isPending || !declaracaoAceita || (!(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0))}
-                  title={!declaracaoAceita ? 'Aceite a declaração para enviar' : !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0) ? 'Preencha atividades ou oportunidades para enviar' : ''}
-                >
+                className="bg-black hover:bg-gray-800 text-white"
+                onClick={() => submitMutation.mutate()}
+                disabled={submitMutation.isPending || !declaracaoAceita || !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0)}
+                title={!declaracaoAceita ? 'Aceite a declaração para enviar' : !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0) ? 'Preencha atividades ou oportunidades para enviar' : ''}>
+                
                   <Send className="w-4 h-4 mr-2" />Enviar para Revisão
                 </Button>
               </div>
-            )}
+            }
           </TabsContent>
 
           {/* ANEXOS */}
           <TabsContent value="anexos" className="space-y-6">
-            {reportId ? (
-              <AttachmentsSection reportId={reportId} canEdit={canEdit} />
-            ) : (
-              <p className="text-sm text-gray-400 text-center py-8">Salve o relatório para anexar arquivos</p>
-            )}
+            {reportId ?
+            <AttachmentsSection reportId={reportId} canEdit={canEdit} /> :
+
+            <p className="text-sm text-gray-400 text-center py-8">Salve o relatório para anexar arquivos</p>
+            }
           </TabsContent>
 
           {/* COMENTÁRIOS */}
           <TabsContent value="comentarios" className="space-y-6">
-           {reportId ? (
-           <>
+           {reportId ?
+            <>
            <ReportCommentsPanel reportId={reportId} currentUser={currentUser} />
            {/* Botões de salvar — aba comentarios */}
-           {canEdit && (
-             <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
+           {canEdit &&
+              <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
                <Button variant="outline" onClick={handleSaveDraft} disabled={saveMutation.isPending}>
                  <Save className="w-4 h-4 mr-2" />Salvar Rascunho
                </Button>
                <Button
-                 className="bg-black hover:bg-gray-800 text-white"
-                 onClick={() => submitMutation.mutate()}
-                 disabled={submitMutation.isPending || !declaracaoAceita || (!(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0))}
-                 title={!declaracaoAceita ? 'Aceite a declaração (aba Avaliação) para enviar' : !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0) ? 'Preencha atividades ou oportunidades para enviar' : ''}
-               >
+                  className="bg-black hover:bg-gray-800 text-white"
+                  onClick={() => submitMutation.mutate()}
+                  disabled={submitMutation.isPending || !declaracaoAceita || !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0)}
+                  title={!declaracaoAceita ? 'Aceite a declaração (aba Avaliação) para enviar' : !(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0) ? 'Preencha atividades ou oportunidades para enviar' : ''}>
+                  
                  <Send className="w-4 h-4 mr-2" />Enviar para Revisão
                </Button>
              </div>
-           )}
-           </>
-           ) : (
-           <p className="text-sm text-gray-400 text-center py-8">Salve o relatório para adicionar comentários</p>
-           )}
+              }
+           </> :
+
+            <p className="text-sm text-gray-400 text-center py-8">Salve o relatório para adicionar comentários</p>
+            }
           </TabsContent>
 
           {/* HISTÓRICO */}
           <TabsContent value="historico" className="space-y-6">
-            {reportId ? (
-              <div className="space-y-6">
+            {reportId ?
+            <div className="space-y-6">
                 <ReportVersionHistory reportId={reportId} />
                 <ReportTimeline reportId={reportId} />
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400 text-center py-8">Salve o relatório para visualizar o histórico</p>
-            )}
+              </div> :
+
+            <p className="text-sm text-gray-400 text-center py-8">Salve o relatório para visualizar o histórico</p>
+            }
           </TabsContent>
         </Tabs>
 
         {/* Template Dialogs */}
-        <SaveTemplateDialog 
+        <SaveTemplateDialog
           isOpen={showSaveTemplateDialog}
           onClose={() => setShowSaveTemplateDialog(false)}
-          formData={formData}
-        />
+          formData={formData} />
+        
 
         <LoadFromTemplateDialog
           isOpen={showLoadTemplateDialog}
           onClose={() => setShowLoadTemplateDialog(false)}
-          onSelectTemplate={handleLoadFromTemplate}
-        />
+          onSelectTemplate={handleLoadFromTemplate} />
+        
 
         {/* Dialog de Confirmação de Envio */}
         <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
@@ -951,11 +951,11 @@ function ReportEditorInner() {
             </AlertDialogHeader>
             <div className="flex justify-end gap-3 mt-6">
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={() => submitMutation.mutate()} 
+              <AlertDialogAction
+                onClick={() => submitMutation.mutate()}
                 disabled={submitMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
+                className="bg-blue-600 hover:bg-blue-700">
+                
                 {submitMutation.isPending ? 'Enviando...' : 'Confirmar Envio'}
               </AlertDialogAction>
             </div>
@@ -999,8 +999,8 @@ function ReportEditorInner() {
          </AlertDialog>
 
       </div>
-    </div>
-  );
+    </div>);
+
 }
 
 export default function ReportEditor() {
