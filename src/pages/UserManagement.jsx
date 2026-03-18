@@ -310,21 +310,21 @@ function UserManagementInner() {
   // inviteMutation handled via InviteDialog component
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }) => {
-      await base44.entities.User.update(id, data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['users']);
-      toast.success('Usuário atualizado');
-      setEditingUserId(null);
-      setEditingUserData({
-  full_name: '',
-  role: 'PROFISSIONAL',
-  equipe: ''
+  mutationFn: async ({ id, data }) => {
+    return await base44.entities.User.update(id, data);
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['users'] });
+    toast.success('Usuário atualizado');
+    setEditingUserId(null);
+    setEditingUserData({
+      full_name: '',
+      role: 'PROFISSIONAL',
+      equipe: ''
+    });
+  },
+  onError: () => toast.error('Erro ao atualizar usuário'),
 });
-    },
-    onError: () => toast.error('Erro ao atualizar usuário'),
-  });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.User.delete(id),
@@ -778,60 +778,103 @@ function UserManagementInner() {
       </Dialog>
 
       {/* Edit User Dialog */}
-      <Dialog open={!!editingUserId} onOpenChange={o => { if (!o) { setEditingUserId(null); setEditingUserData({}); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar Usuário</DialogTitle>
-            <DialogDescription>Atualize cargo e equipe do usuário</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div>
-              <Label>Nome completo</Label>
-              <Input
-                placeholder="Nome completo"
-                value={editingUserData.full_name || ''}
-                onChange={e => setEditingUserData({ ...editingUserData, full_name: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Cargo</Label>
-              <Select value={editingUserData.role || 'PROFISSIONAL'} onValueChange={v => setEditingUserData({ ...editingUserData, role: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CARGO_OPTIONS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-gray-400 mt-1">{CARGO_OPTIONS.find(o => o.value === editingUserData.role)?.description}</p>
-            </div>
-            <div>
-              <Label>Equipe</Label>
-              <Select value={editingUserData.equipe || ''} onValueChange={v => setEditingUserData({ ...editingUserData, equipe: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter className="mt-6">
-            <Button variant="outline" onClick={() => { setEditingUserId(null); setEditingUserData({}); }}>Cancelar</Button>
-            <Button className="bg-black hover:bg-gray-800 text-white" disabled={updateMutation.isPending}
-              onClick={() => {
-                const user = users.find(u => u.id === editingUserId);
-                if (user) updateMutation.mutate({
-  id: user.id,
-  data: {
-    full_name: editingUserData.full_name || '',
-    role: editingUserData.role,
-    equipe: editingUserData.equipe
-  }
-});
-              }}>
-              {updateMutation.isPending ? 'Salvando...' : 'Salvar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+<Dialog
+  open={!!editingUserId}
+  onOpenChange={o => {
+    if (!o) {
+      setEditingUserId(null);
+      setEditingUserData({
+        full_name: '',
+        role: 'PROFISSIONAL',
+        equipe: ''
+      });
+    }
+  }}
+>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Editar Usuário</DialogTitle>
+      <DialogDescription>Atualize cargo e equipe do usuário</DialogDescription>
+    </DialogHeader>
+    <div className="space-y-4 mt-2">
+      <div>
+        <Label>Nome completo</Label>
+        <Input
+          placeholder="Nome completo"
+          value={editingUserData.full_name || ''}
+          onChange={e => setEditingUserData({ ...editingUserData, full_name: e.target.value })}
+        />
+      </div>
+      <div>
+        <Label>Cargo</Label>
+        <Select
+          value={editingUserData.role || 'PROFISSIONAL'}
+          onValueChange={v => setEditingUserData({ ...editingUserData, role: v })}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {CARGO_OPTIONS.map(opt => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-gray-400 mt-1">
+          {CARGO_OPTIONS.find(o => o.value === editingUserData.role)?.description}
+        </p>
+      </div>
+      <div>
+        <Label>Equipe</Label>
+        <Select
+          value={editingUserData.equipe || ''}
+          onValueChange={v => setEditingUserData({ ...editingUserData, equipe: v })}
+        >
+          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+          <SelectContent>
+            {EQUIPES.map(e => (
+              <SelectItem key={e} value={e}>{e}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+    <DialogFooter className="mt-6">
+      <Button
+        variant="outline"
+        onClick={() => {
+          setEditingUserId(null);
+          setEditingUserData({
+            full_name: '',
+            role: 'PROFISSIONAL',
+            equipe: ''
+          });
+        }}
+      >
+        Cancelar
+      </Button>
+      <Button
+        className="bg-black hover:bg-gray-800 text-white"
+        disabled={updateMutation.isPending}
+        onClick={() => {
+          const user = users.find(u => u.id === editingUserId);
+          if (user) {
+            updateMutation.mutate({
+              id: user.id,
+              data: {
+                full_name: editingUserData.full_name || '',
+                role: editingUserData.role,
+                equipe: editingUserData.equipe
+              }
+            });
+          }
+        }}
+      >
+        {updateMutation.isPending ? 'Salvando...' : 'Salvar'}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
 
       {/* Create Direct User Dialog */}
       <Dialog open={showCreateDirect} onOpenChange={setShowCreateDirect}>
