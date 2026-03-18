@@ -7,7 +7,16 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 
-const GRUPOS = ['Equipe e gestão', 'Manutenção e operação', 'Despesas gerais'];
+const GRUPOS = [
+  'Equipe e gestão',
+  'Consultorias',
+  'Manutenção e operação',
+  'Mostras e exposições',
+  'Noturno nos Museus 2026',
+  'Diárias e publicações',
+  'Alimentação, material e ações',
+  'Despesas gerais'
+];
 
 export default function RubricaFormDialog({ rubrica, onClose, onSuccess }) {
   const isEdit = !!rubrica;
