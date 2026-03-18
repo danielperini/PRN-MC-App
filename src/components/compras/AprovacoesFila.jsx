@@ -12,7 +12,9 @@ export default function AprovacoesFila({
   budgetLines,
   statusConfig,
   onRefresh,
-  currentUser
+  currentUser,
+  hasGestaoCompras,
+  podeAprovarSolicitacoes
 }) {
 
   const [loading, setLoading] = useState({});
