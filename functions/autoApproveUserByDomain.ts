@@ -4,7 +4,7 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const { event } = await req.json();
-    
+
     if (!event || event.type !== 'create') {
       return Response.json({ success: true });
     }
@@ -19,47 +19,61 @@ Deno.serve(async (req) => {
     const userEmail = registration.email.toLowerCase();
     const isAllowedDomain = allowedDomains.some(domain => userEmail.endsWith(domain));
 
-  if (!isAllowedDomain) {
-  // Buscar usuários que podem gerenciar novos cadastros
-  const allPermissions = await base44.asServiceRole.entities.UserPermission.list();
+    console.log('[AUTO-APPROVE] email:', registration.email);
+    console.log('[AUTO-APPROVE] isAllowedDomain:', isAllowedDomain);
 
-  const approvers = allPermissions.filter(user =>
-    user.can_manage_users === true || user.base_role === 'ADMIN'
-  );
+    if (!isAllowedDomain) {
+      console.log('[PENDING-APPROVAL] entrou no fluxo de pendência');
 
-  // Enviar e-mail para os aprovadores
-  for (const approver of approvers) {
-    if (!approver.user_email) continue;
+      // Buscar usuários que podem gerenciar novos cadastros
+      const allPermissions = await base44.asServiceRole.entities.UserPermission.list();
+      console.log('[PENDING-APPROVAL] total UserPermission:', allPermissions.length);
 
-    await base44.asServiceRole.integrations.Core.SendEmail({
-      to: approver.user_email,
-      subject: 'Novo usuário aguardando aprovação',
-      body: `
+      const approvers = allPermissions.filter(user =>
+        user.can_manage_users === true ||
+        user.base_role === 'ADMIN' ||
+        user.base_role === 'admin' ||
+        user.base_role === 'COORDENADOR'
+      );
+
+      console.log('[PENDING-APPROVAL] total approvers:', approvers.length);
+
+      // Enviar e-mail para os aprovadores
+      for (const approver of approvers) {
+        if (!approver.user_email) continue;
+
+        console.log('[PENDING-APPROVAL] enviando email para:', approver.user_email);
+
+        try {
+          await base44.asServiceRole.integrations.Core.SendEmail({
+            to: approver.user_email,
+            subject: 'Novo usuário aguardando aprovação',
+            body: `
 <h2>Novo cadastro pendente de aprovação</h2>
-
 <p>Um novo usuário realizou cadastro na plataforma e aguarda análise.</p>
-
-<div style="background: #fff7ed; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f97316;">
-  <p><strong>Nome:</strong> ${registration.full_name || 'Não informado'}</p>
-  <p><strong>Email:</strong> ${registration.email}</p>
-  <p><strong>Função:</strong> ${registration.funcao || 'Não informado'}</p>
-  <p><strong>Museu:</strong> ${registration.museu || 'Não informado'}</p>
-</div>
-
+<p><strong>Nome:</strong> ${registration.full_name || 'Não informado'}</p>
+<p><strong>Email:</strong> ${registration.email}</p>
+<p><strong>Função:</strong> ${registration.funcao || 'Não informado'}</p>
+<p><strong>Museu:</strong> ${registration.museu || 'Não informado'}</p>
 <p>Acesse a aba de usuários da plataforma para aprovar ou rejeitar este cadastro.</p>
-      `,
-      from_name: 'Plataforma de Relatórios'
-    });
-  }
+            `,
+            from_name: 'Plataforma de Relatórios'
+          });
 
-  console.log(`[PENDING-APPROVAL] Usuário ${registration.email} aguardando aprovação. Coordenadores notificados.`);
+          console.log('[PENDING-APPROVAL] email enviado para:', approver.user_email);
+        } catch (sendError) {
+          console.error('[PENDING-APPROVAL] erro ao enviar para:', approver.user_email, sendError);
+        }
+      }
 
-  return Response.json({ 
-    success: true, 
-    message: 'Domínio não permitido para aprovação automática; coordenadores notificados',
-    autoApproved: false
-  });
-}
+      console.log('[PENDING-APPROVAL] fluxo concluído para:', registration.email);
+
+      return Response.json({
+        success: true,
+        message: 'Domínio não permitido para aprovação automática; coordenadores notificados',
+        autoApproved: false
+      });
+    }
 
     // Aprovar automaticamente
     const newUser = await base44.users.inviteUser(registration.email, 'user');
@@ -86,13 +100,13 @@ Deno.serve(async (req) => {
       reviewer_note: 'Aprovado automaticamente pelo domínio permitido',
     });
 
-    // Enviar notificação
+    // Enviar notificação ao usuário aprovado
     await base44.asServiceRole.integrations.Core.SendEmail({
       to: registration.email,
       subject: 'Bem-vindo à Plataforma de Relatórios! 🎉',
       body: `
 <h2>Acesso Aprovado!</h2>
-<p>Olá ${registration.full_name},</p>
+<p>Olá ${registration.full_name || 'usuário'},</p>
 
 <p>Sua solicitação de acesso à plataforma foi <strong>aprovada automaticamente</strong>!</p>
 
@@ -100,7 +114,7 @@ Deno.serve(async (req) => {
   <p><strong>Seus dados:</strong></p>
   <p>Email: ${registration.email}</p>
   <p>Função: ${registration.funcao || 'Não informado'}</p>
-  <p>Museu: ${registration.museu}</p>
+  <p>Museu: ${registration.museu || 'Não informado'}</p>
 </div>
 
 <p>Você já pode acessar a plataforma agora. Bem-vindo!</p>
@@ -112,10 +126,10 @@ Deno.serve(async (req) => {
       from_name: 'Plataforma de Relatórios'
     });
 
-    console.log(`[AUTO-APPROVE] Usuário ${registration.email} aprovado automaticamente`);
+    console.log('[AUTO-APPROVE] usuário aprovado automaticamente:', registration.email);
 
-    return Response.json({ 
-      success: true, 
+    return Response.json({
+      success: true,
       message: 'Usuário aprovado automaticamente',
       autoApproved: true,
       user: newUser
