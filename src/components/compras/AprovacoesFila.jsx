@@ -172,23 +172,14 @@ export default function AprovacoesFila({
         {/* Ações */}
         <div className="flex gap-2 justify-end">
           <Button
-          variant="outline"
-          className="text-red-600 border-red-200 hover:bg-red-50"
-           onClick={() => handleAction(purchase, 'recusar')}
-           disabled={isLoading || !podeAprovar}
-          >
-           <XCircle className="w-4 h-4 mr-1" />
-          {podeAprovar ? 'Recusar' : 'Sem permissão'}
-          </Button>
-          <Button
-            className="bg-black hover:bg-gray-800 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-            onClick={() => handleAction(purchase, 'approve_coord')}
-            disabled={isLoading || !saldoOk || (currentUser?.role !== 'admin' && currentUser?.role !== 'ADMIN')}
-            title={currentUser?.role !== 'admin' && currentUser?.role !== 'ADMIN' ? 'Apenas coordenador geral pode aprovar' : ''}
-          >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle className="w-4 h-4 mr-1" />}
-            Aprovar e Comprometer
-          </Button>
+        className="bg-black hover:bg-gray-800 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+       onClick={() => handleAction(purchase, 'approve_coord')}
+        disabled={isLoading || !saldoOk || !podeAprovar}
+        title={!podeAprovar ? 'Você não tem permissão para aprovar' : ''}
+>
+      {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle className="w-4 h-4 mr-1" />}
+      Aprovar e Comprometer
+      </Button>
         </div>
       </div>
     );
