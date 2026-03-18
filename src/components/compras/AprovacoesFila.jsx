@@ -172,12 +172,13 @@ export default function AprovacoesFila({
         {/* Ações */}
         <div className="flex gap-2 justify-end">
           <Button
-            variant="outline"
-            className="text-red-600 border-red-200 hover:bg-red-50"
-            onClick={() => handleAction(purchase, 'recusar')}
-            disabled={isLoading || (currentUser?.role !== 'admin' && currentUser?.role !== 'ADMIN')}
+          variant="outline"
+          className="text-red-600 border-red-200 hover:bg-red-50"
+           onClick={() => handleAction(purchase, 'recusar')}
+           disabled={isLoading || !podeAprovar}
           >
-            <XCircle className="w-4 h-4 mr-1" />{currentUser?.role === 'admin' || currentUser?.role === 'ADMIN' ? 'Recusar' : 'Sem permissão'}
+           <XCircle className="w-4 h-4 mr-1" />
+          {podeAprovar ? 'Recusar' : 'Sem permissão'}
           </Button>
           <Button
             className="bg-black hover:bg-gray-800 text-white disabled:opacity-50 disabled:cursor-not-allowed"
