@@ -526,20 +526,23 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
                   <span className="truncate">{prefill._activity_titulo || form.activity_id?.slice(0,12) + '…'}</span>
                 </div>
               ) : (
-                <Select value={form.activity_id} onValueChange={v => set('activity_id', v)}>
-                  <SelectTrigger><SelectValue placeholder="Selecione ou deixar sem vínculo..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={null}>Sem vínculo com atividade</SelectItem>
-                    {activities.length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100">Atividades em aberto</div>
-                        {activities.map(a => (
-                          <SelectItem key={a.id} value={a.id}>
-                            {a.titulo} {a.data_realizacao && `— ${new Date(a.data_realizacao).toLocaleDateString('pt-BR')}`}
-                          </SelectItem>
-                        ))}
-                      </>
-                    )}
+                <Select
+  value={form.activity_id || '__NONE__'}
+  onValueChange={v => set('activity_id', v === '__NONE__' ? '' : v)}
+>
+  <SelectTrigger><SelectValue placeholder="Selecione ou deixar sem vínculo..." /></SelectTrigger>
+  <SelectContent>
+    <SelectItem value="__NONE__">Sem vínculo com atividade</SelectItem>
+    {activities.length > 0 && (
+      <>
+        <div className="px-2 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100">Atividades em aberto</div>
+        {activities.map(a => (
+          <SelectItem key={a.id} value={a.id}>
+            {a.titulo} {a.data_realizacao && `— ${new Date(a.data_realizacao).toLocaleDateString('pt-BR')}`}
+          </SelectItem>
+        ))}
+      </>
+    )}
                     {activities.length === 0 && (
                       <div className="px-2 py-2 text-xs text-gray-500">Nenhuma atividade em aberto</div>
                     )}
