@@ -44,7 +44,14 @@ function ComprasInner() {
     base44.auth.me().then(u => setCurrentUser(u));
   }, []);
 
-  const isCoordenador = ['admin', 'COORDENADOR', 'ADMIN'].includes(currentUser?.role);
+  const isCoordenador = [
+  'admin',
+  'ADMIN',
+  'COORDENADOR',
+  'COORD_COMUNICACAO',
+  'COORD_ADMINISTRATIVA',
+  'COORD_PRODUCAO'
+].includes(currentUser?.role);
 
   const { data: userPermission } = useQuery({
     queryKey: ['user-permission', currentUser?.email],
