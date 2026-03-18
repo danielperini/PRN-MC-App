@@ -19,14 +19,47 @@ Deno.serve(async (req) => {
     const userEmail = registration.email.toLowerCase();
     const isAllowedDomain = allowedDomains.some(domain => userEmail.endsWith(domain));
 
-    if (!isAllowedDomain) {
-      // Não aprovado automaticamente - seguirá para análise
-      return Response.json({ 
-        success: true, 
-        message: 'Domínio não permitido para aprovação automática',
-        autoApproved: false
-      });
-    }
+  if (!isAllowedDomain) {
+  // Buscar usuários que podem gerenciar novos cadastros
+  const allPermissions = await base44.asServiceRole.entities.UserPermission.list();
+
+  const approvers = allPermissions.filter(user =>
+    user.can_manage_users === true || user.base_role === 'ADMIN'
+  );
+
+  // Enviar e-mail para os aprovadores
+  for (const approver of approvers) {
+    if (!approver.user_email) continue;
+
+    await base44.asServiceRole.integrations.Core.SendEmail({
+      to: approver.user_email,
+      subject: 'Novo usuário aguardando aprovação',
+      body: `
+<h2>Novo cadastro pendente de aprovação</h2>
+
+<p>Um novo usuário realizou cadastro na plataforma e aguarda análise.</p>
+
+<div style="background: #fff7ed; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f97316;">
+  <p><strong>Nome:</strong> ${registration.full_name || 'Não informado'}</p>
+  <p><strong>Email:</strong> ${registration.email}</p>
+  <p><strong>Função:</strong> ${registration.funcao || 'Não informado'}</p>
+  <p><strong>Museu:</strong> ${registration.museu || 'Não informado'}</p>
+</div>
+
+<p>Acesse a aba de usuários da plataforma para aprovar ou rejeitar este cadastro.</p>
+      `,
+      from_name: 'Plataforma de Relatórios'
+    });
+  }
+
+  console.log(`[PENDING-APPROVAL] Usuário ${registration.email} aguardando aprovação. Coordenadores notificados.`);
+
+  return Response.json({ 
+    success: true, 
+    message: 'Domínio não permitido para aprovação automática; coordenadores notificados',
+    autoApproved: false
+  });
+}
 
     // Aprovar automaticamente
     const newUser = await base44.users.inviteUser(registration.email, 'user');
