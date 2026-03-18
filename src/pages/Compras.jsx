@@ -149,7 +149,7 @@ function ComprasInner() {
                ...(isCoordenador ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
                { id: 'documentos', label: 'Documentos' },
                ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
-               ......((podeAprovarSolicitacoes || hasGestaoCompras) ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
+               ...((podeAprovarSolicitacoes || hasGestaoCompras) ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
                ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
              ].map(t => (
             <button
