@@ -408,7 +408,24 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
           {/* Rubrica */}
           <div className="space-y-2">
             <Label className="text-xs text-gray-600 mb-1 block">Rubrica orçamentária *</Label>
-            <Select value={form.rubrica_id || form.budgetline_id} onValueChange={v => set(v.startsWith('BL-') ? 'budgetline_id' : 'rubrica_id', v)}>
+            <Select
+  value={form.rubrica_id || (form.budgetline_id ? `BL-${form.budgetline_id}` : '')}
+  onValueChange={(v) => {
+    if (v.startsWith('BL-')) {
+      setForm(f => ({
+        ...f,
+        budgetline_id: v.replace('BL-', ''),
+        rubrica_id: ''
+      }));
+    } else {
+      setForm(f => ({
+        ...f,
+        rubrica_id: v,
+        budgetline_id: ''
+      }));
+    }
+  }}
+>
               <SelectTrigger><SelectValue placeholder="Selecione a rubrica..." /></SelectTrigger>
               <SelectContent className="max-h-64">
                 {/* Rubricas da entidade Rubrica */}
