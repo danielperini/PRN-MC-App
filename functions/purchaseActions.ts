@@ -1,4 +1,4 @@
-// purchaseActions — Gestão de compras do 3º Termo Aditivo
+// functions/purchaseActions.ts
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 Deno.serve(async (req) => {
@@ -11,10 +11,39 @@ Deno.serve(async (req) => {
     }
 
     const payload = await req.json();
-    const { action, purchaseId, ...data } = payload;
+    const { action = '', purchaseId, ...data } = payload || {};
+
+    const normalizedAction =
+      action === 'approve_coord' || action === 'approve_admin'
+        ? 'aprovar'
+        : action === 'recusar'
+        ? 'reject'
+        : action;
+
+    const userPerms = await base44.asServiceRole.entities.UserPermission.filter({
+      user_email: user.email
+    });
+
+    const firstPerm = userPerms && userPerms.length > 0 ? userPerms[0] : null;
+
+    const isCoordinator =
+      user.role === 'admin' ||
+      user.role === 'ADMIN' ||
+      user.role === 'COORDENADOR' ||
+      user.role === 'COORD_COMUNICACAO' ||
+      user.role === 'COORD_ADMINISTRATIVA' ||
+      user.role === 'COORD_PRODUCAO' ||
+      (
+        !!firstPerm &&
+        (
+          firstPerm.can_review_reports === true ||
+          firstPerm.pode_aprovar_solicitacoes === true ||
+          firstPerm.gestao_compras === true
+        )
+      );
 
     // --- AÇÃO: Analisar correspondência com meta via IA ---
-    if (action === 'analyze_meta') {
+    if (normalizedAction === 'analyze_meta') {
       const { descricao_item, meta_id, categoria, tipo_gasto, valor_solicitado } = data;
 
       const metas = {
@@ -29,12 +58,12 @@ Deno.serve(async (req) => {
 Analise se a seguinte solicitação de compra/contratação corresponde à meta indicada.
 
 SOLICITAÇÃO:
-- Descrição: ${descricao_item}
-- Categoria: ${categoria}
-- Tipo: ${tipo_gasto}
-- Valor: R$ ${valor_solicitado}
+- Descrição: ${descricao_item || ''}
+- Categoria: ${categoria || ''}
+- Tipo: ${tipo_gasto || ''}
+- Valor: R$ ${valor_solicitado || 0}
 
-META INDICADA (${meta_id}):
+META INDICADA (${meta_id || 'não informada'}):
 ${metas[meta_id] || 'Meta extra sem descrição específica.'}
 
 TODAS AS METAS DISPONÍVEIS:
@@ -63,7 +92,7 @@ Retorne um JSON com:
     }
 
     // --- AÇÃO: Verificar saldo da rubrica ---
-    if (action === 'check_budget') {
+    if (normalizedAction === 'check_budget') {
       const { budgetline_id, valor } = data;
 
       if (!budgetline_id) {
@@ -75,35 +104,23 @@ Retorne um JSON com:
         return Response.json({ error: 'Rubrica não encontrada' }, { status: 404 });
       }
 
+      const valorNumerico = parseFloat(valor || 0) || 0;
       const saldo_disponivel = (line.saldo_inicial || 0) - (line.saldo_comprometido || 0);
-      const aprovavel = saldo_disponivel >= (valor || 0);
+      const aprovavel = saldo_disponivel >= valorNumerico;
 
-      return Response.json({ success: true, saldo_disponivel, aprovavel, linha: line });
+      return Response.json({
+        success: true,
+        saldo_disponivel,
+        aprovavel,
+        linha: line
+      });
     }
 
     // --- AÇÃO: Aprovar compra ---
-    if (action === 'aprovar' || action === 'approve_coord') {
+    if (normalizedAction === 'aprovar') {
       if (!purchaseId) {
         return Response.json({ error: 'purchaseId é obrigatório' }, { status: 400 });
       }
-
-      const userPerms = await base44.asServiceRole.entities.UserPermission.filter({
-        user_email: user.email
-      });
-
-      const isCoordinator =
-        user.role === 'admin' ||
-        user.role === 'ADMIN' ||
-        user.role === 'COORDENADOR' ||
-        user.role === 'COORD_COMUNICACAO' ||
-        user.role === 'COORD_ADMINISTRATIVA' ||
-        user.role === 'COORD_PRODUCAO' ||
-        (userPerms.length > 0 &&
-          (
-            userPerms[0].can_review_reports === true ||
-            userPerms[0].pode_aprovar_solicitacoes === true ||
-            userPerms[0].gestao_compras === true
-          ));
 
       if (!isCoordinator) {
         return Response.json({ error: 'Apenas coordenadores podem aprovar compras' }, { status: 403 });
@@ -133,15 +150,15 @@ Retorne um JSON com:
         return Response.json({ error: 'Linha orçamentária não encontrada' }, { status: 404 });
       }
 
-      const valorFinal = Number(purchase.valor_aprovado_admin || purchase.valor_solicitado || 0);
+      const valorFinal = parseFloat(purchase.valor_solicitado || 0) || 0;
       const saldoDisponivel = (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0);
 
       if (saldoDisponivel < valorFinal) {
         return Response.json(
           {
-            error: `Saldo insuficiente para aprovação. Disponível: R$ ${saldoDisponivel.toLocaleString('pt-BR', {
-              minimumFractionDigits: 2
-            })}`
+            error:
+              'Saldo insuficiente para aprovação. Disponível: R$ ' +
+              saldoDisponivel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
           },
           { status: 400 }
         );
@@ -168,16 +185,19 @@ Retorne um JSON com:
       });
 
       try {
-        const solicitante = await base44.asServiceRole.entities.User.filter({ email: purchase.created_by });
-        if (solicitante.length > 0) {
+        const solicitante = await base44.asServiceRole.entities.User.filter({
+          email: purchase.created_by
+        });
+
+        if (solicitante && solicitante.length > 0) {
           await base44.asServiceRole.integrations.Core.SendEmail({
             to: solicitante[0].email,
-            subject: `✅ Sua solicitação de compra foi aprovada`,
+            subject: '✅ Sua solicitação de compra foi aprovada',
             body: `Olá ${solicitante[0].full_name},
 
 Sua solicitação de compra foi aprovada pelo coordenador ${user.full_name}.
 
-📋 Item: ${purchase.descricao_item}
+📋 Item: ${purchase.descricao_item || ''}
 💰 Valor: R$ ${valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
 
 Atenção: esta compra está pronta para pagamento.
@@ -195,14 +215,25 @@ Plataforma — Museus Centro`,
     }
 
     // --- AÇÃO: Recusar compra ---
-    if (action === 'reject') {
+    if (normalizedAction === 'reject') {
       if (!purchaseId) {
         return Response.json({ error: 'purchaseId é obrigatório' }, { status: 400 });
+      }
+
+      if (!isCoordinator) {
+        return Response.json({ error: 'Apenas coordenadores podem recusar compras' }, { status: 403 });
       }
 
       const purchase = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
       if (!purchase) {
         return Response.json({ error: 'Solicitação não encontrada' }, { status: 404 });
+      }
+
+      if (purchase.status !== 'SOLICITADO') {
+        return Response.json(
+          { error: `Apenas solicitações pendentes podem ser recusadas. Status atual: ${purchase.status}` },
+          { status: 400 }
+        );
       }
 
       await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, {
@@ -227,9 +258,13 @@ Plataforma — Museus Centro`,
     }
 
     // --- AÇÃO: Marcar como PAGO ---
-    if (action === 'marcar_pago') {
+    if (normalizedAction === 'marcar_pago') {
       if (!purchaseId) {
         return Response.json({ error: 'purchaseId é obrigatório' }, { status: 400 });
+      }
+
+      if (!isCoordinator) {
+        return Response.json({ error: 'Apenas coordenadores podem marcar compras como pagas' }, { status: 403 });
       }
 
       const { comprovante_url, data_pagamento } = data;
@@ -250,11 +285,13 @@ Plataforma — Museus Centro`,
         purchase_id: purchaseId
       });
 
-      const temDocumentoFiscalAprovado = docs.some(
-        d =>
-          (d.tipo_documento === 'nota_fiscal' || d.tipo_documento === 'xml_nf') &&
-          d.status === 'aprovado'
-      );
+      const temDocumentoFiscalAprovado = (docs || []).some((d) => {
+        const tipoValido =
+          (d.tipo && (d.tipo === 'nota_fiscal' || d.tipo === 'xml_nf')) ||
+          (d.tipo_documento && (d.tipo_documento === 'nota_fiscal' || d.tipo_documento === 'xml_nf'));
+
+        return tipoValido && d.status === 'aprovado';
+      });
 
       if (!temDocumentoFiscalAprovado) {
         return Response.json(
@@ -265,7 +302,7 @@ Plataforma — Museus Centro`,
 
       const paymentDate =
         data_pagamento && String(data_pagamento).trim()
-          ? data_pagamento
+          ? String(data_pagamento).trim()
           : new Date().toISOString().split('T')[0];
 
       await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, {
@@ -275,7 +312,6 @@ Plataforma — Museus Centro`,
         pago_por: user.email,
       });
 
-      // Buscar solicitante
       let solicitanteEmail = purchase.created_by || '';
       let solicitanteNome = 'Solicitante';
 
@@ -283,7 +319,8 @@ Plataforma — Museus Centro`,
         const solicitante = await base44.asServiceRole.entities.User.filter({
           email: purchase.created_by
         });
-        if (solicitante.length > 0) {
+
+        if (solicitante && solicitante.length > 0) {
           solicitanteEmail = solicitante[0].email || solicitanteEmail;
           solicitanteNome = solicitante[0].full_name || solicitanteNome;
         }
@@ -291,21 +328,20 @@ Plataforma — Museus Centro`,
         console.error('Erro ao buscar solicitante:', e.message);
       }
 
-      const valorFmt = Number(
-        purchase.valor_aprovado_admin || purchase.valor_solicitado || 0
-      ).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+      const valorFmt = (parseFloat(purchase.valor_solicitado || 0) || 0).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2
+      });
 
-      // Email para solicitante
       if (solicitanteEmail) {
         try {
           await base44.asServiceRole.integrations.Core.SendEmail({
             to: solicitanteEmail,
-            subject: `💸 Sua compra foi marcada como paga`,
+            subject: '💸 Sua compra foi marcada como paga',
             body: `Olá ${solicitanteNome},
 
 Sua compra foi marcada como paga.
 
-📋 Item: ${purchase.descricao_item}
+📋 Item: ${purchase.descricao_item || ''}
 💰 Valor: R$ ${valorFmt}
 📅 Data do pagamento: ${paymentDate}
 ${comprovante_url ? `🔗 Comprovante: ${comprovante_url}` : ''}
@@ -319,22 +355,22 @@ Plataforma — Museus Centro`,
         }
       }
 
-      // Buscar coordenadores
       try {
-        const userPerms = await base44.asServiceRole.entities.UserPermission.list('', 9999);
+        const allPerms = await base44.asServiceRole.entities.UserPermission.list('', 9999);
 
         const coordinatorEmails = [
           ...new Set(
-            userPerms
-              .filter(p =>
-                p?.user_email &&
+            (allPerms || [])
+              .filter((p) =>
+                p &&
+                p.user_email &&
                 (
-                  p?.can_review_reports === true ||
-                  p?.pode_aprovar_solicitacoes === true ||
-                  p?.gestao_compras === true
+                  p.can_review_reports === true ||
+                  p.pode_aprovar_solicitacoes === true ||
+                  p.gestao_compras === true
                 )
               )
-              .map(p => p.user_email)
+              .map((p) => p.user_email)
           )
         ];
 
@@ -342,12 +378,12 @@ Plataforma — Museus Centro`,
           try {
             await base44.asServiceRole.integrations.Core.SendEmail({
               to: email,
-              subject: `💸 Compra marcada como paga`,
+              subject: '💸 Compra marcada como paga',
               body: `Olá,
 
 Uma compra foi marcada como paga na plataforma.
 
-📋 Item: ${purchase.descricao_item}
+📋 Item: ${purchase.descricao_item || ''}
 👤 Solicitante: ${solicitanteNome}
 📧 E-mail do solicitante: ${solicitanteEmail || 'Não informado'}
 💰 Valor: R$ ${valorFmt}
@@ -359,7 +395,7 @@ Plataforma — Museus Centro`,
               from_name: 'Museus Centro'
             });
           } catch (e) {
-            console.error(`Erro ao enviar email ao coordenador ${email}:`, e.message);
+            console.error('Erro ao enviar email ao coordenador ' + email + ':', e.message);
           }
         }
       } catch (e) {
@@ -375,8 +411,8 @@ Plataforma — Museus Centro`,
       });
     }
 
-    // --- AÇÃO: Submeter solicitação (RASCUNHO → SOLICITADO) ---
-    if (action === 'submeter') {
+    // --- AÇÃO: Submeter solicitação (RASCUNHO / RECUSADO → SOLICITADO) ---
+    if (normalizedAction === 'submeter') {
       if (!purchaseId) {
         return Response.json({ error: 'purchaseId é obrigatório' }, { status: 400 });
       }
@@ -384,6 +420,13 @@ Plataforma — Museus Centro`,
       const purchase = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
       if (!purchase) {
         return Response.json({ error: 'Solicitação não encontrada' }, { status: 404 });
+      }
+
+      if (purchase.status !== 'RASCUNHO' && purchase.status !== 'RECUSADO') {
+        return Response.json(
+          { error: `Somente compras em rascunho ou recusadas podem ser submetidas. Status atual: ${purchase.status}` },
+          { status: 400 }
+        );
       }
 
       await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, {
@@ -402,7 +445,7 @@ Plataforma — Museus Centro`,
     }
 
     // --- AÇÃO: Garantir relatório mensal ---
-    if (action === 'ensure_report') {
+    if (normalizedAction === 'ensure_report') {
       const { mes_referencia, ano } = data;
 
       const existing = await base44.asServiceRole.entities.Report.filter({
@@ -411,7 +454,7 @@ Plataforma — Museus Centro`,
         ano
       });
 
-      if (existing.length > 0) {
+      if (existing && existing.length > 0) {
         return Response.json({
           success: true,
           report_id: existing[0].id,
@@ -437,7 +480,6 @@ Plataforma — Museus Centro`,
     }
 
     return Response.json({ error: 'Ação inválida' }, { status: 400 });
-
   } catch (error) {
     console.error('purchaseActions error:', error);
     return Response.json({ error: error.message }, { status: 500 });
