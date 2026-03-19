@@ -10,6 +10,14 @@ function normalizeString(value) {
   return String(value || '').trim();
 }
 
+function normalizeStringLower(value) {
+  return normalizeString(value).toLowerCase();
+}
+
+function normalizeStatus(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
 function getPurchaseValue(compra) {
   return (
     toNumber(compra?.valor_pago) ||
@@ -28,6 +36,32 @@ function getDocTypeLabel(tipo) {
   if (t === 'contrato') return 'CONTRATO';
   if (t === 'orcamento') return 'ORÇAMENTO';
   return t ? t.toUpperCase() : 'DOC';
+}
+
+function getCompraBudgetlineId(compra) {
+  return (
+    compra?.budgetline_id ||
+    compra?.budget_line_id ||
+    compra?.linha_orcamentaria_id ||
+    null
+  );
+}
+
+async function listAll(entityApi, orderBy = '', pageSize = 500) {
+  let all = [];
+  let page = 0;
+
+  while (true) {
+    const batch = await entityApi.list(orderBy, pageSize, page * pageSize);
+    if (!batch || batch.length === 0) break;
+
+    all = all.concat(batch);
+
+    if (batch.length < pageSize) break;
+    page++;
+  }
+
+  return all;
 }
 
 async function findRubricaByBudgetLine(base44, budgetlineId) {
@@ -51,20 +85,69 @@ async function findRubricaByBudgetLine(base44, budgetlineId) {
   return null;
 }
 
+async function findRubricaByNomeBudgetLine(base44, budgetlineId) {
+  if (!budgetlineId) return null;
+
+  const lines = await base44.asServiceRole.entities.BudgetLine.filter({
+    id: budgetlineId
+  });
+  const line = lines && lines.length > 0 ? lines[0] : null;
+
+  if (!line) return null;
+
+  const nomeBudgetLine = normalizeStringLower(
+    line.descricao || line.rubrica || line.nome || ''
+  );
+
+  if (!nomeBudgetLine) return null;
+
+  const todasRubricas = await listAll(
+    base44.asServiceRole.entities.Rubrica,
+    'ordem_exibicao',
+    500
+  );
+
+  const candidatas = (todasRubricas || []).filter((r) => r?.ativo !== false);
+
+  const exata = candidatas.find((r) => {
+    const nomeRubrica = normalizeStringLower(
+      r.rubrica || r.nome || r.descricao || ''
+    );
+    return nomeRubrica && nomeRubrica === nomeBudgetLine;
+  });
+
+  if (exata) return exata;
+
+  const contem = candidatas.find((r) => {
+    const nomeRubrica = normalizeStringLower(
+      r.rubrica || r.nome || r.descricao || ''
+    );
+    return (
+      nomeRubrica &&
+      (nomeRubrica.includes(nomeBudgetLine) || nomeBudgetLine.includes(nomeRubrica))
+    );
+  });
+
+  return contem || null;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
 
     if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      return Response.json({ error: 'Unauthorized', success: false }, { status: 401 });
     }
 
-    const payload = await req.json();
+    const payload = await req.json().catch(() => ({}));
     const { documentId } = payload || {};
 
     if (!documentId) {
-      return Response.json({ error: 'documentId required' }, { status: 400 });
+      return Response.json(
+        { error: 'documentId required', success: false },
+        { status: 400 }
+      );
     }
 
     // Buscar documento
@@ -74,15 +157,21 @@ Deno.serve(async (req) => {
     const documento = docs && docs.length > 0 ? docs[0] : null;
 
     if (!documento) {
-      return Response.json({ error: 'Document not found' }, { status: 404 });
+      return Response.json(
+        { error: 'Document not found', success: false },
+        { status: 404 }
+      );
     }
 
     // Documento precisa estar vinculado a uma compra
     if (!documento.purchase_id) {
-      return Response.json({
-        success: false,
-        error: 'Documento sem purchase_id vinculado'
-      }, { status: 400 });
+      return Response.json(
+        {
+          success: false,
+          error: 'Documento sem purchase_id vinculado'
+        },
+        { status: 400 }
+      );
     }
 
     // Buscar compra relacionada
@@ -92,56 +181,58 @@ Deno.serve(async (req) => {
     const compra = compras && compras.length > 0 ? compras[0] : null;
 
     if (!compra) {
-      return Response.json({ error: 'Purchase not found' }, { status: 404 });
+      return Response.json(
+        { error: 'Purchase not found', success: false },
+        { status: 404 }
+      );
     }
 
+    const purchaseStatus = normalizeStatus(compra.status);
+    const compraBudgetlineId = getCompraBudgetlineId(compra);
+
     // Regra: quem manda no débito real da rubrica é a compra paga, não o documento.
-    // Não debitar rubrica antes de a compra estar efetivamente paga.
-    if (compra.status !== 'PAGO') {
-      return Response.json({
-        success: false,
-        error: 'A rubrica só deve ser debitada quando a compra estiver paga.',
-        purchase_id: documento.purchase_id,
-        purchase_status: compra.status
-      }, { status: 400 });
+    if (purchaseStatus !== 'PAGO' && purchaseStatus !== 'PAGO_PARCIAL') {
+      return Response.json(
+        {
+          success: false,
+          error: 'A rubrica só deve ser debitada quando a compra estiver paga.',
+          purchase_id: documento.purchase_id,
+          purchase_status: compra.status
+        },
+        { status: 400 }
+      );
     }
 
     // Buscar rubrica
-    let rubricaId = documento.rubrica_id || null;
+    let rubricaId = documento.rubrica_id || compra.rubrica_id || null;
     let rubrica = null;
 
     if (rubricaId) {
       const rubricasDiretas = await base44.asServiceRole.entities.Rubrica.filter({
         id: rubricaId
       });
-      rubrica = rubricasDiretas && rubricasDiretas.length > 0 ? rubricasDiretas[0] : null;
+      rubrica =
+        rubricasDiretas && rubricasDiretas.length > 0 ? rubricasDiretas[0] : null;
     }
 
-    if (!rubrica && compra.budgetline_id) {
-      rubrica = await findRubricaByBudgetLine(base44, compra.budgetline_id);
+    if (!rubrica && compraBudgetlineId) {
+      rubrica = await findRubricaByBudgetLine(base44, compraBudgetlineId);
+    }
 
-      if (!rubrica) {
-        const lines = await base44.asServiceRole.entities.BudgetLine.filter({
-          id: compra.budgetline_id
-        });
-        const line = lines && lines.length > 0 ? lines[0] : null;
-
-        if (line && line.descricao) {
-          const rubricasPorNome = await base44.asServiceRole.entities.Rubrica.filter({
-            rubrica: line.descricao
-          });
-          rubrica = rubricasPorNome && rubricasPorNome.length > 0 ? rubricasPorNome[0] : null;
-        }
-      }
+    if (!rubrica && compraBudgetlineId) {
+      rubrica = await findRubricaByNomeBudgetLine(base44, compraBudgetlineId);
     }
 
     if (!rubrica) {
-      return Response.json({
-        error: 'No rubrica found for this document/purchase',
-        success: false,
-        purchase_id: documento.purchase_id,
-        budgetline_id: compra.budgetline_id || null
-      }, { status: 404 });
+      return Response.json(
+        {
+          error: 'No rubrica found for this document/purchase',
+          success: false,
+          purchase_id: documento.purchase_id,
+          budgetline_id: compraBudgetlineId
+        },
+        { status: 404 }
+      );
     }
 
     rubricaId = rubrica.id;
@@ -150,12 +241,15 @@ Deno.serve(async (req) => {
     const valorCompra = getPurchaseValue(compra);
 
     if (!valorCompra || valorCompra <= 0) {
-      return Response.json({
-        success: false,
-        error: 'Valor da compra inválido para lançamento na rubrica.',
-        purchase_id: documento.purchase_id,
-        valor_compra: valorCompra
-      }, { status: 400 });
+      return Response.json(
+        {
+          success: false,
+          error: 'Valor da compra inválido para lançamento na rubrica.',
+          purchase_id: documento.purchase_id,
+          valor_compra: valorCompra
+        },
+        { status: 400 }
+      );
     }
 
     const descricaoLancamento =
@@ -163,25 +257,27 @@ Deno.serve(async (req) => {
       `${documento.numero_documento || documento.nome_arquivo || compra.descricao_item || 'Documento'}`;
 
     // Buscar lançamento automático existente desta compra nesta rubrica
-    // Filtra pela compra e pela origem para evitar pegar lançamento manual.
     const lancamentos = await base44.asServiceRole.entities.LancamentoRubrica.filter({
       rubrica_id: rubricaId,
       referencia_compra_id: documento.purchase_id
     });
 
     const lancamentosAutomaticos = (lancamentos || []).filter(
-      (l) => normalizeString(l.origem_lancamento).toLowerCase() === 'automatico_compras'
+      (l) => normalizeStringLower(l.origem_lancamento) === 'automatico_compras'
     );
 
-    let lancamento = lancamentosAutomaticos.length > 0 ? lancamentosAutomaticos[0] : null;
+    let lancamento =
+      lancamentosAutomaticos.length > 0 ? lancamentosAutomaticos[0] : null;
+
+    const dataLancamento =
+      compra.data_pagamento ||
+      documento.data_documento ||
+      new Date().toISOString().split('T')[0];
 
     if (!lancamento) {
       lancamento = await base44.asServiceRole.entities.LancamentoRubrica.create({
         rubrica_id: rubricaId,
-        data_lancamento:
-          compra.data_pagamento ||
-          documento.data_documento ||
-          new Date().toISOString().split('T')[0],
+        data_lancamento: dataLancamento,
         origem_lancamento: 'automatico_compras',
         referencia_compra_id: documento.purchase_id,
         descricao: descricaoLancamento,
@@ -195,13 +291,12 @@ Deno.serve(async (req) => {
       });
     } else {
       await base44.asServiceRole.entities.LancamentoRubrica.update(lancamento.id, {
-        data_lancamento:
-          compra.data_pagamento ||
-          documento.data_documento ||
-          lancamento.data_lancamento,
+        data_lancamento: dataLancamento,
         descricao: descricaoLancamento,
-        fornecedor: documento.fornecedor || compra.fornecedor_nome || lancamento.fornecedor || '',
-        funcao_origem: compra.categoria || compra.tipo_gasto || lancamento.funcao_origem || '',
+        fornecedor:
+          documento.fornecedor || compra.fornecedor_nome || lancamento.fornecedor || '',
+        funcao_origem:
+          compra.categoria || compra.tipo_gasto || lancamento.funcao_origem || '',
         valor: valorCompra,
         observacao:
           `Lançamento automático atualizado pela compra ${documento.purchase_id}. ` +
@@ -224,9 +319,9 @@ Deno.serve(async (req) => {
     // Recalcular rubrica pela function central
     try {
       await base44.asServiceRole.functions.invoke('recalculateRubrica', {
-        rubricaId: rubricaId,
+        rubricaId,
         purchaseId: documento.purchase_id,
-        budgetline_id: compra.budgetline_id || null
+        budgetline_id: compraBudgetlineId
       });
     } catch (e) {
       console.error('Erro ao recalcular rubrica:', e.message);
@@ -237,8 +332,8 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.functions.invoke('recalculateAllRubricas', {
         trigger: 'sync_document_to_rubrica',
         purchaseId: documento.purchase_id,
-        budgetline_id: compra.budgetline_id || null,
-        rubricaId: rubricaId
+        budgetline_id: compraBudgetlineId,
+        rubricaId
       });
     } catch (e) {
       console.error('Erro ao recalcular todas as rubricas:', e.message);
@@ -259,10 +354,14 @@ Deno.serve(async (req) => {
       rubrica_id: rubricaId,
       purchase_id: documento.purchase_id,
       purchase_status: compra.status,
+      budgetline_id: compraBudgetlineId,
       valor_documento: toNumber(documento.valor_documento),
       valor_compra: valorCompra,
-      valor_utilizado: rubricaAtualizada ? rubricaAtualizada.valor_utilizado : null,
-      saldo: rubricaAtualizada ? rubricaAtualizada.saldo : null
+      valor_utilizado: rubricaAtualizada ? toNumber(rubricaAtualizada.valor_utilizado) : null,
+      saldo: rubricaAtualizada ? toNumber(rubricaAtualizada.saldo) : null,
+      percentual_utilizado: rubricaAtualizada
+        ? toNumber(rubricaAtualizada.percentual_utilizado)
+        : null
     });
   } catch (error) {
     console.error('syncDocumentToRubrica error:', error);
