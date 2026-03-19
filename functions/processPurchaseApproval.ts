@@ -16,109 +16,195 @@ Deno.serve(async (req) => {
     } = await req.json();
 
     if (!purchaseId || !action) {
-      return Response.json({ error: 'purchaseId e action são obrigatórios' }, { status: 400 });
+      return Response.json(
+        { error: 'purchaseId e action são obrigatórios' },
+        { status: 400 }
+      );
+    }
+
+    if (!['approve_coord', 'reject'].includes(action)) {
+      return Response.json(
+        { error: 'Ação inválida. Use approve_coord ou reject.' },
+        { status: 400 }
+      );
+    }
+
+    const isCoordenador = [
+      'admin',
+      'ADMIN',
+      'COORDENADOR',
+      'COORD_COMUNICACAO',
+      'COORD_ADMINISTRATIVA',
+      'COORD_PRODUCAO'
+    ].includes(user.role);
+
+    if (!isCoordenador) {
+      return Response.json(
+        { error: 'Usuário sem permissão para aprovar ou recusar compras.' },
+        { status: 403 }
+      );
     }
 
     // Buscar compra
-    const purchase = await base44.entities.PurchaseRequest.filter({ id: purchaseId });
-    if (!purchase || purchase.length === 0) {
+    let p;
+    try {
+      p = await base44.entities.PurchaseRequest.get(purchaseId);
+    } catch {
+      p = null;
+    }
+
+    if (!p) {
       return Response.json({ error: 'Compra não encontrada' }, { status: 404 });
     }
 
-    const p = purchase[0];
+    // Só permite agir sobre solicitações pendentes
+    if (p.status !== 'SOLICITADO') {
+      return Response.json(
+        { error: `A compra está com status "${p.status}" e não pode ser processada nesta etapa.` },
+        { status: 400 }
+      );
+    }
 
-    // Determinar novo status
+    const nomeAtor = user.full_name || user.email || 'Usuário';
+    const emailAtor = user.email || '';
+    const dataAprovacao = new Date().toISOString().split('T')[0];
+
     let novoStatus = p.status;
-    let nomeAtor = user.full_name;
-    let emailAtor = user.email;
-    let dataAprovacao = new Date().toISOString().split('T')[0];
 
     if (action === 'approve_coord') {
-      novoStatus = 'APROVADO_COORD';
-      const valorFinal = p.valor_solicitado;
+      const valorFinal = parseFloat(p.valor_solicitado || 0);
 
-      // Atualizar dados de aprovação coord
+      if (valorFinal <= 0) {
+        return Response.json(
+          { error: 'Valor da compra inválido para aprovação.' },
+          { status: 400 }
+        );
+      }
+
+      if (!p.budgetline_id) {
+        return Response.json(
+          { error: 'A compra não possui rubrica/linha orçamentária vinculada.' },
+          { status: 400 }
+        );
+      }
+
+      // Validar saldo antes de comprometer
+      let budgetLine;
+      try {
+        budgetLine = await base44.entities.BudgetLine.get(p.budgetline_id);
+      } catch {
+        budgetLine = null;
+      }
+
+      if (!budgetLine) {
+        return Response.json(
+          { error: 'Rubrica/linha orçamentária não encontrada.' },
+          { status: 404 }
+        );
+      }
+
+      const saldoDisponivel =
+        (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0);
+
+      if (saldoDisponivel < valorFinal) {
+        return Response.json(
+          {
+            error: `Saldo insuficiente para aprovação. Disponível: R$ ${saldoDisponivel.toLocaleString('pt-BR', {
+              minimumFractionDigits: 2
+            })}`
+          },
+          { status: 400 }
+        );
+      }
+
+      novoStatus = 'APROVADO_COORD';
+
+      // Atualizar compra
       await base44.entities.PurchaseRequest.update(purchaseId, {
         status: novoStatus,
         aprov_coord_nome: nomeAtor,
+        aprov_coord_email: emailAtor,
         aprov_coord_data: dataAprovacao,
         aprov_coord_comentario: comentario,
       });
 
-      // Atualizar saldo da rubrica (comprometer)
-      if (p.budgetline_id) {
-        const budgetLine = await base44.entities.BudgetLine.filter({ id: p.budgetline_id });
-        if (budgetLine && budgetLine.length > 0) {
-          const bl = budgetLine[0];
-          const novoComprometido = (bl.saldo_comprometido || 0) + parseFloat(valorFinal);
-          await base44.entities.BudgetLine.update(p.budgetline_id, {
-            saldo_comprometido: novoComprometido,
-          });
-        }
-      }
+      // Comprometer saldo
+      const novoComprometido =
+        (budgetLine.saldo_comprometido || 0) + valorFinal;
 
-      // Notificar solicitante que foi aprovado via email
+      await base44.entities.BudgetLine.update(p.budgetline_id, {
+        saldo_comprometido: novoComprometido,
+      });
+
+      // Notificar solicitante via email
       try {
         await base44.asServiceRole.functions.invoke('notifyUserOnPurchaseStatusChange', {
-          purchaseId: purchaseId,
+          purchaseId,
           newStatus: novoStatus,
-          comentario: comentario
+          comentario
         });
       } catch (e) {
         console.error('Erro ao notificar mudança de status:', e.message);
       }
 
-      const notificacao = {
-        user_email: p.created_by || emailAtor,
-        type: 'REPORT_APPROVED',
-        title: 'Sua Solicitação de Compra foi Aprovada',
-        message: `Compra "${p.descricao_item}" foi aprovada pelo Coordenador Geral. Valor: R$ ${parseFloat(valorFinal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-        read: false,
-        email_sent: false,
-      };
-
-      await base44.asServiceRole.entities.Notification.create(notificacao);
-
-    } else if (action === 'reject') {
-      novoStatus = 'RECUSADO';
-
-      const rejectUpdate = { 
-        status: novoStatus,
-        aprov_coord_nome: nomeAtor,
-        aprov_coord_data: dataAprovacao,
-        aprov_coord_comentario: comentario || 'Solicitação recusada',
-      };
-
-      await base44.entities.PurchaseRequest.update(purchaseId, rejectUpdate);
-
-      // Notificar solicitante via email que foi rejeitado
+      // Notificação interna
       try {
-        await base44.asServiceRole.functions.invoke('notifyUserOnPurchaseStatusChange', {
-          purchaseId: purchaseId,
-          newStatus: novoStatus,
-          comentario: comentario
+        await base44.asServiceRole.entities.Notification.create({
+          user_email: p.created_by || emailAtor,
+          type: 'REPORT_APPROVED',
+          title: 'Sua Solicitação de Compra foi Aprovada',
+          message: `Compra "${p.descricao_item}" foi aprovada pelo Coordenador. Valor: R$ ${valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+          read: false,
+          email_sent: false,
         });
       } catch (e) {
-        console.error('Erro ao notificar mudança de status:', e.message);
+        console.error('Erro ao criar notificação interna:', e.message);
       }
-
-      // Notificar solicitante que foi recusado
-      const notificacao = {
-        user_email: p.created_by || emailAtor,
-        type: 'REPORT_RETURNED',
-        title: 'Sua Solicitação de Compra foi Recusada',
-        message: `Compra "${p.descricao_item}" foi recusada. ${comentario ? `Motivo: ${comentario}` : ''}`,
-        read: false,
-        email_sent: false,
-      };
-
-      await base44.asServiceRole.entities.Notification.create(notificacao);
     }
 
-    return Response.json({ 
-      success: true, 
+    if (action === 'reject') {
+      novoStatus = 'RECUSADO';
+
+      await base44.entities.PurchaseRequest.update(purchaseId, {
+        status: novoStatus,
+        aprov_coord_nome: nomeAtor,
+        aprov_coord_email: emailAtor,
+        aprov_coord_data: dataAprovacao,
+        aprov_coord_comentario: comentario || 'Solicitação recusada',
+      });
+
+      // Notificar solicitante via email
+      try {
+        await base44.asServiceRole.functions.invoke('notifyUserOnPurchaseStatusChange', {
+          purchaseId,
+          newStatus: novoStatus,
+          comentario
+        });
+      } catch (e) {
+        console.error('Erro ao notificar mudança de status:', e.message);
+      }
+
+      // Notificação interna
+      try {
+        await base44.asServiceRole.entities.Notification.create({
+          user_email: p.created_by || emailAtor,
+          type: 'REPORT_RETURNED',
+          title: 'Sua Solicitação de Compra foi Recusada',
+          message: `Compra "${p.descricao_item}" foi recusada.${comentario ? ` Motivo: ${comentario}` : ''}`,
+          read: false,
+          email_sent: false,
+        });
+      } catch (e) {
+        console.error('Erro ao criar notificação interna:', e.message);
+      }
+    }
+
+    return Response.json({
+      success: true,
       status: novoStatus,
-      message: `Compra ${action === 'approve_coord' ? 'aprovada e comprometida' : 'recusada'}`
+      message: action === 'approve_coord'
+        ? 'Compra aprovada e saldo comprometido'
+        : 'Compra recusada'
     });
   } catch (error) {
     console.error('Erro em processPurchaseApproval:', error);
