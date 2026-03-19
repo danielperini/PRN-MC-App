@@ -27,22 +27,9 @@ async function listAll(entityApi, orderBy, pageSize = 500) {
   while (true) {
     const batch = await entityApi.list(orderBy, pageSize, page * pageSize);
     if (!batch || batch.length === 0) break;
+
     all = all.concat(batch);
-    if (batch.length < pageSize) break;
-    page++;
-  }
 
-  return all;
-}
-
-async function filterAll(entityApi, filterObj, orderBy = '-created_date', pageSize = 500) {
-  let all = [];
-  let page = 0;
-
-  while (true) {
-    const batch = await entityApi.filter(filterObj, orderBy, pageSize, page * pageSize);
-    if (!batch || batch.length === 0) break;
-    all = all.concat(batch);
     if (batch.length < pageSize) break;
     page++;
   }
@@ -55,8 +42,12 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const body = await req.json().catch(() => ({}));
 
-    // Buscar todas as rubricas
-    const rubricas = await base44.asServiceRole.entities.Rubrica.list('ordem_exibicao', 500);
+    // Buscar todas as rubricas com paginação
+    const rubricas = await listAll(
+      base44.asServiceRole.entities.Rubrica,
+      'ordem_exibicao',
+      500
+    );
 
     // Buscar TODOS os lançamentos
     const allLancamentos = await listAll(
@@ -75,54 +66,96 @@ Deno.serve(async (req) => {
     // Indexar lançamentos por rubrica_id
     const lancamentosPorRubrica = {};
     for (const l of allLancamentos) {
-      const key = l?.rubrica_id;
+      const key = l && l.rubrica_id ? l.rubrica_id : null;
       if (!key) continue;
+
       if (!lancamentosPorRubrica[key]) {
         lancamentosPorRubrica[key] = [];
       }
+
       lancamentosPorRubrica[key].push(l);
     }
 
     // Indexar compras por budgetline_id
     const comprasPorBudgetLine = {};
     for (const p of allPurchases) {
-      const key = p?.budgetline_id;
+      const key = p && p.budgetline_id ? p.budgetline_id : null;
       if (!key) continue;
+
       if (!comprasPorBudgetLine[key]) {
         comprasPorBudgetLine[key] = [];
       }
+
       comprasPorBudgetLine[key].push(p);
+    }
+
+    // Indexar compras por budget_line_id
+    const comprasPorBudgetLineAlt = {};
+    for (const p of allPurchases) {
+      const key = p && p.budget_line_id ? p.budget_line_id : null;
+      if (!key) continue;
+
+      if (!comprasPorBudgetLineAlt[key]) {
+        comprasPorBudgetLineAlt[key] = [];
+      }
+
+      comprasPorBudgetLineAlt[key].push(p);
+    }
+
+    // Indexar compras por linha_orcamentaria_id
+    const comprasPorLinhaOrc = {};
+    for (const p of allPurchases) {
+      const key = p && p.linha_orcamentaria_id ? p.linha_orcamentaria_id : null;
+      if (!key) continue;
+
+      if (!comprasPorLinhaOrc[key]) {
+        comprasPorLinhaOrc[key] = [];
+      }
+
+      comprasPorLinhaOrc[key].push(p);
     }
 
     // Indexar compras por rubrica_id, se existir essa modelagem
     const comprasPorRubrica = {};
     for (const p of allPurchases) {
-      const key = p?.rubrica_id;
+      const key = p && p.rubrica_id ? p.rubrica_id : null;
       if (!key) continue;
+
       if (!comprasPorRubrica[key]) {
         comprasPorRubrica[key] = [];
       }
+
       comprasPorRubrica[key].push(p);
     }
 
     const results = [];
 
     for (const rubrica of rubricas) {
-      const lans = lancamentosPorRubrica[rubrica.id] || [];
+      const rubricaId = rubrica.id;
+      const budgetlineId =
+        rubrica.budgetline_id ||
+        rubrica.budget_line_id ||
+        rubrica.linha_orcamentaria_id ||
+        null;
+
+      const lans = lancamentosPorRubrica[rubricaId] || [];
 
       const valorLancamentos = parseFloat(
         lans.reduce((sum, l) => sum + toNumber(l.valor), 0).toFixed(2)
       );
 
-      // compras ligadas à rubrica por budgetline_id ou rubrica_id
+      // Compras ligadas à rubrica
       const comprasLigadas = [
-        ...(comprasPorBudgetLine[rubrica.budgetline_id] || []),
-        ...(comprasPorBudgetLine[rubrica.budget_line_id] || []),
-        ...(comprasPorBudgetLine[rubrica.linha_orcamentaria_id] || []),
-        ...(comprasPorRubrica[rubrica.id] || [])
+        ...(rubrica.budgetline_id ? (comprasPorBudgetLine[rubrica.budgetline_id] || []) : []),
+        ...(rubrica.budget_line_id ? (comprasPorBudgetLineAlt[rubrica.budget_line_id] || []) : []),
+        ...(rubrica.linha_orcamentaria_id ? (comprasPorLinhaOrc[rubrica.linha_orcamentaria_id] || []) : []),
+        ...(budgetlineId ? (comprasPorBudgetLine[budgetlineId] || []) : []),
+        ...(budgetlineId ? (comprasPorBudgetLineAlt[budgetlineId] || []) : []),
+        ...(budgetlineId ? (comprasPorLinhaOrc[budgetlineId] || []) : []),
+        ...(comprasPorRubrica[rubricaId] || [])
       ];
 
-      // remover duplicidade
+      // Remover duplicidade
       const mapaCompras = {};
       for (const compra of comprasLigadas) {
         if (compra && compra.id) {
@@ -143,29 +176,30 @@ Deno.serve(async (req) => {
 
       const valorRubrica = toNumber(rubrica.valor_rubrica);
 
-      // regra principal:
+      // Regra principal:
       // se houver compras pagas vinculadas, elas mandam no valor_utilizado
       // senão, usa lançamentos
       const valorUtilizadoBase =
         valorComprasPagas > 0 ? valorComprasPagas : valorLancamentos;
 
-      const valorUtilizado = parseFloat(valorUtilizadoBase.toFixed(2));
+      const valorUtilizado = parseFloat(toNumber(valorUtilizadoBase).toFixed(2));
       const saldo = parseFloat((valorRubrica - valorUtilizado).toFixed(2));
       const percentualUtilizado =
         valorRubrica > 0
           ? parseFloat(((valorUtilizado / valorRubrica) * 100).toFixed(2))
           : 0;
 
-      await base44.asServiceRole.entities.Rubrica.update(rubrica.id, {
+      await base44.asServiceRole.entities.Rubrica.update(rubricaId, {
         valor_utilizado: valorUtilizado,
-        saldo,
-        percentual_utilizado: percentualUtilizado,
+        saldo: saldo,
+        percentual_utilizado: percentualUtilizado
       });
 
       results.push({
-        rubrica_id: rubrica.id,
-        rubrica: rubrica.rubrica,
-        grupo: rubrica.grupo,
+        rubrica_id: rubricaId,
+        rubrica: rubrica.rubrica || rubrica.nome || null,
+        grupo: rubrica.grupo || null,
+        budgetline_id: budgetlineId,
         num_lancamentos: lans.length,
         num_compras_encontradas: comprasUnicas.length,
         num_compras_pagas: comprasPagas.length,
@@ -173,9 +207,9 @@ Deno.serve(async (req) => {
         valor_lancamentos: valorLancamentos,
         valor_compras_pagas: valorComprasPagas,
         valor_utilizado: valorUtilizado,
-        saldo,
+        saldo: saldo,
         percentual_utilizado: percentualUtilizado,
-        fonte_utilizada: valorComprasPagas > 0 ? 'compras_pagas' : 'lancamentos',
+        fonte_utilizada: valorComprasPagas > 0 ? 'compras_pagas' : 'lancamentos'
       });
     }
 
@@ -191,11 +225,17 @@ Deno.serve(async (req) => {
       ),
       valor_total_saldo: parseFloat(
         results.reduce((s, r) => s + toNumber(r.saldo), 0).toFixed(2)
-      ),
+      )
     };
 
-    return Response.json({ success: true, trigger: body?.trigger || null, sumario, results });
+    return Response.json({
+      success: true,
+      trigger: body && body.trigger ? body.trigger : null,
+      sumario,
+      results
+    });
   } catch (error) {
+    console.error('recalculateAllRubricas error:', error);
     return Response.json(
       { error: error.message, success: false },
       { status: 500 }
