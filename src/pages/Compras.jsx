@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -70,6 +70,20 @@ function ComprasInner() {
     'COORD_ADMINISTRATIVA',
     'COORD_PRODUCAO'
   ].includes(currentUser?.role);
+
+  const invalidateComprasQueries = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['purchases'] }),
+      queryClient.invalidateQueries({ queryKey: ['purchase'] }),
+      queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'] }),
+      queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
+      queryClient.invalidateQueries({ queryKey: ['rubricas-consolidadas'] }),
+      queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
+      queryClient.invalidateQueries({ queryKey: ['budget'] }),
+      queryClient.invalidateQueries({ queryKey: ['compra'] }),
+      queryClient.invalidateQueries({ queryKey: ['museu'] })
+    ]);
+  }, [queryClient]);
 
   const { data: userPermission } = useQuery({
     queryKey: ['user-permission', currentUser?.email],
@@ -342,9 +356,7 @@ function ComprasInner() {
                       setEditingPurchase(purchase);
                       setShowForm(true);
                     }}
-                    onRefresh={() =>
-                      queryClient.invalidateQueries({ queryKey: ['purchases'] })
-                    }
+                    onRefresh={invalidateComprasQueries}
                   />
                 ))}
               </div>
@@ -356,7 +368,7 @@ function ComprasInner() {
           <div className="space-y-8">
             {isCoordenador && (
               <ImportarOrcamento
-                onSuccess={() => queryClient.invalidateQueries({ queryKey: ['budget-lines'] })}
+                onSuccess={invalidateComprasQueries}
               />
             )}
 
@@ -389,8 +401,9 @@ function ComprasInner() {
 
                 <RubricaDetail
                   rubrica={selectedRubrica}
-                  onClose={() => {
+                  onClose={async () => {
                     setSelectedRubrica(null);
+                    await invalidateComprasQueries();
                     refetchRubricas();
                   }}
                 />
@@ -399,7 +412,10 @@ function ComprasInner() {
               <RubricasGrid
                 rubricas={rubricas}
                 onSelectRubrica={setSelectedRubrica}
-                onRefresh={refetchRubricas}
+                onRefresh={async () => {
+                  await invalidateComprasQueries();
+                  refetchRubricas();
+                }}
                 isCoordenador={isCoordenador}
               />
             )}
@@ -425,7 +441,7 @@ function ComprasInner() {
             purchases={purchases}
             budgetLines={budgetLines}
             statusConfig={STATUS_CONFIG}
-            onRefresh={() => queryClient.invalidateQueries({ queryKey: ['purchases'] })}
+            onRefresh={invalidateComprasQueries}
             currentUser={currentUser}
             hasGestaoCompras={hasGestaoCompras}
             podeAprovarSolicitacoes={podeAprovarSolicitacoes}
@@ -442,10 +458,10 @@ function ComprasInner() {
             setShowForm(false);
             setEditingPurchase(null);
           }}
-          onSuccess={() => {
+          onSuccess={async () => {
             setShowForm(false);
             setEditingPurchase(null);
-            queryClient.invalidateQueries({ queryKey: ['purchases'] });
+            await invalidateComprasQueries();
           }}
         />
       )}
