@@ -10,25 +10,33 @@ import { useEffect } from 'react';
 export function useBudgetLines() {
   const queryClient = useQueryClient();
 
+  const invalidateBudgetQueries = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
+      queryClient.invalidateQueries({ queryKey: ['budget-lines-sync'] }),
+      queryClient.invalidateQueries({ queryKey: ['budget'] }),
+      queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
+      queryClient.invalidateQueries({ queryKey: ['rubricas-consolidadas'] })
+    ]);
+  };
+
   const { data: budgetLines = [], isLoading, error } = useQuery({
-    queryKey: ['budget-lines-sync'],
+    queryKey: ['budget-lines'],
     queryFn: async () => {
       const allLines = await base44.entities.BudgetLine.list('codigo', 200);
-      // Filtrar apenas rubricas do 3º Aditivo (MC3A)
-      return allLines.filter(line => line.codigo?.startsWith('MC3A')).sort((a, b) => 
-        a.codigo.localeCompare(b.codigo)
-      );
+
+      return (allLines || [])
+        .filter(line => line?.codigo?.startsWith('MC3A'))
+        .sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || '')));
     },
-    staleTime: 30000, // 30 segundos
-    gcTime: 5 * 60 * 1000, // 5 minutos (anteriormente cacheTime)
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
   });
 
-  // Sincronizar mudanças em tempo real
   useEffect(() => {
-    const unsubscribe = base44.entities.BudgetLine.subscribe((event) => {
-      if (event.data?.codigo?.startsWith('MC3A')) {
-        // Invalidar cache quando qualquer rubrica muda
-        queryClient.invalidateQueries({ queryKey: ['budget-lines-sync'] });
+    const unsubscribe = base44.entities.BudgetLine.subscribe(async (event) => {
+      if (event?.data?.codigo?.startsWith('MC3A')) {
+        await invalidateBudgetQueries();
       }
     });
 
@@ -39,6 +47,7 @@ export function useBudgetLines() {
     budgetLines,
     isLoading,
     error,
+    refreshBudgetLines: invalidateBudgetQueries,
     getBudgetLine: (id) => budgetLines.find(l => l.id === id),
     getBudgetLineByCode: (code) => budgetLines.find(l => l.codigo === code),
   };
