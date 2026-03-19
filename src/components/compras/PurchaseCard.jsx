@@ -626,7 +626,12 @@ Responda em JSON com:
             </p>
 
             <div className="space-y-2 mb-3">
-              <PurchaseDocumentViewer purchaseId={purchase.id} />
+              <PurchaseDocumentViewer
+                purchaseId={purchase.id}
+                canApproveDocuments={isCoordenador || isAdmin}
+                currentUser={currentUser}
+                onRefresh={onRefresh}
+              />
             </div>
 
             <PurchaseDocumentUpload
