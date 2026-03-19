@@ -24,6 +24,15 @@ function getDocStatus(doc) {
   return String(doc?.status || '').trim().toLowerCase();
 }
 
+function getPurchaseBudgetlineId(purchase) {
+  return (
+    purchase?.budgetline_id ||
+    purchase?.budget_line_id ||
+    purchase?.linha_orcamentaria_id ||
+    null
+  );
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -33,7 +42,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const payload = await req.json();
+    const payload = await req.json().catch(() => ({}));
     const { action = '', purchaseId, ...data } = payload || {};
 
     const normalizedAction =
@@ -56,24 +65,24 @@ Deno.serve(async (req) => {
       user.role === 'COORD_COMUNICACAO' ||
       user.role === 'COORD_ADMINISTRATIVA' ||
       user.role === 'COORD_PRODUCAO' ||
-      (
-        !!firstPerm &&
-        (
-          firstPerm.can_review_reports === true ||
+      (!!firstPerm &&
+        (firstPerm.can_review_reports === true ||
           firstPerm.pode_aprovar_solicitacoes === true ||
-          firstPerm.gestao_compras === true
-        )
-      );
+          firstPerm.gestao_compras === true));
 
     // --- AÇÃO: Analisar correspondência com meta via IA ---
     if (normalizedAction === 'analyze_meta') {
       const { descricao_item, meta_id, categoria, tipo_gasto, valor_solicitado } = data;
 
       const metas = {
-        'MC3A-20': 'Realizar 30 ações educativas e/ou culturais: oficinas, palestras, mesas, filmes, apresentações relacionadas às vocações dos museus.',
-        'MC3A-21': 'Realizar 1 exposição e evento de abertura no MUMO: pesquisa, curadoria, projeto curatorial e expográfico, identidade visual, montagem, divulgação e evento inaugural.',
-        'MC3A-22': 'Consultorias transversais + formação em ambiente seguro e acessibilidade: 2 consultorias em temas transversais + 1 formação.',
-        'MC3A-EXTRA': 'Meta extra: compras que não se vinculam diretamente às metas 20–22.'
+        'MC3A-20':
+          'Realizar 30 ações educativas e/ou culturais: oficinas, palestras, mesas, filmes, apresentações relacionadas às vocações dos museus.',
+        'MC3A-21':
+          'Realizar 1 exposição e evento de abertura no MUMO: pesquisa, curadoria, projeto curatorial e expográfico, identidade visual, montagem, divulgação e evento inaugural.',
+        'MC3A-22':
+          'Consultorias transversais + formação em ambiente seguro e acessibilidade: 2 consultorias em temas transversais + 1 formação.',
+        'MC3A-EXTRA':
+          'Meta extra: compras que não se vinculam diretamente às metas 20–22.'
       };
 
       const prompt = `Você é um especialista em gestão de projetos culturais e contratos públicos (Termos de Colaboração).
@@ -90,7 +99,9 @@ META INDICADA (${meta_id || 'não informada'}):
 ${metas[meta_id] || 'Meta extra sem descrição específica.'}
 
 TODAS AS METAS DISPONÍVEIS:
-${Object.entries(metas).map(([k, v]) => `${k}: ${v}`).join('\n')}
+${Object.entries(metas)
+  .map(([k, v]) => `${k}: ${v}`)
+  .join('\n')}
 
 Retorne um JSON com:
 - score: número de 0 a 100 indicando o grau de correspondência com a meta indicada
@@ -128,7 +139,8 @@ Retorne um JSON com:
       }
 
       const valorNumerico = toNumber(valor);
-      const saldo_disponivel = toNumber(line.saldo_inicial) - toNumber(line.saldo_comprometido);
+      const saldo_disponivel =
+        toNumber(line.saldo_inicial) - toNumber(line.saldo_comprometido);
       const aprovavel = saldo_disponivel >= valorNumerico;
 
       return Response.json({
@@ -146,7 +158,10 @@ Retorne um JSON com:
       }
 
       if (!isCoordinator) {
-        return Response.json({ error: 'Apenas coordenadores podem aprovar compras' }, { status: 403 });
+        return Response.json(
+          { error: 'Apenas coordenadores podem aprovar compras' },
+          { status: 403 }
+        );
       }
 
       const purchase = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
@@ -156,32 +171,44 @@ Retorne um JSON com:
 
       if (purchase.status !== 'SOLICITADO') {
         return Response.json(
-          { error: `Apenas solicitações pendentes podem ser aprovadas. Status atual: ${purchase.status}` },
+          {
+            error: `Apenas solicitações pendentes podem ser aprovadas. Status atual: ${purchase.status}`
+          },
           { status: 400 }
         );
       }
 
-      if (!purchase.budgetline_id) {
+      const purchaseBudgetlineId = getPurchaseBudgetlineId(purchase);
+
+      if (!purchaseBudgetlineId) {
         return Response.json(
           { error: 'A compra não possui linha orçamentária vinculada' },
           { status: 400 }
         );
       }
 
-      const budgetLine = await base44.asServiceRole.entities.BudgetLine.get(purchase.budgetline_id);
+      const budgetLine = await base44.asServiceRole.entities.BudgetLine.get(
+        purchaseBudgetlineId
+      );
       if (!budgetLine) {
-        return Response.json({ error: 'Linha orçamentária não encontrada' }, { status: 404 });
+        return Response.json(
+          { error: 'Linha orçamentária não encontrada' },
+          { status: 404 }
+        );
       }
 
       const valorFinal = getPurchaseValue(purchase);
-      const saldoDisponivel = toNumber(budgetLine.saldo_inicial) - toNumber(budgetLine.saldo_comprometido);
+      const saldoDisponivel =
+        toNumber(budgetLine.saldo_inicial) - toNumber(budgetLine.saldo_comprometido);
 
       if (saldoDisponivel < valorFinal) {
         return Response.json(
           {
             error:
               'Saldo insuficiente para aprovação. Disponível: R$ ' +
-              saldoDisponivel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+              saldoDisponivel.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2
+              })
           },
           { status: 400 }
         );
@@ -201,9 +228,10 @@ Retorne um JSON com:
         data_aprovacao: dataAprovacao
       });
 
-      const novoComprometido = toNumber(budgetLine.saldo_comprometido) + valorFinal;
+      const novoComprometido =
+        toNumber(budgetLine.saldo_comprometido) + valorFinal;
 
-      await base44.asServiceRole.entities.BudgetLine.update(purchase.budgetline_id, {
+      await base44.asServiceRole.entities.BudgetLine.update(purchaseBudgetlineId, {
         saldo_comprometido: novoComprometido
       });
 
@@ -234,7 +262,11 @@ Plataforma — Museus Centro`,
         console.error('Erro ao enviar email de aprovação:', e.message);
       }
 
-      return Response.json({ success: true, action: novoStatus });
+      return Response.json({
+        success: true,
+        action: novoStatus,
+        budgetline_id: purchaseBudgetlineId
+      });
     }
 
     // --- AÇÃO: Recusar compra ---
@@ -244,7 +276,10 @@ Plataforma — Museus Centro`,
       }
 
       if (!isCoordinator) {
-        return Response.json({ error: 'Apenas coordenadores podem recusar compras' }, { status: 403 });
+        return Response.json(
+          { error: 'Apenas coordenadores podem recusar compras' },
+          { status: 403 }
+        );
       }
 
       const purchase = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
@@ -254,7 +289,9 @@ Plataforma — Museus Centro`,
 
       if (purchase.status !== 'SOLICITADO') {
         return Response.json(
-          { error: `Apenas solicitações pendentes podem ser recusadas. Status atual: ${purchase.status}` },
+          {
+            error: `Apenas solicitações pendentes podem ser recusadas. Status atual: ${purchase.status}`
+          },
           { status: 400 }
         );
       }
@@ -268,11 +305,14 @@ Plataforma — Museus Centro`,
       });
 
       try {
-        await base44.asServiceRole.functions.invoke('notifyUserOnPurchaseStatusChange', {
-          purchaseId,
-          newStatus: 'RECUSADO',
-          comentario: data.comentario || ''
-        });
+        await base44.asServiceRole.functions.invoke(
+          'notifyUserOnPurchaseStatusChange',
+          {
+            purchaseId,
+            newStatus: 'RECUSADO',
+            comentario: data.comentario || ''
+          }
+        );
       } catch (e) {
         console.error('Erro ao notificar mudança de status:', e.message);
       }
@@ -287,7 +327,10 @@ Plataforma — Museus Centro`,
       }
 
       if (!isCoordinator) {
-        return Response.json({ error: 'Apenas coordenadores podem marcar compras como pagas' }, { status: 403 });
+        return Response.json(
+          { error: 'Apenas coordenadores podem marcar compras como pagas' },
+          { status: 403 }
+        );
       }
 
       const { comprovante_url, data_pagamento } = data;
@@ -302,7 +345,9 @@ Plataforma — Museus Centro`,
         purchase.status !== 'APROVADO_ADMIN'
       ) {
         return Response.json(
-          { error: 'A compra precisa estar aprovada antes de ser marcada como paga.' },
+          {
+            error: 'A compra precisa estar aprovada antes de ser marcada como paga.'
+          },
           { status: 400 }
         );
       }
@@ -311,7 +356,7 @@ Plataforma — Museus Centro`,
         purchase_id: purchaseId
       });
 
-      const temDocumentoFiscalAprovado = (docs || []).some((d) => {
+      const docsFiscaisAprovados = (docs || []).filter((d) => {
         const tipo = getDocTipo(d);
         const status = getDocStatus(d);
         const tipoValido = tipo === 'nota_fiscal' || tipo === 'xml_nf';
@@ -319,9 +364,11 @@ Plataforma — Museus Centro`,
         return tipoValido && statusValido;
       });
 
-      if (!temDocumentoFiscalAprovado) {
+      if (docsFiscaisAprovados.length === 0) {
         return Response.json(
-          { error: 'É necessário ter uma Nota Fiscal ou XML aprovados antes do pagamento.' },
+          {
+            error: 'É necessário ter uma Nota Fiscal ou XML aprovados antes do pagamento.'
+          },
           { status: 400 }
         );
       }
@@ -332,6 +379,7 @@ Plataforma — Museus Centro`,
           : new Date().toISOString().split('T')[0];
 
       const valorPago = getPurchaseValue(purchase);
+      const purchaseBudgetlineId = getPurchaseBudgetlineId(purchase);
 
       await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, {
         status: 'PAGO',
@@ -341,57 +389,60 @@ Plataforma — Museus Centro`,
         valor_pago: valorPago
       });
 
-      // Regra: quem manda no débito real da rubrica é a compra paga, não o documento.
-      // Depois do pagamento, sincroniza os documentos fiscais aprovados com a rubrica
-      // e só então recalcula os totais.
-      if (purchase.budgetline_id) {
-        try {
-          const docsFiscaisAprovados = (docs || []).filter((d) => {
-            const tipo = getDocTipo(d);
-            const status = getDocStatus(d);
-            const tipoValido = tipo === 'nota_fiscal' || tipo === 'xml_nf';
-            const statusValido = status === 'aprovado' || status === 'approved';
-            return tipoValido && statusValido;
-          });
+      const syncResults = [];
+      const syncErrors = [];
 
-          for (const doc of docsFiscaisAprovados) {
-            try {
-              await base44.asServiceRole.functions.invoke('syncDocumentToRubrica', {
-                documentId: doc.id,
-                purchaseId: purchaseId
-              });
-            } catch (e) {
-              console.error(
-                'Erro ao sincronizar documento ' + doc.id + ' com a rubrica:',
-                e.message
-              );
+      for (const doc of docsFiscaisAprovados) {
+        try {
+          const syncResult = await base44.asServiceRole.functions.invoke(
+            'syncDocumentToRubrica',
+            {
+              documentId: doc.id,
+              purchaseId
             }
-          }
+          );
+
+          syncResults.push({
+            document_id: doc.id,
+            result: syncResult
+          });
         } catch (e) {
           console.error(
-            'Erro ao preparar sincronização dos documentos com a rubrica:',
+            'Erro ao sincronizar documento ' + doc.id + ' com a rubrica:',
             e.message
           );
-        }
-
-        try {
-          await base44.asServiceRole.functions.invoke('recalculateRubrica', {
-            budgetline_id: purchase.budgetline_id,
-            purchaseId: purchaseId
+          syncErrors.push({
+            document_id: doc.id,
+            error: e.message
           });
-        } catch (e) {
-          console.error('Erro ao recalcular rubrica:', e.message);
         }
+      }
 
-        try {
-          await base44.asServiceRole.functions.invoke('recalculateAllRubricas', {
-            trigger: 'purchase_paid',
-            purchaseId: purchaseId,
-            budgetline_id: purchase.budgetline_id
-          });
-        } catch (e) {
-          console.error('Erro ao recalcular todas as rubricas:', e.message);
-        }
+      try {
+        await base44.asServiceRole.functions.invoke('recalculateRubrica', {
+          purchaseId,
+          budgetline_id: purchaseBudgetlineId
+        });
+      } catch (e) {
+        console.error('Erro ao recalcular rubrica:', e.message);
+        syncErrors.push({
+          etapa: 'recalculateRubrica',
+          error: e.message
+        });
+      }
+
+      try {
+        await base44.asServiceRole.functions.invoke('recalculateAllRubricas', {
+          trigger: 'purchase_paid',
+          purchaseId,
+          budgetline_id: purchaseBudgetlineId
+        });
+      } catch (e) {
+        console.error('Erro ao recalcular todas as rubricas:', e.message);
+        syncErrors.push({
+          etapa: 'recalculateAllRubricas',
+          error: e.message
+        });
       }
 
       let solicitanteEmail = purchase.created_by || '';
@@ -438,7 +489,10 @@ Plataforma — Museus Centro`,
       }
 
       try {
-        const allPerms = await base44.asServiceRole.entities.UserPermission.list('', 9999);
+        const allPerms = await base44.asServiceRole.entities.UserPermission.list(
+          '',
+          9999
+        );
 
         const coordinatorEmails = [
           ...new Set(
@@ -447,11 +501,9 @@ Plataforma — Museus Centro`,
                 (p) =>
                   p &&
                   p.user_email &&
-                  (
-                    p.can_review_reports === true ||
+                  (p.can_review_reports === true ||
                     p.pode_aprovar_solicitacoes === true ||
-                    p.gestao_compras === true
-                  )
+                    p.gestao_compras === true)
               )
               .map((p) => p.user_email)
           )
@@ -478,7 +530,10 @@ Plataforma — Museus Centro`,
               from_name: 'Museus Centro'
             });
           } catch (e) {
-            console.error('Erro ao enviar email ao coordenador ' + email + ':', e.message);
+            console.error(
+              'Erro ao enviar email ao coordenador ' + email + ':',
+              e.message
+            );
           }
         }
       } catch (e) {
@@ -491,7 +546,11 @@ Plataforma — Museus Centro`,
         purchaseId,
         data_pagamento: paymentDate,
         comprovante_url: comprovante_url || '',
-        valor_pago: valorPago
+        valor_pago: valorPago,
+        budgetline_id: purchaseBudgetlineId,
+        docs_fiscais_aprovados: docsFiscaisAprovados.map((d) => d.id),
+        sync_results: syncResults,
+        sync_errors: syncErrors
       });
     }
 
@@ -508,7 +567,9 @@ Plataforma — Museus Centro`,
 
       if (purchase.status !== 'RASCUNHO' && purchase.status !== 'RECUSADO') {
         return Response.json(
-          { error: `Somente compras em rascunho ou recusadas podem ser submetidas. Status atual: ${purchase.status}` },
+          {
+            error: `Somente compras em rascunho ou recusadas podem ser submetidas. Status atual: ${purchase.status}`
+          },
           { status: 400 }
         );
       }
@@ -518,9 +579,12 @@ Plataforma — Museus Centro`,
       });
 
       try {
-        await base44.asServiceRole.functions.invoke('notifyCoordinatorPurchaseSubmitted', {
-          purchaseId
-        });
+        await base44.asServiceRole.functions.invoke(
+          'notifyCoordinatorPurchaseSubmitted',
+          {
+            purchaseId
+          }
+        );
       } catch (e) {
         console.error('Erro ao notificar coordenador:', e.message);
       }
