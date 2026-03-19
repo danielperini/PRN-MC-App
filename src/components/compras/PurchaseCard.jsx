@@ -38,12 +38,12 @@ export default function PurchaseCard({
   const [aiSecurityAnalysis, setAiSecurityAnalysis] = useState(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
 
-  const s = statusConfig[purchase.status] || {
+  const statusInfo = statusConfig[purchase.status] || {
     label: purchase.status,
     color: 'bg-gray-100 text-gray-700'
   };
 
-  const budgetLine = budgetLines.find(l => l.id === purchase.budgetline_id);
+  const budgetLine = budgetLines.find(line => line.id === purchase.budgetline_id);
 
   const canApproveCoord =
     (isCoordenador || isAdmin) && purchase.status === 'SOLICITADO';
@@ -62,13 +62,17 @@ export default function PurchaseCard({
   useEffect(() => {
     if (purchase.activity_id) {
       base44.entities.Activity.list('-created_date', 50)
-        .then(list => setRelatedActivity(list.find(a => a.id === purchase.activity_id)))
+        .then(list => {
+          const activity = list.find(item => item.id === purchase.activity_id);
+          setRelatedActivity(activity || null);
+        })
         .catch(() => {});
     }
   }, [purchase.activity_id]);
 
   const analyzeSecurityPayment = async () => {
     setLoadingAnalysis(true);
+
     try {
       const saldoDisponivel = budgetLine
         ? (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)
@@ -116,6 +120,7 @@ Responda em JSON com:
     } catch (e) {
       toast.error('Erro ao analisar segurança: ' + e.message);
     }
+
     setLoadingAnalysis(false);
   };
 
@@ -146,7 +151,7 @@ Responda em JSON com:
         comentario,
       });
 
-      const msgs = {
+      const messages = {
         aprovar: {
           title: '✅ Compra aprovada!',
           desc: 'Solicitação aprovada e saldo comprometido.'
@@ -157,10 +162,13 @@ Responda em JSON com:
         },
       };
 
-      const msg = msgs[action] || { title: '✅ Ação realizada!', desc: '' };
+      const message = messages[action] || {
+        title: '✅ Ação realizada!',
+        desc: ''
+      };
 
-      toast.success(msg.title, {
-        description: msg.desc,
+      toast.success(message.title, {
+        description: message.desc,
         duration: 5000
       });
 
@@ -188,6 +196,7 @@ Responda em JSON com:
       ) || '';
 
     setActionLoading(true);
+
     try {
       await base44.functions.invoke('purchaseActions', {
         action: 'marcar_pago',
@@ -201,6 +210,7 @@ Responda em JSON com:
     } catch (e) {
       toast.error('❌ Erro ao marcar como pago: ' + e.message, { duration: 5000 });
     }
+
     setActionLoading(false);
   };
 
@@ -208,6 +218,7 @@ Responda em JSON com:
     if (!window.confirm('Tem certeza que deseja deletar esta solicitação?')) return;
 
     setActionLoading(true);
+
     try {
       await base44.entities.PurchaseRequest.delete(purchase.id);
       toast.success('✅ Solicitação deletada com sucesso!', {
@@ -218,6 +229,7 @@ Responda em JSON com:
     } catch (e) {
       toast.error(`❌ Erro ao deletar: ${e.message}`, { duration: 5000 });
     }
+
     setActionLoading(false);
   };
 
@@ -250,8 +262,8 @@ Responda em JSON com:
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.color}`}>
-                {s.label}
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusInfo.color}`}>
+                {statusInfo.label}
               </span>
 
               {purchase.meta_id && (
@@ -274,10 +286,15 @@ Responda em JSON com:
               )}
             </div>
 
-            <p className="font-medium text-black text-sm truncate">{purchase.descricao_item}</p>
+            <p className="font-medium text-black text-sm truncate">
+              {purchase.descricao_item}
+            </p>
 
             <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-600">
-              {purchase.fornecedor_nome && <span>Fornecedor: {purchase.fornecedor_nome}</span>}
+              {purchase.fornecedor_nome && (
+                <span>Fornecedor: {purchase.fornecedor_nome}</span>
+              )}
+
               {budgetLine && (
                 <div className="flex items-center gap-1">
                   <DollarSign className="w-3 h-3" />
@@ -360,7 +377,11 @@ Responda em JSON com:
               className="h-8 w-8"
               onClick={() => setExpanded(!expanded)}
             >
-              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              {expanded ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
             </Button>
           </div>
         </div>
@@ -375,6 +396,7 @@ Responda em JSON com:
               <p className="text-sm font-semibold text-black">
                 ✅ Aprovação — Coordenação
               </p>
+
               {loadingAnalysis && (
                 <span className="text-xs text-gray-500 flex items-center gap-1">
                   <Loader2 className="w-3 h-3 animate-spin" />
@@ -403,14 +425,17 @@ Responda em JSON com:
                         : 'text-green-600'
                     }`}
                   />
+
                   <div className="flex-1">
                     <p className="font-semibold mb-1">Análise de Segurança da IA</p>
                     <p className="text-gray-700 mb-2">{aiSecurityAnalysis.justificativa}</p>
+
                     {aiSecurityAnalysis.observacoes && (
                       <p className="text-gray-600 italic">
                         Observações: {aiSecurityAnalysis.observacoes}
                       </p>
                     )}
+
                     <p
                       className={`mt-2 font-medium ${
                         aiSecurityAnalysis.recomendacao === 'aprovar'
@@ -430,7 +455,10 @@ Responda em JSON com:
 
             {budgetLine && (
               <div className="text-xs bg-white border rounded-lg px-3 py-2">
-                <span className="text-gray-500">[{budgetLine.codigo}] Saldo disponível: </span>
+                <span className="text-gray-500">
+                  [{budgetLine.codigo}] Saldo disponível:{' '}
+                </span>
+
                 <strong
                   className={
                     ((budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)) >=
@@ -507,6 +535,7 @@ Responda em JSON com:
                 Análise da IA
               </p>
               <p className="text-gray-700">{purchase.ai_analise}</p>
+
               {purchase.ai_meta_sugerida && purchase.ai_meta_sugerida !== purchase.meta_id && (
                 <p className="mt-1 text-amber-700 font-medium">
                   Meta sugerida: {purchase.ai_meta_sugerida}
@@ -520,6 +549,7 @@ Responda em JSON com:
               <p className="font-semibold text-xs mb-2 text-blue-900">
                 📋 Rubrica Orçamentária
               </p>
+
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-blue-800">
                 <div>
                   <span className="text-blue-600 font-medium">Código:</span> {budgetLine.codigo}
@@ -558,18 +588,21 @@ Responda em JSON com:
                 <p className="font-medium text-gray-700">{purchase.categoria}</p>
               </div>
             )}
+
             {purchase.centro_custo && (
               <div>
                 <span className="text-gray-400">Centro de custo</span>
                 <p className="font-medium text-gray-700">{purchase.centro_custo}</p>
               </div>
             )}
+
             {purchase.meio_pagamento && (
               <div>
                 <span className="text-gray-400">Pagamento</span>
                 <p className="font-medium text-gray-700">{purchase.meio_pagamento}</p>
               </div>
             )}
+
             {purchase.qtd && (
               <div>
                 <span className="text-gray-400">Qtd</span>
@@ -578,6 +611,7 @@ Responda em JSON com:
                 </p>
               </div>
             )}
+
             {purchase.data_pagamento && (
               <div>
                 <span className="text-gray-400">Data pgto</span>
@@ -587,10 +621,14 @@ Responda em JSON com:
           </div>
 
           <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg">
-            <p className="font-semibold text-xs mb-3 text-amber-900">📎 Documentos Anexados</p>
+            <p className="font-semibold text-xs mb-3 text-amber-900">
+              📎 Documentos Anexados
+            </p>
+
             <div className="space-y-2 mb-3">
               <PurchaseDocumentViewer purchaseId={purchase.id} />
             </div>
+
             <PurchaseDocumentUpload
               purchaseId={purchase.id}
               onUploadSuccess={() => onRefresh?.()}
@@ -603,10 +641,12 @@ Responda em JSON com:
                 <Activity className="w-3 h-3" />
                 Atividade Relacionada
               </p>
+
               <div className="space-y-1 text-xs text-purple-800">
                 <p>
                   <span className="font-medium">Título:</span> {relatedActivity.titulo}
                 </p>
+
                 {relatedActivity.data_realizacao && (
                   <p>
                     <span className="font-medium">Data:</span>{' '}
@@ -627,6 +667,7 @@ Responda em JSON com:
                   </Button>
                 </a>
               )}
+
               {purchase.orcamento_url && (
                 <a href={purchase.orcamento_url} target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" size="sm" className="text-xs gap-1">
@@ -635,6 +676,7 @@ Responda em JSON com:
                   </Button>
                 </a>
               )}
+
               {purchase.comprovante_url && (
                 <a href={purchase.comprovante_url} target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" size="sm" className="text-xs gap-1">
