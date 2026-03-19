@@ -10,6 +10,10 @@ function normalizeStatus(value) {
   return String(value || '').trim().toUpperCase();
 }
 
+function normalizeString(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function getPurchaseValue(purchase) {
   return (
     toNumber(purchase?.valor_pago) ||
@@ -63,6 +67,21 @@ Deno.serve(async (req) => {
       500
     );
 
+    // Buscar TODAS as budget lines
+    const allBudgetLines = await listAll(
+      base44.asServiceRole.entities.BudgetLine,
+      'descricao',
+      500
+    );
+
+    // Indexar BudgetLine por id
+    const budgetLineById = {};
+    for (const bl of allBudgetLines) {
+      if (bl && bl.id) {
+        budgetLineById[bl.id] = bl;
+      }
+    }
+
     // Indexar lançamentos por rubrica_id
     const lancamentosPorRubrica = {};
     for (const l of allLancamentos) {
@@ -115,7 +134,7 @@ Deno.serve(async (req) => {
       comprasPorLinhaOrc[key].push(p);
     }
 
-    // Indexar compras por rubrica_id, se existir essa modelagem
+    // Indexar compras por rubrica_id
     const comprasPorRubrica = {};
     for (const p of allPurchases) {
       const key = p && p.rubrica_id ? p.rubrica_id : null;
@@ -128,6 +147,28 @@ Deno.serve(async (req) => {
       comprasPorRubrica[key].push(p);
     }
 
+    // Indexar compras por nome da budget line
+    const comprasPorNomeBudgetLine = {};
+    for (const p of allPurchases) {
+      const purchaseBudgetLineId =
+        p?.budgetline_id || p?.budget_line_id || p?.linha_orcamentaria_id || null;
+
+      if (!purchaseBudgetLineId) continue;
+
+      const budgetLine = budgetLineById[purchaseBudgetLineId];
+      const nomeBudgetLine = normalizeString(
+        budgetLine?.descricao || budgetLine?.rubrica || budgetLine?.nome || ''
+      );
+
+      if (!nomeBudgetLine) continue;
+
+      if (!comprasPorNomeBudgetLine[nomeBudgetLine]) {
+        comprasPorNomeBudgetLine[nomeBudgetLine] = [];
+      }
+
+      comprasPorNomeBudgetLine[nomeBudgetLine].push(p);
+    }
+
     const results = [];
 
     for (const rubrica of rubricas) {
@@ -138,13 +179,16 @@ Deno.serve(async (req) => {
         rubrica.linha_orcamentaria_id ||
         null;
 
+      const nomeRubrica = normalizeString(
+        rubrica.rubrica || rubrica.nome || rubrica.descricao || ''
+      );
+
       const lans = lancamentosPorRubrica[rubricaId] || [];
 
       const valorLancamentos = parseFloat(
         lans.reduce((sum, l) => sum + toNumber(l.valor), 0).toFixed(2)
       );
 
-      // Compras ligadas à rubrica
       const comprasLigadas = [
         ...(rubrica.budgetline_id ? (comprasPorBudgetLine[rubrica.budgetline_id] || []) : []),
         ...(rubrica.budget_line_id ? (comprasPorBudgetLineAlt[rubrica.budget_line_id] || []) : []),
@@ -152,7 +196,8 @@ Deno.serve(async (req) => {
         ...(budgetlineId ? (comprasPorBudgetLine[budgetlineId] || []) : []),
         ...(budgetlineId ? (comprasPorBudgetLineAlt[budgetlineId] || []) : []),
         ...(budgetlineId ? (comprasPorLinhaOrc[budgetlineId] || []) : []),
-        ...(comprasPorRubrica[rubricaId] || [])
+        ...(comprasPorRubrica[rubricaId] || []),
+        ...(nomeRubrica ? (comprasPorNomeBudgetLine[nomeRubrica] || []) : [])
       ];
 
       // Remover duplicidade
@@ -200,6 +245,7 @@ Deno.serve(async (req) => {
         rubrica: rubrica.rubrica || rubrica.nome || null,
         grupo: rubrica.grupo || null,
         budgetline_id: budgetlineId,
+        nome_rubrica_normalizado: nomeRubrica,
         num_lancamentos: lans.length,
         num_compras_encontradas: comprasUnicas.length,
         num_compras_pagas: comprasPagas.length,
