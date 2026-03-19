@@ -145,11 +145,15 @@ function ComprasInner() {
       try {
         const result = await base44.functions.invoke('listAllRubricas', {});
         console.log('listAllRubricas result:', result);
-        return extractRubricasFromFunctionResult(result);
+
+        const fromFunction = extractRubricasFromFunctionResult(result);
+        if (fromFunction.length > 0) return fromFunction;
       } catch (e) {
         console.error('Erro ao carregar rubricas via function:', e);
-        return [];
       }
+
+      // fallback imediato para restaurar a tela
+      return await base44.entities.Rubrica.list('ordem_exibicao', 100);
     },
     enabled: !!currentUser,
     staleTime: 0,
