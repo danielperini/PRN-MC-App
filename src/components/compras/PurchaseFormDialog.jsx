@@ -5,11 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { X, Sparkles, AlertTriangle, CheckCircle, Loader2, Upload, Link as LinkIcon } from 'lucide-react';
+import { X, Sparkles, AlertTriangle, Loader2, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import OrcamentoUploadDialog from './OrcamentoUploadDialog';
-import PurchaseDocumentUpload from './PurchaseDocumentUpload';
+import FormDocumentsField from './FormDocumentsField';
 import { METAS_3_ADITIVO } from '@/components/planoTrabalho';
 import { useBudgetLines } from './useBudgetLines';
 import { useQuery } from '@tanstack/react-query';
@@ -91,7 +90,6 @@ export default function PurchaseFormDialog({
   const [checkingSaldo, setCheckingSaldo] = useState(false);
   const [saldoInfo, setSaldoInfo] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [step, setStep] = useState(1);
   const [activities, setActivities] = useState([]);
   const [mes, setMes] = useState(
     initialData?.mes_referencia || prefill?.mes_referencia || MESES[new Date().getMonth()]
@@ -100,12 +98,10 @@ export default function PurchaseFormDialog({
     initialData?.ano || prefill?.ano || new Date().getFullYear()
   );
   const [showOrcamentoDialog, setShowOrcamentoDialog] = useState(false);
-  const [fileInputKey, setFileInputKey] = useState(0);
   const [orcamentoAnalysis, setOrcamentoAnalysis] = useState(null);
   const [analisandoOrcamento, setAnalisandoOrcamento] = useState(false);
 
-  const isFromActivity = !!(prefill?.activity_id);
-  const lockedFields = isFromActivity ? ['activity_id', 'report_id', 'meta_id'] : [];
+  const isFromActivity = !!prefill?.activity_id;
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -154,21 +150,21 @@ export default function PurchaseFormDialog({
         valor_solicitado: parseFloat(form.valor_solicitado) || 0,
       });
       setAiAnalysis(res.data.analysis);
-    } catch (e) {
+    } catch {
       toast.error('Erro na análise da IA');
     }
     setAnalyzingMeta(false);
   };
 
   const analisarOrcamentoComIA = async () => {
-    if (form.orcamentos.length === 0) {
+    if (form.orcamentos_docs.length === 0) {
       toast.error('Nenhum orçamento anexado para analisar.');
       return;
     }
 
     setAnalisandoOrcamento(true);
     try {
-      const orcamento = form.orcamentos[form.orcamentos.length - 1];
+      const orcamento = form.orcamentos_docs[form.orcamentos_docs.length - 1];
 
       if (orcamento.url) {
         const res = await base44.integrations.Core.InvokeLLM({
@@ -231,11 +227,16 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
     if (dados.qtd) set('qtd', dados.qtd.toString());
     if (dados.unidade) set('unidade', dados.unidade);
     if (dados.meios_pagamento) {
-      const meio = dados.meios_pagamento.includes('PIX') ? 'PIX'
-        : dados.meios_pagamento.includes('TED') || dados.meios_pagamento.includes('Transferência') ? 'TED/Transferência'
-        : dados.meios_pagamento.includes('Boleto') ? 'Boleto'
-        : dados.meios_pagamento.includes('Cartão') ? 'Cartão'
-        : dados.meios_pagamento.includes('Dinheiro') ? 'Dinheiro'
+      const meio = dados.meios_pagamento.includes('PIX')
+        ? 'PIX'
+        : dados.meios_pagamento.includes('TED') || dados.meios_pagamento.includes('Transferência')
+        ? 'TED/Transferência'
+        : dados.meios_pagamento.includes('Boleto')
+        ? 'Boleto'
+        : dados.meios_pagamento.includes('Cartão')
+        ? 'Cartão'
+        : dados.meios_pagamento.includes('Dinheiro')
+        ? 'Dinheiro'
         : '';
       if (meio) set('meio_pagamento', meio);
     }
@@ -706,10 +707,11 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
               <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
                 📋 Orçamentos do Fornecedor
               </Label>
-              <PurchaseDocumentUpload
+              <FormDocumentsField
                 documents={form.orcamentos_docs || []}
                 onDocumentsChange={(docs) => set('orcamentos_docs', docs)}
                 type="orcamento"
+                label="Orçamentos"
               />
             </div>
 
@@ -717,10 +719,11 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
               <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
                 🧾 Notas Fiscais
               </Label>
-              <PurchaseDocumentUpload
+              <FormDocumentsField
                 documents={form.notas_fiscais_docs || []}
                 onDocumentsChange={(docs) => set('notas_fiscais_docs', docs)}
                 type="nota_fiscal"
+                label="Notas Fiscais"
               />
             </div>
           </div>
