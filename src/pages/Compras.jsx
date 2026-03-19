@@ -41,6 +41,15 @@ const STATUS_CONFIG = {
   PAGO: { label: 'Pago', color: 'bg-emerald-100 text-emerald-700' },
 };
 
+function extractRubricasFromFunctionResult(result) {
+  if (Array.isArray(result)) return result;
+  if (Array.isArray(result?.rubricas)) return result.rubricas;
+  if (Array.isArray(result?.data?.rubricas)) return result.data.rubricas;
+  if (Array.isArray(result?.response?.rubricas)) return result.response.rubricas;
+  if (Array.isArray(result?.body?.rubricas)) return result.body.rubricas;
+  return [];
+}
+
 function ComprasInner() {
   const [currentUser, setCurrentUser] = useState(null);
   const [tab, setTab] = useState('lista');
@@ -136,12 +145,7 @@ function ComprasInner() {
       try {
         const result = await base44.functions.invoke('listAllRubricas', {});
         console.log('listAllRubricas result:', result);
-
-        if (Array.isArray(result)) return result;
-        if (Array.isArray(result?.rubricas)) return result.rubricas;
-        if (Array.isArray(result?.data?.rubricas)) return result.data.rubricas;
-
-        return [];
+        return extractRubricasFromFunctionResult(result);
       } catch (e) {
         console.error('Erro ao carregar rubricas via function:', e);
         return [];
