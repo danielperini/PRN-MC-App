@@ -204,7 +204,7 @@ Retorne um JSON com:
       const novoComprometido = toNumber(budgetLine.saldo_comprometido) + valorFinal;
 
       await base44.asServiceRole.entities.BudgetLine.update(purchase.budgetline_id, {
-        saldo_comprometido: novoComprometido,
+        saldo_comprometido: novoComprometido
       });
 
       try {
@@ -220,8 +220,8 @@ Retorne um JSON com:
 
 Sua solicitação de compra foi aprovada pelo coordenador ${user.full_name}.
 
-📋 Item: ${purchase.descricao_item || ''}
-💰 Valor: R$ ${valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Item: ${purchase.descricao_item || ''}
+Valor: R$ ${valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
 
 Atenção: esta compra está pronta para pagamento.
 
@@ -297,7 +297,10 @@ Plataforma — Museus Centro`,
         return Response.json({ error: 'Solicitação não encontrada' }, { status: 404 });
       }
 
-      if (purchase.status !== 'APROVADO_COORD' && purchase.status !== 'APROVADO_ADMIN') {
+      if (
+        purchase.status !== 'APROVADO_COORD' &&
+        purchase.status !== 'APROVADO_ADMIN'
+      ) {
         return Response.json(
           { error: 'A compra precisa estar aprovada antes de ser marcada como paga.' },
           { status: 400 }
@@ -338,12 +341,43 @@ Plataforma — Museus Centro`,
         valor_pago: valorPago
       });
 
-      // tenta recalcular a rubrica depois do pagamento
+      // Regra: quem manda no débito real da rubrica é a compra paga, não o documento.
+      // Depois do pagamento, sincroniza os documentos fiscais aprovados com a rubrica
+      // e só então recalcula os totais.
       if (purchase.budgetline_id) {
+        try {
+          const docsFiscaisAprovados = (docs || []).filter((d) => {
+            const tipo = getDocTipo(d);
+            const status = getDocStatus(d);
+            const tipoValido = tipo === 'nota_fiscal' || tipo === 'xml_nf';
+            const statusValido = status === 'aprovado' || status === 'approved';
+            return tipoValido && statusValido;
+          });
+
+          for (const doc of docsFiscaisAprovados) {
+            try {
+              await base44.asServiceRole.functions.invoke('syncDocumentToRubrica', {
+                documentId: doc.id,
+                purchaseId: purchaseId
+              });
+            } catch (e) {
+              console.error(
+                'Erro ao sincronizar documento ' + doc.id + ' com a rubrica:',
+                e.message
+              );
+            }
+          }
+        } catch (e) {
+          console.error(
+            'Erro ao preparar sincronização dos documentos com a rubrica:',
+            e.message
+          );
+        }
+
         try {
           await base44.asServiceRole.functions.invoke('recalculateRubrica', {
             budgetline_id: purchase.budgetline_id,
-            purchaseId
+            purchaseId: purchaseId
           });
         } catch (e) {
           console.error('Erro ao recalcular rubrica:', e.message);
@@ -352,7 +386,7 @@ Plataforma — Museus Centro`,
         try {
           await base44.asServiceRole.functions.invoke('recalculateAllRubricas', {
             trigger: 'purchase_paid',
-            purchaseId,
+            purchaseId: purchaseId,
             budgetline_id: purchase.budgetline_id
           });
         } catch (e) {
@@ -384,15 +418,15 @@ Plataforma — Museus Centro`,
         try {
           await base44.asServiceRole.integrations.Core.SendEmail({
             to: solicitanteEmail,
-            subject: '💸 Sua compra foi marcada como paga',
+            subject: 'Sua compra foi marcada como paga',
             body: `Olá ${solicitanteNome},
 
 Sua compra foi marcada como paga.
 
-📋 Item: ${purchase.descricao_item || ''}
-💰 Valor: R$ ${valorFmt}
-📅 Data do pagamento: ${paymentDate}
-${comprovante_url ? `🔗 Comprovante: ${comprovante_url}` : ''}
+Item: ${purchase.descricao_item || ''}
+Valor: R$ ${valorFmt}
+Data do pagamento: ${paymentDate}
+${comprovante_url ? `Comprovante: ${comprovante_url}` : ''}
 
 Atenciosamente,
 Plataforma — Museus Centro`,
@@ -409,14 +443,15 @@ Plataforma — Museus Centro`,
         const coordinatorEmails = [
           ...new Set(
             (allPerms || [])
-              .filter((p) =>
-                p &&
-                p.user_email &&
-                (
-                  p.can_review_reports === true ||
-                  p.pode_aprovar_solicitacoes === true ||
-                  p.gestao_compras === true
-                )
+              .filter(
+                (p) =>
+                  p &&
+                  p.user_email &&
+                  (
+                    p.can_review_reports === true ||
+                    p.pode_aprovar_solicitacoes === true ||
+                    p.gestao_compras === true
+                  )
               )
               .map((p) => p.user_email)
           )
@@ -426,17 +461,17 @@ Plataforma — Museus Centro`,
           try {
             await base44.asServiceRole.integrations.Core.SendEmail({
               to: email,
-              subject: '💸 Compra marcada como paga',
+              subject: 'Compra marcada como paga',
               body: `Olá,
 
 Uma compra foi marcada como paga na plataforma.
 
-📋 Item: ${purchase.descricao_item || ''}
-👤 Solicitante: ${solicitanteNome}
-📧 E-mail do solicitante: ${solicitanteEmail || 'Não informado'}
-💰 Valor: R$ ${valorFmt}
-📅 Data do pagamento: ${paymentDate}
-${comprovante_url ? `🔗 Comprovante: ${comprovante_url}` : ''}
+Item: ${purchase.descricao_item || ''}
+Solicitante: ${solicitanteNome}
+E-mail do solicitante: ${solicitanteEmail || 'Não informado'}
+Valor: R$ ${valorFmt}
+Data do pagamento: ${paymentDate}
+${comprovante_url ? `Comprovante: ${comprovante_url}` : ''}
 
 Atenciosamente,
 Plataforma — Museus Centro`,
