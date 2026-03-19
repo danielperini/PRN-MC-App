@@ -1,268 +1,382 @@
 import React, { useState, useMemo } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, TrendingUp, ChevronDown, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useBudgetLines } from './useBudgetLines';
-import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import {
+  AlertCircle,
+  AlertTriangle,
+  Search,
+  Plus,
+  Pencil,
+  Trash2,
+  RefreshCw
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import RubricaFormDialog from './RubricaFormDialog';
+import { toast } from 'sonner';
 
-export default function RubricasGrid({ purchases, filtroMuseu }) {
-  const { budgetLines } = useBudgetLines();
-  
-  // Fetch rubricas e configs se filtroMuseu for fornecido
-  const { data: rubricas = [] } = useQuery({
-    queryKey: ['rubricas-all'],
-    queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 200),
-    enabled: !!filtroMuseu,
-  });
-  
-  const { data: configs = [] } = useQuery({
-    queryKey: ['rubrica-museu-configs'],
-    queryFn: () => base44.entities.RubricaMuseuConfig.list(),
-    enabled: !!filtroMuseu,
-  });
-  
-  // Se filtroMuseu foi fornecido, usar rubricas filtradas, senão usar budgetLines
-  const linhasAUsar = useMemo(() => {
-    if (!filtroMuseu) return budgetLines;
-    
-    // Filtrar rubricas por museu através das configs
-    const rubricasDoMuseu = new Set();
-    configs
-      .filter(c => c.museu === filtroMuseu)
-      .forEach(c => rubricasDoMuseu.add(c.rubrica_id));
-    
-    return rubricas.filter(r => rubricasDoMuseu.has(r.id) && r.ativo !== false);
-  }, [budgetLines, filtroMuseu, rubricas, configs]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setategoryFilter] = useState('all');
-  const [expandedCards, setExpandedCards] = useState({});
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
 
-  // Agrupar por categoria
-  const categorias = useMemo(() => {
-    const grupos = {};
-    linhasAUsar.forEach(line => {
-      const categoria = filtroMuseu ? (line.rubrica || 'Sem categoria') : line.categoria;
-      if (!grupos[categoria]) grupos[categoria] = [];
-      grupos[categoria].push(line);
+function normalizeString(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+export default function RubricasGrid({
+  rubricas = [],
+  onSelectRubrica,
+  onRefresh,
+  isCoordenador
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [editingRubrica, setEditingRubrica] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filtroGrupo, setFiltroGrupo] = useState('all');
+  const [filtroStatus, setFiltroStatus] = useState('all');
+
+  const grupos = useMemo(() => {
+    return [...new Set((rubricas || []).map(r => r?.grupo).filter(Boolean))].sort();
+  }, [rubricas]);
+
+  const filtradas = useMemo(() => {
+    return (rubricas || []).filter(r => {
+      const nomeRubrica = normalizeString(r?.rubrica || r?.nome || '');
+      const searchTerm = normalizeString(search);
+
+      const matchSearch = !searchTerm || nomeRubrica.includes(searchTerm);
+      const matchGrupo = filtroGrupo === 'all' || r?.grupo === filtroGrupo;
+
+      const percentual = toNumber(r?.percentual_utilizado);
+
+      let matchStatus = true;
+      if (filtroStatus !== 'all') {
+        if (filtroStatus === 'sem_uso') matchStatus = percentual === 0;
+        if (filtroStatus === 'em_uso') matchStatus = percentual > 0 && percentual < 80;
+        if (filtroStatus === 'acima_80') matchStatus = percentual >= 80 && percentual < 100;
+        if (filtroStatus === 'excedida') matchStatus = percentual >= 100;
+      }
+
+      return matchSearch && matchGrupo && matchStatus;
     });
-    return grupos;
-  }, [linhasAUsar, filtroMuseu]);
+  }, [rubricas, search, filtroGrupo, filtroStatus]);
 
-  // Filtrar
-  const filtered = useMemo(() => {
-    const result = {};
-    Object.entries(categorias).forEach(([cat, lines]) => {
-      if (categoryFilter !== 'all' && cat !== categoryFilter) return;
-      const filtered = lines.filter(line =>
-        !searchTerm || line.nome.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        line.descricao?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      if (filtered.length) result[cat] = filtered;
-    });
-    return result;
-  }, [categorias, searchTerm, categoryFilter]);
+  const totais = useMemo(() => {
+    const totalRubricas = (rubricas || []).length;
 
-  // Calcular valores detalhados por rubrica
-  const getValoresRubrica = (rubricaId) => {
-    if (!purchases) return {
-      valorAprovado: 0,
-      valorPago: 0,
-      valorEmAnalise: 0,
-      valorUtilizado: 0,
-      quantidadeAprovada: 0,
-      quantidadePaga: 0,
-      quantidadeEmAnalise: 0,
-    };
-    
-    const comprasAprovadas = purchases.filter(p => p.budgetline_id === rubricaId && p.status === 'APROVADO_COORD');
-    const comprasPagas = purchases.filter(p => p.budgetline_id === rubricaId && p.status === 'PAGO');
-    const comprasEmAnalise = purchases.filter(p => p.budgetline_id === rubricaId && p.status === 'SOLICITADO');
-    
-    const valorAprovado = comprasAprovadas.reduce((sum, p) => sum + (p.valor_total || 0), 0);
-    const valorPago = comprasPagas.reduce((sum, p) => sum + (p.valor_total || 0), 0);
-    const valorEmAnalise = comprasEmAnalise.reduce((sum, p) => sum + (p.valor_total || 0), 0);
-    const valorUtilizado = valorAprovado + valorPago;
-    
+    const totalPrevisto = (rubricas || []).reduce(
+      (sum, r) => sum + toNumber(r?.valor_rubrica),
+      0
+    );
+
+    const totalUtilizado = (rubricas || []).reduce(
+      (sum, r) => sum + toNumber(r?.valor_utilizado),
+      0
+    );
+
+    const saldoTotal = (rubricas || []).reduce(
+      (sum, r) => sum + toNumber(r?.saldo),
+      0
+    );
+
     return {
-      valorAprovado,
-      valorPago,
-      valorEmAnalise,
-      valorUtilizado,
-      quantidadeAprovada: comprasAprovadas.length,
-      quantidadePaga: comprasPagas.length,
-      quantidadeEmAnalise: comprasEmAnalise.length,
+      total_rubricas: totalRubricas,
+      total_previsto: totalPrevisto,
+      total_utilizado: totalUtilizado,
+      saldo_total: saldoTotal
     };
+  }, [rubricas]);
+
+  const percentualGeral =
+    totais.total_previsto > 0
+      ? Math.round((totais.total_utilizado / totais.total_previsto) * 100)
+      : 0;
+
+  const getStatusColor = (percentual) => {
+    const p = toNumber(percentual);
+    if (p >= 100) return 'bg-red-50 border-red-200';
+    if (p >= 80) return 'bg-yellow-50 border-yellow-200';
+    return 'bg-white';
+  };
+
+  const getStatusIcon = (percentual) => {
+    const p = toNumber(percentual);
+    if (p >= 100) return <AlertCircle className="w-4 h-4 text-red-600" />;
+    if (p >= 80) return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
+    return null;
+  };
+
+  const handleSaveAlteracoes = async () => {
+    setRefreshing(true);
+    try {
+      await onRefresh?.();
+      toast.success('Dados atualizados! Totais recalculados.');
+    } catch (e) {
+      toast.error('Erro ao atualizar: ' + (e?.message || 'tente novamente'));
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleDelete = async (rubrica) => {
+    if (!window.confirm(`Deletar rubrica "${rubrica.rubrica}"? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    setDeletingId(rubrica.id);
+
+    try {
+      await base44.entities.Rubrica.delete(rubrica.id);
+      toast.success(`Rubrica "${rubrica.rubrica}" deletada.`);
+      await onRefresh?.();
+    } catch (e) {
+      toast.error('Erro ao deletar rubrica: ' + (e?.message || 'tente novamente'));
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Filtros */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-end">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-          <Input
-            placeholder="Buscar rubrica..."
-            className="pl-9"
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <Select value={categoryFilter} onValueChange={setategoryFilter}>
-          <SelectTrigger className="w-full md:w-56">
-            <SelectValue placeholder="Filtrar por categoria" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas as categorias</SelectItem>
-            {Object.keys(categorias).sort().map(cat => (
-              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+    <>
+      <div className="space-y-6">
+        {isCoordenador && (
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={handleSaveAlteracoes}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Atualizando...' : 'Salvar alterações'}
+            </Button>
 
-      {/* Cards por categoria */}
-      {Object.entries(filtered).map(([categoria, lines]) => (
-        <div key={categoria}>
-          <h2 className="text-lg font-bold text-black mb-4">{categoria}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {lines.map(line => {
-              const valores = getValoresRubrica(line.id);
-              const saldo = line.valor_total - valores.valorUtilizado;
-              const percentualUtilizado = line.valor_total > 0 ? (valores.valorUtilizado / line.valor_total * 100).toFixed(2) : 0;
-              const isExpanded = expandedCards[line.id];
-              const temAlerta = percentualUtilizado > 80 || saldo < 0;
+            <Button
+              className="bg-black text-white"
+              onClick={() => {
+                setEditingRubrica(null);
+                setShowForm(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Rubrica
+            </Button>
+          </div>
+        )}
 
-              return (
-                <Card 
-                  key={line.id} 
-                  className={`border-2 transition-all cursor-pointer ${
-                    temAlerta ? 'border-red-300 bg-red-50/30' :
-                    percentualUtilizado > 50 ? 'border-yellow-300 bg-yellow-50/30' :
-                    'border-gray-200 bg-white'
-                  } hover:shadow-lg`}
-                  onClick={() => setExpandedCards(prev => ({ ...prev, [line.id]: !prev[line.id] }))}
-                >
-                  <CardContent className="p-5 space-y-4">
-                    {/* Header com Badge */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                             <h3 className="font-bold text-black text-sm">{line.nome || line.rubrica}</h3>
-                             <p className="text-xs text-gray-500 mt-1">{line.codigo || line.id}</p>
-                           </div>
-                      <div className="flex gap-2">
-                        {temAlerta && <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />}
-                        <div className={`text-xs font-bold px-3 py-1.5 rounded-full flex-shrink-0 ${
-                          percentualUtilizado > 80 ? 'bg-red-100 text-red-700' :
-                          percentualUtilizado > 50 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-green-100 text-green-700'
-                        }`}>
-                          {percentualUtilizado}%
-                        </div>
-                      </div>
-                    </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
+          <div className="border border-gray-200 rounded-lg p-4 bg-blue-50">
+            <span className="text-xs text-gray-600 font-semibold">Total de Rubricas</span>
+            <p className="text-2xl font-bold text-blue-700 mt-2">
+              {totais.total_rubricas}
+            </p>
+          </div>
 
-                    {/* Descrição */}
-                     {(line.descricao || line.categoria) && (
-                       <p className="text-xs text-gray-600 line-clamp-2">{line.descricao || line.categoria}</p>
-                     )}
+          <div className="border border-gray-200 rounded-lg p-4">
+            <span className="text-xs text-gray-600 font-semibold">Total Previsto</span>
+            <p className="text-lg font-bold text-black mt-2">
+              R$ {totais.total_previsto.toLocaleString('pt-BR', {
+                maximumFractionDigits: 0
+              })}
+            </p>
+          </div>
 
-                    {/* Grid de valores principais */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                        <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide">Orçamento</p>
-                        <p className="text-sm font-bold text-black mt-1">R$ {line.valor_total?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                      </div>
-                      <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                        <p className="text-[10px] text-blue-600 uppercase font-semibold tracking-wide">Utilizado</p>
-                        <p className="text-sm font-bold text-blue-700 mt-1">R$ {valores.valorUtilizado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                      </div>
-                      <div className={`p-3 rounded-lg border ${saldo < 0 ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'}`}>
-                        <p className={`text-[10px] uppercase font-semibold tracking-wide ${saldo < 0 ? 'text-red-600' : 'text-green-600'}`}>Saldo</p>
-                        <p className={`text-sm font-bold mt-1 ${saldo < 0 ? 'text-red-700' : 'text-green-700'}`}>
-                          R$ {Math.abs(saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
-                      </div>
-                      <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
-                        <p className="text-[10px] text-purple-600 uppercase font-semibold tracking-wide">Disponível</p>
-                        <p className="text-sm font-bold text-purple-700 mt-1">{Math.max(0, saldo > 0 ? ((saldo / line.valor_total) * 100).toFixed(0) : 0)}%</p>
-                      </div>
-                    </div>
+          <div className="border border-orange-200 rounded-lg p-4 bg-orange-50">
+            <span className="text-xs text-gray-600 font-semibold">Total Utilizado</span>
+            <p className="text-lg font-bold text-orange-700 mt-2">
+              R$ {totais.total_utilizado.toLocaleString('pt-BR', {
+                maximumFractionDigits: 0
+              })}
+            </p>
+          </div>
 
-                    {/* Barra de progresso */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="h-3 bg-gray-200 rounded-full flex-1 overflow-hidden relative">
-                          <div
-                            className={`h-full transition-all ${
-                              percentualUtilizado > 80 ? 'bg-red-500' :
-                              percentualUtilizado > 50 ? 'bg-yellow-500' :
-                              'bg-green-500'
-                            }`}
-                            style={{ width: `${Math.min(percentualUtilizado, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
+          <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+            <span className="text-xs text-gray-600 font-semibold">Saldo Total</span>
+            <p className="text-lg font-bold text-green-700 mt-2">
+              R$ {totais.saldo_total.toLocaleString('pt-BR', {
+                maximumFractionDigits: 0
+              })}
+            </p>
+          </div>
 
-                    {/* Detalhes Expandíveis */}
-                    {isExpanded && (
-                      <div className="pt-4 border-t border-gray-200 space-y-3 animate-in fade-in">
-                        <div className="grid grid-cols-2 gap-3 text-xs">
-                          <div className="bg-white border border-gray-200 p-2.5 rounded">
-                            <p className="text-gray-600 font-medium mb-1">✓ Aprovadas</p>
-                            <p className="text-lg font-bold text-green-700">{valores.quantidadeAprovada}</p>
-                            <p className="text-gray-600 text-[10px] mt-1">R$ {valores.valorAprovado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                          </div>
-                          <div className="bg-white border border-gray-200 p-2.5 rounded">
-                            <p className="text-gray-600 font-medium mb-1">✓ Pagas</p>
-                            <p className="text-lg font-bold text-blue-700">{valores.quantidadePaga}</p>
-                            <p className="text-gray-600 text-[10px] mt-1">R$ {valores.valorPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                          </div>
-                          <div className="bg-white border border-gray-200 p-2.5 rounded col-span-2">
-                            <p className="text-gray-600 font-medium mb-1">⏳ Em Análise</p>
-                            <p className="text-lg font-bold text-orange-700">{valores.quantidadeEmAnalise}</p>
-                            <p className="text-gray-600 text-[10px] mt-1">R$ {valores.valorEmAnalise.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                          </div>
-                        </div>
-
-                        {/* Avisos */}
-                        {saldo < 0 && (
-                          <div className="bg-red-50 border border-red-200 p-2.5 rounded">
-                            <p className="text-xs font-semibold text-red-700">⚠️ Orçamento excedido!</p>
-                            <p className="text-xs text-red-600 mt-1">Saldo: -R$ {Math.abs(saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                          </div>
-                        )}
-                        {percentualUtilizado > 80 && saldo >= 0 && (
-                          <div className="bg-yellow-50 border border-yellow-200 p-2.5 rounded">
-                            <p className="text-xs font-semibold text-yellow-700">⚠️ Atenção: Orçamento em nível crítico</p>
-                            <p className="text-xs text-yellow-600 mt-1">Apenas R$ {saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} disponível</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Rodapé com dica */}
-                    <div className="text-center pt-2 border-t border-gray-100">
-                      <p className="text-xs text-gray-400">Clique para {isExpanded ? 'ocultar' : 'ver'} detalhes</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+          <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+            <span className="text-xs text-gray-600 font-semibold">% Geral Utilizado</span>
+            <p className="text-lg font-bold text-purple-700 mt-2">
+              {percentualGeral}%
+            </p>
           </div>
         </div>
-      ))}
 
-      {/* Vazio */}
-      {Object.keys(filtered).length === 0 && (
-        <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
-          <Search className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-          <p className="text-gray-400 text-sm">Nenhuma rubrica encontrada</p>
+        <div className="flex gap-4 flex-wrap">
+          <div className="flex-1 min-w-48">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Buscar por nome..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+
+          <Select value={filtroGrupo} onValueChange={setFiltroGrupo}>
+            <SelectTrigger className="w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os grupos</SelectItem>
+              {grupos.map(g => (
+                <SelectItem key={g} value={g}>
+                  {g}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+            <SelectTrigger className="w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os status</SelectItem>
+              <SelectItem value="sem_uso">Sem uso (0%)</SelectItem>
+              <SelectItem value="em_uso">Em uso (0% - 80%)</SelectItem>
+              <SelectItem value="acima_80">Acima de 80%</SelectItem>
+              <SelectItem value="excedida">Excedida (100%+)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-3 px-4 font-semibold text-black text-sm">Grupo</th>
+                <th className="text-left py-3 px-4 font-semibold text-black text-sm">Rubrica</th>
+                <th className="text-left py-3 px-4 font-semibold text-black text-sm">Nº Parcelas</th>
+                <th className="text-right py-3 px-4 font-semibold text-black text-sm">Valor</th>
+                <th className="text-right py-3 px-4 font-semibold text-black text-sm">Utilizado</th>
+                <th className="text-right py-3 px-4 font-semibold text-black text-sm">Saldo</th>
+                <th className="text-center py-3 px-4 font-semibold text-black text-sm">%</th>
+                <th className="text-left py-3 px-4 font-semibold text-black text-sm">Ações</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {filtradas.map(rubrica => {
+                const valorRubrica = toNumber(rubrica?.valor_rubrica);
+                const valorUtilizado = toNumber(rubrica?.valor_utilizado);
+                const saldo = toNumber(rubrica?.saldo);
+                const percentual = toNumber(rubrica?.percentual_utilizado);
+
+                return (
+                  <tr
+                    key={rubrica.id}
+                    className={`border-b border-gray-100 hover:bg-gray-50 transition ${getStatusColor(percentual)}`}
+                  >
+                    <td className="py-3 px-4 text-sm text-gray-600">
+                      {rubrica.grupo}
+                    </td>
+
+                    <td className="py-3 px-4 text-sm font-semibold text-black">
+                      {rubrica.rubrica}
+                      {rubrica.ativo === false && (
+                        <span className="ml-2 text-xs text-red-600">(inativa)</span>
+                      )}
+                    </td>
+
+                    <td className="py-3 px-4 text-sm text-gray-600">
+                      {rubrica.numero_parcelas_unidades}
+                    </td>
+
+                    <td className="py-3 px-4 text-sm text-right font-semibold">
+                      R$ {valorRubrica.toLocaleString('pt-BR')}
+                    </td>
+
+                    <td className="py-3 px-4 text-sm text-right text-blue-600 font-semibold">
+                      R$ {valorUtilizado.toLocaleString('pt-BR')}
+                    </td>
+
+                    <td className="py-3 px-4 text-sm text-right font-semibold">
+                      R$ {saldo.toLocaleString('pt-BR')}
+                    </td>
+
+                    <td className="py-3 px-4 text-sm text-center font-semibold">
+                      <div className="flex items-center justify-center gap-1">
+                        {getStatusIcon(percentual)}
+                        {percentual.toFixed(2)}%
+                      </div>
+                    </td>
+
+                    <td className="py-3 px-4">
+                      <div className="flex gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => onSelectRubrica?.(rubrica)}
+                        >
+                          Detalhe
+                        </Button>
+
+                        {isCoordenador && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditingRubrica(rubrica);
+                                setShowForm(true);
+                              }}
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-500 hover:text-red-700"
+                              onClick={() => handleDelete(rubrica)}
+                              disabled={deletingId === rubrica.id}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showForm && (
+        <RubricaFormDialog
+          rubrica={editingRubrica}
+          onClose={() => {
+            setShowForm(false);
+            setEditingRubrica(null);
+          }}
+          onSuccess={async () => {
+            setShowForm(false);
+            setEditingRubrica(null);
+            await onRefresh?.();
+          }}
+        />
       )}
-    </div>
+    </>
   );
 }
