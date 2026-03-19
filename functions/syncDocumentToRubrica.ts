@@ -60,14 +60,17 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { documentId } = await req.json();
+    const payload = await req.json();
+    const { documentId } = payload || {};
 
     if (!documentId) {
       return Response.json({ error: 'documentId required' }, { status: 400 });
     }
 
     // Buscar documento
-    const docs = await base44.asServiceRole.entities.PurchaseDocument.filter({ id: documentId });
+    const docs = await base44.asServiceRole.entities.PurchaseDocument.filter({
+      id: documentId
+    });
     const documento = docs && docs.length > 0 ? docs[0] : null;
 
     if (!documento) {
@@ -92,19 +95,35 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Purchase not found' }, { status: 404 });
     }
 
+    // Regra: quem manda no débito real da rubrica é a compra paga, não o documento.
+    // Não debitar rubrica antes de a compra estar efetivamente paga.
+    if (compra.status !== 'PAGO') {
+      return Response.json({
+        success: false,
+        error: 'A rubrica só deve ser debitada quando a compra estiver paga.',
+        purchase_id: documento.purchase_id,
+        purchase_status: compra.status
+      }, { status: 400 });
+    }
+
     // Buscar rubrica
     let rubricaId = documento.rubrica_id || null;
     let rubrica = null;
 
     if (rubricaId) {
-      const rubricasDiretas = await base44.asServiceRole.entities.Rubrica.filter({ id: rubricaId });
+      const rubricasDiretas = await base44.asServiceRole.entities.Rubrica.filter({
+        id: rubricaId
+      });
       rubrica = rubricasDiretas && rubricasDiretas.length > 0 ? rubricasDiretas[0] : null;
     }
 
     if (!rubrica && compra.budgetline_id) {
       rubrica = await findRubricaByBudgetLine(base44, compra.budgetline_id);
+
       if (!rubrica) {
-        const lines = await base44.asServiceRole.entities.BudgetLine.filter({ id: compra.budgetline_id });
+        const lines = await base44.asServiceRole.entities.BudgetLine.filter({
+          id: compra.budgetline_id
+        });
         const line = lines && lines.length > 0 ? lines[0] : null;
 
         if (line && line.descricao) {
@@ -127,41 +146,79 @@ Deno.serve(async (req) => {
 
     rubricaId = rubrica.id;
 
-    // Fonte de verdade do valor = compra
+    // Fonte de verdade do valor = compra paga
     const valorCompra = getPurchaseValue(compra);
 
-    // Verificar se já existe lançamento automático dessa compra nessa rubrica
+    if (!valorCompra || valorCompra <= 0) {
+      return Response.json({
+        success: false,
+        error: 'Valor da compra inválido para lançamento na rubrica.',
+        purchase_id: documento.purchase_id,
+        valor_compra: valorCompra
+      }, { status: 400 });
+    }
+
+    const descricaoLancamento =
+      `${getDocTypeLabel(documento.tipo_documento || documento.tipo)} - ` +
+      `${documento.numero_documento || documento.nome_arquivo || compra.descricao_item || 'Documento'}`;
+
+    // Buscar lançamento automático existente desta compra nesta rubrica
+    // Filtra pela compra e pela origem para evitar pegar lançamento manual.
     const lancamentos = await base44.asServiceRole.entities.LancamentoRubrica.filter({
       rubrica_id: rubricaId,
       referencia_compra_id: documento.purchase_id
     });
 
-    let lancamento = lancamentos && lancamentos.length > 0 ? lancamentos[0] : null;
+    const lancamentosAutomaticos = (lancamentos || []).filter(
+      (l) => normalizeString(l.origem_lancamento).toLowerCase() === 'automatico_compras'
+    );
 
-    const descricaoLancamento = `${getDocTypeLabel(documento.tipo_documento)} - ${documento.numero_documento || documento.nome_arquivo || compra.descricao_item || 'Documento'}`;
+    let lancamento = lancamentosAutomaticos.length > 0 ? lancamentosAutomaticos[0] : null;
 
     if (!lancamento) {
       lancamento = await base44.asServiceRole.entities.LancamentoRubrica.create({
         rubrica_id: rubricaId,
-        data_lancamento: compra.data_pagamento || documento.data_documento || new Date().toISOString().split('T')[0],
+        data_lancamento:
+          compra.data_pagamento ||
+          documento.data_documento ||
+          new Date().toISOString().split('T')[0],
         origem_lancamento: 'automatico_compras',
         referencia_compra_id: documento.purchase_id,
         descricao: descricaoLancamento,
         fornecedor: documento.fornecedor || compra.fornecedor_nome || '',
         funcao_origem: compra.categoria || compra.tipo_gasto || '',
         valor: valorCompra,
-        observacao: `Lançamento automático vinculado à compra ${documento.purchase_id}. Valor financeiro baseado na compra, não no documento.`,
-        criado_por: user.email,
+        observacao:
+          `Lançamento automático vinculado à compra ${documento.purchase_id}. ` +
+          `Valor financeiro baseado na compra paga, não no documento.`,
+        criado_por: user.email
       });
     } else {
       await base44.asServiceRole.entities.LancamentoRubrica.update(lancamento.id, {
-        data_lancamento: compra.data_pagamento || documento.data_documento || lancamento.data_lancamento,
+        data_lancamento:
+          compra.data_pagamento ||
+          documento.data_documento ||
+          lancamento.data_lancamento,
         descricao: descricaoLancamento,
         fornecedor: documento.fornecedor || compra.fornecedor_nome || lancamento.fornecedor || '',
         funcao_origem: compra.categoria || compra.tipo_gasto || lancamento.funcao_origem || '',
         valor: valorCompra,
-        observacao: `Lançamento automático atualizado pela compra ${documento.purchase_id}. Valor baseado na compra.`,
+        observacao:
+          `Lançamento automático atualizado pela compra ${documento.purchase_id}. ` +
+          `Valor baseado na compra paga.`
       });
+    }
+
+    // Se houver lançamentos automáticos duplicados da mesma compra/rubrica, remove extras
+    if (lancamentosAutomaticos.length > 1) {
+      const duplicados = lancamentosAutomaticos.slice(1);
+      for (const dup of duplicados) {
+        try {
+          await base44.asServiceRole.entities.LancamentoRubrica.delete(dup.id);
+        } catch (e) {
+          console.error('Erro ao remover lançamento duplicado:', dup.id, e.message);
+        }
+      }
     }
 
     // Recalcular rubrica pela function central
@@ -175,21 +232,40 @@ Deno.serve(async (req) => {
       console.error('Erro ao recalcular rubrica:', e.message);
     }
 
+    // Recalcular consolidado geral também
+    try {
+      await base44.asServiceRole.functions.invoke('recalculateAllRubricas', {
+        trigger: 'sync_document_to_rubrica',
+        purchaseId: documento.purchase_id,
+        budgetline_id: compra.budgetline_id || null,
+        rubricaId: rubricaId
+      });
+    } catch (e) {
+      console.error('Erro ao recalcular todas as rubricas:', e.message);
+    }
+
     // Buscar rubrica atualizada
-    const rubricasAtualizadas = await base44.asServiceRole.entities.Rubrica.filter({ id: rubricaId });
-    const rubricaAtualizada = rubricasAtualizadas && rubricasAtualizadas.length > 0 ? rubricasAtualizadas[0] : null;
+    const rubricasAtualizadas = await base44.asServiceRole.entities.Rubrica.filter({
+      id: rubricaId
+    });
+    const rubricaAtualizada =
+      rubricasAtualizadas && rubricasAtualizadas.length > 0
+        ? rubricasAtualizadas[0]
+        : null;
 
     return Response.json({
       success: true,
       lancamento_id: lancamento.id,
       rubrica_id: rubricaId,
       purchase_id: documento.purchase_id,
+      purchase_status: compra.status,
       valor_documento: toNumber(documento.valor_documento),
       valor_compra: valorCompra,
       valor_utilizado: rubricaAtualizada ? rubricaAtualizada.valor_utilizado : null,
       saldo: rubricaAtualizada ? rubricaAtualizada.saldo : null
     });
   } catch (error) {
+    console.error('syncDocumentToRubrica error:', error);
     return Response.json(
       { error: error.message, success: false },
       { status: 500 }
