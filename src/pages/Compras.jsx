@@ -78,7 +78,17 @@ function ComprasInner() {
       : base44.entities.PurchaseRequest.filter({ created_by: currentUser?.email }, '-created_date', 50),
     enabled: !!currentUser,
   });
+const { data: purchaseDocuments = [] } = useQuery({
+  queryKey: ['purchase-documents-all', isCoordenador, currentUser?.email],
+  queryFn: async () => {
+    const docs = await base44.entities.PurchaseDocument.list('-created_date', 300);
 
+    if (isCoordenador) return docs;
+
+    return docs.filter(doc => doc.uploadado_por === currentUser?.email);
+  },
+  enabled: !!currentUser,
+});
   const { budgetLines } = useBudgetLines();
 
   const { data: rubricas = [], refetch: refetchRubricas } = useQuery({
@@ -99,8 +109,12 @@ function ComprasInner() {
     return matchStatus && matchMeta && matchRubrica && matchSearch;
   });
 
-  const pendentes_coord = purchases.filter(p => p.status === 'SOLICITADO').length;
-  const totalPendentes = pendentes_coord;
+    const pendentes_coord = purchases.filter(p => p.status === 'SOLICITADO').length;
+    const pendentes_documentos = purchaseDocuments.filter(
+     d => d.status === 'pendente_revisao'
+).length;
+
+const totalPendentes = pendentes_coord + pendentes_documentos;;
 
   return (
     <div className="min-h-screen bg-white">
