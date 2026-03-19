@@ -32,32 +32,40 @@ const STATUS_CONFIG = {
 };
 
 function ComprasInner() {
-   const [currentUser, setCurrentUser] = useState(null);
-   const [tab, setTab] = useState('lista');
-   const [showForm, setShowForm] = useState(false);
-   const [showReportGen, setShowReportGen] = useState(false);
-   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all' });
-   const [selectedRubrica, setSelectedRubrica] = useState(null);
-   const queryClient = useQueryClient();
+  const [currentUser, setCurrentUser] = useState(null);
+  const [tab, setTab] = useState('lista');
+  const [showForm, setShowForm] = useState(false);
+  const [editingPurchase, setEditingPurchase] = useState(null);
+  const [showReportGen, setShowReportGen] = useState(false);
+  const [filters, setFilters] = useState({
+    status: 'all',
+    meta_id: 'all',
+    search: '',
+    rubrica_id: 'all'
+  });
+  const [selectedRubrica, setSelectedRubrica] = useState(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     base44.auth.me().then(u => setCurrentUser(u));
   }, []);
 
   const isCoordenador = [
-  'admin',
-  'ADMIN',
-  'COORDENADOR',
-  'COORD_COMUNICACAO',
-  'COORD_ADMINISTRATIVA',
-  'COORD_PRODUCAO'
-].includes(currentUser?.role);
+    'admin',
+    'ADMIN',
+    'COORDENADOR',
+    'COORD_COMUNICACAO',
+    'COORD_ADMINISTRATIVA',
+    'COORD_PRODUCAO'
+  ].includes(currentUser?.role);
 
   const { data: userPermission } = useQuery({
     queryKey: ['user-permission', currentUser?.email],
     queryFn: async () => {
       try {
-        const result = await base44.entities.UserPermission.filter({ user_email: currentUser?.email });
+        const result = await base44.entities.UserPermission.filter({
+          user_email: currentUser?.email
+        });
         return result?.[0];
       } catch {
         return null;
@@ -73,22 +81,29 @@ function ComprasInner() {
 
   const { data: purchases = [], isLoading } = useQuery({
     queryKey: ['purchases', isCoordenador, currentUser?.email],
-    queryFn: () => isCoordenador
-      ? base44.entities.PurchaseRequest.list('-created_date', 100)
-      : base44.entities.PurchaseRequest.filter({ created_by: currentUser?.email }, '-created_date', 50),
+    queryFn: () =>
+      isCoordenador
+        ? base44.entities.PurchaseRequest.list('-created_date', 100)
+        : base44.entities.PurchaseRequest.filter(
+            { created_by: currentUser?.email },
+            '-created_date',
+            50
+          ),
     enabled: !!currentUser,
   });
-const { data: purchaseDocuments = [] } = useQuery({
-  queryKey: ['purchase-documents-all', isCoordenador, currentUser?.email],
-  queryFn: async () => {
-    const docs = await base44.entities.PurchaseDocument.list('-created_date', 300);
 
-    if (isCoordenador) return docs;
+  const { data: purchaseDocuments = [] } = useQuery({
+    queryKey: ['purchase-documents-all', isCoordenador, currentUser?.email],
+    queryFn: async () => {
+      const docs = await base44.entities.PurchaseDocument.list('-created_date', 300);
 
-    return docs.filter(doc => doc.uploadado_por === currentUser?.email);
-  },
-  enabled: !!currentUser,
-});
+      if (isCoordenador) return docs;
+
+      return docs.filter(doc => doc.uploadado_por === currentUser?.email);
+    },
+    enabled: !!currentUser,
+  });
+
   const { budgetLines } = useBudgetLines();
 
   const { data: rubricas = [], refetch: refetchRubricas } = useQuery({
@@ -98,28 +113,32 @@ const { data: purchaseDocuments = [] } = useQuery({
 
   const filtered = purchases.filter(p => {
     const matchStatus = filters.status === 'all' || p.status === filters.status;
+
     let matchMeta = filters.meta_id === 'all';
     if (!matchMeta && filters.meta_id === 'produto') matchMeta = p.tipo_item === 'produto';
     if (!matchMeta && filters.meta_id === 'servico') matchMeta = p.tipo_item === 'servico';
     if (!matchMeta) matchMeta = p.meta_id === filters.meta_id;
-    const matchRubrica = filters.rubrica_id === 'all' || p.rubrica_id === filters.rubrica_id;
-    const matchSearch = !filters.search
-      || p.descricao_item?.toLowerCase().includes(filters.search.toLowerCase())
-      || p.fornecedor_nome?.toLowerCase().includes(filters.search.toLowerCase());
+
+    const matchRubrica =
+      filters.rubrica_id === 'all' || p.rubrica_id === filters.rubrica_id;
+
+    const matchSearch =
+      !filters.search ||
+      p.descricao_item?.toLowerCase().includes(filters.search.toLowerCase()) ||
+      p.fornecedor_nome?.toLowerCase().includes(filters.search.toLowerCase());
+
     return matchStatus && matchMeta && matchRubrica && matchSearch;
   });
 
-    const pendentes_coord = purchases.filter(p => p.status === 'SOLICITADO').length;
-    const pendentes_documentos = purchaseDocuments.filter(
-     d => d.status === 'pendente_revisao'
-).length;
-
-const totalPendentes = pendentes_coord + pendentes_documentos;;
+  const pendentes_coord = purchases.filter(p => p.status === 'SOLICITADO').length;
+  const pendentes_documentos = purchaseDocuments.filter(
+    d => d.status === 'pendente_revisao'
+  ).length;
+  const totalPendentes = pendentes_coord + pendentes_documentos;
 
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 md:py-8">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center">
@@ -130,53 +149,75 @@ const totalPendentes = pendentes_coord + pendentes_documentos;;
                 <h1 className="text-2xl font-bold text-black">Suprimentos</h1>
                 {isCoordenador ? (
                   <span className="flex items-center gap-1 text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-2.5 py-0.5">
-                    <ShieldCheck className="w-3 h-3" />Coordenador
+                    <ShieldCheck className="w-3 h-3" />
+                    Coordenador
                   </span>
                 ) : (
                   <span className="flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200 rounded-full px-2.5 py-0.5">
-                    <User className="w-3 h-3" />Profissional
+                    <User className="w-3 h-3" />
+                    Profissional
                   </span>
                 )}
               </div>
               <p className="text-sm text-gray-500">
-                {isCoordenador ? 'Visão geral — todas as solicitações' : 'Solicitações — 3º Termo Aditivo'}
+                {isCoordenador
+                  ? 'Visão geral — todas as solicitações'
+                  : 'Solicitações — 3º Termo Aditivo'}
               </p>
             </div>
           </div>
+
           <div className="flex gap-2">
-             {isCoordenador && (
-               <Button variant="outline" className="border-black gap-2" onClick={() => setShowReportGen(true)}>
-                 <FileText className="w-4 h-4" />
-                 Relatório PDF
-               </Button>
-             )}
-             <Button className="bg-black hover:bg-gray-800 text-white" onClick={() => setShowForm(true)}>
-               <Plus className="w-4 h-4 mr-2" />Nova Solicitação
-             </Button>
-           </div>
+            {isCoordenador && (
+              <Button
+                variant="outline"
+                className="border-black gap-2"
+                onClick={() => setShowReportGen(true)}
+              >
+                <FileText className="w-4 h-4" />
+                Relatório PDF
+              </Button>
+            )}
+
+            <Button
+              className="bg-black hover:bg-gray-800 text-white"
+              onClick={() => {
+                setEditingPurchase(null);
+                setShowForm(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Solicitação
+            </Button>
+          </div>
         </div>
 
-        {/* Tabs */}
-         <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit overflow-x-auto">
-            {[
-               { id: 'lista', label: 'Solicitações' },
-               ...(isCoordenador ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
-               { id: 'documentos', label: 'Documentos' },
-               ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
-               ...((podeAprovarSolicitacoes || hasGestaoCompras) ? [{ id: 'aprovacoes', label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}` }] : []),
-               ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
-             ].map(t => (
+        <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit overflow-x-auto">
+          {[
+            { id: 'lista', label: 'Solicitações' },
+            ...(isCoordenador ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
+            { id: 'documentos', label: 'Documentos' },
+            ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
+            ...((podeAprovarSolicitacoes || hasGestaoCompras)
+              ? [{
+                  id: 'aprovacoes',
+                  label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}`
+                }]
+              : []),
+            ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
+          ].map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t.id ? 'bg-white shadow text-black' : 'text-gray-500 hover:text-black'}`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                tab === t.id ? 'bg-white shadow text-black' : 'text-gray-500 hover:text-black'
+              }`}
             >
               {t.label}
             </button>
           ))}
         </div>
 
-        {/* Lista */}
         {tab === 'lista' && (
           <div>
             <div className="flex flex-wrap gap-3 mb-6">
@@ -189,39 +230,63 @@ const totalPendentes = pendentes_coord + pendentes_documentos;;
                   onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
                 />
               </div>
-              <Select value={filters.status} onValueChange={v => setFilters(f => ({ ...f, status: v }))}>
-                <SelectTrigger className="w-44"><SelectValue placeholder="Status" /></SelectTrigger>
+
+              <Select
+                value={filters.status}
+                onValueChange={v => setFilters(f => ({ ...f, status: v }))}
+              >
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os status</SelectItem>
                   {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                    <SelectItem key={k} value={k}>
+                      {v.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={filters.meta_id} onValueChange={v => setFilters(f => ({ ...f, meta_id: v }))}>
-                 <SelectTrigger className="w-48"><SelectValue placeholder="Meta / Tipo" /></SelectTrigger>
-                 <SelectContent>
-                   <SelectItem value="all">Todas as metas / tipos</SelectItem>
-                   <SelectItem value="produto">— Apenas Produtos</SelectItem>
-                   <SelectItem value="servico">— Apenas Serviços</SelectItem>
-                   <SelectItem value="MC3A-20">MC3A-20 — Ações Educativas</SelectItem>
-                   <SelectItem value="MC3A-21">MC3A-21 — Exposição / Produção Cultural</SelectItem>
-                   <SelectItem value="MC3A-22">MC3A-22 — Comunicação e Divulgação</SelectItem>
-                   <SelectItem value="MC3A-23">MC3A-23 — Noturno nos Museus 2026</SelectItem>
-                   <SelectItem value="MC3A-24">MC3A-24 — Emenda Parlamentar</SelectItem>
-                   <SelectItem value="MC3A-25">MC3A-25 — Outras Ações</SelectItem>
-                   <SelectItem value="MC3A-EXTRA">MC3A-EXTRA — Ações Extras</SelectItem>
-                 </SelectContent>
-               </Select>
-              <Select value={filters.rubrica_id} onValueChange={v => setFilters(f => ({ ...f, rubrica_id: v }))}>
-                 <SelectTrigger className="w-48"><SelectValue placeholder="Rubrica Orçamentária" /></SelectTrigger>
-                 <SelectContent>
-                   <SelectItem value="all">Todas as rubricas</SelectItem>
-                   {rubricas.filter(r => r.ativo !== false).map(r => (
-                     <SelectItem key={r.id} value={r.id}>{r.rubrica}</SelectItem>
-                   ))}
-                 </SelectContent>
-               </Select>
+
+              <Select
+                value={filters.meta_id}
+                onValueChange={v => setFilters(f => ({ ...f, meta_id: v }))}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Meta / Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as metas / tipos</SelectItem>
+                  <SelectItem value="produto">— Apenas Produtos</SelectItem>
+                  <SelectItem value="servico">— Apenas Serviços</SelectItem>
+                  <SelectItem value="MC3A-20">MC3A-20 — Ações Educativas</SelectItem>
+                  <SelectItem value="MC3A-21">MC3A-21 — Exposição / Produção Cultural</SelectItem>
+                  <SelectItem value="MC3A-22">MC3A-22 — Comunicação e Divulgação</SelectItem>
+                  <SelectItem value="MC3A-23">MC3A-23 — Noturno nos Museus 2026</SelectItem>
+                  <SelectItem value="MC3A-24">MC3A-24 — Emenda Parlamentar</SelectItem>
+                  <SelectItem value="MC3A-25">MC3A-25 — Outras Ações</SelectItem>
+                  <SelectItem value="MC3A-EXTRA">MC3A-EXTRA — Ações Extras</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={filters.rubrica_id}
+                onValueChange={v => setFilters(f => ({ ...f, rubrica_id: v }))}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Rubrica Orçamentária" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as rubricas</SelectItem>
+                  {rubricas
+                    .filter(r => r.ativo !== false)
+                    .map(r => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.rubrica}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {isLoading ? (
@@ -230,8 +295,15 @@ const totalPendentes = pendentes_coord + pendentes_documentos;;
               <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-2xl">
                 <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-400 font-medium">Nenhuma solicitação encontrada</p>
-                <Button className="mt-4 bg-black text-white" onClick={() => setShowForm(true)}>
-                  <Plus className="w-4 h-4 mr-2" />Criar primeira solicitação
+                <Button
+                  className="mt-4 bg-black text-white"
+                  onClick={() => {
+                    setEditingPurchase(null);
+                    setShowForm(true);
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Criar primeira solicitação
                 </Button>
               </div>
             ) : (
@@ -245,6 +317,10 @@ const totalPendentes = pendentes_coord + pendentes_documentos;;
                     isCoordenador={isCoordenador}
                     isAdmin={currentUser?.role === 'admin' || currentUser?.role === 'ADMIN'}
                     currentUser={currentUser}
+                    onEdit={(purchase) => {
+                      setEditingPurchase(purchase);
+                      setShowForm(true);
+                    }}
                     onRefresh={() => queryClient.invalidateQueries({ queryKey: ['purchases'] })}
                   />
                 ))}
@@ -253,93 +329,98 @@ const totalPendentes = pendentes_coord + pendentes_documentos;;
           </div>
         )}
 
-        {/* Orçamento */}
         {tab === 'orcamento' && (
           <div className="space-y-8">
             {isCoordenador && (
-              <ImportarOrcamento onSuccess={() => queryClient.invalidateQueries(['budget-lines'])} />
+              <ImportarOrcamento
+                onSuccess={() => queryClient.invalidateQueries(['budget-lines'])}
+              />
             )}
-            <OrcamentoDashboard budgetLines={budgetLines} purchases={purchases} isCoordenador={isCoordenador} />
+            <OrcamentoDashboard
+              budgetLines={budgetLines}
+              purchases={purchases}
+              isCoordenador={isCoordenador}
+            />
           </div>
         )}
 
-         {/* Rubricas */}
-         {tab === 'rubricas' && (
-           <div className="space-y-6">
-             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-               <p className="text-sm text-blue-900">
-                 <strong>📊 Integração:</strong> Esta aba controla o orçamento do projeto. Os valores lançados nas compras serão mapeados automaticamente para suas respectivas rubricas.
-               </p>
-             </div>
-             {selectedRubrica ? (
-               <div>
-                 <button
-                   onClick={() => setSelectedRubrica(null)}
-                   className="text-sm text-black hover:text-gray-600 mb-4 font-medium"
-                 >
-                   ← Voltar
-                 </button>
-                 <RubricaDetail
-                   rubrica={selectedRubrica}
-                   onClose={() => {
-                       setSelectedRubrica(null);
-                       refetchRubricas();
-                     }}
-                 />
-               </div>
-             ) : (
-               <RubricasGrid
-                 rubricas={rubricas}
-                 onSelectRubrica={setSelectedRubrica}
-                 onRefresh={refetchRubricas}
-                 isCoordenador={isCoordenador}
-               />
-             )}
-           </div>
-         )}
+        {tab === 'rubricas' && (
+          <div className="space-y-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-900">
+                <strong>📊 Integração:</strong> Esta aba controla o orçamento do projeto.
+                Os valores lançados nas compras serão mapeados automaticamente para suas
+                respectivas rubricas.
+              </p>
+            </div>
 
-         {/* Documentos */}
-         {tab === 'documentos' && (
-           <div className="max-w-7xl">
-             <GestaoDocumental />
-           </div>
-         )}
+            {selectedRubrica ? (
+              <div>
+                <button
+                  onClick={() => setSelectedRubrica(null)}
+                  className="text-sm text-black hover:text-gray-600 mb-4 font-medium"
+                >
+                  ← Voltar
+                </button>
 
+                <RubricaDetail
+                  rubrica={selectedRubrica}
+                  onClose={() => {
+                    setSelectedRubrica(null);
+                    refetchRubricas();
+                  }}
+                />
+              </div>
+            ) : (
+              <RubricasGrid
+                rubricas={rubricas}
+                onSelectRubrica={setSelectedRubrica}
+                onRefresh={refetchRubricas}
+                isCoordenador={isCoordenador}
+              />
+            )}
+          </div>
+        )}
 
+        {tab === 'documentos' && (
+          <div className="max-w-7xl">
+            <GestaoDocumental />
+          </div>
+        )}
 
-        {/* Equipe */}
         {tab === 'equipe' && isCoordenador && (
           <TeamManager budgetLines={budgetLines} />
         )}
 
-        {/* Meus Pagamentos */}
         {tab === 'pagamentos' && !isCoordenador && (
           <TeamPaymentSubmit userEmail={currentUser?.email} />
         )}
 
-        {/* Aprovações */}
-          {tab === 'aprovacoes' && (podeAprovarSolicitacoes || hasGestaoCompras) && (
-  <AprovacoesFila
-    purchases={purchases}
-    budgetLines={budgetLines}
-    statusConfig={STATUS_CONFIG}
-    onRefresh={() => queryClient.invalidateQueries({ queryKey: ['purchases'] })}
-    currentUser={currentUser}
-    hasGestaoCompras={hasGestaoCompras}
-    podeAprovarSolicitacoes={podeAprovarSolicitacoes}
-  />
-)}
-
-
-        </div>
+        {tab === 'aprovacoes' && (podeAprovarSolicitacoes || hasGestaoCompras) && (
+          <AprovacoesFila
+            purchases={purchases}
+            budgetLines={budgetLines}
+            statusConfig={STATUS_CONFIG}
+            onRefresh={() => queryClient.invalidateQueries({ queryKey: ['purchases'] })}
+            currentUser={currentUser}
+            hasGestaoCompras={hasGestaoCompras}
+            podeAprovarSolicitacoes={podeAprovarSolicitacoes}
+          />
+        )}
+      </div>
 
       {showForm && (
         <PurchaseFormDialog
           budgetLines={budgetLines}
           currentUser={currentUser}
-          onClose={() => setShowForm(false)}
+          initialData={editingPurchase}
+          onClose={() => {
+            setShowForm(false);
+            setEditingPurchase(null);
+          }}
           onSuccess={() => {
             setShowForm(false);
+            setEditingPurchase(null);
             queryClient.invalidateQueries({ queryKey: ['purchases'] });
           }}
         />
@@ -351,10 +432,14 @@ const totalPendentes = pendentes_coord + pendentes_documentos;;
           onClose={() => setShowReportGen(false)}
         />
       )}
-      </div>
-      );
-      }
+    </div>
+  );
+}
 
 export default function Compras() {
-  return <RequireAuth><ComprasInner /></RequireAuth>;
+  return (
+    <RequireAuth>
+      <ComprasInner />
+    </RequireAuth>
+  );
 }
