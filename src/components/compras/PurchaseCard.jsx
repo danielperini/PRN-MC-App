@@ -47,8 +47,12 @@ export default function PurchaseCard({
 
   const budgetLine = budgetLines.find(l => l.id === purchase.budgetline_id);
 
-  const canApproveCoord = (isCoordenador || isAdmin) && purchase.status === 'SOLICITADO';
-  const canApproveAdmin = isAdmin && purchase.status === 'APROVADO_COORD';
+  const canApproveCoord =
+    (isCoordenador || isAdmin) && purchase.status === 'SOLICITADO';
+
+  const canApproveAdmin =
+    isAdmin && purchase.status === 'APROVADO_COORD';
+
   const canAct = canApproveCoord || canApproveAdmin;
 
   const canEdit =
@@ -157,7 +161,7 @@ Responda em JSON com:
       const msgs = {
         approve_coord: {
           title: '✅ Aprovado pela coordenação!',
-          desc: 'Aguarda aprovação administrativa antes do pagamento.'
+          desc: 'Compra aprovada com sucesso.'
         },
         approve_admin: {
           title: '✅ Aprovação completa!',
@@ -178,6 +182,7 @@ Responda em JSON com:
 
       setShowApproval(false);
       setComentario('');
+      setValorAdmin('');
       onRefresh?.();
     } catch (e) {
       toast.error(`❌ Erro: ${e.message}`, { duration: 5000 });
@@ -187,7 +192,10 @@ Responda em JSON com:
 
   const handleMarkAsPaid = async () => {
     const comprovante_url =
-      window.prompt('Cole a URL do comprovante de pagamento (opcional):', purchase.comprovante_url || '') || '';
+      window.prompt(
+        'Cole a URL do comprovante de pagamento (opcional):',
+        purchase.comprovante_url || ''
+      ) || '';
 
     const data_pagamento =
       window.prompt(
@@ -390,8 +398,8 @@ Responda em JSON com:
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-black">
                 {canApproveCoord
-                  ? '✅ Aprovação — Coordenador Geral'
-                  : '✅ Aprovação — Coordenador Administrativo'}
+                  ? '✅ Aprovação — Coordenação'
+                  : '✅ Aprovação — Administração'}
               </p>
               {loadingAnalysis && (
                 <span className="text-xs text-gray-500 flex items-center gap-1">
@@ -457,7 +465,7 @@ Responda em JSON com:
                       : 'text-red-700'
                   }
                 >
-                  R${' '}
+                  R$ {' '}
                   {Math.max(
                     0,
                     (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)
@@ -517,7 +525,7 @@ Responda em JSON com:
                 ) : (
                   <CheckCircle className="w-3.5 h-3.5 mr-1" />
                 )}
-                {canApproveCoord ? 'Aprovar → Admin' : 'Aprovar e Comprometer'}
+                {canApproveCoord ? 'Aprovar' : 'Aprovar e Comprometer'}
               </Button>
             </div>
           </div>
@@ -561,19 +569,19 @@ Responda em JSON com:
                   {budgetLine.natureza_codigo}
                 </div>
                 <div>
-                  <span className="text-blue-600 font-medium">Valor PO:</span> R${' '}
+                  <span className="text-blue-600 font-medium">Valor PO:</span> R$ {' '}
                   {(budgetLine.valor_total_previsto || 0).toLocaleString('pt-BR', {
                     minimumFractionDigits: 2
                   })}
                 </div>
                 <div>
-                  <span className="text-blue-600 font-medium">Comprometido:</span> R${' '}
+                  <span className="text-blue-600 font-medium">Comprometido:</span> R$ {' '}
                   {(budgetLine.saldo_comprometido || 0).toLocaleString('pt-BR', {
                     minimumFractionDigits: 2
                   })}
                 </div>
                 <div>
-                  <span className="text-blue-600 font-medium">Saldo:</span> R${' '}
+                  <span className="text-blue-600 font-medium">Saldo:</span> R$ {' '}
                   {Math.max(
                     0,
                     (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)
