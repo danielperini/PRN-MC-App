@@ -1,5 +1,28 @@
-// functions/purchaseActions.ts
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function getPurchaseValue(purchase) {
+  return (
+    toNumber(purchase?.valor_pago) ||
+    toNumber(purchase?.valor_final) ||
+    toNumber(purchase?.valor_aprovado) ||
+    toNumber(purchase?.valor_solicitado) ||
+    0
+  );
+}
+
+function getDocTipo(doc) {
+  return String(doc?.tipo_documento || doc?.tipo || '').trim().toLowerCase();
+}
+
+function getDocStatus(doc) {
+  return String(doc?.status || '').trim().toLowerCase();
+}
 
 Deno.serve(async (req) => {
   try {
@@ -104,8 +127,8 @@ Retorne um JSON com:
         return Response.json({ error: 'Rubrica não encontrada' }, { status: 404 });
       }
 
-      const valorNumerico = parseFloat(valor || 0) || 0;
-      const saldo_disponivel = (line.saldo_inicial || 0) - (line.saldo_comprometido || 0);
+      const valorNumerico = toNumber(valor);
+      const saldo_disponivel = toNumber(line.saldo_inicial) - toNumber(line.saldo_comprometido);
       const aprovavel = saldo_disponivel >= valorNumerico;
 
       return Response.json({
@@ -150,8 +173,8 @@ Retorne um JSON com:
         return Response.json({ error: 'Linha orçamentária não encontrada' }, { status: 404 });
       }
 
-      const valorFinal = parseFloat(purchase.valor_solicitado || 0) || 0;
-      const saldoDisponivel = (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0);
+      const valorFinal = getPurchaseValue(purchase);
+      const saldoDisponivel = toNumber(budgetLine.saldo_inicial) - toNumber(budgetLine.saldo_comprometido);
 
       if (saldoDisponivel < valorFinal) {
         return Response.json(
@@ -178,7 +201,7 @@ Retorne um JSON com:
         data_aprovacao: dataAprovacao
       });
 
-      const novoComprometido = (budgetLine.saldo_comprometido || 0) + valorFinal;
+      const novoComprometido = toNumber(budgetLine.saldo_comprometido) + valorFinal;
 
       await base44.asServiceRole.entities.BudgetLine.update(purchase.budgetline_id, {
         saldo_comprometido: novoComprometido,
@@ -286,11 +309,11 @@ Plataforma — Museus Centro`,
       });
 
       const temDocumentoFiscalAprovado = (docs || []).some((d) => {
-        const tipoValido =
-          (d.tipo && (d.tipo === 'nota_fiscal' || d.tipo === 'xml_nf')) ||
-          (d.tipo_documento && (d.tipo_documento === 'nota_fiscal' || d.tipo_documento === 'xml_nf'));
-
-        return tipoValido && d.status === 'aprovado';
+        const tipo = getDocTipo(d);
+        const status = getDocStatus(d);
+        const tipoValido = tipo === 'nota_fiscal' || tipo === 'xml_nf';
+        const statusValido = status === 'aprovado' || status === 'approved';
+        return tipoValido && statusValido;
       });
 
       if (!temDocumentoFiscalAprovado) {
@@ -305,12 +328,37 @@ Plataforma — Museus Centro`,
           ? String(data_pagamento).trim()
           : new Date().toISOString().split('T')[0];
 
+      const valorPago = getPurchaseValue(purchase);
+
       await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, {
         status: 'PAGO',
         data_pagamento: paymentDate,
         comprovante_url: comprovante_url || '',
         pago_por: user.email,
+        valor_pago: valorPago
       });
+
+      // tenta recalcular a rubrica depois do pagamento
+      if (purchase.budgetline_id) {
+        try {
+          await base44.asServiceRole.functions.invoke('recalculateRubrica', {
+            budgetline_id: purchase.budgetline_id,
+            purchaseId
+          });
+        } catch (e) {
+          console.error('Erro ao recalcular rubrica:', e.message);
+        }
+
+        try {
+          await base44.asServiceRole.functions.invoke('recalculateAllRubricas', {
+            trigger: 'purchase_paid',
+            purchaseId,
+            budgetline_id: purchase.budgetline_id
+          });
+        } catch (e) {
+          console.error('Erro ao recalcular todas as rubricas:', e.message);
+        }
+      }
 
       let solicitanteEmail = purchase.created_by || '';
       let solicitanteNome = 'Solicitante';
@@ -328,7 +376,7 @@ Plataforma — Museus Centro`,
         console.error('Erro ao buscar solicitante:', e.message);
       }
 
-      const valorFmt = (parseFloat(purchase.valor_solicitado || 0) || 0).toLocaleString('pt-BR', {
+      const valorFmt = valorPago.toLocaleString('pt-BR', {
         minimumFractionDigits: 2
       });
 
@@ -408,6 +456,7 @@ Plataforma — Museus Centro`,
         purchaseId,
         data_pagamento: paymentDate,
         comprovante_url: comprovante_url || '',
+        valor_pago: valorPago
       });
     }
 
