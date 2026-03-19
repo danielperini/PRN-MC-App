@@ -56,6 +56,10 @@ export default function PurchaseCard({
     purchase.status !== 'PAGO' &&
     purchase.status !== 'CANCELADO';
 
+  const canMarkAsPaid =
+    (isCoordenador || isAdmin) &&
+    (purchase.status === 'APROVADO_ADMIN' || purchase.status === 'APROVADO_COORD');
+
   useEffect(() => {
     if (purchase.activity_id) {
       base44.entities.Activity.list('-created_date', 50)
@@ -177,6 +181,33 @@ Responda em JSON com:
       onRefresh?.();
     } catch (e) {
       toast.error(`❌ Erro: ${e.message}`, { duration: 5000 });
+    }
+    setActionLoading(false);
+  };
+
+  const handleMarkAsPaid = async () => {
+    const comprovante_url =
+      window.prompt('Cole a URL do comprovante de pagamento (opcional):', purchase.comprovante_url || '') || '';
+
+    const data_pagamento =
+      window.prompt(
+        'Informe a data do pagamento (YYYY-MM-DD) ou deixe vazio para hoje:',
+        purchase.data_pagamento || ''
+      ) || '';
+
+    setActionLoading(true);
+    try {
+      await base44.functions.invoke('purchaseActions', {
+        action: 'marcar_pago',
+        purchaseId: purchase.id,
+        comprovante_url,
+        data_pagamento,
+      });
+
+      toast.success('✅ Compra marcada como paga!');
+      onRefresh?.();
+    } catch (e) {
+      toast.error('❌ Erro ao marcar como pago: ' + e.message, { duration: 5000 });
     }
     setActionLoading(false);
   };
@@ -308,6 +339,22 @@ Responda em JSON com:
                 }}
               >
                 {showApproval ? 'Fechar' : 'Analisar'}
+              </Button>
+            )}
+
+            {canMarkAsPaid && (
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                onClick={handleMarkAsPaid}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                ) : (
+                  <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                )}
+                Marcar pago
               </Button>
             )}
 
