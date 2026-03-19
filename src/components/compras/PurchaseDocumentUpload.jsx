@@ -61,12 +61,17 @@ export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, o
     try {
       const user = await base44.auth.me();
 
-      // Upload do arquivo
-      const uploadRes = await base44.integrations.Core.UploadFile({ file });
-      const file_url = uploadRes.file_url;
+// Upload do arquivo
+const uploadRes = await base44.integrations.Core.UploadFile({ file });
+const file_url = uploadRes.file_url;
 
-      // Criar registro do documento
-    const docResult = await base44.entities.PurchaseDocument.create({
+// 🔥 AQUI (EXATAMENTE AQUI)
+const purchase = purchaseId
+  ? await base44.entities.PurchaseRequest.get(purchaseId)
+  : null;
+
+// Criar documento
+const docResult = await base44.entities.PurchaseDocument.create({
   purchase_id: purchaseId,
   rubrica_id: rubricaId,
   tipo_documento: formData.tipo_documento,
