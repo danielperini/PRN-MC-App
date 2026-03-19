@@ -10,6 +10,10 @@ function normalizeStatus(value) {
   return String(value || '').trim().toUpperCase();
 }
 
+function normalizeString(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function getPurchaseValue(purchase) {
   return (
     toNumber(purchase?.valor_pago) ||
@@ -20,6 +24,15 @@ function getPurchaseValue(purchase) {
   );
 }
 
+function getPurchaseBudgetlineId(purchase) {
+  return (
+    purchase?.budgetline_id ||
+    purchase?.budget_line_id ||
+    purchase?.linha_orcamentaria_id ||
+    null
+  );
+}
+
 async function findFirstRubricaByFilter(base44, filterObj) {
   try {
     const result = await base44.asServiceRole.entities.Rubrica.filter(filterObj);
@@ -27,6 +40,23 @@ async function findFirstRubricaByFilter(base44, filterObj) {
   } catch (_e) {
     return null;
   }
+}
+
+async function listAll(entityApi, orderBy = '', pageSize = 500) {
+  let all = [];
+  let page = 0;
+
+  while (true) {
+    const batch = await entityApi.list(orderBy, pageSize, page * pageSize);
+    if (!batch || batch.length === 0) break;
+
+    all = all.concat(batch);
+
+    if (batch.length < pageSize) break;
+    page++;
+  }
+
+  return all;
 }
 
 async function getAllLancamentos(base44, rubricaId) {
@@ -104,12 +134,12 @@ Deno.serve(async (req) => {
       } catch (_e) {}
     }
 
-    // Se veio purchaseId, tenta descobrir budgetline_id pela compra
+    // Se veio purchaseId, tenta descobrir budgetline consolidado pela compra
     if (!budgetlineId && purchaseId) {
       try {
         const purchase = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
         if (purchase) {
-          budgetlineId = purchase.budgetline_id || purchase.budget_line_id || budgetlineId;
+          budgetlineId = getPurchaseBudgetlineId(purchase);
         }
       } catch (_e) {}
     }
@@ -156,9 +186,26 @@ Deno.serve(async (req) => {
     // Buscar todos os lançamentos da rubrica
     const allLancamentos = await getAllLancamentos(base44, rubricaRealId);
 
-    // Soma total dos lançamentos
     const valorLancamentos = parseFloat(
       allLancamentos.reduce((sum, l) => sum + toNumber(l.valor), 0).toFixed(2)
+    );
+
+    // Buscar todas as budget lines para apoio de casamento por nome
+    const allBudgetLines = await listAll(
+      base44.asServiceRole.entities.BudgetLine,
+      'descricao',
+      500
+    );
+
+    const budgetLineById = {};
+    for (const bl of allBudgetLines) {
+      if (bl?.id) {
+        budgetLineById[bl.id] = bl;
+      }
+    }
+
+    const nomeRubricaNormalizado = normalizeString(
+      rubrica.rubrica || rubrica.nome || rubrica.descricao || ''
     );
 
     // Buscar compras relacionadas
@@ -176,9 +223,16 @@ Deno.serve(async (req) => {
         });
         purchases = purchases.concat(byBudgetLineAlt);
       } catch (_e) {}
+
+      try {
+        const byLinhaOrc = await getAllPurchasesByFilter(base44, {
+          linha_orcamentaria_id: budgetlineId
+        });
+        purchases = purchases.concat(byLinhaOrc);
+      } catch (_e) {}
     }
 
-    // Tenta também por rubrica_id, se existir essa modelagem
+    // Tenta também por rubrica_id
     try {
       const byRubrica = await getAllPurchasesByFilter(base44, {
         rubrica_id: rubricaRealId
@@ -196,6 +250,35 @@ Deno.serve(async (req) => {
       } catch (_e) {}
     }
 
+    // Fallback: casar compras pelo nome da BudgetLine com o nome da rubrica
+    if (nomeRubricaNormalizado) {
+      const allPurchases = await listAll(
+        base44.asServiceRole.entities.PurchaseRequest,
+        '-created_date',
+        500
+      );
+
+      for (const p of allPurchases) {
+        const purchaseBudgetlineId = getPurchaseBudgetlineId(p);
+        if (!purchaseBudgetlineId) continue;
+
+        const budgetLine = budgetLineById[purchaseBudgetlineId];
+        const nomeBudgetLineNormalizado = normalizeString(
+          budgetLine?.descricao || budgetLine?.rubrica || budgetLine?.nome || ''
+        );
+
+        if (!nomeBudgetLineNormalizado) continue;
+
+        if (
+          nomeBudgetLineNormalizado === nomeRubricaNormalizado ||
+          nomeBudgetLineNormalizado.includes(nomeRubricaNormalizado) ||
+          nomeRubricaNormalizado.includes(nomeBudgetLineNormalizado)
+        ) {
+          purchases.push(p);
+        }
+      }
+    }
+
     // Remove duplicados por id
     const purchaseMap = {};
     for (const p of purchases) {
@@ -203,6 +286,7 @@ Deno.serve(async (req) => {
         purchaseMap[p.id] = p;
       }
     }
+
     const uniquePurchases = Object.values(purchaseMap);
 
     // Considera só compras efetivamente pagas
