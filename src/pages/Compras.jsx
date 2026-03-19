@@ -22,7 +22,6 @@ import RequireAuth from '@/components/auth/RequireAuth';
 import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
 import PurchaseCard from '@/components/compras/PurchaseCard';
 import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
-import BudgetHealthDashboard from '@/components/compras/BudgetHealthDashboard';
 import AprovacoesFila from '@/components/compras/AprovacoesFila';
 import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
 import RubricasGrid from '@/components/rubricas/RubricasGrid';
@@ -59,7 +58,7 @@ function ComprasInner() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    base44.auth.me().then(u => setCurrentUser(u));
+    base44.auth.me().then(setCurrentUser).catch(() => setCurrentUser(null));
   }, []);
 
   const isCoordenador = [
@@ -103,12 +102,6 @@ function ComprasInner() {
   const hasGestaoCompras =
     isCoordenador || userPermission?.gestao_compras === true;
 
-  const podeVerSaude =
-    isCoordenador || userPermission?.pode_ver_saude_orcamentaria === true;
-
-  const podeGerenciarRubricas =
-    isCoordenador || userPermission?.pode_gerenciar_rubricas === true;
-
   const podeAprovarSolicitacoes =
     isCoordenador || userPermission?.pode_aprovar_solicitacoes === true;
 
@@ -125,13 +118,11 @@ function ComprasInner() {
     enabled: !!currentUser,
   });
 
-  const { data: purchaseDocuments = [] } = useQuery({
+  useQuery({
     queryKey: ['purchase-documents-all', isCoordenador, currentUser?.email],
     queryFn: async () => {
       const docs = await base44.entities.PurchaseDocument.list('-created_date', 300);
-
       if (isCoordenador) return docs;
-
       return docs.filter(doc => doc.uploadado_por === currentUser?.email);
     },
     enabled: !!currentUser,
@@ -142,14 +133,25 @@ function ComprasInner() {
   const { data: rubricas = [], refetch: refetchRubricas } = useQuery({
     queryKey: ['rubricas'],
     queryFn: async () => {
-      const result = await base44.functions.invoke('listAllRubricas', {});
-      return result?.rubricas || [];
+      try {
+        const result = await base44.functions.invoke('listAllRubricas', {});
+        console.log('listAllRubricas result:', result);
+
+        if (Array.isArray(result)) return result;
+        if (Array.isArray(result?.rubricas)) return result.rubricas;
+        if (Array.isArray(result?.data?.rubricas)) return result.data.rubricas;
+
+        return [];
+      } catch (e) {
+        console.error('Erro ao carregar rubricas via function:', e);
+        return [];
+      }
     },
     enabled: !!currentUser,
     staleTime: 0,
   });
 
-  const filtered = purchases.filter(p => {
+  const filtered = (purchases || []).filter((p) => {
     const matchStatus =
       filters.status === 'all' || p.status === filters.status;
 
@@ -169,8 +171,8 @@ function ComprasInner() {
     return matchStatus && matchMeta && matchRubrica && matchSearch;
   });
 
-  const pendentesAprovacoes = purchases.filter(
-    p => p.status === 'SOLICITADO'
+  const pendentesAprovacoes = (purchases || []).filter(
+    (p) => p.status === 'SOLICITADO'
   ).length;
 
   return (
@@ -245,7 +247,7 @@ function ComprasInner() {
                 }]
               : []),
             ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
-          ].map(t => (
+          ].map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -267,13 +269,13 @@ function ComprasInner() {
                   placeholder="Buscar..."
                   className="pl-9"
                   value={filters.search}
-                  onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+                  onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
                 />
               </div>
 
               <Select
                 value={filters.status}
-                onValueChange={v => setFilters(f => ({ ...f, status: v }))}
+                onValueChange={(v) => setFilters((f) => ({ ...f, status: v }))}
               >
                 <SelectTrigger className="w-44">
                   <SelectValue placeholder="Status" />
@@ -290,7 +292,7 @@ function ComprasInner() {
 
               <Select
                 value={filters.meta_id}
-                onValueChange={v => setFilters(f => ({ ...f, meta_id: v }))}
+                onValueChange={(v) => setFilters((f) => ({ ...f, meta_id: v }))}
               >
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Meta / Tipo" />
@@ -311,14 +313,14 @@ function ComprasInner() {
 
               <Select
                 value={filters.rubrica_id}
-                onValueChange={v => setFilters(f => ({ ...f, rubrica_id: v }))}
+                onValueChange={(v) => setFilters((f) => ({ ...f, rubrica_id: v }))}
               >
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Rubrica Orçamentária" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as rubricas</SelectItem>
-                  {rubricas.map(r => (
+                  {(rubricas || []).map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                       {r.rubrica}
                     </SelectItem>
@@ -346,7 +348,7 @@ function ComprasInner() {
               </div>
             ) : (
               <div className="space-y-3">
-                {filtered.map(p => (
+                {filtered.map((p) => (
                   <PurchaseCard
                     key={p.id}
                     purchase={p}
@@ -370,9 +372,7 @@ function ComprasInner() {
         {tab === 'orcamento' && (
           <div className="space-y-8">
             {isCoordenador && (
-              <ImportarOrcamento
-                onSuccess={invalidateComprasQueries}
-              />
+              <ImportarOrcamento onSuccess={invalidateComprasQueries} />
             )}
 
             <OrcamentoDashboard
