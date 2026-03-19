@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   FileText,
   Download,
@@ -13,6 +14,8 @@ import {
   User,
   Calendar,
   DollarSign,
+  XCircle,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -69,7 +72,24 @@ const STATUS_CONFIG = {
   },
 };
 
-export default function PurchaseDocumentViewer({ purchaseId }) {
+function getFileUrl(doc) {
+  return (
+    doc?.file_url ||
+    doc?.arquivo_url ||
+    doc?.document_url ||
+    doc?.url ||
+    null
+  );
+}
+
+export default function PurchaseDocumentViewer({
+  purchaseId,
+  canApproveDocuments = false,
+  currentUser,
+  onRefresh,
+}) {
+  const [loadingActionId, setLoadingActionId] = useState(null);
+
   const {
     data: documents = [],
     isLoading,
@@ -85,15 +105,82 @@ export default function PurchaseDocumentViewer({ purchaseId }) {
     enabled: !!purchaseId,
   });
 
+  const refreshAll = async () => {
+    await refetch();
+    if (onRefresh) {
+      await onRefresh();
+    }
+  };
+
   const handleDelete = async (docId) => {
     if (!window.confirm('Deseja remover este documento?')) return;
 
     try {
+      setLoadingActionId(docId);
       await base44.entities.PurchaseDocument.delete(docId);
       toast.success('✅ Documento removido');
-      refetch();
+      await refreshAll();
     } catch (e) {
       toast.error('Erro: ' + e.message);
+    } finally {
+      setLoadingActionId(null);
+    }
+  };
+
+  const handleApprove = async (doc) => {
+    try {
+      setLoadingActionId(doc.id);
+
+      await base44.entities.PurchaseDocument.update(doc.id, {
+        status: 'aprovado',
+        revisado_por:
+          currentUser?.full_name ||
+          currentUser?.name ||
+          currentUser?.email ||
+          'Coordenador',
+        data_revisao: new Date().toISOString(),
+        comentario_revisao: 'Documento aprovado manualmente pela coordenação.',
+        aprovado_por:
+          currentUser?.email ||
+          currentUser?.full_name ||
+          currentUser?.name ||
+          'Coordenador',
+        aprovado_em: new Date().toISOString(),
+      });
+
+      toast.success('✅ Documento aprovado com sucesso');
+      await refreshAll();
+    } catch (e) {
+      toast.error('Erro ao aprovar documento: ' + e.message);
+    } finally {
+      setLoadingActionId(null);
+    }
+  };
+
+  const handleReject = async (doc) => {
+    const motivo = window.prompt('Informe o motivo da rejeição:');
+    if (motivo === null) return;
+
+    try {
+      setLoadingActionId(doc.id);
+
+      await base44.entities.PurchaseDocument.update(doc.id, {
+        status: 'rejeitado',
+        revisado_por:
+          currentUser?.full_name ||
+          currentUser?.name ||
+          currentUser?.email ||
+          'Coordenador',
+        data_revisao: new Date().toISOString(),
+        comentario_revisao: motivo || 'Documento rejeitado pela coordenação.',
+      });
+
+      toast.success('✅ Documento rejeitado');
+      await refreshAll();
+    } catch (e) {
+      toast.error('Erro ao rejeitar documento: ' + e.message);
+    } finally {
+      setLoadingActionId(null);
     }
   };
 
@@ -112,8 +199,21 @@ export default function PurchaseDocumentViewer({ purchaseId }) {
   return (
     <div className="space-y-3">
       {documents.map((doc) => {
-        const statusInfo = STATUS_CONFIG[doc.status] || STATUS_CONFIG.pendente_revisao;
+        const normalizedStatus = doc.status || 'pendente_revisao';
+        const statusInfo = STATUS_CONFIG[normalizedStatus] || STATUS_CONFIG.pendente_revisao;
         const StatusIcon = statusInfo.icon;
+        const fileUrl = getFileUrl(doc);
+
+        const canApproveThisDocument =
+          canApproveDocuments &&
+          (normalizedStatus === 'pendente_revisao' ||
+            normalizedStatus === 'recusado' ||
+            normalizedStatus === 'rejeitado');
+
+        const canRejectThisDocument =
+          canApproveDocuments &&
+          normalizedStatus !== 'arquivado' &&
+          normalizedStatus !== 'rejeitado';
 
         return (
           <div
@@ -211,12 +311,44 @@ export default function PurchaseDocumentViewer({ purchaseId }) {
                   ) : null}
                   {doc.mime_type ? <span>{doc.mime_type}</span> : null}
                 </div>
+
+                {(canApproveThisDocument || canRejectThisDocument) && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {canApproveThisDocument && (
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => handleApprove(doc)}
+                        disabled={loadingActionId === doc.id}
+                      >
+                        {loadingActionId === doc.id ? (
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                        )}
+                        Aprovar documento
+                      </Button>
+                    )}
+
+                    {canRejectThisDocument && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleReject(doc)}
+                        disabled={loadingActionId === doc.id}
+                      >
+                        <XCircle className="w-4 h-4 mr-1" />
+                        Rejeitar
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-1 flex-col flex-shrink-0">
-                {doc.file_url && (
+                {fileUrl && (
                   <a
-                    href={doc.file_url}
+                    href={fileUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 hover:bg-black/5 rounded transition"
@@ -226,9 +358,9 @@ export default function PurchaseDocumentViewer({ purchaseId }) {
                   </a>
                 )}
 
-                {doc.file_url && (
+                {fileUrl && (
                   <a
-                    href={doc.file_url}
+                    href={fileUrl}
                     download={doc.nome_arquivo}
                     className="p-2 hover:bg-black/5 rounded transition"
                     title="Download"
@@ -241,6 +373,7 @@ export default function PurchaseDocumentViewer({ purchaseId }) {
                   onClick={() => handleDelete(doc.id)}
                   className="p-2 hover:bg-red-100 text-red-600 rounded transition"
                   title="Remover"
+                  disabled={loadingActionId === doc.id}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
