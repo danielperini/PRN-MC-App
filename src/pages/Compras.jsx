@@ -41,13 +41,139 @@ const STATUS_CONFIG = {
   PAGO: { label: 'Pago', color: 'bg-emerald-100 text-emerald-700' },
 };
 
-function extractRubricasFromFunctionResult(result) {
-  if (Array.isArray(result)) return result;
-  if (Array.isArray(result?.rubricas)) return result.rubricas;
-  if (Array.isArray(result?.data?.rubricas)) return result.data.rubricas;
-  if (Array.isArray(result?.response?.rubricas)) return result.response.rubricas;
-  if (Array.isArray(result?.body?.rubricas)) return result.body.rubricas;
-  return [];
+const RUBRICAS_PDF_3_ADITIVO = [
+  { grupo: 'Equipe e gestão', rubrica: 'Coordenador Geral (mês 19 ao mês 28)', valor_rubrica: 70000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Assistente de Coordenação e produção', valor_rubrica: 50000 },
+  { grupo: 'Consultorias', rubrica: 'Consultoria de programação', valor_rubrica: 30000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Coordenador Comunicação (mês 19 ao mês 28)', valor_rubrica: 60000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Analista Adm. Financeira (mês 19 ao mês 28)', valor_rubrica: 50000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Assistente Administrativo (mês 19 ao mês 28)', valor_rubrica: 40000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Produção MIS/MUMO/MHAB (mês 19 ao mês 28)', valor_rubrica: 113400 },
+  { grupo: 'Equipe e gestão', rubrica: 'Assessor de Imprensa (mês 19 ao mês 28)', valor_rubrica: 27000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Rede Social / Marketing Cultural (mês 19 ao mês 28)', valor_rubrica: 22500 },
+  { grupo: 'Equipe e gestão', rubrica: 'Fotógrafo (mês 19 ao mês 28)', valor_rubrica: 27000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Designer (mês 19 ao mês 28)', valor_rubrica: 52000 },
+  { grupo: 'Manutenção e operação', rubrica: 'Manutenção MIS (mês 19 ao mês 28)', valor_rubrica: 13500 },
+  { grupo: 'Manutenção e operação', rubrica: 'Manutenção MUMO (mês 19 ao mês 28)', valor_rubrica: 13500 },
+  { grupo: 'Manutenção e operação', rubrica: 'Manutenção MHAB (mês 19 ao mês 28)', valor_rubrica: 18000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Educador MIS / MUMO / MHAB (mês 19 ao mês 28)', valor_rubrica: 138000 },
+  { grupo: 'Mostras e exposições', rubrica: 'Mostra baixa complexidade MIS', valor_rubrica: 4000 },
+  { grupo: 'Mostras e exposições', rubrica: 'Mostra média complexidade MHAB', valor_rubrica: 7000 },
+  { grupo: 'Mostras e exposições', rubrica: 'Peça em destaque MHAB', valor_rubrica: 1000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Produção (Ed. 2026)', valor_rubrica: 6000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Assistente de Produção (Ed. 2026)', valor_rubrica: 4000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'ID (designer) (Ed. 2026)', valor_rubrica: 7000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Sinalização (Ed. 2026)', valor_rubrica: 11250 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Monitores (Ed. 2026)', valor_rubrica: 3000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Kit de Iluminação (Ed. 2026)', valor_rubrica: 12000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Segurança (Ed. 2026)', valor_rubrica: 3000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Limpeza (Ed. 2026)', valor_rubrica: 2700 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Vans (Ed. 2026)', valor_rubrica: 30400 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Vídeo e Fotografia (Ed. 2026)', valor_rubrica: 20000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Apresentações – MIS / MUMO / MHAB / 3 museus PBH (Ed. 2026)', valor_rubrica: 15000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Infraestrutura MIS/MUMO/MHAB (Ed. 2026)', valor_rubrica: 12000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Apresentações Culturais - 3 museus PBH (Ed. 2026)', valor_rubrica: 7500 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Infraestrutura 3 museus PBH (Ed. 2026)', valor_rubrica: 7500 },
+  { grupo: 'Diárias e publicações', rubrica: 'Diárias MIS / MUMO / MHAB', valor_rubrica: 6300 },
+  { grupo: 'Diárias e publicações', rubrica: 'Designer MHAB', valor_rubrica: 7000 },
+  { grupo: 'Diárias e publicações', rubrica: 'Fotógrafo MHAB', valor_rubrica: 5675 },
+  { grupo: 'Diárias e publicações', rubrica: 'Pesquisa e texto MHAB (2ª publicação)', valor_rubrica: 3000 },
+  { grupo: 'Diárias e publicações', rubrica: 'Revisão MHAB', valor_rubrica: 1375 },
+  { grupo: 'Diárias e publicações', rubrica: 'Tradução MHAB', valor_rubrica: 2200 },
+  { grupo: 'Diárias e publicações', rubrica: 'Impressão MHAB', valor_rubrica: 21000 },
+  { grupo: 'Alimentação, material e ações', rubrica: 'Lanches/buffet (mês 19 ao mês 28)', valor_rubrica: 9000 },
+  { grupo: 'Alimentação, material e ações', rubrica: 'Alimentação (mês 19 ao mês 28)', valor_rubrica: 9000 },
+  { grupo: 'Alimentação, material e ações', rubrica: 'Material MIS / MUMO / MHAB (mês 19 ao mês 28)', valor_rubrica: 24000 },
+  { grupo: 'Ações educativas e culturais', rubrica: 'Ações Educativo-culturais MIS / MUMO / MHAB', valor_rubrica: 90000 },
+  { grupo: 'Ações educativas e culturais', rubrica: 'Fornecimento de som e iluminação', valor_rubrica: 7500 },
+  { grupo: 'Mostras e exposições', rubrica: 'Exposição MUMO', valor_rubrica: 210000 },
+  { grupo: 'Consultorias', rubrica: 'Consultorias de temas transversais diversos', valor_rubrica: 5000 },
+  { grupo: 'Consultorias', rubrica: 'Formação sobre Ambiente Seguro, Diversidade e Inclusão', valor_rubrica: 2500 },
+  { grupo: 'Despesas gerais', rubrica: 'Transporte', valor_rubrica: 4000 },
+  { grupo: 'Despesas gerais', rubrica: 'Material escritório', valor_rubrica: 2700 },
+  { grupo: 'Despesas gerais', rubrica: 'Assessoria Jurídica', valor_rubrica: 17000 },
+  { grupo: 'Despesas gerais', rubrica: 'Energia elétrica', valor_rubrica: 4500 },
+  { grupo: 'Despesas gerais', rubrica: 'Contador', valor_rubrica: 10000 },
+];
+
+function normalizarTexto(txt) {
+  return String(txt || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function mergeRubricasComPDF(rubricasBackend) {
+  const backend = Array.isArray(rubricasBackend) ? rubricasBackend : [];
+  if (backend.length === 0) {
+    return RUBRICAS_PDF_3_ADITIVO.map((r, idx) => ({
+      id: `pdf-${idx + 1}`,
+      grupo: r.grupo,
+      rubrica: r.rubrica,
+      numero_parcelas_unidades: '',
+      valor_rubrica: r.valor_rubrica,
+      valor_utilizado: 0,
+      saldo: r.valor_rubrica,
+      percentual_utilizado: 0,
+      ativo: true,
+      ordem_exibicao: idx + 1,
+      origem_restaurada_pdf: true,
+    }));
+  }
+
+  const usados = new Set();
+  const resultado = [];
+
+  for (const itemPdf of RUBRICAS_PDF_3_ADITIVO) {
+    const nomePdf = normalizarTexto(itemPdf.rubrica);
+
+    const match = backend.find((b, idx) => {
+      if (usados.has(idx)) return false;
+      const nomeB = normalizarTexto(b?.rubrica || b?.nome || '');
+      return nomeB === nomePdf || nomeB.includes(nomePdf) || nomePdf.includes(nomeB);
+    });
+
+    if (match) {
+      const idx = backend.indexOf(match);
+      usados.add(idx);
+      resultado.push({
+        ...match,
+        grupo: match.grupo || itemPdf.grupo,
+        rubrica: match.rubrica || itemPdf.rubrica,
+        valor_rubrica: Number(match.valor_rubrica ?? itemPdf.valor_rubrica),
+        valor_utilizado: Number(match.valor_utilizado ?? 0),
+        saldo: Number(
+          match.saldo ?? (Number(match.valor_rubrica ?? itemPdf.valor_rubrica) - Number(match.valor_utilizado ?? 0))
+        ),
+        percentual_utilizado: Number(match.percentual_utilizado ?? 0),
+      });
+    } else {
+      resultado.push({
+        id: `pdf-${resultado.length + 1}`,
+        grupo: itemPdf.grupo,
+        rubrica: itemPdf.rubrica,
+        numero_parcelas_unidades: '',
+        valor_rubrica: itemPdf.valor_rubrica,
+        valor_utilizado: 0,
+        saldo: itemPdf.valor_rubrica,
+        percentual_utilizado: 0,
+        ativo: true,
+        ordem_exibicao: resultado.length + 1,
+        origem_restaurada_pdf: true,
+      });
+    }
+  }
+
+  backend.forEach((b, idx) => {
+    if (!usados.has(idx)) {
+      resultado.push(b);
+    }
+  });
+
+  return resultado;
 }
 
 function ComprasInner() {
@@ -144,16 +270,21 @@ function ComprasInner() {
     queryFn: async () => {
       try {
         const result = await base44.functions.invoke('listAllRubricas', {});
-        console.log('listAllRubricas result:', result);
-
-        const fromFunction = extractRubricasFromFunctionResult(result);
-        if (fromFunction.length > 0) return fromFunction;
+        if (Array.isArray(result?.rubricas) && result.rubricas.length > 0) {
+          return mergeRubricasComPDF(result.rubricas);
+        }
       } catch (e) {
         console.error('Erro ao carregar rubricas via function:', e);
       }
 
-      // fallback imediato para restaurar a tela
-      return await base44.entities.Rubrica.list('ordem_exibicao', 100);
+      try {
+        const fallback = await base44.entities.Rubrica.list('ordem_exibicao', 100);
+        return mergeRubricasComPDF(fallback);
+      } catch (e) {
+        console.error('Erro no fallback de rubricas:', e);
+      }
+
+      return mergeRubricasComPDF([]);
     },
     enabled: !!currentUser,
     staleTime: 0,
