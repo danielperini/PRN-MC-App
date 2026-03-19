@@ -44,31 +44,49 @@ const STATUS_CONFIG = {
     label: 'Pendente',
     icon: Clock,
     color: 'bg-yellow-50 border-yellow-200',
-    badge: 'text-yellow-700 border-yellow-300 bg-yellow-50'
+    badge: 'text-yellow-700 border-yellow-300 bg-yellow-50',
+  },
+  pendente: {
+    label: 'Pendente',
+    icon: Clock,
+    color: 'bg-yellow-50 border-yellow-200',
+    badge: 'text-yellow-700 border-yellow-300 bg-yellow-50',
+  },
+  PENDENTE: {
+    label: 'Pendente',
+    icon: Clock,
+    color: 'bg-yellow-50 border-yellow-200',
+    badge: 'text-yellow-700 border-yellow-300 bg-yellow-50',
   },
   aprovado: {
     label: 'Aprovado',
     icon: CheckCircle,
     color: 'bg-green-50 border-green-200',
-    badge: 'text-green-700 border-green-300 bg-green-50'
+    badge: 'text-green-700 border-green-300 bg-green-50',
+  },
+  APROVADO: {
+    label: 'Aprovado',
+    icon: CheckCircle,
+    color: 'bg-green-50 border-green-200',
+    badge: 'text-green-700 border-green-300 bg-green-50',
   },
   recusado: {
     label: 'Recusado',
     icon: AlertCircle,
     color: 'bg-red-50 border-red-200',
-    badge: 'text-red-700 border-red-300 bg-red-50'
+    badge: 'text-red-700 border-red-300 bg-red-50',
   },
   rejeitado: {
     label: 'Rejeitado',
     icon: AlertCircle,
     color: 'bg-red-50 border-red-200',
-    badge: 'text-red-700 border-red-300 bg-red-50'
+    badge: 'text-red-700 border-red-300 bg-red-50',
   },
   arquivado: {
     label: 'Arquivado',
     icon: FileText,
     color: 'bg-gray-50 border-gray-200',
-    badge: 'text-gray-700 border-gray-300 bg-gray-50'
+    badge: 'text-gray-700 border-gray-300 bg-gray-50',
   },
 };
 
@@ -80,6 +98,38 @@ function getFileUrl(doc) {
     doc?.url ||
     null
   );
+}
+
+function formatDate(value) {
+  if (!value) return null;
+
+  try {
+    return new Date(value).toLocaleDateString('pt-BR');
+  } catch {
+    return null;
+  }
+}
+
+function formatDateTime(value) {
+  if (!value) return null;
+
+  try {
+    return new Date(value).toLocaleString('pt-BR');
+  } catch {
+    return null;
+  }
+}
+
+function formatMoney(value) {
+  if (value === null || value === undefined || value === '') return null;
+
+  const num = Number(value);
+  if (Number.isNaN(num)) return null;
+
+  return num.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
 }
 
 export default function PurchaseDocumentViewer({
@@ -107,9 +157,7 @@ export default function PurchaseDocumentViewer({
 
   const refreshAll = async () => {
     await refetch();
-    if (onRefresh) {
-      await onRefresh();
-    }
+    await onRefresh?.();
   };
 
   const handleDelete = async (docId) => {
@@ -121,7 +169,7 @@ export default function PurchaseDocumentViewer({
       toast.success('✅ Documento removido');
       await refreshAll();
     } catch (e) {
-      toast.error('Erro: ' + e.message);
+      toast.error('Erro ao remover documento: ' + e.message);
     } finally {
       setLoadingActionId(null);
     }
@@ -200,20 +248,23 @@ export default function PurchaseDocumentViewer({
     <div className="space-y-3">
       {documents.map((doc) => {
         const normalizedStatus = doc.status || 'pendente_revisao';
-        const statusInfo = STATUS_CONFIG[normalizedStatus] || STATUS_CONFIG.pendente_revisao;
+        const statusInfo =
+          STATUS_CONFIG[normalizedStatus] || STATUS_CONFIG.pendente_revisao;
         const StatusIcon = statusInfo.icon;
         const fileUrl = getFileUrl(doc);
 
         const canApproveThisDocument =
           canApproveDocuments &&
-          (normalizedStatus === 'pendente_revisao' ||
-            normalizedStatus === 'recusado' ||
-            normalizedStatus === 'rejeitado');
+          normalizedStatus !== 'aprovado' &&
+          normalizedStatus !== 'APROVADO' &&
+          normalizedStatus !== 'arquivado';
 
         const canRejectThisDocument =
           canApproveDocuments &&
+          normalizedStatus !== 'rejeitado' &&
           normalizedStatus !== 'arquivado' &&
-          normalizedStatus !== 'rejeitado';
+          normalizedStatus !== 'aprovado' &&
+          normalizedStatus !== 'APROVADO';
 
         return (
           <div
@@ -232,7 +283,9 @@ export default function PurchaseDocumentViewer({
                       {doc.nome_arquivo || 'Documento sem nome'}
                     </p>
                     <p className="text-xs text-gray-600">
-                      {DOCUMENT_TYPE_NAMES[doc.tipo_documento] || doc.tipo_documento || 'Documento'}
+                      {DOCUMENT_TYPE_NAMES[doc.tipo_documento] ||
+                        doc.tipo_documento ||
+                        'Documento'}
                     </p>
                   </div>
 
@@ -246,29 +299,33 @@ export default function PurchaseDocumentViewer({
                   {doc.numero_documento && (
                     <div>
                       <span className="text-gray-600">Número</span>
-                      <p className="font-semibold text-black break-words">{doc.numero_documento}</p>
+                      <p className="font-semibold text-black break-words">
+                        {doc.numero_documento}
+                      </p>
                     </div>
                   )}
 
-                  {doc.data_documento && (
+                  {formatDate(doc.data_documento) && (
                     <div className="flex items-center gap-1">
                       <Calendar className="w-3 h-3 text-gray-600" />
-                      <span>{new Date(doc.data_documento).toLocaleDateString('pt-BR')}</span>
+                      <span>{formatDate(doc.data_documento)}</span>
                     </div>
                   )}
 
                   {doc.fornecedor && (
                     <div>
                       <span className="text-gray-600">Fornecedor</span>
-                      <p className="font-semibold text-black break-words">{doc.fornecedor}</p>
+                      <p className="font-semibold text-black break-words">
+                        {doc.fornecedor}
+                      </p>
                     </div>
                   )}
 
-                  {doc.valor_documento !== null && doc.valor_documento !== undefined && doc.valor_documento !== '' && (
+                  {formatMoney(doc.valor_documento) && (
                     <div className="flex items-center gap-1">
                       <DollarSign className="w-3 h-3 text-gray-600" />
                       <span className="font-semibold">
-                        R$ {Number(doc.valor_documento).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        {formatMoney(doc.valor_documento)}
                       </span>
                     </div>
                   )}
@@ -284,13 +341,14 @@ export default function PurchaseDocumentViewer({
                   <div className="text-xs text-gray-600 mt-2 pt-2 border-t border-current/20 space-y-1">
                     {doc.revisado_por && (
                       <p>
-                        <span className="font-semibold">Revisado por:</span> {doc.revisado_por}
+                        <span className="font-semibold">Revisado por:</span>{' '}
+                        {doc.revisado_por}
                       </p>
                     )}
-                    {doc.data_revisao && (
+                    {formatDateTime(doc.data_revisao) && (
                       <p>
                         <span className="font-semibold">Data da revisão:</span>{' '}
-                        {new Date(doc.data_revisao).toLocaleString('pt-BR')}
+                        {formatDateTime(doc.data_revisao)}
                       </p>
                     )}
                     {doc.comentario_revisao && (
@@ -371,7 +429,7 @@ export default function PurchaseDocumentViewer({
 
                 <button
                   onClick={() => handleDelete(doc.id)}
-                  className="p-2 hover:bg-red-100 text-red-600 rounded transition"
+                  className="p-2 hover:bg-red-100 text-red-600 rounded transition disabled:opacity-50"
                   title="Remover"
                   disabled={loadingActionId === doc.id}
                 >
