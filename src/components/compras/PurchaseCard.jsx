@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
 import {
   ChevronDown,
   ChevronUp,
@@ -35,7 +34,6 @@ export default function PurchaseCard({
   const [relatedActivity, setRelatedActivity] = useState(null);
   const [showApproval, setShowApproval] = useState(false);
   const [comentario, setComentario] = useState('');
-  const [valorAdmin, setValorAdmin] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [aiSecurityAnalysis, setAiSecurityAnalysis] = useState(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
@@ -50,10 +48,7 @@ export default function PurchaseCard({
   const canApproveCoord =
     (isCoordenador || isAdmin) && purchase.status === 'SOLICITADO';
 
-  const canApproveAdmin =
-    isAdmin && purchase.status === 'APROVADO_COORD';
-
-  const canAct = canApproveCoord || canApproveAdmin;
+  const canAct = canApproveCoord;
 
   const canEdit =
     !!onEdit &&
@@ -62,7 +57,7 @@ export default function PurchaseCard({
 
   const canMarkAsPaid =
     (isCoordenador || isAdmin) &&
-    (purchase.status === 'APROVADO_ADMIN' || purchase.status === 'APROVADO_COORD');
+    (purchase.status === 'APROVADO_COORD' || purchase.status === 'APROVADO_ADMIN');
 
   useEffect(() => {
     if (purchase.activity_id) {
@@ -80,7 +75,7 @@ export default function PurchaseCard({
         : 0;
 
       const result = await base44.integrations.Core.InvokeLLM({
-        prompt: `Analise a segurança desta aprovação de pagamento/compra:
+        prompt: `Analise a segurança desta aprovação de compra:
 
 DADOS DA SOLICITAÇÃO:
 - Descrição: ${purchase.descricao_item}
@@ -97,7 +92,7 @@ ORÇAMENTO:
 - Saldo disponível: R$ ${saldoDisponivel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
 
 Avalie:
-1. Conformidade Orçamentária
+1. Conformidade orçamentária
 2. Rastreabilidade
 3. Riscos
 4. Recomendação
@@ -124,17 +119,16 @@ Responda em JSON com:
     setLoadingAnalysis(false);
   };
 
-  const handleAction = async (action) => {
+  const handleApprovalAction = async (action) => {
     setActionLoading(true);
-    try {
-      const valor_aprovado = parseFloat(valorAdmin) || purchase.valor_solicitado;
 
-      if (action === 'approve_admin') {
+    try {
+      if (action === 'aprovar') {
         const saldoDisponivel = budgetLine
           ? (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)
           : Infinity;
 
-        if (saldoDisponivel < valor_aprovado) {
+        if (saldoDisponivel < (purchase.valor_solicitado || 0)) {
           toast.error(
             `❌ Saldo insuficiente! Disponível: R$ ${saldoDisponivel.toLocaleString('pt-BR', {
               minimumFractionDigits: 2
@@ -146,28 +140,18 @@ Responda em JSON com:
         }
       }
 
-      await base44.functions.invoke('processPurchaseApproval', {
+      await base44.functions.invoke('purchaseActions', {
         purchaseId: purchase.id,
-        action:
-          action === 'approve_coord'
-            ? 'approve_coord'
-            : action === 'approve_admin'
-            ? 'approve_admin'
-            : 'reject',
+        action,
         comentario,
-        valor_aprovado,
       });
 
       const msgs = {
-        approve_coord: {
-          title: '✅ Aprovado pela coordenação!',
-          desc: 'Compra aprovada com sucesso.'
+        aprovar: {
+          title: '✅ Compra aprovada!',
+          desc: 'Solicitação aprovada e saldo comprometido.'
         },
-        approve_admin: {
-          title: '✅ Aprovação completa!',
-          desc: 'Compra pronta para pagamento.'
-        },
-        recusar: {
+        reject: {
           title: '❌ Solicitação recusada',
           desc: comentario
         },
@@ -182,11 +166,11 @@ Responda em JSON com:
 
       setShowApproval(false);
       setComentario('');
-      setValorAdmin('');
       onRefresh?.();
     } catch (e) {
       toast.error(`❌ Erro: ${e.message}`, { duration: 5000 });
     }
+
     setActionLoading(false);
   };
 
@@ -312,14 +296,6 @@ Responda em JSON com:
                   minimumFractionDigits: 2
                 })}
               </p>
-              {purchase.valor_aprovado_admin &&
-                purchase.valor_aprovado_admin !== purchase.valor_solicitado && (
-                  <p className="text-xs text-green-600">
-                    Aprv: R$ {purchase.valor_aprovado_admin.toLocaleString('pt-BR', {
-                      minimumFractionDigits: 2
-                    })}
-                  </p>
-                )}
             </div>
 
             {canEdit && (
@@ -397,9 +373,7 @@ Responda em JSON com:
           <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-black">
-                {canApproveCoord
-                  ? '✅ Aprovação — Coordenação'
-                  : '✅ Aprovação — Administração'}
+                ✅ Aprovação — Coordenação
               </p>
               {loadingAnalysis && (
                 <span className="text-xs text-gray-500 flex items-center gap-1">
@@ -465,26 +439,12 @@ Responda em JSON com:
                       : 'text-red-700'
                   }
                 >
-                  R$ {' '}
+                  R${' '}
                   {Math.max(
                     0,
                     (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)
                   ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </strong>
-              </div>
-            )}
-
-            {canApproveAdmin && (
-              <div>
-                <label className="text-xs text-gray-600 mb-1 block">Valor a aprovar (R$)</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder={purchase.valor_solicitado}
-                  value={valorAdmin}
-                  onChange={e => setValorAdmin(e.target.value)}
-                  className="max-w-48 text-sm"
-                />
               </div>
             )}
 
@@ -504,7 +464,7 @@ Responda em JSON com:
               <Button
                 variant="outline"
                 className="text-red-600 border-red-200 hover:bg-red-50 text-sm"
-                onClick={() => handleAction('recusar')}
+                onClick={() => handleApprovalAction('reject')}
                 disabled={actionLoading || !comentario.trim()}
               >
                 {actionLoading ? (
@@ -517,7 +477,7 @@ Responda em JSON com:
 
               <Button
                 className="bg-black hover:bg-gray-800 text-white text-sm"
-                onClick={() => handleAction(canApproveCoord ? 'approve_coord' : 'approve_admin')}
+                onClick={() => handleApprovalAction('aprovar')}
                 disabled={actionLoading}
               >
                 {actionLoading ? (
@@ -525,7 +485,7 @@ Responda em JSON com:
                 ) : (
                   <CheckCircle className="w-3.5 h-3.5 mr-1" />
                 )}
-                {canApproveCoord ? 'Aprovar' : 'Aprovar e Comprometer'}
+                Aprovar e comprometer
               </Button>
             </div>
           </div>
@@ -569,19 +529,19 @@ Responda em JSON com:
                   {budgetLine.natureza_codigo}
                 </div>
                 <div>
-                  <span className="text-blue-600 font-medium">Valor PO:</span> R$ {' '}
+                  <span className="text-blue-600 font-medium">Valor PO:</span> R${' '}
                   {(budgetLine.valor_total_previsto || 0).toLocaleString('pt-BR', {
                     minimumFractionDigits: 2
                   })}
                 </div>
                 <div>
-                  <span className="text-blue-600 font-medium">Comprometido:</span> R$ {' '}
+                  <span className="text-blue-600 font-medium">Comprometido:</span> R${' '}
                   {(budgetLine.saldo_comprometido || 0).toLocaleString('pt-BR', {
                     minimumFractionDigits: 2
                   })}
                 </div>
                 <div>
-                  <span className="text-blue-600 font-medium">Saldo:</span> R$ {' '}
+                  <span className="text-blue-600 font-medium">Saldo:</span> R${' '}
                   {Math.max(
                     0,
                     (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)
