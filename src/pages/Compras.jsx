@@ -3,10 +3,22 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShoppingCart, Plus, Search, ShieldCheck, User, FileText } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import {
+  ShoppingCart,
+  Plus,
+  Search,
+  ShieldCheck,
+  User,
+  FileText
+} from 'lucide-react';
 import RequireAuth from '@/components/auth/RequireAuth';
-import RequireCoordinator from '@/components/auth/RequireCoordinator';
 import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
 import PurchaseCard from '@/components/compras/PurchaseCard';
 import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
@@ -17,7 +29,6 @@ import RubricasGrid from '@/components/rubricas/RubricasGrid';
 import TeamManager from '@/components/compras/TeamManager';
 import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
 import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
-import FinancialExcelExporter from '@/components/financeiro/FinancialExcelExporter';
 import { useBudgetLines } from '@/components/compras/useBudgetLines';
 import GestaoDocumental from '@/pages/GestaoDocumental';
 import RubricaDetail from '@/components/rubricas/RubricaDetail';
@@ -44,6 +55,7 @@ function ComprasInner() {
     rubrica_id: 'all'
   });
   const [selectedRubrica, setSelectedRubrica] = useState(null);
+
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -66,7 +78,7 @@ function ComprasInner() {
         const result = await base44.entities.UserPermission.filter({
           user_email: currentUser?.email
         });
-        return result?.[0];
+        return result?.[0] || null;
       } catch {
         return null;
       }
@@ -74,10 +86,17 @@ function ComprasInner() {
     enabled: !!currentUser?.email,
   });
 
-  const hasGestaoCompras = isCoordenador || userPermission?.gestao_compras === true;
-  const podeVerSaude = isCoordenador || userPermission?.pode_ver_saude_orcamentaria === true;
-  const podeGerenciarRubricas = isCoordenador || userPermission?.pode_gerenciar_rubricas === true;
-  const podeAprovarSolicitacoes = isCoordenador || userPermission?.pode_aprovar_solicitacoes === true;
+  const hasGestaoCompras =
+    isCoordenador || userPermission?.gestao_compras === true;
+
+  const podeVerSaude =
+    isCoordenador || userPermission?.pode_ver_saude_orcamentaria === true;
+
+  const podeGerenciarRubricas =
+    isCoordenador || userPermission?.pode_gerenciar_rubricas === true;
+
+  const podeAprovarSolicitacoes =
+    isCoordenador || userPermission?.pode_aprovar_solicitacoes === true;
 
   const { data: purchases = [], isLoading } = useQuery({
     queryKey: ['purchases', isCoordenador, currentUser?.email],
@@ -112,7 +131,8 @@ function ComprasInner() {
   });
 
   const filtered = purchases.filter(p => {
-    const matchStatus = filters.status === 'all' || p.status === filters.status;
+    const matchStatus =
+      filters.status === 'all' || p.status === filters.status;
 
     let matchMeta = filters.meta_id === 'all';
     if (!matchMeta && filters.meta_id === 'produto') matchMeta = p.tipo_item === 'produto';
@@ -130,11 +150,9 @@ function ComprasInner() {
     return matchStatus && matchMeta && matchRubrica && matchSearch;
   });
 
-  const pendentes_coord = purchases.filter(p => p.status === 'SOLICITADO').length;
-  const pendentes_documentos = purchaseDocuments.filter(
-    d => d.status === 'pendente_revisao'
+  const pendentesAprovacoes = purchases.filter(
+    p => p.status === 'SOLICITADO'
   ).length;
-  const totalPendentes = pendentes_coord + pendentes_documentos;
 
   return (
     <div className="min-h-screen bg-white">
@@ -144,9 +162,11 @@ function ComprasInner() {
             <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center">
               <ShoppingCart className="w-5 h-5 text-white" />
             </div>
+
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-black">Suprimentos</h1>
+
                 {isCoordenador ? (
                   <span className="flex items-center gap-1 text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-2.5 py-0.5">
                     <ShieldCheck className="w-3 h-3" />
@@ -159,6 +179,7 @@ function ComprasInner() {
                   </span>
                 )}
               </div>
+
               <p className="text-sm text-gray-500">
                 {isCoordenador
                   ? 'Visão geral — todas as solicitações'
@@ -201,7 +222,7 @@ function ComprasInner() {
             ...((podeAprovarSolicitacoes || hasGestaoCompras)
               ? [{
                   id: 'aprovacoes',
-                  label: `Aprovações${totalPendentes > 0 ? ` (${totalPendentes})` : ''}`
+                  label: `Aprovações${pendentesAprovacoes > 0 ? ` (${pendentesAprovacoes})` : ''}`
                 }]
               : []),
             ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
@@ -321,7 +342,9 @@ function ComprasInner() {
                       setEditingPurchase(purchase);
                       setShowForm(true);
                     }}
-                    onRefresh={() => queryClient.invalidateQueries({ queryKey: ['purchases'] })}
+                    onRefresh={() =>
+                      queryClient.invalidateQueries({ queryKey: ['purchases'] })
+                    }
                   />
                 ))}
               </div>
@@ -333,9 +356,10 @@ function ComprasInner() {
           <div className="space-y-8">
             {isCoordenador && (
               <ImportarOrcamento
-                onSuccess={() => queryClient.invalidateQueries(['budget-lines'])}
+                onSuccess={() => queryClient.invalidateQueries({ queryKey: ['budget-lines'] })}
               />
             )}
+
             <OrcamentoDashboard
               budgetLines={budgetLines}
               purchases={purchases}
