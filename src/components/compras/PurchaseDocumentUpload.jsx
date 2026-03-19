@@ -66,21 +66,27 @@ export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, o
       const file_url = uploadRes.file_url;
 
       // Criar registro do documento
-      const docResult = await base44.entities.PurchaseDocument.create({
-        purchase_id: purchaseId,
-        rubrica_id: rubricaId,
-        tipo_documento: formData.tipo_documento,
-        nome_arquivo: file.name,
-        file_url,
-        file_size: file.size,
-        mime_type: file.type,
-        descricao: formData.descricao,
-        numero_documento: formData.numero_documento,
-        data_documento: formData.data_documento,
-        fornecedor: formData.fornecedor,
-        valor_documento: formData.valor_documento ? parseFloat(formData.valor_documento) : null,
-        uploadado_por: user?.email,
-      });
+    const docResult = await base44.entities.PurchaseDocument.create({
+  purchase_id: purchaseId,
+  rubrica_id: rubricaId,
+  tipo_documento: formData.tipo_documento,
+  nome_arquivo: file.name,
+  file_url,
+  file_size: file.size,
+  mime_type: file.type,
+  descricao: formData.descricao,
+  numero_documento: formData.numero_documento,
+  data_documento: formData.data_documento,
+  fornecedor: formData.fornecedor,
+  valor_documento: formData.valor_documento ? parseFloat(formData.valor_documento) : null,
+  uploadado_por: user?.email,
+
+  // 🔥 CORREÇÃO PRINCIPAL
+  status: 'aprovado',
+
+  // 💡 extra recomendado
+  data_upload: new Date().toISOString(),
+});
 
       // Sincronizar com a rubrica se tiver valor
       if (formData.valor_documento && (rubricaId || purchaseId)) {
