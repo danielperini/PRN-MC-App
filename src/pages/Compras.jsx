@@ -41,7 +41,7 @@ const STATUS_CONFIG = {
   PAGO: { label: 'Pago', color: 'bg-emerald-100 text-emerald-700' },
 };
 
-function extractRubricasFromFunctionResult(result) {
+function extractRubricas(result) {
   if (Array.isArray(result)) return result;
   if (Array.isArray(result?.rubricas)) return result.rubricas;
   if (Array.isArray(result?.data?.rubricas)) return result.data.rubricas;
@@ -131,9 +131,7 @@ function ComprasInner() {
     queryKey: ['purchase-documents-all', isCoordenador, currentUser?.email],
     queryFn: async () => {
       const docs = await base44.entities.PurchaseDocument.list('-created_date', 300);
-
       if (isCoordenador) return docs;
-
       return docs.filter(doc => doc.uploadado_por === currentUser?.email);
     },
     enabled: !!currentUser,
@@ -147,19 +145,9 @@ function ComprasInner() {
       try {
         const result = await base44.functions.invoke('listAllRubricas', {});
         console.log('listAllRubricas result:', result);
-
-        const fromFunction = extractRubricasFromFunctionResult(result);
-        if (fromFunction.length > 0) return fromFunction;
+        return extractRubricas(result);
       } catch (e) {
         console.error('Erro ao carregar rubricas via function:', e);
-      }
-
-      try {
-        const fallback = await base44.entities.Rubrica.list('ordem_exibicao', 100);
-        console.log('fallback rubricas entity list:', fallback);
-        return Array.isArray(fallback) ? fallback : [];
-      } catch (e) {
-        console.error('Erro ao carregar rubricas via entidade:', e);
         return [];
       }
     },
