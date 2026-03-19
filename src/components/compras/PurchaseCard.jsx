@@ -4,13 +4,35 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { ChevronDown, ChevronUp, ExternalLink, Sparkles, Activity, DollarSign, CheckCircle, XCircle, Loader2, Trash2, AlertTriangle } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  Sparkles,
+  Activity,
+  DollarSign,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  Trash2,
+  AlertTriangle,
+  Pencil
+} from 'lucide-react';
 import { toast } from 'sonner';
 import PurchaseTimeline from './PurchaseTimeline';
 import PurchaseDocumentUpload from './PurchaseDocumentUpload';
 import PurchaseDocumentViewer from './PurchaseDocumentViewer';
 
-export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCoordenador, isAdmin, onRefresh, currentUser }) {
+export default function PurchaseCard({
+  purchase,
+  budgetLines,
+  statusConfig,
+  isCoordenador,
+  isAdmin,
+  onRefresh,
+  currentUser,
+  onEdit
+}) {
   const [expanded, setExpanded] = useState(false);
   const [relatedActivity, setRelatedActivity] = useState(null);
   const [showApproval, setShowApproval] = useState(false);
@@ -20,14 +42,21 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
   const [aiSecurityAnalysis, setAiSecurityAnalysis] = useState(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
 
-  const s = statusConfig[purchase.status] || { label: purchase.status, color: 'bg-gray-100 text-gray-700' };
+  const s = statusConfig[purchase.status] || {
+    label: purchase.status,
+    color: 'bg-gray-100 text-gray-700'
+  };
+
   const budgetLine = budgetLines.find(l => l.id === purchase.budgetline_id);
 
   const canApproveCoord = (isCoordenador || isAdmin) && purchase.status === 'SOLICITADO';
   const canApproveAdmin = isAdmin && purchase.status === 'APROVADO_COORD';
   const canAct = canApproveCoord || canApproveAdmin;
 
-  const filaCoord = purchase.status === 'SOLICITADO';
+  const canEdit =
+    !!onEdit &&
+    purchase.status !== 'PAGO' &&
+    purchase.status !== 'CANCELADO';
 
   useEffect(() => {
     if (purchase.activity_id) {
@@ -40,8 +69,10 @@ export default function PurchaseCard({ purchase, budgetLines, statusConfig, isCo
   const analyzeSecurityPayment = async () => {
     setLoadingAnalysis(true);
     try {
-      const saldoDisponivel = budgetLine ? (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0) : 0;
-      
+      const saldoDisponivel = budgetLine
+        ? (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)
+        : 0;
+
       const result = await base44.integrations.Core.InvokeLLM({
         prompt: `Analise a segurança desta aprovação de pagamento/compra:
 
@@ -60,22 +91,23 @@ ORÇAMENTO:
 - Saldo disponível: R$ ${saldoDisponivel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
 
 Avalie:
-1. **Conformidade Orçamentária**: O valor está dentro do saldo disponível?
-2. **Rastreabilidade**: Fornecedor, categoria e tipo de gasto estão bem definidos?
-3. **Riscos**: Existem sinais de alerta (valores muito altos, fornecedor sem histórico)?
-4. **Recomendação**: Aprovado ou Rejeitar com justificativa.
+1. Conformidade Orçamentária
+2. Rastreabilidade
+3. Riscos
+4. Recomendação
 
-Responda em JSON com: { "seguro": true/false, "risco_nivel": "baixo|medio|alto", "observacoes": "...", "recomendacao": "aprovar|recusar", "justificativa": "..." }`,
+Responda em JSON com:
+{ "seguro": true/false, "risco_nivel": "baixo|medio|alto", "observacoes": "...", "recomendacao": "aprovar|recusar", "justificativa": "..." }`,
         response_json_schema: {
-          type: "object",
+          type: 'object',
           properties: {
-            seguro: { type: "boolean" },
-            risco_nivel: { type: "string", enum: ["baixo", "medio", "alto"] },
-            observacoes: { type: "string" },
-            recomendacao: { type: "string" },
-            justificativa: { type: "string" }
+            seguro: { type: 'boolean' },
+            risco_nivel: { type: 'string', enum: ['baixo', 'medio', 'alto'] },
+            observacoes: { type: 'string' },
+            recomendacao: { type: 'string' },
+            justificativa: { type: 'string' }
           },
-          required: ["seguro", "risco_nivel", "recomendacao", "justificativa"]
+          required: ['seguro', 'risco_nivel', 'recomendacao', 'justificativa']
         }
       });
 
@@ -92,9 +124,17 @@ Responda em JSON com: { "seguro": true/false, "risco_nivel": "baixo|medio|alto",
       const valor_aprovado = parseFloat(valorAdmin) || purchase.valor_solicitado;
 
       if (action === 'approve_admin') {
-        const saldoDisponivel = budgetLine ? (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0) : Infinity;
+        const saldoDisponivel = budgetLine
+          ? (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)
+          : Infinity;
+
         if (saldoDisponivel < valor_aprovado) {
-          toast.error(`❌ Saldo insuficiente! Disponível: R$ ${saldoDisponivel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, { duration: 5000 });
+          toast.error(
+            `❌ Saldo insuficiente! Disponível: R$ ${saldoDisponivel.toLocaleString('pt-BR', {
+              minimumFractionDigits: 2
+            })}`,
+            { duration: 5000 }
+          );
           setActionLoading(false);
           return;
         }
@@ -102,24 +142,41 @@ Responda em JSON com: { "seguro": true/false, "risco_nivel": "baixo|medio|alto",
 
       await base44.functions.invoke('processPurchaseApproval', {
         purchaseId: purchase.id,
-        action: action === 'approve_coord' ? 'approve_coord' : action === 'approve_admin' ? 'approve_admin' : 'reject',
+        action:
+          action === 'approve_coord'
+            ? 'approve_coord'
+            : action === 'approve_admin'
+            ? 'approve_admin'
+            : 'reject',
         comentario,
         valor_aprovado,
       });
 
       const msgs = {
-        approve_coord: { title: '✅ Aprovado pela coordenação!', desc: 'Aguarda aprovação administrativa antes do pagamento.' },
-        approve_admin: { title: '✅ Aprovação completa!', desc: 'Compra pronta para pagamento.' },
-        recusar: { title: '❌ Solicitação recusada', desc: comentario },
+        approve_coord: {
+          title: '✅ Aprovado pela coordenação!',
+          desc: 'Aguarda aprovação administrativa antes do pagamento.'
+        },
+        approve_admin: {
+          title: '✅ Aprovação completa!',
+          desc: 'Compra pronta para pagamento.'
+        },
+        recusar: {
+          title: '❌ Solicitação recusada',
+          desc: comentario
+        },
       };
+
       const msg = msgs[action] || { title: '✅ Ação realizada!', desc: '' };
-      toast.success(msg.title, { 
+
+      toast.success(msg.title, {
         description: msg.desc,
-        duration: 5000 
+        duration: 5000
       });
+
       setShowApproval(false);
       setComentario('');
-      onRefresh();
+      onRefresh?.();
     } catch (e) {
       toast.error(`❌ Erro: ${e.message}`, { duration: 5000 });
     }
@@ -128,14 +185,15 @@ Responda em JSON com: { "seguro": true/false, "risco_nivel": "baixo|medio|alto",
 
   const handleDelete = async () => {
     if (!window.confirm('Tem certeza que deseja deletar esta solicitação?')) return;
+
     setActionLoading(true);
     try {
       await base44.entities.PurchaseRequest.delete(purchase.id);
-      toast.success('✅ Solicitação deletada com sucesso!', { 
+      toast.success('✅ Solicitação deletada com sucesso!', {
         description: purchase.descricao_item,
-        duration: 5000 
+        duration: 5000
       });
-      onRefresh();
+      onRefresh?.();
     } catch (e) {
       toast.error(`❌ Erro ao deletar: ${e.message}`, { duration: 5000 });
     }
@@ -143,52 +201,102 @@ Responda em JSON com: { "seguro": true/false, "risco_nivel": "baixo|medio|alto",
   };
 
   const META_LABELS = {
-    'MC3A-20': 'Ações Educativas', 'MC3A-21': 'Exposição / Produção',
-    'MC3A-22': 'Comunicação', 'MC3A-23': 'Noturno 2026',
-    'MC3A-24': 'Emenda Parlamentar', 'MC3A-25': 'Outras Ações', 'MC3A-EXTRA': 'Extra',
+    'MC3A-20': 'Ações Educativas',
+    'MC3A-21': 'Exposição / Produção',
+    'MC3A-22': 'Comunicação',
+    'MC3A-23': 'Noturno 2026',
+    'MC3A-24': 'Emenda Parlamentar',
+    'MC3A-25': 'Outras Ações',
+    'MC3A-EXTRA': 'Extra',
   };
 
-  const scoreColor = purchase.ai_meta_score >= 80
-    ? 'text-green-700 bg-green-50' : purchase.ai_meta_score >= 50
-    ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50';
+  const scoreColor =
+    purchase.ai_meta_score >= 80
+      ? 'text-green-700 bg-green-50'
+      : purchase.ai_meta_score >= 50
+      ? 'text-amber-700 bg-amber-50'
+      : 'text-red-700 bg-red-50';
 
   return (
-    <div className={`border rounded-xl transition-colors ${canAct && !showApproval ? 'border-blue-100 hover:border-blue-200' : 'border-gray-100 hover:border-gray-200'}`}>
+    <div
+      className={`border rounded-xl transition-colors ${
+        canAct && !showApproval
+          ? 'border-blue-100 hover:border-blue-200'
+          : 'border-gray-100 hover:border-gray-200'
+      }`}
+    >
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.color}`}>{s.label}</span>
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.color}`}>
+                {s.label}
+              </span>
+
               {purchase.meta_id && (
-                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{META_LABELS[purchase.meta_id] || purchase.meta_id}</span>
+                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                  {META_LABELS[purchase.meta_id] || purchase.meta_id}
+                </span>
               )}
+
               {purchase.tipo_gasto && (
-                <span className="text-xs border border-gray-200 text-gray-500 px-2 py-0.5 rounded-full">{purchase.tipo_gasto}</span>
+                <span className="text-xs border border-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
+                  {purchase.tipo_gasto}
+                </span>
               )}
+
               {purchase.ai_meta_score !== undefined && purchase.ai_meta_score !== null && (
                 <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${scoreColor}`}>
-                  <Sparkles className="w-3 h-3" />IA: {purchase.ai_meta_score}%
+                  <Sparkles className="w-3 h-3" />
+                  IA: {purchase.ai_meta_score}%
                 </span>
               )}
             </div>
+
             <p className="font-medium text-black text-sm truncate">{purchase.descricao_item}</p>
+
             <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-600">
               {purchase.fornecedor_nome && <span>Fornecedor: {purchase.fornecedor_nome}</span>}
               {budgetLine && (
                 <div className="flex items-center gap-1">
                   <DollarSign className="w-3 h-3" />
-                  <span>[{budgetLine.codigo}] {budgetLine.descricao?.substring(0, 35)}</span>
+                  <span>
+                    [{budgetLine.codigo}] {budgetLine.descricao?.substring(0, 35)}
+                  </span>
                 </div>
               )}
             </div>
           </div>
+
           <div className="flex items-center gap-2 flex-shrink-0">
             <div className="text-right">
-              <p className="font-bold text-black">R$ {(purchase.valor_solicitado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-              {purchase.valor_aprovado_admin && purchase.valor_aprovado_admin !== purchase.valor_solicitado && (
-                <p className="text-xs text-green-600">Aprv: R$ {purchase.valor_aprovado_admin.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-              )}
+              <p className="font-bold text-black">
+                R$ {(purchase.valor_solicitado || 0).toLocaleString('pt-BR', {
+                  minimumFractionDigits: 2
+                })}
+              </p>
+              {purchase.valor_aprovado_admin &&
+                purchase.valor_aprovado_admin !== purchase.valor_solicitado && (
+                  <p className="text-xs text-green-600">
+                    Aprv: R$ {purchase.valor_aprovado_admin.toLocaleString('pt-BR', {
+                      minimumFractionDigits: 2
+                    })}
+                  </p>
+                )}
             </div>
+
+            {canEdit && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={() => onEdit?.(purchase)}
+              >
+                <Pencil className="w-3.5 h-3.5 mr-1" />
+                Editar
+              </Button>
+            )}
+
             {canAct && (
               <Button
                 size="sm"
@@ -204,6 +312,7 @@ Responda em JSON com: { "seguro": true/false, "risco_nivel": "baixo|medio|alto",
                 {showApproval ? 'Fechar' : 'Analisar'}
               </Button>
             )}
+
             {isCoordenador && (
               <Button
                 size="sm"
@@ -215,78 +324,109 @@ Responda em JSON com: { "seguro": true/false, "risco_nivel": "baixo|medio|alto",
                 <Trash2 className="w-4 h-4" />
               </Button>
             )}
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpanded(!expanded)}>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setExpanded(!expanded)}
+            >
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </Button>
           </div>
         </div>
 
-        {/* Timeline sempre visível */}
         <div className="mt-3">
           <PurchaseTimeline purchase={purchase} />
         </div>
 
-        {/* Painel de aprovação inline */}
         {showApproval && (
           <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-black">
-                {canApproveCoord ? '✅ Aprovação — Coordenador Geral' : '✅ Aprovação — Coordenador Administrativo'}
+                {canApproveCoord
+                  ? '✅ Aprovação — Coordenador Geral'
+                  : '✅ Aprovação — Coordenador Administrativo'}
               </p>
               {loadingAnalysis && (
                 <span className="text-xs text-gray-500 flex items-center gap-1">
-                  <Loader2 className="w-3 h-3 animate-spin" /> Analisando segurança...
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Analisando segurança...
                 </span>
               )}
             </div>
 
-            {/* Análise de Segurança da IA */}
             {aiSecurityAnalysis && (
-              <div className={`p-3 rounded-lg border text-xs ${
-                aiSecurityAnalysis.risco_nivel === 'alto' 
-                  ? 'bg-red-50 border-red-200' 
-                  : aiSecurityAnalysis.risco_nivel === 'medio'
-                  ? 'bg-amber-50 border-amber-200'
-                  : 'bg-green-50 border-green-200'
-              }`}>
+              <div
+                className={`p-3 rounded-lg border text-xs ${
+                  aiSecurityAnalysis.risco_nivel === 'alto'
+                    ? 'bg-red-50 border-red-200'
+                    : aiSecurityAnalysis.risco_nivel === 'medio'
+                    ? 'bg-amber-50 border-amber-200'
+                    : 'bg-green-50 border-green-200'
+                }`}
+              >
                 <div className="flex items-start gap-2 mb-2">
-                  <Sparkles className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
-                    aiSecurityAnalysis.risco_nivel === 'alto' ? 'text-red-600' 
-                    : aiSecurityAnalysis.risco_nivel === 'medio' ? 'text-amber-600' 
-                    : 'text-green-600'
-                  }`} />
+                  <Sparkles
+                    className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
+                      aiSecurityAnalysis.risco_nivel === 'alto'
+                        ? 'text-red-600'
+                        : aiSecurityAnalysis.risco_nivel === 'medio'
+                        ? 'text-amber-600'
+                        : 'text-green-600'
+                    }`}
+                  />
                   <div className="flex-1">
                     <p className="font-semibold mb-1">Análise de Segurança da IA</p>
                     <p className="text-gray-700 mb-2">{aiSecurityAnalysis.justificativa}</p>
                     {aiSecurityAnalysis.observacoes && (
-                      <p className="text-gray-600 italic">Observações: {aiSecurityAnalysis.observacoes}</p>
+                      <p className="text-gray-600 italic">
+                        Observações: {aiSecurityAnalysis.observacoes}
+                      </p>
                     )}
-                    <p className={`mt-2 font-medium ${
-                      aiSecurityAnalysis.recomendacao === 'aprovar' ? 'text-green-700' : 'text-red-700'
-                    }`}>
-                      💡 Recomendação: {aiSecurityAnalysis.recomendacao === 'aprovar' ? '✅ Aprovar' : '❌ Recusar'}
+                    <p
+                      className={`mt-2 font-medium ${
+                        aiSecurityAnalysis.recomendacao === 'aprovar'
+                          ? 'text-green-700'
+                          : 'text-red-700'
+                      }`}
+                    >
+                      💡 Recomendação:{' '}
+                      {aiSecurityAnalysis.recomendacao === 'aprovar'
+                        ? '✅ Aprovar'
+                        : '❌ Recusar'}
                     </p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Saldo */}
             {budgetLine && (
               <div className="text-xs bg-white border rounded-lg px-3 py-2">
                 <span className="text-gray-500">[{budgetLine.codigo}] Saldo disponível: </span>
-                <strong className={((budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)) >= (purchase.valor_solicitado || 0) ? 'text-green-700' : 'text-red-700'}>
-                  R$ {Math.max(0, (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                <strong
+                  className={
+                    ((budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)) >=
+                    (purchase.valor_solicitado || 0)
+                      ? 'text-green-700'
+                      : 'text-red-700'
+                  }
+                >
+                  R${' '}
+                  {Math.max(
+                    0,
+                    (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)
+                  ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </strong>
               </div>
             )}
 
-            {/* Valor a aprovar (admin) */}
             {canApproveAdmin && (
               <div>
                 <label className="text-xs text-gray-600 mb-1 block">Valor a aprovar (R$)</label>
                 <Input
-                  type="number" step="0.01"
+                  type="number"
+                  step="0.01"
                   placeholder={purchase.valor_solicitado}
                   value={valorAdmin}
                   onChange={e => setValorAdmin(e.target.value)}
@@ -295,9 +435,10 @@ Responda em JSON com: { "seguro": true/false, "risco_nivel": "baixo|medio|alto",
               </div>
             )}
 
-            {/* Justificativa */}
             <div>
-              <label className="text-xs text-gray-600 mb-1 block">Justificativa / Comentário</label>
+              <label className="text-xs text-gray-600 mb-1 block">
+                Justificativa / Comentário
+              </label>
               <Textarea
                 placeholder="Adicione um comentário ou justificativa (obrigatório para recusar)..."
                 rows={2}
@@ -313,15 +454,24 @@ Responda em JSON com: { "seguro": true/false, "risco_nivel": "baixo|medio|alto",
                 onClick={() => handleAction('recusar')}
                 disabled={actionLoading || !comentario.trim()}
               >
-                {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <XCircle className="w-3.5 h-3.5 mr-1" />}
+                {actionLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                ) : (
+                  <XCircle className="w-3.5 h-3.5 mr-1" />
+                )}
                 Recusar
               </Button>
+
               <Button
                 className="bg-black hover:bg-gray-800 text-white text-sm"
                 onClick={() => handleAction(canApproveCoord ? 'approve_coord' : 'approve_admin')}
                 disabled={actionLoading}
               >
-                {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <CheckCircle className="w-3.5 h-3.5 mr-1" />}
+                {actionLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                ) : (
+                  <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                )}
                 {canApproveCoord ? 'Aprovar → Admin' : 'Aprovar e Comprometer'}
               </Button>
             </div>
@@ -331,81 +481,153 @@ Responda em JSON com: { "seguro": true/false, "risco_nivel": "baixo|medio|alto",
 
       {expanded && (
         <div className="px-4 pb-4 space-y-4 border-t border-gray-50 pt-4">
-          {/* Análise IA */}
           {purchase.ai_analise && (
-            <div className={`p-3 rounded-lg text-xs ${purchase.ai_meta_score >= 80 ? 'bg-green-50 border border-green-100' : 'bg-amber-50 border border-amber-100'}`}>
-              <p className="font-semibold mb-1 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Análise da IA</p>
+            <div
+              className={`p-3 rounded-lg text-xs ${
+                purchase.ai_meta_score >= 80
+                  ? 'bg-green-50 border border-green-100'
+                  : 'bg-amber-50 border border-amber-100'
+              }`}
+            >
+              <p className="font-semibold mb-1 flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                Análise da IA
+              </p>
               <p className="text-gray-700">{purchase.ai_analise}</p>
               {purchase.ai_meta_sugerida && purchase.ai_meta_sugerida !== purchase.meta_id && (
-                <p className="mt-1 text-amber-700 font-medium">Meta sugerida: {purchase.ai_meta_sugerida}</p>
+                <p className="mt-1 text-amber-700 font-medium">
+                  Meta sugerida: {purchase.ai_meta_sugerida}
+                </p>
               )}
             </div>
           )}
 
-          {/* Rubrica */}
           {budgetLine && (
             <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
-              <p className="font-semibold text-xs mb-2 text-blue-900">📋 Rubrica Orçamentária</p>
+              <p className="font-semibold text-xs mb-2 text-blue-900">
+                📋 Rubrica Orçamentária
+              </p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-blue-800">
-                <div><span className="text-blue-600 font-medium">Código:</span> {budgetLine.codigo}</div>
-                <div><span className="text-blue-600 font-medium">Natureza:</span> {budgetLine.natureza_codigo}</div>
-                <div><span className="text-blue-600 font-medium">Valor PO:</span> R$ {(budgetLine.valor_total_previsto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                <div><span className="text-blue-600 font-medium">Comprometido:</span> R$ {(budgetLine.saldo_comprometido || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                <div><span className="text-blue-600 font-medium">Saldo:</span> R$ {Math.max(0, (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                <div>
+                  <span className="text-blue-600 font-medium">Código:</span> {budgetLine.codigo}
+                </div>
+                <div>
+                  <span className="text-blue-600 font-medium">Natureza:</span>{' '}
+                  {budgetLine.natureza_codigo}
+                </div>
+                <div>
+                  <span className="text-blue-600 font-medium">Valor PO:</span> R${' '}
+                  {(budgetLine.valor_total_previsto || 0).toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2
+                  })}
+                </div>
+                <div>
+                  <span className="text-blue-600 font-medium">Comprometido:</span> R${' '}
+                  {(budgetLine.saldo_comprometido || 0).toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2
+                  })}
+                </div>
+                <div>
+                  <span className="text-blue-600 font-medium">Saldo:</span> R${' '}
+                  {Math.max(
+                    0,
+                    (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)
+                  ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </div>
               </div>
             </div>
           )}
 
-          {/* Detalhes */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-            {purchase.categoria && <div><span className="text-gray-400">Categoria</span><p className="font-medium text-gray-700">{purchase.categoria}</p></div>}
-            {purchase.centro_custo && <div><span className="text-gray-400">Centro de custo</span><p className="font-medium text-gray-700">{purchase.centro_custo}</p></div>}
-            {purchase.meio_pagamento && <div><span className="text-gray-400">Pagamento</span><p className="font-medium text-gray-700">{purchase.meio_pagamento}</p></div>}
-            {purchase.qtd && <div><span className="text-gray-400">Qtd</span><p className="font-medium text-gray-700">{purchase.qtd} {purchase.unidade}</p></div>}
-            {purchase.data_pagamento && <div><span className="text-gray-400">Data pgto</span><p className="font-medium text-gray-700">{purchase.data_pagamento}</p></div>}
+            {purchase.categoria && (
+              <div>
+                <span className="text-gray-400">Categoria</span>
+                <p className="font-medium text-gray-700">{purchase.categoria}</p>
+              </div>
+            )}
+            {purchase.centro_custo && (
+              <div>
+                <span className="text-gray-400">Centro de custo</span>
+                <p className="font-medium text-gray-700">{purchase.centro_custo}</p>
+              </div>
+            )}
+            {purchase.meio_pagamento && (
+              <div>
+                <span className="text-gray-400">Pagamento</span>
+                <p className="font-medium text-gray-700">{purchase.meio_pagamento}</p>
+              </div>
+            )}
+            {purchase.qtd && (
+              <div>
+                <span className="text-gray-400">Qtd</span>
+                <p className="font-medium text-gray-700">
+                  {purchase.qtd} {purchase.unidade}
+                </p>
+              </div>
+            )}
+            {purchase.data_pagamento && (
+              <div>
+                <span className="text-gray-400">Data pgto</span>
+                <p className="font-medium text-gray-700">{purchase.data_pagamento}</p>
+              </div>
+            )}
           </div>
 
-          {/* Documentos */}
           <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg">
             <p className="font-semibold text-xs mb-3 text-amber-900">📎 Documentos Anexados</p>
             <div className="space-y-2 mb-3">
               <PurchaseDocumentViewer purchaseId={purchase.id} />
             </div>
-            <PurchaseDocumentUpload 
+            <PurchaseDocumentUpload
               purchaseId={purchase.id}
-              onUploadSuccess={() => {}}
+              onUploadSuccess={() => onRefresh?.()}
             />
           </div>
 
-          {/* Atividade Relacionada */}
           {relatedActivity && (
             <div className="p-3 bg-purple-50 border border-purple-100 rounded-lg">
               <p className="font-semibold text-xs mb-2 text-purple-900 flex items-center gap-1">
-                <Activity className="w-3 h-3" /> Atividade Relacionada
+                <Activity className="w-3 h-3" />
+                Atividade Relacionada
               </p>
               <div className="space-y-1 text-xs text-purple-800">
-                <p><span className="font-medium">Título:</span> {relatedActivity.titulo}</p>
-                {relatedActivity.data_realizacao && <p><span className="font-medium">Data:</span> {relatedActivity.data_realizacao}</p>}
+                <p>
+                  <span className="font-medium">Título:</span> {relatedActivity.titulo}
+                </p>
+                {relatedActivity.data_realizacao && (
+                  <p>
+                    <span className="font-medium">Data:</span>{' '}
+                    {relatedActivity.data_realizacao}
+                  </p>
+                )}
               </div>
             </div>
           )}
 
-          {/* Links */}
           {(purchase.link_proposta || purchase.comprovante_url || purchase.orcamento_url) && (
             <div className="flex gap-2 flex-wrap">
               {purchase.link_proposta && (
                 <a href={purchase.link_proposta} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" size="sm" className="text-xs gap-1"><ExternalLink className="w-3 h-3" />Ver Proposta</Button>
+                  <Button variant="outline" size="sm" className="text-xs gap-1">
+                    <ExternalLink className="w-3 h-3" />
+                    Ver Proposta
+                  </Button>
                 </a>
               )}
               {purchase.orcamento_url && (
                 <a href={purchase.orcamento_url} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" size="sm" className="text-xs gap-1"><ExternalLink className="w-3 h-3" />Orçamento</Button>
+                  <Button variant="outline" size="sm" className="text-xs gap-1">
+                    <ExternalLink className="w-3 h-3" />
+                    Orçamento
+                  </Button>
                 </a>
               )}
               {purchase.comprovante_url && (
                 <a href={purchase.comprovante_url} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" size="sm" className="text-xs gap-1"><ExternalLink className="w-3 h-3" />Comprovante/NF</Button>
+                  <Button variant="outline" size="sm" className="text-xs gap-1">
+                    <ExternalLink className="w-3 h-3" />
+                    Comprovante/NF
+                  </Button>
                 </a>
               )}
             </div>
