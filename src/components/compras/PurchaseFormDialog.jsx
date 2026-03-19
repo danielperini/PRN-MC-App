@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Sparkles, AlertTriangle, Loader2, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import OrcamentoUploadDialog from './OrcamentoUploadDialog';
 import FormDocumentsField from './FormDocumentsField';
 import { METAS_3_ADITIVO } from '@/components/planoTrabalho';
 import { useBudgetLines } from './useBudgetLines';
@@ -54,7 +53,6 @@ const EMPTY = {
   meio_pagamento: '',
   detalhe_pagamento: '',
   observacoes: '',
-  orcamentos: [],
   activity_id: '',
   report_id: '',
   orcamentos_docs: [],
@@ -87,8 +85,6 @@ export default function PurchaseFormDialog({
 
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [analyzingMeta, setAnalyzingMeta] = useState(false);
-  const [checkingSaldo, setCheckingSaldo] = useState(false);
-  const [saldoInfo, setSaldoInfo] = useState(null);
   const [saving, setSaving] = useState(false);
   const [activities, setActivities] = useState([]);
   const [mes, setMes] = useState(
@@ -97,9 +93,6 @@ export default function PurchaseFormDialog({
   const [ano, setAno] = useState(
     initialData?.ano || prefill?.ano || new Date().getFullYear()
   );
-  const [showOrcamentoDialog, setShowOrcamentoDialog] = useState(false);
-  const [orcamentoAnalysis, setOrcamentoAnalysis] = useState(null);
-  const [analisandoOrcamento, setAnalisandoOrcamento] = useState(false);
 
   const isFromActivity = !!prefill?.activity_id;
 
@@ -120,25 +113,12 @@ export default function PurchaseFormDialog({
     }
   }, [currentUser]);
 
-  useEffect(() => {
-    if (form.budgetline_id && form.valor_solicitado) {
-      setCheckingSaldo(true);
-      base44.functions.invoke('purchaseActions', {
-        action: 'check_budget',
-        budgetline_id: form.budgetline_id,
-        valor: parseFloat(form.valor_solicitado) || 0,
-      }).then(res => {
-        setSaldoInfo(res.data);
-        setCheckingSaldo(false);
-      }).catch(() => setCheckingSaldo(false));
-    }
-  }, [form.budgetline_id, form.valor_solicitado]);
-
   const analyzeWithAI = async () => {
     if (!form.descricao_item || !form.meta_id || !form.categoria || !form.tipo_gasto) {
       toast.error('Preencha: descrição, meta, categoria e tipo antes de analisar.');
       return;
     }
+
     setAnalyzingMeta(true);
     try {
       const res = await base44.functions.invoke('purchaseActions', {
@@ -154,110 +134,6 @@ export default function PurchaseFormDialog({
       toast.error('Erro na análise da IA');
     }
     setAnalyzingMeta(false);
-  };
-
-  const analisarOrcamentoComIA = async () => {
-    if (form.orcamentos_docs.length === 0) {
-      toast.error('Nenhum orçamento anexado para analisar.');
-      return;
-    }
-
-    setAnalisandoOrcamento(true);
-    try {
-      const orcamento = form.orcamentos_docs[form.orcamentos_docs.length - 1];
-
-      if (orcamento.url) {
-        const res = await base44.integrations.Core.InvokeLLM({
-          prompt: `Analise este contrato/orçamento e extraia os seguintes campos em JSON:
-{
-  "fornecedor_nome": "Nome da empresa/pessoa fornecedora",
-  "fornecedor_cnpj": "CNPJ ou CPF",
-  "fornecedor_contato": "Telefone ou email",
-  "fornecedor_cidade": "Cidade",
-  "descricao_item": "Descrição detalhada do produto/serviço",
-  "valor_solicitado": número do valor total,
-  "valor_unitario": número do valor unitário,
-  "qtd": quantidade,
-  "unidade": "un, diária, serviço, mês, ano, hora, km ou evento",
-  "prazo_entrega": "Prazo em dias ou data",
-  "garantia": "Período de garantia",
-  "condicoes_pagamento": "Condições de pagamento descritas",
-  "meios_pagamento": "PIX, TED/Transferência, Boleto, Cartão ou Dinheiro"
-}
-
-Retorne APENAS o JSON, sem explicações adicionais.`,
-          file_urls: [orcamento.url],
-          response_json_schema: {
-            type: 'object',
-            properties: {
-              fornecedor_nome: { type: 'string' },
-              fornecedor_cnpj: { type: 'string' },
-              fornecedor_contato: { type: 'string' },
-              fornecedor_cidade: { type: 'string' },
-              descricao_item: { type: 'string' },
-              valor_solicitado: { type: 'number' },
-              valor_unitario: { type: 'number' },
-              qtd: { type: 'number' },
-              unidade: { type: 'string' },
-              prazo_entrega: { type: 'string' },
-              garantia: { type: 'string' },
-              condicoes_pagamento: { type: 'string' },
-              meios_pagamento: { type: 'string' }
-            }
-          }
-        });
-
-        setOrcamentoAnalysis(res.data);
-      } else {
-        toast.error('Arquivo não tem URL válido. Tente anexar novamente.');
-      }
-    } catch (e) {
-      toast.error('Erro ao analisar orçamento: ' + e.message);
-    }
-    setAnalisandoOrcamento(false);
-  };
-
-  const preencherComDadosOrcamento = (dados) => {
-    if (dados.fornecedor_nome) set('fornecedor_nome', dados.fornecedor_nome);
-    if (dados.fornecedor_cnpj) set('fornecedor_cnpj', dados.fornecedor_cnpj);
-    if (dados.fornecedor_contato) set('fornecedor_contato', dados.fornecedor_contato);
-    if (dados.descricao_item) set('descricao_item', dados.descricao_item);
-    if (dados.valor_solicitado) set('valor_solicitado', dados.valor_solicitado.toString());
-    if (dados.valor_unitario) set('valor_unitario', dados.valor_unitario.toString());
-    if (dados.qtd) set('qtd', dados.qtd.toString());
-    if (dados.unidade) set('unidade', dados.unidade);
-    if (dados.meios_pagamento) {
-      const meio = dados.meios_pagamento.includes('PIX')
-        ? 'PIX'
-        : dados.meios_pagamento.includes('TED') || dados.meios_pagamento.includes('Transferência')
-        ? 'TED/Transferência'
-        : dados.meios_pagamento.includes('Boleto')
-        ? 'Boleto'
-        : dados.meios_pagamento.includes('Cartão')
-        ? 'Cartão'
-        : dados.meios_pagamento.includes('Dinheiro')
-        ? 'Dinheiro'
-        : '';
-      if (meio) set('meio_pagamento', meio);
-    }
-
-    let obs = form.observacoes || '';
-    if (dados.garantia) obs += (obs ? '\n' : '') + `Garantia: ${dados.garantia}`;
-    if (dados.condicoes_pagamento) obs += (obs ? '\n' : '') + `Condições: ${dados.condicoes_pagamento}`;
-    if (dados.prazo_entrega) obs += (obs ? '\n' : '') + `Prazo: ${dados.prazo_entrega}`;
-    if (dados.fornecedor_cidade) obs += (obs ? '\n' : '') + `Cidade: ${dados.fornecedor_cidade}`;
-    if (obs) set('observacoes', obs);
-
-    setOrcamentoAnalysis(null);
-    toast.success('Formulário preenchido com dados do orçamento!');
-  };
-
-  const preencherComIA = async () => {
-    if (!orcamentoAnalysis) {
-      toast.error('Analise o orçamento primeiro.');
-      return;
-    }
-    preencherComDadosOrcamento(orcamentoAnalysis);
   };
 
   const handleSave = async (submeter = false) => {
@@ -291,6 +167,7 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
         mes_referencia: mes,
         ano,
         valor_solicitado: parseFloat(form.valor_solicitado) || 0,
+        valor_unitario: parseFloat(form.valor_unitario) || 0,
         qtd: parseFloat(form.qtd) || 1,
         orcamento_url,
         nota_fiscal_url,
@@ -384,7 +261,7 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
             </div>
             <div>
               <Label className="text-xs text-gray-600 mb-1 block">Ano</Label>
-              <Input type="number" value={ano} onChange={e => setAno(parseInt(e.target.value))} />
+              <Input type="number" value={ano} onChange={e => setAno(parseInt(e.target.value) || new Date().getFullYear())} />
             </div>
           </div>
 
