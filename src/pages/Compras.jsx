@@ -141,7 +141,12 @@ function ComprasInner() {
 
   const { data: rubricas = [], refetch: refetchRubricas } = useQuery({
     queryKey: ['rubricas'],
-    queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 100),
+    queryFn: async () => {
+      const result = await base44.functions.invoke('listAllRubricas', {});
+      return result?.rubricas || [];
+    },
+    enabled: !!currentUser,
+    staleTime: 0,
   });
 
   const filtered = purchases.filter(p => {
@@ -313,13 +318,11 @@ function ComprasInner() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as rubricas</SelectItem>
-                  {rubricas
-                    .filter(r => r.ativo !== false)
-                    .map(r => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.rubrica}
-                      </SelectItem>
-                    ))}
+                  {rubricas.map(r => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.rubrica}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
