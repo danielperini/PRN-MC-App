@@ -17,11 +17,17 @@ const DOCUMENT_TYPES = [
   { value: 'orcamento', label: '📊 Orçamento' },
   { value: 'contrato', label: '📜 Contrato Assinado' },
   { value: 'nota_fiscal', label: '🧾 Nota Fiscal' },
+  { value: 'xml_nf', label: '🧾 XML da Nota Fiscal' },
   { value: 'recibo', label: '✅ Recibo' },
+  { value: 'comprovante_pagamento', label: '💸 Comprovante de Pagamento' },
   { value: 'outro', label: '📎 Outro' },
 ];
 
-export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, onUploadSuccess }) {
+export default function PurchaseDocumentUpload({
+  purchaseId,
+  rubricaId = null,
+  onUploadSuccess,
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [files, setFiles] = useState([]);
@@ -46,11 +52,16 @@ export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, o
     });
   };
 
+  const handleClose = () => {
+    resetForm();
+    setIsOpen(false);
+  };
+
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files || []);
     if (!selectedFiles.length) return;
 
-    const maxSize = 20 * 1024 * 1024; // 20MB
+    const maxSize = 20 * 1024 * 1024;
     const tooLarge = selectedFiles.find((f) => f.size > maxSize);
 
     if (tooLarge) {
@@ -62,18 +73,18 @@ export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, o
   };
 
   const handleUpload = async () => {
+    if (!purchaseId) {
+      toast.error('Compra não identificada para vincular os documentos.');
+      return;
+    }
+
     if (!files.length) {
-      toast.error('Selecione ao menos um arquivo');
+      toast.error('Selecione ao menos um arquivo.');
       return;
     }
 
     if (!formData.tipo_documento) {
-      toast.error('Selecione o tipo de documento');
-      return;
-    }
-
-    if (!purchaseId) {
-      toast.error('Compra não identificada para vincular os documentos');
+      toast.error('Selecione o tipo de documento.');
       return;
     }
 
@@ -83,6 +94,18 @@ export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, o
       const user = await base44.auth.me();
       const purchase = await base44.entities.PurchaseRequest.get(purchaseId);
 
+      if (!purchase) {
+        toast.error('Compra não encontrada.');
+        setUploading(false);
+        return;
+      }
+
+      const effectiveRubricaId =
+        rubricaId ||
+        purchase.rubrica_id ||
+        purchase.budgetline_id ||
+        null;
+
       const createdDocs = [];
 
       for (const currentFile of files) {
@@ -90,20 +113,24 @@ export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, o
           file: currentFile,
         });
 
-        const file_url = uploadRes.file_url;
+        const file_url = uploadRes?.file_url || uploadRes?.url || '';
 
-        const docResult = await base44.entities.PurchaseDocument.create({
+        if (!file_url) {
+          throw new Error(`Falha ao obter URL do arquivo ${currentFile.name}`);
+        }
+
+        const docPayload = {
           purchase_id: purchaseId,
-          rubrica_id: rubricaId || purchase?.budgetline_id || null,
+          rubrica_id: effectiveRubricaId,
           tipo_documento: formData.tipo_documento,
           nome_arquivo: currentFile.name,
           file_url,
-          file_size: currentFile.size,
-          mime_type: currentFile.type,
-          descricao: formData.descricao,
-          numero_documento: formData.numero_documento,
-          data_documento: formData.data_documento,
-          fornecedor: formData.fornecedor,
+          file_size: currentFile.size || 0,
+          mime_type: currentFile.type || '',
+          descricao: formData.descricao || '',
+          numero_documento: formData.numero_documento || '',
+          data_documento: formData.data_documento || '',
+          fornecedor: formData.fornecedor || purchase.fornecedor_nome || '',
           valor_documento: formData.valor_documento
             ? parseFloat(formData.valor_documento)
             : null,
@@ -112,27 +139,25 @@ export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, o
           data_upload: new Date().toISOString(),
           revisado_por: '',
           comentario_revisao: '',
-        });
+        };
 
-        createdDocs.push(docResult);
+        const created = await base44.entities.PurchaseDocument.create(docPayload);
+        createdDocs.push(created);
 
-        if (formData.valor_documento && (rubricaId || purchaseId)) {
-          try {
-            await base44.functions.invoke('syncDocumentToRubrica', {
-              documentId: docResult.id,
-            });
-          } catch (e) {
-            console.error('Erro ao sincronizar rubrica:', e);
-          }
+        try {
+          await base44.functions.invoke('syncDocumentToRubrica', {
+            documentId: created.id,
+          });
+        } catch (syncError) {
+          console.error('Erro ao sincronizar documento com rubrica:', syncError);
         }
       }
 
       toast.success(`✅ ${createdDocs.length} documento(s) enviado(s) para aprovação!`);
-      resetForm();
-      setIsOpen(false);
-      onUploadSuccess?.();
+      handleClose();
+      onUploadSuccess?.(createdDocs);
     } catch (e) {
-      toast.error('Erro: ' + e.message);
+      toast.error('Erro ao enviar documentos: ' + e.message);
     } finally {
       setUploading(false);
     }
@@ -155,7 +180,7 @@ export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, o
     <div className="rounded-2xl border bg-white p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold">Anexar Documento</h3>
-        <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)}>
+        <Button variant="ghost" size="icon" onClick={handleClose}>
           <X className="w-4 h-4" />
         </Button>
       </div>
@@ -185,7 +210,7 @@ export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, o
           <div className="border-2 border-dashed rounded-xl p-4 text-center">
             <Input type="file" multiple onChange={handleFileChange} />
             <p className="text-xs text-gray-500 mt-2">
-              Selecione um ou mais arquivos (máx 20MB por arquivo)
+              Selecione um ou mais arquivos (máx. 20MB por arquivo)
             </p>
           </div>
         </div>
@@ -211,7 +236,7 @@ export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, o
 
         <div>
           <label className="text-sm font-medium mb-1 block">
-            Número (NF, contrato, recibo)
+            Número do documento
           </label>
           <Input
             value={formData.numero_documento}
@@ -223,7 +248,7 @@ export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, o
         </div>
 
         <div>
-          <label className="text-sm font-medium mb-1 block">Data do Documento</label>
+          <label className="text-sm font-medium mb-1 block">Data do documento</label>
           <Input
             type="date"
             value={formData.data_documento}
@@ -283,13 +308,7 @@ export default function PurchaseDocumentUpload({ purchaseId, rubricaId = null, o
           {uploading ? 'Enviando...' : 'Enviar para aprovação'}
         </Button>
 
-        <Button
-          variant="outline"
-          onClick={() => {
-            resetForm();
-            setIsOpen(false);
-          }}
-        >
+        <Button variant="outline" onClick={handleClose}>
           Cancelar
         </Button>
       </div>
