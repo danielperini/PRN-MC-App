@@ -54,6 +54,74 @@ async function listAll(entityApi, orderBy, pageSize = 500) {
   return all;
 }
 
+function resolveRubricaFromPurchase(purchase, rubricas, budgetLineById) {
+  if (purchase?.rubrica_id) {
+    const rubrica = rubricas.find((r) => r.id === purchase.rubrica_id);
+    if (rubrica) {
+      return {
+        rubricaId: rubrica.id,
+        origem: 'rubrica_id',
+        motivo: null,
+      };
+    }
+  }
+
+  const blId =
+    purchase?.budgetline_id ||
+    purchase?.budget_line_id ||
+    purchase?.linha_orcamentaria_id;
+
+  if (blId) {
+    const bl = budgetLineById[blId];
+
+    if (bl?.rubrica_id) {
+      const rubrica = rubricas.find((r) => r.id === bl.rubrica_id);
+      if (rubrica) {
+        return {
+          rubricaId: rubrica.id,
+          origem: 'budgetline_id',
+          motivo: null,
+        };
+      }
+    }
+
+    const nomeBL = normalizeString(
+      bl?.descricao || bl?.rubrica || bl?.nome || ''
+    );
+
+    if (nomeBL) {
+      const matches = rubricas.filter((r) => {
+        const nomeRubrica = normalizeString(
+          r?.rubrica || r?.nome || r?.descricao || ''
+        );
+        return nomeRubrica === nomeBL;
+      });
+
+      if (matches.length === 1) {
+        return {
+          rubricaId: matches[0].id,
+          origem: 'budgetline_nome',
+          motivo: null,
+        };
+      }
+
+      if (matches.length > 1) {
+        return {
+          rubricaId: null,
+          origem: 'nao_encontrada',
+          motivo: 'Match ambíguo via budget line',
+        };
+      }
+    }
+  }
+
+  return {
+    rubricaId: null,
+    origem: 'nao_encontrada',
+    motivo: 'Rubrica não resolvida',
+  };
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -75,7 +143,6 @@ Deno.serve(async (req) => {
         listAll(base44.asServiceRole.entities.BudgetLine, 'descricao', 500),
       ]);
 
-    // 1) DEDUPLICAR RUBRICAS
     const rubricasMap = new Map();
     const rubricasDuplicadas = [];
 
@@ -105,80 +172,69 @@ Deno.serve(async (req) => {
       lancamentosPorRubrica[l.rubrica_id].push(l);
     }
 
-    const comprasPorRubricaDireta = {};
-    for (const p of allPurchases) {
-      if (!p?.rubrica_id) continue;
-      if (!comprasPorRubricaDireta[p.rubrica_id]) {
-        comprasPorRubricaDireta[p.rubrica_id] = [];
-      }
-      comprasPorRubricaDireta[p.rubrica_id].push(p);
-    }
+    const comprasPorRubrica = {};
+    const comprasPorRubricaComprometida = {};
+    const unmatchedPaidPurchases = [];
 
-    const comprasPorBudgetLine = {};
-    for (const p of allPurchases) {
-      const blId =
-        p?.budgetline_id || p?.budget_line_id || p?.linha_orcamentaria_id;
-      if (!blId) continue;
-      if (!comprasPorBudgetLine[blId]) comprasPorBudgetLine[blId] = [];
-      comprasPorBudgetLine[blId].push(p);
-    }
-
-    const comprasPorNomeBL = {};
-    for (const p of allPurchases) {
-      const blId =
-        p?.budgetline_id || p?.budget_line_id || p?.linha_orcamentaria_id;
-      if (!blId) continue;
-
-      const bl = budgetLineById[blId];
-      const nome = normalizeString(
-        bl?.descricao || bl?.rubrica || bl?.nome || ''
+    for (const purchase of allPurchases) {
+      const status = normalizeStatus(purchase.status);
+      const resolved = resolveRubricaFromPurchase(
+        purchase,
+        rubricas,
+        budgetLineById
       );
-      if (!nome) continue;
 
-      if (!comprasPorNomeBL[nome]) comprasPorNomeBL[nome] = [];
-      comprasPorNomeBL[nome].push(p);
+      if (!resolved.rubricaId) {
+        if (status === 'PAGO') {
+          unmatchedPaidPurchases.push({
+            purchase_id: purchase.id,
+            titulo: purchase.titulo || purchase.objeto || '',
+            fornecedor: purchase.fornecedor || '',
+            valor_pago: toNumber(purchase.valor_pago),
+            status: purchase.status,
+            rubrica_id: purchase.rubrica_id || null,
+            budgetline_id:
+              purchase.budgetline_id ||
+              purchase.budget_line_id ||
+              purchase.linha_orcamentaria_id ||
+              null,
+            motivo: resolved.motivo,
+          });
+        }
+        continue;
+      }
+
+      if (status === 'PAGO') {
+        if (!comprasPorRubrica[resolved.rubricaId]) {
+          comprasPorRubrica[resolved.rubricaId] = [];
+        }
+        comprasPorRubrica[resolved.rubricaId].push(purchase);
+      }
+
+      if (
+        status === 'APROVADO_ADMIN' ||
+        status === 'APROVADO_COORD'
+      ) {
+        if (!comprasPorRubricaComprometida[resolved.rubricaId]) {
+          comprasPorRubricaComprometida[resolved.rubricaId] = [];
+        }
+        comprasPorRubricaComprometida[resolved.rubricaId].push(purchase);
+      }
     }
 
     const results = [];
 
     for (const rubrica of rubricas) {
       const rubricaId = rubrica.id;
-      const budgetlineId =
-        rubrica.budgetline_id ||
-        rubrica.budget_line_id ||
-        rubrica.linha_orcamentaria_id ||
-        null;
-
-      const nomeRubrica = normalizeString(
-        rubrica.rubrica || rubrica.nome || rubrica.descricao || ''
-      );
 
       const lans = lancamentosPorRubrica[rubricaId] || [];
       const valorLancamentos = parseFloat(
         lans.reduce((s, l) => s + toNumber(l.valor), 0).toFixed(2)
       );
 
-      const mapaCompras = {};
-      const addCompras = (list) => {
-        for (const c of list || []) {
-          if (c?.id) mapaCompras[c.id] = c;
-        }
-      };
-
-      addCompras(comprasPorRubricaDireta[rubricaId]);
-      if (budgetlineId) addCompras(comprasPorBudgetLine[budgetlineId]);
-      if (nomeRubrica) addCompras(comprasPorNomeBL[nomeRubrica]);
-
-      const comprasUnicas = Object.values(mapaCompras);
-
-      const comprasPagas = comprasUnicas.filter(
-        (p) => normalizeStatus(p.status) === 'PAGO'
-      );
-
-      const comprasAprovadas = comprasUnicas.filter((p) => {
-        const s = normalizeStatus(p.status);
-        return s === 'APROVADO_ADMIN' || s === 'APROVADO_COORD';
-      });
+      const comprasPagas = comprasPorRubrica[rubricaId] || [];
+      const comprasAprovadas =
+        comprasPorRubricaComprometida[rubricaId] || [];
 
       const valorPago = parseFloat(
         comprasPagas.reduce((s, p) => s + getPurchaseValue(p), 0).toFixed(2)
@@ -190,7 +246,6 @@ Deno.serve(async (req) => {
           .toFixed(2)
       );
 
-      // CORREÇÃO PRINCIPAL: somar compras + lançamentos
       const valorUtilizado = parseFloat(
         (valorPago + valorComprometido + valorLancamentos).toFixed(2)
       );
@@ -226,7 +281,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 2) ATUALIZAR RUBRICAS ÚNICAS
     const BATCH = 5;
     let updated = 0;
 
@@ -274,12 +328,14 @@ Deno.serve(async (req) => {
       teto_correto: TETO_CORRETO,
       diferenca_total,
       total_esta_correto: Math.abs(diferenca_total) < 0.01,
+      compras_pagas_nao_vinculadas: unmatchedPaidPurchases.length,
     };
 
     return Response.json({
       success: true,
       trigger: body?.trigger || null,
       sumario,
+      inconsistencias: unmatchedPaidPurchases,
       duplicadas: rubricasDuplicadas.map((r) => ({
         id: r.id,
         grupo: r.grupo || null,
