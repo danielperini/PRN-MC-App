@@ -136,12 +136,6 @@ Deno.serve(async (req) => {
         ? parseFloat(((valorUtilizado / valorRubrica) * 100).toFixed(2))
         : 0;
 
-      await base44.asServiceRole.entities.Rubrica.update(rubricaId, {
-        valor_utilizado: valorUtilizado,
-        saldo,
-        percentual_utilizado: percentualUtilizado
-      });
-
       results.push({
         rubrica_id: rubricaId,
         rubrica: rubrica.rubrica || rubrica.nome || null,
