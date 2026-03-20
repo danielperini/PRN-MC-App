@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import {
   Trash2,
   Calendar,
   User,
-  Loader2
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -19,6 +19,13 @@ function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+function formatMoney(value) {
+  return toNumber(value).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 export default function RubricaDetail({ rubrica, onClose }) {
@@ -35,20 +42,31 @@ export default function RubricaDetail({ rubrica, onClose }) {
 
   const queryClient = useQueryClient();
 
+  const rubricaId = rubrica?.id;
+  const nomeRubrica = rubrica?.rubrica || 'Rubrica';
+  const grupoRubrica = rubrica?.grupo || 'Sem grupo';
+  const numeroParcelas =
+    rubrica?.numero_parcelas_unidades ||
+    rubrica?.numero_parcelas ||
+    rubrica?.parcelas ||
+    '—';
+
   const { data: lancamentos = [] } = useQuery({
-    queryKey: ['lancamentos-rubrica', rubrica.id],
+    queryKey: ['lancamentos-rubrica', rubricaId],
     queryFn: () =>
       base44.entities.LancamentoRubrica.filter(
-        { rubrica_id: rubrica.id },
+        { rubrica_id: rubricaId },
         '-created_date',
         100
       ),
-    enabled: !!rubrica?.id,
+    enabled: !!rubricaId,
   });
 
   const invalidateRubricaQueries = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['lancamentos-rubrica', rubrica.id] }),
+      queryClient.invalidateQueries({
+        queryKey: ['lancamentos-rubrica', rubricaId],
+      }),
       queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
       queryClient.invalidateQueries({ queryKey: ['rubricas-consolidadas'] }),
       queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
@@ -56,9 +74,26 @@ export default function RubricaDetail({ rubrica, onClose }) {
       queryClient.invalidateQueries({ queryKey: ['purchases'] }),
       queryClient.invalidateQueries({ queryKey: ['purchase'] }),
       queryClient.invalidateQueries({ queryKey: ['compra'] }),
-      queryClient.invalidateQueries({ queryKey: ['museu'] })
+      queryClient.invalidateQueries({ queryKey: ['museu'] }),
     ]);
   };
+
+  const resumo = useMemo(() => {
+    const valorRubrica = toNumber(rubrica?.valor_rubrica);
+    const valorUtilizadoBanco = toNumber(rubrica?.valor_utilizado);
+    const saldoBanco =
+      rubrica?.saldo !== undefined && rubrica?.saldo !== null
+        ? toNumber(rubrica?.saldo)
+        : valorRubrica - valorUtilizadoBanco;
+
+    return {
+      valorRubrica,
+      valorUtilizadoBanco,
+      saldoBanco,
+      percentualUtilizado:
+        valorRubrica > 0 ? (valorUtilizadoBanco / valorRubrica) * 100 : 0,
+    };
+  }, [rubrica]);
 
   const handleAddLancamento = async () => {
     if (!formData.valor) {
@@ -73,7 +108,7 @@ export default function RubricaDetail({ rubrica, onClose }) {
       return;
     }
 
-    if (valor < 0 && !formData.justificativa_ajuste) {
+    if (valor < 0 && !formData.justificativa_ajuste.trim()) {
       toast.error('Justificativa é obrigatória para ajustes negativos');
       return;
     }
@@ -84,7 +119,7 @@ export default function RubricaDetail({ rubrica, onClose }) {
       const user = await base44.auth.me();
 
       await base44.entities.LancamentoRubrica.create({
-        rubrica_id: rubrica.id,
+        rubrica_id: rubricaId,
         data_lancamento: formData.data_lancamento,
         origem_lancamento: 'manual_usuario',
         descricao: formData.descricao || 'Lançamento manual',
@@ -94,20 +129,22 @@ export default function RubricaDetail({ rubrica, onClose }) {
         criado_por: user?.email,
       });
 
-      await base44.functions.invoke('recalculateRubrica', {
-        rubricaId: rubrica.id
-      });
+      try {
+        await base44.functions.invoke('recalculateRubrica', {
+          rubricaId,
+        });
+      } catch (_e) {}
 
       try {
         await base44.functions.invoke('recalculateAllRubricas', {
           trigger: 'manual_rubrica_update',
-          rubricaId: rubrica.id
+          rubricaId,
         });
       } catch (_e) {}
 
       await invalidateRubricaQueries();
 
-      toast.success('✅ Lançamento adicionado!');
+      toast.success('Lançamento adicionado com sucesso');
 
       setFormData({
         valor: '',
@@ -118,7 +155,6 @@ export default function RubricaDetail({ rubrica, onClose }) {
       });
 
       setShowForm(false);
-      onClose?.();
     } catch (e) {
       toast.error('Erro: ' + e.message);
     } finally {
@@ -127,28 +163,30 @@ export default function RubricaDetail({ rubrica, onClose }) {
   };
 
   const handleDeleteLancamento = async (lancamentoId) => {
-    if (!window.confirm('Tem certeza?')) return;
+    const ok = window.confirm('Tem certeza que deseja remover este lançamento?');
+    if (!ok) return;
 
     setDeletingId(lancamentoId);
 
     try {
       await base44.entities.LancamentoRubrica.delete(lancamentoId);
 
-      await base44.functions.invoke('recalculateRubrica', {
-        rubricaId: rubrica.id
-      });
+      try {
+        await base44.functions.invoke('recalculateRubrica', {
+          rubricaId,
+        });
+      } catch (_e) {}
 
       try {
         await base44.functions.invoke('recalculateAllRubricas', {
           trigger: 'manual_rubrica_delete',
-          rubricaId: rubrica.id
+          rubricaId,
         });
       } catch (_e) {}
 
       await invalidateRubricaQueries();
 
-      toast.success('✅ Removido!');
-      onClose?.();
+      toast.success('Lançamento removido com sucesso');
     } catch (e) {
       toast.error('Erro: ' + e.message);
     } finally {
@@ -170,26 +208,21 @@ export default function RubricaDetail({ rubrica, onClose }) {
     return 'bg-white border-gray-200';
   };
 
-  const percentualUtilizado = toNumber(rubrica?.percentual_utilizado);
-  const valorRubrica = toNumber(rubrica?.valor_rubrica);
-  const valorUtilizado = toNumber(rubrica?.valor_utilizado);
-  const saldo = toNumber(rubrica?.saldo);
-
   return (
     <div className="space-y-6">
-      <div className={`border rounded-lg p-6 ${getStatusClass(percentualUtilizado)}`}>
-        <div className="flex items-start justify-between mb-4">
+      <div className={`border rounded-lg p-6 ${getStatusClass(resumo.percentualUtilizado)}`}>
+        <div className="flex items-start justify-between mb-4 gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <h2 className="text-2xl font-bold text-black">{rubrica.rubrica}</h2>
-              {getStatusIcon(percentualUtilizado)}
+              <h2 className="text-2xl font-bold text-black">{nomeRubrica}</h2>
+              {getStatusIcon(resumo.percentualUtilizado)}
             </div>
-            <p className="text-sm text-gray-600">{rubrica.grupo}</p>
+            <p className="text-sm text-gray-600">{grupoRubrica}</p>
           </div>
 
           <div className="text-right">
             <p className="text-3xl font-bold text-black">
-              {percentualUtilizado.toFixed(2)}%
+              {resumo.percentualUtilizado.toFixed(2)}%
             </p>
             <p className="text-xs text-gray-600">Utilizado</p>
           </div>
@@ -198,34 +231,36 @@ export default function RubricaDetail({ rubrica, onClose }) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t">
           <div>
             <span className="text-xs text-gray-600 font-semibold">Nº Parcelas</span>
-            <p className="text-sm font-semibold text-black mt-1">
-              {rubrica.numero_parcelas_unidades}
-            </p>
+            <p className="text-sm font-semibold text-black mt-1">{numeroParcelas}</p>
           </div>
 
           <div>
             <span className="text-xs text-gray-600 font-semibold">Valor Rubrica</span>
             <p className="text-sm font-semibold text-black mt-1">
-              R$ {valorRubrica.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              R$ {formatMoney(resumo.valorRubrica)}
             </p>
           </div>
 
           <div>
             <span className="text-xs text-gray-600 font-semibold">Valor Utilizado</span>
             <p className="text-sm font-semibold text-blue-700 mt-1">
-              R$ {valorUtilizado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              R$ {formatMoney(resumo.valorUtilizadoBanco)}
             </p>
           </div>
 
           <div>
             <span className="text-xs text-gray-600 font-semibold">Saldo</span>
-            <p className="text-sm font-semibold text-green-700 mt-1">
-              R$ {saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <p
+              className={`text-sm font-semibold mt-1 ${
+                resumo.saldoBanco < 0 ? 'text-red-700' : 'text-green-700'
+              }`}
+            >
+              R$ {formatMoney(resumo.saldoBanco)}
             </p>
           </div>
         </div>
 
-        {rubrica.observacao_uso && (
+        {rubrica?.observacao_uso && (
           <div className="mt-4 p-3 bg-white/50 rounded text-sm text-gray-700 italic">
             📝 {rubrica.observacao_uso}
           </div>
@@ -240,6 +275,12 @@ export default function RubricaDetail({ rubrica, onClose }) {
           <Plus className="w-4 h-4" />
           {showForm ? 'Fechar' : 'Adicionar Lançamento'}
         </Button>
+
+        {onClose && (
+          <Button variant="outline" onClick={onClose}>
+            Voltar
+          </Button>
+        )}
       </div>
 
       {showForm && (
@@ -251,42 +292,56 @@ export default function RubricaDetail({ rubrica, onClose }) {
             <Input
               type="date"
               value={formData.data_lancamento}
-              onChange={e => setFormData(f => ({ ...f, data_lancamento: e.target.value }))}
+              onChange={(e) =>
+                setFormData((f) => ({ ...f, data_lancamento: e.target.value }))
+              }
             />
           </div>
 
           <div>
-            <label className="text-sm font-semibold text-black block mb-2">Valor (R$) *</label>
+            <label className="text-sm font-semibold text-black block mb-2">
+              Valor (R$) *
+            </label>
             <Input
               type="number"
               step="0.01"
               placeholder="0,00"
               value={formData.valor}
-              onChange={e => setFormData(f => ({ ...f, valor: e.target.value }))}
+              onChange={(e) =>
+                setFormData((f) => ({ ...f, valor: e.target.value }))
+              }
             />
             {formData.valor && parseFloat(formData.valor) < 0 && (
               <p className="text-xs text-orange-600 mt-1">
-                ⚠️ Valor negativo - justificativa obrigatória
+                Valor negativo: justificativa obrigatória
               </p>
             )}
           </div>
 
           <div>
-            <label className="text-sm font-semibold text-black block mb-2">Descrição</label>
+            <label className="text-sm font-semibold text-black block mb-2">
+              Descrição
+            </label>
             <Input
               placeholder="Ex: Pagamento de consultor"
               value={formData.descricao}
-              onChange={e => setFormData(f => ({ ...f, descricao: e.target.value }))}
+              onChange={(e) =>
+                setFormData((f) => ({ ...f, descricao: e.target.value }))
+              }
             />
           </div>
 
           <div>
-            <label className="text-sm font-semibold text-black block mb-2">Observação</label>
+            <label className="text-sm font-semibold text-black block mb-2">
+              Observação
+            </label>
             <Textarea
               placeholder="Anotações..."
               rows={2}
               value={formData.observacao}
-              onChange={e => setFormData(f => ({ ...f, observacao: e.target.value }))}
+              onChange={(e) =>
+                setFormData((f) => ({ ...f, observacao: e.target.value }))
+              }
             />
           </div>
 
@@ -299,7 +354,12 @@ export default function RubricaDetail({ rubrica, onClose }) {
                 placeholder="Motivo do ajuste negativo..."
                 rows={2}
                 value={formData.justificativa_ajuste}
-                onChange={e => setFormData(f => ({ ...f, justificativa_ajuste: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((f) => ({
+                    ...f,
+                    justificativa_ajuste: e.target.value,
+                  }))
+                }
               />
             </div>
           )}
@@ -314,9 +374,7 @@ export default function RubricaDetail({ rubrica, onClose }) {
               onClick={handleAddLancamento}
               disabled={saving}
             >
-              {saving ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : null}
+              {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Adicionar
             </Button>
           </div>
@@ -324,7 +382,9 @@ export default function RubricaDetail({ rubrica, onClose }) {
       )}
 
       <div>
-        <h3 className="text-lg font-semibold text-black mb-4">📜 Histórico de Lançamentos</h3>
+        <h3 className="text-lg font-semibold text-black mb-4">
+          Histórico de Lançamentos
+        </h3>
 
         {lancamentos.length === 0 ? (
           <div className="border border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-400">
@@ -332,7 +392,7 @@ export default function RubricaDetail({ rubrica, onClose }) {
           </div>
         ) : (
           <div className="space-y-3">
-            {lancamentos.map(l => {
+            {lancamentos.map((l) => {
               const valorLancamento = toNumber(l.valor);
 
               return (
@@ -342,9 +402,11 @@ export default function RubricaDetail({ rubrica, onClose }) {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className="text-xs font-semibold bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                          {l.origem_lancamento === 'automatico_compras' ? '🔄 Auto' : '📝 Manual'}
+                          {l.origem_lancamento === 'automatico_compras'
+                            ? 'Auto'
+                            : 'Manual'}
                         </span>
 
                         {valorLancamento < 0 && (
@@ -354,7 +416,9 @@ export default function RubricaDetail({ rubrica, onClose }) {
                         )}
                       </div>
 
-                      <p className="font-semibold text-black">{l.descricao}</p>
+                      <p className="font-semibold text-black">
+                        {l.descricao || 'Sem descrição'}
+                      </p>
 
                       <div className="flex gap-4 mt-2 text-xs text-gray-600 flex-wrap">
                         {l.data_lancamento && (
@@ -394,7 +458,7 @@ export default function RubricaDetail({ rubrica, onClose }) {
                         >
                           {valorLancamento < 0 ? '-' : '+'}R${' '}
                           {Math.abs(valorLancamento).toLocaleString('pt-BR', {
-                            minimumFractionDigits: 2
+                            minimumFractionDigits: 2,
                           })}
                         </p>
                       </div>
