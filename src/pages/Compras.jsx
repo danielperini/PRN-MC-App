@@ -741,9 +741,8 @@ function ComprasInner() {
 
       {showForm && (
         <PurchaseFormDialog
-          budgetLines={budgetLines}
           currentUser={currentUser}
-          initialData={editingPurchase}
+          prefill={editingPurchase}
           onClose={() => {
             setShowForm(false);
             setEditingPurchase(null);
