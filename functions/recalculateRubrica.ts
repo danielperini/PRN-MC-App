@@ -11,14 +11,29 @@ function normalizeStatus(value) {
 }
 
 function normalizeString(value) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\(.*?\)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function buildRubricaKey(rubrica) {
+  const grupo = normalizeString(rubrica?.grupo || '');
+  const nome = normalizeString(
+    rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || ''
+  );
+  return `${grupo}__${nome}`;
 }
 
 function getPurchaseValue(purchase) {
   return (
     toNumber(purchase?.valor_pago) ||
-    toNumber(purchase?.valor_final) ||
+    toNumber(purchase?.valor_aprovado_admin) ||
     toNumber(purchase?.valor_aprovado) ||
+    toNumber(purchase?.valor_final) ||
     toNumber(purchase?.valor_solicitado) ||
     0
   );
@@ -107,6 +122,75 @@ async function getAllPurchasesByFilter(base44, filterObj) {
   return allPurchases;
 }
 
+function resolveRubricaFromPurchase(purchase, rubricas, budgetLineById) {
+  if (purchase?.rubrica_id) {
+    const rubrica = rubricas.find((r) => r.id === purchase.rubrica_id);
+    if (rubrica) {
+      return {
+        rubricaId: rubrica.id,
+        origem: 'rubrica_id',
+        motivo: null,
+      };
+    }
+  }
+
+  const budgetlineId = getPurchaseBudgetlineId(purchase);
+
+  if (budgetlineId) {
+    const budgetLine = budgetLineById[budgetlineId];
+
+    if (budgetLine?.rubrica_id) {
+      const rubrica = rubricas.find((r) => r.id === budgetLine.rubrica_id);
+      if (rubrica) {
+        return {
+          rubricaId: rubrica.id,
+          origem: 'budgetline_id',
+          motivo: null,
+        };
+      }
+    }
+
+    const nomeBudgetLine = normalizeString(
+      budgetLine?.descricao || budgetLine?.rubrica || budgetLine?.nome || ''
+    );
+
+    if (nomeBudgetLine) {
+      const matches = rubricas.filter((r) => {
+        const nomeRubrica = normalizeString(
+          r?.rubrica || r?.nome || r?.descricao || ''
+        );
+        const rubricaKey = buildRubricaKey(r);
+        return (
+          nomeRubrica === nomeBudgetLine ||
+          rubricaKey.includes(nomeBudgetLine)
+        );
+      });
+
+      if (matches.length === 1) {
+        return {
+          rubricaId: matches[0].id,
+          origem: 'budgetline_nome',
+          motivo: null,
+        };
+      }
+
+      if (matches.length > 1) {
+        return {
+          rubricaId: null,
+          origem: 'nao_encontrada',
+          motivo: 'Match ambíguo via budget line',
+        };
+      }
+    }
+  }
+
+  return {
+    rubricaId: null,
+    origem: 'nao_encontrada',
+    motivo: 'Rubrica não resolvida',
+  };
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -116,17 +200,16 @@ Deno.serve(async (req) => {
     let budgetlineId = body.budgetline_id || body.budgetlineId || null;
     let purchaseId = body.purchaseId || body.purchase_id || null;
 
-    // Payload vindo de automação de entidade
     if (!rubricaId && body.data?.rubrica_id) {
       rubricaId = body.data.rubrica_id;
     }
 
-    // Evento vindo de LancamentoRubrica
     if (!rubricaId && body.event?.entity_id) {
       try {
-        const lancamentos = await base44.asServiceRole.entities.LancamentoRubrica.filter({
-          id: body.event.entity_id
-        });
+        const lancamentos =
+          await base44.asServiceRole.entities.LancamentoRubrica.filter({
+            id: body.event.entity_id,
+          });
 
         if (lancamentos && lancamentos.length > 0) {
           rubricaId = lancamentos[0].rubrica_id || rubricaId;
@@ -134,30 +217,75 @@ Deno.serve(async (req) => {
       } catch (_e) {}
     }
 
-    // Se veio purchaseId, tenta descobrir budgetline consolidado pela compra
     if (!budgetlineId && purchaseId) {
       try {
-        const purchase = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
+        const purchase =
+          await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
         if (purchase) {
           budgetlineId = getPurchaseBudgetlineId(purchase);
+          rubricaId = rubricaId || purchase.rubrica_id || null;
         }
       } catch (_e) {}
     }
 
+    const allRubricas = await listAll(
+      base44.asServiceRole.entities.Rubrica,
+      'ordem_exibicao',
+      500
+    );
+
+    const rubricasMap = new Map();
+    for (const r of allRubricas) {
+      const key = r?.rubrica_key || buildRubricaKey(r);
+      if (!rubricasMap.has(key)) {
+        rubricasMap.set(key, r);
+      }
+    }
+    const rubricasUnicas = Array.from(rubricasMap.values());
+
     let rubrica = null;
 
-    // 1) Busca direta por ID da rubrica
     if (rubricaId) {
-      rubrica = await findFirstRubricaByFilter(base44, { id: rubricaId });
+      rubrica =
+        rubricasUnicas.find((r) => r.id === rubricaId) ||
+        (await findFirstRubricaByFilter(base44, { id: rubricaId }));
     }
 
-    // 2) Tenta achar rubrica ligada à budgetline
     if (!rubrica && budgetlineId) {
       rubrica =
-        await findFirstRubricaByFilter(base44, { budgetline_id: budgetlineId }) ||
-        await findFirstRubricaByFilter(base44, { budget_line_id: budgetlineId }) ||
-        await findFirstRubricaByFilter(base44, { linha_orcamentaria_id: budgetlineId }) ||
-        await findFirstRubricaByFilter(base44, { id: budgetlineId });
+        (await findFirstRubricaByFilter(base44, { budgetline_id: budgetlineId })) ||
+        (await findFirstRubricaByFilter(base44, { budget_line_id: budgetlineId })) ||
+        (await findFirstRubricaByFilter(base44, { linha_orcamentaria_id: budgetlineId })) ||
+        null;
+    }
+
+    if (!rubrica && purchaseId) {
+      try {
+        const purchase =
+          await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
+
+        const allBudgetLines = await listAll(
+          base44.asServiceRole.entities.BudgetLine,
+          'descricao',
+          500
+        );
+
+        const budgetLineById = {};
+        for (const bl of allBudgetLines) {
+          if (bl?.id) budgetLineById[bl.id] = bl;
+        }
+
+        const resolved = resolveRubricaFromPurchase(
+          purchase,
+          rubricasUnicas,
+          budgetLineById
+        );
+
+        if (resolved.rubricaId) {
+          rubrica =
+            rubricasUnicas.find((r) => r.id === resolved.rubricaId) || null;
+        }
+      } catch (_e) {}
     }
 
     if (!rubrica) {
@@ -167,7 +295,7 @@ Deno.serve(async (req) => {
           rubricaId,
           budgetlineId,
           purchaseId,
-          success: false
+          success: false,
         },
         { status: 404 }
       );
@@ -175,7 +303,6 @@ Deno.serve(async (req) => {
 
     const rubricaRealId = rubrica.id;
 
-    // Se não veio budgetlineId no payload, tenta reaproveitar da própria rubrica
     budgetlineId =
       budgetlineId ||
       rubrica.budgetline_id ||
@@ -183,14 +310,12 @@ Deno.serve(async (req) => {
       rubrica.linha_orcamentaria_id ||
       null;
 
-    // Buscar todos os lançamentos da rubrica
     const allLancamentos = await getAllLancamentos(base44, rubricaRealId);
 
     const valorLancamentos = parseFloat(
       allLancamentos.reduce((sum, l) => sum + toNumber(l.valor), 0).toFixed(2)
     );
 
-    // Buscar todas as budget lines para apoio de casamento por nome
     const allBudgetLines = await listAll(
       base44.asServiceRole.entities.BudgetLine,
       'descricao',
@@ -204,110 +329,91 @@ Deno.serve(async (req) => {
       }
     }
 
-    const nomeRubricaNormalizado = normalizeString(
-      rubrica.rubrica || rubrica.nome || rubrica.descricao || ''
+    const purchases = await listAll(
+      base44.asServiceRole.entities.PurchaseRequest,
+      '-created_date',
+      500
     );
 
-    // Buscar compras relacionadas
-    let purchases = [];
+    const uniquePurchases = [];
+    const purchaseMap = {};
+    const inconsistencias = [];
 
-    if (budgetlineId) {
-      const byBudgetLine = await getAllPurchasesByFilter(base44, {
-        budgetline_id: budgetlineId
-      });
-      purchases = purchases.concat(byBudgetLine);
-
-      try {
-        const byBudgetLineAlt = await getAllPurchasesByFilter(base44, {
-          budget_line_id: budgetlineId
-        });
-        purchases = purchases.concat(byBudgetLineAlt);
-      } catch (_e) {}
-
-      try {
-        const byLinhaOrc = await getAllPurchasesByFilter(base44, {
-          linha_orcamentaria_id: budgetlineId
-        });
-        purchases = purchases.concat(byLinhaOrc);
-      } catch (_e) {}
-    }
-
-    // Tenta também por rubrica_id
-    try {
-      const byRubrica = await getAllPurchasesByFilter(base44, {
-        rubrica_id: rubricaRealId
-      });
-      purchases = purchases.concat(byRubrica);
-    } catch (_e) {}
-
-    // Se veio purchaseId específico e ainda não apareceu na lista, tenta puxar direto
-    if (purchaseId) {
-      try {
-        const purchaseDireta = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
-        if (purchaseDireta && purchaseDireta.id) {
-          purchases.push(purchaseDireta);
-        }
-      } catch (_e) {}
-    }
-
-    // Fallback: casar compras pelo nome da BudgetLine com o nome da rubrica
-    if (nomeRubricaNormalizado) {
-      const allPurchases = await listAll(
-        base44.asServiceRole.entities.PurchaseRequest,
-        '-created_date',
-        500
+    for (const p of purchases) {
+      const resolved = resolveRubricaFromPurchase(
+        p,
+        rubricasUnicas,
+        budgetLineById
       );
 
-      for (const p of allPurchases) {
-        const purchaseBudgetlineId = getPurchaseBudgetlineId(p);
-        if (!purchaseBudgetlineId) continue;
-
-        const budgetLine = budgetLineById[purchaseBudgetlineId];
-        const nomeBudgetLineNormalizado = normalizeString(
-          budgetLine?.descricao || budgetLine?.rubrica || budgetLine?.nome || ''
-        );
-
-        if (!nomeBudgetLineNormalizado) continue;
-
-        if (
-          nomeBudgetLineNormalizado === nomeRubricaNormalizado ||
-          nomeBudgetLineNormalizado.includes(nomeRubricaNormalizado) ||
-          nomeRubricaNormalizado.includes(nomeBudgetLineNormalizado)
-        ) {
-          purchases.push(p);
+      if (!resolved.rubricaId) {
+        if (normalizeStatus(p.status) === 'PAGO') {
+          inconsistencias.push({
+            purchase_id: p.id,
+            titulo: p.titulo || p.objeto || '',
+            fornecedor: p.fornecedor || '',
+            valor_pago: toNumber(p.valor_pago),
+            status: p.status,
+            rubrica_id: p.rubrica_id || null,
+            budgetline_id: getPurchaseBudgetlineId(p),
+            motivo: resolved.motivo,
+          });
         }
+        continue;
       }
-    }
 
-    // Remove duplicados por id
-    const purchaseMap = {};
-    for (const p of purchases) {
-      if (p && p.id) {
+      if (resolved.rubricaId !== rubricaRealId) continue;
+
+      if (p && p.id && !purchaseMap[p.id]) {
         purchaseMap[p.id] = p;
+        uniquePurchases.push(p);
       }
     }
 
-    const uniquePurchases = Object.values(purchaseMap);
+    if (purchaseId && !purchaseMap[purchaseId]) {
+      try {
+        const purchaseDireta =
+          await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
 
-    // Considera só compras efetivamente pagas
+        if (purchaseDireta && purchaseDireta.id) {
+          const resolved = resolveRubricaFromPurchase(
+            purchaseDireta,
+            rubricasUnicas,
+            budgetLineById
+          );
+
+          if (resolved.rubricaId === rubricaRealId) {
+            purchaseMap[purchaseDireta.id] = purchaseDireta;
+            uniquePurchases.push(purchaseDireta);
+          }
+        }
+      } catch (_e) {}
+    }
+
     const paidPurchases = uniquePurchases.filter((p) => {
       const status = normalizeStatus(p.status);
       return status === 'PAGO' || status === 'PAGO_PARCIAL';
+    });
+
+    const approvedPurchases = uniquePurchases.filter((p) => {
+      const status = normalizeStatus(p.status);
+      return status === 'APROVADO_ADMIN' || status === 'APROVADO_COORD';
     });
 
     const valorComprasPagas = parseFloat(
       paidPurchases.reduce((sum, p) => sum + getPurchaseValue(p), 0).toFixed(2)
     );
 
+    const valorComprasComprometidas = parseFloat(
+      approvedPurchases.reduce((sum, p) => sum + getPurchaseValue(p), 0).toFixed(2)
+    );
+
     const valorRubrica = toNumber(rubrica.valor_rubrica);
 
-    // Regra:
-    // - se houver compras pagas vinculadas, elas são a fonte de verdade
-    // - se não houver compras pagas, usa a soma dos lançamentos
-    const valorUtilizadoBase =
-      valorComprasPagas > 0 ? valorComprasPagas : valorLancamentos;
+    const valorUtilizado = parseFloat(
+      (valorComprasPagas + valorComprasComprometidas + valorLancamentos).toFixed(2)
+    );
 
-    const valorUtilizado = parseFloat(toNumber(valorUtilizadoBase).toFixed(2));
     const saldo = parseFloat((valorRubrica - valorUtilizado).toFixed(2));
     const percentualUtilizado =
       valorRubrica > 0
@@ -317,7 +423,8 @@ Deno.serve(async (req) => {
     await base44.asServiceRole.entities.Rubrica.update(rubricaRealId, {
       valor_utilizado: valorUtilizado,
       saldo: saldo,
-      percentual_utilizado: percentualUtilizado
+      percentual_utilizado: percentualUtilizado,
+      rubrica_key: rubrica.rubrica_key || buildRubricaKey(rubrica),
     });
 
     return Response.json({
@@ -329,13 +436,16 @@ Deno.serve(async (req) => {
       num_lancamentos: allLancamentos.length,
       num_compras_encontradas: uniquePurchases.length,
       num_compras_pagas: paidPurchases.length,
+      num_compras_aprovadas: approvedPurchases.length,
       valor_rubrica: valorRubrica,
       valor_lancamentos: valorLancamentos,
       valor_compras_pagas: valorComprasPagas,
+      valor_compras_comprometidas: valorComprasComprometidas,
       valor_utilizado: valorUtilizado,
       saldo: saldo,
       percentual_utilizado: percentualUtilizado,
-      fonte_utilizada: valorComprasPagas > 0 ? 'compras_pagas' : 'lancamentos'
+      fonte_utilizada: 'compras+lancamentos',
+      inconsistencias,
     });
   } catch (error) {
     console.error('recalculateRubrica error:', error);
