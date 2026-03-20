@@ -72,21 +72,14 @@ export default function RubricasPorMuseu() {
       const dados = consolidado?.totais_por_museu?.[m] || {};
       const totalOrcado = toNumber(dados.totalOrcado);
       const totalUtilizado = toNumber(dados.totalUtilizado);
+      const totalPago = toNumber(dados.totalPago);
+      const totalComprometido = toNumber(dados.totalComprometido);
       const totalSaldo = toNumber(dados.totalSaldo);
-      const pct =
-        dados.pct !== undefined && dados.pct !== null
-          ? toNumber(dados.pct)
-          : totalOrcado > 0
-          ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(2))
-          : 0;
+      const pct = dados.pct !== undefined && dados.pct !== null
+        ? toNumber(dados.pct)
+        : totalOrcado > 0 ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(2)) : 0;
 
-      return {
-        museu: m,
-        totalOrcado,
-        totalUtilizado,
-        totalSaldo,
-        pct
-      };
+      return { museu: m, totalOrcado, totalUtilizado, totalPago, totalComprometido, totalSaldo, pct };
     });
   }, [consolidado]);
 
