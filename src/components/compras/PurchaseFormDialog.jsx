@@ -227,11 +227,15 @@ export default function PurchaseFormDialog({
   };
 
   const selectedLine = budgetLines.find(l => l.id === form.budgetline_id);
+  const selectedRubrica = rubricas.find(r => r.id === form.rubrica_id);
+
   const saldoDisponivel = selectedLine
     ? (selectedLine.saldo_inicial || 0) - (selectedLine.saldo_comprometido || 0)
     : null;
+
   const valorNum = parseFloat(form.valor_solicitado) || 0;
   const saldoOk = saldoDisponivel === null || saldoDisponivel >= valorNum;
+  const hasOrcamentoVinculado = !!form.budgetline_id || !!form.rubrica_id;
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -402,6 +406,19 @@ export default function PurchaseFormDialog({
                 )}
               </SelectContent>
             </Select>
+
+            {!hasOrcamentoVinculado && (
+              <div className="p-2 rounded-lg text-xs bg-red-50 text-red-700 border border-red-200">
+                Selecione uma rubrica ou linha orçamentária para continuar.
+              </div>
+            )}
+
+            {selectedRubrica && (
+              <div className="p-2 rounded-lg text-xs bg-blue-50 text-blue-700 border border-blue-200">
+                Rubrica selecionada: <strong>{selectedRubrica.rubrica}</strong>
+                {selectedRubrica.grupo ? <> — {selectedRubrica.grupo}</> : null}
+              </div>
+            )}
 
             {selectedLine && (
               <div className={`p-2 rounded-lg text-xs ${saldoOk ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
@@ -625,7 +642,7 @@ export default function PurchaseFormDialog({
             <Button
               className="bg-black hover:bg-gray-800 text-white"
               onClick={() => handleSave(true)}
-              disabled={saving || !saldoOk}
+              disabled={saving || !saldoOk || !hasOrcamentoVinculado}
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               {isEditing ? 'Salvar e Enviar' : 'Enviar para Aprovação'}
