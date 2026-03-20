@@ -26,12 +26,14 @@ import PurchaseCard from '@/components/compras/PurchaseCard';
 import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
 import AprovacoesFila from '@/components/compras/AprovacoesFila';
 import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
-import RubricasGrid from '@/components/rubricas/RubricasGrid';
 import TeamManager from '@/components/compras/TeamManager';
 import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
 import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
 import { useBudgetLines } from '@/components/compras/useBudgetLines';
 import GestaoDocumental from '@/pages/GestaoDocumental';
+
+import RubricasGrid from '@/components/compras/RubricasGrid';
+import AuditoriaRubricasPanel from '@/components/compras/AuditoriaRubricasPanel';
 import RubricaDetail from '@/components/rubricas/RubricaDetail';
 
 const STATUS_CONFIG = {
@@ -50,7 +52,17 @@ function extractRubricas(result) {
   if (Array.isArray(result?.data?.rubricas)) return result.data.rubricas;
   if (Array.isArray(result?.response?.rubricas)) return result.response.rubricas;
   if (Array.isArray(result?.body?.rubricas)) return result.body.rubricas;
+  if (Array.isArray(result?.results)) return result.results;
+  if (Array.isArray(result?.data?.results)) return result.data.results;
   return [];
+}
+
+function extractAuditoria(result) {
+  if (!result) return null;
+  if (result?.success && result?.sumario) return result;
+  if (result?.data?.success && result?.data?.sumario) return result.data;
+  if (result?.response?.success && result?.response?.sumario) return result.response;
+  return null;
 }
 
 async function carregarRubricas() {
@@ -77,6 +89,21 @@ async function carregarRubricas() {
   return [];
 }
 
+async function carregarAuditoriaRubricas() {
+  try {
+    const result = await base44.functions.invoke('recalculateAllRubricas', {
+      trigger: 'auditoria_visual_compras',
+    });
+
+    const auditoria = extractAuditoria(result);
+    if (auditoria) return auditoria;
+  } catch (error) {
+    console.error('Erro ao carregar auditoria de rubricas:', error);
+  }
+
+  return null;
+}
+
 function getPurchaseBudgetlineId(purchase) {
   return (
     purchase?.budgetline_id ||
@@ -84,6 +111,27 @@ function getPurchaseBudgetlineId(purchase) {
     purchase?.linha_orcamentaria_id ||
     null
   );
+}
+
+function normalizeCentro(value) {
+  const raw = String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
+  if (!raw) return '';
+  if (raw === 'mis') return 'MIS';
+  if (raw === 'mhab') return 'MHAB';
+  if (raw === 'mumo') return 'MUMO';
+  if (raw === 'geral') return 'Geral';
+  if (raw === 'publicacoes') return 'Publicações';
+  if (raw === 'noturno nos museus 2026') return 'Noturno nos Museus 2026';
+  if (raw.includes('imagem e som')) return 'MIS';
+  if (raw.includes('abilio barreto')) return 'MHAB';
+  if (raw.includes('moda')) return 'MUMO';
+
+  return String(value || '').trim();
 }
 
 function ComprasInner() {
@@ -99,6 +147,7 @@ function ComprasInner() {
     search: '',
     rubrica_id: 'all',
     inconsistencias: 'all',
+    centro_custo: 'all',
   });
 
   const queryClient = useQueryClient();
@@ -125,6 +174,7 @@ function ComprasInner() {
       queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'] }),
       queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
       queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
+      queryClient.invalidateQueries({ queryKey: ['auditoria-rubricas'] }),
     ]);
   }, [queryClient]);
 
@@ -188,17 +238,32 @@ function ComprasInner() {
     staleTime: 0,
   });
 
+  const {
+    data: auditoriaRubricas = null,
+    refetch: refetchAuditoriaRubricas,
+    isLoading: loadingAuditoriaRubricas,
+  } = useQuery({
+    queryKey: ['auditoria-rubricas'],
+    queryFn: carregarAuditoriaRubricas,
+    enabled: !!currentUser && isCoordenador,
+    staleTime: 0,
+  });
+
   const purchasesWithFlags = useMemo(() => {
     return (purchases || []).map((p) => {
       const hasBudgetline = !!getPurchaseBudgetlineId(p);
       const hasRubrica = !!p.rubrica_id;
       const hasOrcamentoVinculado = hasRubrica || hasBudgetline;
+      const centroCusto = normalizeCentro(p?.centro_custo);
+      const semCentroCusto = !centroCusto;
 
       return {
         ...p,
         _has_budgetline: hasBudgetline,
         _has_rubrica: hasRubrica,
         _has_orcamento_vinculado: hasOrcamentoVinculado,
+        _centro_custo_normalizado: centroCusto,
+        _sem_centro_custo: semCentroCusto,
       };
     });
   }, [purchases]);
@@ -208,8 +273,18 @@ function ComprasInner() {
       (p.status === 'APROVADO_COORD' ||
         p.status === 'APROVADO_ADMIN' ||
         p.status === 'PAGO') &&
-      !p._has_orcamento_vinculado
+      (!p._has_orcamento_vinculado || p._sem_centro_custo)
   );
+
+  const centrosDisponiveis = useMemo(() => {
+    const centros = new Set();
+    purchasesWithFlags.forEach((p) => {
+      if (p._centro_custo_normalizado) {
+        centros.add(p._centro_custo_normalizado);
+      }
+    });
+    return Array.from(centros).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [purchasesWithFlags]);
 
   const filtered = purchasesWithFlags.filter((p) => {
     const matchStatus = filters.status === 'all' || p.status === filters.status;
@@ -231,8 +306,14 @@ function ComprasInner() {
     const matchInconsistencia =
       filters.inconsistencias === 'all' ||
       (filters.inconsistencias === 'somente_inconsistentes' &&
-        !p._has_orcamento_vinculado) ||
-      (filters.inconsistencias === 'somente_ok' && p._has_orcamento_vinculado);
+        (!p._has_orcamento_vinculado || p._sem_centro_custo)) ||
+      (filters.inconsistencias === 'somente_ok' &&
+        p._has_orcamento_vinculado &&
+        !p._sem_centro_custo);
+
+    const matchCentro =
+      filters.centro_custo === 'all' ||
+      p._centro_custo_normalizado === filters.centro_custo;
 
     const busca = filters.search.trim().toLowerCase();
     const matchSearch =
@@ -245,6 +326,7 @@ function ComprasInner() {
       matchMeta &&
       matchRubrica &&
       matchInconsistencia &&
+      matchCentro &&
       matchSearch
     );
   });
@@ -253,13 +335,26 @@ function ComprasInner() {
     (p) => p.status === 'SOLICITADO'
   ).length;
 
+  const refreshFinanceiroCompleto = useCallback(async () => {
+    await invalidateComprasQueries();
+    await Promise.all([
+      refetchRubricas(),
+      isCoordenador ? refetchAuditoriaRubricas() : Promise.resolve(),
+    ]);
+  }, [
+    invalidateComprasQueries,
+    refetchRubricas,
+    refetchAuditoriaRubricas,
+    isCoordenador,
+  ]);
+
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 md:py-8">
-        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+      <div className="mx-auto max-w-6xl px-4 py-4 md:px-6 md:py-8">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center">
-              <ShoppingCart className="w-5 h-5 text-white" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black">
+              <ShoppingCart className="h-5 w-5 text-white" />
             </div>
 
             <div>
@@ -267,13 +362,13 @@ function ComprasInner() {
                 <h1 className="text-2xl font-bold text-black">Suprimentos</h1>
 
                 {isCoordenador ? (
-                  <span className="flex items-center gap-1 text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-2.5 py-0.5">
-                    <ShieldCheck className="w-3 h-3" />
+                  <span className="flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
+                    <ShieldCheck className="h-3 w-3" />
                     Coordenador
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200 rounded-full px-2.5 py-0.5">
-                    <User className="w-3 h-3" />
+                  <span className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                    <User className="h-3 w-3" />
                     Profissional
                   </span>
                 )}
@@ -291,44 +386,47 @@ function ComprasInner() {
             {isCoordenador && (
               <Button
                 variant="outline"
-                className="border-black gap-2"
+                className="gap-2 border-black"
                 onClick={() => setShowReportGen(true)}
               >
-                <FileText className="w-4 h-4" />
+                <FileText className="h-4 w-4" />
                 Relatório PDF
               </Button>
             )}
 
             <Button
-              className="bg-black hover:bg-gray-800 text-white"
+              className="bg-black text-white hover:bg-gray-800"
               onClick={() => {
                 setEditingPurchase(null);
                 setShowForm(true);
               }}
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="mr-2 h-4 w-4" />
               Nova Solicitação
             </Button>
           </div>
         </div>
 
         {isCoordenador && comprasInconsistentes.length > 0 && (
-          <div className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50">
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-700 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-700" />
               <div>
                 <p className="text-sm font-semibold text-amber-900">
-                  Há {comprasInconsistentes.length} compra(s) aprovada(s) ou paga(s) sem rubrica/linha orçamentária vinculada.
+                  Há {comprasInconsistentes.length} compra(s) aprovada(s) ou paga(s)
+                  com inconsistência de rubrica, linha orçamentária ou centro de custo.
                 </p>
-                <p className="text-xs text-amber-800 mt-1">
-                  Essas compras podem não debitar corretamente nas rubricas. Edite cada item e vincule a rubrica antes de seguir.
+                <p className="mt-1 text-xs text-amber-800">
+                  Essas compras podem não debitar corretamente nas rubricas por
+                  museu. Edite cada item e vincule a rubrica correta antes de
+                  seguir.
                 </p>
               </div>
             </div>
           </div>
         )}
 
-        <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit overflow-x-auto">
+        <div className="mb-6 flex w-fit gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1">
           {[
             { id: 'lista', label: 'Solicitações' },
             ...(isCoordenador ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
@@ -351,9 +449,9 @@ function ComprasInner() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                 tab === t.id
-                  ? 'bg-white shadow text-black'
+                  ? 'bg-white text-black shadow'
                   : 'text-gray-500 hover:text-black'
               }`}
             >
@@ -364,9 +462,9 @@ function ComprasInner() {
 
         {tab === 'lista' && (
           <div>
-            <div className="flex flex-wrap gap-3 mb-6">
-              <div className="relative flex-1 min-w-48">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+            <div className="mb-6 flex flex-wrap gap-3">
+              <div className="relative min-w-48 flex-1">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                 <Input
                   placeholder="Buscar..."
                   className="pl-9"
@@ -457,6 +555,25 @@ function ComprasInner() {
               </Select>
 
               <Select
+                value={filters.centro_custo}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, centro_custo: v }))
+                }
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Centro de custo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os centros</SelectItem>
+                  {centrosDisponiveis.map((centro) => (
+                    <SelectItem key={centro} value={centro}>
+                      {centro}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
                 value={filters.inconsistencias}
                 onValueChange={(v) =>
                   setFilters((f) => ({ ...f, inconsistencias: v }))
@@ -468,21 +585,21 @@ function ComprasInner() {
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
                   <SelectItem value="somente_inconsistentes">
-                    Apenas sem vínculo
+                    Apenas inconsistentes
                   </SelectItem>
                   <SelectItem value="somente_ok">
-                    Apenas com vínculo
+                    Apenas consistentes
                   </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {isLoading ? (
-              <div className="text-center py-16 text-gray-400">Carregando...</div>
+              <div className="py-16 text-center text-gray-400">Carregando...</div>
             ) : filtered.length === 0 ? (
-              <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-2xl">
-                <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-400 font-medium">
+              <div className="rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center">
+                <ShoppingCart className="mx-auto mb-3 h-12 w-12 text-gray-300" />
+                <p className="font-medium text-gray-400">
                   Nenhuma solicitação encontrada
                 </p>
                 <Button
@@ -492,7 +609,7 @@ function ComprasInner() {
                     setShowForm(true);
                   }}
                 >
-                  <Plus className="w-4 h-4 mr-2" />
+                  <Plus className="mr-2 h-4 w-4" />
                   Criar primeira solicitação
                 </Button>
               </div>
@@ -514,7 +631,7 @@ function ComprasInner() {
                       setEditingPurchase(purchase);
                       setShowForm(true);
                     }}
-                    onRefresh={invalidateComprasQueries}
+                    onRefresh={refreshFinanceiroCompleto}
                   />
                 ))}
               </div>
@@ -524,22 +641,30 @@ function ComprasInner() {
 
         {tab === 'rubricas' && (
           <div className="space-y-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
               <p className="text-sm text-blue-900">
-                <strong>📊 Integração:</strong> esta aba usa exclusivamente a
-                entity <strong>Rubrica</strong> como fonte de verdade do
-                orçamento.
+                <strong>📊 Integração:</strong> esta aba usa a entity{' '}
+                <strong>Rubrica</strong> como fonte de verdade do orçamento e o
+                recálculo financeiro por <strong>rubrica + museu</strong>.
               </p>
-              <p className="text-xs text-blue-700 mt-2">
+              <p className="mt-2 text-xs text-blue-700">
                 Rubricas carregadas: {Array.isArray(rubricas) ? rubricas.length : 0}
               </p>
             </div>
+
+            {isCoordenador && (
+              <AuditoriaRubricasPanel
+                auditoria={auditoriaRubricas}
+                onRefresh={refreshFinanceiroCompleto}
+                isCoordenador={isCoordenador}
+              />
+            )}
 
             {selectedRubrica ? (
               <div>
                 <button
                   onClick={() => setSelectedRubrica(null)}
-                  className="text-sm text-black hover:text-gray-600 mb-4 font-medium"
+                  className="mb-4 text-sm font-medium text-black hover:text-gray-600"
                 >
                   ← Voltar
                 </button>
@@ -548,8 +673,7 @@ function ComprasInner() {
                   rubrica={selectedRubrica}
                   onClose={async () => {
                     setSelectedRubrica(null);
-                    await invalidateComprasQueries();
-                    await refetchRubricas();
+                    await refreshFinanceiroCompleto();
                   }}
                 />
               </div>
@@ -557,16 +681,15 @@ function ComprasInner() {
               <RubricasGrid
                 rubricas={rubricas}
                 onSelectRubrica={setSelectedRubrica}
-                onRefresh={async () => {
-                  await invalidateComprasQueries();
-                  await refetchRubricas();
-                }}
+                onRefresh={refreshFinanceiroCompleto}
                 isCoordenador={isCoordenador}
               />
             )}
 
-            {loadingRubricas && (
-              <div className="text-sm text-gray-400">Atualizando rubricas...</div>
+            {(loadingRubricas || loadingAuditoriaRubricas) && (
+              <div className="text-sm text-gray-400">
+                Atualizando dados financeiros...
+              </div>
             )}
           </div>
         )}
@@ -591,7 +714,7 @@ function ComprasInner() {
               purchases={purchases}
               budgetLines={budgetLines}
               statusConfig={STATUS_CONFIG}
-              onRefresh={invalidateComprasQueries}
+              onRefresh={refreshFinanceiroCompleto}
               currentUser={currentUser}
               hasGestaoCompras={hasGestaoCompras}
               podeAprovarSolicitacoes={podeAprovarSolicitacoes}
@@ -628,8 +751,7 @@ function ComprasInner() {
           onSuccess={async () => {
             setShowForm(false);
             setEditingPurchase(null);
-            await invalidateComprasQueries();
-            await refetchRubricas();
+            await refreshFinanceiroCompleto();
           }}
         />
       )}
