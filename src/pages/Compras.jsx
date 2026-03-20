@@ -51,6 +51,32 @@ function extractRubricas(result) {
   return [];
 }
 
+async function carregarRubricas() {
+  // 1) tenta pela function
+  try {
+    const result = await base44.functions.invoke('listAllRubricas', {});
+    const viaFunction = extractRubricas(result);
+
+    if (Array.isArray(viaFunction) && viaFunction.length > 0) {
+      return viaFunction;
+    }
+  } catch (error) {
+    console.error('Erro em listAllRubricas:', error);
+  }
+
+  // 2) fallback direto na entity
+  try {
+    const diretas = await base44.entities.Rubrica.list('ordem_exibicao', 200);
+    if (Array.isArray(diretas)) {
+      return diretas;
+    }
+  } catch (error) {
+    console.error('Erro ao buscar Rubrica direto:', error);
+  }
+
+  return [];
+}
+
 function ComprasInner() {
   const [currentUser, setCurrentUser] = useState(null);
   const [tab, setTab] = useState('lista');
@@ -144,15 +170,7 @@ function ComprasInner() {
     isLoading: loadingRubricas,
   } = useQuery({
     queryKey: ['rubricas'],
-    queryFn: async () => {
-      try {
-        const result = await base44.functions.invoke('listAllRubricas', {});
-        return extractRubricas(result);
-      } catch (error) {
-        console.error('Erro ao carregar rubricas:', error);
-        return [];
-      }
-    },
+    queryFn: carregarRubricas,
     enabled: !!currentUser,
     staleTime: 0,
   });
@@ -392,6 +410,9 @@ function ComprasInner() {
                 <strong>📊 Integração:</strong> esta aba usa exclusivamente a entity
                 <strong> Rubrica</strong> como fonte de verdade do orçamento.
               </p>
+              <p className="text-xs text-blue-700 mt-2">
+                Rubricas carregadas: {Array.isArray(rubricas) ? rubricas.length : 0}
+              </p>
             </div>
 
             {selectedRubrica ? (
@@ -408,7 +429,7 @@ function ComprasInner() {
                   onClose={async () => {
                     setSelectedRubrica(null);
                     await invalidateComprasQueries();
-                    refetchRubricas();
+                    await refetchRubricas();
                   }}
                 />
               </div>
@@ -460,7 +481,9 @@ function ComprasInner() {
           <div className="space-y-8">
             {isCoordenador && (
               <ImportarOrcamento
-                onSuccess={() => queryClient.invalidateQueries({ queryKey: ['budget-lines'] })}
+                onSuccess={() =>
+                  queryClient.invalidateQueries({ queryKey: ['budget-lines'] })
+                }
               />
             )}
             <OrcamentoDashboard
@@ -485,6 +508,7 @@ function ComprasInner() {
             setShowForm(false);
             setEditingPurchase(null);
             await invalidateComprasQueries();
+            await refetchRubricas();
           }}
         />
       )}
