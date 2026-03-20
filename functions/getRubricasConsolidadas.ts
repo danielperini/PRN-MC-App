@@ -187,9 +187,9 @@ Deno.serve(async (req) => {
       const valorComprometido = parseFloat(comprasAprovadas.reduce((s, p) => s + getPurchaseValue(p), 0).toFixed(2));
       const valorLancamentos = parseFloat(lans.reduce((s, l) => s + toNumber(l.valor), 0).toFixed(2));
 
-      // Valor total utilizado (pago + comprometido, ou lançamentos se nenhum)
+      // Valor total utilizado calculado em tempo real (pago + comprometido, ou lançamentos se nenhum)
       const totalCompras = valorPago + valorComprometido;
-      const valorUtilizado = parseFloat((totalCompras > 0 ? totalCompras : (rubrica.valor_utilizado !== null && rubrica.valor_utilizado !== undefined ? toNumber(rubrica.valor_utilizado) : valorLancamentos)).toFixed(2));
+      const valorUtilizado = parseFloat((totalCompras > 0 ? totalCompras : valorLancamentos).toFixed(2));
 
       const saldo = parseFloat((valorRubrica - valorUtilizado).toFixed(2));
       const pct = valorRubrica > 0 ? parseFloat(((valorUtilizado / valorRubrica) * 100).toFixed(1)) : 0;
