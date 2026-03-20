@@ -6,10 +6,29 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function normalizeString(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\(.*?\)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function buildRubricaKey(rubrica) {
+  const grupo = normalizeString(rubrica?.grupo || '');
+  const nome = normalizeString(
+    rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || ''
+  );
+  return `${grupo}__${nome}`;
+}
+
 function getPurchaseValue(purchase) {
   return (
     toNumber(purchase?.valor_pago) ||
     toNumber(purchase?.valor_final) ||
+    toNumber(purchase?.valor_aprovado_admin) ||
     toNumber(purchase?.valor_aprovado) ||
     toNumber(purchase?.valor_solicitado) ||
     0
@@ -31,6 +50,90 @@ function getPurchaseBudgetlineId(purchase) {
     purchase?.linha_orcamentaria_id ||
     null
   );
+}
+
+async function listAll(entityApi, orderBy = '', pageSize = 500) {
+  let all = [];
+  let page = 0;
+
+  while (true) {
+    const batch = await entityApi.list(orderBy, pageSize, page * pageSize);
+    if (!batch || batch.length === 0) break;
+    all = all.concat(batch);
+    if (batch.length < pageSize) break;
+    page++;
+  }
+
+  return all;
+}
+
+function resolveRubricaFromPurchase(purchase, rubricas, budgetLineById) {
+  if (purchase?.rubrica_id) {
+    const rubrica = rubricas.find((r) => r.id === purchase.rubrica_id);
+    if (rubrica) {
+      return {
+        rubricaId: rubrica.id,
+        origem: 'rubrica_id',
+        motivo: null,
+      };
+    }
+  }
+
+  const purchaseBudgetlineId = getPurchaseBudgetlineId(purchase);
+
+  if (purchaseBudgetlineId) {
+    const budgetLine = budgetLineById[purchaseBudgetlineId];
+
+    if (budgetLine?.rubrica_id) {
+      const rubrica = rubricas.find((r) => r.id === budgetLine.rubrica_id);
+      if (rubrica) {
+        return {
+          rubricaId: rubrica.id,
+          origem: 'budgetline_id',
+          motivo: null,
+        };
+      }
+    }
+
+    const nomeBudgetLine = normalizeString(
+      budgetLine?.descricao || budgetLine?.rubrica || budgetLine?.nome || ''
+    );
+
+    if (nomeBudgetLine) {
+      const matches = rubricas.filter((r) => {
+        const nomeRubrica = normalizeString(
+          r?.rubrica || r?.nome || r?.descricao || ''
+        );
+        const rubricaKey = r?.rubrica_key || buildRubricaKey(r);
+        return (
+          nomeRubrica === nomeBudgetLine ||
+          rubricaKey.includes(nomeBudgetLine)
+        );
+      });
+
+      if (matches.length === 1) {
+        return {
+          rubricaId: matches[0].id,
+          origem: 'budgetline_nome',
+          motivo: null,
+        };
+      }
+
+      if (matches.length > 1) {
+        return {
+          rubricaId: null,
+          origem: 'nao_encontrada',
+          motivo: 'Match ambíguo via budget line',
+        };
+      }
+    }
+  }
+
+  return {
+    rubricaId: null,
+    origem: 'nao_encontrada',
+    motivo: 'Rubrica não resolvida',
+  };
 }
 
 Deno.serve(async (req) => {
@@ -70,7 +173,6 @@ Deno.serve(async (req) => {
           firstPerm.pode_aprovar_solicitacoes === true ||
           firstPerm.gestao_compras === true));
 
-    // --- AÇÃO: Analisar correspondência com meta via IA ---
     if (normalizedAction === 'analyze_meta') {
       const { descricao_item, meta_id, categoria, tipo_gasto, valor_solicitado } = data;
 
@@ -125,7 +227,6 @@ Retorne um JSON com:
       return Response.json({ success: true, analysis: result });
     }
 
-    // --- AÇÃO: Verificar saldo da rubrica ---
     if (normalizedAction === 'check_budget') {
       const { budgetline_id, valor } = data;
 
@@ -151,7 +252,6 @@ Retorne um JSON com:
       });
     }
 
-    // --- AÇÃO: Aprovar compra ---
     if (normalizedAction === 'aprovar') {
       if (!purchaseId) {
         return Response.json({ error: 'purchaseId é obrigatório' }, { status: 400 });
@@ -269,7 +369,6 @@ Plataforma — Museus Centro`,
       });
     }
 
-    // --- AÇÃO: Recusar compra ---
     if (normalizedAction === 'reject') {
       if (!purchaseId) {
         return Response.json({ error: 'purchaseId é obrigatório' }, { status: 400 });
@@ -320,7 +419,6 @@ Plataforma — Museus Centro`,
       return Response.json({ success: true, action: 'RECUSADO' });
     }
 
-    // --- AÇÃO: Marcar como PAGO ---
     if (normalizedAction === 'marcar_pago') {
       if (!purchaseId) {
         return Response.json({ error: 'purchaseId é obrigatório' }, { status: 400 });
@@ -347,6 +445,52 @@ Plataforma — Museus Centro`,
         return Response.json(
           {
             error: 'A compra precisa estar aprovada antes de ser marcada como paga.'
+          },
+          { status: 400 }
+        );
+      }
+
+      const allRubricas = await listAll(
+        base44.asServiceRole.entities.Rubrica,
+        'ordem_exibicao',
+        500
+      );
+
+      const rubricasMap = new Map();
+      for (const r of allRubricas) {
+        const key = r?.rubrica_key || buildRubricaKey(r);
+        if (!rubricasMap.has(key)) {
+          rubricasMap.set(key, r);
+        }
+      }
+      const rubricasUnicas = Array.from(rubricasMap.values());
+
+      const allBudgetLines = await listAll(
+        base44.asServiceRole.entities.BudgetLine,
+        'descricao',
+        500
+      );
+
+      const budgetLineById = {};
+      for (const bl of allBudgetLines) {
+        if (bl?.id) budgetLineById[bl.id] = bl;
+      }
+
+      const resolvedRubrica = resolveRubricaFromPurchase(
+        purchase,
+        rubricasUnicas,
+        budgetLineById
+      );
+
+      if (!resolvedRubrica.rubricaId) {
+        return Response.json(
+          {
+            error:
+              'Não é permitido marcar a compra como PAGA sem rubrica vinculada.',
+            motivo: resolvedRubrica.motivo,
+            purchase_id: purchaseId,
+            rubrica_id: purchase.rubrica_id || null,
+            budgetline_id: getPurchaseBudgetlineId(purchase)
           },
           { status: 400 }
         );
@@ -386,7 +530,8 @@ Plataforma — Museus Centro`,
         data_pagamento: paymentDate,
         comprovante_url: comprovante_url || '',
         pago_por: user.email,
-        valor_pago: valorPago
+        valor_pago: valorPago,
+        rubrica_id: resolvedRubrica.rubricaId
       });
 
       const syncResults = [];
@@ -421,6 +566,7 @@ Plataforma — Museus Centro`,
       try {
         await base44.asServiceRole.functions.invoke('recalculateRubrica', {
           purchaseId,
+          rubrica_id: resolvedRubrica.rubricaId,
           budgetline_id: purchaseBudgetlineId
         });
       } catch (e) {
@@ -435,6 +581,7 @@ Plataforma — Museus Centro`,
         await base44.asServiceRole.functions.invoke('recalculateAllRubricas', {
           trigger: 'purchase_paid',
           purchaseId,
+          rubrica_id: resolvedRubrica.rubricaId,
           budgetline_id: purchaseBudgetlineId
         });
       } catch (e) {
@@ -547,6 +694,7 @@ Plataforma — Museus Centro`,
         data_pagamento: paymentDate,
         comprovante_url: comprovante_url || '',
         valor_pago: valorPago,
+        rubrica_id: resolvedRubrica.rubricaId,
         budgetline_id: purchaseBudgetlineId,
         docs_fiscais_aprovados: docsFiscaisAprovados.map((d) => d.id),
         sync_results: syncResults,
@@ -554,7 +702,6 @@ Plataforma — Museus Centro`,
       });
     }
 
-    // --- AÇÃO: Submeter solicitação (RASCUNHO / RECUSADO → SOLICITADO) ---
     if (normalizedAction === 'submeter') {
       if (!purchaseId) {
         return Response.json({ error: 'purchaseId é obrigatório' }, { status: 400 });
@@ -592,7 +739,6 @@ Plataforma — Museus Centro`,
       return Response.json({ success: true, action: 'SOLICITADO' });
     }
 
-    // --- AÇÃO: Garantir relatório mensal ---
     if (normalizedAction === 'ensure_report') {
       const { mes_referencia, ano } = data;
 
