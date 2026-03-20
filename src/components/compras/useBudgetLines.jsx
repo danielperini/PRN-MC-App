@@ -3,8 +3,8 @@ import { base44 } from '@/api/base44Client';
 import { useEffect } from 'react';
 
 /**
- * Hook centralizado para carregar e sincronizar rubricas orçamentárias
- * Todas as páginas e componentes devem usar este hook para acesso às rubricas
+ * Hook centralizado para carregar e sincronizar budget lines do 3º aditivo
+ * Todas as páginas e componentes devem usar este hook para acesso às linhas orçamentárias
  * Sincronização em tempo real via subscriptions
  */
 export function useBudgetLines() {
@@ -43,12 +43,28 @@ export function useBudgetLines() {
     return unsubscribe;
   }, [queryClient]);
 
+  const findBudgetLineId = (purchaseOrId) => {
+    if (!purchaseOrId) return null;
+    if (typeof purchaseOrId === 'string') return purchaseOrId;
+
+    return (
+      purchaseOrId?.budgetline_id ||
+      purchaseOrId?.budget_line_id ||
+      purchaseOrId?.linha_orcamentaria_id ||
+      null
+    );
+  };
+
   return {
     budgetLines,
     isLoading,
     error,
     refreshBudgetLines: invalidateBudgetQueries,
-    getBudgetLine: (id) => budgetLines.find(l => l.id === id),
+    getBudgetLine: (purchaseOrId) => {
+      const id = findBudgetLineId(purchaseOrId);
+      return budgetLines.find(l => l.id === id);
+    },
     getBudgetLineByCode: (code) => budgetLines.find(l => l.codigo === code),
+    hasBudgetLineLinked: (purchase) => !!findBudgetLineId(purchase),
   };
 }
