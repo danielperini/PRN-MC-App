@@ -7,7 +7,12 @@ function toNumber(value) {
 }
 
 function normalizeString(value) {
-  return String(value || '').trim();
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\(.*?\)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function normalizeStringLower(value) {
@@ -18,10 +23,19 @@ function normalizeStatus(value) {
   return String(value || '').trim().toUpperCase();
 }
 
+function buildRubricaKey(rubrica) {
+  const grupo = normalizeStringLower(rubrica?.grupo || '');
+  const nome = normalizeStringLower(
+    rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || ''
+  );
+  return `${grupo}__${nome}`;
+}
+
 function getPurchaseValue(compra) {
   return (
     toNumber(compra?.valor_pago) ||
     toNumber(compra?.valor_final) ||
+    toNumber(compra?.valor_aprovado_admin) ||
     toNumber(compra?.valor_aprovado) ||
     toNumber(compra?.valor_solicitado) ||
     0
@@ -64,71 +78,73 @@ async function listAll(entityApi, orderBy = '', pageSize = 500) {
   return all;
 }
 
-async function findRubricaByBudgetLine(base44, budgetlineId) {
-  if (!budgetlineId) return null;
+function resolveRubricaFromPurchase(compra, rubricas, budgetLineById) {
+  if (compra?.rubrica_id) {
+    const rubrica = rubricas.find((r) => r.id === compra.rubrica_id);
+    if (rubrica) {
+      return {
+        rubricaId: rubrica.id,
+        origem: 'rubrica_id',
+        motivo: null,
+      };
+    }
+  }
 
-  let rubricas = await base44.asServiceRole.entities.Rubrica.filter({
-    budgetline_id: budgetlineId
-  });
-  if (rubricas && rubricas.length > 0) return rubricas[0];
+  const compraBudgetlineId = getCompraBudgetlineId(compra);
 
-  rubricas = await base44.asServiceRole.entities.Rubrica.filter({
-    budget_line_id: budgetlineId
-  });
-  if (rubricas && rubricas.length > 0) return rubricas[0];
+  if (compraBudgetlineId) {
+    const budgetLine = budgetLineById[compraBudgetlineId];
 
-  rubricas = await base44.asServiceRole.entities.Rubrica.filter({
-    linha_orcamentaria_id: budgetlineId
-  });
-  if (rubricas && rubricas.length > 0) return rubricas[0];
+    if (budgetLine?.rubrica_id) {
+      const rubrica = rubricas.find((r) => r.id === budgetLine.rubrica_id);
+      if (rubrica) {
+        return {
+          rubricaId: rubrica.id,
+          origem: 'budgetline_id',
+          motivo: null,
+        };
+      }
+    }
 
-  return null;
-}
-
-async function findRubricaByNomeBudgetLine(base44, budgetlineId) {
-  if (!budgetlineId) return null;
-
-  const lines = await base44.asServiceRole.entities.BudgetLine.filter({
-    id: budgetlineId
-  });
-  const line = lines && lines.length > 0 ? lines[0] : null;
-
-  if (!line) return null;
-
-  const nomeBudgetLine = normalizeStringLower(
-    line.descricao || line.rubrica || line.nome || ''
-  );
-
-  if (!nomeBudgetLine) return null;
-
-  const todasRubricas = await listAll(
-    base44.asServiceRole.entities.Rubrica,
-    'ordem_exibicao',
-    500
-  );
-
-  const candidatas = (todasRubricas || []).filter((r) => r?.ativo !== false);
-
-  const exata = candidatas.find((r) => {
-    const nomeRubrica = normalizeStringLower(
-      r.rubrica || r.nome || r.descricao || ''
+    const nomeBudgetLine = normalizeStringLower(
+      budgetLine?.descricao || budgetLine?.rubrica || budgetLine?.nome || ''
     );
-    return nomeRubrica && nomeRubrica === nomeBudgetLine;
-  });
 
-  if (exata) return exata;
+    if (nomeBudgetLine) {
+      const matches = rubricas.filter((r) => {
+        const nomeRubrica = normalizeStringLower(
+          r?.rubrica || r?.nome || r?.descricao || ''
+        );
+        const rubricaKey = r?.rubrica_key || buildRubricaKey(r);
+        return (
+          nomeRubrica === nomeBudgetLine ||
+          rubricaKey.includes(nomeBudgetLine)
+        );
+      });
 
-  const contem = candidatas.find((r) => {
-    const nomeRubrica = normalizeStringLower(
-      r.rubrica || r.nome || r.descricao || ''
-    );
-    return (
-      nomeRubrica &&
-      (nomeRubrica.includes(nomeBudgetLine) || nomeBudgetLine.includes(nomeRubrica))
-    );
-  });
+      if (matches.length === 1) {
+        return {
+          rubricaId: matches[0].id,
+          origem: 'budgetline_nome',
+          motivo: null,
+        };
+      }
 
-  return contem || null;
+      if (matches.length > 1) {
+        return {
+          rubricaId: null,
+          origem: 'nao_encontrada',
+          motivo: 'Match ambíguo via budget line',
+        };
+      }
+    }
+  }
+
+  return {
+    rubricaId: null,
+    origem: 'nao_encontrada',
+    motivo: 'Rubrica não resolvida',
+  };
 }
 
 Deno.serve(async (req) => {
@@ -150,7 +166,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar documento
     const docs = await base44.asServiceRole.entities.PurchaseDocument.filter({
       id: documentId
     });
@@ -163,7 +178,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Documento precisa estar vinculado a uma compra
     if (!documento.purchase_id) {
       return Response.json(
         {
@@ -174,7 +188,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar compra relacionada
     const compras = await base44.asServiceRole.entities.PurchaseRequest.filter({
       id: documento.purchase_id
     });
@@ -190,7 +203,6 @@ Deno.serve(async (req) => {
     const purchaseStatus = normalizeStatus(compra.status);
     const compraBudgetlineId = getCompraBudgetlineId(compra);
 
-    // Regra: quem manda no débito real da rubrica é a compra paga, não o documento.
     if (purchaseStatus !== 'PAGO' && purchaseStatus !== 'PAGO_PARCIAL') {
       return Response.json(
         {
@@ -203,41 +215,45 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar rubrica
-    let rubricaId = documento.rubrica_id || compra.rubrica_id || null;
-    let rubrica = null;
+    const [todasRubricas, allBudgetLines] = await Promise.all([
+      listAll(base44.asServiceRole.entities.Rubrica, 'ordem_exibicao', 500),
+      listAll(base44.asServiceRole.entities.BudgetLine, 'descricao', 500),
+    ]);
 
-    if (rubricaId) {
-      const rubricasDiretas = await base44.asServiceRole.entities.Rubrica.filter({
-        id: rubricaId
-      });
-      rubrica =
-        rubricasDiretas && rubricasDiretas.length > 0 ? rubricasDiretas[0] : null;
+    const rubricasMap = new Map();
+    for (const r of todasRubricas) {
+      const key = r?.rubrica_key || buildRubricaKey(r);
+      if (!rubricasMap.has(key)) {
+        rubricasMap.set(key, r);
+      }
+    }
+    const rubricasUnicas = Array.from(rubricasMap.values());
+
+    const budgetLineById = {};
+    for (const bl of allBudgetLines) {
+      if (bl?.id) budgetLineById[bl.id] = bl;
     }
 
-    if (!rubrica && compraBudgetlineId) {
-      rubrica = await findRubricaByBudgetLine(base44, compraBudgetlineId);
-    }
+    const resolved = resolveRubricaFromPurchase(
+      compra,
+      rubricasUnicas,
+      budgetLineById
+    );
 
-    if (!rubrica && compraBudgetlineId) {
-      rubrica = await findRubricaByNomeBudgetLine(base44, compraBudgetlineId);
-    }
-
-    if (!rubrica) {
+    if (!resolved.rubricaId) {
       return Response.json(
         {
           error: 'No rubrica found for this document/purchase',
           success: false,
           purchase_id: documento.purchase_id,
-          budgetline_id: compraBudgetlineId
+          budgetline_id: compraBudgetlineId,
+          motivo: resolved.motivo
         },
         { status: 404 }
       );
     }
 
-    rubricaId = rubrica.id;
-
-    // Fonte de verdade do valor = compra paga
+    const rubricaId = resolved.rubricaId;
     const valorCompra = getPurchaseValue(compra);
 
     if (!valorCompra || valorCompra <= 0) {
@@ -256,7 +272,6 @@ Deno.serve(async (req) => {
       `${getDocTypeLabel(documento.tipo_documento || documento.tipo)} - ` +
       `${documento.numero_documento || documento.nome_arquivo || compra.descricao_item || 'Documento'}`;
 
-    // Buscar lançamento automático existente desta compra nesta rubrica
     const lancamentos = await base44.asServiceRole.entities.LancamentoRubrica.filter({
       rubrica_id: rubricaId,
       referencia_compra_id: documento.purchase_id
@@ -304,7 +319,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Se houver lançamentos automáticos duplicados da mesma compra/rubrica, remove extras
     if (lancamentosAutomaticos.length > 1) {
       const duplicados = lancamentosAutomaticos.slice(1);
       for (const dup of duplicados) {
@@ -316,10 +330,26 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Recalcular rubrica pela function central
+    try {
+      await base44.asServiceRole.entities.PurchaseRequest.update(compra.id, {
+        rubrica_id: rubricaId
+      });
+    } catch (e) {
+      console.error('Erro ao gravar rubrica_id na compra:', e.message);
+    }
+
+    try {
+      await base44.asServiceRole.entities.PurchaseDocument.update(documento.id, {
+        rubrica_id: rubricaId
+      });
+    } catch (e) {
+      console.error('Erro ao gravar rubrica_id no documento:', e.message);
+    }
+
     try {
       await base44.asServiceRole.functions.invoke('recalculateRubrica', {
         rubricaId,
+        rubrica_id: rubricaId,
         purchaseId: documento.purchase_id,
         budgetline_id: compraBudgetlineId
       });
@@ -327,19 +357,18 @@ Deno.serve(async (req) => {
       console.error('Erro ao recalcular rubrica:', e.message);
     }
 
-    // Recalcular consolidado geral também
     try {
       await base44.asServiceRole.functions.invoke('recalculateAllRubricas', {
         trigger: 'sync_document_to_rubrica',
         purchaseId: documento.purchase_id,
         budgetline_id: compraBudgetlineId,
-        rubricaId
+        rubricaId,
+        rubrica_id: rubricaId
       });
     } catch (e) {
       console.error('Erro ao recalcular todas as rubricas:', e.message);
     }
 
-    // Buscar rubrica atualizada
     const rubricasAtualizadas = await base44.asServiceRole.entities.Rubrica.filter({
       id: rubricaId
     });
@@ -355,6 +384,7 @@ Deno.serve(async (req) => {
       purchase_id: documento.purchase_id,
       purchase_status: compra.status,
       budgetline_id: compraBudgetlineId,
+      origem_resolucao: resolved.origem,
       valor_documento: toNumber(documento.valor_documento),
       valor_compra: valorCompra,
       valor_utilizado: rubricaAtualizada ? toNumber(rubricaAtualizada.valor_utilizado) : null,
