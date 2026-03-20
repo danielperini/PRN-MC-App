@@ -18,6 +18,78 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function normalizeMuseu(value) {
+  const raw = String(value || '').trim().toUpperCase();
+
+  if (!raw) return '';
+  if (raw === 'MIS') return 'MIS';
+  if (raw === 'MHAB') return 'MHAB';
+  if (raw === 'MUMO') return 'MUMO';
+
+  return raw;
+}
+
+function extractResumoMapFromSource(source) {
+  const result = {};
+
+  if (!source) return result;
+
+  const totaisPorMuseu = source?.totais_por_museu;
+  if (totaisPorMuseu && typeof totaisPorMuseu === 'object' && !Array.isArray(totaisPorMuseu)) {
+    Object.entries(totaisPorMuseu).forEach(([key, dados]) => {
+      const museu = normalizeMuseu(key);
+      if (!museu) return;
+
+      result[museu] = {
+        museu,
+        totalOrcado: toNumber(dados?.totalOrcado),
+        totalUtilizado: toNumber(dados?.totalUtilizado),
+        totalPago: toNumber(dados?.totalPago),
+        totalComprometido: toNumber(dados?.totalComprometido),
+        totalLancamentos: toNumber(dados?.totalLancamentos),
+        totalSaldo: toNumber(dados?.totalSaldo),
+        pct:
+          dados?.pct !== undefined && dados?.pct !== null
+            ? toNumber(dados.pct)
+            : null,
+      };
+    });
+  }
+
+  const sumarioPorMuseu =
+    source?.sumario_por_museu ||
+    source?.sumario?.sumario_por_museu ||
+    [];
+
+  if (Array.isArray(sumarioPorMuseu)) {
+    sumarioPorMuseu.forEach((item) => {
+      const museu = normalizeMuseu(item?.museu);
+      if (!museu) return;
+
+      result[museu] = {
+        museu,
+        totalOrcado: toNumber(item?.valor_orcado),
+        totalUtilizado: toNumber(item?.valor_utilizado),
+        totalPago: toNumber(item?.valor_pago),
+        totalComprometido: toNumber(item?.valor_comprometido),
+        totalLancamentos: toNumber(item?.valor_lancamentos),
+        totalSaldo: toNumber(item?.saldo),
+        pct:
+          toNumber(item?.valor_orcado) > 0
+            ? Number(
+                (
+                  (toNumber(item?.valor_utilizado) / toNumber(item?.valor_orcado)) *
+                  100
+                ).toFixed(2)
+              )
+            : 0,
+      };
+    });
+  }
+
+  return result;
+}
+
 export default function RubricasPorMuseu() {
   const [museuAtivo, setMuseuAtivo] = useState('MHAB');
   const [showGerenciar, setShowGerenciar] = useState(false);
@@ -27,15 +99,17 @@ export default function RubricasPorMuseu() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSetup, setIsSetup] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const [lastRecalcResponse, setLastRecalcResponse] = useState(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    base44.auth.me()
+    base44.auth
+      .me()
       .then(async (user) => {
         setCurrentUser(user);
         if (user?.email) {
           const perms = await base44.entities.UserPermission.filter({
-            user_email: user.email
+            user_email: user.email,
           });
           setUserPermission(perms?.[0] || null);
         }
@@ -55,7 +129,7 @@ export default function RubricasPorMuseu() {
   const {
     data: consolidado,
     isLoading,
-    refetch: refetchConsolidado
+    refetch: refetchConsolidado,
   } = useQuery({
     queryKey: ['rubricas-consolidadas', refreshNonce],
     queryFn: async () => {
@@ -68,25 +142,44 @@ export default function RubricasPorMuseu() {
   });
 
   const resumoPorMuseu = useMemo(() => {
+    const baseMap = extractResumoMapFromSource(consolidado);
+    const recalcMap = extractResumoMapFromSource(lastRecalcResponse);
+
+    const merged = { ...baseMap, ...recalcMap };
+
     return MUSEUS.map((m) => {
-      const dados = consolidado?.totais_por_museu?.[m] || {};
+      const dados = merged[m] || {};
       const totalOrcado = toNumber(dados.totalOrcado);
       const totalUtilizado = toNumber(dados.totalUtilizado);
       const totalPago = toNumber(dados.totalPago);
       const totalComprometido = toNumber(dados.totalComprometido);
+      const totalLancamentos = toNumber(dados.totalLancamentos);
       const totalSaldo = toNumber(dados.totalSaldo);
-      const pct = dados.pct !== undefined && dados.pct !== null
-        ? toNumber(dados.pct)
-        : totalOrcado > 0 ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(2)) : 0;
 
-      return { museu: m, totalOrcado, totalUtilizado, totalPago, totalComprometido, totalSaldo, pct };
+      const pct =
+        dados.pct !== undefined && dados.pct !== null
+          ? toNumber(dados.pct)
+          : totalOrcado > 0
+            ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(2))
+            : 0;
+
+      return {
+        museu: m,
+        totalOrcado,
+        totalUtilizado,
+        totalPago,
+        totalComprometido,
+        totalLancamentos,
+        totalSaldo,
+        pct,
+      };
     });
-  }, [consolidado]);
+  }, [consolidado, lastRecalcResponse]);
 
   const fmt = (v) =>
     toNumber(v).toLocaleString('pt-BR', {
       style: 'currency',
-      currency: 'BRL'
+      currency: 'BRL',
     });
 
   const refreshAllRubricaData = async () => {
@@ -104,9 +197,9 @@ export default function RubricasPorMuseu() {
             key.includes('purchase') ||
             key.includes('museu')
           );
-        }
+        },
       }),
-      refetchConsolidado()
+      refetchConsolidado(),
     ]);
 
     setRefreshNonce((prev) => prev + 1);
@@ -115,13 +208,28 @@ export default function RubricasPorMuseu() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await base44.functions.invoke('recalculateAllRubricas', {
-        trigger: 'manual_refresh_rubricas_por_museu'
+      const res = await base44.functions.invoke('recalculateAllRubricas', {
+        trigger: 'manual_refresh_rubricas_por_museu',
       });
+
+      const data = res?.data || null;
+      setLastRecalcResponse(data);
 
       await refreshAllRubricaData();
 
-      toast.success('Rubricas recalculadas e tela atualizada com sucesso');
+      const inconsistencias =
+        toNumber(data?.sumario?.compras_pagas_nao_vinculadas) +
+        toNumber(data?.sumario?.compras_inconsistentes_museu) +
+        toNumber(data?.sumario?.lancamentos_sem_rubrica) +
+        toNumber(data?.sumario?.lancamentos_inconsistentes_museu);
+
+      if (inconsistencias > 0) {
+        toast.warning(
+          `Recalculo concluído com ${inconsistencias} inconsistência(s) detectada(s)`
+        );
+      } else {
+        toast.success('Rubricas recalculadas e tela atualizada com sucesso');
+      }
     } catch (e) {
       toast.error('Erro ao recalcular rubricas');
       console.error(e);
@@ -144,6 +252,35 @@ export default function RubricasPorMuseu() {
     }
     setIsSetup(false);
   };
+
+  const resumoGeral = useMemo(() => {
+    return resumoPorMuseu.reduce(
+      (acc, item) => {
+        acc.totalOrcado += toNumber(item.totalOrcado);
+        acc.totalUtilizado += toNumber(item.totalUtilizado);
+        acc.totalPago += toNumber(item.totalPago);
+        acc.totalComprometido += toNumber(item.totalComprometido);
+        acc.totalLancamentos += toNumber(item.totalLancamentos);
+        acc.totalSaldo += toNumber(item.totalSaldo);
+        return acc;
+      },
+      {
+        totalOrcado: 0,
+        totalUtilizado: 0,
+        totalPago: 0,
+        totalComprometido: 0,
+        totalLancamentos: 0,
+        totalSaldo: 0,
+      }
+    );
+  }, [resumoPorMuseu]);
+
+  const pctGeral =
+    resumoGeral.totalOrcado > 0
+      ? Number(
+          ((resumoGeral.totalUtilizado / resumoGeral.totalOrcado) * 100).toFixed(2)
+        )
+      : 0;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-10">
@@ -203,57 +340,167 @@ export default function RubricasPorMuseu() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {resumoPorMuseu.map(({ museu, totalOrcado, totalUtilizado, totalPago, totalComprometido, totalSaldo, pct }) => (
-          <Card
-            key={museu}
-            className={`cursor-pointer transition-all border-2 ${museuAtivo === museu ? 'border-gray-800 shadow-md' : 'border-gray-200 hover:border-gray-400'}`}
-            onClick={() => setMuseuAtivo(museu)}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-bold text-base text-gray-900">{museu}</span>
-                <span className={`text-sm font-bold ${pct >= 80 ? 'text-red-600' : 'text-gray-500'}`}>{pct}%</span>
+      <Card className="border-gray-200">
+        <CardContent className="p-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <div className="text-sm text-gray-500">Visão consolidada</div>
+              <div className="text-xl font-bold text-gray-900">
+                {fmt(resumoGeral.totalOrcado)}
               </div>
+              <div className="text-xs text-gray-500">Total orçado dos museus</div>
+            </div>
 
-              <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div>
+                <div className="text-gray-500">Utilizado</div>
+                <div className="font-semibold">{fmt(resumoGeral.totalUtilizado)}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">Pago</div>
+                <div className="font-semibold text-green-700">
+                  {fmt(resumoGeral.totalPago)}
+                </div>
+              </div>
+              <div>
+                <div className="text-gray-500">Comprometido</div>
+                <div className="font-semibold text-orange-600">
+                  {fmt(resumoGeral.totalComprometido)}
+                </div>
+              </div>
+              <div>
+                <div className="text-gray-500">Saldo</div>
                 <div
-                  className={`h-2 rounded-full transition-all ${pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-orange-400' : 'bg-green-500'}`}
-                  style={{ width: `${Math.min(pct, 100)}%` }}
-                />
+                  className={`font-bold ${
+                    resumoGeral.totalSaldo < 0 ? 'text-red-600' : 'text-green-600'
+                  }`}
+                >
+                  {fmt(resumoGeral.totalSaldo)}
+                </div>
               </div>
+            </div>
+          </div>
 
-              {isLoading ? (
-                <div className="space-y-1.5">
-                  {[1, 2, 3, 4].map(i => <div key={i} className="h-3 bg-gray-100 rounded animate-pulse" />)}
+          <div className="mt-4">
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className={`h-2 rounded-full transition-all ${
+                  pctGeral >= 100
+                    ? 'bg-red-500'
+                    : pctGeral >= 80
+                      ? 'bg-orange-400'
+                      : 'bg-green-500'
+                }`}
+                style={{ width: `${Math.min(pctGeral, 100)}%` }}
+              />
+            </div>
+            <div className="mt-2 text-xs text-gray-500">
+              Utilização geral: <span className="font-semibold">{pctGeral}%</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {resumoPorMuseu.map(
+          ({
+            museu,
+            totalOrcado,
+            totalUtilizado,
+            totalPago,
+            totalComprometido,
+            totalLancamentos,
+            totalSaldo,
+            pct,
+          }) => (
+            <Card
+              key={museu}
+              className={`cursor-pointer transition-all border-2 ${
+                museuAtivo === museu
+                  ? 'border-gray-800 shadow-md'
+                  : 'border-gray-200 hover:border-gray-400'
+              }`}
+              onClick={() => setMuseuAtivo(museu)}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-base text-gray-900">{museu}</span>
+                  <span
+                    className={`text-sm font-bold ${
+                      pct >= 80 ? 'text-red-600' : 'text-gray-500'
+                    }`}
+                  >
+                    {pct}%
+                  </span>
                 </div>
-              ) : (
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between text-gray-600">
-                    <span>Previsto</span>
-                    <span className="font-medium">{fmt(totalOrcado)}</span>
+
+                <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                  <div
+                    className={`h-2 rounded-full transition-all ${
+                      pct >= 100
+                        ? 'bg-red-500'
+                        : pct >= 80
+                          ? 'bg-orange-400'
+                          : 'bg-green-500'
+                    }`}
+                    style={{ width: `${Math.min(pct, 100)}%` }}
+                  />
+                </div>
+
+                {isLoading && !lastRecalcResponse ? (
+                  <div className="space-y-1.5">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="h-3 bg-gray-100 rounded animate-pulse" />
+                    ))}
                   </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span>✅ Pago</span>
-                    <span className="font-medium text-green-700">{fmt(totalPago)}</span>
-                  </div>
-                  {totalComprometido > 0 && (
+                ) : (
+                  <div className="space-y-1 text-xs">
                     <div className="flex justify-between text-gray-600">
-                      <span>🔒 Comprometido</span>
-                      <span className="font-medium text-orange-600">{fmt(totalComprometido)}</span>
+                      <span>Previsto</span>
+                      <span className="font-medium">{fmt(totalOrcado)}</span>
                     </div>
-                  )}
-                  <div className="flex justify-between border-t pt-1 mt-1">
-                    <span className="font-semibold text-gray-700">Saldo</span>
-                    <span className={`font-bold ${totalSaldo < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {fmt(totalSaldo)}
-                    </span>
+                    <div className="flex justify-between text-gray-600">
+                      <span>✅ Pago</span>
+                      <span className="font-medium text-green-700">
+                        {fmt(totalPago)}
+                      </span>
+                    </div>
+                    {totalComprometido > 0 && (
+                      <div className="flex justify-between text-gray-600">
+                        <span>🔒 Comprometido</span>
+                        <span className="font-medium text-orange-600">
+                          {fmt(totalComprometido)}
+                        </span>
+                      </div>
+                    )}
+                    {totalLancamentos > 0 && (
+                      <div className="flex justify-between text-gray-600">
+                        <span>🧾 Lançamentos</span>
+                        <span className="font-medium text-blue-700">
+                          {fmt(totalLancamentos)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-gray-600">
+                      <span>Utilizado</span>
+                      <span className="font-medium">{fmt(totalUtilizado)}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-1 mt-1">
+                      <span className="font-semibold text-gray-700">Saldo</span>
+                      <span
+                        className={`font-bold ${
+                          totalSaldo < 0 ? 'text-red-600' : 'text-green-600'
+                        }`}
+                      >
+                        {fmt(totalSaldo)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+                )}
+              </CardContent>
+            </Card>
+          )
+        )}
       </div>
 
       <Tabs value={museuAtivo} onValueChange={setMuseuAtivo}>
