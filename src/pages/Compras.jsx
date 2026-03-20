@@ -476,7 +476,7 @@ function ComprasInner() {
         <PurchaseFormDialog
           budgetLines={budgetLines}
           currentUser={currentUser}
-          purchase={editingPurchase}
+          initialData={editingPurchase}
           onClose={() => {
             setShowForm(false);
             setEditingPurchase(null);
