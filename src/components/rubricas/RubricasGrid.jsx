@@ -34,6 +34,48 @@ function moeda(value) {
   });
 }
 
+function normalizarTexto(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function normalizarGrupo(value) {
+  const texto = normalizarTexto(value);
+
+  const mapa = {
+    'manutencao e operacao': 'Manutenção e Operação',
+    'manutencao e operação': 'Manutenção e Operação',
+    'mostras e exposicoes': 'Mostras e Exposições',
+    'mostras e exposições': 'Mostras e Exposições',
+    'acoes educativas e culturais': 'Ações Educativas e Culturais',
+    'ações educativas e culturais': 'Ações Educativas e Culturais',
+    'publicacoes mhab': 'Publicações MHAB',
+    'publicações mhab': 'Publicações MHAB',
+    'despesas gerais': 'Despesas Gerais',
+    'diarias': 'Diárias',
+    'diárias': 'Diárias',
+    'equipe principal': 'Equipe Principal',
+    'educativo': 'Educativo',
+    'atividades educativas': 'Atividades Educativas',
+    'consultorias': 'Consultorias',
+    'exposicao mumo': 'Exposição MUMO',
+    'exposição mumo': 'Exposição MUMO',
+    'noturno nos museus 2026': 'Noturno nos Museus 2026',
+    'alimentacao, material e acoes': 'Alimentação, Material e Ações',
+    'alimentação, material e ações': 'Alimentação, Material e Ações',
+    'diarias e publicacoes': 'Diárias e Publicações',
+    'diárias e publicações': 'Diárias e Publicações',
+    'diarias e deslocamentos': 'Diárias e Deslocamentos',
+    'diárias e deslocamentos': 'Diárias e Deslocamentos',
+  };
+
+  return mapa[texto] || String(value || 'Sem grupo').trim() || 'Sem grupo';
+}
+
 export default function RubricasGrid({
   rubricas = [],
   onSelectRubrica,
@@ -50,43 +92,47 @@ export default function RubricasGrid({
 
     return rubricas
       .filter(Boolean)
-      .map((r, index) => ({
-        id: r?.id || `rubrica-${index}`,
-        rubrica: r?.rubrica || r?.nome || 'Sem nome',
-        grupo: r?.grupo || 'Sem grupo',
-        codigo: r?.codigo || '',
-        ativo: r?.ativo,
-        valor_rubrica: toNumber(r?.valor_rubrica),
-        valor_utilizado: toNumber(r?.valor_utilizado),
-        saldo:
+      .map((r, index) => {
+        const valor_rubrica = toNumber(r?.valor_rubrica);
+        const valor_utilizado = toNumber(r?.valor_utilizado);
+        const saldo =
           r?.saldo !== undefined && r?.saldo !== null
             ? toNumber(r?.saldo)
-            : toNumber(r?.valor_rubrica) - toNumber(r?.valor_utilizado),
-      }));
+            : valor_rubrica - valor_utilizado;
+
+        return {
+          id: r?.id || `rubrica-${index}`,
+          rubrica: r?.rubrica || r?.nome || 'Sem nome',
+          grupoOriginal: r?.grupo || 'Sem grupo',
+          grupo: normalizarGrupo(r?.grupo || 'Sem grupo'),
+          codigo: r?.codigo || '',
+          ativo: r?.ativo,
+          valor_rubrica,
+          valor_utilizado,
+          saldo,
+        };
+      });
   }, [rubricas]);
 
   const rubricasVisiveis = useMemo(() => {
-    // mais seguro: só oculta se vier explicitamente false
     return rubricasNormalizadas.filter((r) => r.ativo !== false);
   }, [rubricasNormalizadas]);
 
   const grupos = useMemo(() => {
-    const unicos = new Set(
-      rubricasVisiveis.map((r) => String(r.grupo || 'Sem grupo').trim())
-    );
+    const unicos = new Set(rubricasVisiveis.map((r) => r.grupo));
     return Array.from(unicos).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [rubricasVisiveis]);
 
   const filtradas = useMemo(() => {
     return rubricasVisiveis.filter((r) => {
-      const matchGrupo =
-        groupFilter === 'all' || String(r.grupo || 'Sem grupo') === groupFilter;
+      const matchGrupo = groupFilter === 'all' || r.grupo === groupFilter;
 
-      const texto =
-        `${r.rubrica || ''} ${r.grupo || ''} ${r.codigo || ''}`.toLowerCase();
+      const textoBusca = normalizarTexto(
+        `${r.rubrica} ${r.grupo} ${r.codigo}`
+      );
+      const busca = normalizarTexto(searchTerm);
 
-      const matchBusca =
-        !searchTerm || texto.includes(searchTerm.trim().toLowerCase());
+      const matchBusca = !busca || textoBusca.includes(busca);
 
       return matchGrupo && matchBusca;
     });
@@ -96,10 +142,15 @@ export default function RubricasGrid({
     const mapa = {};
 
     for (const rubrica of filtradas) {
-      const grupo = String(rubrica.grupo || 'Sem grupo').trim();
-      if (!mapa[grupo]) mapa[grupo] = [];
-      mapa[grupo].push(rubrica);
+      if (!mapa[rubrica.grupo]) mapa[rubrica.grupo] = [];
+      mapa[rubrica.grupo].push(rubrica);
     }
+
+    Object.keys(mapa).forEach((grupo) => {
+      mapa[grupo].sort((a, b) =>
+        String(a.rubrica).localeCompare(String(b.rubrica), 'pt-BR')
+      );
+    });
 
     return Object.fromEntries(
       Object.entries(mapa).sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
@@ -143,7 +194,7 @@ export default function RubricasGrid({
       }
 
       toast.success('Rubricas recalculadas com sucesso');
-      if (onRefresh) await onRefresh();
+      await onRefresh?.();
     } catch (error) {
       toast.error(`Erro ao recalcular: ${error.message}`);
     } finally {
@@ -168,29 +219,21 @@ export default function RubricasGrid({
         <Card className="rounded-2xl border border-gray-200">
           <CardContent className="p-4">
             <p className="text-xs text-gray-500">Total Previsto</p>
-            <p className="text-xl font-bold text-black mt-1">
-              R$ {moeda(resumo.totalPrevisto)}
-            </p>
+            <p className="text-xl font-bold text-black mt-1">R$ {moeda(resumo.totalPrevisto)}</p>
           </CardContent>
         </Card>
 
         <Card className="rounded-2xl border border-gray-200">
           <CardContent className="p-4">
             <p className="text-xs text-gray-500">Total Utilizado</p>
-            <p className="text-xl font-bold text-blue-700 mt-1">
-              R$ {moeda(resumo.totalUtilizado)}
-            </p>
+            <p className="text-xl font-bold text-blue-700 mt-1">R$ {moeda(resumo.totalUtilizado)}</p>
           </CardContent>
         </Card>
 
         <Card className="rounded-2xl border border-gray-200">
           <CardContent className="p-4">
             <p className="text-xs text-gray-500">Saldo Total</p>
-            <p
-              className={`text-xl font-bold mt-1 ${
-                resumo.saldoTotal < 0 ? 'text-red-700' : 'text-green-700'
-              }`}
-            >
+            <p className={`text-xl font-bold mt-1 ${resumo.saldoTotal < 0 ? 'text-red-700' : 'text-green-700'}`}>
               R$ {moeda(resumo.saldoTotal)}
             </p>
           </CardContent>
@@ -219,7 +262,7 @@ export default function RubricasGrid({
           </div>
 
           <Select value={groupFilter} onValueChange={setGroupFilter}>
-            <SelectTrigger className="w-full md:w-64">
+            <SelectTrigger className="w-full md:w-72">
               <SelectValue placeholder="Filtrar por grupo" />
             </SelectTrigger>
             <SelectContent>
@@ -248,16 +291,10 @@ export default function RubricasGrid({
       {rubricasNormalizadas.length === 0 ? (
         <div className="border-2 border-dashed border-red-200 bg-red-50 rounded-2xl p-12 text-center">
           <p className="text-red-700 font-medium">Nenhuma rubrica recebida pela tela</p>
-          <p className="text-red-600 text-sm mt-2">
-            O problema agora está na query da página Compras.jsx ou na function listAllRubricas.
-          </p>
         </div>
       ) : Object.keys(agrupadas).length === 0 ? (
         <div className="border-2 border-dashed border-yellow-200 bg-yellow-50 rounded-2xl p-12 text-center">
           <p className="text-yellow-700 font-medium">As rubricas chegaram, mas foram filtradas.</p>
-          <p className="text-yellow-600 text-sm mt-2">
-            Revise grupo, busca e campo ativo.
-          </p>
         </div>
       ) : (
         Object.entries(agrupadas).map(([grupo, itens]) => (
@@ -343,9 +380,7 @@ export default function RubricasGrid({
 
                         <div
                           className={`p-3 rounded-lg border ${
-                            saldo < 0
-                              ? 'bg-red-50 border-red-100'
-                              : 'bg-green-50 border-green-100'
+                            saldo < 0 ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'
                           }`}
                         >
                           <p
@@ -414,11 +449,7 @@ export default function RubricasGrid({
                               <Wallet className="w-3.5 h-3.5" />
                               <span className="font-medium">Status</span>
                             </div>
-                            <p
-                              className={`font-bold ${
-                                rubrica.ativo === false ? 'text-red-700' : 'text-green-700'
-                              }`}
-                            >
+                            <p className={`font-bold ${rubrica.ativo === false ? 'text-red-700' : 'text-green-700'}`}>
                               {rubrica.ativo === false ? 'Inativa' : 'Ativa'}
                             </p>
                           </div>
