@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle, XCircle, AlertTriangle, Loader2, Sparkles } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Loader2, Sparkles, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function AprovacoesFila({
@@ -34,25 +34,44 @@ export default function AprovacoesFila({
 
   const pendentes_coord = purchases.filter(p => p.status === 'SOLICITADO');
 
-  const getBudgetLine = (id) => budgetLines.find(l => l.id === id);
+  const getBudgetLineId = (purchase) =>
+    purchase?.budgetline_id ||
+    purchase?.budget_line_id ||
+    purchase?.linha_orcamentaria_id ||
+    null;
+
+  const getBudgetLine = (purchase) => {
+    const id = getBudgetLineId(purchase);
+    return budgetLines.find(l => l.id === id);
+  };
+
+  const hasOrcamentoVinculado = (purchase) =>
+    !!purchase?.rubrica_id || !!getBudgetLineId(purchase);
 
   const getSaldo = async (purchase) => {
-    if (saldos[purchase.budgetline_id]) return saldos[purchase.budgetline_id];
+    const budgetlineId = getBudgetLineId(purchase);
+    if (!budgetlineId) return null;
+    if (saldos[budgetlineId]) return saldos[budgetlineId];
 
     const res = await base44.functions.invoke('purchaseActions', {
       action: 'check_budget',
-      budgetline_id: purchase.budgetline_id,
+      budgetline_id: budgetlineId,
       valor: purchase.valor_solicitado,
     });
 
     const info = res?.data || res;
-    setSaldos(s => ({ ...s, [purchase.budgetline_id]: info }));
+    setSaldos(s => ({ ...s, [budgetlineId]: info }));
     return info;
   };
 
   const handleAction = async (purchase, action) => {
     if ((action === 'approve_coord' || action === 'reject') && !podeAprovar) {
       toast.error('Você não tem permissão para processar solicitações.');
+      return;
+    }
+
+    if (action === 'approve_coord' && !hasOrcamentoVinculado(purchase)) {
+      toast.error('Vincule uma rubrica ou linha orçamentária antes de aprovar.');
       return;
     }
 
@@ -64,7 +83,7 @@ export default function AprovacoesFila({
       if (action === 'approve_coord') {
         const saldoInfo = await getSaldo(purchase);
 
-        if (!saldoInfo?.aprovavel) {
+        if (saldoInfo && !saldoInfo?.aprovavel) {
           toast.error(
             `Saldo insuficiente! Disponível: R$ ${(saldoInfo?.saldo_disponivel || 0).toLocaleString('pt-BR', {
               minimumFractionDigits: 2
@@ -111,7 +130,7 @@ export default function AprovacoesFila({
   };
 
   const renderCard = (purchase) => {
-    const line = getBudgetLine(purchase.budgetline_id);
+    const line = getBudgetLine(purchase);
     const saldoDisponivel = line
       ? (line.saldo_inicial || 0) - (line.saldo_comprometido || 0)
       : null;
@@ -120,6 +139,8 @@ export default function AprovacoesFila({
       saldoDisponivel === null || saldoDisponivel >= (purchase.valor_solicitado || 0);
 
     const isLoading = loading[purchase.id];
+    const vinculoOk = hasOrcamentoVinculado(purchase);
+    const budgetlineId = getBudgetLineId(purchase);
 
     return (
       <div
@@ -152,6 +173,18 @@ export default function AprovacoesFila({
                     Score IA: {purchase.ai_meta_score}%
                   </span>
                 )}
+
+              {vinculoOk ? (
+                <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Link2 className="w-3 h-3" />
+                  Com vínculo orçamentário
+                </span>
+              ) : (
+                <span className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  Sem vínculo orçamentário
+                </span>
+              )}
             </div>
 
             <p className="font-semibold text-black">{purchase.descricao_item}</p>
@@ -170,6 +203,18 @@ export default function AprovacoesFila({
             <p className="text-xs text-gray-500">{purchase.categoria}</p>
           </div>
         </div>
+
+        {!vinculoOk && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs">
+            <p className="font-semibold text-red-800 flex items-center gap-1 mb-1">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Compra sem rubrica ou linha orçamentária vinculada
+            </p>
+            <p className="text-red-700">
+              Esta solicitação não deve ser aprovada enquanto não houver vínculo orçamentário.
+            </p>
+          </div>
+        )}
 
         {purchase.ai_meta_score < 80 && purchase.ai_analise && (
           <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg text-xs">
@@ -236,6 +281,12 @@ export default function AprovacoesFila({
           </div>
         )}
 
+        {!line && budgetlineId && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+            A compra possui budgetline_id vinculado, mas a linha orçamentária não foi encontrada na listagem carregada.
+          </div>
+        )}
+
         <Textarea
           placeholder="Comentário (opcional)..."
           rows={2}
@@ -263,8 +314,14 @@ export default function AprovacoesFila({
           <Button
             className="bg-black hover:bg-gray-800 text-white disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={() => handleAction(purchase, 'approve_coord')}
-            disabled={isLoading || !saldoOk || !podeAprovar}
-            title={!podeAprovar ? 'Você não tem permissão para aprovar' : ''}
+            disabled={isLoading || !saldoOk || !podeAprovar || !vinculoOk}
+            title={
+              !podeAprovar
+                ? 'Você não tem permissão para aprovar'
+                : !vinculoOk
+                ? 'Vincule rubrica ou linha orçamentária antes de aprovar'
+                : ''
+            }
           >
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin mr-1" />
