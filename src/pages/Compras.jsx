@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   User,
   FileText,
+  AlertTriangle,
 } from 'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
@@ -37,6 +38,7 @@ const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
   SOLICITADO: { label: 'Solicitado', color: 'bg-blue-100 text-blue-700' },
   APROVADO_COORD: { label: 'Aprovado', color: 'bg-green-100 text-green-700' },
+  APROVADO_ADMIN: { label: 'Aprovado Admin', color: 'bg-green-100 text-green-700' },
   RECUSADO: { label: 'Recusado', color: 'bg-red-100 text-red-700' },
   CANCELADO: { label: 'Cancelado', color: 'bg-gray-100 text-gray-500' },
   PAGO: { label: 'Pago', color: 'bg-emerald-100 text-emerald-700' },
@@ -75,6 +77,15 @@ async function carregarRubricas() {
   return [];
 }
 
+function getPurchaseBudgetlineId(purchase) {
+  return (
+    purchase?.budgetline_id ||
+    purchase?.budget_line_id ||
+    purchase?.linha_orcamentaria_id ||
+    null
+  );
+}
+
 function ComprasInner() {
   const [currentUser, setCurrentUser] = useState(null);
   const [tab, setTab] = useState('lista');
@@ -87,6 +98,7 @@ function ComprasInner() {
     meta_id: 'all',
     search: '',
     rubrica_id: 'all',
+    inconsistencias: 'all',
   });
 
   const queryClient = useQueryClient();
@@ -176,7 +188,30 @@ function ComprasInner() {
     staleTime: 0,
   });
 
-  const filtered = (purchases || []).filter((p) => {
+  const purchasesWithFlags = useMemo(() => {
+    return (purchases || []).map((p) => {
+      const hasBudgetline = !!getPurchaseBudgetlineId(p);
+      const hasRubrica = !!p.rubrica_id;
+      const hasOrcamentoVinculado = hasRubrica || hasBudgetline;
+
+      return {
+        ...p,
+        _has_budgetline: hasBudgetline,
+        _has_rubrica: hasRubrica,
+        _has_orcamento_vinculado: hasOrcamentoVinculado,
+      };
+    });
+  }, [purchases]);
+
+  const comprasInconsistentes = purchasesWithFlags.filter(
+    (p) =>
+      (p.status === 'APROVADO_COORD' ||
+        p.status === 'APROVADO_ADMIN' ||
+        p.status === 'PAGO') &&
+      !p._has_orcamento_vinculado
+  );
+
+  const filtered = purchasesWithFlags.filter((p) => {
     const matchStatus = filters.status === 'all' || p.status === filters.status;
 
     let matchMeta = filters.meta_id === 'all';
@@ -193,13 +228,25 @@ function ComprasInner() {
     const matchRubrica =
       filters.rubrica_id === 'all' || p.rubrica_id === filters.rubrica_id;
 
+    const matchInconsistencia =
+      filters.inconsistencias === 'all' ||
+      (filters.inconsistencias === 'somente_inconsistentes' &&
+        !p._has_orcamento_vinculado) ||
+      (filters.inconsistencias === 'somente_ok' && p._has_orcamento_vinculado);
+
     const busca = filters.search.trim().toLowerCase();
     const matchSearch =
       !busca ||
       p.descricao_item?.toLowerCase().includes(busca) ||
       p.fornecedor_nome?.toLowerCase().includes(busca);
 
-    return matchStatus && matchMeta && matchRubrica && matchSearch;
+    return (
+      matchStatus &&
+      matchMeta &&
+      matchRubrica &&
+      matchInconsistencia &&
+      matchSearch
+    );
   });
 
   const pendentesAprovacoes = (purchases || []).filter(
@@ -264,6 +311,22 @@ function ComprasInner() {
             </Button>
           </div>
         </div>
+
+        {isCoordenador && comprasInconsistentes.length > 0 && (
+          <div className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-700 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900">
+                  Há {comprasInconsistentes.length} compra(s) aprovada(s) ou paga(s) sem rubrica/linha orçamentária vinculada.
+                </p>
+                <p className="text-xs text-amber-800 mt-1">
+                  Essas compras podem não debitar corretamente nas rubricas. Edite cada item e vincule a rubrica antes de seguir.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit overflow-x-auto">
           {[
@@ -390,6 +453,26 @@ function ComprasInner() {
                         {r.rubrica}
                       </SelectItem>
                     ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={filters.inconsistencias}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, inconsistencias: v }))
+                }
+              >
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="Vínculo orçamentário" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="somente_inconsistentes">
+                    Apenas sem vínculo
+                  </SelectItem>
+                  <SelectItem value="somente_ok">
+                    Apenas com vínculo
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
