@@ -153,6 +153,19 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Atualizar rubricas em lotes de 10 para evitar rate limit
+    const BATCH = 10;
+    for (let i = 0; i < results.length; i += BATCH) {
+      const lote = results.slice(i, i + BATCH);
+      await Promise.all(lote.map(r =>
+        base44.asServiceRole.entities.Rubrica.update(r.rubrica_id, {
+          valor_utilizado: r.valor_utilizado,
+          saldo: r.saldo,
+          percentual_utilizado: r.percentual_utilizado
+        })
+      ));
+    }
+
     const sumario = {
       total_rubricas: results.length,
       total_compras: allPurchases.length,
