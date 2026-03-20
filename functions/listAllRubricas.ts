@@ -24,6 +24,24 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function normalizeString(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\(.*?\)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function buildRubricaKey(rubrica) {
+  const grupo = normalizeString(rubrica?.grupo || '');
+  const nome = normalizeString(
+    rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || ''
+  );
+  return `${grupo}__${nome}`;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -36,19 +54,43 @@ Deno.serve(async (req) => {
       );
     }
 
-    let rubricas = await listAll(
+    let rubricasRaw = await listAll(
       base44.asServiceRole.entities.Rubrica,
       'ordem_exibicao',
       200
     );
 
-    rubricas = (rubricas || []).sort((a, b) => {
+    const rubricasMap = new Map();
+    const duplicadas = [];
+
+    for (const r of rubricasRaw || []) {
+      const key = r?.rubrica_key || buildRubricaKey(r);
+
+      if (!rubricasMap.has(key)) {
+        rubricasMap.set(key, {
+          ...r,
+          rubrica_key: key,
+        });
+      } else {
+        duplicadas.push({
+          id: r?.id || null,
+          rubrica: r?.rubrica || r?.nome || null,
+          grupo: r?.grupo || null,
+          rubrica_key: key,
+          valor_rubrica: toNumber(r?.valor_rubrica),
+        });
+      }
+    }
+
+    let rubricas = Array.from(rubricasMap.values());
+
+    rubricas = rubricas.sort((a, b) => {
       const ordemA = toNumber(a?.ordem_exibicao);
       const ordemB = toNumber(b?.ordem_exibicao);
       if (ordemA !== ordemB) return ordemA - ordemB;
 
-      return String(a?.rubrica || '').localeCompare(
-        String(b?.rubrica || ''),
+      return String(a?.rubrica || a?.nome || '').localeCompare(
+        String(b?.rubrica || b?.nome || ''),
         'pt-BR'
       );
     });
@@ -71,10 +113,13 @@ Deno.serve(async (req) => {
     return Response.json({
       success: true,
       total: rubricas.length,
+      total_raw: rubricasRaw.length,
+      total_duplicadas: duplicadas.length,
       total_previsto,
       total_utilizado,
       saldo_total,
       rubricas,
+      duplicadas,
     });
   } catch (error) {
     console.error('listAllRubricas error:', error);
