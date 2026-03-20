@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { base44 } from '@/api/base44Client';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -12,18 +12,18 @@ import {
 import {
   Search,
   RefreshCw,
-  Pencil,
-  Trash2,
-  Save,
-  X,
-  Eye,
-  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  Wallet,
+  TrendingUp,
+  Calculator,
 } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 
 function toNumber(value) {
-  if (value === null || value === undefined || value === '') return 0;
-  const n = Number(value);
+  const n = Number(value ?? 0);
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -34,39 +34,6 @@ function moeda(value) {
   });
 }
 
-function normalizarTexto(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
-
-function normalizarGrupo(value) {
-  const texto = normalizarTexto(value);
-
-  const mapa = {
-    'manutencao e operacao': 'Manutenção e Operação',
-    'mostras e exposicoes': 'Mostras e Exposições',
-    'acoes educativas e culturais': 'Ações Educativas e Culturais',
-    'publicacoes mhab': 'Publicações MHAB',
-    'despesas gerais': 'Despesas Gerais',
-    'diarias': 'Diárias',
-    'equipe principal': 'Equipe Principal',
-    'educativo': 'Educativo',
-    'atividades educativas': 'Atividades Educativas',
-    'consultorias': 'Consultorias',
-    'exposicao mumo': 'Exposição MUMO',
-    'noturno nos museus 2026': 'Noturno nos Museus 2026',
-    'alimentacao, material e acoes': 'Alimentação, Material e Ações',
-    'diarias e publicacoes': 'Diárias e Publicações',
-    'diarias e deslocamentos': 'Diárias e Deslocamentos',
-  };
-
-  return mapa[texto] || String(value || 'Sem grupo').trim() || 'Sem grupo';
-}
-
 export default function RubricasGrid({
   rubricas = [],
   onSelectRubrica,
@@ -75,82 +42,58 @@ export default function RubricasGrid({
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [groupFilter, setGroupFilter] = useState('all');
-  const [editingId, setEditingId] = useState(null);
-  const [savingId, setSavingId] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
+  const [expanded, setExpanded] = useState({});
   const [recalculando, setRecalculando] = useState(false);
-  const [auditando, setAuditando] = useState(false);
 
-  const [editForm, setEditForm] = useState({
-    grupo: '',
-    rubrica: '',
-    numero_parcelas: '',
-    valor_rubrica: '',
-    valor_utilizado: '',
-    ativo: true,
-  });
-
-  const rubricasNormalizadas = useMemo(() => {
-    return (rubricas || [])
-      .filter(Boolean)
-      .map((r, index) => {
-        const valorRubrica = toNumber(r?.valor_rubrica);
-        const valorUtilizado = toNumber(r?.valor_utilizado);
-        const saldo =
-          r?.saldo !== undefined && r?.saldo !== null
-            ? toNumber(r?.saldo)
-            : valorRubrica - valorUtilizado;
-
-        return {
-          id: r?.id || `rubrica-${index}`,
-          grupo: normalizarGrupo(r?.grupo || 'Sem grupo'),
-          grupoOriginal: r?.grupo || 'Sem grupo',
-          rubrica: r?.rubrica || 'Sem nome',
-          numero_parcelas:
-            r?.numero_parcelas ||
-            r?.numero_parcelas_unidades ||
-            r?.parcelas ||
-            '',
-          valor_rubrica: valorRubrica,
-          valor_utilizado: valorUtilizado,
-          saldo,
-          percentual_utilizado:
-            valorRubrica > 0 ? (valorUtilizado / valorRubrica) * 100 : 0,
-          ativo: r?.ativo !== false,
-          raw: r,
-        };
-      });
-  }, [rubricas]);
+  const rubricasAtivas = useMemo(
+    () => (rubricas || []).filter((r) => r?.ativo !== false),
+    [rubricas]
+  );
 
   const grupos = useMemo(() => {
-    const unicos = new Set(rubricasNormalizadas.map((r) => r.grupo));
+    const unicos = new Set(
+      rubricasAtivas.map((r) => String(r?.grupo || 'Sem grupo').trim())
+    );
     return Array.from(unicos).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [rubricasNormalizadas]);
+  }, [rubricasAtivas]);
 
   const filtradas = useMemo(() => {
-    return rubricasNormalizadas.filter((r) => {
-      const matchGrupo = groupFilter === 'all' || r.grupo === groupFilter;
-      const busca = normalizarTexto(searchTerm);
-      const texto = normalizarTexto(
-        `${r.grupo} ${r.rubrica} ${r.numero_parcelas}`
-      );
-      const matchBusca = !busca || texto.includes(busca);
+    return rubricasAtivas.filter((r) => {
+      const matchGrupo =
+        groupFilter === 'all' || String(r?.grupo || 'Sem grupo') === groupFilter;
+
+      const texto = `${r?.rubrica || ''} ${r?.grupo || ''} ${r?.codigo || ''}`.toLowerCase();
+      const matchBusca =
+        !searchTerm || texto.includes(searchTerm.trim().toLowerCase());
+
       return matchGrupo && matchBusca;
     });
-  }, [rubricasNormalizadas, groupFilter, searchTerm]);
+  }, [rubricasAtivas, groupFilter, searchTerm]);
+
+  const agrupadas = useMemo(() => {
+    const mapa = {};
+    for (const rubrica of filtradas) {
+      const grupo = String(rubrica?.grupo || 'Sem grupo').trim();
+      if (!mapa[grupo]) mapa[grupo] = [];
+      mapa[grupo].push(rubrica);
+    }
+    return Object.fromEntries(
+      Object.entries(mapa).sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
+    );
+  }, [filtradas]);
 
   const resumo = useMemo(() => {
-    const totalRubricas = rubricasNormalizadas.filter((r) => r.ativo).length;
-    const totalPrevisto = rubricasNormalizadas.reduce(
-      (sum, r) => sum + toNumber(r.valor_rubrica),
+    const totalRubricas = rubricasAtivas.length;
+    const totalPrevisto = rubricasAtivas.reduce(
+      (sum, r) => sum + toNumber(r?.valor_rubrica),
       0
     );
-    const totalUtilizado = rubricasNormalizadas.reduce(
-      (sum, r) => sum + toNumber(r.valor_utilizado),
+    const totalUtilizado = rubricasAtivas.reduce(
+      (sum, r) => sum + toNumber(r?.valor_utilizado),
       0
     );
-    const saldoTotal = rubricasNormalizadas.reduce(
-      (sum, r) => sum + toNumber(r.saldo),
+    const saldoTotal = rubricasAtivas.reduce(
+      (sum, r) => sum + toNumber(r?.saldo),
       0
     );
     const percentualGeral =
@@ -163,102 +106,12 @@ export default function RubricasGrid({
       saldoTotal,
       percentualGeral,
     };
-  }, [rubricasNormalizadas]);
+  }, [rubricasAtivas]);
 
-  function iniciarEdicao(rubrica) {
-    setEditingId(rubrica.id);
-    setEditForm({
-      grupo: rubrica.raw?.grupo || rubrica.grupo || '',
-      rubrica: rubrica.raw?.rubrica || rubrica.rubrica || '',
-      numero_parcelas:
-        rubrica.raw?.numero_parcelas ||
-        rubrica.raw?.numero_parcelas_unidades ||
-        rubrica.raw?.parcelas ||
-        '',
-      valor_rubrica: String(toNumber(rubrica.raw?.valor_rubrica)),
-      valor_utilizado: String(toNumber(rubrica.raw?.valor_utilizado)),
-      ativo: rubrica.raw?.ativo !== false,
-    });
-  }
-
-  function cancelarEdicao() {
-    setEditingId(null);
-    setSavingId(null);
-    setEditForm({
-      grupo: '',
-      rubrica: '',
-      numero_parcelas: '',
-      valor_rubrica: '',
-      valor_utilizado: '',
-      ativo: true,
-    });
-  }
-
-  async function salvarEdicao(id) {
-    setSavingId(id);
-    try {
-      const valorRubrica = toNumber(editForm.valor_rubrica);
-      const valorUtilizado = toNumber(editForm.valor_utilizado);
-      const saldo = valorRubrica - valorUtilizado;
-      const percentualUtilizado =
-        valorRubrica > 0 ? (valorUtilizado / valorRubrica) * 100 : 0;
-
-      await base44.entities.Rubrica.update(id, {
-        grupo: editForm.grupo,
-        rubrica: editForm.rubrica,
-        numero_parcelas: editForm.numero_parcelas,
-        valor_rubrica: valorRubrica,
-        valor_utilizado: valorUtilizado,
-        saldo,
-        percentual_utilizado: percentualUtilizado,
-        ativo: editForm.ativo,
-      });
-
-      try {
-        await base44.functions.invoke('recalculateRubrica', { rubricaId: id });
-      } catch (_e) {}
-
-      try {
-        await base44.functions.invoke('recalculateAllRubricas', {
-          trigger: 'rubrica_manual_edit',
-          rubricaId: id,
-        });
-      } catch (_e) {}
-
-      toast.success('Rubrica atualizada com sucesso');
-      cancelarEdicao();
-      await onRefresh?.();
-    } catch (error) {
-      toast.error(`Erro ao salvar: ${error.message}`);
-    } finally {
-      setSavingId(null);
-    }
-  }
-
-  async function excluirRubrica(id, nome) {
-    const ok = window.confirm(
-      `Deseja excluir a rubrica "${nome}"?\n\nEssa ação não pode ser desfeita.`
-    );
-    if (!ok) return;
-
-    setDeletingId(id);
-    try {
-      await base44.entities.Rubrica.delete(id);
-      toast.success('Rubrica excluída com sucesso');
-      await onRefresh?.();
-    } catch (error) {
-      toast.error(`Erro ao excluir: ${error.message}`);
-    } finally {
-      setDeletingId(null);
-    }
-  }
-
-  async function recalcularRubricas() {
+  async function handleRecalcular() {
     setRecalculando(true);
     try {
-      const res = await base44.functions.invoke('recalculateAllRubricas', {
-        trigger: 'manual_grid_refresh',
-      });
+      const res = await base44.functions.invoke('recalcularRubricas3Aditivo', {});
       const payload = res?.data || res;
 
       if (!payload?.success) {
@@ -274,79 +127,57 @@ export default function RubricasGrid({
     }
   }
 
-  async function auditarCompras() {
-    setAuditando(true);
-    try {
-      const res = await base44.functions.invoke('auditarComprasSemRubrica', {
-        trigger: 'manual_grid_audit',
-      });
-      const payload = res?.data || res;
-
-      if (!payload?.success) {
-        throw new Error(payload?.error || 'Falha ao auditar compras');
-      }
-
-      const total = toNumber(payload?.total_inconsistencias);
-
-      if (total > 0) {
-        toast.warning(`Auditoria concluída: ${total} inconsistência(s) encontrada(s).`, {
-          duration: 5000,
-        });
-      } else {
-        toast.success('Auditoria concluída: nenhuma inconsistência encontrada.');
-      }
-    } catch (error) {
-      toast.error(`Erro ao auditar: ${error.message}`);
-    } finally {
-      setAuditando(false);
-    }
+  function toggleExpand(id) {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="rounded-2xl border border-gray-200 p-4">
-          <p className="text-xs text-gray-500">Total de Rubricas</p>
-          <p className="text-2xl font-bold text-black mt-1">{resumo.totalRubricas}</p>
-        </div>
+        <Card className="rounded-2xl border border-gray-200">
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-500">Total de Rubricas</p>
+            <p className="text-2xl font-bold text-black mt-1">{resumo.totalRubricas}</p>
+          </CardContent>
+        </Card>
 
-        <div className="rounded-2xl border border-gray-200 p-4">
-          <p className="text-xs text-gray-500">Total Previsto</p>
-          <p className="text-xl font-bold text-black mt-1">
-            R$ {moeda(resumo.totalPrevisto)}
-          </p>
-        </div>
+        <Card className="rounded-2xl border border-gray-200">
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-500">Total Previsto</p>
+            <p className="text-xl font-bold text-black mt-1">R$ {moeda(resumo.totalPrevisto)}</p>
+          </CardContent>
+        </Card>
 
-        <div className="rounded-2xl border border-gray-200 p-4">
-          <p className="text-xs text-gray-500">Total Utilizado</p>
-          <p className="text-xl font-bold text-blue-700 mt-1">
-            R$ {moeda(resumo.totalUtilizado)}
-          </p>
-        </div>
+        <Card className="rounded-2xl border border-gray-200">
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-500">Total Utilizado</p>
+            <p className="text-xl font-bold text-blue-700 mt-1">R$ {moeda(resumo.totalUtilizado)}</p>
+          </CardContent>
+        </Card>
 
-        <div className="rounded-2xl border border-gray-200 p-4">
-          <p className="text-xs text-gray-500">Saldo Total</p>
-          <p
-            className={`text-xl font-bold mt-1 ${
-              resumo.saldoTotal < 0 ? 'text-red-700' : 'text-green-700'
-            }`}
-          >
-            R$ {moeda(resumo.saldoTotal)}
-          </p>
-        </div>
+        <Card className="rounded-2xl border border-gray-200">
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-500">Saldo Total</p>
+            <p className={`text-xl font-bold mt-1 ${resumo.saldoTotal < 0 ? 'text-red-700' : 'text-green-700'}`}>
+              R$ {moeda(resumo.saldoTotal)}
+            </p>
+          </CardContent>
+        </Card>
 
-        <div className="rounded-2xl border border-gray-200 p-4">
-          <p className="text-xs text-gray-500">% Geral Utilizado</p>
-          <p className="text-2xl font-bold text-black mt-1">
-            {resumo.percentualGeral.toFixed(1)}%
-          </p>
-        </div>
+        <Card className="rounded-2xl border border-gray-200">
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-500">% Geral Utilizado</p>
+            <p className="text-2xl font-bold text-black mt-1">
+              {resumo.percentualGeral.toFixed(1)}%
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
         <div className="flex flex-col md:flex-row gap-3 flex-1">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
             <Input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -356,7 +187,7 @@ export default function RubricasGrid({
           </div>
 
           <Select value={groupFilter} onValueChange={setGroupFilter}>
-            <SelectTrigger className="w-full md:w-72">
+            <SelectTrigger className="w-full md:w-64">
               <SelectValue placeholder="Filtrar por grupo" />
             </SelectTrigger>
             <SelectContent>
@@ -371,166 +202,73 @@ export default function RubricasGrid({
         </div>
 
         {isCoordenador && (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={auditarCompras}
-              disabled={auditando}
-            >
-              <AlertTriangle className="w-4 h-4 mr-2" />
-              Auditar compras
-            </Button>
-
-            <Button
-              onClick={recalcularRubricas}
-              disabled={recalculando}
-              className="bg-black hover:bg-gray-800 text-white"
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${recalculando ? 'animate-spin' : ''}`} />
-              Recalcular rubricas
-            </Button>
-          </div>
+          <Button
+            onClick={handleRecalcular}
+            disabled={recalculando}
+            className="bg-black hover:bg-gray-800 text-white"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${recalculando ? 'animate-spin' : ''}`} />
+            Recalcular rubricas
+          </Button>
         )}
       </div>
 
-      <div className="rounded-2xl border border-gray-200 overflow-hidden">
-        <div className="overflow-auto">
-          <table className="w-full min-w-[1200px] text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-semibold text-gray-700">Grupo</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-700">Rubrica</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-700">Nº Parcelas</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-700">Valor</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-700">Utilizado</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-700">Saldo</th>
-                <th className="text-center px-4 py-3 font-semibold text-gray-700">%</th>
-                <th className="text-center px-4 py-3 font-semibold text-gray-700">Ações</th>
-              </tr>
-            </thead>
+      {Object.keys(agrupadas).length === 0 ? (
+        <div className="border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
+          <Search className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-400">Nenhuma rubrica encontrada</p>
+        </div>
+      ) : (
+        Object.entries(agrupadas).map(([grupo, itens]) => (
+          <div key={grupo} className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-black">{grupo}</h2>
+              <span className="text-xs text-gray-500">{itens.length} rubrica(s)</span>
+            </div>
 
-            <tbody>
-              {filtradas.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-gray-400">
-                    Nenhuma rubrica encontrada
-                  </td>
-                </tr>
-              ) : (
-                filtradas.map((rubrica) => {
-                  const percentual = toNumber(rubrica.percentual_utilizado);
-                  const saldoNegativo = toNumber(rubrica.saldo) < 0;
-                  const emEdicao = editingId === rubrica.id;
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              {itens.map((rubrica) => {
+                const valorRubrica = toNumber(rubrica?.valor_rubrica);
+                const valorUtilizado = toNumber(rubrica?.valor_utilizado);
+                const saldo = toNumber(rubrica?.saldo);
+                const percentual =
+                  valorRubrica > 0 ? (valorUtilizado / valorRubrica) * 100 : 0;
+                const alerta = saldo < 0 || percentual >= 80;
+                const isExpanded = !!expanded[rubrica.id];
 
-                  return (
-                    <tr
-                      key={rubrica.id}
-                      className={`border-b border-gray-100 align-top ${
-                        saldoNegativo ? 'bg-red-50/40' : 'bg-white'
-                      }`}
-                    >
-                      <td className="px-4 py-3">
-                        {emEdicao ? (
-                          <Input
-                            value={editForm.grupo}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({ ...prev, grupo: e.target.value }))
-                            }
-                          />
-                        ) : (
-                          <span className="text-gray-700">{rubrica.grupo}</span>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3">
-                        {emEdicao ? (
-                          <Input
-                            value={editForm.rubrica}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({ ...prev, rubrica: e.target.value }))
-                            }
-                          />
-                        ) : (
-                          <span className="font-medium text-black">{rubrica.rubrica}</span>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3">
-                        {emEdicao ? (
-                          <Input
-                            value={editForm.numero_parcelas}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({
-                                ...prev,
-                                numero_parcelas: e.target.value,
-                              }))
-                            }
-                          />
-                        ) : (
-                          <span className="text-gray-700">{rubrica.numero_parcelas || '—'}</span>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3 text-right">
-                        {emEdicao ? (
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={editForm.valor_rubrica}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({
-                                ...prev,
-                                valor_rubrica: e.target.value,
-                              }))
-                            }
-                          />
-                        ) : (
-                          <span className="font-medium">R$ {moeda(rubrica.valor_rubrica)}</span>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3 text-right">
-                        {emEdicao ? (
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={editForm.valor_utilizado}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({
-                                ...prev,
-                                valor_utilizado: e.target.value,
-                              }))
-                            }
-                          />
-                        ) : (
-                          <span className="text-blue-700 font-medium">
-                            R$ {moeda(rubrica.valor_utilizado)}
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3 text-right">
-                        {emEdicao ? (
-                          <span className="text-gray-500 text-xs">
-                            saldo será recalculado ao salvar
-                          </span>
-                        ) : (
-                          <span
-                            className={`font-medium ${
-                              rubrica.saldo < 0 ? 'text-red-700' : 'text-green-700'
-                            }`}
+                return (
+                  <Card
+                    key={rubrica.id}
+                    className={`rounded-2xl border-2 transition-all ${
+                      saldo < 0
+                        ? 'border-red-300 bg-red-50/30'
+                        : percentual >= 80
+                        ? 'border-yellow-300 bg-yellow-50/30'
+                        : 'border-gray-200 bg-white'
+                    }`}
+                  >
+                    <CardContent className="p-5 space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => onSelectRubrica?.(rubrica)}
+                            className="text-left"
                           >
-                            R$ {moeda(rubrica.saldo)}
-                          </span>
-                        )}
-                      </td>
+                            <h3 className="font-bold text-black text-sm hover:underline">
+                              {rubrica?.rubrica || 'Sem nome'}
+                            </h3>
+                          </button>
 
-                      <td className="px-4 py-3 text-center">
-                        {emEdicao ? (
-                          <span className="text-gray-500 text-xs">auto</span>
-                        ) : (
+                          {rubrica?.codigo && (
+                            <p className="text-xs text-gray-500 mt-1">{rubrica.codigo}</p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {alerta && <AlertCircle className="w-4 h-4 text-red-600" />}
                           <span
-                            className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${
+                            className={`text-xs font-bold px-3 py-1.5 rounded-full ${
                               percentual >= 80
                                 ? 'bg-red-100 text-red-700'
                                 : percentual >= 50
@@ -538,85 +276,145 @@ export default function RubricasGrid({
                                 : 'bg-green-100 text-green-700'
                             }`}
                           >
-                            {percentual.toFixed(2)}%
+                            {percentual.toFixed(1)}%
                           </span>
-                        )}
-                      </td>
+                        </div>
+                      </div>
 
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-2">
-                          {emEdicao ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                          <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide">
+                            Previsto
+                          </p>
+                          <p className="text-sm font-bold text-black mt-1">
+                            R$ {moeda(valorRubrica)}
+                          </p>
+                        </div>
+
+                        <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                          <p className="text-[10px] text-blue-600 uppercase font-semibold tracking-wide">
+                            Utilizado
+                          </p>
+                          <p className="text-sm font-bold text-blue-700 mt-1">
+                            R$ {moeda(valorUtilizado)}
+                          </p>
+                        </div>
+
+                        <div
+                          className={`p-3 rounded-lg border ${
+                            saldo < 0 ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'
+                          }`}
+                        >
+                          <p
+                            className={`text-[10px] uppercase font-semibold tracking-wide ${
+                              saldo < 0 ? 'text-red-600' : 'text-green-600'
+                            }`}
+                          >
+                            Saldo
+                          </p>
+                          <p
+                            className={`text-sm font-bold mt-1 ${
+                              saldo < 0 ? 'text-red-700' : 'text-green-700'
+                            }`}
+                          >
+                            R$ {moeda(saldo)}
+                          </p>
+                        </div>
+
+                        <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
+                          <p className="text-[10px] text-purple-600 uppercase font-semibold tracking-wide">
+                            Disponível
+                          </p>
+                          <p className="text-sm font-bold text-purple-700 mt-1">
+                            {valorRubrica > 0 && saldo > 0
+                              ? `${((saldo / valorRubrica) * 100).toFixed(1)}%`
+                              : '0.0%'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${
+                              percentual >= 80
+                                ? 'bg-red-500'
+                                : percentual >= 50
+                                ? 'bg-yellow-500'
+                                : 'bg-green-500'
+                            }`}
+                            style={{ width: `${Math.min(percentual, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                          <div className="bg-white border border-gray-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2 text-gray-600 mb-1">
+                              <Calculator className="w-3.5 h-3.5" />
+                              <span className="font-medium">Percentual</span>
+                            </div>
+                            <p className="font-bold text-black">{percentual.toFixed(2)}%</p>
+                          </div>
+
+                          <div className="bg-white border border-gray-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2 text-gray-600 mb-1">
+                              <TrendingUp className="w-3.5 h-3.5" />
+                              <span className="font-medium">Grupo</span>
+                            </div>
+                            <p className="font-bold text-black">{rubrica?.grupo || 'Sem grupo'}</p>
+                          </div>
+
+                          <div className="bg-white border border-gray-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2 text-gray-600 mb-1">
+                              <Wallet className="w-3.5 h-3.5" />
+                              <span className="font-medium">Status</span>
+                            </div>
+                            <p className={`font-bold ${rubrica?.ativo === false ? 'text-red-700' : 'text-green-700'}`}>
+                              {rubrica?.ativo === false ? 'Inativa' : 'Ativa'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(rubrica.id)}
+                          className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+                        >
+                          {isExpanded ? (
                             <>
-                              <Button
-                                size="sm"
-                                className="bg-black text-white hover:bg-gray-800"
-                                onClick={() => salvarEdicao(rubrica.id)}
-                                disabled={savingId === rubrica.id}
-                              >
-                                <Save className="w-4 h-4 mr-1" />
-                                Salvar
-                              </Button>
-
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={cancelarEdicao}
-                                disabled={savingId === rubrica.id}
-                              >
-                                <X className="w-4 h-4 mr-1" />
-                                Cancelar
-                              </Button>
+                              <ChevronUp className="w-3.5 h-3.5" />
+                              Ocultar detalhes
                             </>
                           ) : (
                             <>
-                              {onSelectRubrica && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => onSelectRubrica(rubrica.raw || rubrica)}
-                                >
-                                  <Eye className="w-4 h-4 mr-1" />
-                                  Detalhe
-                                </Button>
-                              )}
-
-                              {isCoordenador && (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => iniciarEdicao(rubrica)}
-                                  >
-                                    <Pencil className="w-4 h-4 mr-1" />
-                                    Editar
-                                  </Button>
-
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-red-600 border-red-200 hover:bg-red-50"
-                                    onClick={() =>
-                                      excluirRubrica(rubrica.id, rubrica.rubrica)
-                                    }
-                                    disabled={deletingId === rubrica.id}
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-1" />
-                                    Excluir
-                                  </Button>
-                                </>
-                              )}
+                              <ChevronDown className="w-3.5 h-3.5" />
+                              Ver detalhes
                             </>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                        </button>
+
+                        {onSelectRubrica && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onSelectRubrica(rubrica)}
+                          >
+                            Detalhe
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }

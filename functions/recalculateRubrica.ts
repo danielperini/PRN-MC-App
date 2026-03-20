@@ -98,6 +98,30 @@ async function getAllLancamentos(base44, rubricaId) {
   return allLancamentos;
 }
 
+async function getAllPurchasesByFilter(base44, filterObj) {
+  const pageSize = 500;
+  let allPurchases = [];
+  let page = 0;
+
+  while (true) {
+    const batch = await base44.asServiceRole.entities.PurchaseRequest.filter(
+      filterObj,
+      '-created_date',
+      pageSize,
+      page * pageSize
+    );
+
+    if (!batch || batch.length === 0) break;
+
+    allPurchases = allPurchases.concat(batch);
+
+    if (batch.length < pageSize) break;
+    page++;
+  }
+
+  return allPurchases;
+}
+
 function resolveRubricaFromPurchase(purchase, rubricas, budgetLineById) {
   if (purchase?.rubrica_id) {
     const rubrica = rubricas.find((r) => r.id === purchase.rubrica_id);
@@ -135,7 +159,7 @@ function resolveRubricaFromPurchase(purchase, rubricas, budgetLineById) {
         const nomeRubrica = normalizeString(
           r?.rubrica || r?.nome || r?.descricao || ''
         );
-        const rubricaKey = r?.rubrica_key || buildRubricaKey(r);
+        const rubricaKey = buildRubricaKey(r);
         return (
           nomeRubrica === nomeBudgetLine ||
           rubricaKey.includes(nomeBudgetLine)
@@ -219,19 +243,6 @@ Deno.serve(async (req) => {
     }
     const rubricasUnicas = Array.from(rubricasMap.values());
 
-    const allBudgetLines = await listAll(
-      base44.asServiceRole.entities.BudgetLine,
-      'descricao',
-      500
-    );
-
-    const budgetLineById = {};
-    for (const bl of allBudgetLines) {
-      if (bl?.id) {
-        budgetLineById[bl.id] = bl;
-      }
-    }
-
     let rubrica = null;
 
     if (rubricaId) {
@@ -252,6 +263,17 @@ Deno.serve(async (req) => {
       try {
         const purchase =
           await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
+
+        const allBudgetLines = await listAll(
+          base44.asServiceRole.entities.BudgetLine,
+          'descricao',
+          500
+        );
+
+        const budgetLineById = {};
+        for (const bl of allBudgetLines) {
+          if (bl?.id) budgetLineById[bl.id] = bl;
+        }
 
         const resolved = resolveRubricaFromPurchase(
           purchase,
@@ -281,11 +303,31 @@ Deno.serve(async (req) => {
 
     const rubricaRealId = rubrica.id;
 
+    budgetlineId =
+      budgetlineId ||
+      rubrica.budgetline_id ||
+      rubrica.budget_line_id ||
+      rubrica.linha_orcamentaria_id ||
+      null;
+
     const allLancamentos = await getAllLancamentos(base44, rubricaRealId);
 
     const valorLancamentos = parseFloat(
       allLancamentos.reduce((sum, l) => sum + toNumber(l.valor), 0).toFixed(2)
     );
+
+    const allBudgetLines = await listAll(
+      base44.asServiceRole.entities.BudgetLine,
+      'descricao',
+      500
+    );
+
+    const budgetLineById = {};
+    for (const bl of allBudgetLines) {
+      if (bl?.id) {
+        budgetLineById[bl.id] = bl;
+      }
+    }
 
     const purchases = await listAll(
       base44.asServiceRole.entities.PurchaseRequest,
@@ -305,16 +347,11 @@ Deno.serve(async (req) => {
       );
 
       if (!resolved.rubricaId) {
-        const status = normalizeStatus(p.status);
-        if (
-          status === 'PAGO' ||
-          status === 'APROVADO_COORD' ||
-          status === 'APROVADO_ADMIN'
-        ) {
+        if (normalizeStatus(p.status) === 'PAGO') {
           inconsistencias.push({
             purchase_id: p.id,
-            titulo: p.titulo || p.objeto || p.descricao_item || '',
-            fornecedor: p.fornecedor || p.fornecedor_nome || '',
+            titulo: p.titulo || p.objeto || '',
+            fornecedor: p.fornecedor || '',
             valor_pago: toNumber(p.valor_pago),
             status: p.status,
             rubrica_id: p.rubrica_id || null,
@@ -394,12 +431,7 @@ Deno.serve(async (req) => {
       success: true,
       rubrica_id: rubricaRealId,
       rubrica: rubrica.rubrica || rubrica.nome || null,
-      budgetline_id:
-        budgetlineId ||
-        rubrica.budgetline_id ||
-        rubrica.budget_line_id ||
-        rubrica.linha_orcamentaria_id ||
-        null,
+      budgetline_id: budgetlineId || null,
       purchase_id: purchaseId || null,
       num_lancamentos: allLancamentos.length,
       num_compras_encontradas: uniquePurchases.length,
