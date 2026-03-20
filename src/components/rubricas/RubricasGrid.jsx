@@ -45,55 +45,79 @@ export default function RubricasGrid({
   const [expanded, setExpanded] = useState({});
   const [recalculando, setRecalculando] = useState(false);
 
-  const rubricasAtivas = useMemo(
-    () => (rubricas || []).filter((r) => r?.ativo !== false),
-    [rubricas]
-  );
+  const rubricasNormalizadas = useMemo(() => {
+    if (!Array.isArray(rubricas)) return [];
+
+    return rubricas
+      .filter(Boolean)
+      .map((r, index) => ({
+        id: r?.id || `rubrica-${index}`,
+        rubrica: r?.rubrica || r?.nome || 'Sem nome',
+        grupo: r?.grupo || 'Sem grupo',
+        codigo: r?.codigo || '',
+        ativo: r?.ativo,
+        valor_rubrica: toNumber(r?.valor_rubrica),
+        valor_utilizado: toNumber(r?.valor_utilizado),
+        saldo:
+          r?.saldo !== undefined && r?.saldo !== null
+            ? toNumber(r?.saldo)
+            : toNumber(r?.valor_rubrica) - toNumber(r?.valor_utilizado),
+      }));
+  }, [rubricas]);
+
+  const rubricasVisiveis = useMemo(() => {
+    // mais seguro: só oculta se vier explicitamente false
+    return rubricasNormalizadas.filter((r) => r.ativo !== false);
+  }, [rubricasNormalizadas]);
 
   const grupos = useMemo(() => {
     const unicos = new Set(
-      rubricasAtivas.map((r) => String(r?.grupo || 'Sem grupo').trim())
+      rubricasVisiveis.map((r) => String(r.grupo || 'Sem grupo').trim())
     );
     return Array.from(unicos).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [rubricasAtivas]);
+  }, [rubricasVisiveis]);
 
   const filtradas = useMemo(() => {
-    return rubricasAtivas.filter((r) => {
+    return rubricasVisiveis.filter((r) => {
       const matchGrupo =
-        groupFilter === 'all' || String(r?.grupo || 'Sem grupo') === groupFilter;
+        groupFilter === 'all' || String(r.grupo || 'Sem grupo') === groupFilter;
 
-      const texto = `${r?.rubrica || ''} ${r?.grupo || ''} ${r?.codigo || ''}`.toLowerCase();
+      const texto =
+        `${r.rubrica || ''} ${r.grupo || ''} ${r.codigo || ''}`.toLowerCase();
+
       const matchBusca =
         !searchTerm || texto.includes(searchTerm.trim().toLowerCase());
 
       return matchGrupo && matchBusca;
     });
-  }, [rubricasAtivas, groupFilter, searchTerm]);
+  }, [rubricasVisiveis, groupFilter, searchTerm]);
 
   const agrupadas = useMemo(() => {
     const mapa = {};
+
     for (const rubrica of filtradas) {
-      const grupo = String(rubrica?.grupo || 'Sem grupo').trim();
+      const grupo = String(rubrica.grupo || 'Sem grupo').trim();
       if (!mapa[grupo]) mapa[grupo] = [];
       mapa[grupo].push(rubrica);
     }
+
     return Object.fromEntries(
       Object.entries(mapa).sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
     );
   }, [filtradas]);
 
   const resumo = useMemo(() => {
-    const totalRubricas = rubricasAtivas.length;
-    const totalPrevisto = rubricasAtivas.reduce(
-      (sum, r) => sum + toNumber(r?.valor_rubrica),
+    const totalRubricas = rubricasVisiveis.length;
+    const totalPrevisto = rubricasVisiveis.reduce(
+      (sum, r) => sum + toNumber(r.valor_rubrica),
       0
     );
-    const totalUtilizado = rubricasAtivas.reduce(
-      (sum, r) => sum + toNumber(r?.valor_utilizado),
+    const totalUtilizado = rubricasVisiveis.reduce(
+      (sum, r) => sum + toNumber(r.valor_utilizado),
       0
     );
-    const saldoTotal = rubricasAtivas.reduce(
-      (sum, r) => sum + toNumber(r?.saldo),
+    const saldoTotal = rubricasVisiveis.reduce(
+      (sum, r) => sum + toNumber(r.saldo),
       0
     );
     const percentualGeral =
@@ -106,7 +130,7 @@ export default function RubricasGrid({
       saldoTotal,
       percentualGeral,
     };
-  }, [rubricasAtivas]);
+  }, [rubricasVisiveis]);
 
   async function handleRecalcular() {
     setRecalculando(true);
@@ -119,7 +143,7 @@ export default function RubricasGrid({
       }
 
       toast.success('Rubricas recalculadas com sucesso');
-      await onRefresh?.();
+      if (onRefresh) await onRefresh();
     } catch (error) {
       toast.error(`Erro ao recalcular: ${error.message}`);
     } finally {
@@ -144,21 +168,29 @@ export default function RubricasGrid({
         <Card className="rounded-2xl border border-gray-200">
           <CardContent className="p-4">
             <p className="text-xs text-gray-500">Total Previsto</p>
-            <p className="text-xl font-bold text-black mt-1">R$ {moeda(resumo.totalPrevisto)}</p>
+            <p className="text-xl font-bold text-black mt-1">
+              R$ {moeda(resumo.totalPrevisto)}
+            </p>
           </CardContent>
         </Card>
 
         <Card className="rounded-2xl border border-gray-200">
           <CardContent className="p-4">
             <p className="text-xs text-gray-500">Total Utilizado</p>
-            <p className="text-xl font-bold text-blue-700 mt-1">R$ {moeda(resumo.totalUtilizado)}</p>
+            <p className="text-xl font-bold text-blue-700 mt-1">
+              R$ {moeda(resumo.totalUtilizado)}
+            </p>
           </CardContent>
         </Card>
 
         <Card className="rounded-2xl border border-gray-200">
           <CardContent className="p-4">
             <p className="text-xs text-gray-500">Saldo Total</p>
-            <p className={`text-xl font-bold mt-1 ${resumo.saldoTotal < 0 ? 'text-red-700' : 'text-green-700'}`}>
+            <p
+              className={`text-xl font-bold mt-1 ${
+                resumo.saldoTotal < 0 ? 'text-red-700' : 'text-green-700'
+              }`}
+            >
               R$ {moeda(resumo.saldoTotal)}
             </p>
           </CardContent>
@@ -213,10 +245,19 @@ export default function RubricasGrid({
         )}
       </div>
 
-      {Object.keys(agrupadas).length === 0 ? (
-        <div className="border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
-          <Search className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-400">Nenhuma rubrica encontrada</p>
+      {rubricasNormalizadas.length === 0 ? (
+        <div className="border-2 border-dashed border-red-200 bg-red-50 rounded-2xl p-12 text-center">
+          <p className="text-red-700 font-medium">Nenhuma rubrica recebida pela tela</p>
+          <p className="text-red-600 text-sm mt-2">
+            O problema agora está na query da página Compras.jsx ou na function listAllRubricas.
+          </p>
+        </div>
+      ) : Object.keys(agrupadas).length === 0 ? (
+        <div className="border-2 border-dashed border-yellow-200 bg-yellow-50 rounded-2xl p-12 text-center">
+          <p className="text-yellow-700 font-medium">As rubricas chegaram, mas foram filtradas.</p>
+          <p className="text-yellow-600 text-sm mt-2">
+            Revise grupo, busca e campo ativo.
+          </p>
         </div>
       ) : (
         Object.entries(agrupadas).map(([grupo, itens]) => (
@@ -228,9 +269,9 @@ export default function RubricasGrid({
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               {itens.map((rubrica) => {
-                const valorRubrica = toNumber(rubrica?.valor_rubrica);
-                const valorUtilizado = toNumber(rubrica?.valor_utilizado);
-                const saldo = toNumber(rubrica?.saldo);
+                const valorRubrica = toNumber(rubrica.valor_rubrica);
+                const valorUtilizado = toNumber(rubrica.valor_utilizado);
+                const saldo = toNumber(rubrica.saldo);
                 const percentual =
                   valorRubrica > 0 ? (valorUtilizado / valorRubrica) * 100 : 0;
                 const alerta = saldo < 0 || percentual >= 80;
@@ -256,11 +297,11 @@ export default function RubricasGrid({
                             className="text-left"
                           >
                             <h3 className="font-bold text-black text-sm hover:underline">
-                              {rubrica?.rubrica || 'Sem nome'}
+                              {rubrica.rubrica}
                             </h3>
                           </button>
 
-                          {rubrica?.codigo && (
+                          {rubrica.codigo && (
                             <p className="text-xs text-gray-500 mt-1">{rubrica.codigo}</p>
                           )}
                         </div>
@@ -302,7 +343,9 @@ export default function RubricasGrid({
 
                         <div
                           className={`p-3 rounded-lg border ${
-                            saldo < 0 ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'
+                            saldo < 0
+                              ? 'bg-red-50 border-red-100'
+                              : 'bg-green-50 border-green-100'
                           }`}
                         >
                           <p
@@ -363,7 +406,7 @@ export default function RubricasGrid({
                               <TrendingUp className="w-3.5 h-3.5" />
                               <span className="font-medium">Grupo</span>
                             </div>
-                            <p className="font-bold text-black">{rubrica?.grupo || 'Sem grupo'}</p>
+                            <p className="font-bold text-black">{rubrica.grupo || 'Sem grupo'}</p>
                           </div>
 
                           <div className="bg-white border border-gray-200 rounded-lg p-3">
@@ -371,8 +414,12 @@ export default function RubricasGrid({
                               <Wallet className="w-3.5 h-3.5" />
                               <span className="font-medium">Status</span>
                             </div>
-                            <p className={`font-bold ${rubrica?.ativo === false ? 'text-red-700' : 'text-green-700'}`}>
-                              {rubrica?.ativo === false ? 'Inativa' : 'Ativa'}
+                            <p
+                              className={`font-bold ${
+                                rubrica.ativo === false ? 'text-red-700' : 'text-green-700'
+                              }`}
+                            >
+                              {rubrica.ativo === false ? 'Inativa' : 'Ativa'}
                             </p>
                           </div>
                         </div>
