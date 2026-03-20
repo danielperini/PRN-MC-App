@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
 } from '@/components/ui/select';
 import {
   ShoppingCart,
@@ -16,8 +16,9 @@ import {
   Search,
   ShieldCheck,
   User,
-  FileText
+  FileText,
 } from 'lucide-react';
+
 import RequireAuth from '@/components/auth/RequireAuth';
 import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
 import PurchaseCard from '@/components/compras/PurchaseCard';
@@ -56,18 +57,21 @@ function ComprasInner() {
   const [showForm, setShowForm] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState(null);
   const [showReportGen, setShowReportGen] = useState(false);
+  const [selectedRubrica, setSelectedRubrica] = useState(null);
   const [filters, setFilters] = useState({
     status: 'all',
     meta_id: 'all',
     search: '',
-    rubrica_id: 'all'
+    rubrica_id: 'all',
   });
-  const [selectedRubrica, setSelectedRubrica] = useState(null);
 
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    base44.auth.me().then(setCurrentUser).catch(() => setCurrentUser(null));
+    base44.auth
+      .me()
+      .then((u) => setCurrentUser(u))
+      .catch(() => setCurrentUser(null));
   }, []);
 
   const isCoordenador = [
@@ -76,20 +80,15 @@ function ComprasInner() {
     'COORDENADOR',
     'COORD_COMUNICACAO',
     'COORD_ADMINISTRATIVA',
-    'COORD_PRODUCAO'
+    'COORD_PRODUCAO',
   ].includes(currentUser?.role);
 
   const invalidateComprasQueries = useCallback(async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['purchases'] }),
-      queryClient.invalidateQueries({ queryKey: ['purchase'] }),
       queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'] }),
       queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
-      queryClient.invalidateQueries({ queryKey: ['rubricas-consolidadas'] }),
       queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
-      queryClient.invalidateQueries({ queryKey: ['budget'] }),
-      queryClient.invalidateQueries({ queryKey: ['compra'] }),
-      queryClient.invalidateQueries({ queryKey: ['museu'] })
     ]);
   }, [queryClient]);
 
@@ -98,7 +97,7 @@ function ComprasInner() {
     queryFn: async () => {
       try {
         const result = await base44.entities.UserPermission.filter({
-          user_email: currentUser?.email
+          user_email: currentUser?.email,
         });
         return result?.[0] || null;
       } catch {
@@ -132,22 +131,25 @@ function ComprasInner() {
     queryFn: async () => {
       const docs = await base44.entities.PurchaseDocument.list('-created_date', 300);
       if (isCoordenador) return docs;
-      return docs.filter(doc => doc.uploadado_por === currentUser?.email);
+      return docs.filter((doc) => doc.uploadado_por === currentUser?.email);
     },
     enabled: !!currentUser,
   });
 
   const { budgetLines } = useBudgetLines();
 
-  const { data: rubricas = [], refetch: refetchRubricas } = useQuery({
+  const {
+    data: rubricas = [],
+    refetch: refetchRubricas,
+    isLoading: loadingRubricas,
+  } = useQuery({
     queryKey: ['rubricas'],
     queryFn: async () => {
       try {
         const result = await base44.functions.invoke('listAllRubricas', {});
-        console.log('listAllRubricas result:', result);
         return extractRubricas(result);
-      } catch (e) {
-        console.error('Erro ao carregar rubricas via function:', e);
+      } catch (error) {
+        console.error('Erro ao carregar rubricas:', error);
         return [];
       }
     },
@@ -156,8 +158,7 @@ function ComprasInner() {
   });
 
   const filtered = (purchases || []).filter((p) => {
-    const matchStatus =
-      filters.status === 'all' || p.status === filters.status;
+    const matchStatus = filters.status === 'all' || p.status === filters.status;
 
     let matchMeta = filters.meta_id === 'all';
     if (!matchMeta && filters.meta_id === 'produto') matchMeta = p.tipo_item === 'produto';
@@ -167,10 +168,11 @@ function ComprasInner() {
     const matchRubrica =
       filters.rubrica_id === 'all' || p.rubrica_id === filters.rubrica_id;
 
+    const busca = filters.search.trim().toLowerCase();
     const matchSearch =
-      !filters.search ||
-      p.descricao_item?.toLowerCase().includes(filters.search.toLowerCase()) ||
-      p.fornecedor_nome?.toLowerCase().includes(filters.search.toLowerCase());
+      !busca ||
+      p.descricao_item?.toLowerCase().includes(busca) ||
+      p.fornecedor_nome?.toLowerCase().includes(busca);
 
     return matchStatus && matchMeta && matchRubrica && matchSearch;
   });
@@ -245,10 +247,14 @@ function ComprasInner() {
             { id: 'documentos', label: 'Documentos' },
             ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
             ...((podeAprovarSolicitacoes || hasGestaoCompras)
-              ? [{
-                  id: 'aprovacoes',
-                  label: `Aprovações${pendentesAprovacoes > 0 ? ` (${pendentesAprovacoes})` : ''}`
-                }]
+              ? [
+                  {
+                    id: 'aprovacoes',
+                    label: `Aprovações${
+                      pendentesAprovacoes > 0 ? ` (${pendentesAprovacoes})` : ''
+                    }`,
+                  },
+                ]
               : []),
             ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
           ].map((t) => (
@@ -273,7 +279,9 @@ function ComprasInner() {
                   placeholder="Buscar..."
                   className="pl-9"
                   value={filters.search}
-                  onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+                  onChange={(e) =>
+                    setFilters((f) => ({ ...f, search: e.target.value }))
+                  }
                 />
               </div>
 
@@ -317,18 +325,22 @@ function ComprasInner() {
 
               <Select
                 value={filters.rubrica_id}
-                onValueChange={(v) => setFilters((f) => ({ ...f, rubrica_id: v }))}
+                onValueChange={(v) =>
+                  setFilters((f) => ({ ...f, rubrica_id: v }))
+                }
               >
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Rubrica Orçamentária" />
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="Rubrica" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as rubricas</SelectItem>
-                  {(rubricas || []).map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.rubrica}
-                    </SelectItem>
-                  ))}
+                  {(rubricas || [])
+                    .filter((r) => r?.ativo !== false)
+                    .map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.rubrica}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -373,27 +385,12 @@ function ComprasInner() {
           </div>
         )}
 
-        {tab === 'orcamento' && (
-          <div className="space-y-8">
-            {isCoordenador && (
-              <ImportarOrcamento onSuccess={invalidateComprasQueries} />
-            )}
-
-            <OrcamentoDashboard
-              budgetLines={budgetLines}
-              purchases={purchases}
-              isCoordenador={isCoordenador}
-            />
-          </div>
-        )}
-
         {tab === 'rubricas' && (
           <div className="space-y-6">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-900">
-                <strong>📊 Integração:</strong> Esta aba controla o orçamento do projeto.
-                Os valores lançados nas compras serão mapeados automaticamente para suas
-                respectivas rubricas.
+                <strong>📊 Integração:</strong> esta aba usa exclusivamente a entity
+                <strong> Rubrica</strong> como fonte de verdade do orçamento.
               </p>
             </div>
 
@@ -421,10 +418,14 @@ function ComprasInner() {
                 onSelectRubrica={setSelectedRubrica}
                 onRefresh={async () => {
                   await invalidateComprasQueries();
-                  refetchRubricas();
+                  await refetchRubricas();
                 }}
                 isCoordenador={isCoordenador}
               />
+            )}
+
+            {loadingRubricas && (
+              <div className="text-sm text-gray-400">Atualizando rubricas...</div>
             )}
           </div>
         )}
@@ -454,13 +455,28 @@ function ComprasInner() {
             podeAprovarSolicitacoes={podeAprovarSolicitacoes}
           />
         )}
+
+        {tab === 'orcamento' && (
+          <div className="space-y-8">
+            {isCoordenador && (
+              <ImportarOrcamento
+                onSuccess={() => queryClient.invalidateQueries({ queryKey: ['budget-lines'] })}
+              />
+            )}
+            <OrcamentoDashboard
+              budgetLines={budgetLines}
+              purchases={purchases}
+              isCoordenador={isCoordenador}
+            />
+          </div>
+        )}
       </div>
 
       {showForm && (
         <PurchaseFormDialog
           budgetLines={budgetLines}
           currentUser={currentUser}
-          initialData={editingPurchase}
+          purchase={editingPurchase}
           onClose={() => {
             setShowForm(false);
             setEditingPurchase(null);
