@@ -12,6 +12,7 @@ import {
   Calendar,
   User,
   Loader2,
+  Link2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -62,6 +63,15 @@ export default function RubricaDetail({ rubrica, onClose }) {
     enabled: !!rubricaId,
   });
 
+  const { data: purchases = [] } = useQuery({
+    queryKey: ['purchases-by-rubrica-detail', rubricaId],
+    queryFn: async () => {
+      const all = await base44.entities.PurchaseRequest.list('-created_date', 300);
+      return all.filter((p) => p.rubrica_id === rubricaId);
+    },
+    enabled: !!rubricaId,
+  });
+
   const invalidateRubricaQueries = async () => {
     await Promise.all([
       queryClient.invalidateQueries({
@@ -75,6 +85,7 @@ export default function RubricaDetail({ rubrica, onClose }) {
       queryClient.invalidateQueries({ queryKey: ['purchase'] }),
       queryClient.invalidateQueries({ queryKey: ['compra'] }),
       queryClient.invalidateQueries({ queryKey: ['museu'] }),
+      queryClient.invalidateQueries({ queryKey: ['purchases-by-rubrica-detail', rubricaId] }),
     ]);
   };
 
@@ -94,6 +105,19 @@ export default function RubricaDetail({ rubrica, onClose }) {
         valorRubrica > 0 ? (valorUtilizadoBanco / valorRubrica) * 100 : 0,
     };
   }, [rubrica]);
+
+  const comprasPagas = useMemo(
+    () => purchases.filter((p) => p.status === 'PAGO'),
+    [purchases]
+  );
+
+  const comprasAprovadas = useMemo(
+    () =>
+      purchases.filter(
+        (p) => p.status === 'APROVADO_COORD' || p.status === 'APROVADO_ADMIN'
+      ),
+    [purchases]
+  );
 
   const handleAddLancamento = async () => {
     if (!formData.valor) {
@@ -260,6 +284,25 @@ export default function RubricaDetail({ rubrica, onClose }) {
           </div>
         </div>
 
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t">
+          <div>
+            <span className="text-xs text-gray-600 font-semibold">Compras Pagas</span>
+            <p className="text-sm font-semibold text-black mt-1">{comprasPagas.length}</p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-600 font-semibold">Compras Aprovadas</span>
+            <p className="text-sm font-semibold text-black mt-1">{comprasAprovadas.length}</p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-600 font-semibold">Lançamentos</span>
+            <p className="text-sm font-semibold text-black mt-1">{lancamentos.length}</p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-600 font-semibold">Rubrica ID</span>
+            <p className="text-sm font-semibold text-black mt-1 break-all">{rubricaId}</p>
+          </div>
+        </div>
+
         {rubrica?.observacao_uso && (
           <div className="mt-4 p-3 bg-white/50 rounded text-sm text-gray-700 italic">
             📝 {rubrica.observacao_uso}
@@ -381,6 +424,70 @@ export default function RubricaDetail({ rubrica, onClose }) {
         </div>
       )}
 
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-black">Compras Vinculadas</h3>
+
+        {purchases.length === 0 ? (
+          <div className="border border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-400">
+            Nenhuma compra com rubrica_id vinculada
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {purchases.map((p) => (
+              <div
+                key={p.id}
+                className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className="text-xs font-semibold bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                        {p.status || 'Sem status'}
+                      </span>
+
+                      {p.budgetline_id && (
+                        <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded flex items-center gap-1">
+                          <Link2 className="w-3 h-3" />
+                          BudgetLine vinculada
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="font-semibold text-black">
+                      {p.descricao_item || 'Sem descrição'}
+                    </p>
+
+                    <div className="flex gap-4 mt-2 text-xs text-gray-600 flex-wrap">
+                      {p.fornecedor_nome && (
+                        <span>{p.fornecedor_nome}</span>
+                      )}
+                      {p.data_pagamento && (
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(p.data_pagamento).toLocaleDateString('pt-BR')}
+                        </span>
+                      )}
+                      {p.created_by && (
+                        <span className="flex items-center gap-1">
+                          <User className="w-3 h-3" />
+                          {p.created_by}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-blue-600">
+                      R$ {formatMoney(p.valor_pago || p.valor_aprovado_admin || p.valor_aprovado || p.valor_solicitado)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div>
         <h3 className="text-lg font-semibold text-black mb-4">
           Histórico de Lançamentos
@@ -412,6 +519,12 @@ export default function RubricaDetail({ rubrica, onClose }) {
                         {valorLancamento < 0 && (
                           <span className="text-xs font-semibold bg-orange-100 text-orange-700 px-2 py-1 rounded">
                             Ajuste
+                          </span>
+                        )}
+
+                        {l.referencia_compra_id && (
+                          <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                            Compra vinculada
                           </span>
                         )}
                       </div>
