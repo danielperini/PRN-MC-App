@@ -41,19 +41,20 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const body = await req.json().catch(() => ({}));
 
-    // Buscar tudo com paginação
-    const rubricas = await listAll(base44.asServiceRole.entities.Rubrica, 'ordem_exibicao', 500);
-    const allLancamentos = await listAll(base44.asServiceRole.entities.LancamentoRubrica, '-created_date', 500);
-    const allPurchases = await listAll(base44.asServiceRole.entities.PurchaseRequest, '-created_date', 500);
-    const allBudgetLines = await listAll(base44.asServiceRole.entities.BudgetLine, 'descricao', 500);
+    // Buscar dados em paralelo
+    const [rubricas, allLancamentos, allPurchases, allBudgetLines] = await Promise.all([
+      listAll(base44.asServiceRole.entities.Rubrica, 'ordem_exibicao', 500),
+      listAll(base44.asServiceRole.entities.LancamentoRubrica, '-created_date', 500),
+      listAll(base44.asServiceRole.entities.PurchaseRequest, '-created_date', 500),
+      listAll(base44.asServiceRole.entities.BudgetLine, 'descricao', 500),
+    ]);
 
-    // Índices
     const budgetLineById = {};
     for (const bl of allBudgetLines) {
       if (bl?.id) budgetLineById[bl.id] = bl;
     }
 
-    // Índice de lançamentos por rubrica_id
+    // Índice lançamentos por rubrica_id
     const lancamentosPorRubrica = {};
     for (const l of allLancamentos) {
       if (!l?.rubrica_id) continue;
@@ -61,7 +62,7 @@ Deno.serve(async (req) => {
       lancamentosPorRubrica[l.rubrica_id].push(l);
     }
 
-    // Índice de compras por rubrica_id (ligação direta)
+    // Índice compras por rubrica_id direta
     const comprasPorRubricaDireta = {};
     for (const p of allPurchases) {
       if (!p?.rubrica_id) continue;
@@ -69,7 +70,7 @@ Deno.serve(async (req) => {
       comprasPorRubricaDireta[p.rubrica_id].push(p);
     }
 
-    // Índice de compras por budgetline_id
+    // Índice compras por budgetline_id
     const comprasPorBudgetLine = {};
     for (const p of allPurchases) {
       const blId = p?.budgetline_id || p?.budget_line_id || p?.linha_orcamentaria_id;
@@ -78,7 +79,7 @@ Deno.serve(async (req) => {
       comprasPorBudgetLine[blId].push(p);
     }
 
-    // Índice de compras por nome normalizado da budget line
+    // Índice compras por nome normalizado da budget line
     const comprasPorNomeBL = {};
     for (const p of allPurchases) {
       const blId = p?.budgetline_id || p?.budget_line_id || p?.linha_orcamentaria_id;
@@ -90,6 +91,7 @@ Deno.serve(async (req) => {
       comprasPorNomeBL[nome].push(p);
     }
 
+    // Calcular valores por rubrica (sem atualizar banco - apenas retornar)
     const results = [];
 
     for (const rubrica of rubricas) {
@@ -97,25 +99,16 @@ Deno.serve(async (req) => {
       const budgetlineId = rubrica.budgetline_id || rubrica.budget_line_id || rubrica.linha_orcamentaria_id || null;
       const nomeRubrica = normalizeString(rubrica.rubrica || rubrica.nome || rubrica.descricao || '');
 
-      // Lançamentos manuais
       const lans = lancamentosPorRubrica[rubricaId] || [];
       const valorLancamentos = parseFloat(lans.reduce((s, l) => s + toNumber(l.valor), 0).toFixed(2));
 
-      // Coletar compras relacionadas (direta, por budgetline, por nome)
       const mapaCompras = {};
-      const addCompras = (list) => {
-        for (const c of (list || [])) {
-          if (c?.id) mapaCompras[c.id] = c;
-        }
-      };
-
-      addCompras(comprasPorRubricaDireta[rubricaId]);
-      if (budgetlineId) addCompras(comprasPorBudgetLine[budgetlineId]);
-      if (nomeRubrica) addCompras(comprasPorNomeBL[nomeRubrica]);
+      const addC = (list) => { for (const c of (list || [])) { if (c?.id) mapaCompras[c.id] = c; } };
+      addC(comprasPorRubricaDireta[rubricaId]);
+      if (budgetlineId) addC(comprasPorBudgetLine[budgetlineId]);
+      if (nomeRubrica) addC(comprasPorNomeBL[nomeRubrica]);
 
       const comprasUnicas = Object.values(mapaCompras);
-
-      // Separar por status
       const comprasPagas = comprasUnicas.filter(p => normalizeStatus(p.status) === 'PAGO');
       const comprasAprovadas = comprasUnicas.filter(p => {
         const s = normalizeStatus(p.status);
@@ -124,12 +117,9 @@ Deno.serve(async (req) => {
 
       const valorPago = parseFloat(comprasPagas.reduce((s, p) => s + getPurchaseValue(p), 0).toFixed(2));
       const valorComprometido = parseFloat(comprasAprovadas.reduce((s, p) => s + getPurchaseValue(p), 0).toFixed(2));
+      const totalCompras = valorPago + valorComprometido;
 
       const valorRubrica = toNumber(rubrica.valor_rubrica);
-
-      // valor_utilizado = pago + comprometido (aprovado mas não pago ainda)
-      // Prioridade: compras (pago + aprovado) > lançamentos manuais
-      const totalCompras = valorPago + valorComprometido;
       const valorUtilizado = parseFloat((totalCompras > 0 ? totalCompras : valorLancamentos).toFixed(2));
       const saldo = parseFloat((valorRubrica - valorUtilizado).toFixed(2));
       const percentualUtilizado = valorRubrica > 0
@@ -149,25 +139,29 @@ Deno.serve(async (req) => {
         valor_rubrica: valorRubrica,
         saldo,
         percentual_utilizado: percentualUtilizado,
-        fonte: totalCompras > 0 ? 'compras' : 'lancamentos'
+        fonte: totalCompras > 0 ? 'compras' : 'lancamentos',
+        _update: { valor_utilizado: valorUtilizado, saldo, percentual_utilizado: percentualUtilizado }
       });
     }
 
-    // Atualizar rubricas em lotes de 10 para evitar rate limit
-    const BATCH = 10;
+    // Atualizar rubricas em lotes de 5 paralelos para evitar rate limit
+    const BATCH = 5;
+    let updated = 0;
     for (let i = 0; i < results.length; i += BATCH) {
       const lote = results.slice(i, i + BATCH);
-      await Promise.all(lote.map(r =>
-        base44.asServiceRole.entities.Rubrica.update(r.rubrica_id, {
-          valor_utilizado: r.valor_utilizado,
-          saldo: r.saldo,
-          percentual_utilizado: r.percentual_utilizado
-        })
-      ));
+      try {
+        await Promise.all(lote.map(r =>
+          base44.asServiceRole.entities.Rubrica.update(r.rubrica_id, r._update)
+        ));
+        updated += lote.length;
+      } catch (e) {
+        console.error('Erro ao atualizar lote:', e.message);
+      }
     }
 
     const sumario = {
       total_rubricas: results.length,
+      total_atualizadas: updated,
       total_compras: allPurchases.length,
       total_lancamentos: allLancamentos.length,
       valor_total_orcado: parseFloat(results.reduce((s, r) => s + toNumber(r.valor_rubrica), 0).toFixed(2)),
