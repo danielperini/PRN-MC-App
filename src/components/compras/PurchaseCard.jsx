@@ -13,7 +13,8 @@ import {
   XCircle,
   Loader2,
   Trash2,
-  Pencil
+  Pencil,
+  AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import PurchaseTimeline from './PurchaseTimeline';
@@ -43,7 +44,19 @@ export default function PurchaseCard({
     color: 'bg-gray-100 text-gray-700'
   };
 
-  const budgetLine = budgetLines.find(line => line.id === purchase.budgetline_id);
+  const budgetLine = budgetLines.find(
+    line =>
+      line.id === purchase.budgetline_id ||
+      line.id === purchase.budget_line_id ||
+      line.id === purchase.linha_orcamentaria_id
+  );
+
+  const hasRubricaVinculada =
+    !!purchase.rubrica_id ||
+    !!purchase.budgetline_id ||
+    !!purchase.budget_line_id ||
+    !!purchase.linha_orcamentaria_id ||
+    !!budgetLine;
 
   const canApproveCoord =
     (isCoordenador || isAdmin) && purchase.status === 'SOLICITADO';
@@ -55,9 +68,11 @@ export default function PurchaseCard({
     purchase.status !== 'PAGO' &&
     purchase.status !== 'CANCELADO';
 
-  const canMarkAsPaid =
+  const canMarkAsPaidBase =
     (isCoordenador || isAdmin) &&
     (purchase.status === 'APROVADO_COORD' || purchase.status === 'APROVADO_ADMIN');
+
+  const canMarkAsPaid = canMarkAsPaidBase && hasRubricaVinculada;
 
   useEffect(() => {
     if (purchase.activity_id) {
@@ -183,6 +198,13 @@ Responda em JSON com:
   };
 
   const handleMarkAsPaid = async () => {
+    if (!hasRubricaVinculada) {
+      toast.error('❌ Vincule uma rubrica ou linha orçamentária antes de marcar como pago.', {
+        duration: 5000
+      });
+      return;
+    }
+
     const comprovante_url =
       window.prompt(
         'Cole a URL do comprovante de pagamento (opcional):',
@@ -303,6 +325,13 @@ Responda em JSON com:
                   </span>
                 </div>
               )}
+
+              {!hasRubricaVinculada && (
+                <div className="flex items-center gap-1 text-red-600">
+                  <AlertCircle className="w-3 h-3" />
+                  <span>Sem rubrica vinculada</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -343,12 +372,17 @@ Responda em JSON com:
               </Button>
             )}
 
-            {canMarkAsPaid && (
+            {canMarkAsPaidBase && (
               <Button
                 size="sm"
                 className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
                 onClick={handleMarkAsPaid}
-                disabled={actionLoading}
+                disabled={actionLoading || !canMarkAsPaid}
+                title={
+                  canMarkAsPaid
+                    ? 'Marcar compra como paga'
+                    : 'Vincule uma rubrica antes de marcar como pago'
+                }
               >
                 {actionLoading ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
@@ -385,6 +419,15 @@ Responda em JSON com:
             </Button>
           </div>
         </div>
+
+        {canMarkAsPaidBase && !canMarkAsPaid && (
+          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div>
+              Vincule uma rubrica ou linha orçamentária antes de registrar o pagamento.
+            </div>
+          </div>
+        )}
 
         <div className="mt-3">
           <PurchaseTimeline purchase={purchase} />
