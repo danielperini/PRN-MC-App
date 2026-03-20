@@ -105,11 +105,13 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Não autenticado' }, { status: 401 });
 
-    const rubricas = await listAll(base44.asServiceRole.entities.Rubrica, 'ordem_exibicao', 500);
-    const configs = await listAll(base44.asServiceRole.entities.RubricaMuseuConfig, '', 500);
-    const lancamentos = await listAll(base44.asServiceRole.entities.LancamentoRubrica, '-data_lancamento', 500);
-    const budgetLines = await listAll(base44.asServiceRole.entities.BudgetLine, 'descricao', 500);
-    const purchases = await listAll(base44.asServiceRole.entities.PurchaseRequest, '-created_date', 500);
+    const [rubricas, configs, lancamentos, budgetLines, purchases] = await Promise.all([
+      listAll(base44.asServiceRole.entities.Rubrica, 'ordem_exibicao', 500),
+      listAll(base44.asServiceRole.entities.RubricaMuseuConfig, '', 500),
+      listAll(base44.asServiceRole.entities.LancamentoRubrica, '-data_lancamento', 500),
+      listAll(base44.asServiceRole.entities.BudgetLine, 'descricao', 500),
+      listAll(base44.asServiceRole.entities.PurchaseRequest, '-created_date', 500),
+    ]);
 
     const budgetLineById = {};
     for (const bl of budgetLines) {
