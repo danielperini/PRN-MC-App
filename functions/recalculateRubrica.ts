@@ -219,6 +219,19 @@ Deno.serve(async (req) => {
     }
     const rubricasUnicas = Array.from(rubricasMap.values());
 
+    const allBudgetLines = await listAll(
+      base44.asServiceRole.entities.BudgetLine,
+      'descricao',
+      500
+    );
+
+    const budgetLineById = {};
+    for (const bl of allBudgetLines) {
+      if (bl?.id) {
+        budgetLineById[bl.id] = bl;
+      }
+    }
+
     let rubrica = null;
 
     if (rubricaId) {
@@ -233,19 +246,6 @@ Deno.serve(async (req) => {
         (await findFirstRubricaByFilter(base44, { budget_line_id: budgetlineId })) ||
         (await findFirstRubricaByFilter(base44, { linha_orcamentaria_id: budgetlineId })) ||
         null;
-    }
-
-    const allBudgetLines = await listAll(
-      base44.asServiceRole.entities.BudgetLine,
-      'descricao',
-      500
-    );
-
-    const budgetLineById = {};
-    for (const bl of allBudgetLines) {
-      if (bl?.id) {
-        budgetLineById[bl.id] = bl;
-      }
     }
 
     if (!rubrica && purchaseId) {
@@ -305,7 +305,12 @@ Deno.serve(async (req) => {
       );
 
       if (!resolved.rubricaId) {
-        if (normalizeStatus(p.status) === 'PAGO') {
+        const status = normalizeStatus(p.status);
+        if (
+          status === 'PAGO' ||
+          status === 'APROVADO_COORD' ||
+          status === 'APROVADO_ADMIN'
+        ) {
           inconsistencias.push({
             purchase_id: p.id,
             titulo: p.titulo || p.objeto || p.descricao_item || '',
