@@ -36,24 +36,35 @@ Deno.serve(async (req) => {
       );
     }
 
-    const rubricas = await listAll(
+    let rubricas = await listAll(
       base44.asServiceRole.entities.Rubrica,
       'ordem_exibicao',
       200
     );
 
+    rubricas = (rubricas || []).sort((a, b) => {
+      const ordemA = toNumber(a?.ordem_exibicao);
+      const ordemB = toNumber(b?.ordem_exibicao);
+      if (ordemA !== ordemB) return ordemA - ordemB;
+
+      return String(a?.rubrica || '').localeCompare(
+        String(b?.rubrica || ''),
+        'pt-BR'
+      );
+    });
+
     const total_previsto = rubricas.reduce(
-      (sum, r) => sum + toNumber(r.valor_rubrica),
+      (sum, r) => sum + toNumber(r?.valor_rubrica),
       0
     );
 
     const total_utilizado = rubricas.reduce(
-      (sum, r) => sum + toNumber(r.valor_utilizado),
+      (sum, r) => sum + toNumber(r?.valor_utilizado),
       0
     );
 
     const saldo_total = rubricas.reduce(
-      (sum, r) => sum + toNumber(r.saldo),
+      (sum, r) => sum + toNumber(r?.saldo),
       0
     );
 
@@ -71,7 +82,7 @@ Deno.serve(async (req) => {
     return Response.json(
       {
         success: false,
-        error: error.message || 'Erro ao listar rubricas',
+        error: error?.message || 'Erro ao listar rubricas',
       },
       { status: 500 }
     );
