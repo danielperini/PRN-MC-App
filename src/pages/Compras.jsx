@@ -52,7 +52,6 @@ function extractRubricas(result) {
 }
 
 async function carregarRubricas() {
-  // 1) tenta pela function
   try {
     const result = await base44.functions.invoke('listAllRubricas', {});
     const viaFunction = extractRubricas(result);
@@ -64,7 +63,6 @@ async function carregarRubricas() {
     console.error('Erro em listAllRubricas:', error);
   }
 
-  // 2) fallback direto na entity
   try {
     const diretas = await base44.entities.Rubrica.list('ordem_exibicao', 200);
     if (Array.isArray(diretas)) {
@@ -155,7 +153,10 @@ function ComprasInner() {
   useQuery({
     queryKey: ['purchase-documents-all', isCoordenador, currentUser?.email],
     queryFn: async () => {
-      const docs = await base44.entities.PurchaseDocument.list('-created_date', 300);
+      const docs = await base44.entities.PurchaseDocument.list(
+        '-created_date',
+        300
+      );
       if (isCoordenador) return docs;
       return docs.filter((doc) => doc.uploadado_por === currentUser?.email);
     },
@@ -179,9 +180,15 @@ function ComprasInner() {
     const matchStatus = filters.status === 'all' || p.status === filters.status;
 
     let matchMeta = filters.meta_id === 'all';
-    if (!matchMeta && filters.meta_id === 'produto') matchMeta = p.tipo_item === 'produto';
-    if (!matchMeta && filters.meta_id === 'servico') matchMeta = p.tipo_item === 'servico';
-    if (!matchMeta) matchMeta = p.meta_id === filters.meta_id;
+    if (!matchMeta && filters.meta_id === 'produto') {
+      matchMeta = p.tipo_item === 'produto';
+    }
+    if (!matchMeta && filters.meta_id === 'servico') {
+      matchMeta = p.tipo_item === 'servico';
+    }
+    if (!matchMeta) {
+      matchMeta = p.meta_id === filters.meta_id;
+    }
 
     const matchRubrica =
       filters.rubrica_id === 'all' || p.rubrica_id === filters.rubrica_id;
@@ -274,13 +281,17 @@ function ComprasInner() {
                   },
                 ]
               : []),
-            ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
+            ...(!isCoordenador
+              ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }]
+              : []),
           ].map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                tab === t.id ? 'bg-white shadow text-black' : 'text-gray-500 hover:text-black'
+                tab === t.id
+                  ? 'bg-white shadow text-black'
+                  : 'text-gray-500 hover:text-black'
               }`}
             >
               {t.label}
@@ -331,13 +342,27 @@ function ComprasInner() {
                   <SelectItem value="all">Todas as metas / tipos</SelectItem>
                   <SelectItem value="produto">— Apenas Produtos</SelectItem>
                   <SelectItem value="servico">— Apenas Serviços</SelectItem>
-                  <SelectItem value="MC3A-20">MC3A-20 — Ações Educativas</SelectItem>
-                  <SelectItem value="MC3A-21">MC3A-21 — Exposição / Produção Cultural</SelectItem>
-                  <SelectItem value="MC3A-22">MC3A-22 — Comunicação e Divulgação</SelectItem>
-                  <SelectItem value="MC3A-23">MC3A-23 — Noturno nos Museus 2026</SelectItem>
-                  <SelectItem value="MC3A-24">MC3A-24 — Emenda Parlamentar</SelectItem>
-                  <SelectItem value="MC3A-25">MC3A-25 — Outras Ações</SelectItem>
-                  <SelectItem value="MC3A-EXTRA">MC3A-EXTRA — Ações Extras</SelectItem>
+                  <SelectItem value="MC3A-20">
+                    MC3A-20 — Ações Educativas
+                  </SelectItem>
+                  <SelectItem value="MC3A-21">
+                    MC3A-21 — Exposição / Produção Cultural
+                  </SelectItem>
+                  <SelectItem value="MC3A-22">
+                    MC3A-22 — Comunicação e Divulgação
+                  </SelectItem>
+                  <SelectItem value="MC3A-23">
+                    MC3A-23 — Noturno nos Museus 2026
+                  </SelectItem>
+                  <SelectItem value="MC3A-24">
+                    MC3A-24 — Emenda Parlamentar
+                  </SelectItem>
+                  <SelectItem value="MC3A-25">
+                    MC3A-25 — Outras Ações
+                  </SelectItem>
+                  <SelectItem value="MC3A-EXTRA">
+                    MC3A-EXTRA — Ações Extras
+                  </SelectItem>
                 </SelectContent>
               </Select>
 
@@ -347,13 +372,19 @@ function ComprasInner() {
                   setFilters((f) => ({ ...f, rubrica_id: v }))
                 }
               >
-                <SelectTrigger className="w-56">
+                <SelectTrigger className="w-72">
                   <SelectValue placeholder="Rubrica" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as rubricas</SelectItem>
                   {(rubricas || [])
                     .filter((r) => r?.ativo !== false)
+                    .sort((a, b) =>
+                      String(a?.rubrica || '').localeCompare(
+                        String(b?.rubrica || ''),
+                        'pt-BR'
+                      )
+                    )
                     .map((r) => (
                       <SelectItem key={r.id} value={r.id}>
                         {r.rubrica}
@@ -368,7 +399,9 @@ function ComprasInner() {
             ) : filtered.length === 0 ? (
               <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-2xl">
                 <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-400 font-medium">Nenhuma solicitação encontrada</p>
+                <p className="text-gray-400 font-medium">
+                  Nenhuma solicitação encontrada
+                </p>
                 <Button
                   className="mt-4 bg-black text-white"
                   onClick={() => {
@@ -389,7 +422,10 @@ function ComprasInner() {
                     budgetLines={budgetLines}
                     statusConfig={STATUS_CONFIG}
                     isCoordenador={isCoordenador}
-                    isAdmin={currentUser?.role === 'admin' || currentUser?.role === 'ADMIN'}
+                    isAdmin={
+                      currentUser?.role === 'admin' ||
+                      currentUser?.role === 'ADMIN'
+                    }
                     currentUser={currentUser}
                     onEdit={(purchase) => {
                       setEditingPurchase(purchase);
@@ -407,8 +443,9 @@ function ComprasInner() {
           <div className="space-y-6">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-900">
-                <strong>📊 Integração:</strong> esta aba usa exclusivamente a entity
-                <strong> Rubrica</strong> como fonte de verdade do orçamento.
+                <strong>📊 Integração:</strong> esta aba usa exclusivamente a
+                entity <strong>Rubrica</strong> como fonte de verdade do
+                orçamento.
               </p>
               <p className="text-xs text-blue-700 mt-2">
                 Rubricas carregadas: {Array.isArray(rubricas) ? rubricas.length : 0}
@@ -465,17 +502,18 @@ function ComprasInner() {
           <TeamPaymentSubmit userEmail={currentUser?.email} />
         )}
 
-        {tab === 'aprovacoes' && (podeAprovarSolicitacoes || hasGestaoCompras) && (
-          <AprovacoesFila
-            purchases={purchases}
-            budgetLines={budgetLines}
-            statusConfig={STATUS_CONFIG}
-            onRefresh={invalidateComprasQueries}
-            currentUser={currentUser}
-            hasGestaoCompras={hasGestaoCompras}
-            podeAprovarSolicitacoes={podeAprovarSolicitacoes}
-          />
-        )}
+        {tab === 'aprovacoes' &&
+          (podeAprovarSolicitacoes || hasGestaoCompras) && (
+            <AprovacoesFila
+              purchases={purchases}
+              budgetLines={budgetLines}
+              statusConfig={STATUS_CONFIG}
+              onRefresh={invalidateComprasQueries}
+              currentUser={currentUser}
+              hasGestaoCompras={hasGestaoCompras}
+              podeAprovarSolicitacoes={podeAprovarSolicitacoes}
+            />
+          )}
 
         {tab === 'orcamento' && (
           <div className="space-y-8">
