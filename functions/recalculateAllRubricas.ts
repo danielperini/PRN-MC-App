@@ -22,7 +22,9 @@ function normalizeString(value) {
 
 function buildRubricaKey(rubrica) {
   const grupo = normalizeString(rubrica?.grupo || '');
-  const nome = normalizeString(rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '');
+  const nome = normalizeString(
+    rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || ''
+  );
   return `${grupo}__${nome}`;
 }
 
@@ -31,6 +33,7 @@ function getPurchaseValue(purchase) {
     toNumber(purchase?.valor_pago) ||
     toNumber(purchase?.valor_aprovado_admin) ||
     toNumber(purchase?.valor_aprovado) ||
+    toNumber(purchase?.valor_final) ||
     toNumber(purchase?.valor_solicitado) ||
     0
   );
@@ -56,12 +59,21 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const body = await req.json().catch(() => ({}));
 
-    const [rubricasRaw, allLancamentos, allPurchases, allBudgetLines] = await Promise.all([
-      listAll(base44.asServiceRole.entities.Rubrica, 'ordem_exibicao', 500),
-      listAll(base44.asServiceRole.entities.LancamentoRubrica, '-created_date', 500),
-      listAll(base44.asServiceRole.entities.PurchaseRequest, '-created_date', 500),
-      listAll(base44.asServiceRole.entities.BudgetLine, 'descricao', 500),
-    ]);
+    const [rubricasRaw, allLancamentos, allPurchases, allBudgetLines] =
+      await Promise.all([
+        listAll(base44.asServiceRole.entities.Rubrica, 'ordem_exibicao', 500),
+        listAll(
+          base44.asServiceRole.entities.LancamentoRubrica,
+          '-created_date',
+          500
+        ),
+        listAll(
+          base44.asServiceRole.entities.PurchaseRequest,
+          '-created_date',
+          500
+        ),
+        listAll(base44.asServiceRole.entities.BudgetLine, 'descricao', 500),
+      ]);
 
     // 1) DEDUPLICAR RUBRICAS
     const rubricasMap = new Map();
@@ -87,20 +99,25 @@ Deno.serve(async (req) => {
     const lancamentosPorRubrica = {};
     for (const l of allLancamentos) {
       if (!l?.rubrica_id) continue;
-      if (!lancamentosPorRubrica[l.rubrica_id]) lancamentosPorRubrica[l.rubrica_id] = [];
+      if (!lancamentosPorRubrica[l.rubrica_id]) {
+        lancamentosPorRubrica[l.rubrica_id] = [];
+      }
       lancamentosPorRubrica[l.rubrica_id].push(l);
     }
 
     const comprasPorRubricaDireta = {};
     for (const p of allPurchases) {
       if (!p?.rubrica_id) continue;
-      if (!comprasPorRubricaDireta[p.rubrica_id]) comprasPorRubricaDireta[p.rubrica_id] = [];
+      if (!comprasPorRubricaDireta[p.rubrica_id]) {
+        comprasPorRubricaDireta[p.rubrica_id] = [];
+      }
       comprasPorRubricaDireta[p.rubrica_id].push(p);
     }
 
     const comprasPorBudgetLine = {};
     for (const p of allPurchases) {
-      const blId = p?.budgetline_id || p?.budget_line_id || p?.linha_orcamentaria_id;
+      const blId =
+        p?.budgetline_id || p?.budget_line_id || p?.linha_orcamentaria_id;
       if (!blId) continue;
       if (!comprasPorBudgetLine[blId]) comprasPorBudgetLine[blId] = [];
       comprasPorBudgetLine[blId].push(p);
@@ -108,11 +125,14 @@ Deno.serve(async (req) => {
 
     const comprasPorNomeBL = {};
     for (const p of allPurchases) {
-      const blId = p?.budgetline_id || p?.budget_line_id || p?.linha_orcamentaria_id;
+      const blId =
+        p?.budgetline_id || p?.budget_line_id || p?.linha_orcamentaria_id;
       if (!blId) continue;
 
       const bl = budgetLineById[blId];
-      const nome = normalizeString(bl?.descricao || bl?.rubrica || bl?.nome || '');
+      const nome = normalizeString(
+        bl?.descricao || bl?.rubrica || bl?.nome || ''
+      );
       if (!nome) continue;
 
       if (!comprasPorNomeBL[nome]) comprasPorNomeBL[nome] = [];
@@ -165,13 +185,14 @@ Deno.serve(async (req) => {
       );
 
       const valorComprometido = parseFloat(
-        comprasAprovadas.reduce((s, p) => s + getPurchaseValue(p), 0).toFixed(2)
+        comprasAprovadas
+          .reduce((s, p) => s + getPurchaseValue(p), 0)
+          .toFixed(2)
       );
 
-      // usa compras como base principal; se não houver, usa lançamentos
-      const totalCompras = valorPago + valorComprometido;
+      // CORREÇÃO PRINCIPAL: somar compras + lançamentos
       const valorUtilizado = parseFloat(
-        (totalCompras > 0 ? totalCompras : valorLancamentos).toFixed(2)
+        (valorPago + valorComprometido + valorLancamentos).toFixed(2)
       );
 
       const valorRubrica = toNumber(rubrica.valor_rubrica);
@@ -195,7 +216,7 @@ Deno.serve(async (req) => {
         valor_rubrica: valorRubrica,
         saldo,
         percentual_utilizado: percentualUtilizado,
-        fonte: totalCompras > 0 ? 'compras' : 'lancamentos',
+        fonte: 'compras+lancamentos',
         _update: {
           valor_utilizado: valorUtilizado,
           saldo,
@@ -236,7 +257,9 @@ Deno.serve(async (req) => {
     );
 
     const TETO_CORRETO = 1320000;
-    const diferenca_total = parseFloat((valor_total_orcado - TETO_CORRETO).toFixed(2));
+    const diferenca_total = parseFloat(
+      (valor_total_orcado - TETO_CORRETO).toFixed(2)
+    );
 
     const sumario = {
       total_rubricas_raw: rubricasRaw.length,
