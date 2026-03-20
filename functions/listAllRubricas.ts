@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-async function listAll(entityApi: any, orderBy = 'ordem_exibicao', pageSize = 200) {
-  let all: any[] = [];
+async function listAll(entityApi, orderBy = 'ordem_exibicao', pageSize = 200) {
+  let all = [];
   let page = 0;
 
   while (true) {
@@ -18,8 +18,9 @@ async function listAll(entityApi: any, orderBy = 'ordem_exibicao', pageSize = 20
   return all;
 }
 
-function toNumber(value: unknown) {
-  const n = Number(value ?? 0);
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -41,37 +42,28 @@ Deno.serve(async (req) => {
       200
     );
 
-    const ordenadas = [...rubricas].sort((a, b) => {
-      const ordemA = toNumber(a?.ordem_exibicao);
-      const ordemB = toNumber(b?.ordem_exibicao);
-      if (ordemA !== ordemB) return ordemA - ordemB;
-
-      const grupoA = String(a?.grupo || '').localeCompare(String(b?.grupo || ''), 'pt-BR');
-      if (grupoA !== 0) return grupoA;
-
-      return String(a?.rubrica || '').localeCompare(String(b?.rubrica || ''), 'pt-BR');
-    });
-
-    const totalPrevisto = ordenadas.reduce(
-      (sum, r) => sum + toNumber(r?.valor_rubrica),
+    const total_previsto = rubricas.reduce(
+      (sum, r) => sum + toNumber(r.valor_rubrica),
       0
     );
-    const totalUtilizado = ordenadas.reduce(
-      (sum, r) => sum + toNumber(r?.valor_utilizado),
+
+    const total_utilizado = rubricas.reduce(
+      (sum, r) => sum + toNumber(r.valor_utilizado),
       0
     );
-    const saldoTotal = ordenadas.reduce(
-      (sum, r) => sum + toNumber(r?.saldo),
+
+    const saldo_total = rubricas.reduce(
+      (sum, r) => sum + toNumber(r.saldo),
       0
     );
 
     return Response.json({
       success: true,
-      total: ordenadas.length,
-      total_previsto: totalPrevisto,
-      total_utilizado: totalUtilizado,
-      saldo_total: saldoTotal,
-      rubricas: ordenadas,
+      total: rubricas.length,
+      total_previsto,
+      total_utilizado,
+      saldo_total,
+      rubricas,
     });
   } catch (error) {
     console.error('listAllRubricas error:', error);
@@ -79,7 +71,7 @@ Deno.serve(async (req) => {
     return Response.json(
       {
         success: false,
-        error: error?.message || 'Erro ao listar rubricas',
+        error: error.message || 'Erro ao listar rubricas',
       },
       { status: 500 }
     );
