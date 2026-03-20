@@ -204,79 +204,56 @@ export default function RubricasPorMuseu() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {resumoPorMuseu.map(
-          ({ museu, totalOrcado, totalUtilizado, totalSaldo, pct }) => (
-            <Card
-              key={museu}
-              className={`cursor-pointer transition-all border-2 ${
-                museuAtivo === museu
-                  ? 'border-gray-800 shadow-md'
-                  : 'border-gray-200 hover:border-gray-400'
-              }`}
-              onClick={() => setMuseuAtivo(museu)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold text-base text-gray-900">{museu}</span>
-                  <span
-                    className={`text-sm font-bold ${
-                      pct >= 80 ? 'text-red-600' : 'text-gray-500'
-                    }`}
-                  >
-                    {pct}%
-                  </span>
-                </div>
+        {resumoPorMuseu.map(({ museu, totalOrcado, totalUtilizado, totalPago, totalComprometido, totalSaldo, pct }) => (
+          <Card
+            key={museu}
+            className={`cursor-pointer transition-all border-2 ${museuAtivo === museu ? 'border-gray-800 shadow-md' : 'border-gray-200 hover:border-gray-400'}`}
+            onClick={() => setMuseuAtivo(museu)}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-bold text-base text-gray-900">{museu}</span>
+                <span className={`text-sm font-bold ${pct >= 80 ? 'text-red-600' : 'text-gray-500'}`}>{pct}%</span>
+              </div>
 
-                <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
-                  <div
-                    className={`h-2 rounded-full transition-all ${
-                      pct >= 100
-                        ? 'bg-red-500'
-                        : pct >= 80
-                        ? 'bg-orange-400'
-                        : 'bg-green-500'
-                    }`}
-                    style={{ width: `${Math.min(pct, 100)}%` }}
-                  />
-                </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                <div
+                  className={`h-2 rounded-full transition-all ${pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-orange-400' : 'bg-green-500'}`}
+                  style={{ width: `${Math.min(pct, 100)}%` }}
+                />
+              </div>
 
-                {isLoading ? (
-                  <div className="space-y-1.5">
-                    {[1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className="h-3 bg-gray-100 rounded animate-pulse"
-                      />
-                    ))}
+              {isLoading ? (
+                <div className="space-y-1.5">
+                  {[1, 2, 3, 4].map(i => <div key={i} className="h-3 bg-gray-100 rounded animate-pulse" />)}
+                </div>
+              ) : (
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between text-gray-600">
+                    <span>Previsto</span>
+                    <span className="font-medium">{fmt(totalOrcado)}</span>
                   </div>
-                ) : (
-                  <div className="space-y-1 text-xs">
-                    <div className="flex justify-between text-gray-600">
-                      <span>Previsto</span>
-                      <span className="font-medium">{fmt(totalOrcado)}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-600">
-                      <span>Utilizado</span>
-                      <span className="font-medium text-amber-600">
-                        {fmt(totalUtilizado)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between border-t pt-1 mt-1">
-                      <span className="font-semibold text-gray-700">Saldo</span>
-                      <span
-                        className={`font-bold ${
-                          totalSaldo < 0 ? 'text-red-600' : 'text-green-600'
-                        }`}
-                      >
-                        {fmt(totalSaldo)}
-                      </span>
-                    </div>
+                  <div className="flex justify-between text-gray-600">
+                    <span>✅ Pago</span>
+                    <span className="font-medium text-green-700">{fmt(totalPago)}</span>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        )}
+                  {totalComprometido > 0 && (
+                    <div className="flex justify-between text-gray-600">
+                      <span>🔒 Comprometido</span>
+                      <span className="font-medium text-orange-600">{fmt(totalComprometido)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t pt-1 mt-1">
+                    <span className="font-semibold text-gray-700">Saldo</span>
+                    <span className={`font-bold ${totalSaldo < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {fmt(totalSaldo)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <Tabs value={museuAtivo} onValueChange={setMuseuAtivo}>
