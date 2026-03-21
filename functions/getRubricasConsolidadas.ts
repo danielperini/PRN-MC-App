@@ -63,9 +63,11 @@ function normalizeMuseu(value) {
   if (raw.includes('imagem e som')) return 'MIS';
   if (raw.includes('historico abilio barreto')) return 'MHAB';
   if (raw.includes('abilio barreto')) return 'MHAB';
+  if (raw.includes('museu da moda')) return 'MUMO';
   if (raw.includes('moda')) return 'MUMO';
 
-  return String(value || '').trim().toUpperCase();
+  const upper = String(value || '').trim().toUpperCase();
+  return MUSEUS.includes(upper) ? upper : upper;
 }
 
 function normalizeStatus(value) {
@@ -196,7 +198,7 @@ function getDistribuicaoExplicita(rubrica) {
             ? null
             : toNumber(item?.percentual_utilizado),
       }))
-      .filter((item) => item.museu);
+      .filter((item) => item.museu && MUSEUS.includes(item.museu));
   }
 
   if (jsonDistribuicao && typeof jsonDistribuicao === 'object') {
@@ -205,7 +207,7 @@ function getDistribuicaoExplicita(rubrica) {
         museu: normalizeMuseu(key),
         valor_planejado: toNumber(value),
       }))
-      .filter((item) => item.museu);
+      .filter((item) => item.museu && MUSEUS.includes(item.museu));
   }
 
   return [];
@@ -242,6 +244,111 @@ function resolveRubricaFromPurchase(purchase, rubricasById, budgetLineById) {
   }
 
   return null;
+}
+
+function detectMuseuFromPurchase(purchase, rubrica, budgetLine) {
+  const candidatos = [
+    purchase?.museu,
+    purchase?.museu_codigo,
+    purchase?.unidade,
+    purchase?.centro_custo,
+    purchase?.area,
+    purchase?.setor,
+    purchase?.local,
+    purchase?.departamento,
+    purchase?.titulo,
+    purchase?.descricao,
+    purchase?.descricao_item,
+    purchase?.objeto,
+    purchase?.observacoes,
+    purchase?.notes,
+    budgetLine?.museu,
+    budgetLine?.museu_codigo,
+    budgetLine?.unidade,
+    budgetLine?.centro_custo,
+    rubrica?.museu,
+    rubrica?.museu_codigo,
+    rubrica?.unidade,
+    rubrica?.centro_custo,
+  ];
+
+  for (const valor of candidatos) {
+    const museu = normalizeMuseu(valor);
+    if (museu && MUSEUS.includes(museu)) return museu;
+  }
+
+  const texto = normalizeString(
+    candidatos
+      .filter(Boolean)
+      .map((v) => String(v))
+      .join(' ')
+  );
+
+  if (texto.includes('museu da imagem e do som') || texto.includes('imagem e som')) {
+    return 'MIS';
+  }
+  if (texto.includes('historico abilio barreto') || texto.includes('abilio barreto')) {
+    return 'MHAB';
+  }
+  if (texto.includes('museu da moda') || texto.includes('mumo') || texto.includes('moda')) {
+    return 'MUMO';
+  }
+  if (texto.includes('mis')) return 'MIS';
+  if (texto.includes('mhab')) return 'MHAB';
+
+  return null;
+}
+
+function distribuirValorPorMuseu(compras, rubrica, budgetLine) {
+  const totais = {};
+  for (const museu of MUSEUS) totais[museu] = 0;
+
+  for (const compra of compras) {
+    const museu = detectMuseuFromPurchase(compra, rubrica, budgetLine);
+    if (!museu || !MUSEUS.includes(museu)) continue;
+    totais[museu] += getPurchaseValue(compra);
+  }
+
+  for (const museu of MUSEUS) {
+    totais[museu] = Number(totais[museu].toFixed(2));
+  }
+
+  return totais;
+}
+
+function distribuirLancamentosPorMuseu(lancamentos, rubrica, budgetLine) {
+  const totais = {};
+  for (const museu of MUSEUS) totais[museu] = 0;
+
+  for (const lancamento of lancamentos) {
+    const museu = normalizeMuseu(
+      lancamento?.museu ||
+      lancamento?.museu_codigo ||
+      lancamento?.unidade ||
+      lancamento?.centro_custo
+    );
+
+    if (museu && MUSEUS.includes(museu)) {
+      totais[museu] += toNumber(lancamento?.valor);
+    }
+  }
+
+  const algumMuseuExplicito = MUSEUS.some((m) => totais[m] > 0);
+
+  if (!algumMuseuExplicito) {
+    const museusInferidos = inferirMuseus(rubrica, budgetLine);
+    if (museusInferidos.length === 1) {
+      totais[museusInferidos[0]] = Number(
+        lancamentos.reduce((s, l) => s + toNumber(l?.valor), 0).toFixed(2)
+      );
+    }
+  }
+
+  for (const museu of MUSEUS) {
+    totais[museu] = Number(totais[museu].toFixed(2));
+  }
+
+  return totais;
 }
 
 Deno.serve(async (req) => {
@@ -349,10 +456,6 @@ Deno.serve(async (req) => {
         ).toFixed(2)
       );
 
-      const saldoRubrica = Number(
-        (valorRubrica - valorUtilizadoRubrica).toFixed(2)
-      );
-
       const distribuicaoExplicita = getDistribuicaoExplicita(rubrica);
       const configsRubrica = configsByRubrica[rubricaId] || [];
 
@@ -380,39 +483,31 @@ Deno.serve(async (req) => {
             divisor: toNumber(c?.divisor) || 1,
             distribuicao_mode: 'config',
           }))
-          .filter((item) => item.museu);
-     } else {
-  const categoria_key = inferirCategoria(rubrica, budgetLine);
+          .filter((item) => item.museu && MUSEUS.includes(item.museu));
+      } else {
+        const museus = inferirMuseus(rubrica, budgetLine);
+        const categoria_key = inferirCategoria(rubrica, budgetLine);
+        associacoes = museus.map((m) => ({
+          museu: m,
+          categoria_key,
+          divisor: museus.length || 1,
+          distribuicao_mode: 'inferido',
+        }));
+      }
 
-  const comprasPagas = comprasPagasPorRubrica[rubricaId] || [];
+      const pagosPorMuseu = distribuirValorPorMuseu(comprasPagas, rubrica, budgetLine);
+      const aprovadosPorMuseu = distribuirValorPorMuseu(comprasAprovadas, rubrica, budgetLine);
+      const lancamentosPorMuseu = distribuirLancamentosPorMuseu(lans, rubrica, budgetLine);
 
-  const museusDetectados = new Set();
-
-  for (const p of comprasPagas) {
-    const museu = detectMuseuFromPurchase(p);
-    if (museu) museusDetectados.add(museu);
-  }
-
-  // ✅ REGRA PRINCIPAL: se há compras → usar museus reais das compras
-  if (museusDetectados.size > 0) {
-    associacoes = Array.from(museusDetectados).map((m) => ({
-      museu: m,
-      categoria_key,
-      divisor: 1, // 🔥 NÃO DIVIDE MAIS
-      distribuicao_mode: 'por_compra',
-    }));
-  } else {
-    // fallback antigo (sem compras)
-    const museus = inferirMuseus(rubrica, budgetLine);
-
-    associacoes = museus.map((m) => ({
-      museu: m,
-      categoria_key,
-      divisor: museus.length || 1,
-      distribuicao_mode: 'inferido',
-    }));
-  }
-}
+      const totalPagoDetectado = Number(
+        Object.values(pagosPorMuseu).reduce((s, v) => s + toNumber(v), 0).toFixed(2)
+      );
+      const totalComprometidoDetectado = Number(
+        Object.values(aprovadosPorMuseu).reduce((s, v) => s + toNumber(v), 0).toFixed(2)
+      );
+      const totalLancDetectado = Number(
+        Object.values(lancamentosPorMuseu).reduce((s, v) => s + toNumber(v), 0).toFixed(2)
+      );
 
       for (const assoc of associacoes) {
         if (!assoc?.museu || !resultado[assoc.museu]) continue;
@@ -430,22 +525,28 @@ Deno.serve(async (req) => {
         const valorPago =
           assoc.valor_pago !== undefined
             ? toNumber(assoc.valor_pago)
+            : totalPagoDetectado > 0
+            ? toNumber(pagosPorMuseu[assoc.museu])
             : Number((valorPagoRubrica / divisor).toFixed(2));
 
         const valorComprometido =
           assoc.valor_comprometido !== undefined
             ? toNumber(assoc.valor_comprometido)
+            : totalComprometidoDetectado > 0
+            ? toNumber(aprovadosPorMuseu[assoc.museu])
             : Number((valorComprometidoRubrica / divisor).toFixed(2));
 
         const valorLancamentos =
           assoc.valor_lancamentos !== undefined
             ? toNumber(assoc.valor_lancamentos)
+            : totalLancDetectado > 0
+            ? toNumber(lancamentosPorMuseu[assoc.museu])
             : Number((valorLancamentosRubrica / divisor).toFixed(2));
 
         const valorUtilizado =
           assoc.valor_utilizado !== undefined
             ? toNumber(assoc.valor_utilizado)
-            : Number((valorUtilizadoRubrica / divisor).toFixed(2));
+            : Number((valorPago + valorComprometido + valorLancamentos).toFixed(2));
 
         const saldo =
           assoc.saldo !== undefined && assoc.saldo !== null
@@ -481,6 +582,57 @@ Deno.serve(async (req) => {
           budgetline_id: budgetlineId,
         });
       }
+
+      const rubricaSemAssociacao = associacoes.length === 0;
+      if (rubricaSemAssociacao) {
+        const categoria_key = inferirCategoria(rubrica, budgetLine);
+        const museus = inferirMuseus(rubrica, budgetLine);
+
+        for (const museu of museus) {
+          if (!resultado[museu][categoria_key]) resultado[museu][categoria_key] = [];
+
+          const divisor = museus.length || 1;
+          const totalOrcado = Number((valorRubrica / divisor).toFixed(2));
+          const valorPago = totalPagoDetectado > 0
+            ? toNumber(pagosPorMuseu[museu])
+            : Number((valorPagoRubrica / divisor).toFixed(2));
+          const valorComprometido = totalComprometidoDetectado > 0
+            ? toNumber(aprovadosPorMuseu[museu])
+            : Number((valorComprometidoRubrica / divisor).toFixed(2));
+          const valorLancamentos = totalLancDetectado > 0
+            ? toNumber(lancamentosPorMuseu[museu])
+            : Number((valorLancamentosRubrica / divisor).toFixed(2));
+          const valorUtilizado = Number((valorPago + valorComprometido + valorLancamentos).toFixed(2));
+          const saldo = Number((totalOrcado - valorUtilizado).toFixed(2));
+          const pct = totalOrcado > 0
+            ? Number(((valorUtilizado / totalOrcado) * 100).toFixed(1))
+            : 0;
+
+          resultado[museu][categoria_key].push({
+            id: rubricaId,
+            rubrica: rubrica.rubrica || rubrica.nome || '',
+            grupo: rubrica.grupo || '',
+            centro_custo: normalizeMuseu(rubrica?.centro_custo || '') || null,
+            valor_rubrica: valorRubrica,
+            totalOrcado,
+            valorUtilizado,
+            valorPago,
+            valorComprometido,
+            valorLancamentos,
+            saldo,
+            pct,
+            divisor,
+            distribuicao_mode: 'fallback',
+            num_lancamentos: lans.length,
+            num_compras_pagas: comprasPagas.length,
+            num_compras_aprovadas: comprasAprovadas.length,
+            budgetline_id: budgetlineId,
+          });
+        }
+      }
+
+      const _saldoRubrica = Number((valorRubrica - valorUtilizadoRubrica).toFixed(2));
+      void _saldoRubrica;
     }
 
     const totaisPorMuseu = {};
