@@ -79,6 +79,26 @@ function getDetalhamentoMuseus(rubrica) {
   return [];
 }
 
+function hasMuseuMatch(rubrica, museuFilter) {
+  if (museuFilter === 'all') return true;
+
+  const centroRubrica = normalizeCentro(rubrica?.centro_custo);
+  if (centroRubrica === museuFilter) return true;
+
+  return getDetalhamentoMuseus(rubrica).some((item) => {
+    if (normalizeCentro(item?.museu) !== museuFilter) return false;
+
+    return (
+      toNumber(item?.valor_planejado) > 0 ||
+      toNumber(item?.valor_utilizado) > 0 ||
+      toNumber(item?.valor_pago) > 0 ||
+      toNumber(item?.valor_comprometido) > 0 ||
+      toNumber(item?.valor_lancamentos) > 0 ||
+      toNumber(item?.saldo) !== 0
+    );
+  });
+}
+
 export default function RubricasGrid({
   rubricas = [],
   onSelectRubrica,
@@ -131,22 +151,7 @@ export default function RubricasGrid({
       const matchBusca =
         !searchTerm || texto.includes(searchTerm.trim().toLowerCase());
 
-      let matchMuseu = true;
-      if (museuFilter !== 'all') {
-        const centroRubrica = normalizeCentro(r?.centro_custo);
-        const detalhes = getDetalhamentoMuseus(r);
-        matchMuseu =
-          centroRubrica === museuFilter ||
-          detalhes.some(
-            (item) =>
-              normalizeCentro(item?.museu) === museuFilter &&
-              (toNumber(item?.valor_planejado) > 0 ||
-                toNumber(item?.valor_utilizado) > 0 ||
-                toNumber(item?.valor_pago) > 0 ||
-                toNumber(item?.valor_comprometido) > 0 ||
-                toNumber(item?.valor_lancamentos) > 0)
-          );
-      }
+      const matchMuseu = hasMuseuMatch(r, museuFilter);
 
       return matchGrupo && matchBusca && matchMuseu;
     });
@@ -166,30 +171,87 @@ export default function RubricasGrid({
 
   const resumo = useMemo(() => {
     if (museuFilter !== 'all') {
+      const rubricasDoMuseu = rubricasAtivas.filter((rubrica) =>
+        hasMuseuMatch(rubrica, museuFilter)
+      );
+
       const detalhesFiltrados = rubricasAtivas.flatMap((rubrica) =>
         getDetalhamentoMuseus(rubrica).filter(
           (item) => normalizeCentro(item?.museu) === museuFilter
         )
       );
 
-      const totalRubricas = rubricasAtivas.filter((rubrica) =>
-        getDetalhamentoMuseus(rubrica).some(
-          (item) => normalizeCentro(item?.museu) === museuFilter
-        )
-      ).length;
+      const totalRubricas = rubricasDoMuseu.length;
 
-      const totalPrevisto = detalhesFiltrados.reduce(
+      // Fonte de verdade do previsto geral continua sendo valor_rubrica.
+      // No filtro por museu, usa valor_planejado só quando existir detalhamento;
+      // se não existir, e a rubrica pertencer diretamente ao centro filtrado,
+      // usa valor_rubrica da própria rubrica.
+      const totalPrevistoDetalhado = detalhesFiltrados.reduce(
         (sum, item) => sum + toNumber(item?.valor_planejado),
         0
       );
-      const totalUtilizado = detalhesFiltrados.reduce(
-        (sum, item) => sum + toNumber(item?.valor_utilizado),
-        0
-      );
-      const saldoTotal = detalhesFiltrados.reduce(
-        (sum, item) => sum + toNumber(item?.saldo),
-        0
-      );
+
+      const totalPrevistoDireto = rubricasDoMuseu.reduce((sum, rubrica) => {
+        const detalhes = getDetalhamentoMuseus(rubrica).filter(
+          (item) => normalizeCentro(item?.museu) === museuFilter
+        );
+
+        if (detalhes.length > 0) return sum;
+
+        const centroRubrica = normalizeCentro(rubrica?.centro_custo);
+        if (centroRubrica === museuFilter) {
+          return sum + toNumber(rubrica?.valor_rubrica);
+        }
+
+        return sum;
+      }, 0);
+
+      const totalPrevisto = totalPrevistoDetalhado + totalPrevistoDireto;
+
+      const totalUtilizado = rubricasDoMuseu.reduce((sum, rubrica) => {
+        const detalhes = getDetalhamentoMuseus(rubrica).filter(
+          (item) => normalizeCentro(item?.museu) === museuFilter
+        );
+
+        if (detalhes.length > 0) {
+          return (
+            sum +
+            detalhes.reduce(
+              (sub, item) => sub + toNumber(item?.valor_utilizado),
+              0
+            )
+          );
+        }
+
+        const centroRubrica = normalizeCentro(rubrica?.centro_custo);
+        if (centroRubrica === museuFilter) {
+          return sum + toNumber(rubrica?.valor_utilizado);
+        }
+
+        return sum;
+      }, 0);
+
+      const saldoTotal = rubricasDoMuseu.reduce((sum, rubrica) => {
+        const detalhes = getDetalhamentoMuseus(rubrica).filter(
+          (item) => normalizeCentro(item?.museu) === museuFilter
+        );
+
+        if (detalhes.length > 0) {
+          return (
+            sum +
+            detalhes.reduce((sub, item) => sub + toNumber(item?.saldo), 0)
+          );
+        }
+
+        const centroRubrica = normalizeCentro(rubrica?.centro_custo);
+        if (centroRubrica === museuFilter) {
+          return sum + toNumber(rubrica?.saldo);
+        }
+
+        return sum;
+      }, 0);
+
       const percentualGeral =
         totalPrevisto > 0 ? (totalUtilizado / totalPrevisto) * 100 : 0;
 
@@ -202,6 +264,7 @@ export default function RubricasGrid({
       };
     }
 
+    // No modo geral, SEMPRE usar valor_rubrica como fonte de verdade.
     const totalRubricas = rubricasAtivas.length;
     const totalPrevisto = rubricasAtivas.reduce(
       (sum, r) => sum + toNumber(r?.valor_rubrica),
@@ -395,29 +458,48 @@ export default function RubricasGrid({
                         (item) => normalizeCentro(item?.museu) === museuFilter
                       );
 
+                const centroRubrica = normalizeCentro(rubrica?.centro_custo);
+                const usarDetalhamento = museuFilter !== 'all' && detalhesFiltradosMuseu.length > 0;
+                const usarValoresDiretosDoCentro =
+                  museuFilter !== 'all' &&
+                  detalhesFiltradosMuseu.length === 0 &&
+                  centroRubrica === museuFilter;
+
                 const valorRubrica =
                   museuFilter === 'all'
                     ? toNumber(rubrica?.valor_rubrica)
-                    : detalhesFiltradosMuseu.reduce(
+                    : usarDetalhamento
+                    ? detalhesFiltradosMuseu.reduce(
                         (sum, item) => sum + toNumber(item?.valor_planejado),
                         0
-                      );
+                      )
+                    : usarValoresDiretosDoCentro
+                    ? toNumber(rubrica?.valor_rubrica)
+                    : 0;
 
                 const valorUtilizado =
                   museuFilter === 'all'
                     ? toNumber(rubrica?.valor_utilizado)
-                    : detalhesFiltradosMuseu.reduce(
+                    : usarDetalhamento
+                    ? detalhesFiltradosMuseu.reduce(
                         (sum, item) => sum + toNumber(item?.valor_utilizado),
                         0
-                      );
+                      )
+                    : usarValoresDiretosDoCentro
+                    ? toNumber(rubrica?.valor_utilizado)
+                    : 0;
 
                 const saldo =
                   museuFilter === 'all'
                     ? toNumber(rubrica?.saldo)
-                    : detalhesFiltradosMuseu.reduce(
+                    : usarDetalhamento
+                    ? detalhesFiltradosMuseu.reduce(
                         (sum, item) => sum + toNumber(item?.saldo),
                         0
-                      );
+                      )
+                    : usarValoresDiretosDoCentro
+                    ? toNumber(rubrica?.saldo)
+                    : 0;
 
                 const percentual = percentualSeguro(valorUtilizado, valorRubrica);
                 const alerta = saldo < 0 || percentual >= 80;
