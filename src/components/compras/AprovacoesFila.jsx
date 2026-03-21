@@ -12,19 +12,15 @@ export default function AprovacoesFila({
   onRefresh,
   currentUser,
   hasGestaoCompras,
-  podeAprovarSolicitacoes
+  podeAprovarSolicitacoes,
 }) {
-  const [loading, setLoading] = useState({});
+  const [loading,     setLoading]     = useState({});
   const [comentarios, setComentarios] = useState({});
-  const [saldos, setSaldos] = useState({});
+  const [saldos,      setSaldos]      = useState({});
 
   const isCoordenador = [
-    'admin',
-    'ADMIN',
-    'COORDENADOR',
-    'COORD_COMUNICACAO',
-    'COORD_ADMINISTRATIVA',
-    'COORD_PRODUCAO'
+    'admin', 'ADMIN', 'COORDENADOR',
+    'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO',
   ].includes(currentUser?.role);
 
   const podeAprovar =
@@ -32,7 +28,7 @@ export default function AprovacoesFila({
     hasGestaoCompras === true ||
     podeAprovarSolicitacoes === true;
 
-  const pendentes_coord = purchases.filter(p => p.status === 'SOLICITADO');
+  const pendentes_coord = purchases.filter((p) => p.status === 'SOLICITADO');
 
   const getBudgetLineId = (purchase) =>
     purchase?.budgetline_id ||
@@ -42,7 +38,7 @@ export default function AprovacoesFila({
 
   const getBudgetLine = (purchase) => {
     const id = getBudgetLineId(purchase);
-    return budgetLines.find(l => l.id === id);
+    return budgetLines.find((l) => l.id === id);
   };
 
   const hasOrcamentoVinculado = (purchase) =>
@@ -52,15 +48,13 @@ export default function AprovacoesFila({
     const budgetlineId = getBudgetLineId(purchase);
     if (!budgetlineId) return null;
     if (saldos[budgetlineId]) return saldos[budgetlineId];
-
-    const res = await base44.functions.invoke('purchaseActions', {
-      action: 'check_budget',
+    const res  = await base44.functions.invoke('purchaseActions', {
+      action:        'check_budget',
       budgetline_id: budgetlineId,
-      valor: purchase.valor_solicitado,
+      valor:         purchase.valor_solicitado,
     });
-
     const info = res?.data || res;
-    setSaldos(s => ({ ...s, [budgetlineId]: info }));
+    setSaldos((s) => ({ ...s, [budgetlineId]: info }));
     return info;
   };
 
@@ -69,111 +63,89 @@ export default function AprovacoesFila({
       toast.error('Você não tem permissão para processar solicitações.');
       return;
     }
-
     if (action === 'approve_coord' && !hasOrcamentoVinculado(purchase)) {
       toast.error('Vincule uma rubrica ou linha orçamentária antes de aprovar.');
       return;
     }
 
-    setLoading(l => ({ ...l, [purchase.id]: true }));
+    setLoading((l) => ({ ...l, [purchase.id]: true }));
 
     try {
       const comentario = comentarios[purchase.id] || '';
 
       if (action === 'approve_coord') {
         const saldoInfo = await getSaldo(purchase);
-
         if (saldoInfo && !saldoInfo?.aprovavel) {
           toast.error(
-            `Saldo insuficiente! Disponível: R$ ${(saldoInfo?.saldo_disponivel || 0).toLocaleString('pt-BR', {
-              minimumFractionDigits: 2
-            })}`
+            `Saldo insuficiente! Disponível: R$ ${(saldoInfo?.saldo_disponivel || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
           );
-          setLoading(l => ({ ...l, [purchase.id]: false }));
+          setLoading((l) => ({ ...l, [purchase.id]: false }));
           return;
         }
       }
 
       await base44.functions.invoke('purchaseActions', {
         purchaseId: purchase.id,
-        action: action === 'approve_coord' ? 'aprovar' : 'reject',
+        action:     action === 'approve_coord' ? 'aprovar' : 'reject',
         comentario,
       });
 
       if (action === 'approve_coord') {
-        toast.success('✅ Solicitação aprovada com sucesso e saldo comprometido!', {
-          duration: 4000,
-          icon: '✅',
-        });
+        toast.success('Solicitação aprovada — saldo comprometido na rubrica.', { duration: 4000 });
       } else {
-        toast.success('❌ Solicitação recusada.', {
-          duration: 3000,
-        });
+        toast.success('Solicitação recusada.', { duration: 3000 });
       }
 
-      onRefresh?.();
-    } catch (e) {
-      toast.error('❌ Erro ao processar: ' + (e?.message || 'Erro desconhecido'));
-    }
+      await onRefresh?.();
 
-    setLoading(l => ({ ...l, [purchase.id]: false }));
+    } catch (e) {
+      toast.error('Erro ao processar: ' + (e?.message || 'Erro desconhecido'));
+    } finally {
+      setLoading((l) => ({ ...l, [purchase.id]: false }));
+    }
   };
 
   const META_LABELS = {
-    'MC3A-20': 'Ações Educativas',
-    'MC3A-21': 'Exposição / Produção Cultural',
-    'MC3A-22': 'Comunicação e Divulgação',
-    'MC3A-23': 'Noturno nos Museus 2026',
-    'MC3A-24': 'Emenda Parlamentar',
-    'MC3A-25': 'Outras Ações',
+    'MC3A-20':    'Ações Educativas',
+    'MC3A-21':    'Exposição / Produção Cultural',
+    'MC3A-22':    'Comunicação e Divulgação',
+    'MC3A-23':    'Noturno nos Museus 2026',
+    'MC3A-24':    'Emenda Parlamentar',
+    'MC3A-25':    'Outras Ações',
     'MC3A-EXTRA': 'Ações Extras',
   };
 
   const renderCard = (purchase) => {
-    const line = getBudgetLine(purchase);
+    const line            = getBudgetLine(purchase);
     const saldoDisponivel = line
       ? (line.saldo_inicial || 0) - (line.saldo_comprometido || 0)
       : null;
-
-    const saldoOk =
-      saldoDisponivel === null || saldoDisponivel >= (purchase.valor_solicitado || 0);
-
-    const isLoading = loading[purchase.id];
-    const vinculoOk = hasOrcamentoVinculado(purchase);
+    const saldoOk      = saldoDisponivel === null || saldoDisponivel >= (purchase.valor_solicitado || 0);
+    const isLoading    = loading[purchase.id];
+    const vinculoOk    = hasOrcamentoVinculado(purchase);
     const budgetlineId = getBudgetLineId(purchase);
 
     return (
-      <div
-        key={purchase.id}
-        className="border border-gray-100 rounded-xl p-5 space-y-4 hover:border-gray-200"
-      >
+      <div key={purchase.id} className="border border-gray-100 rounded-xl p-5 space-y-4 hover:border-gray-200 bg-white">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
             <div className="flex flex-wrap gap-2 mb-2">
               <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
                 {META_LABELS[purchase.meta_id] || purchase.meta_id}
               </span>
-
               {purchase.tipo_gasto && (
                 <span className="text-xs border border-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
                   {purchase.tipo_gasto}
                 </span>
               )}
-
-              {purchase.ai_meta_score !== undefined &&
-                purchase.ai_meta_score !== null && (
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                      purchase.ai_meta_score >= 80
-                        ? 'bg-green-50 text-green-700'
-                        : 'bg-amber-50 text-amber-700'
-                    }`}
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    Score IA: {purchase.ai_meta_score}%
-                  </span>
-                )}
-
+              {purchase.ai_meta_score !== undefined && purchase.ai_meta_score !== null && (
+                <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                  purchase.ai_meta_score >= 80 ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+                }`}>
+                  <Sparkles className="w-3 h-3" />
+                  Score IA: {purchase.ai_meta_score}%
+                </span>
+              )}
               {vinculoOk ? (
                 <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                   <Link2 className="w-3 h-3" />
@@ -186,19 +158,15 @@ export default function AprovacoesFila({
                 </span>
               )}
             </div>
-
             <p className="font-semibold text-black">{purchase.descricao_item}</p>
             <p className="text-xs text-gray-500 mt-0.5">
               {purchase.fornecedor_nome}
               {purchase.fornecedor_cnpj ? ` — ${purchase.fornecedor_cnpj}` : ''}
             </p>
           </div>
-
           <div className="text-right flex-shrink-0">
             <p className="text-xl font-bold text-black">
-              R$ {(purchase.valor_solicitado || 0).toLocaleString('pt-BR', {
-                minimumFractionDigits: 2
-              })}
+              R$ {(purchase.valor_solicitado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </p>
             <p className="text-xs text-gray-500">{purchase.categoria}</p>
           </div>
@@ -210,9 +178,7 @@ export default function AprovacoesFila({
               <AlertTriangle className="w-3.5 h-3.5" />
               Compra sem rubrica ou linha orçamentária vinculada
             </p>
-            <p className="text-red-700">
-              Esta solicitação não deve ser aprovada enquanto não houver vínculo orçamentário.
-            </p>
+            <p className="text-red-700">Esta solicitação não deve ser aprovada enquanto não houver vínculo orçamentário.</p>
           </div>
         )}
 
@@ -223,61 +189,23 @@ export default function AprovacoesFila({
               Atenção — Score IA baixo ({purchase.ai_meta_score}%)
             </p>
             <p className="text-amber-700">{purchase.ai_analise}</p>
-            {purchase.ai_meta_sugerida &&
-              purchase.ai_meta_sugerida !== purchase.meta_id && (
-                <p className="mt-1 font-medium text-amber-800">
-                  Meta sugerida: {purchase.ai_meta_sugerida}
-                </p>
-              )}
+            {purchase.ai_meta_sugerida && purchase.ai_meta_sugerida !== purchase.meta_id && (
+              <p className="mt-1 font-medium text-amber-800">Meta sugerida: {purchase.ai_meta_sugerida}</p>
+            )}
           </div>
         )}
 
         {line && (
-          <div
-            className={`p-3 rounded-lg text-xs ${
-              saldoOk
-                ? 'bg-green-50 border border-green-100'
-                : 'bg-red-50 border border-red-200'
-            }`}
-          >
-            <p className="font-semibold mb-1">
-              [{line.codigo}] {line.descricao}
-            </p>
-
+          <div className={`p-3 rounded-lg text-xs ${saldoOk ? 'bg-green-50 border border-green-100' : 'bg-red-50 border border-red-200'}`}>
+            <p className="font-semibold mb-1">[{line.codigo}] {line.descricao}</p>
             <div className="flex gap-4 flex-wrap">
-              <span>
-                Saldo inicial:{' '}
-                <strong>
-                  R$ {(line.saldo_inicial || 0).toLocaleString('pt-BR', {
-                    minimumFractionDigits: 2
-                  })}
-                </strong>
-              </span>
-
-              <span>
-                Comprometido:{' '}
-                <strong>
-                  R$ {(line.saldo_comprometido || 0).toLocaleString('pt-BR', {
-                    minimumFractionDigits: 2
-                  })}
-                </strong>
-              </span>
-
+              <span>Saldo inicial: <strong>R$ {(line.saldo_inicial || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span>
+              <span>Comprometido: <strong>R$ {(line.saldo_comprometido || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span>
               <span className={saldoOk ? 'text-green-700' : 'text-red-700'}>
-                Disponível:{' '}
-                <strong>
-                  R$ {(saldoDisponivel || 0).toLocaleString('pt-BR', {
-                    minimumFractionDigits: 2
-                  })}
-                </strong>
+                Disponível: <strong>R$ {(saldoDisponivel || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
               </span>
             </div>
-
-            {!saldoOk && (
-              <p className="text-red-700 font-semibold mt-1">
-                ⚠️ Saldo insuficiente para aprovação!
-              </p>
-            )}
+            {!saldoOk && <p className="text-red-700 font-semibold mt-1">⚠️ Saldo insuficiente para aprovação!</p>}
           </div>
         )}
 
@@ -291,9 +219,7 @@ export default function AprovacoesFila({
           placeholder="Comentário (opcional)..."
           rows={2}
           value={comentarios[purchase.id] || ''}
-          onChange={e =>
-            setComentarios(c => ({ ...c, [purchase.id]: e.target.value }))
-          }
+          onChange={(e) => setComentarios((c) => ({ ...c, [purchase.id]: e.target.value }))}
         />
 
         <div className="flex gap-2 justify-end">
@@ -303,31 +229,16 @@ export default function AprovacoesFila({
             onClick={() => handleAction(purchase, 'reject')}
             disabled={isLoading || !podeAprovar}
           >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-1" />
-            ) : (
-              <XCircle className="w-4 h-4 mr-1" />
-            )}
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <XCircle className="w-4 h-4 mr-1" />}
             Recusar
           </Button>
-
           <Button
             className="bg-black hover:bg-gray-800 text-white disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={() => handleAction(purchase, 'approve_coord')}
             disabled={isLoading || !saldoOk || !podeAprovar || !vinculoOk}
-            title={
-              !podeAprovar
-                ? 'Você não tem permissão para aprovar'
-                : !vinculoOk
-                ? 'Vincule rubrica ou linha orçamentária antes de aprovar'
-                : ''
-            }
+            title={!podeAprovar ? 'Você não tem permissão para aprovar' : !vinculoOk ? 'Vincule rubrica ou linha orçamentária antes de aprovar' : ''}
           >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-1" />
-            ) : (
-              <CheckCircle className="w-4 h-4 mr-1" />
-            )}
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle className="w-4 h-4 mr-1" />}
             Aprovar e Comprometer
           </Button>
         </div>
@@ -344,13 +255,14 @@ export default function AprovacoesFila({
           </span>
           Aguardando Aprovação da Coordenação
         </h2>
-
         {pendentes_coord.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-6 border-2 border-dashed border-gray-100 rounded-xl">
             Nenhuma solicitação pendente
           </p>
         ) : (
-          <div className="space-y-4">{pendentes_coord.map(p => renderCard(p))}</div>
+          <div className="space-y-4">
+            {pendentes_coord.map((p) => renderCard(p))}
+          </div>
         )}
       </section>
     </div>
