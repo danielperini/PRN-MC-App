@@ -18,11 +18,11 @@ import {
   User,
   FileText,
   AlertTriangle,
+  Pencil,
 } from 'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
 import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
-import PurchaseCard from '@/components/compras/PurchaseCard';
 import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
 import AprovacoesFila from '@/components/compras/AprovacoesFila';
 import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
@@ -31,19 +31,17 @@ import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
 import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
 import { useBudgetLines } from '@/components/compras/useBudgetLines';
 import GestaoDocumental from '@/pages/GestaoDocumental';
-
 import RubricasGrid from '@/components/compras/RubricasGrid';
-import AuditoriaRubricasPanel from '@/components/compras/AuditoriaRubricasPanel';
 import RubricaDetail from '@/components/rubricas/RubricaDetail';
 
 const STATUS_CONFIG = {
-  RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
-  SOLICITADO: { label: 'Solicitado', color: 'bg-blue-100 text-blue-700' },
-  APROVADO_COORD: { label: 'Aprovado', color: 'bg-green-100 text-green-700' },
+  RASCUNHO:       { label: 'Rascunho',      color: 'bg-gray-100 text-gray-700' },
+  SOLICITADO:     { label: 'Solicitado',     color: 'bg-blue-100 text-blue-700' },
+  APROVADO_COORD: { label: 'Aprovado',       color: 'bg-green-100 text-green-700' },
   APROVADO_ADMIN: { label: 'Aprovado Admin', color: 'bg-green-100 text-green-700' },
-  RECUSADO: { label: 'Recusado', color: 'bg-red-100 text-red-700' },
-  CANCELADO: { label: 'Cancelado', color: 'bg-gray-100 text-gray-500' },
-  PAGO: { label: 'Pago', color: 'bg-emerald-100 text-emerald-700' },
+  RECUSADO:       { label: 'Recusado',       color: 'bg-red-100 text-red-700' },
+  CANCELADO:      { label: 'Cancelado',      color: 'bg-gray-100 text-gray-500' },
+  PAGO:           { label: 'Pago',           color: 'bg-emerald-100 text-emerald-700' },
 };
 
 function extractRubricas(result) {
@@ -57,51 +55,21 @@ function extractRubricas(result) {
   return [];
 }
 
-function extractAuditoria(result) {
-  if (!result) return null;
-  if (result?.success && result?.sumario) return result;
-  if (result?.data?.success && result?.data?.sumario) return result.data;
-  if (result?.response?.success && result?.response?.sumario) return result.response;
-  return null;
-}
-
 async function carregarRubricas() {
   try {
     const result = await base44.functions.invoke('listAllRubricas', {});
     const viaFunction = extractRubricas(result);
-
-    if (Array.isArray(viaFunction) && viaFunction.length > 0) {
-      return viaFunction;
-    }
+    if (Array.isArray(viaFunction) && viaFunction.length > 0) return viaFunction;
   } catch (error) {
     console.error('Erro em listAllRubricas:', error);
   }
-
   try {
     const diretas = await base44.entities.Rubrica.list('ordem_exibicao', 200);
-    if (Array.isArray(diretas)) {
-      return diretas;
-    }
+    if (Array.isArray(diretas)) return diretas;
   } catch (error) {
     console.error('Erro ao buscar Rubrica direto:', error);
   }
-
   return [];
-}
-
-async function carregarAuditoriaRubricas() {
-  try {
-    const result = await base44.functions.invoke('recalculateAllRubricas', {
-      trigger: 'auditoria_visual_compras',
-    });
-
-    const auditoria = extractAuditoria(result);
-    if (auditoria) return auditoria;
-  } catch (error) {
-    console.error('Erro ao carregar auditoria de rubricas:', error);
-  }
-
-  return null;
 }
 
 function getPurchaseBudgetlineId(purchase) {
@@ -110,6 +78,17 @@ function getPurchaseBudgetlineId(purchase) {
     purchase?.budget_line_id ||
     purchase?.linha_orcamentaria_id ||
     null
+  );
+}
+
+function getPurchaseValue(p) {
+  return (
+    p?.valor_pago ||
+    p?.valor_aprovado_admin ||
+    p?.valor_aprovado ||
+    p?.valor_final ||
+    p?.valor_solicitado ||
+    0
   );
 }
 
@@ -130,8 +109,118 @@ function normalizeCentro(value) {
   if (raw.includes('imagem e som')) return 'MIS';
   if (raw.includes('abilio barreto')) return 'MHAB';
   if (raw.includes('moda')) return 'MUMO';
-
   return String(value || '').trim();
+}
+
+function fmtBRL(v) {
+  if (!v && v !== 0) return '—';
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+}
+
+// ─── Tabela de Solicitações ────────────────────────────────────────────
+function TabelaSolicitacoes({ purchases, rubricas, isCoordenador, currentUser, onEdit, onRefresh }) {
+  const rubricaById = useMemo(() => {
+    const m = {};
+    (rubricas || []).forEach((r) => { if (r?.id) m[r.id] = r; });
+    return m;
+  }, [rubricas]);
+
+  if (!purchases || purchases.length === 0) return null;
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-gray-200">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-gray-200 bg-gray-50 text-left">
+            <th className="px-3 py-3 font-medium text-gray-600">Descrição</th>
+            <th className="px-3 py-3 font-medium text-gray-600">Fornecedor</th>
+            <th className="px-3 py-3 font-medium text-gray-600">Centro</th>
+            <th className="px-3 py-3 font-medium text-gray-600">Rubrica</th>
+            <th className="px-3 py-3 font-medium text-gray-600">Status</th>
+            <th className="px-3 py-3 text-right font-medium text-gray-600">Valor</th>
+            <th className="px-3 py-3 text-center font-medium text-gray-600">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {purchases.map((p, i) => {
+            const status = STATUS_CONFIG[p.status] || { label: p.status, color: 'bg-gray-100 text-gray-600' };
+            const rubrica = p.rubrica_id ? rubricaById[p.rubrica_id] : null;
+            const valor = getPurchaseValue(p);
+            const inconsistente =
+              (p.status === 'APROVADO_COORD' || p.status === 'APROVADO_ADMIN' || p.status === 'PAGO') &&
+              (!p._has_orcamento_vinculado || p._sem_centro_custo);
+
+            const podeEditar =
+              isCoordenador ||
+              p.created_by === currentUser?.email;
+
+            return (
+              <tr
+                key={p.id}
+                className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${
+                  i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'
+                } ${inconsistente ? 'bg-amber-50/60' : ''}`}
+              >
+                <td className="max-w-xs px-3 py-2.5">
+                  <p className="truncate font-medium text-gray-900">
+                    {p.descricao_item || p.objeto || '—'}
+                  </p>
+                  {p.meta_id && (
+                    <p className="text-xs text-gray-400">{p.meta_id}</p>
+                  )}
+                  {inconsistente && (
+                    <span className="mt-0.5 inline-flex items-center gap-1 text-xs text-amber-600">
+                      <AlertTriangle className="h-3 w-3" /> Sem vínculo
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2.5 text-gray-600">
+                  {p.fornecedor_nome || '—'}
+                </td>
+                <td className="px-3 py-2.5">
+                  {p._centro_custo_normalizado ? (
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                      {p._centro_custo_normalizado}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400">—</span>
+                  )}
+                </td>
+                <td className="max-w-[160px] px-3 py-2.5">
+                  {rubrica ? (
+                    <span className="truncate text-xs text-gray-700">
+                      {rubrica.rubrica}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400">—</span>
+                  )}
+                </td>
+                <td className="px-3 py-2.5">
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>
+                    {status.label}
+                  </span>
+                </td>
+                <td className="px-3 py-2.5 text-right font-medium tabular-nums text-gray-900">
+                  {fmtBRL(valor)}
+                </td>
+                <td className="px-3 py-2.5 text-center">
+                  {podeEditar && (
+                    <button
+                      onClick={() => onEdit(p)}
+                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-black"
+                      title="Editar"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function ComprasInner() {
@@ -174,7 +263,6 @@ function ComprasInner() {
       queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'] }),
       queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
       queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
-      queryClient.invalidateQueries({ queryKey: ['auditoria-rubricas'] }),
     ]);
   }, [queryClient]);
 
@@ -203,11 +291,11 @@ function ComprasInner() {
     queryKey: ['purchases', isCoordenador, currentUser?.email],
     queryFn: () =>
       isCoordenador
-        ? base44.entities.PurchaseRequest.list('-created_date', 100)
+        ? base44.entities.PurchaseRequest.list('-created_date', 500)
         : base44.entities.PurchaseRequest.filter(
             { created_by: currentUser?.email },
             '-created_date',
-            50
+            100
           ),
     enabled: !!currentUser,
   });
@@ -215,10 +303,7 @@ function ComprasInner() {
   useQuery({
     queryKey: ['purchase-documents-all', isCoordenador, currentUser?.email],
     queryFn: async () => {
-      const docs = await base44.entities.PurchaseDocument.list(
-        '-created_date',
-        300
-      );
+      const docs = await base44.entities.PurchaseDocument.list('-created_date', 300);
       if (isCoordenador) return docs;
       return docs.filter((doc) => doc.uploadado_por === currentUser?.email);
     },
@@ -235,17 +320,6 @@ function ComprasInner() {
     queryKey: ['rubricas'],
     queryFn: carregarRubricas,
     enabled: !!currentUser,
-    staleTime: 0,
-  });
-
-  const {
-    data: auditoriaRubricas = null,
-    refetch: refetchAuditoriaRubricas,
-    isLoading: loadingAuditoriaRubricas,
-  } = useQuery({
-    queryKey: ['auditoria-rubricas'],
-    queryFn: carregarAuditoriaRubricas,
-    enabled: !!currentUser && isCoordenador,
     staleTime: 0,
   });
 
@@ -279,9 +353,7 @@ function ComprasInner() {
   const centrosDisponiveis = useMemo(() => {
     const centros = new Set();
     purchasesWithFlags.forEach((p) => {
-      if (p._centro_custo_normalizado) {
-        centros.add(p._centro_custo_normalizado);
-      }
+      if (p._centro_custo_normalizado) centros.add(p._centro_custo_normalizado);
     });
     return Array.from(centros).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [purchasesWithFlags]);
@@ -290,15 +362,9 @@ function ComprasInner() {
     const matchStatus = filters.status === 'all' || p.status === filters.status;
 
     let matchMeta = filters.meta_id === 'all';
-    if (!matchMeta && filters.meta_id === 'produto') {
-      matchMeta = p.tipo_item === 'produto';
-    }
-    if (!matchMeta && filters.meta_id === 'servico') {
-      matchMeta = p.tipo_item === 'servico';
-    }
-    if (!matchMeta) {
-      matchMeta = p.meta_id === filters.meta_id;
-    }
+    if (!matchMeta && filters.meta_id === 'produto') matchMeta = p.tipo_item === 'produto';
+    if (!matchMeta && filters.meta_id === 'servico') matchMeta = p.tipo_item === 'servico';
+    if (!matchMeta) matchMeta = p.meta_id === filters.meta_id;
 
     const matchRubrica =
       filters.rubrica_id === 'all' || p.rubrica_id === filters.rubrica_id;
@@ -321,59 +387,52 @@ function ComprasInner() {
       p.descricao_item?.toLowerCase().includes(busca) ||
       p.fornecedor_nome?.toLowerCase().includes(busca);
 
-    return (
-      matchStatus &&
-      matchMeta &&
-      matchRubrica &&
-      matchInconsistencia &&
-      matchCentro &&
-      matchSearch
-    );
+    return matchStatus && matchMeta && matchRubrica && matchInconsistencia && matchCentro && matchSearch;
   });
 
   const pendentesAprovacoes = (purchases || []).filter(
     (p) => p.status === 'SOLICITADO'
   ).length;
 
+  // Total utilizado: soma de todas as compras APROVADO_COORD + APROVADO_ADMIN + PAGO
+  const totalUtilizado = useMemo(() => {
+    return (purchases || [])
+      .filter((p) =>
+        ['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO'].includes(p.status)
+      )
+      .reduce((s, p) => s + getPurchaseValue(p), 0);
+  }, [purchases]);
+
+  const TOTAL_PREVISTO = 1320000;
+
   const refreshFinanceiroCompleto = useCallback(async () => {
     await invalidateComprasQueries();
-    await Promise.all([
-      refetchRubricas(),
-      isCoordenador ? refetchAuditoriaRubricas() : Promise.resolve(),
-    ]);
-  }, [
-    invalidateComprasQueries,
-    refetchRubricas,
-    refetchAuditoriaRubricas,
-    isCoordenador,
-  ]);
+    await refetchRubricas();
+  }, [invalidateComprasQueries, refetchRubricas]);
 
   return (
     <div className="min-h-screen bg-white">
       <div className="mx-auto max-w-6xl px-4 py-4 md:px-6 md:py-8">
+
+        {/* Header */}
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black">
               <ShoppingCart className="h-5 w-5 text-white" />
             </div>
-
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-black">Suprimentos</h1>
-
                 {isCoordenador ? (
                   <span className="flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
-                    <ShieldCheck className="h-3 w-3" />
-                    Coordenador
+                    <ShieldCheck className="h-3 w-3" /> Coordenador
                   </span>
                 ) : (
                   <span className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-                    <User className="h-3 w-3" />
-                    Profissional
+                    <User className="h-3 w-3" /> Profissional
                   </span>
                 )}
               </div>
-
               <p className="text-sm text-gray-500">
                 {isCoordenador
                   ? 'Visão geral — todas as solicitações'
@@ -393,7 +452,6 @@ function ComprasInner() {
                 Relatório PDF
               </Button>
             )}
-
             <Button
               className="bg-black text-white hover:bg-gray-800"
               onClick={() => {
@@ -407,52 +465,64 @@ function ComprasInner() {
           </div>
         </div>
 
+        {/* Banner de inconsistências */}
         {isCoordenador && comprasInconsistentes.length > 0 && (
           <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-700" />
               <div>
                 <p className="text-sm font-semibold text-amber-900">
-                  Há {comprasInconsistentes.length} compra(s) aprovada(s) ou paga(s)
-                  com inconsistência de rubrica, linha orçamentária ou centro de custo.
+                  Há {comprasInconsistentes.length} compra(s) aprovada(s) ou paga(s) com inconsistência de rubrica, linha orçamentária ou centro de custo.
                 </p>
                 <p className="mt-1 text-xs text-amber-800">
-                  Essas compras podem não debitar corretamente nas rubricas por
-                  museu. Edite cada item e vincule a rubrica correta antes de
-                  seguir.
+                  Essas compras podem não debitar corretamente nas rubricas. Edite cada item e vincule a rubrica correta.
                 </p>
               </div>
             </div>
           </div>
         )}
 
+        {/* Resumo financeiro */}
+        {isCoordenador && (
+          <div className="mb-6 grid grid-cols-3 gap-4">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <p className="text-xs font-medium text-gray-500">Total Previsto</p>
+              <p className="mt-1 text-xl font-bold text-gray-900">{fmtBRL(TOTAL_PREVISTO)}</p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <p className="text-xs font-medium text-gray-500">Total Utilizado</p>
+              <p className="mt-1 text-xl font-bold text-gray-900">{fmtBRL(totalUtilizado)}</p>
+              <p className="text-xs text-gray-400">Aprovado coord. + admin + pago</p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <p className="text-xs font-medium text-gray-500">Saldo Disponível</p>
+              <p className={`mt-1 text-xl font-bold ${TOTAL_PREVISTO - totalUtilizado < 0 ? 'text-red-600' : 'text-green-700'}`}>
+                {fmtBRL(TOTAL_PREVISTO - totalUtilizado)}
+              </p>
+              <p className="text-xs text-gray-400">
+                {TOTAL_PREVISTO > 0 ? Math.round((totalUtilizado / TOTAL_PREVISTO) * 100) : 0}% utilizado
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Abas */}
         <div className="mb-6 flex w-fit gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1">
           {[
-            { id: 'lista', label: 'Solicitações' },
+            { id: 'lista',    label: 'Solicitações' },
             ...(isCoordenador ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
             { id: 'documentos', label: 'Documentos' },
             ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
             ...((podeAprovarSolicitacoes || hasGestaoCompras)
-              ? [
-                  {
-                    id: 'aprovacoes',
-                    label: `Aprovações${
-                      pendentesAprovacoes > 0 ? ` (${pendentesAprovacoes})` : ''
-                    }`,
-                  },
-                ]
+              ? [{ id: 'aprovacoes', label: `Aprovações${pendentesAprovacoes > 0 ? ` (${pendentesAprovacoes})` : ''}` }]
               : []),
-            ...(!isCoordenador
-              ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }]
-              : []),
+            ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
           ].map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                tab === t.id
-                  ? 'bg-white text-black shadow'
-                  : 'text-gray-500 hover:text-black'
+                tab === t.id ? 'bg-white text-black shadow' : 'text-gray-500 hover:text-black'
               }`}
             >
               {t.label}
@@ -460,206 +530,116 @@ function ComprasInner() {
           ))}
         </div>
 
+        {/* Aba: Solicitações (tabela) */}
         {tab === 'lista' && (
           <div>
-            <div className="mb-6 flex flex-wrap gap-3">
+            {/* Filtros */}
+            <div className="mb-4 flex flex-wrap gap-3">
               <div className="relative min-w-48 flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                 <Input
                   placeholder="Buscar..."
                   className="pl-9"
                   value={filters.search}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, search: e.target.value }))
-                  }
+                  onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
                 />
               </div>
 
-              <Select
-                value={filters.status}
-                onValueChange={(v) => setFilters((f) => ({ ...f, status: v }))}
-              >
-                <SelectTrigger className="w-44">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
+              <Select value={filters.status} onValueChange={(v) => setFilters((f) => ({ ...f, status: v }))}>
+                <SelectTrigger className="w-44"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os status</SelectItem>
                   {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>
-                      {v.label}
-                    </SelectItem>
+                    <SelectItem key={k} value={k}>{v.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              <Select
-                value={filters.meta_id}
-                onValueChange={(v) => setFilters((f) => ({ ...f, meta_id: v }))}
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Meta / Tipo" />
-                </SelectTrigger>
+              <Select value={filters.meta_id} onValueChange={(v) => setFilters((f) => ({ ...f, meta_id: v }))}>
+                <SelectTrigger className="w-48"><SelectValue placeholder="Meta / Tipo" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as metas / tipos</SelectItem>
                   <SelectItem value="produto">— Apenas Produtos</SelectItem>
                   <SelectItem value="servico">— Apenas Serviços</SelectItem>
-                  <SelectItem value="MC3A-20">
-                    MC3A-20 — Ações Educativas
-                  </SelectItem>
-                  <SelectItem value="MC3A-21">
-                    MC3A-21 — Exposição / Produção Cultural
-                  </SelectItem>
-                  <SelectItem value="MC3A-22">
-                    MC3A-22 — Comunicação e Divulgação
-                  </SelectItem>
-                  <SelectItem value="MC3A-23">
-                    MC3A-23 — Noturno nos Museus 2026
-                  </SelectItem>
-                  <SelectItem value="MC3A-24">
-                    MC3A-24 — Emenda Parlamentar
-                  </SelectItem>
-                  <SelectItem value="MC3A-25">
-                    MC3A-25 — Outras Ações
-                  </SelectItem>
-                  <SelectItem value="MC3A-EXTRA">
-                    MC3A-EXTRA — Ações Extras
-                  </SelectItem>
+                  <SelectItem value="MC3A-20">MC3A-20 — Ações Educativas</SelectItem>
+                  <SelectItem value="MC3A-21">MC3A-21 — Exposição / Produção Cultural</SelectItem>
+                  <SelectItem value="MC3A-22">MC3A-22 — Comunicação e Divulgação</SelectItem>
+                  <SelectItem value="MC3A-23">MC3A-23 — Noturno nos Museus 2026</SelectItem>
+                  <SelectItem value="MC3A-24">MC3A-24 — Emenda Parlamentar</SelectItem>
+                  <SelectItem value="MC3A-25">MC3A-25 — Outras Ações</SelectItem>
+                  <SelectItem value="MC3A-EXTRA">MC3A-EXTRA — Ações Extras</SelectItem>
                 </SelectContent>
               </Select>
 
-              <Select
-                value={filters.rubrica_id}
-                onValueChange={(v) =>
-                  setFilters((f) => ({ ...f, rubrica_id: v }))
-                }
-              >
-                <SelectTrigger className="w-72">
-                  <SelectValue placeholder="Rubrica" />
-                </SelectTrigger>
+              <Select value={filters.rubrica_id} onValueChange={(v) => setFilters((f) => ({ ...f, rubrica_id: v }))}>
+                <SelectTrigger className="w-64"><SelectValue placeholder="Rubrica" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as rubricas</SelectItem>
                   {(rubricas || [])
                     .filter((r) => r?.ativo !== false)
-                    .sort((a, b) =>
-                      String(a?.rubrica || '').localeCompare(
-                        String(b?.rubrica || ''),
-                        'pt-BR'
-                      )
-                    )
+                    .sort((a, b) => String(a?.rubrica || '').localeCompare(String(b?.rubrica || ''), 'pt-BR'))
                     .map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.rubrica}
-                      </SelectItem>
+                      <SelectItem key={r.id} value={r.id}>{r.rubrica}</SelectItem>
                     ))}
                 </SelectContent>
               </Select>
 
-              <Select
-                value={filters.centro_custo}
-                onValueChange={(v) =>
-                  setFilters((f) => ({ ...f, centro_custo: v }))
-                }
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Centro de custo" />
-                </SelectTrigger>
+              <Select value={filters.centro_custo} onValueChange={(v) => setFilters((f) => ({ ...f, centro_custo: v }))}>
+                <SelectTrigger className="w-44"><SelectValue placeholder="Centro de custo" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os centros</SelectItem>
                   {centrosDisponiveis.map((centro) => (
-                    <SelectItem key={centro} value={centro}>
-                      {centro}
-                    </SelectItem>
+                    <SelectItem key={centro} value={centro}>{centro}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              <Select
-                value={filters.inconsistencias}
-                onValueChange={(v) =>
-                  setFilters((f) => ({ ...f, inconsistencias: v }))
-                }
-              >
-                <SelectTrigger className="w-56">
-                  <SelectValue placeholder="Vínculo orçamentário" />
-                </SelectTrigger>
+              <Select value={filters.inconsistencias} onValueChange={(v) => setFilters((f) => ({ ...f, inconsistencias: v }))}>
+                <SelectTrigger className="w-52"><SelectValue placeholder="Vínculo orçamentário" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="somente_inconsistentes">
-                    Apenas inconsistentes
-                  </SelectItem>
-                  <SelectItem value="somente_ok">
-                    Apenas consistentes
-                  </SelectItem>
+                  <SelectItem value="somente_inconsistentes">Apenas inconsistentes</SelectItem>
+                  <SelectItem value="somente_ok">Apenas consistentes</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Contagem */}
+            <p className="mb-3 text-sm text-gray-500">
+              {filtered.length} solicitaç{filtered.length !== 1 ? 'ões' : 'ão'}
+              {filters.status !== 'all' || filters.search ? ' (filtradas)' : ''}
+            </p>
 
             {isLoading ? (
               <div className="py-16 text-center text-gray-400">Carregando...</div>
             ) : filtered.length === 0 ? (
               <div className="rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center">
                 <ShoppingCart className="mx-auto mb-3 h-12 w-12 text-gray-300" />
-                <p className="font-medium text-gray-400">
-                  Nenhuma solicitação encontrada
-                </p>
+                <p className="font-medium text-gray-400">Nenhuma solicitação encontrada</p>
                 <Button
                   className="mt-4 bg-black text-white"
-                  onClick={() => {
-                    setEditingPurchase(null);
-                    setShowForm(true);
-                  }}
+                  onClick={() => { setEditingPurchase(null); setShowForm(true); }}
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Criar primeira solicitação
                 </Button>
               </div>
             ) : (
-              <div className="space-y-3">
-                {filtered.map((p) => (
-                  <PurchaseCard
-                    key={p.id}
-                    purchase={p}
-                    budgetLines={budgetLines}
-                    statusConfig={STATUS_CONFIG}
-                    isCoordenador={isCoordenador}
-                    isAdmin={
-                      currentUser?.role === 'admin' ||
-                      currentUser?.role === 'ADMIN'
-                    }
-                    currentUser={currentUser}
-                    onEdit={(purchase) => {
-                      setEditingPurchase(purchase);
-                      setShowForm(true);
-                    }}
-                    onRefresh={refreshFinanceiroCompleto}
-                  />
-                ))}
-              </div>
+              <TabelaSolicitacoes
+                purchases={filtered}
+                rubricas={rubricas}
+                isCoordenador={isCoordenador}
+                currentUser={currentUser}
+                onEdit={(purchase) => { setEditingPurchase(purchase); setShowForm(true); }}
+                onRefresh={refreshFinanceiroCompleto}
+              />
             )}
           </div>
         )}
 
+        {/* Aba: Rubricas */}
         {tab === 'rubricas' && (
           <div className="space-y-6">
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-              <p className="text-sm text-blue-900">
-                <strong>📊 Integração:</strong> esta aba usa a entity{' '}
-                <strong>Rubrica</strong> como fonte de verdade do orçamento e o
-                recálculo financeiro por <strong>rubrica + museu</strong>.
-              </p>
-              <p className="mt-2 text-xs text-blue-700">
-                Rubricas carregadas: {Array.isArray(rubricas) ? rubricas.length : 0}
-              </p>
-            </div>
-
-            {isCoordenador && (
-              <AuditoriaRubricasPanel
-                auditoria={auditoriaRubricas}
-                onRefresh={refreshFinanceiroCompleto}
-                isCoordenador={isCoordenador}
-              />
-            )}
-
             {selectedRubrica ? (
               <div>
                 <button
@@ -668,7 +648,6 @@ function ComprasInner() {
                 >
                   ← Voltar
                 </button>
-
                 <RubricaDetail
                   rubrica={selectedRubrica}
                   onClose={async () => {
@@ -680,16 +659,16 @@ function ComprasInner() {
             ) : (
               <RubricasGrid
                 rubricas={rubricas}
+                purchases={purchases}
                 onSelectRubrica={setSelectedRubrica}
                 onRefresh={refreshFinanceiroCompleto}
                 isCoordenador={isCoordenador}
+                totalPrevisto={TOTAL_PREVISTO}
               />
             )}
 
-            {(loadingRubricas || loadingAuditoriaRubricas) && (
-              <div className="text-sm text-gray-400">
-                Atualizando dados financeiros...
-              </div>
+            {loadingRubricas && (
+              <div className="text-sm text-gray-400">Atualizando dados financeiros...</div>
             )}
           </div>
         )}
@@ -708,34 +687,16 @@ function ComprasInner() {
           <TeamPaymentSubmit userEmail={currentUser?.email} />
         )}
 
-        {tab === 'aprovacoes' &&
-          (podeAprovarSolicitacoes || hasGestaoCompras) && (
-            <AprovacoesFila
-              purchases={purchases}
-              budgetLines={budgetLines}
-              statusConfig={STATUS_CONFIG}
-              onRefresh={refreshFinanceiroCompleto}
-              currentUser={currentUser}
-              hasGestaoCompras={hasGestaoCompras}
-              podeAprovarSolicitacoes={podeAprovarSolicitacoes}
-            />
-          )}
-
-        {tab === 'orcamento' && (
-          <div className="space-y-8">
-            {isCoordenador && (
-              <ImportarOrcamento
-                onSuccess={() =>
-                  queryClient.invalidateQueries({ queryKey: ['budget-lines'] })
-                }
-              />
-            )}
-            <OrcamentoDashboard
-              budgetLines={budgetLines}
-              purchases={purchases}
-              isCoordenador={isCoordenador}
-            />
-          </div>
+        {tab === 'aprovacoes' && (podeAprovarSolicitacoes || hasGestaoCompras) && (
+          <AprovacoesFila
+            purchases={purchases}
+            budgetLines={budgetLines}
+            statusConfig={STATUS_CONFIG}
+            onRefresh={refreshFinanceiroCompleto}
+            currentUser={currentUser}
+            hasGestaoCompras={hasGestaoCompras}
+            podeAprovarSolicitacoes={podeAprovarSolicitacoes}
+          />
         )}
       </div>
 
@@ -743,10 +704,7 @@ function ComprasInner() {
         <PurchaseFormDialog
           currentUser={currentUser}
           prefill={editingPurchase}
-          onClose={() => {
-            setShowForm(false);
-            setEditingPurchase(null);
-          }}
+          onClose={() => { setShowForm(false); setEditingPurchase(null); }}
           onSuccess={async () => {
             setShowForm(false);
             setEditingPurchase(null);
