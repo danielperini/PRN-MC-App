@@ -381,16 +381,38 @@ Deno.serve(async (req) => {
             distribuicao_mode: 'config',
           }))
           .filter((item) => item.museu);
-      } else {
-        const museus = inferirMuseus(rubrica, budgetLine);
-        const categoria_key = inferirCategoria(rubrica, budgetLine);
-        associacoes = museus.map((m) => ({
-          museu: m,
-          categoria_key,
-          divisor: museus.length || 1,
-          distribuicao_mode: 'inferido',
-        }));
-      }
+     } else {
+  const categoria_key = inferirCategoria(rubrica, budgetLine);
+
+  const comprasPagas = comprasPagasPorRubrica[rubricaId] || [];
+
+  const museusDetectados = new Set();
+
+  for (const p of comprasPagas) {
+    const museu = detectMuseuFromPurchase(p);
+    if (museu) museusDetectados.add(museu);
+  }
+
+  // ✅ REGRA PRINCIPAL: se há compras → usar museus reais das compras
+  if (museusDetectados.size > 0) {
+    associacoes = Array.from(museusDetectados).map((m) => ({
+      museu: m,
+      categoria_key,
+      divisor: 1, // 🔥 NÃO DIVIDE MAIS
+      distribuicao_mode: 'por_compra',
+    }));
+  } else {
+    // fallback antigo (sem compras)
+    const museus = inferirMuseus(rubrica, budgetLine);
+
+    associacoes = museus.map((m) => ({
+      museu: m,
+      categoria_key,
+      divisor: museus.length || 1,
+      distribuicao_mode: 'inferido',
+    }));
+  }
+}
 
       for (const assoc of associacoes) {
         if (!assoc?.museu || !resultado[assoc.museu]) continue;
