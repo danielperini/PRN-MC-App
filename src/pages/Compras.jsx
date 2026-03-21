@@ -27,6 +27,7 @@ import AprovacoesFila from '@/components/compras/AprovacoesFila';
 import TeamManager from '@/components/compras/TeamManager';
 import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
 import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
+import AuditoriaRubricasPanel from '@/components/compras/AuditoriaRubricasPanel';
 import { useBudgetLines } from '@/components/compras/useBudgetLines';
 import GestaoDocumental from '@/pages/GestaoDocumental';
 import RubricasGrid from '@/components/compras/RubricasGrid';
