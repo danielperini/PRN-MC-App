@@ -103,6 +103,13 @@ function normalizeCentroCusto(value) {
   if (raw === 'mhab') return 'MHAB';
   if (raw === 'mumo') return 'MUMO';
 
+  if (raw === 'geral') return 'GLOBAL';
+  if (raw === 'global') return 'GLOBAL';
+  if (raw === 'todos') return 'GLOBAL';
+  if (raw === 'todos os museus') return 'GLOBAL';
+  if (raw === '3 museus') return 'GLOBAL';
+  if (raw === 'tres museus') return 'GLOBAL';
+
   if (raw.includes('museu da imagem e do som')) return 'MIS';
   if (raw.includes('imagem e som')) return 'MIS';
 
@@ -113,7 +120,12 @@ function normalizeCentroCusto(value) {
 
   if (raw.includes('noturno')) return 'NOTURNO NOS MUSEUS 2026';
   if (raw.includes('publica')) return 'PUBLICAÇÕES';
-  if (raw === 'geral') return 'GERAL';
+
+  if (raw.includes('geral')) return 'GLOBAL';
+  if (raw.includes('global')) return 'GLOBAL';
+  if (raw.includes('todos os museus')) return 'GLOBAL';
+  if (raw.includes('3 museus')) return 'GLOBAL';
+  if (raw.includes('tres museus')) return 'GLOBAL';
 
   return String(value || '').trim().toUpperCase();
 }
@@ -124,6 +136,7 @@ function sameCentroOrGlobal(entityCentro, selectedCentro) {
 
   if (!selected) return true;
   if (!entity) return true;
+  if (entity === 'GLOBAL') return true;
   return entity === selected;
 }
 
@@ -273,7 +286,9 @@ export default function PurchaseFormDialog({
 
     const rubricaCentro = getRubricaCentroCusto(selectedRubrica);
     if (!form.centro_custo && rubricaCentro) {
-      set('centro_custo', rubricaCentro);
+      const centroAjustado =
+        rubricaCentro === 'GLOBAL' ? 'Geral' : rubricaCentro;
+      set('centro_custo', centroAjustado);
     }
   }, [selectedRubrica, form.centro_custo]);
 
