@@ -15,7 +15,6 @@ import { AlertTriangle, Loader2, Sparkles, Link as LinkIcon, X } from 'lucide-re
 import { toast } from 'sonner';
 import PurchaseDocumentUpload from './PurchaseDocumentUpload';
 import { METAS_3_ADITIVO } from '@/components/planoTrabalho';
-import { useBudgetLines } from './useBudgetLines';
 import { useQuery } from '@tanstack/react-query';
 
 const METAS = METAS_3_ADITIVO.map((m) => ({
@@ -150,16 +149,6 @@ function getRubricaCentroCusto(rubrica) {
   );
 }
 
-function getBudgetLineCentroCusto(line) {
-  return normalizeCentroCusto(
-    line?.centro_custo ||
-      line?.museu ||
-      line?.museu_codigo ||
-      line?.unidade ||
-      ''
-  );
-}
-
 function formatMoney(value) {
   return toNumber(value).toLocaleString('pt-BR', {
     style: 'currency',
@@ -173,20 +162,16 @@ export default function PurchaseFormDialog({
   onSuccess,
   prefill,
 }) {
-  const { budgetLines = [] } = useBudgetLines();
-
   const { data: rubricas = [] } = useQuery({
     queryKey: ['rubricas'],
     queryFn: () => base44.entities.Rubrica.list('-created_date', 999),
   });
 
   const [form, setForm] = useState(() =>
-    prefill ? { ...EMPTY, ...prefill } : EMPTY
+    prefill ? { ...EMPTY, ...prefill, budgetline_id: '' } : EMPTY
   );
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [analyzingMeta, setAnalyzingMeta] = useState(false);
-  const [checkingSaldo, setCheckingSaldo] = useState(false);
-  const [saldoInfo, setSaldoInfo] = useState(null);
   const [saving, setSaving] = useState(false);
   const [activities, setActivities] = useState([]);
   const [mes, setMes] = useState(
@@ -236,51 +221,6 @@ export default function PurchaseFormDialog({
     return rubricasAtivas.find((r) => r.id === form.rubrica_id) || null;
   }, [rubricasAtivas, form.rubrica_id]);
 
-  const compatibleBudgetLines = useMemo(() => {
-    if (!form.rubrica_id) return [];
-
-    return (budgetLines || [])
-      .filter((line) => {
-        const sameRubrica = String(line?.rubrica_id || '') === String(form.rubrica_id || '');
-        const sameCentro = sameCentroOrGlobal(
-          getBudgetLineCentroCusto(line),
-          form.centro_custo
-        );
-        return sameRubrica && sameCentro;
-      })
-      .sort((a, b) =>
-        String(a?.descricao || a?.rubrica || '').localeCompare(
-          String(b?.descricao || b?.rubrica || ''),
-          'pt-BR'
-        )
-      );
-  }, [budgetLines, form.rubrica_id, form.centro_custo]);
-
-  const selectedLine = useMemo(() => {
-    return compatibleBudgetLines.find((l) => l.id === form.budgetline_id) || null;
-  }, [compatibleBudgetLines, form.budgetline_id]);
-
-  useEffect(() => {
-    if (!form.rubrica_id) {
-      if (form.budgetline_id) {
-        set('budgetline_id', '');
-      }
-      return;
-    }
-
-    const stillCompatible = compatibleBudgetLines.some(
-      (line) => line.id === form.budgetline_id
-    );
-
-    if (!stillCompatible) {
-      if (compatibleBudgetLines.length === 1) {
-        set('budgetline_id', compatibleBudgetLines[0].id);
-      } else if (form.budgetline_id) {
-        set('budgetline_id', '');
-      }
-    }
-  }, [form.rubrica_id, form.budgetline_id, compatibleBudgetLines]);
-
   useEffect(() => {
     if (!selectedRubrica) return;
 
@@ -291,29 +231,6 @@ export default function PurchaseFormDialog({
       set('centro_custo', centroAjustado);
     }
   }, [selectedRubrica, form.centro_custo]);
-
-  useEffect(() => {
-    if (form.budgetline_id && form.valor_solicitado) {
-      setCheckingSaldo(true);
-      base44.functions
-        .invoke('purchaseActions', {
-          action: 'check_budget',
-          budgetline_id: form.budgetline_id,
-          valor: parseFloat(form.valor_solicitado) || 0,
-        })
-        .then((res) => {
-          setSaldoInfo(res?.data || null);
-          setCheckingSaldo(false);
-        })
-        .catch(() => {
-          setSaldoInfo(null);
-          setCheckingSaldo(false);
-        });
-      return;
-    }
-
-    setSaldoInfo(null);
-  }, [form.budgetline_id, form.valor_solicitado]);
 
   const analyzeWithAI = async () => {
     if (!form.descricao_item || !form.meta_id || !form.categoria || !form.tipo_gasto) {
@@ -458,10 +375,6 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
       return 'Selecione a rubrica orçamentária.';
     }
 
-    if (!form.budgetline_id) {
-      return 'Selecione a BudgetLine auxiliar vinculada à rubrica.';
-    }
-
     if (!selectedRubrica) {
       return 'Rubrica selecionada não foi encontrada.';
     }
@@ -469,19 +382,6 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
     const rubricaCentro = getRubricaCentroCusto(selectedRubrica);
     if (!sameCentroOrGlobal(rubricaCentro, form.centro_custo)) {
       return `A rubrica pertence ao centro ${rubricaCentro || 'não definido'} e não é compatível com ${form.centro_custo}.`;
-    }
-
-    if (!selectedLine) {
-      return 'A BudgetLine selecionada não é compatível com a rubrica informada.';
-    }
-
-    const lineCentro = getBudgetLineCentroCusto(selectedLine);
-    if (!sameCentroOrGlobal(lineCentro, form.centro_custo)) {
-      return `A BudgetLine pertence ao centro ${lineCentro || 'não definido'} e não é compatível com ${form.centro_custo}.`;
-    }
-
-    if (String(selectedLine?.rubrica_id || '') !== String(form.rubrica_id || '')) {
-      return 'A BudgetLine selecionada não está vinculada à rubrica escolhida.';
     }
 
     return null;
@@ -492,7 +392,6 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
       !form.descricao_item ||
       !form.meta_id ||
       !form.rubrica_id ||
-      !form.budgetline_id ||
       !form.centro_custo ||
       !form.categoria ||
       !form.tipo_gasto ||
@@ -506,11 +405,6 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
     const financeiroError = validateFinanceiro();
     if (financeiroError) {
       toast.error(financeiroError);
-      return;
-    }
-
-    if (submeter && !saldoOk) {
-      toast.error('Saldo insuficiente para envio da solicitação.');
       return;
     }
 
@@ -528,10 +422,10 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
 
       const created = await base44.entities.PurchaseRequest.create({
         ...form,
+        budgetline_id: '',
         report_id,
         centro_custo: form.centro_custo,
         rubrica_id: form.rubrica_id,
-        budgetline_id: form.budgetline_id,
         valor_solicitado: parseFloat(form.valor_solicitado) || 0,
         valor_unitario: parseFloat(form.valor_unitario) || 0,
         qtd: parseFloat(form.qtd) || 1,
@@ -579,13 +473,6 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
     setSaving(false);
   };
 
-  const saldoDisponivel =
-    saldoInfo?.saldo_disponivel !== undefined && saldoInfo?.saldo_disponivel !== null
-      ? toNumber(saldoInfo.saldo_disponivel)
-      : null;
-
-  const valorNum = parseFloat(form.valor_solicitado) || 0;
-  const saldoOk = saldoDisponivel === null || saldoDisponivel >= valorNum;
   const financeiroError = validateFinanceiro();
 
   return (
@@ -823,41 +710,6 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
               </div>
             </div>
 
-            <div>
-              <Label className="text-xs text-gray-600 mb-1 block">
-                BudgetLine auxiliar vinculada *
-              </Label>
-              <Select
-                value={form.budgetline_id || ''}
-                onValueChange={(v) => set('budgetline_id', v)}
-                disabled={!form.rubrica_id}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      form.rubrica_id
-                        ? 'Selecione a BudgetLine compatível...'
-                        : 'Selecione primeiro a rubrica'
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  {compatibleBudgetLines.length === 0 ? (
-                    <div className="px-2 py-2 text-xs text-gray-500">
-                      Nenhuma BudgetLine compatível com a rubrica selecionada
-                    </div>
-                  ) : (
-                    compatibleBudgetLines.map((line) => (
-                      <SelectItem key={line.id} value={line.id}>
-                        {line.codigo ? `[${line.codigo}] ` : ''}
-                        {line.descricao || line.rubrica || line.nome || 'BudgetLine'}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-
             {selectedRubrica && (
               <div className="p-3 rounded-lg bg-gray-50 border text-xs text-gray-700 space-y-1">
                 <div className="font-semibold text-gray-900">
@@ -879,27 +731,6 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
                     Saldo atual: <strong>{formatMoney(selectedRubrica.saldo)}</strong>
                   </span>
                 </div>
-              </div>
-            )}
-
-            {selectedLine && (
-              <div
-                className={`p-2 rounded-lg text-xs ${
-                  saldoOk ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-                }`}
-              >
-                {checkingSaldo ? (
-                  <span>Verificando saldo...</span>
-                ) : saldoOk ? (
-                  <span>
-                    ✓ Saldo disponível: <strong>{formatMoney(saldoDisponivel)}</strong>
-                  </span>
-                ) : (
-                  <span>
-                    ⚠️ Saldo insuficiente. Disponível:{' '}
-                    <strong>{formatMoney(saldoDisponivel)}</strong>
-                  </span>
-                )}
               </div>
             )}
 
@@ -1218,7 +1049,7 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
             <Button
               className="bg-black hover:bg-gray-800 text-white"
               onClick={() => handleSave(true)}
-              disabled={saving || !saldoOk || !!financeiroError}
+              disabled={saving || !!financeiroError}
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Enviar para Aprovação
