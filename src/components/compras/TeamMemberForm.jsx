@@ -104,6 +104,10 @@ function parseLLMJson(result) {
   return {};
 }
 
+function valueOrPrev(nextValue, prevValue) {
+  return Number.isFinite(nextValue) ? nextValue : prevValue;
+}
+
 function normalizeForm(data) {
   const budgetlineId = data?.budgetline_id || data?.budget_line_id || data?.rubrica_id || '';
   return {
@@ -237,10 +241,6 @@ function findBudgetLineByRule(budgetLines, rule) {
     const text = normalizeText(`${bl.codigo || ''} ${bl.nome || ''} ${bl.descricao || ''}`);
     return rule.rubricaKeywords.some(keyword => text.includes(normalizeText(keyword)));
   }) || null;
-}
-
-function valueOrPrev(nextValue, prevValue) {
-  return Number.isFinite(nextValue) ? nextValue : prevValue;
 }
 
 export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMember, budgetLines = [] }) {
@@ -385,7 +385,7 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
     const numeroParcelasExtraidas = Math.max(
       1,
       parseInt(parsed.numero_parcelas, 10) ||
-      (Array.isArray(parsed.cronograma_parcelas) && parsed.cronograma_parcelas.length > 0 ? parsed.cronograma_parcelas.length : 1)
+        (Array.isArray(parsed.cronograma_parcelas) && parsed.cronograma_parcelas.length > 0 ? parsed.cronograma_parcelas.length : 1)
     );
     const valorTotalExtraido = toNumber(parsed.valor_total);
     const valorParcelaExtraida = toNumber(parsed.valor_parcela) || (valorTotalExtraido ? valorTotalExtraido / numeroParcelasExtraidas : 0);
@@ -1087,8 +1087,4 @@ function Section({ title, children }) {
       {children}
     </div>
   );
-}
-
-function valueOrPrev(nextValue, prevValue) {
-  return Number.isFinite(nextValue) ? nextValue : prevValue;
 }
