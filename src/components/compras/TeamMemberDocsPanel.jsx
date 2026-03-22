@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Upload, Loader2, ExternalLink, FileCheck, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 function toNumber(v) {
@@ -15,33 +15,22 @@ function formatBRL(v) {
   return `R$ ${toNumber(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 }
 
+/* 🔥 CORREÇÃO: NÃO usar rubrica como budgetline */
 function getBudgetLineId(member) {
   return (
     member?.budgetline_id ||
     member?.budget_line_id ||
-    member?.rubrica_id ||
     ''
   );
 }
 
-function buildNFFileName(member, parcela, valor) {
-  const cargo = (member.funcao || '').toUpperCase();
-  const nome = (member.user_name || '').toUpperCase();
-  const valorStr = formatBRL(valor);
-  return `NF ${parcela} - ${cargo} - ${nome} - MUSEUS CENTRO - ${valorStr}`;
-}
-
-function getStatusBadge(status, ready) {
-  if (status === 'PAGO') {
-    return { label: 'PAGO', className: 'bg-emerald-100 text-emerald-700' };
+function getNFValidation(tp) {
+  try {
+    if (!tp?.resultado_validacao) return null;
+    return JSON.parse(tp.resultado_validacao);
+  } catch {
+    return null;
   }
-  if (status === 'APROVADO_COORD') {
-    return { label: 'APROVADO', className: 'bg-blue-100 text-blue-700' };
-  }
-  if (ready) {
-    return { label: 'PRONTO', className: 'bg-green-100 text-green-700' };
-  }
-  return { label: 'PENDENTE', className: 'bg-red-100 text-red-700' };
 }
 
 export default function TeamMemberDocsPanel({
@@ -49,15 +38,9 @@ export default function TeamMemberDocsPanel({
   onClose,
   isCoordenador,
   budgetLines = [],
-  initialMode = 'docs',
 }) {
   const queryClient = useQueryClient();
   const [loadingAction, setLoadingAction] = useState(null);
-  const [mode, setMode] = useState(initialMode || 'docs');
-
-  useEffect(() => {
-    setMode(initialMode || 'docs');
-  }, [initialMode]);
 
   const { data: payments = [] } = useQuery({
     queryKey: ['team-payments-member', member.id],
@@ -80,17 +63,11 @@ export default function TeamMemberDocsPanel({
 
   const enrichedPayments = useMemo(() => {
     return (payments || []).map((p, index) => {
-      const contrato =
-        p.contract_url ||
-        member.contract_url ||
-        member.contrato_url ||
-        '';
 
       const nf = p.nota_fiscal_url || '';
       const xml = p.xml_url || '';
 
       const valorEsperado =
-        toNumber(p.valor_parcela_previsto) ||
         toNumber(member.valor_parcela) ||
         (
           toNumber(member.numero_parcelas) > 0
@@ -98,54 +75,23 @@ export default function TeamMemberDocsPanel({
             : 0
         );
 
-      const valorConsiderado = toNumber(p.valor_nf) || valorEsperado;
-      const completo = !!contrato && !!nf && !!xml;
-      const saldoOk = budgetLine ? saldoBudgetLine >= valorConsiderado : true;
+      const valor = toNumber(p.valor_nf) || valorEsperado;
 
-      const parcela =
-        toNumber(p.numero_parcela) || index + 1;
+      const completo = !!nf && !!xml;
+      const saldoOk = budgetLine ? saldoBudgetLine >= valor : true;
+
+      const nfValidation = getNFValidation(p);
 
       return {
         ...p,
-        parcela,
-        valorEsperado,
-        valorConsiderado,
-        checklist: {
-          contrato: !!contrato,
-          nf: !!nf,
-          xml: !!xml,
-          completo,
-          saldoOk,
-        },
-        contract_url_resolved: contrato || null,
-        _ready: completo && saldoOk,
+        valor,
+        completo,
+        saldoOk,
+        nfValidation,
+        ready: completo && saldoOk && nfValidation?.status !== 'divergente'
       };
     });
-  }, [payments, budgetLine, member, saldoBudgetLine]);
-
-  const processNFIA = async (paymentId, file_url) => {
-    try {
-      const res = await base44.integrations.Core.InvokeLLM({
-        prompt: `Leia esta nota fiscal e valide com rigor...`,
-        file_urls: [file_url]
-      });
-
-      const data = res?.data || res || {};
-
-      await base44.entities.TeamPayment.update(paymentId, {
-        nf_validada: true,
-        nf_valida: data.valida,
-        nf_erros: Array.isArray(data.erros) ? data.erros : [],
-        valor_nf: data.valor,
-        mes_referencia: data.mes,
-        descricao_nf: data.descricao
-      });
-
-      toast.success('NF analisada pela IA');
-    } catch {
-      toast.error('Erro IA NF');
-    }
-  };
+  }, [payments, member, budgetLine, saldoBudgetLine]);
 
   const uploadNF = async (payment, file, tipo) => {
     if (!file) return;
@@ -157,11 +103,14 @@ export default function TeamMemberDocsPanel({
 
       if (tipo === 'pdf') {
         await base44.entities.TeamPayment.update(payment.id, {
-          nota_fiscal_url: file_url,
-          nf_nome_arquivo: buildNFFileName(member, payment.parcela, payment.valor_nf || payment.valorEsperado)
+          nota_fiscal_url: file_url
         });
 
-        await processNFIA(payment.id, file_url);
+        /* 🔥 VALIDAÇÃO AUTOMÁTICA */
+        await base44.functions.invoke('validateNotaFiscal', {
+          documentId: payment.id,
+          purchaseId: payment.purchase_id || null
+        });
       }
 
       if (tipo === 'xml') {
@@ -171,6 +120,7 @@ export default function TeamMemberDocsPanel({
       }
 
       await queryClient.invalidateQueries();
+
     } catch (e) {
       toast.error(e.message);
     }
@@ -179,13 +129,16 @@ export default function TeamMemberDocsPanel({
   };
 
   const autorizarPagamento = async (payment) => {
-    if (!payment._ready) {
-      toast.error('Checklist incompleto');
+
+    const validation = getNFValidation(payment);
+
+    if (!validation) {
+      toast.error('NF não validada');
       return;
     }
 
-    if (!payment.nf_valida) {
-      toast.error('NF inválida');
+    if (validation.status === 'divergente') {
+      toast.error('NF divergente');
       return;
     }
 
@@ -193,16 +146,13 @@ export default function TeamMemberDocsPanel({
 
     try {
 
-      let purchaseId = payment.purchase_id || null;
+      let purchaseId = payment.purchase_id;
 
       if (!purchaseId) {
         const purchase = await base44.entities.PurchaseRequest.create({
           descricao_item: `Pagamento equipe - ${member.user_name}`,
-          valor_solicitado: payment.valor_nf || payment.valorEsperado || 0,
-          valor_aprovado: payment.valor_nf || payment.valorEsperado || 0,
-          status: 'APROVADO_COORD',
-          rubrica_id: getBudgetLineId(member),
-          budgetline_id: getBudgetLineId(member),
+          valor_solicitado: payment.valor,
+          status: 'SOLICITADO',
           origem: 'TEAM_PAYMENT',
           team_payment_id: payment.id,
           created_by: member.user_email,
@@ -215,12 +165,13 @@ export default function TeamMemberDocsPanel({
         });
       }
 
-      await base44.entities.TeamPayment.update(payment.id, {
-        status: 'APROVADO_COORD',
-        aprovado_em: new Date().toISOString()
+      /* 🔥 FLUXO OFICIAL */
+      await base44.functions.invoke('purchaseActions', {
+        purchaseId,
+        action: 'aprovar'
       });
 
-      toast.success('Pagamento integrado ao financeiro');
+      toast.success('Pagamento enviado ao financeiro');
 
       await queryClient.invalidateQueries();
 
@@ -239,25 +190,48 @@ export default function TeamMemberDocsPanel({
         </DialogHeader>
 
         <div className="space-y-4">
-          {enrichedPayments.map((p) => {
-            const badge = getStatusBadge(p.status, p._ready);
+          {enrichedPayments.map((p, i) => {
+
+            const divergente = p.nfValidation?.status === 'divergente';
 
             return (
               <div key={p.id} className="border rounded-lg p-4 space-y-3">
 
                 <div className="flex justify-between">
-                  <p>Parcela {p.parcela}</p>
-                  <Badge className={badge.className}>{badge.label}</Badge>
+                  <p>Parcela {i + 1}</p>
+
+                  <Badge className={
+                    divergente
+                      ? 'bg-red-100 text-red-700'
+                      : p.ready
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-gray-100 text-gray-700'
+                  }>
+                    {divergente ? 'DIVERGENTE' : p.ready ? 'PRONTO' : 'PENDENTE'}
+                  </Badge>
                 </div>
+
+                {/* BLOCO IA */}
+                {p.nfValidation && (
+                  <div className={`text-xs p-2 rounded ${
+                    divergente ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+                  }`}>
+                    NF: {formatBRL(p.nfValidation.valor)} • Confiança: {p.nfValidation.confianca}%
+                  </div>
+                )}
 
                 <div className="flex gap-2">
                   <label>
-                    <Button size="sm" variant="outline">NF PDF</Button>
+                    <Button size="sm" variant="outline">
+                      <Upload className="w-3 h-3 mr-1"/> NF PDF
+                    </Button>
                     <input type="file" hidden onChange={(e)=>uploadNF(p,e.target.files[0],'pdf')} />
                   </label>
 
                   <label>
-                    <Button size="sm" variant="outline">XML</Button>
+                    <Button size="sm" variant="outline">
+                      XML
+                    </Button>
                     <input type="file" hidden onChange={(e)=>uploadNF(p,e.target.files[0],'xml')} />
                   </label>
                 </div>
@@ -267,7 +241,7 @@ export default function TeamMemberDocsPanel({
                     size="sm"
                     className="bg-black text-white"
                     onClick={() => autorizarPagamento(p)}
-                    disabled={!p._ready || !p.nf_valida}
+                    disabled={!p.ready || loadingAction === p.id}
                   >
                     Autorizar pagamento
                   </Button>
