@@ -4,9 +4,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog';
+import {
   Users,
   Plus,
   Edit2,
+  Trash2,
+  Receipt,
   FileText,
   CalendarDays,
   Wallet,
@@ -22,196 +33,8 @@ import TeamPaymentReview from './TeamPaymentReview';
 import TeamPaymentSubmit from './TeamPaymentSubmit';
 import { toast } from 'sonner';
 
-function toNumber(v) {
-  return Number(v) || 0;
-}
-
-function formatBRL(v) {
-  return `R$ ${toNumber(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-}
-
-function formatDate(v) {
-  if (!v) return '—';
-  return new Date(v).toLocaleDateString('pt-BR');
-}
-
-function isContratoVencido(dataFim) {
-  if (!dataFim) return false;
-  return new Date(dataFim) < new Date();
-}
-
-function getResumoFinanceiro(member, payments) {
-  const memberPayments = (payments || []).filter(
-    (p) => p?.team_member_id === member?.id
-  );
-
-  const pagos = memberPayments.filter((p) => p?.status === 'PAGO');
-
-  const ultimoEnvio = memberPayments.length > 0 ? memberPayments[0] : null;
-
-  return {
-    pagos: pagos.length,
-    ultimoEnvio,
-  };
-}
-
-export default function TeamManager() {
-
-  const [showForm, setShowForm] = useState(false);
-  const [editingMember, setEditingMember] = useState(null);
-  const [docsPanel, setDocsPanel] = useState(null);
-
-  const queryClient = useQueryClient();
-
-  const { data: members = [] } = useQuery({
-    queryKey: ['team-members'],
-    queryFn: () => base44.entities.TeamMember.list('-created_date', 300),
-  });
-
-  const { data: payments = [] } = useQuery({
-    queryKey: ['team-payments'],
-    queryFn: () => base44.entities.TeamPayment.list('-created_date', 500),
-  });
-
-  const refresh = async () => {
-    await queryClient.invalidateQueries();
-  };
-
-  const openEdit = (m) => {
-    setEditingMember(m);
-    setShowForm(true);
-  };
-
-  const openDocs = (m) => {
-    setDocsPanel(m);
-  };
-
-  return (
-    <div className="space-y-4">
-
-      {members.map((member) => {
-
-        const parcelas = toNumber(member.numero_parcelas);
-        const pagas = toNumber(member.parcelas_pagas);
-        const valorTotal = toNumber(member.valor_total);
-        const valorParcela =
-          toNumber(member.valor_parcela) ||
-          (parcelas ? valorTotal / parcelas : 0);
-
-        const saldo = valorTotal - pagas * valorParcela;
-
-        const vencido = isContratoVencido(member.data_fim_contrato);
-
-        const resumo = getResumoFinanceiro(member, payments);
-
-        return (
-          <div key={member.id} className="border p-4 rounded-xl space-y-3">
-
-            {/* HEADER */}
-            <div className="flex justify-between">
-
-              <div>
-                <p className="font-semibold">{member.user_name}</p>
-                <p className="text-xs text-gray-500">{member.funcao}</p>
-              </div>
-
-              <Badge className={vencido ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}>
-                {vencido ? 'Vencido' : 'Válido'}
-              </Badge>
-
-            </div>
-
-            {/* SEM RUBRICA */}
-            <div className="text-xs text-red-600 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3"/>
-              Sem rubrica / linha orçamentária vinculada
-            </div>
-
-            {/* INFO */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-
-              <div>
-                <CalendarDays className="w-3 h-3 inline mr-1"/>
-                {formatDate(member.data_inicio_contrato)} → {formatDate(member.data_fim_contrato)}
-              </div>
-
-              <div>
-                <Layers3 className="w-3 h-3 inline mr-1"/>
-                {parcelas} parcelas
-              </div>
-
-              <div>
-                <CheckCircle2 className="w-3 h-3 inline mr-1"/>
-                {pagas} recebidas
-              </div>
-
-              <div>
-                <Wallet className="w-3 h-3 inline mr-1"/>
-                {formatBRL(valorParcela)}
-              </div>
-
-            </div>
-
-            <div className="text-sm font-semibold">
-              Saldo: {formatBRL(saldo)}
-            </div>
-
-            {/* HISTÓRICO */}
-            <div className="grid grid-cols-3 gap-2 text-xs">
-
-              <div>
-                Último envio<br/>
-                <b>{resumo.ultimoEnvio ? resumo.ultimoEnvio.mes_referencia : 'Nenhum envio'}</b>
-              </div>
-
-              <div>
-                Valor da parcela<br/>
-                <b>{formatBRL(valorParcela)}</b>
-              </div>
-
-              <div>
-                Status<br/>
-                <b>{resumo.ultimoEnvio?.status || '—'}</b>
-              </div>
-
-            </div>
-
-            {/* BOTÕES */}
-            <div className="flex gap-2">
-
-              <Button size="sm" variant="outline" onClick={() => openEdit(member)}>
-                <Edit2 className="w-3 h-3 mr-1"/>
-                Editar dados
-              </Button>
-
-              <Button size="sm" variant="outline" onClick={() => openDocs(member)}>
-                <FileText className="w-3 h-3 mr-1"/>
-                Documentos
-              </Button>
-
-            </div>
-
-          </div>
-        );
-      })}
-
-      <TeamMemberForm
-        isOpen={showForm}
-        onClose={() => setShowForm(false)}
-        onSuccess={refresh}
-        editingMember={editingMember}
-      />
-
-      {docsPanel && (
-        <TeamMemberDocsPanel
-          member={docsPanel}
-          onClose={() => setDocsPanel(null)}
-        />
-      )}
-
-    </div>
-  );
-}  if (value === null || value === undefined || value === '') return 0;
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
