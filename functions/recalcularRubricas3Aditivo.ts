@@ -8,11 +8,8 @@ async function listAll(entityApi, orderBy = '', pageSize = 200) {
 
   while (true) {
     const batch = await entityApi.list(orderBy, pageSize, page * pageSize);
-
     if (!batch || batch.length === 0) break;
-
     all = all.concat(batch);
-
     if (batch.length < pageSize) break;
     page++;
   }
@@ -36,11 +33,9 @@ function normalizeText(value) {
 
 function normalizeMuseum(value) {
   const text = normalizeText(value).toUpperCase();
-
   for (const museu of MUSEUS) {
     if (text.includes(museu)) return museu;
   }
-
   return null;
 }
 
@@ -302,7 +297,13 @@ Deno.serve(async (req) => {
         if (rubricaPorNome?.id) return rubricaPorNome.id;
       }
 
-      return null;
+      /* 🔥 FIX: fallback GLOBAL */
+      const fallbackGlobal = rubricas.find((r) => {
+        const museu = detectRubricaMuseum(r);
+        return !museu;
+      });
+
+      return fallbackGlobal?.id || null;
     }
 
     const totalPorRubrica = new Map();
