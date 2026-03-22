@@ -233,7 +233,12 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
 
   const availableBudgetLines = useMemo(() => {
     return (budgetLines || [])
-      .filter(bl => bl && bl.ativo !== false && (bl.aditivo === 3 || bl.aditivo === '3' || bl.aditivo === undefined || bl.aditivo === null))
+      .filter(
+        bl =>
+          bl &&
+          bl.ativo !== false &&
+          (bl.aditivo === 3 || bl.aditivo === '3' || bl.aditivo === undefined || bl.aditivo === null)
+      )
       .sort((a, b) => {
         const aa = `${a?.codigo || ''} ${a?.nome || ''} ${a?.descricao || ''}`.toLowerCase();
         const bb = `${b?.codigo || ''} ${b?.nome || ''} ${b?.descricao || ''}`.toLowerCase();
@@ -259,7 +264,7 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
     return Math.max(total - pagas * parcelaCalculada, 0);
   }, [form.valor_total, form.parcelas_pagas, parcelaCalculada]);
 
-  const preencherFormComTermo = (userEmail) => {
+  const preencherFormComTermo = userEmail => {
     const termoDoUsuario = termos.find(t => t.contratado_email === userEmail);
     if (termoDoUsuario) {
       const numeroParcelasTermo = Math.max(1, termoDoUsuario.parcelas?.length || 1);
@@ -273,7 +278,7 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
         data_fim_contrato: termoDoUsuario.data_fim || prev.data_fim_contrato,
         valor_total: valorTotalTermo || prev.valor_total,
         numero_parcelas: numeroParcelasTermo || prev.numero_parcelas,
-        valor_parcela: valorTotalTermo ? (valorTotalTermo / numeroParcelasTermo) : prev.valor_parcela,
+        valor_parcela: valorTotalTermo ? valueOrPrev(valorTotalTermo / numeroParcelasTermo, prev.valor_parcela) : prev.valor_parcela,
         banco: termoDoUsuario.contratado_banco || prev.banco,
         agencia: termoDoUsuario.contratado_agencia || prev.agencia,
         conta: termoDoUsuario.contratado_conta || prev.conta,
@@ -322,14 +327,14 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
       return { ...prev, [field]: value };
     });
 
-  const handleContratoUpload = async (file) => {
+  const handleContratoUpload = async file => {
     if (!file) return;
 
     const allowedTypes = [
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain'
+      'text/plain',
     ];
     const allowedExts = ['.pdf', '.doc', '.docx', '.txt'];
 
@@ -356,7 +361,7 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
     try {
@@ -418,12 +423,7 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
         }
       }
 
-      if (editingMember?.id) {
-        toast.success('✅ Membro atualizado com sucesso!');
-      } else {
-        toast.success('✅ Membro adicionado à equipe com sucesso!');
-      }
-
+      toast.success(editingMember?.id ? '✅ Membro atualizado com sucesso!' : '✅ Membro adicionado à equipe com sucesso!');
       onSuccess();
       onClose();
     } catch (error) {
@@ -523,7 +523,9 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                 <SelectTrigger><SelectValue placeholder="Selecione a função" /></SelectTrigger>
                 <SelectContent>
                   {CARGOS_PLANO_TRABALHO.map(cargo => (
-                    <SelectItem key={cargo} value={cargo}>{cargo}</SelectItem>
+                    <SelectItem key={cargo} value={cargo}>
+                      {cargo}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -581,7 +583,11 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                 </div>
                 <div>
                   <Label>CPF do Representante</Label>
-                  <Input value={form.representante_legal_cpf} onChange={e => set('representante_legal_cpf', e.target.value)} placeholder="000.000.000-00" />
+                  <Input
+                    value={form.representante_legal_cpf}
+                    onChange={e => set('representante_legal_cpf', e.target.value)}
+                    placeholder="000.000.000-00"
+                  />
                 </div>
                 <div>
                   <Label>Cargo do Representante</Label>
@@ -611,9 +617,7 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                   </div>
                 ) : form.contrato_url ? (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-green-600 flex items-center gap-1">
-                      ✅ Contrato anexado
-                    </span>
+                    <span className="text-sm text-green-600 flex items-center gap-1">✅ Contrato anexado</span>
                     <Button
                       type="button"
                       size="sm"
@@ -630,7 +634,12 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                     <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                     <p className="text-sm text-gray-600">Clique para enviar contrato</p>
                     <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX ou TXT</p>
-                    <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={e => handleContratoUpload(e.target.files[0])} className="hidden" />
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.txt"
+                      onChange={e => handleContratoUpload(e.target.files?.[0])}
+                      className="hidden"
+                    />
                   </label>
                 )}
               </div>
@@ -638,7 +647,13 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
 
             <div>
               <Label>Objeto do Contrato</Label>
-              <Textarea value={form.objeto_contrato} onChange={e => set('objeto_contrato', e.target.value)} rows={3} className="text-sm" placeholder="Descreva o objeto/escopo do contrato" />
+              <Textarea
+                value={form.objeto_contrato}
+                onChange={e => set('objeto_contrato', e.target.value)}
+                rows={3}
+                className="text-sm"
+                placeholder="Descreva o objeto/escopo do contrato"
+              />
             </div>
 
             <div>
@@ -657,7 +672,8 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                       setAiLoading(true);
                       try {
                         const res = await base44.integrations.Core.InvokeLLM({
-                          prompt: `Leia este contrato e forneça um resumo conciso e claro em português, destacando: 1) Objeto/Escopo, 2) Duração, 3) Valor, 4) Principais obrigações. Seja objetivo e direto.`,
+                          prompt:
+                            'Leia este contrato e forneça um resumo conciso e claro em português, destacando: 1) Objeto/Escopo, 2) Duração, 3) Valor, 4) Principais obrigações. Seja objetivo e direto.',
                           file_urls: [form.contrato_url],
                         });
                         set('descricao_contrato', res);
@@ -685,7 +701,8 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                       setAiLoading(true);
                       try {
                         const res = await base44.integrations.Core.InvokeLLM({
-                          prompt: `Leia este contrato e extraia TODOS os dados estruturados. Retorne um JSON com: data_inicio (YYYY-MM-DD), data_fim (YYYY-MM-DD), valor_total (número), numero_parcelas (número), cronograma_parcelas (array com {numero, vencimento (YYYY-MM-DD), valor (número)}), banco, agencia, conta, tipo_conta (Corrente ou Poupança), pix_key, objeto_contrato (texto breve), descricao_contrato (resumo completo). Se não encontrar algum campo, deixe vazio/nulo.`,
+                          prompt:
+                            'Leia este contrato e extraia TODOS os dados estruturados. Retorne um JSON com: data_inicio (YYYY-MM-DD), data_fim (YYYY-MM-DD), valor_total (número), numero_parcelas (número), cronograma_parcelas (array com {numero, vencimento (YYYY-MM-DD), valor (número)}), banco, agencia, conta, tipo_conta (Corrente ou Poupança), pix_key, objeto_contrato (texto breve), descricao_contrato (resumo completo). Se não encontrar algum campo, deixe vazio/nulo.',
                           file_urls: [form.contrato_url],
                           response_json_schema: {
                             type: 'object',
@@ -702,9 +719,9 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                                     numero: { type: 'number' },
                                     vencimento: { type: 'string' },
                                     valor: { type: 'number' },
-                                    descricao: { type: 'string' }
-                                  }
-                                }
+                                    descricao: { type: 'string' },
+                                  },
+                                },
                               },
                               banco: { type: 'string' },
                               agencia: { type: 'string' },
@@ -712,9 +729,9 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                               tipo_conta: { type: 'string' },
                               pix_key: { type: 'string' },
                               objeto_contrato: { type: 'string' },
-                              descricao_contrato: { type: 'string' }
-                            }
-                          }
+                              descricao_contrato: { type: 'string' },
+                            },
+                          },
                         });
 
                         const extracted = res;
@@ -727,9 +744,10 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                           data_fim_contrato: extracted.data_fim || prev.data_fim_contrato,
                           valor_total: valorTotalExtraido || prev.valor_total,
                           numero_parcelas: numeroParcelasExtraidas || prev.numero_parcelas,
-                          valor_parcela: valorTotalExtraido && numeroParcelasExtraidas
-                            ? valorTotalExtraido / numeroParcelasExtraidas
-                            : prev.valor_parcela,
+                          valor_parcela:
+                            valorTotalExtraido && numeroParcelasExtraidas
+                              ? valorTotalExtraido / numeroParcelasExtraidas
+                              : prev.valor_parcela,
                           cronograma_parcelas: extracted.cronograma_parcelas || prev.cronograma_parcelas,
                           banco: extracted.banco || prev.banco,
                           agencia: extracted.agencia || prev.agencia,
@@ -753,7 +771,13 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                   </Button>
                 </div>
               </div>
-              <Textarea value={form.descricao_contrato} onChange={e => set('descricao_contrato', e.target.value)} rows={5} className="text-sm" placeholder="Resumo completo do contrato" />
+              <Textarea
+                value={form.descricao_contrato}
+                onChange={e => set('descricao_contrato', e.target.value)}
+                rows={5}
+                className="text-sm"
+                placeholder="Resumo completo do contrato"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -772,13 +796,7 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
             <div className="grid grid-cols-4 gap-4">
               <div>
                 <Label>Valor Total (R$) *</Label>
-                <Input
-                  type="number"
-                  value={form.valor_total}
-                  onChange={e => set('valor_total', parseFloat(e.target.value) || 0)}
-                  step="0.01"
-                  min="0"
-                />
+                <Input type="number" value={form.valor_total} onChange={e => set('valor_total', parseFloat(e.target.value) || 0)} step="0.01" min="0" />
               </div>
               <div>
                 <Label>Nº de Parcelas Previstas *</Label>
@@ -817,7 +835,9 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
 
             {form.cronograma_parcelas?.length > 0 && (
               <div>
-                <Label className="flex items-center gap-1 mb-2"><Sparkles className="w-3 h-3 text-indigo-500" /> Cronograma de Parcelas (extraído pela IA)</Label>
+                <Label className="flex items-center gap-1 mb-2">
+                  <Sparkles className="w-3 h-3 text-indigo-500" /> Cronograma de Parcelas (extraído pela IA)
+                </Label>
                 <div className="border rounded-lg overflow-hidden text-sm">
                   <table className="w-full">
                     <thead className="bg-gray-50">
@@ -859,9 +879,7 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                   </SelectContent>
                 </Select>
                 {form.budgetline_id && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Esta vinculação será usada no controle de saldo e pagamento mensal.
-                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Esta vinculação será usada no controle de saldo e pagamento mensal.</p>
                 )}
               </div>
             </Section>
@@ -901,9 +919,18 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
           </Section>
 
           <div className="flex gap-2 justify-end border-t pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
             <Button type="submit" className="bg-black hover:bg-gray-800" disabled={loading || aiLoading}>
-              {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : 'Salvar'}
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                'Salvar'
+              )}
             </Button>
           </div>
         </form>
@@ -919,4 +946,8 @@ function Section({ title, children }) {
       {children}
     </div>
   );
+}
+
+function valueOrPrev(nextValue, prevValue) {
+  return Number.isFinite(nextValue) ? nextValue : prevValue;
 }
