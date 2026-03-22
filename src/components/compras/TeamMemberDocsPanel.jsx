@@ -123,8 +123,6 @@ export default function TeamMemberDocsPanel({
     });
   }, [payments, budgetLine, member, saldoBudgetLine]);
 
-  /* ================= IA NF ================= */
-
   const processNFIA = async (paymentId, file_url) => {
     try {
       const res = await base44.integrations.Core.InvokeLLM({
@@ -148,8 +146,6 @@ export default function TeamMemberDocsPanel({
       toast.error('Erro IA NF');
     }
   };
-
-  /* ================= UPLOAD ================= */
 
   const uploadNF = async (payment, file, tipo) => {
     if (!file) return;
@@ -181,8 +177,6 @@ export default function TeamMemberDocsPanel({
 
     setLoadingAction(null);
   };
-
-  /* ================= AUTORIZAÇÃO (FIX PRINCIPAL) ================= */
 
   const autorizarPagamento = async (payment) => {
     if (!payment._ready) {
