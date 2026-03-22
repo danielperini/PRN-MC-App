@@ -19,130 +19,66 @@ function normalizeCentro(value: unknown): string {
   const raw = normalizeString(value);
 
   if (!raw) return '';
-  if (raw === 'mis') return 'MIS';
-  if (raw === 'mhab') return 'MHAB';
-  if (raw === 'mumo') return 'MUMO';
+  if (raw.includes('mis')) return 'MIS';
+  if (raw.includes('mhab')) return 'MHAB';
+  if (raw.includes('mumo')) return 'MUMO';
   if (raw === 'geral') return 'Geral';
-  if (raw === 'publicacoes') return 'Publicações';
-  if (raw === 'noturno nos museus 2026') return 'Noturno nos Museus 2026';
-  if (raw.includes('imagem e som')) return 'MIS';
-  if (raw.includes('abilio barreto')) return 'MHAB';
-  if (raw.includes('moda')) return 'MUMO';
 
   return String(value || '').trim();
 }
 
-function getEntityCentro(entity: any): string {
+function getCentro(entity: any): string {
   return normalizeCentro(
     entity?.centro_custo ||
-      entity?.museu ||
-      entity?.museu_codigo ||
-      entity?.unidade ||
-      ''
+    entity?.museu ||
+    entity?.unidade
   );
 }
 
-function isCentroCompativel(selectedCentro: string, entityCentro: string): boolean {
-  const centroSelecionado = normalizeCentro(selectedCentro);
-  const centroEntidade = normalizeCentro(entityCentro);
-
-  if (!centroSelecionado) return true;
-  if (!centroEntidade) return true;
-  if (centroEntidade === 'Geral') return true;
-  return centroSelecionado === centroEntidade;
-}
-
-async function listAll(entityApi: any, orderBy = '', pageSize = 500) {
-  let all: any[] = [];
-  let page = 0;
-
-  while (true) {
-    const batch = await entityApi.list(orderBy, pageSize, page * pageSize);
-    if (!batch?.length) break;
-    all = all.concat(batch);
-    if (batch.length < pageSize) break;
-    page++;
-  }
-
-  return all;
+function isCentroCompativel(selected: string, entity: string): boolean {
+  if (!selected || !entity) return true;
+  if (entity === 'Geral') return true;
+  return selected === entity;
 }
 
 function tokenize(text: string): string[] {
   return normalizeString(text)
     .split(/[^a-z0-9]+/)
-    .map((t) => t.trim())
-    .filter((t) => t.length >= 2);
+    .filter((t) => t.length >= 3);
 }
 
-function intersectionScore(a: string[], b: string[]): number {
-  if (!a.length || !b.length) return 0;
+function similarity(a: string[], b: string[]): number {
   const setB = new Set(b);
-  const hits = a.filter((token) => setB.has(token)).length;
+  const hits = a.filter((t) => setB.has(t)).length;
   return hits / Math.max(a.length, 1);
 }
 
-function heuristicSuggestion(
-  rubricas: any[],
-  descricao: string,
-  categoria: string,
-  tipoGasto: string,
-  fornecedor: string,
-  centroCusto: string
-) {
-  const texto = normalizeString(
-    `${descricao} ${categoria} ${tipoGasto} ${fornecedor}`
-  );
+// 🔥 HEURÍSTICA FORTE
+function heuristic(rubricas, texto, centro) {
 
   const rules = [
-    {
-      keywords: ['lanche', 'cafe', 'coffeebreak', 'alimentacao', 'agua', 'suco', 'buffet'],
-      hints: ['lanche', 'alimentacao', 'coffee', 'buffet'],
-      justificativa: 'Compra com padrão típico de alimentação/lanche.',
-    },
-    {
-      keywords: ['frete', 'carreto', 'transporte', 'van', 'motorista', 'uber', 'logistica'],
-      hints: ['logistica', 'transporte', 'frete'],
-      justificativa: 'Compra com padrão típico de transporte/logística.',
-    },
-    {
-      keywords: ['designer', 'filmagem', 'foto', 'video', 'imprensa', 'social media', 'divulgacao'],
-      hints: ['comunicacao', 'designer', 'imprensa', 'divulgacao', 'foto', 'video'],
-      justificativa: 'Compra com padrão típico de comunicação e divulgação.',
-    },
-    {
-      keywords: ['luva', 'epi', 'mascara', 'avental', 'material', 'consumo', 'papelaria'],
-      hints: ['material', 'consumo', 'epi', 'oficina'],
-      justificativa: 'Compra com padrão típico de material de consumo.',
-    },
-    {
-      keywords: ['oficina', 'palestra', 'formacao', 'consultoria', 'acessibilidade'],
-      hints: ['consultoria', 'formacao', 'acessibilidade', 'educativa'],
-      justificativa: 'Compra com padrão típico de consultoria, formação ou atividade educativa.',
-    },
+    { keys: ['lanche','cafe','buffet','alimentacao'], hint: 'lanche' },
+    { keys: ['frete','carreto','transporte'], hint: 'transporte' },
+    { keys: ['designer','video','foto','imprensa'], hint: 'comunicacao' },
+    { keys: ['material','consumo','epi'], hint: 'material' },
+    { keys: ['oficina','palestra','consultoria'], hint: 'consultoria' },
   ];
 
-  for (const rule of rules) {
-    const hit = rule.keywords.some((k) => texto.includes(k));
-    if (!hit) continue;
+  for (const r of rules) {
+    if (!r.keys.some(k => texto.includes(k))) continue;
 
-    const found = rubricas.find((r) => {
-      const base = normalizeString(
-        `${r?.grupo || ''} ${r?.rubrica || r?.nome || ''} ${getEntityCentro(r)}`
-      );
-
-      return (
-        isCentroCompativel(centroCusto, getEntityCentro(r)) &&
-        rule.hints.some((hint) => base.includes(hint))
-      );
+    const match = rubricas.find(rb => {
+      const base = normalizeString(`${rb.nome} ${rb.grupo}`);
+      return base.includes(r.hint) && isCentroCompativel(centro, getCentro(rb));
     });
 
-    if (found) {
+    if (match) {
       return {
-        rubrica_id: found.id,
-        rubrica_nome: found.rubrica || found.nome || 'Rubrica',
-        score: 82,
-        justificativa: rule.justificativa,
-        source: 'heuristic',
+        rubrica_id: match.id,
+        rubrica_nome: match.nome,
+        score: 85,
+        justificativa: 'Heurística baseada em padrão de compra',
+        source: 'heuristic'
       };
     }
   }
@@ -150,203 +86,98 @@ function heuristicSuggestion(
   return null;
 }
 
-function buildRubricasContext(rubricas: any[]) {
-  return rubricas
-    .map((r) => {
-      const nome = r?.rubrica || r?.nome || '';
-      const grupo = r?.grupo || '';
-      const centro = getEntityCentro(r) || 'Geral';
-      const valor = toNumber(r?.valor_rubrica);
-      return `ID: ${r.id} | Nome: ${nome} | Grupo: ${grupo} | Centro: ${centro} | Valor: ${valor}`;
-    })
-    .join('\n');
-}
-
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json();
 
-    const descricao = String(body?.descricao || '').trim();
-    const fornecedor = String(body?.fornecedor || '').trim();
-    const categoria = String(body?.categoria || '').trim();
-    const tipoGasto = String(body?.tipo_gasto || '').trim();
-    const centroCusto = normalizeCentro(body?.centro_custo || '');
+    const descricao = String(body.descricao || '');
+    const fornecedor = String(body.fornecedor || '');
+    const categoria = String(body.categoria || '');
+    const tipo = String(body.tipo_gasto || '');
+    const centro = normalizeCentro(body.centro_custo);
 
-    if (!descricao || descricao.length < 6) {
-      return Response.json({
-        success: true,
-        suggestion: null,
-        reason: 'Descrição insuficiente para sugerir rubrica.',
-      });
+    if (!descricao || descricao.length < 5) {
+      return Response.json({ success: true, suggestion: null });
     }
 
-    if (!centroCusto) {
-      return Response.json({
-        success: true,
-        suggestion: null,
-        reason: 'Centro de custo é obrigatório para sugerir rubrica.',
-      });
+    const rubricas = await base44.asServiceRole.entities.Rubrica.list();
+
+    const valid = rubricas.filter(r =>
+      r.ativo !== false &&
+      isCentroCompativel(centro, getCentro(r))
+    );
+
+    if (!valid.length) {
+      return Response.json({ success: true, suggestion: null });
     }
 
-    const allRubricas = await listAll(
-      base44.asServiceRole.entities.Rubrica,
-      'ordem_exibicao',
-      500
-    );
+    const texto = normalizeString(`${descricao} ${categoria} ${tipo} ${fornecedor}`);
 
-    const rubricasAtivas = (allRubricas || []).filter((r) => r?.ativo !== false);
+    // 🔥 1. HEURÍSTICA
+    const h = heuristic(valid, texto, centro);
+    if (h) return Response.json({ success: true, suggestion: h });
 
-    const rubricasCompativeis = rubricasAtivas.filter((r) =>
-      isCentroCompativel(centroCusto, getEntityCentro(r))
-    );
+    // 🔥 2. SIMILARIDADE
+    const tokens = tokenize(texto);
 
-    if (rubricasCompativeis.length === 0) {
-      return Response.json({
-        success: true,
-        suggestion: null,
-        reason: `Nenhuma rubrica compatível encontrada para o centro ${centroCusto}.`,
-      });
-    }
+    const ranked = valid.map(r => {
+      const t = tokenize(`${r.nome} ${r.grupo}`);
+      return {
+        r,
+        score: similarity(tokens, t)
+      };
+    }).sort((a,b)=>b.score-a.score);
 
-    const heuristic = heuristicSuggestion(
-      rubricasCompativeis,
-      descricao,
-      categoria,
-      tipoGasto,
-      fornecedor,
-      centroCusto
-    );
-
-    if (heuristic) {
-      return Response.json({
-        success: true,
-        suggestion: heuristic,
-      });
-    }
-
-    const purchaseTokens = tokenize(
-      `${descricao} ${categoria} ${tipoGasto} ${fornecedor}`
-    );
-
-    const rankedBySimilarity = rubricasCompativeis
-      .map((rubrica) => {
-        const rubricaText = `${rubrica?.rubrica || rubrica?.nome || ''} ${rubrica?.grupo || ''}`;
-        const rubricaTokens = tokenize(rubricaText);
-        const score = intersectionScore(purchaseTokens, rubricaTokens);
-        return {
-          rubrica,
-          score,
-        };
-      })
-      .sort((a, b) => b.score - a.score);
-
-    const topSimilarity = rankedBySimilarity[0];
-    if (topSimilarity && topSimilarity.score >= 0.4) {
+    if (ranked[0]?.score >= 0.5) {
       return Response.json({
         success: true,
         suggestion: {
-          rubrica_id: topSimilarity.rubrica.id,
-          rubrica_nome:
-            topSimilarity.rubrica.rubrica ||
-            topSimilarity.rubrica.nome ||
-            'Rubrica',
-          score: Math.min(89, Math.round(topSimilarity.score * 100)),
-          justificativa:
-            'Sugestão por similaridade textual entre a descrição da compra e o nome/grupo da rubrica.',
-          source: 'similarity',
-        },
+          rubrica_id: ranked[0].r.id,
+          rubrica_nome: ranked[0].r.nome,
+          score: Math.round(ranked[0].score*100),
+          justificativa: 'Similaridade textual',
+          source: 'similarity'
+        }
       });
     }
 
-    const rubricasContext = buildRubricasContext(rubricasCompativeis);
-
-    const prompt = `
-Você é um especialista em classificação financeira de compras de projetos culturais.
-
-Sua tarefa é escolher a rubrica MAIS adequada para a compra abaixo.
-
-COMPRA
-- Descrição: ${descricao}
-- Fornecedor: ${fornecedor}
-- Categoria: ${categoria}
-- Tipo de gasto: ${tipoGasto}
-- Centro de custo: ${centroCusto}
-
-RUBRICAS CANDIDATAS
-${rubricasContext}
-
-REGRAS OBRIGATÓRIAS
-- Escolha somente uma rubrica da lista.
-- Não invente IDs.
-- Considere que a compra pertence ao centro de custo ${centroCusto}.
-- Responda em JSON válido.
-- Score deve ser de 0 a 100.
-- Justificativa curta, objetiva e técnica.
-
-RETORNE JSON:
-{
-  "rubrica_id": "...",
-  "rubrica_nome": "...",
-  "score": 0,
-  "justificativa": "..."
-}
-`;
+    // 🔥 3. IA (fallback final)
+    const context = valid.map(r => `${r.id} - ${r.nome}`).join('\n');
 
     const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
-      prompt,
-      response_json_schema: {
-        type: 'object',
-        properties: {
-          rubrica_id: { type: 'string' },
-          rubrica_nome: { type: 'string' },
-          score: { type: 'number' },
-          justificativa: { type: 'string' },
-        },
-        required: ['rubrica_id', 'rubrica_nome', 'score', 'justificativa'],
-      },
+      prompt: `
+Escolha a melhor rubrica:
+
+Compra: ${descricao}
+Centro: ${centro}
+
+Rubricas:
+${context}
+
+Responda JSON:
+{ "rubrica_id": "", "score": 0, "justificativa": "" }
+`
     });
 
-    const suggestedId = String(result?.rubrica_id || '').trim();
-    const found = rubricasCompativeis.find((r) => r.id === suggestedId);
+    const found = valid.find(r => r.id === result.rubrica_id);
 
     if (!found) {
-      return Response.json({
-        success: true,
-        suggestion: null,
-        reason: 'A IA retornou uma rubrica inválida ou incompatível com o centro de custo.',
-      });
-    }
-
-    const centroRubrica = getEntityCentro(found);
-    if (!isCentroCompativel(centroCusto, centroRubrica)) {
-      return Response.json({
-        success: true,
-        suggestion: null,
-        reason: 'A IA sugeriu uma rubrica de centro incompatível.',
-      });
+      return Response.json({ success: true, suggestion: null });
     }
 
     return Response.json({
       success: true,
       suggestion: {
         rubrica_id: found.id,
-        rubrica_nome: found.rubrica || found.nome || result.rubrica_nome,
-        score: Math.max(0, Math.min(100, Math.round(Number(result?.score || 0)))),
-        justificativa: String(result?.justificativa || ''),
-        source: 'llm',
-        centro_custo: centroCusto,
-      },
+        rubrica_nome: found.nome,
+        score: result.score || 60,
+        justificativa: result.justificativa || 'IA fallback',
+        source: 'llm'
+      }
     });
-  } catch (error: any) {
-    console.error('suggestRubrica error:', error);
-    return Response.json(
-      {
-        success: false,
-        error: error?.message || String(error),
-      },
-      { status: 500 }
-    );
+
+  } catch (e) {
+    return Response.json({ success: false, error: e.message });
   }
 });
-
