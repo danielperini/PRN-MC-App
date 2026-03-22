@@ -34,6 +34,7 @@ const EMPTY_FORM = {
   contrato_url: '',
   descricao_contrato: '',
   objeto_contrato: '',
+  data_assinatura_contrato: '',
   data_inicio_contrato: '',
   data_fim_contrato: '',
   valor_total: 0,
@@ -63,6 +64,46 @@ function normalizeText(value) {
     .trim();
 }
 
+function normalizeDate(value) {
+  if (!value) return '';
+  const raw = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  const match = raw.match(/^(\d{2})[\/.-](\d{2})[\/.-](\d{4})$/);
+  if (match) {
+    const [, dd, mm, yyyy] = match;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  const date = new Date(raw);
+  if (!Number.isNaN(date.getTime())) {
+    return date.toISOString().split('T')[0];
+  }
+
+  return '';
+}
+
+function getParcelasPagasByDate(startDate, userName) {
+  const normalizedName = normalizeText(userName);
+  if (normalizedName.includes('ana luiza')) return 0;
+  const date = normalizeDate(startDate);
+  if (date.startsWith('2026-02')) return 1;
+  return 0;
+}
+
+function parseLLMJson(result) {
+  if (!result) return {};
+  if (typeof result === 'object') return result;
+  if (typeof result === 'string') {
+    try {
+      return JSON.parse(result);
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
 function normalizeForm(data) {
   const budgetlineId = data?.budgetline_id || data?.budget_line_id || data?.rubrica_id || '';
   return {
@@ -71,6 +112,9 @@ function normalizeForm(data) {
     budgetline_id: budgetlineId,
     budget_line_id: budgetlineId,
     rubrica_id: budgetlineId,
+    data_assinatura_contrato: normalizeDate(data?.data_assinatura_contrato),
+    data_inicio_contrato: normalizeDate(data?.data_inicio_contrato || data?.data_inicio),
+    data_fim_contrato: normalizeDate(data?.data_fim_contrato || data?.data_fim),
     valor_total: toNumber(data?.valor_total),
     numero_parcelas: Math.max(1, parseInt(data?.numero_parcelas, 10) || 1),
     parcelas_pagas: Math.max(0, parseInt(data?.parcelas_pagas, 10) || 0),
@@ -175,10 +219,12 @@ function getEquipeFinanceRules(funcao, userName) {
   const found = rules.find(rule => rule.match.some(term => f.includes(term)));
   if (!found) return null;
 
+  const defaultStartDate = isAnaLuiza ? ANA_LUIZA_START_DATE : DEFAULT_START_DATE;
+
   return {
     ...found,
-    parcelas_pagas: isAnaLuiza ? 0 : 1,
-    data_inicio_contrato: isAnaLuiza ? ANA_LUIZA_START_DATE : DEFAULT_START_DATE,
+    parcelas_pagas: getParcelasPagasByDate(defaultStartDate, userName),
+    data_inicio_contrato: defaultStartDate,
     valor_total: found.valorParcela * found.numeroParcelas,
   };
 }
@@ -191,6 +237,10 @@ function findBudgetLineByRule(budgetLines, rule) {
     const text = normalizeText(`${bl.codigo || ''} ${bl.nome || ''} ${bl.descricao || ''}`);
     return rule.rubricaKeywords.some(keyword => text.includes(normalizeText(keyword)));
   }) || null;
+}
+
+function valueOrPrev(nextValue, prevValue) {
+  return Number.isFinite(nextValue) ? nextValue : prevValue;
 }
 
 export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMember, budgetLines = [] }) {
@@ -274,8 +324,8 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
         ...prev,
         objeto_contrato: termoDoUsuario.objeto || prev.objeto_contrato,
         descricao_contrato: termoDoUsuario.escopo || prev.descricao_contrato,
-        data_inicio_contrato: termoDoUsuario.data_inicio || prev.data_inicio_contrato,
-        data_fim_contrato: termoDoUsuario.data_fim || prev.data_fim_contrato,
+        data_inicio_contrato: normalizeDate(termoDoUsuario.data_inicio) || prev.data_inicio_contrato,
+        data_fim_contrato: normalizeDate(termoDoUsuario.data_fim) || prev.data_fim_contrato,
         valor_total: valorTotalTermo || prev.valor_total,
         numero_parcelas: numeroParcelasTermo || prev.numero_parcelas,
         valor_parcela: valorTotalTermo ? valueOrPrev(valorTotalTermo / numeroParcelasTermo, prev.valor_parcela) : prev.valor_parcela,
@@ -298,20 +348,94 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
       }
 
       const chosenBudgetlineId = matchedBudgetLine?.id || prev.budgetline_id || '';
+      const chosenStartDate = prev.data_inicio_contrato || rule.data_inicio_contrato;
       return {
         ...prev,
         funcao,
         budgetline_id: chosenBudgetlineId,
         budget_line_id: chosenBudgetlineId,
         rubrica_id: chosenBudgetlineId,
-        data_inicio_contrato: prev.data_inicio_contrato || rule.data_inicio_contrato,
+        data_inicio_contrato: chosenStartDate,
         numero_parcelas: rule.numeroParcelas,
-        parcelas_pagas: rule.parcelas_pagas,
+        parcelas_pagas: getParcelasPagasByDate(chosenStartDate, userName),
         valor_parcela: rule.valorParcela,
         valor_total: rule.valor_total,
         objeto_contrato: prev.objeto_contrato || rule.objeto,
       };
     });
+  };
+
+  const applyContractAutoFill = extracted => {
+    const parsed = parseLLMJson(extracted);
+    if (!parsed || typeof parsed !== 'object') return;
+
+    const extractedFuncao = parsed.funcao || parsed.cargo || parsed.cargo_funcao || '';
+    const targetName = parsed.contratado_nome || form.user_name;
+    const matchedRule = extractedFuncao ? getEquipeFinanceRules(extractedFuncao, targetName) : null;
+    const matchedBudgetLine = findBudgetLineByRule(availableBudgetLines, matchedRule);
+    const contractDate =
+      normalizeDate(parsed.data_assinatura) ||
+      normalizeDate(parsed.data_inicio) ||
+      normalizeDate(parsed.data_inicio_contrato) ||
+      '';
+    const endDate =
+      normalizeDate(parsed.data_fim) ||
+      normalizeDate(parsed.data_fim_contrato) ||
+      '';
+    const numeroParcelasExtraidas = Math.max(
+      1,
+      parseInt(parsed.numero_parcelas, 10) ||
+      (Array.isArray(parsed.cronograma_parcelas) && parsed.cronograma_parcelas.length > 0 ? parsed.cronograma_parcelas.length : 1)
+    );
+    const valorTotalExtraido = toNumber(parsed.valor_total);
+    const valorParcelaExtraida = toNumber(parsed.valor_parcela) || (valorTotalExtraido ? valorTotalExtraido / numeroParcelasExtraidas : 0);
+    const chosenBudgetlineId =
+      matchedBudgetLine?.id ||
+      form.budgetline_id ||
+      form.budget_line_id ||
+      form.rubrica_id ||
+      '';
+    const finalStartDate = contractDate || form.data_inicio_contrato || matchedRule?.data_inicio_contrato || '';
+    const finalNumeroParcelas = numeroParcelasExtraidas || matchedRule?.numeroParcelas || form.numero_parcelas || 1;
+    const finalValorParcela = valorParcelaExtraida || matchedRule?.valorParcela || form.valor_parcela || 0;
+    const finalValorTotal =
+      valorTotalExtraido ||
+      matchedRule?.valor_total ||
+      (finalValorParcela && finalNumeroParcelas ? finalValorParcela * finalNumeroParcelas : form.valor_total);
+    const finalParcelasPagas = getParcelasPagasByDate(finalStartDate, targetName);
+
+    setForm(prev => ({
+      ...prev,
+      user_name: parsed.contratado_nome || prev.user_name,
+      email_pessoal: parsed.email_pessoal || prev.email_pessoal,
+      telefone: parsed.telefone || prev.telefone,
+      cpf: parsed.cpf || prev.cpf,
+      cnpj: parsed.cnpj || prev.cnpj,
+      funcao: extractedFuncao || prev.funcao,
+      empresa_nome: parsed.empresa_nome || parsed.razao_social || prev.empresa_nome,
+      empresa_endereco: parsed.empresa_endereco || parsed.endereco || prev.empresa_endereco,
+      representante_legal_nome: parsed.representante_legal_nome || prev.representante_legal_nome,
+      representante_legal_cpf: parsed.representante_legal_cpf || prev.representante_legal_cpf,
+      cargo_representante: parsed.cargo_representante || prev.cargo_representante,
+      budgetline_id: chosenBudgetlineId,
+      budget_line_id: chosenBudgetlineId,
+      rubrica_id: chosenBudgetlineId,
+      objeto_contrato: parsed.objeto_contrato || parsed.objeto || prev.objeto_contrato || matchedRule?.objeto || '',
+      descricao_contrato: parsed.descricao_contrato || prev.descricao_contrato,
+      data_assinatura_contrato: contractDate || prev.data_assinatura_contrato,
+      data_inicio_contrato: finalStartDate || prev.data_inicio_contrato,
+      data_fim_contrato: endDate || prev.data_fim_contrato,
+      valor_total: finalValorTotal || prev.valor_total,
+      numero_parcelas: finalNumeroParcelas || prev.numero_parcelas,
+      parcelas_pagas: finalParcelasPagas,
+      valor_parcela: finalValorParcela || prev.valor_parcela,
+      cronograma_parcelas: Array.isArray(parsed.cronograma_parcelas) ? parsed.cronograma_parcelas : prev.cronograma_parcelas,
+      banco: parsed.banco || prev.banco,
+      agencia: parsed.agencia || prev.agencia,
+      conta: parsed.conta || prev.conta,
+      tipo_conta: parsed.tipo_conta || prev.tipo_conta,
+      pix_key: parsed.pix_key || prev.pix_key,
+    }));
   };
 
   const set = (field, value) =>
@@ -322,6 +446,13 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
           budgetline_id: value,
           budget_line_id: value,
           rubrica_id: value,
+        };
+      }
+      if (field === 'data_inicio_contrato') {
+        return {
+          ...prev,
+          data_inicio_contrato: value,
+          parcelas_pagas: getParcelasPagasByDate(value, prev.user_name),
         };
       }
       return { ...prev, [field]: value };
@@ -352,7 +483,64 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
         contrato_url: file_url,
       }));
 
-      toast.success('Contrato anexado com sucesso');
+      if (file_url) {
+        try {
+          const extractionRes = await base44.integrations.Core.InvokeLLM({
+            prompt:
+              'Leia este contrato e extraia dados estruturados do contratado e do pagamento. Retorne JSON com: contratado_nome, email_pessoal, telefone, cpf, cnpj, funcao, empresa_nome, empresa_endereco, representante_legal_nome, representante_legal_cpf, cargo_representante, data_assinatura, data_inicio, data_fim, valor_total, valor_parcela, numero_parcelas, cronograma_parcelas (array com {numero, vencimento, valor, descricao}), banco, agencia, conta, tipo_conta, pix_key, objeto_contrato, descricao_contrato. Use formato YYYY-MM-DD nas datas. Se não encontrar, deixe vazio.',
+            file_urls: [file_url],
+            response_json_schema: {
+              type: 'object',
+              properties: {
+                contratado_nome: { type: 'string' },
+                email_pessoal: { type: 'string' },
+                telefone: { type: 'string' },
+                cpf: { type: 'string' },
+                cnpj: { type: 'string' },
+                funcao: { type: 'string' },
+                empresa_nome: { type: 'string' },
+                empresa_endereco: { type: 'string' },
+                representante_legal_nome: { type: 'string' },
+                representante_legal_cpf: { type: 'string' },
+                cargo_representante: { type: 'string' },
+                data_assinatura: { type: 'string' },
+                data_inicio: { type: 'string' },
+                data_fim: { type: 'string' },
+                valor_total: { type: 'number' },
+                valor_parcela: { type: 'number' },
+                numero_parcelas: { type: 'number' },
+                banco: { type: 'string' },
+                agencia: { type: 'string' },
+                conta: { type: 'string' },
+                tipo_conta: { type: 'string' },
+                pix_key: { type: 'string' },
+                objeto_contrato: { type: 'string' },
+                descricao_contrato: { type: 'string' },
+                cronograma_parcelas: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      numero: { type: 'number' },
+                      vencimento: { type: 'string' },
+                      valor: { type: 'number' },
+                      descricao: { type: 'string' },
+                    },
+                  },
+                },
+              },
+            },
+          });
+
+          applyContractAutoFill(extractionRes);
+          toast.success('Contrato anexado e campos preenchidos automaticamente');
+        } catch (extractError) {
+          console.error('Erro ao ler contrato:', extractError);
+          toast.success('Contrato anexado com sucesso');
+        }
+      } else {
+        toast.success('Contrato anexado com sucesso');
+      }
     } catch (error) {
       console.error('Erro no upload do contrato:', error);
       toast.error('Erro ao anexar contrato: ' + error.message);
@@ -366,16 +554,19 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
     setLoading(true);
     try {
       const numeroParcelas = Math.max(1, parseInt(form.numero_parcelas, 10) || 1);
-      const parcelasPagas = Math.max(0, parseInt(form.parcelas_pagas, 10) || 0);
       const valorTotal = toNumber(form.valor_total);
       const valorParcela = valorTotal / numeroParcelas;
       const chosenBudgetlineId = form.budgetline_id || form.budget_line_id || form.rubrica_id || '';
+      const parcelasPagas = getParcelasPagasByDate(form.data_inicio_contrato || form.data_assinatura_contrato, form.user_name);
 
       const data = {
         ...form,
         budgetline_id: chosenBudgetlineId,
         budget_line_id: chosenBudgetlineId,
         rubrica_id: chosenBudgetlineId,
+        data_assinatura_contrato: normalizeDate(form.data_assinatura_contrato),
+        data_inicio_contrato: normalizeDate(form.data_inicio_contrato),
+        data_fim_contrato: normalizeDate(form.data_fim_contrato),
         valor_total: valorTotal,
         numero_parcelas: numeroParcelas,
         parcelas_pagas: parcelasPagas,
@@ -513,7 +704,7 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
             </div>
 
             <div>
-              <Label>Função / Cargo (com auto preenchimento financeiro)</Label>
+              <Label>Função / Cargo</Label>
               <Select
                 value={form.funcao}
                 onValueChange={v => {
@@ -529,9 +720,6 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500 mt-1">
-                Para cargos da equipe, o sistema tenta preencher automaticamente rubrica, parcelas, valor total e parcelas já pagas.
-              </p>
             </div>
 
             <div>
@@ -645,6 +833,17 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Data de Assinatura</Label>
+                <Input type="date" value={form.data_assinatura_contrato} onChange={e => set('data_assinatura_contrato', e.target.value)} />
+              </div>
+              <div>
+                <Label>Data de Início *</Label>
+                <Input type="date" value={form.data_inicio_contrato} onChange={e => set('data_inicio_contrato', e.target.value)} />
+              </div>
+            </div>
+
             <div>
               <Label>Objeto do Contrato</Label>
               <Textarea
@@ -702,61 +901,10 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                       try {
                         const res = await base44.integrations.Core.InvokeLLM({
                           prompt:
-                            'Leia este contrato e extraia TODOS os dados estruturados. Retorne um JSON com: data_inicio (YYYY-MM-DD), data_fim (YYYY-MM-DD), valor_total (número), numero_parcelas (número), cronograma_parcelas (array com {numero, vencimento (YYYY-MM-DD), valor (número)}), banco, agencia, conta, tipo_conta (Corrente ou Poupança), pix_key, objeto_contrato (texto breve), descricao_contrato (resumo completo). Se não encontrar algum campo, deixe vazio/nulo.',
+                            'Leia este contrato e extraia TODOS os dados estruturados. Retorne um JSON com: data_assinatura, data_inicio, data_fim, valor_total, numero_parcelas, valor_parcela, cronograma_parcelas, banco, agencia, conta, tipo_conta, pix_key, objeto_contrato, descricao_contrato, contratado_nome, email_pessoal, telefone, cpf, cnpj, funcao, empresa_nome, empresa_endereco, representante_legal_nome, representante_legal_cpf, cargo_representante. Se não encontrar algum campo, deixe vazio.',
                           file_urls: [form.contrato_url],
-                          response_json_schema: {
-                            type: 'object',
-                            properties: {
-                              data_inicio: { type: 'string' },
-                              data_fim: { type: 'string' },
-                              valor_total: { type: 'number' },
-                              numero_parcelas: { type: 'number' },
-                              cronograma_parcelas: {
-                                type: 'array',
-                                items: {
-                                  type: 'object',
-                                  properties: {
-                                    numero: { type: 'number' },
-                                    vencimento: { type: 'string' },
-                                    valor: { type: 'number' },
-                                    descricao: { type: 'string' },
-                                  },
-                                },
-                              },
-                              banco: { type: 'string' },
-                              agencia: { type: 'string' },
-                              conta: { type: 'string' },
-                              tipo_conta: { type: 'string' },
-                              pix_key: { type: 'string' },
-                              objeto_contrato: { type: 'string' },
-                              descricao_contrato: { type: 'string' },
-                            },
-                          },
                         });
-
-                        const extracted = res;
-                        const numeroParcelasExtraidas = Math.max(1, parseInt(extracted.numero_parcelas, 10) || 1);
-                        const valorTotalExtraido = toNumber(extracted.valor_total);
-
-                        setForm(prev => ({
-                          ...prev,
-                          data_inicio_contrato: extracted.data_inicio || prev.data_inicio_contrato,
-                          data_fim_contrato: extracted.data_fim || prev.data_fim_contrato,
-                          valor_total: valorTotalExtraido || prev.valor_total,
-                          numero_parcelas: numeroParcelasExtraidas || prev.numero_parcelas,
-                          valor_parcela:
-                            valorTotalExtraido && numeroParcelasExtraidas
-                              ? valorTotalExtraido / numeroParcelasExtraidas
-                              : prev.valor_parcela,
-                          cronograma_parcelas: extracted.cronograma_parcelas || prev.cronograma_parcelas,
-                          banco: extracted.banco || prev.banco,
-                          agencia: extracted.agencia || prev.agencia,
-                          conta: extracted.conta || prev.conta,
-                          tipo_conta: extracted.tipo_conta || prev.tipo_conta,
-                          pix_key: extracted.pix_key || prev.pix_key,
-                          objeto_contrato: extracted.objeto_contrato || prev.objeto_contrato,
-                          descricao_contrato: extracted.descricao_contrato || prev.descricao_contrato,
-                        }));
+                        applyContractAutoFill(res);
                         toast.success('✨ Formulário preenchido automaticamente!');
                       } catch (error) {
                         toast.error('Erro ao extrair dados: ' + error.message);
@@ -781,10 +929,6 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Data de Início *</Label>
-                <Input type="date" value={form.data_inicio_contrato} onChange={e => set('data_inicio_contrato', e.target.value)} />
-              </div>
               <div>
                 <Label>Data de Término *</Label>
                 <Input type="date" value={form.data_fim_contrato} onChange={e => set('data_fim_contrato', e.target.value)} />
@@ -878,9 +1022,6 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                     ))}
                   </SelectContent>
                 </Select>
-                {form.budgetline_id && (
-                  <p className="text-xs text-gray-500 mt-1">Esta vinculação será usada no controle de saldo e pagamento mensal.</p>
-                )}
               </div>
             </Section>
           )}
