@@ -16,7 +16,7 @@ const PAGE_TITLES = {
   ReportEditor: 'Relatório',
   NovaAtividade: 'Atividades',
   CalendarioAtividades: 'Calendário',
-  Compras: 'Suprimentos',
+  Compras: 'Compras e Pagamentos',
   GestaoPagamentos: 'Pagamentos',
   RelatorioMeta: 'Rel. por Meta',
   CoordReview: 'Revisão',
