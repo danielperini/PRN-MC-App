@@ -53,15 +53,15 @@ function similarity(a: string[], b: string[]): number {
   return hits / Math.max(a.length, 1);
 }
 
-// 🔥 HEURÍSTICA FORTE
+/* 🔥 MELHORIA: reforço de cobertura */
 function heuristic(rubricas, texto, centro) {
 
   const rules = [
     { keys: ['lanche','cafe','buffet','alimentacao'], hint: 'lanche' },
     { keys: ['frete','carreto','transporte'], hint: 'transporte' },
-    { keys: ['designer','video','foto','imprensa'], hint: 'comunicacao' },
-    { keys: ['material','consumo','epi'], hint: 'material' },
-    { keys: ['oficina','palestra','consultoria'], hint: 'consultoria' },
+    { keys: ['designer','video','foto','imprensa','grafica','impressao'], hint: 'comunicacao' },
+    { keys: ['material','consumo','epi','equipamento'], hint: 'material' },
+    { keys: ['oficina','palestra','consultoria','facilitador'], hint: 'consultoria' },
   ];
 
   for (const r of rules) {
@@ -114,11 +114,11 @@ Deno.serve(async (req) => {
 
     const texto = normalizeString(`${descricao} ${categoria} ${tipo} ${fornecedor}`);
 
-    // 🔥 1. HEURÍSTICA
+    /* 🔥 1. HEURÍSTICA */
     const h = heuristic(valid, texto, centro);
     if (h) return Response.json({ success: true, suggestion: h });
 
-    // 🔥 2. SIMILARIDADE
+    /* 🔥 2. SIMILARIDADE */
     const tokens = tokenize(texto);
 
     const ranked = valid.map(r => {
@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 🔥 3. IA (fallback final)
+    /* 🔥 3. IA fallback (mantido) */
     const context = valid.map(r => `${r.id} - ${r.nome}`).join('\n');
 
     const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
