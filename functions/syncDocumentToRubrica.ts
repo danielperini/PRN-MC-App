@@ -68,9 +68,7 @@ async function listAll(entityApi, orderBy = '', pageSize = 500) {
   while (true) {
     const batch = await entityApi.list(orderBy, pageSize, page * pageSize);
     if (!batch || batch.length === 0) break;
-
     all = all.concat(batch);
-
     if (batch.length < pageSize) break;
     page++;
   }
@@ -80,71 +78,17 @@ async function listAll(entityApi, orderBy = '', pageSize = 500) {
 
 function resolveRubricaFromPurchase(compra, rubricas, budgetLineById) {
   if (compra?.rubrica_id) {
-    const rubrica = rubricas.find((r) => r.id === compra.rubrica_id);
-    if (rubrica) {
-      return {
-        rubricaId: rubrica.id,
-        origem: 'rubrica_id',
-        motivo: null,
-      };
-    }
+    return { rubricaId: compra.rubrica_id, origem: 'rubrica_id' };
   }
 
-  const compraBudgetlineId = getCompraBudgetlineId(compra);
+  const blId = getCompraBudgetlineId(compra);
+  const bl = budgetLineById[blId];
 
-  if (compraBudgetlineId) {
-    const budgetLine = budgetLineById[compraBudgetlineId];
-
-    if (budgetLine?.rubrica_id) {
-      const rubrica = rubricas.find((r) => r.id === budgetLine.rubrica_id);
-      if (rubrica) {
-        return {
-          rubricaId: rubrica.id,
-          origem: 'budgetline_id',
-          motivo: null,
-        };
-      }
-    }
-
-    const nomeBudgetLine = normalizeStringLower(
-      budgetLine?.descricao || budgetLine?.rubrica || budgetLine?.nome || ''
-    );
-
-    if (nomeBudgetLine) {
-      const matches = rubricas.filter((r) => {
-        const nomeRubrica = normalizeStringLower(
-          r?.rubrica || r?.nome || r?.descricao || ''
-        );
-        const rubricaKey = r?.rubrica_key || buildRubricaKey(r);
-        return (
-          nomeRubrica === nomeBudgetLine ||
-          rubricaKey.includes(nomeBudgetLine)
-        );
-      });
-
-      if (matches.length === 1) {
-        return {
-          rubricaId: matches[0].id,
-          origem: 'budgetline_nome',
-          motivo: null,
-        };
-      }
-
-      if (matches.length > 1) {
-        return {
-          rubricaId: null,
-          origem: 'nao_encontrada',
-          motivo: 'Match ambíguo via budget line',
-        };
-      }
-    }
+  if (bl?.rubrica_id) {
+    return { rubricaId: bl.rubrica_id, origem: 'budgetline_id' };
   }
 
-  return {
-    rubricaId: null,
-    origem: 'nao_encontrada',
-    motivo: 'Rubrica não resolvida',
-  };
+  return { rubricaId: null, origem: 'nao_encontrada' };
 }
 
 Deno.serve(async (req) => {
@@ -156,248 +100,116 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized', success: false }, { status: 401 });
     }
 
-    const payload = await req.json().catch(() => ({}));
-    const { documentId } = payload || {};
+    const { documentId } = await req.json();
 
     if (!documentId) {
-      return Response.json(
-        { error: 'documentId required', success: false },
-        { status: 400 }
-      );
+      return Response.json({ error: 'documentId required', success: false }, { status: 400 });
     }
 
-    const docs = await base44.asServiceRole.entities.PurchaseDocument.filter({
-      id: documentId
-    });
-    const documento = docs && docs.length > 0 ? docs[0] : null;
-
-    if (!documento) {
-      return Response.json(
-        { error: 'Document not found', success: false },
-        { status: 404 }
-      );
+    const documento = await base44.asServiceRole.entities.PurchaseDocument.get(documentId);
+    if (!documento?.purchase_id) {
+      return Response.json({ error: 'Documento inválido', success: false }, { status: 400 });
     }
 
-    if (!documento.purchase_id) {
-      return Response.json(
-        {
-          success: false,
-          error: 'Documento sem purchase_id vinculado'
-        },
-        { status: 400 }
-      );
-    }
-
-    const compras = await base44.asServiceRole.entities.PurchaseRequest.filter({
-      id: documento.purchase_id
-    });
-    const compra = compras && compras.length > 0 ? compras[0] : null;
-
+    const compra = await base44.asServiceRole.entities.PurchaseRequest.get(documento.purchase_id);
     if (!compra) {
-      return Response.json(
-        { error: 'Purchase not found', success: false },
-        { status: 404 }
-      );
+      return Response.json({ error: 'Compra não encontrada', success: false }, { status: 404 });
     }
 
-    const purchaseStatus = normalizeStatus(compra.status);
-    const compraBudgetlineId = getCompraBudgetlineId(compra);
+    const status = normalizeStatus(compra.status);
 
-    if (purchaseStatus !== 'PAGO' && purchaseStatus !== 'PAGO_PARCIAL') {
-      return Response.json(
-        {
-          success: false,
-          error: 'A rubrica só deve ser debitada quando a compra estiver paga.',
-          purchase_id: documento.purchase_id,
-          purchase_status: compra.status
-        },
-        { status: 400 }
-      );
+    // 🔴 BLOQUEIO CRÍTICO
+    if (!['PAGO', 'PAGO_PARCIAL'].includes(status)) {
+      return Response.json({
+        success: false,
+        error: 'Compra ainda não paga - não debitar rubrica',
+        status: compra.status
+      }, { status: 400 });
     }
 
-    const [todasRubricas, allBudgetLines] = await Promise.all([
-      listAll(base44.asServiceRole.entities.Rubrica, 'ordem_exibicao', 500),
-      listAll(base44.asServiceRole.entities.BudgetLine, 'descricao', 500),
+    const [rubricas, budgetLines] = await Promise.all([
+      listAll(base44.asServiceRole.entities.Rubrica),
+      listAll(base44.asServiceRole.entities.BudgetLine)
     ]);
 
-    const rubricasMap = new Map();
-    for (const r of todasRubricas) {
-      const key = r?.rubrica_key || buildRubricaKey(r);
-      if (!rubricasMap.has(key)) {
-        rubricasMap.set(key, r);
-      }
-    }
-    const rubricasUnicas = Array.from(rubricasMap.values());
-
-    const budgetLineById = {};
-    for (const bl of allBudgetLines) {
-      if (bl?.id) budgetLineById[bl.id] = bl;
-    }
-
-    const resolved = resolveRubricaFromPurchase(
-      compra,
-      rubricasUnicas,
-      budgetLineById
+    const budgetLineById = Object.fromEntries(
+      budgetLines.map(b => [b.id, b])
     );
+
+    const resolved = resolveRubricaFromPurchase(compra, rubricas, budgetLineById);
 
     if (!resolved.rubricaId) {
-      return Response.json(
-        {
-          error: 'No rubrica found for this document/purchase',
-          success: false,
-          purchase_id: documento.purchase_id,
-          budgetline_id: compraBudgetlineId,
-          motivo: resolved.motivo
-        },
-        { status: 404 }
-      );
+      return Response.json({
+        success: false,
+        error: 'Rubrica não resolvida'
+      }, { status: 400 });
     }
 
-    const rubricaId = resolved.rubricaId;
     const valorCompra = getPurchaseValue(compra);
 
-    if (!valorCompra || valorCompra <= 0) {
-      return Response.json(
-        {
-          success: false,
-          error: 'Valor da compra inválido para lançamento na rubrica.',
-          purchase_id: documento.purchase_id,
-          valor_compra: valorCompra
-        },
-        { status: 400 }
-      );
+    if (valorCompra <= 0) {
+      return Response.json({
+        success: false,
+        error: 'Valor inválido'
+      }, { status: 400 });
     }
 
-    const descricaoLancamento =
-      `${getDocTypeLabel(documento.tipo_documento || documento.tipo)} - ` +
-      `${documento.numero_documento || documento.nome_arquivo || compra.descricao_item || 'Documento'}`;
-
-    const lancamentos = await base44.asServiceRole.entities.LancamentoRubrica.filter({
-      rubrica_id: rubricaId,
-      referencia_compra_id: documento.purchase_id
+    // 🔴 EVITA DUPLICIDADE (CRÍTICO)
+    const existente = await base44.asServiceRole.entities.LancamentoRubrica.filter({
+      referencia_compra_id: compra.id,
+      origem_lancamento: 'automatico_compras'
     });
 
-    const lancamentosAutomaticos = (lancamentos || []).filter(
-      (l) => normalizeStringLower(l.origem_lancamento) === 'automatico_compras'
-    );
+    let lancamento;
 
-    let lancamento =
-      lancamentosAutomaticos.length > 0 ? lancamentosAutomaticos[0] : null;
+    if (existente?.length > 0) {
+      lancamento = existente[0];
 
-    const dataLancamento =
-      compra.data_pagamento ||
-      documento.data_documento ||
-      new Date().toISOString().split('T')[0];
-
-    if (!lancamento) {
-      lancamento = await base44.asServiceRole.entities.LancamentoRubrica.create({
-        rubrica_id: rubricaId,
-        data_lancamento: dataLancamento,
-        origem_lancamento: 'automatico_compras',
-        referencia_compra_id: documento.purchase_id,
-        descricao: descricaoLancamento,
-        fornecedor: documento.fornecedor || compra.fornecedor_nome || '',
-        funcao_origem: compra.categoria || compra.tipo_gasto || '',
+      await base44.asServiceRole.entities.LancamentoRubrica.update(lancamento.id, {
         valor: valorCompra,
-        observacao:
-          `Lançamento automático vinculado à compra ${documento.purchase_id}. ` +
-          `Valor financeiro baseado na compra paga, não no documento.`,
+        descricao: `${getDocTypeLabel(documento.tipo)} - ${compra.descricao_item}`,
+        data_lancamento: compra.data_pagamento || new Date().toISOString().split('T')[0]
+      });
+
+    } else {
+      lancamento = await base44.asServiceRole.entities.LancamentoRubrica.create({
+        rubrica_id: resolved.rubricaId,
+        valor: valorCompra,
+        origem_lancamento: 'automatico_compras',
+        referencia_compra_id: compra.id,
+        descricao: `${getDocTypeLabel(documento.tipo)} - ${compra.descricao_item}`,
+        data_lancamento: compra.data_pagamento || new Date().toISOString().split('T')[0],
         criado_por: user.email
       });
-    } else {
-      await base44.asServiceRole.entities.LancamentoRubrica.update(lancamento.id, {
-        data_lancamento: dataLancamento,
-        descricao: descricaoLancamento,
-        fornecedor:
-          documento.fornecedor || compra.fornecedor_nome || lancamento.fornecedor || '',
-        funcao_origem:
-          compra.categoria || compra.tipo_gasto || lancamento.funcao_origem || '',
-        valor: valorCompra,
-        observacao:
-          `Lançamento automático atualizado pela compra ${documento.purchase_id}. ` +
-          `Valor baseado na compra paga.`
-      });
     }
 
-    if (lancamentosAutomaticos.length > 1) {
-      const duplicados = lancamentosAutomaticos.slice(1);
-      for (const dup of duplicados) {
-        try {
-          await base44.asServiceRole.entities.LancamentoRubrica.delete(dup.id);
-        } catch (e) {
-          console.error('Erro ao remover lançamento duplicado:', dup.id, e.message);
-        }
-      }
-    }
+    // 🔴 SINCRONIZAÇÃO SEGURA
+    await Promise.all([
+      base44.asServiceRole.entities.PurchaseRequest.update(compra.id, {
+        rubrica_id: resolved.rubricaId
+      }),
+      base44.asServiceRole.entities.PurchaseDocument.update(documento.id, {
+        rubrica_id: resolved.rubricaId
+      })
+    ]);
 
-    try {
-      await base44.asServiceRole.entities.PurchaseRequest.update(compra.id, {
-        rubrica_id: rubricaId
-      });
-    } catch (e) {
-      console.error('Erro ao gravar rubrica_id na compra:', e.message);
-    }
-
-    try {
-      await base44.asServiceRole.entities.PurchaseDocument.update(documento.id, {
-        rubrica_id: rubricaId
-      });
-    } catch (e) {
-      console.error('Erro ao gravar rubrica_id no documento:', e.message);
-    }
-
+    // 🔴 RECALCULO CONTROLADO
     try {
       await base44.asServiceRole.functions.invoke('recalculateRubrica', {
-        rubricaId,
-        rubrica_id: rubricaId,
-        purchaseId: documento.purchase_id,
-        budgetline_id: compraBudgetlineId
+        rubricaId: resolved.rubricaId
       });
-    } catch (e) {
-      console.error('Erro ao recalcular rubrica:', e.message);
-    }
-
-    try {
-      await base44.asServiceRole.functions.invoke('recalculateAllRubricas', {
-        trigger: 'sync_document_to_rubrica',
-        purchaseId: documento.purchase_id,
-        budgetline_id: compraBudgetlineId,
-        rubricaId,
-        rubrica_id: rubricaId
-      });
-    } catch (e) {
-      console.error('Erro ao recalcular todas as rubricas:', e.message);
-    }
-
-    const rubricasAtualizadas = await base44.asServiceRole.entities.Rubrica.filter({
-      id: rubricaId
-    });
-    const rubricaAtualizada =
-      rubricasAtualizadas && rubricasAtualizadas.length > 0
-        ? rubricasAtualizadas[0]
-        : null;
+    } catch {}
 
     return Response.json({
       success: true,
       lancamento_id: lancamento.id,
-      rubrica_id: rubricaId,
-      purchase_id: documento.purchase_id,
-      purchase_status: compra.status,
-      budgetline_id: compraBudgetlineId,
-      origem_resolucao: resolved.origem,
-      valor_documento: toNumber(documento.valor_documento),
-      valor_compra: valorCompra,
-      valor_utilizado: rubricaAtualizada ? toNumber(rubricaAtualizada.valor_utilizado) : null,
-      saldo: rubricaAtualizada ? toNumber(rubricaAtualizada.saldo) : null,
-      percentual_utilizado: rubricaAtualizada
-        ? toNumber(rubricaAtualizada.percentual_utilizado)
-        : null
+      rubrica_id: resolved.rubricaId,
+      valor: valorCompra,
+      origem: resolved.origem
     });
+
   } catch (error) {
     console.error('syncDocumentToRubrica error:', error);
-    return Response.json(
-      { error: error.message, success: false },
-      { status: 500 }
-    );
+    return Response.json({ error: error.message, success: false }, { status: 500 });
   }
 });
