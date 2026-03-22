@@ -20,6 +20,16 @@ function calcValorParcela(member){
   return total / parcelas;
 }
 
+function getDescricaoPadrao(member, mes, ano){
+  return `${member?.funcao || ''} — Projeto Museus Centro — Termo de Colaboração 01-031.069/24-80 — Parceria SMC/FMC — ${mes}/${ano}`;
+}
+
+function getNomeArquivoPadrao(member, parcela, valor){
+  const nome = (member?.user_name || '').toUpperCase();
+  const funcao = (member?.funcao || '').toUpperCase();
+  return `NF ${parcela} ${funcao} - ${nome} - MUSEUS CENTRO - R$ ${toNumber(valor).toFixed(2)}`;
+}
+
 export default function TeamPaymentSubmit({ userEmail }) {
 
   const [showForm,setShowForm] = useState(false);
@@ -210,6 +220,9 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
     try{
 
+      const descricao_nf = getDescricaoPadrao(member, form.mes_referencia, form.ano);
+      const nome_arquivo_nf = getNomeArquivoPadrao(member, parcelaAtual, form.valor_nf || valorParcela);
+
       await base44.entities.TeamPayment.create({
         team_member_id:member.id,
         user_email:effectiveEmail,
@@ -222,6 +235,15 @@ export default function TeamPaymentSubmit({ userEmail }) {
         contract_url:contractUrl,
         numero_parcela:parcelaAtual,
         valor_parcela_previsto:valorParcela,
+        descricao_nf,
+        nome_arquivo_nf,
+        banco: member?.banco || '',
+        agencia: member?.agencia || '',
+        conta: member?.conta || '',
+        pix_key: member?.pix_key || '',
+        tipo_pessoa: member?.tipo_pessoa || '',
+        cpf: member?.tipo_pessoa === 'PF' ? member?.cpf || '' : '',
+        cnpj: member?.tipo_pessoa === 'PJ' ? member?.cnpj || '' : '',
         status:'AGUARDANDO_APROVACAO'
       });
 
