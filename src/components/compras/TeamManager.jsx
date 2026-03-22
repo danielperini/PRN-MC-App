@@ -25,10 +25,12 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock3,
+  UserCircle2,
 } from 'lucide-react';
 import TeamMemberForm from './TeamMemberForm';
 import TeamMemberDocsPanel from './TeamMemberDocsPanel';
 import TeamPaymentReview from './TeamPaymentReview';
+import TeamPaymentSubmit from './TeamPaymentSubmit';
 import { toast } from 'sonner';
 
 function toNumber(value) {
@@ -95,6 +97,10 @@ function getResumoFinanceiro(member, payments) {
   };
 }
 
+function getMemberDisplayName(member) {
+  return member?.user_name || member?.nome || member?.user_email || 'Membro';
+}
+
 export default function TeamManager({ budgetLines = [] }) {
   const [subTab, setSubTab] = useState('membros');
   const [showForm, setShowForm] = useState(false);
@@ -104,9 +110,23 @@ export default function TeamManager({ budgetLines = [] }) {
 
   const queryClient = useQueryClient();
 
+  const { data: currentUser } = useQuery({
+    queryKey: ['auth-me-team-manager'],
+    queryFn: () => base44.auth.me(),
+  });
+
+  const isCoordinator = [
+    'ADMIN',
+    'admin',
+    'COORDENADOR',
+    'COORD_COMUNICACAO',
+    'COORD_ADMINISTRATIVA',
+    'COORD_PRODUCAO',
+  ].includes(currentUser?.role);
+
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['team-members'],
-    queryFn: () => base44.entities.TeamMember.list('-created_date', 200),
+    queryFn: () => base44.entities.TeamMember.list('-created_date', 300),
   });
 
   const { data: allTeamPayments = [] } = useQuery({
@@ -120,6 +140,17 @@ export default function TeamManager({ budgetLines = [] }) {
       base44.entities.TeamPayment.filter({ status: 'AGUARDANDO_APROVACAO' }, '-created_date', 100),
   });
 
+  const ownMember = useMemo(() => {
+    if (!currentUser?.email) return null;
+    return (
+      members.find(
+        (m) =>
+          String(m?.user_email || '').toLowerCase() ===
+          String(currentUser.email || '').toLowerCase()
+      ) || null
+    );
+  }, [members, currentUser]);
+
   const budgetLineMap = useMemo(() => {
     const map = {};
     (budgetLines || []).forEach((b) => {
@@ -128,22 +159,36 @@ export default function TeamManager({ budgetLines = [] }) {
     return map;
   }, [budgetLines]);
 
+  const refreshAll = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['team-members'] }),
+      queryClient.invalidateQueries({ queryKey: ['team-payments-manager-all'] }),
+      queryClient.invalidateQueries({ queryKey: ['team-payments-pending'] }),
+      queryClient.invalidateQueries({ queryKey: ['team-payments'] }),
+      queryClient.invalidateQueries({ queryKey: ['team-payments-pending-review'] }),
+      queryClient.invalidateQueries({ queryKey: ['own-member', currentUser?.email] }),
+    ]);
+  };
+
   const handleDelete = async () => {
     try {
       await base44.entities.TeamMember.delete(deletingMember.id);
       toast.success('Membro removido');
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['team-members'] }),
-        queryClient.invalidateQueries({ queryKey: ['team-payments-manager-all'] }),
-        queryClient.invalidateQueries({ queryKey: ['team-payments-pending'] }),
-      ]);
+      await refreshAll();
       setDeletingMember(null);
     } catch (error) {
       toast.error('Erro ao remover: ' + error.message);
     }
   };
 
-  const openDocs = (member, initialMode = 'docs') => setDocsPanel({ member, initialMode });
+  const openDocs = (member, initialMode = 'docs') => {
+    setDocsPanel({ member, initialMode });
+  };
+
+  const openEdit = (member) => {
+    setEditingMember(member);
+    setShowForm(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -158,7 +203,7 @@ export default function TeamManager({ budgetLines = [] }) {
           </div>
         </div>
 
-        {subTab === 'membros' && (
+        {isCoordinator && subTab === 'membros' && (
           <Button
             className="bg-black hover:bg-gray-800"
             onClick={() => {
@@ -172,24 +217,35 @@ export default function TeamManager({ budgetLines = [] }) {
         )}
       </div>
 
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        {[
-          { id: 'membros', label: 'Membros da Equipe' },
-          {
-            id: 'revisao',
-            label: `Revisão de Envios${pendingPayments.length > 0 ? ` (${pendingPayments.length})` : ''}`,
-          },
-        ].map((t) => (
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
+        <button
+          onClick={() => setSubTab('membros')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            subTab === 'membros' ? 'bg-white shadow text-black' : 'text-gray-500'
+          }`}
+        >
+          Membros da Equipe
+        </button>
+
+        <button
+          onClick={() => setSubTab('meu_perfil')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            subTab === 'meu_perfil' ? 'bg-white shadow text-black' : 'text-gray-500'
+          }`}
+        >
+          Meu Perfil
+        </button>
+
+        {isCoordinator && (
           <button
-            key={t.id}
-            onClick={() => setSubTab(t.id)}
+            onClick={() => setSubTab('revisao')}
             className={`px-4 py-2 rounded-lg text-sm font-medium ${
-              subTab === t.id ? 'bg-white shadow text-black' : 'text-gray-500'
+              subTab === 'revisao' ? 'bg-white shadow text-black' : 'text-gray-500'
             }`}
           >
-            {t.label}
+            {`Revisão de Envios${pendingPayments.length > 0 ? ` (${pendingPayments.length})` : ''}`}
           </button>
-        ))}
+        )}
       </div>
 
       {subTab === 'membros' && (
@@ -219,7 +275,7 @@ export default function TeamManager({ budgetLines = [] }) {
                   <div key={member.id} className="border p-4 rounded-xl space-y-3">
                     <div className="flex justify-between items-start gap-3">
                       <div>
-                        <p className="font-semibold">{member.user_name}</p>
+                        <p className="font-semibold">{getMemberDisplayName(member)}</p>
                         <p className="text-xs text-gray-500">{member.funcao || '—'}</p>
                       </div>
 
@@ -312,13 +368,10 @@ export default function TeamManager({ budgetLines = [] }) {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => {
-                          setEditingMember(member);
-                          setShowForm(true);
-                        }}
+                        onClick={() => openEdit(member)}
                       >
                         <Edit2 className="w-3 h-3 mr-1" />
-                        Editar
+                        Editar equipe
                       </Button>
 
                       <Button
@@ -327,7 +380,7 @@ export default function TeamManager({ budgetLines = [] }) {
                         onClick={() => openDocs(member, 'payment')}
                       >
                         <Receipt className="w-3 h-3 mr-1" />
-                        Pagar
+                        Pagar equipe
                       </Button>
 
                       <Button
@@ -339,14 +392,16 @@ export default function TeamManager({ budgetLines = [] }) {
                         Documentos
                       </Button>
 
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setDeletingMember(member)}
-                      >
-                        <Trash2 className="w-3 h-3 mr-1" />
-                        Remover
-                      </Button>
+                      {isCoordinator && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setDeletingMember(member)}
+                        >
+                          <Trash2 className="w-3 h-3 mr-1" />
+                          Remover
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
@@ -356,7 +411,74 @@ export default function TeamManager({ budgetLines = [] }) {
         </>
       )}
 
-      {subTab === 'revisao' && (
+      {subTab === 'meu_perfil' && (
+        <div className="space-y-4">
+          {!ownMember ? (
+            <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 text-sm text-amber-900 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              Você ainda não está cadastrado como membro da equipe. Peça ao coordenador para criar seu perfil inicial.
+            </div>
+          ) : (
+            <>
+              <div className="border p-4 rounded-xl space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                      <UserCircle2 className="w-5 h-5 text-gray-700" />
+                    </div>
+                    <div>
+                      <p className="font-semibold">{getMemberDisplayName(ownMember)}</p>
+                      <p className="text-xs text-gray-500">{ownMember.funcao || '—'}</p>
+                    </div>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openEdit(ownMember)}
+                  >
+                    <Edit2 className="w-3 h-3 mr-1" />
+                    Editar meu perfil
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-600">
+                  <div>E-mail: {ownMember.user_email || '—'}</div>
+                  <div>Telefone: {ownMember.telefone || '—'}</div>
+                  <div>Tipo pessoa: {ownMember.tipo_pessoa || '—'}</div>
+                  <div>PIX: {ownMember.pix_key || '—'}</div>
+                  <div>Banco: {ownMember.banco || '—'}</div>
+                  <div>Conta: {ownMember.conta || '—'}</div>
+                </div>
+
+                <div className="flex gap-2 flex-wrap pt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openDocs(ownMember, 'docs')}
+                  >
+                    <FileText className="w-3 h-3 mr-1" />
+                    Meus documentos
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openDocs(ownMember, 'payment')}
+                  >
+                    <Receipt className="w-3 h-3 mr-1" />
+                    Minhas NF / XML
+                  </Button>
+                </div>
+              </div>
+
+              <TeamPaymentSubmit userEmail={currentUser?.email || ownMember?.user_email || ''} />
+            </>
+          )}
+        </div>
+      )}
+
+      {subTab === 'revisao' && isCoordinator && (
         <TeamPaymentReview
           members={members}
           budgetLines={budgetLines}
@@ -370,11 +492,7 @@ export default function TeamManager({ budgetLines = [] }) {
           setEditingMember(null);
         }}
         onSuccess={async () => {
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ['team-members'] }),
-            queryClient.invalidateQueries({ queryKey: ['team-payments-manager-all'] }),
-            queryClient.invalidateQueries({ queryKey: ['team-payments-pending'] }),
-          ]);
+          await refreshAll();
         }}
         editingMember={editingMember}
         budgetLines={budgetLines}
@@ -385,7 +503,8 @@ export default function TeamManager({ budgetLines = [] }) {
           member={docsPanel.member}
           onClose={() => setDocsPanel(null)}
           budgetLines={budgetLines}
-          isCoordenador
+          isCoordenador={isCoordinator}
+          initialMode={docsPanel.initialMode || 'docs'}
         />
       )}
 
