@@ -14,12 +14,25 @@ import {
   Loader2,
   Trash2,
   Pencil,
-  AlertCircle
+  AlertCircle,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import PurchaseTimeline from './PurchaseTimeline';
 import PurchaseDocumentUpload from './PurchaseDocumentUpload';
 import PurchaseDocumentViewer from './PurchaseDocumentViewer';
+
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatBRL(value) {
+  return `R$ ${toNumber(value).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+  })}`;
+}
 
 export default function PurchaseCard({
   purchase,
@@ -73,6 +86,34 @@ export default function PurchaseCard({
     (purchase.status === 'APROVADO_COORD' || purchase.status === 'APROVADO_ADMIN');
 
   const canMarkAsPaid = canMarkAsPaidBase && hasRubricaVinculada;
+
+  const saldoDisponivelBudgetLine = budgetLine
+    ? Math.max(0, toNumber(budgetLine.saldo_inicial) - toNumber(budgetLine.saldo_comprometido))
+    : 0;
+
+  const valorSolicitado = toNumber(purchase.valor_solicitado);
+
+  const selectedRubricaName =
+    purchase.rubrica_nome ||
+    purchase.rubrica_label ||
+    budgetLine?.rubrica_nome ||
+    budgetLine?.descricao ||
+    '';
+
+  const aiSuggestedRubricaName =
+    purchase.ai_rubrica_sugerida_nome ||
+    '';
+
+  const aiSuggestedRubricaId =
+    purchase.ai_rubrica_sugerida_id ||
+    '';
+
+  const hasAiRubricaSuggestion = !!aiSuggestedRubricaId || !!aiSuggestedRubricaName;
+
+  const rubricaDivergente =
+    !!purchase.rubrica_id &&
+    !!aiSuggestedRubricaId &&
+    purchase.rubrica_id !== aiSuggestedRubricaId;
 
   useEffect(() => {
     if (purchase.activity_id) {
@@ -272,6 +313,13 @@ Responda em JSON com:
       ? 'text-amber-700 bg-amber-50'
       : 'text-red-700 bg-red-50';
 
+  const rubricaScoreColor =
+    toNumber(purchase.ai_rubrica_score) >= 80
+      ? 'text-green-700 bg-green-50'
+      : toNumber(purchase.ai_rubrica_score) >= 50
+      ? 'text-amber-700 bg-amber-50'
+      : 'text-red-700 bg-red-50';
+
   return (
     <div
       className={`border rounded-xl transition-colors ${
@@ -303,7 +351,14 @@ Responda em JSON com:
               {purchase.ai_meta_score !== undefined && purchase.ai_meta_score !== null && (
                 <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${scoreColor}`}>
                   <Sparkles className="w-3 h-3" />
-                  IA: {purchase.ai_meta_score}%
+                  IA Meta: {purchase.ai_meta_score}%
+                </span>
+              )}
+
+              {hasAiRubricaSuggestion && (
+                <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${rubricaScoreColor}`}>
+                  <Sparkles className="w-3 h-3" />
+                  IA Rubrica: {toNumber(purchase.ai_rubrica_score)}%
                 </span>
               )}
             </div>
@@ -326,7 +381,12 @@ Responda em JSON com:
                 </div>
               )}
 
-              {!hasRubricaVinculada && (
+              {hasRubricaVinculada ? (
+                <div className="flex items-center gap-1 text-green-700">
+                  <LinkIcon className="w-3 h-3" />
+                  <span>Com vínculo financeiro</span>
+                </div>
+              ) : (
                 <div className="flex items-center gap-1 text-red-600">
                   <AlertCircle className="w-3 h-3" />
                   <span>Sem rubrica vinculada</span>
@@ -338,9 +398,7 @@ Responda em JSON com:
           <div className="flex items-center gap-2 flex-shrink-0">
             <div className="text-right">
               <p className="font-bold text-black">
-                R$ {(purchase.valor_solicitado || 0).toLocaleString('pt-BR', {
-                  minimumFractionDigits: 2
-                })}
+                {formatBRL(purchase.valor_solicitado || 0)}
               </p>
             </div>
 
@@ -429,6 +487,15 @@ Responda em JSON com:
           </div>
         )}
 
+        {rubricaDivergente && (
+          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div>
+              A rubrica escolhida difere da sugestão da IA. Revise o enquadramento financeiro antes de aprovar.
+            </div>
+          </div>
+        )}
+
         <div className="mt-3">
           <PurchaseTimeline purchase={purchase} />
         </div>
@@ -504,17 +571,12 @@ Responda em JSON com:
 
                 <strong
                   className={
-                    ((budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)) >=
-                    (purchase.valor_solicitado || 0)
+                    saldoDisponivelBudgetLine >= valorSolicitado
                       ? 'text-green-700'
                       : 'text-red-700'
                   }
                 >
-                  R${' '}
-                  {Math.max(
-                    0,
-                    (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)
-                  ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  {formatBRL(saldoDisponivelBudgetLine)}
                 </strong>
               </div>
             )}
@@ -575,7 +637,7 @@ Responda em JSON com:
             >
               <p className="font-semibold mb-1 flex items-center gap-1">
                 <Sparkles className="w-3 h-3" />
-                Análise da IA
+                Análise da IA — Meta
               </p>
               <p className="text-gray-700">{purchase.ai_analise}</p>
 
@@ -587,39 +649,101 @@ Responda em JSON com:
             </div>
           )}
 
-          {budgetLine && (
+          {hasAiRubricaSuggestion && (
+            <div
+              className={`p-3 rounded-lg text-xs ${
+                rubricaDivergente
+                  ? 'bg-amber-50 border border-amber-200'
+                  : 'bg-blue-50 border border-blue-100'
+              }`}
+            >
+              <p className="font-semibold mb-2 flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                Sugestão da IA — Rubrica
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-gray-700">
+                <div>
+                  <span className="text-gray-500">Sugestão IA:</span>{' '}
+                  <strong>{aiSuggestedRubricaName || aiSuggestedRubricaId || '—'}</strong>
+                </div>
+                <div>
+                  <span className="text-gray-500">Score:</span>{' '}
+                  <strong>{toNumber(purchase.ai_rubrica_score)}%</strong>
+                </div>
+                <div>
+                  <span className="text-gray-500">Fonte:</span>{' '}
+                  <strong>{purchase.ai_rubrica_source || '—'}</strong>
+                </div>
+                <div>
+                  <span className="text-gray-500">Rubrica final:</span>{' '}
+                  <strong>{selectedRubricaName || purchase.rubrica_id || '—'}</strong>
+                </div>
+              </div>
+
+              {purchase.ai_rubrica_justificativa && (
+                <p className="mt-2 text-gray-700">
+                  {purchase.ai_rubrica_justificativa}
+                </p>
+              )}
+
+              {rubricaDivergente && (
+                <p className="mt-2 text-amber-700 font-medium">
+                  A escolha final diverge da sugestão automática.
+                </p>
+              )}
+            </div>
+          )}
+
+          {(budgetLine || purchase.rubrica_id) && (
             <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
               <p className="font-semibold text-xs mb-2 text-blue-900">
-                📋 Rubrica Orçamentária
+                📋 Vínculo Financeiro
               </p>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-blue-800">
-                <div>
-                  <span className="text-blue-600 font-medium">Código:</span> {budgetLine.codigo}
-                </div>
-                <div>
-                  <span className="text-blue-600 font-medium">Natureza:</span>{' '}
-                  {budgetLine.natureza_codigo}
-                </div>
-                <div>
-                  <span className="text-blue-600 font-medium">Valor PO:</span> R${' '}
-                  {(budgetLine.valor_total_previsto || 0).toLocaleString('pt-BR', {
-                    minimumFractionDigits: 2
-                  })}
-                </div>
-                <div>
-                  <span className="text-blue-600 font-medium">Comprometido:</span> R${' '}
-                  {(budgetLine.saldo_comprometido || 0).toLocaleString('pt-BR', {
-                    minimumFractionDigits: 2
-                  })}
-                </div>
-                <div>
-                  <span className="text-blue-600 font-medium">Saldo:</span> R${' '}
-                  {Math.max(
-                    0,
-                    (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)
-                  ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </div>
+                {purchase.rubrica_id && (
+                  <div>
+                    <span className="text-blue-600 font-medium">Rubrica ID:</span>{' '}
+                    {purchase.rubrica_id}
+                  </div>
+                )}
+                {selectedRubricaName && (
+                  <div>
+                    <span className="text-blue-600 font-medium">Rubrica:</span>{' '}
+                    {selectedRubricaName}
+                  </div>
+                )}
+                {budgetLine?.codigo && (
+                  <div>
+                    <span className="text-blue-600 font-medium">Código:</span>{' '}
+                    {budgetLine.codigo}
+                  </div>
+                )}
+                {budgetLine?.natureza_codigo && (
+                  <div>
+                    <span className="text-blue-600 font-medium">Natureza:</span>{' '}
+                    {budgetLine.natureza_codigo}
+                  </div>
+                )}
+                {budgetLine && (
+                  <div>
+                    <span className="text-blue-600 font-medium">Valor PO:</span>{' '}
+                    {formatBRL(budgetLine.valor_total_previsto || 0)}
+                  </div>
+                )}
+                {budgetLine && (
+                  <div>
+                    <span className="text-blue-600 font-medium">Comprometido:</span>{' '}
+                    {formatBRL(budgetLine.saldo_comprometido || 0)}
+                  </div>
+                )}
+                {budgetLine && (
+                  <div>
+                    <span className="text-blue-600 font-medium">Saldo:</span>{' '}
+                    {formatBRL(saldoDisponivelBudgetLine)}
+                  </div>
+                )}
               </div>
             </div>
           )}
