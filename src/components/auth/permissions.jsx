@@ -120,36 +120,4 @@ export function canViewTeamProfile(user, targetEmail) {
   if (isCoordenador(user)) return true;
   if (!targetEmail) return false;
   return String(user.email || '').toLowerCase() === String(targetEmail || '').toLowerCase();
-}export function isAutoApprovedDomain(email) {
-  if (!email) return false;
-  const lower = email.toLowerCase();
-  return AUTO_APPROVED_DOMAINS.some(domain => lower.endsWith(domain));
-}
-
-/**
- * Verifica se o usuário pode editar um relatório
- */
-export function canEditReport(currentUser, reportAuthorEmail) {
-  if (!currentUser) return false;
-  if (currentUser.email === reportAuthorEmail) return true;
-  return isCoordenador(currentUser);
-}
-
-/**
- * Verifica se o usuário pode gerenciar usuários (aprovar, editar, excluir permissões)
- * COORDENADOR também pode quando tem can_manage_users = true
- */
-export function canManageUsers(user) {
-  if (!user) return false;
-  if (isCoordGeral(user)) return true;
-  return user.can_manage_users === true || ['COORDENADOR', 'admin', 'ADMIN'].includes(user.role);
-}
-
-/**
- * Verifica se o usuário pode gerenciar permissões de outros usuários
- * Qualquer COORDENADOR ou ADMIN pode editar permissões
- */
-export function canManagePermissions(user) {
-  if (!user) return false;
-  return isCoordenador(user);
 }
