@@ -1,10 +1,20 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ExternalLink, Receipt, FileText, BookOpen, Upload, CheckCircle2, Loader2 } from 'lucide-react';
+import {
+  ExternalLink,
+  Receipt,
+  FileText,
+  BookOpen,
+  Upload,
+  CheckCircle2,
+  Loader2,
+  XCircle,
+  FileCheck,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 const PAYMENT_STATUS_COLORS = {
@@ -53,7 +63,62 @@ const REPORT_STATUS_LABELS = {
   ARCHIVED: 'Arquivado',
 };
 
-export default function TeamMemberDocsPanel({ member, initialTab = 'nf', onClose, isCoordenador, budgetLines = [] }) {
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatBRL(value) {
+  return `R$ ${toNumber(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+}
+
+function ChecklistItem({ ok, label, href }) {
+  return (
+    <div
+      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs ${
+        ok
+          ? 'border-green-200 bg-green-50 text-green-800'
+          : 'border-red-200 bg-red-50 text-red-800'
+      }`}
+    >
+      <span className="font-medium">{label}</span>
+      <div className="flex items-center gap-2">
+        {href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 underline"
+          >
+            <ExternalLink className="w-3 h-3" />
+            Abrir
+          </a>
+        ) : null}
+        <span className="flex items-center gap-1">
+          {ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+          {ok ? 'OK' : 'Pendente'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function buildNotaFiscalSuggestedName(payment, member) {
+  const parcela = payment?.numero_parcela || '?';
+  const cargo = (member?.funcao || 'SEM CARGO').toUpperCase();
+  const nome = (member?.user_name || member?.nome || payment?.user_email || 'SEM NOME').toUpperCase();
+  const valor = formatBRL(payment?.valor_nf || 0);
+  return `NF ${parcela} ${cargo} - ${nome} - MUSEUS CENTRO - ${valor}`;
+}
+
+export default function TeamMemberDocsPanel({
+  member,
+  initialTab = 'nf',
+  onClose,
+  isCoordenador,
+  budgetLines = [],
+}) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [uploadingContract, setUploadingContract] = useState(false);
   const queryClient = useQueryClient();
@@ -69,7 +134,42 @@ export default function TeamMemberDocsPanel({ member, initialTab = 'nf', onClose
     enabled: activeTab === 'relatorios',
   });
 
-  const budgetLine = budgetLines.find(b => b.id === member.budgetline_id);
+  const budgetLine = budgetLines.find((b) => b.id === member.budgetline_id);
+
+  const enrichedPayments = useMemo(() => {
+    return (payments || []).map((payment) => {
+      const contractUrl =
+        payment?.contract_url ||
+        member?.contract_url ||
+        member?.contrato_url ||
+        '';
+
+      const nfPdfUrl =
+        payment?.nota_fiscal_url ||
+        payment?.nf_pdf_url ||
+        payment?.nota_fiscal_pdf_url ||
+        '';
+
+      const nfXmlUrl =
+        payment?.xml_url ||
+        payment?.nf_xml_url ||
+        payment?.nota_fiscal_xml_url ||
+        '';
+
+      return {
+        ...payment,
+        _checklist: {
+          contrato: { ok: !!contractUrl, href: contractUrl || null },
+          nfPdf: { ok: !!nfPdfUrl, href: nfPdfUrl || null },
+          nfXml: { ok: !!nfXmlUrl, href: nfXmlUrl || null },
+        },
+        _contract_url: contractUrl,
+        _nf_pdf_url: nfPdfUrl,
+        _nf_xml_url: nfXmlUrl,
+        _suggested_nf_name: buildNotaFiscalSuggestedName(payment, member),
+      };
+    });
+  }, [payments, member]);
 
   const handleAttachContract = async (paymentId, file) => {
     if (!file) return;
@@ -104,15 +204,18 @@ export default function TeamMemberDocsPanel({ member, initialTab = 'nf', onClose
               <p className="font-semibold text-black">{member.user_name}</p>
               <p className="text-xs text-gray-500 font-normal">
                 {member.funcao || 'Sem cargo'}
-                {budgetLine && <span className="ml-2 text-gray-400">• {budgetLine.codigo} — {budgetLine.descricao?.substring(0, 35)}</span>}
+                {budgetLine && (
+                  <span className="ml-2 text-gray-400">
+                    • {budgetLine.codigo} — {budgetLine.descricao?.substring(0, 35)}
+                  </span>
+                )}
               </p>
             </div>
           </DialogTitle>
         </DialogHeader>
 
-        {/* Tabs */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl flex-shrink-0">
-          {tabs.map(tab => {
+          {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <button
@@ -130,28 +233,29 @@ export default function TeamMemberDocsPanel({ member, initialTab = 'nf', onClose
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {/* Notas Fiscais Tab */}
           {activeTab === 'nf' && (
             <div className="space-y-3">
               {loadingPayments ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
                 </div>
-              ) : payments.length === 0 ? (
+              ) : enrichedPayments.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                   <Receipt className="w-10 h-10 mx-auto mb-2 opacity-30" />
                   <p className="text-sm">Nenhuma nota fiscal enviada</p>
                 </div>
               ) : (
-                payments.map(payment => (
+                enrichedPayments.map((payment) => (
                   <div key={payment.id} className="border border-gray-200 rounded-xl p-4">
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <p className="font-semibold text-sm text-black">{payment.mes_referencia} / {payment.ano}</p>
+                        <p className="font-semibold text-sm text-black">
+                          {payment.mes_referencia} / {payment.ano}
+                        </p>
                         {payment.numero_nf && <p className="text-xs text-gray-500">NF: {payment.numero_nf}</p>}
                         {payment.valor_nf > 0 && (
                           <p className="text-sm font-bold text-black mt-1">
-                            R$ {payment.valor_nf?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            {formatBRL(payment.valor_nf)}
                           </p>
                         )}
                       </div>
@@ -160,31 +264,71 @@ export default function TeamMemberDocsPanel({ member, initialTab = 'nf', onClose
                       </Badge>
                     </div>
 
-                    {/* AI extracted data */}
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2 mb-3">
+                      <div className="text-xs font-semibold text-gray-700 flex items-center gap-2">
+                        <FileCheck className="w-3.5 h-3.5" />
+                        Checklist documental
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <ChecklistItem
+                          ok={payment._checklist.contrato.ok}
+                          label="Contrato"
+                          href={payment._checklist.contrato.href}
+                        />
+                        <ChecklistItem
+                          ok={payment._checklist.nfPdf.ok}
+                          label="NF PDF"
+                          href={payment._checklist.nfPdf.href}
+                        />
+                        <ChecklistItem
+                          ok={payment._checklist.nfXml.ok}
+                          label="NF XML"
+                          href={payment._checklist.nfXml.href}
+                        />
+                      </div>
+                    </div>
+
                     {(payment.nf_valor_extraido || payment.nf_razao_social || payment.nf_competencia) && (
                       <div className="bg-blue-50 border border-blue-100 rounded-lg p-2.5 mb-2 text-xs">
                         <p className="font-semibold text-blue-700 mb-1">Dados extraídos via IA</p>
                         <div className="grid grid-cols-2 gap-1 text-blue-600">
                           {payment.nf_razao_social && <span>Emitente: {payment.nf_razao_social}</span>}
-                          {payment.nf_valor_extraido && <span>Valor NF: R$ {payment.nf_valor_extraido?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
+                          {payment.nf_valor_extraido && (
+                            <span>Valor NF: {formatBRL(payment.nf_valor_extraido)}</span>
+                          )}
                           {payment.nf_competencia && <span>Competência: {payment.nf_competencia}</span>}
                           {payment.nf_cnpj_emitente && <span>CNPJ: {payment.nf_cnpj_emitente}</span>}
                         </div>
                       </div>
                     )}
 
+                    <div className="bg-amber-50 border border-amber-100 rounded-lg p-2.5 mb-2 text-xs text-amber-800">
+                      <p className="font-semibold mb-1">Nome lógico sugerido para PDF/XML da NF</p>
+                      <p>{payment._suggested_nf_name}</p>
+                    </div>
+
                     <div className="flex flex-wrap gap-2 mt-2">
-                      {payment.nota_fiscal_url && (
-                        <a href={payment.nota_fiscal_url} target="_blank" rel="noopener noreferrer">
+                      {payment._nf_pdf_url && (
+                        <a href={payment._nf_pdf_url} target="_blank" rel="noopener noreferrer">
                           <Button size="sm" variant="outline" className="text-xs h-7">
-                            <ExternalLink className="w-3 h-3 mr-1" />PDF da NF
+                            <ExternalLink className="w-3 h-3 mr-1" />
+                            PDF da NF
+                          </Button>
+                        </a>
+                      )}
+                      {payment._nf_xml_url && (
+                        <a href={payment._nf_xml_url} target="_blank" rel="noopener noreferrer">
+                          <Button size="sm" variant="outline" className="text-xs h-7">
+                            <ExternalLink className="w-3 h-3 mr-1" />
+                            XML da NF
                           </Button>
                         </a>
                       )}
                       {payment.xlsx_url && (
                         <a href={payment.xlsx_url} target="_blank" rel="noopener noreferrer">
                           <Button size="sm" variant="outline" className="text-xs h-7">
-                            <ExternalLink className="w-3 h-3 mr-1" />Planilha XLSX
+                            <ExternalLink className="w-3 h-3 mr-1" />
+                            Planilha XLSX
                           </Button>
                         </a>
                       )}
@@ -201,29 +345,33 @@ export default function TeamMemberDocsPanel({ member, initialTab = 'nf', onClose
             </div>
           )}
 
-          {/* Contrato Tab */}
           {activeTab === 'contrato' && (
             <div className="space-y-4">
-              {/* Contrato principal */}
               <div className="border border-gray-200 rounded-xl p-4">
                 <p className="text-sm font-semibold text-black mb-3">Contrato Principal</p>
-                {member.contrato_url ? (
+                {member.contrato_url || member.contract_url ? (
                   <div className="flex items-center gap-3">
                     <CheckCircle2 className="w-4 h-4 text-green-600" />
-                    <a href={member.contrato_url} target="_blank" rel="noopener noreferrer">
+                    <a
+                      href={member.contrato_url || member.contract_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       <Button size="sm" variant="outline" className="text-xs h-7">
-                        <ExternalLink className="w-3 h-3 mr-1" />Ver PDF do Contrato
+                        <ExternalLink className="w-3 h-3 mr-1" />
+                        Ver PDF do Contrato
                       </Button>
                     </a>
                   </div>
                 ) : (
                   <p className="text-xs text-gray-400">Nenhum contrato anexado ao cadastro</p>
                 )}
+
                 {member.valor_total > 0 && (
                   <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                     <div className="bg-gray-50 p-2.5 rounded-lg">
                       <p className="text-gray-500">Valor Total</p>
-                      <p className="font-bold text-black">R$ {member.valor_total?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                      <p className="font-bold text-black">{formatBRL(member.valor_total)}</p>
                     </div>
                     <div className="bg-gray-50 p-2.5 rounded-lg">
                       <p className="text-gray-500">Parcelas</p>
@@ -231,29 +379,46 @@ export default function TeamMemberDocsPanel({ member, initialTab = 'nf', onClose
                     </div>
                     <div className="bg-gray-50 p-2.5 rounded-lg">
                       <p className="text-gray-500">Por Parcela</p>
-                      <p className="font-bold text-black">R$ {member.valor_parcela?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                      <p className="font-bold text-black">{formatBRL(member.valor_parcela)}</p>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Contratos por período (anexados pelo coordenador) */}
               <div>
                 <p className="text-sm font-semibold text-black mb-2">Contratos por Período de Envio</p>
                 {loadingPayments ? (
-                  <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin" /></div>
-                ) : payments.length === 0 ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  </div>
+                ) : enrichedPayments.length === 0 ? (
                   <p className="text-xs text-gray-400 text-center py-4">Nenhum envio registrado ainda</p>
                 ) : (
                   <div className="space-y-2">
-                    {payments.map(payment => (
-                      <div key={payment.id} className="border border-gray-100 rounded-lg p-3 flex items-center justify-between">
-                        <p className="text-sm font-medium text-black">{payment.mes_referencia} / {payment.ano}</p>
+                    {enrichedPayments.map((payment) => (
+                      <div
+                        key={payment.id}
+                        className="border border-gray-100 rounded-lg p-3 flex items-center justify-between"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-black">
+                            {payment.mes_referencia} / {payment.ano}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {payment._checklist.contrato.ok ? 'Contrato presente' : 'Contrato pendente'}
+                          </p>
+                        </div>
+
                         <div className="flex items-center gap-2">
-                          {payment.contract_url ? (
-                            <a href={payment.contract_url} target="_blank" rel="noopener noreferrer">
-                              <Button size="sm" variant="outline" className="text-xs h-7 border-green-300 text-green-700">
-                                <CheckCircle2 className="w-3 h-3 mr-1" />Ver Contrato
+                          {payment._contract_url ? (
+                            <a href={payment._contract_url} target="_blank" rel="noopener noreferrer">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs h-7 border-green-300 text-green-700"
+                              >
+                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                Ver Contrato
                               </Button>
                             </a>
                           ) : isCoordenador ? (
@@ -270,7 +435,7 @@ export default function TeamMemberDocsPanel({ member, initialTab = 'nf', onClose
                                 type="file"
                                 accept=".pdf"
                                 className="hidden"
-                                onChange={e => handleAttachContract(payment.id, e.target.files[0])}
+                                onChange={(e) => handleAttachContract(payment.id, e.target.files[0])}
                               />
                             </label>
                           ) : (
@@ -285,7 +450,6 @@ export default function TeamMemberDocsPanel({ member, initialTab = 'nf', onClose
             </div>
           )}
 
-          {/* Relatórios Tab */}
           {activeTab === 'relatorios' && (
             <div className="space-y-3">
               {loadingReports ? (
@@ -298,7 +462,7 @@ export default function TeamMemberDocsPanel({ member, initialTab = 'nf', onClose
                   <p className="text-sm">Nenhum relatório encontrado</p>
                 </div>
               ) : (
-                reports.map(report => (
+                reports.map((report) => (
                   <div key={report.id} className="border border-gray-200 rounded-xl p-4">
                     <div className="flex items-start justify-between">
                       <div>
