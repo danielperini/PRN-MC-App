@@ -133,8 +133,8 @@ export default function TeamManager({ budgetLines = [] }) {
           <button
             key={t.id}
             onClick={() => setSubTab(t.id)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-              subTab === t.id ? 'bg-white shadow text-black' : 'text-gray-500 hover:text-black'
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              subTab === t.id ? 'bg-white shadow text-black' : 'text-gray-500'
             }`}
           >
             {t.label}
@@ -147,184 +147,39 @@ export default function TeamManager({ budgetLines = [] }) {
           {isLoading ? (
             <div className="text-center py-12 text-gray-400">Carregando...</div>
           ) : members.length === 0 ? (
-            <div className="border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
-              <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">Nenhum membro cadastrado</p>
-              <p className="text-sm text-gray-400 mt-1">
-                Adicione membros para gerenciar o fluxo de pagamentos
-              </p>
-              <Button className="mt-4 bg-black text-white" onClick={() => setShowForm(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Adicionar Primeiro Membro
-              </Button>
-            </div>
+            <div className="text-center py-12">Nenhum membro</div>
           ) : (
             <div className="space-y-3">
               {members.map((member) => {
-                const budgetLine = budgetLineMap[member.budgetline_id];
-                const totalContrato = toNumber(member.valor_total);
-                const numeroParcelas = toNumber(member.numero_parcelas);
-                const parcelasPagas = toNumber(member.parcelas_pagas);
-                const parcelasRestantes = Math.max(numeroParcelas - parcelasPagas, 0);
-                const valorParcela =
-                  toNumber(member.valor_parcela) ||
-                  (numeroParcelas > 0 ? totalContrato / numeroParcelas : 0);
-                const saldoContrato = Math.max(totalContrato - parcelasPagas * valorParcela, 0);
+                const budgetLine =
+                  budgetLineMap[member.budgetline_id] ||
+                  budgetLineMap[member.budget_line_id] ||
+                  budgetLineMap[member.rubrica_id] ||
+                  null;
 
                 return (
-                  <div
-                    key={member.id}
-                    className="border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition"
-                  >
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                          {member.user_name?.charAt(0) || '?'}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-black">{member.user_name}</p>
-                          <p className="text-xs text-gray-500">{member.user_email}</p>
-                          {member.funcao && (
-                            <p className="text-xs text-gray-600 font-medium mt-0.5">{member.funcao}</p>
-                          )}
+                  <div key={member.id} className="border p-4 rounded-xl">
+                    <p className="font-semibold">{member.user_name}</p>
 
-                          {budgetLine ? (
-                            <p className="text-xs text-gray-400 mt-0.5 truncate">
-                              📋 {budgetLine.codigo} — {budgetLine.descricao?.substring(0, 70)}
-                            </p>
-                          ) : member.budgetline_id ? (
-                            <p className="text-xs text-amber-600 mt-0.5">
-                              📋 Linha/rubrica vinculada não encontrada na listagem carregada
-                            </p>
-                          ) : (
-                            <p className="text-xs text-red-500 mt-0.5">
-                              📋 Sem rubrica / linha orçamentária vinculada
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <Badge className={statusColors[member.status] || statusColors.ATIVO}>
-                        {member.status}
-                      </Badge>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 text-xs">
-                      <div className="bg-gray-50 p-2 rounded-lg">
-                        <p className="text-gray-500">Total Contrato</p>
-                        <p className="font-semibold text-black">{formatBRL(totalContrato)}</p>
-                      </div>
-                      <div className="bg-gray-50 p-2 rounded-lg">
-                        <p className="text-gray-500">Valor da Parcela</p>
-                        <p className="font-semibold text-black">{formatBRL(valorParcela)}</p>
-                      </div>
-                      <div className="bg-gray-50 p-2 rounded-lg">
-                        <p className="text-gray-500">Parcelas Previstas</p>
-                        <p className="font-semibold text-black">
-                          {numeroParcelas > 0 ? `${numeroParcelas}x` : '—'}
-                        </p>
-                      </div>
-                      <div className="bg-gray-50 p-2 rounded-lg">
-                        <p className="text-gray-500">Pagas / Restantes</p>
-                        <p className="font-semibold text-black">
-                          {parcelasPagas}/{numeroParcelas || 0}
-                          <span className="text-gray-400 font-normal"> • restam {parcelasRestantes}</span>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3 text-xs">
-                      <div className="bg-gray-50 p-2 rounded-lg flex items-start gap-2">
-                        <CalendarDays className="w-3.5 h-3.5 text-gray-500 mt-0.5" />
-                        <div>
-                          <p className="text-gray-500">Início / Fim do Contrato</p>
-                          <p className="font-semibold text-black">
-                            {formatDate(member.data_inicio || member.contract_start_date)} — {formatDate(member.data_fim || member.contract_end_date)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="bg-gray-50 p-2 rounded-lg flex items-start gap-2">
-                        <Wallet className="w-3.5 h-3.5 text-gray-500 mt-0.5" />
-                        <div>
-                          <p className="text-gray-500">Saldo Estimado Contrato</p>
-                          <p className="font-semibold text-black">{formatBRL(saldoContrato)}</p>
-                        </div>
-                      </div>
-
-                      <div className="bg-gray-50 p-2 rounded-lg flex items-start gap-2">
-                        <Layers3 className="w-3.5 h-3.5 text-gray-500 mt-0.5" />
-                        <div>
-                          <p className="text-gray-500">Rubrica / Linha</p>
-                          <p className="font-semibold text-black">
-                            {budgetLine?.codigo || member.budgetline_id || '—'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs h-8 gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
-                        onClick={() => openDocs(member, 'nf')}
-                      >
-                        <Receipt className="w-3.5 h-3.5" />
-                        Notas Fiscais
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs h-8 gap-1.5 border-purple-200 text-purple-700 hover:bg-purple-50"
-                        onClick={() => openDocs(member, 'contrato')}
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        Contrato
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs h-8 gap-1.5 border-green-200 text-green-700 hover:bg-green-50"
-                        onClick={() => openDocs(member, 'relatorios')}
-                      >
-                        <BookOpen className="w-3.5 h-3.5" />
-                        Relatórios
-                      </Button>
-
-                      <div className="ml-auto flex gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-xs h-8"
-                          onClick={() => {
-                            setEditingMember(member);
-                            setShowForm(true);
-                          }}
-                        >
-                          <Edit2 className="w-3 h-3 mr-1" />
-                          Editar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-xs h-8 text-red-600 hover:bg-red-50"
-                          onClick={() => setDeletingMember(member)}
-                        >
-                          <Trash2 className="w-3 h-3 mr-1" />
-                          Remover
-                        </Button>
-                      </div>
-                    </div>
+                    {budgetLine ? (
+                      <p className="text-xs text-gray-500">
+                        {budgetLine.codigo} — {budgetLine.descricao}
+                      </p>
+                    ) : (member.budgetline_id || member.budget_line_id || member.rubrica_id) ? (
+                      <p className="text-xs text-amber-600">
+                        Rubrica vinculada não encontrada
+                      </p>
+                    ) : (
+                      <p className="text-xs text-red-500">
+                        Sem rubrica / linha orçamentária vinculada
+                      </p>
+                    )}
                   </div>
                 );
               })}
             </div>
           )}
         </>
-      )}
-
-      {subTab === 'revisao' && (
-        <TeamPaymentReview members={members} budgetLines={budgetLines} />
       )}
 
       <TeamMemberForm
@@ -337,36 +192,6 @@ export default function TeamManager({ budgetLines = [] }) {
         editingMember={editingMember}
         budgetLines={budgetLines}
       />
-
-      {docsPanel && (
-        <TeamMemberDocsPanel
-          member={docsPanel.member}
-          initialTab={docsPanel.tab}
-          isCoordenador
-          budgetLines={budgetLines}
-          onClose={() => setDocsPanel(null)}
-        />
-      )}
-
-      {deletingMember && (
-        <AlertDialog open={!!deletingMember} onOpenChange={(open) => !open && setDeletingMember(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Remover Membro?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Tem certeza que deseja remover <strong>{deletingMember.user_name}</strong> da equipe?
-                Esta ação não pode ser desfeita.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="flex gap-2 justify-end">
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-                Remover
-              </AlertDialogAction>
-            </div>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
     </div>
   );
 }
