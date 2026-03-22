@@ -22,7 +22,9 @@ function normalizeCentro(value: unknown): string {
   if (raw.includes('mis')) return 'MIS';
   if (raw.includes('mhab')) return 'MHAB';
   if (raw.includes('mumo')) return 'MUMO';
-  if (raw === 'geral') return 'Geral';
+  if (raw === 'geral' || raw === 'global') return 'Geral';
+  if (raw.includes('noturno')) return 'Noturno nos Museus 2026';
+  if (raw.includes('publica')) return 'Publicações';
 
   return String(value || '').trim();
 }
@@ -31,7 +33,8 @@ function getCentro(entity: any): string {
   return normalizeCentro(
     entity?.centro_custo ||
     entity?.museu ||
-    entity?.unidade
+    entity?.unidade ||
+    ''
   );
 }
 
@@ -39,6 +42,14 @@ function isCentroCompativel(selected: string, entity: string): boolean {
   if (!selected || !entity) return true;
   if (entity === 'Geral') return true;
   return selected === entity;
+}
+
+function getRubricaLabel(r: any): string {
+  return String(r?.rubrica || r?.nome || r?.descricao || '').trim();
+}
+
+function getRubricaGrupo(r: any): string {
+  return String(r?.grupo || r?.categoria || '').trim();
 }
 
 function tokenize(text: string): string[] {
@@ -53,32 +64,45 @@ function similarity(a: string[], b: string[]): number {
   return hits / Math.max(a.length, 1);
 }
 
-/* 🔥 MELHORIA: reforço de cobertura */
-function heuristic(rubricas, texto, centro) {
+async function listAll(entityApi: any, orderBy = '', pageSize = 200) {
+  let all: any[] = [];
+  let page = 0;
 
+  while (true) {
+    const batch = await entityApi.list(orderBy, pageSize, page * pageSize);
+    if (!batch || batch.length === 0) break;
+    all = all.concat(batch);
+    if (batch.length < pageSize) break;
+    page++;
+  }
+
+  return all;
+}
+
+function heuristic(rubricas: any[], texto: string, centro: string) {
   const rules = [
-    { keys: ['lanche','cafe','buffet','alimentacao'], hint: 'lanche' },
-    { keys: ['frete','carreto','transporte'], hint: 'transporte' },
-    { keys: ['designer','video','foto','imprensa','grafica','impressao'], hint: 'comunicacao' },
-    { keys: ['material','consumo','epi','equipamento'], hint: 'material' },
-    { keys: ['oficina','palestra','consultoria','facilitador'], hint: 'consultoria' },
+    { keys: ['lanche', 'cafe', 'buffet', 'alimentacao', 'coffee', 'coffeebreak'], hint: 'lanche' },
+    { keys: ['frete', 'carreto', 'transporte', 'van', 'taxi', 'uber'], hint: 'transporte' },
+    { keys: ['designer', 'video', 'foto', 'imprensa', 'grafica', 'impressao', 'social media', 'rede social'], hint: 'comunicacao' },
+    { keys: ['material', 'consumo', 'epi', 'equipamento', 'insumo'], hint: 'material' },
+    { keys: ['oficina', 'palestra', 'consultoria', 'facilitador', 'formacao', 'acessibilidade'], hint: 'consultoria' },
   ];
 
   for (const r of rules) {
-    if (!r.keys.some(k => texto.includes(k))) continue;
+    if (!r.keys.some((k) => texto.includes(k))) continue;
 
-    const match = rubricas.find(rb => {
-      const base = normalizeString(`${rb.nome} ${rb.grupo}`);
+    const match = rubricas.find((rb) => {
+      const base = normalizeString(`${getRubricaLabel(rb)} ${getRubricaGrupo(rb)}`);
       return base.includes(r.hint) && isCentroCompativel(centro, getCentro(rb));
     });
 
     if (match) {
       return {
         rubrica_id: match.id,
-        rubrica_nome: match.nome,
+        rubrica_nome: getRubricaLabel(match),
         score: 85,
         justificativa: 'Heurística baseada em padrão de compra',
-        source: 'heuristic'
+        source: 'heuristic',
       };
     }
   }
@@ -86,13 +110,41 @@ function heuristic(rubricas, texto, centro) {
   return null;
 }
 
+function tryParseJson(value: any) {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+
+  const text = String(value).trim();
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      return null;
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const body = await req.json();
 
-    const descricao = String(body.descricao || '');
-    const fornecedor = String(body.fornecedor || '');
+    const user = await base44.auth.me();
+    if (!user) {
+      return Response.json(
+        { success: false, error: 'Não autenticado' },
+        { status: 401 }
+      );
+    }
+
+    const body = await req.json().catch(() => ({}));
+
+    const descricao = String(body.descricao || body.descricao_item || '');
+    const fornecedor = String(body.fornecedor || body.fornecedor_nome || '');
     const categoria = String(body.categoria || '');
     const tipo = String(body.tipo_gasto || '');
     const centro = normalizeCentro(body.centro_custo);
@@ -101,10 +153,14 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, suggestion: null });
     }
 
-    const rubricas = await base44.asServiceRole.entities.Rubrica.list();
+    const rubricas = await listAll(
+      base44.asServiceRole.entities.Rubrica,
+      'ordem_exibicao',
+      200
+    );
 
-    const valid = rubricas.filter(r =>
-      r.ativo !== false &&
+    const valid = rubricas.filter((r: any) =>
+      r?.ativo !== false &&
       isCentroCompativel(centro, getCentro(r))
     );
 
@@ -112,55 +168,69 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, suggestion: null });
     }
 
-    const texto = normalizeString(`${descricao} ${categoria} ${tipo} ${fornecedor}`);
+    const texto = normalizeString(
+      `${descricao} ${categoria} ${tipo} ${fornecedor}`
+    );
 
-    /* 🔥 1. HEURÍSTICA */
     const h = heuristic(valid, texto, centro);
-    if (h) return Response.json({ success: true, suggestion: h });
+    if (h) {
+      return Response.json({ success: true, suggestion: h });
+    }
 
-    /* 🔥 2. SIMILARIDADE */
     const tokens = tokenize(texto);
 
-    const ranked = valid.map(r => {
-      const t = tokenize(`${r.nome} ${r.grupo}`);
-      return {
-        r,
-        score: similarity(tokens, t)
-      };
-    }).sort((a,b)=>b.score-a.score);
+    const ranked = valid
+      .map((r: any) => {
+        const t = tokenize(`${getRubricaLabel(r)} ${getRubricaGrupo(r)}`);
+        return {
+          r,
+          score: similarity(tokens, t),
+        };
+      })
+      .sort((a: any, b: any) => b.score - a.score);
 
     if (ranked[0]?.score >= 0.5) {
       return Response.json({
         success: true,
         suggestion: {
           rubrica_id: ranked[0].r.id,
-          rubrica_nome: ranked[0].r.nome,
-          score: Math.round(ranked[0].score*100),
+          rubrica_nome: getRubricaLabel(ranked[0].r),
+          score: Math.round(toNumber(ranked[0].score) * 100),
           justificativa: 'Similaridade textual',
-          source: 'similarity'
-        }
+          source: 'similarity',
+        },
       });
     }
 
-    /* 🔥 3. IA fallback (mantido) */
-    const context = valid.map(r => `${r.id} - ${r.nome}`).join('\n');
+    const context = valid
+      .map((r: any) => `${r.id} - ${getRubricaLabel(r)} - ${getRubricaGrupo(r)}`)
+      .join('\n');
 
-    const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const llmRaw = await base44.asServiceRole.integrations.Core.InvokeLLM({
       prompt: `
-Escolha a melhor rubrica:
+Escolha a melhor rubrica para esta compra.
 
 Compra: ${descricao}
+Fornecedor: ${fornecedor}
+Categoria: ${categoria}
+Tipo: ${tipo}
 Centro: ${centro}
 
-Rubricas:
+Rubricas disponíveis:
 ${context}
 
-Responda JSON:
-{ "rubrica_id": "", "score": 0, "justificativa": "" }
-`
+Responda somente JSON válido:
+{"rubrica_id":"","score":0,"justificativa":""}
+`,
     });
 
-    const found = valid.find(r => r.id === result.rubrica_id);
+    const llmResult =
+      tryParseJson(llmRaw?.output) ||
+      tryParseJson(llmRaw?.result) ||
+      tryParseJson(llmRaw?.text) ||
+      tryParseJson(llmRaw);
+
+    const found = valid.find((r: any) => r.id === llmResult?.rubrica_id);
 
     if (!found) {
       return Response.json({ success: true, suggestion: null });
@@ -170,14 +240,17 @@ Responda JSON:
       success: true,
       suggestion: {
         rubrica_id: found.id,
-        rubrica_nome: found.nome,
-        score: result.score || 60,
-        justificativa: result.justificativa || 'IA fallback',
-        source: 'llm'
-      }
+        rubrica_nome: getRubricaLabel(found),
+        score: toNumber(llmResult?.score) || 60,
+        justificativa: llmResult?.justificativa || 'IA fallback',
+        source: 'llm',
+      },
     });
-
-  } catch (e) {
-    return Response.json({ success: false, error: e.message });
+  } catch (e: any) {
+    console.error('suggestRubrica error:', e);
+    return Response.json(
+      { success: false, error: e?.message || String(e) },
+      { status: 500 }
+    );
   }
 });
