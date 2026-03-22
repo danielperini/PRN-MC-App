@@ -1,26 +1,60 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  Sparkles,
-  Activity,
-  DollarSign,
-  CheckCircle,
+  CheckCircle2,
   XCircle,
+  ExternalLink,
   Loader2,
-  Trash2,
-  Pencil,
+  ClipboardCheck,
+  Upload,
+  FileCheck,
   AlertCircle,
-  Link as LinkIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import PurchaseTimeline from './PurchaseTimeline';
-import PurchaseDocumentUpload from './PurchaseDocumentUpload';
-import PurchaseDocumentViewer from './PurchaseDocumentViewer';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+const STATUS_COLORS = {
+  AGUARDANDO_APROVACAO: 'bg-blue-100 text-blue-700',
+  EM_ANALISE_COORD: 'bg-yellow-100 text-yellow-700',
+  DEVOLVIDO_REVISAO: 'bg-orange-100 text-orange-700',
+  APROVADO_COORD: 'bg-green-100 text-green-700',
+  REVISAO: 'bg-orange-100 text-orange-700',
+};
+
+const STATUS_LABELS = {
+  AGUARDANDO_APROVACAO: 'Aguardando Aprovação',
+  EM_ANALISE_COORD: 'Em Análise',
+  DEVOLVIDO_REVISAO: 'Devolvido',
+  APROVADO_COORD: 'Aprovado',
+  REVISAO: 'Em Revisão',
+};
+
+const MONTHS = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -29,837 +63,636 @@ function toNumber(value) {
 }
 
 function formatBRL(value) {
-  return `R$ ${toNumber(value).toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-  })}`;
+  return `R$ ${toNumber(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 }
 
-export default function PurchaseCard({
-  purchase,
-  budgetLines,
-  statusConfig,
-  isCoordenador,
-  isAdmin,
-  onRefresh,
-  currentUser,
-  onEdit
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [relatedActivity, setRelatedActivity] = useState(null);
-  const [showApproval, setShowApproval] = useState(false);
-  const [comentario, setComentario] = useState('');
-  const [actionLoading, setActionLoading] = useState(false);
-  const [aiSecurityAnalysis, setAiSecurityAnalysis] = useState(null);
-  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+function ChecklistItem({ ok, label, href }) {
+  return (
+    <div
+      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs ${
+        ok
+          ? 'border-green-200 bg-green-50 text-green-800'
+          : 'border-red-200 bg-red-50 text-red-800'
+      }`}
+    >
+      <span className="font-medium">{label}</span>
+      <div className="flex items-center gap-2">
+        {href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 underline"
+          >
+            <ExternalLink className="w-3 h-3" />
+            Abrir
+          </a>
+        ) : null}
+        <span className="flex items-center gap-1">
+          {ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+          {ok ? 'OK' : 'Pendente'}
+        </span>
+      </div>
+    </div>
+  );
+}
 
-  const statusInfo = statusConfig[purchase.status] || {
-    label: purchase.status,
-    color: 'bg-gray-100 text-gray-700'
+function getDefaultCompetencia(payment) {
+  const monthIndex = MONTHS.findIndex((m) => m === payment?.mes_referencia);
+  if (monthIndex <= 0) {
+    return {
+      mes: payment?.mes_referencia || '',
+      ano: payment?.ano || new Date().getFullYear(),
+    };
+  }
+  return {
+    mes: MONTHS[monthIndex - 1],
+    ano: payment?.ano || new Date().getFullYear(),
+  };
+}
+
+export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
+  const queryClient = useQueryClient();
+  const [reviewingPayment, setReviewingPayment] = useState(null);
+  const [action, setAction] = useState(null); // 'approve' | 'return'
+  const [comment, setComment] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [uploadingContractFor, setUploadingContractFor] = useState(null);
+  const [competenciaMes, setCompetenciaMes] = useState('');
+  const [competenciaAno, setCompetenciaAno] = useState(String(new Date().getFullYear()));
+
+  const { data: payments = [], isLoading } = useQuery({
+    queryKey: ['team-payments-pending-review'],
+    queryFn: () => base44.entities.TeamPayment.filter({ status: 'AGUARDANDO_APROVACAO' }, '-created_date', 100),
+  });
+
+  const getMember = (payment) =>
+    members.find((m) => m.id === payment.team_member_id || m.user_email === payment.user_email);
+
+  const getBudgetLine = (payment) => {
+    const member = getMember(payment);
+    return budgetLines.find(
+      (b) =>
+        b.id === member?.budgetline_id ||
+        b.id === member?.budget_line_id ||
+        b.id === member?.rubrica_id
+    );
   };
 
-  const budgetLine = budgetLines.find(
-    line =>
-      line.id === purchase.budgetline_id ||
-      line.id === purchase.budget_line_id ||
-      line.id === purchase.linha_orcamentaria_id
-  );
+  const getChecklist = (payment, member) => {
+    const contractUrl =
+      payment?.contract_url ||
+      member?.contract_url ||
+      member?.contrato_url ||
+      '';
 
-  const hasRubricaVinculada =
-    !!purchase.rubrica_id ||
-    !!purchase.budgetline_id ||
-    !!purchase.budget_line_id ||
-    !!purchase.linha_orcamentaria_id ||
-    !!budgetLine;
+    const nfPdfUrl =
+      payment?.nota_fiscal_url ||
+      payment?.nf_pdf_url ||
+      payment?.nota_fiscal_pdf_url ||
+      '';
 
-  const canApproveCoord =
-    (isCoordenador || isAdmin) && purchase.status === 'SOLICITADO';
+    const nfXmlUrl =
+      payment?.xml_url ||
+      payment?.nf_xml_url ||
+      payment?.nota_fiscal_xml_url ||
+      '';
 
-  const canAct = canApproveCoord;
+    return {
+      contrato: { ok: !!contractUrl, href: contractUrl || null },
+      nfPdf: { ok: !!nfPdfUrl, href: nfPdfUrl || null },
+      nfXml: { ok: !!nfXmlUrl, href: nfXmlUrl || null },
+    };
+  };
 
-  const canEdit =
-    !!onEdit &&
-    purchase.status !== 'PAGO' &&
-    purchase.status !== 'CANCELADO';
+  const getValidation = (payment) => {
+    const member = getMember(payment);
+    const budgetLine = getBudgetLine(payment);
+    const checklist = getChecklist(payment, member);
 
-  const canMarkAsPaidBase =
-    (isCoordenador || isAdmin) &&
-    (purchase.status === 'APROVADO_COORD' || purchase.status === 'APROVADO_ADMIN');
+    const parcelasPrevistas = Math.max(1, parseInt(member?.numero_parcelas, 10) || 1);
+    const parcelasPagas = Math.max(0, parseInt(member?.parcelas_pagas, 10) || 0);
+    const parcelasRestantes = Math.max(parcelasPrevistas - parcelasPagas, 0);
 
-  const canMarkAsPaid = canMarkAsPaidBase && hasRubricaVinculada;
+    const valorParcela =
+      toNumber(member?.valor_parcela) ||
+      (parcelasPrevistas > 0 ? toNumber(member?.valor_total) / parcelasPrevistas : 0);
 
-  const saldoDisponivelBudgetLine = budgetLine
-    ? Math.max(0, toNumber(budgetLine.saldo_inicial) - toNumber(budgetLine.saldo_comprometido))
-    : 0;
-
-  const valorSolicitado = toNumber(purchase.valor_solicitado);
-
-  const selectedRubricaName =
-    purchase.rubrica_nome ||
-    purchase.rubrica_label ||
-    budgetLine?.rubrica_nome ||
-    budgetLine?.descricao ||
-    '';
-
-  const aiSuggestedRubricaName =
-    purchase.ai_rubrica_sugerida_nome ||
-    '';
-
-  const aiSuggestedRubricaId =
-    purchase.ai_rubrica_sugerida_id ||
-    '';
-
-  const hasAiRubricaSuggestion = !!aiSuggestedRubricaId || !!aiSuggestedRubricaName;
-
-  const rubricaDivergente =
-    !!purchase.rubrica_id &&
-    !!aiSuggestedRubricaId &&
-    purchase.rubrica_id !== aiSuggestedRubricaId;
-
-  useEffect(() => {
-    if (purchase.activity_id) {
-      base44.entities.Activity.list('-created_date', 50)
-        .then(list => {
-          const activity = list.find(item => item.id === purchase.activity_id);
-          setRelatedActivity(activity || null);
-        })
-        .catch(() => {});
-    }
-  }, [purchase.activity_id]);
-
-  const analyzeSecurityPayment = async () => {
-    setLoadingAnalysis(true);
-
-    try {
-      const saldoDisponivel = budgetLine
-        ? (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)
+    const valorSolicitado = toNumber(payment?.valor_nf) || valorParcela;
+    const saldoLinha =
+      budgetLine
+        ? toNumber(budgetLine?.saldo_inicial) - toNumber(budgetLine?.saldo_comprometido)
         : 0;
 
-      const result = await base44.integrations.Core.InvokeLLM({
-        prompt: `Analise a segurança desta aprovação de compra:
+    const hasDocs = checklist.contrato.ok && checklist.nfPdf.ok && checklist.nfXml.ok;
+    const hasParcelas = parcelasRestantes > 0;
+    const hasSaldo = !!budgetLine && saldoLinha >= valorSolicitado;
 
-DADOS DA SOLICITAÇÃO:
-- Descrição: ${purchase.descricao_item}
-- Valor solicitado: R$ ${purchase.valor_solicitado?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-- Fornecedor: ${purchase.fornecedor_nome || 'Não informado'}
-- Categoria: ${purchase.categoria}
-- Tipo de gasto: ${purchase.tipo_gasto}
-- Meta vinculada: ${purchase.meta_id || 'Nenhuma'}
+    const nfValorExtraido = toNumber(payment?.nf_valor_extraido);
+    const valorDivergenteDaNF =
+      nfValorExtraido > 0 && Math.abs(nfValorExtraido - valorSolicitado) > 1;
 
-ORÇAMENTO:
-- Rubrica: [${budgetLine?.codigo}] ${budgetLine?.descricao}
-- Saldo total da rubrica: R$ ${(budgetLine?.saldo_inicial || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-- Já comprometido: R$ ${(budgetLine?.saldo_comprometido || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-- Saldo disponível: R$ ${saldoDisponivel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+    const canApprove = hasDocs && hasParcelas && hasSaldo && !valorDivergenteDaNF;
 
-Avalie:
-1. Conformidade orçamentária
-2. Rastreabilidade
-3. Riscos
-4. Recomendação
-
-Responda em JSON com:
-{ "seguro": true/false, "risco_nivel": "baixo|medio|alto", "observacoes": "...", "recomendacao": "aprovar|recusar", "justificativa": "..." }`,
-        response_json_schema: {
-          type: 'object',
-          properties: {
-            seguro: { type: 'boolean' },
-            risco_nivel: { type: 'string', enum: ['baixo', 'medio', 'alto'] },
-            observacoes: { type: 'string' },
-            recomendacao: { type: 'string' },
-            justificativa: { type: 'string' }
-          },
-          required: ['seguro', 'risco_nivel', 'recomendacao', 'justificativa']
-        }
-      });
-
-      setAiSecurityAnalysis(result);
-    } catch (e) {
-      toast.error('Erro ao analisar segurança: ' + e.message);
-    }
-
-    setLoadingAnalysis(false);
+    return {
+      member,
+      budgetLine,
+      checklist,
+      parcelasPrevistas,
+      parcelasPagas,
+      parcelasRestantes,
+      valorParcela,
+      valorSolicitado,
+      saldoLinha,
+      hasDocs,
+      hasParcelas,
+      hasSaldo,
+      nfValorExtraido,
+      valorDivergenteDaNF,
+      canApprove,
+    };
   };
 
-  const handleApprovalAction = async (action) => {
-    setActionLoading(true);
+  const reviewingValidation = useMemo(() => {
+    if (!reviewingPayment) return null;
+    return getValidation(reviewingPayment);
+  }, [reviewingPayment, members, budgetLines]);
 
-    try {
-      if (action === 'aprovar') {
-        const saldoDisponivel = budgetLine
-          ? (budgetLine.saldo_inicial || 0) - (budgetLine.saldo_comprometido || 0)
-          : Infinity;
-
-        if (saldoDisponivel < (purchase.valor_solicitado || 0)) {
-          toast.error(
-            `❌ Saldo insuficiente! Disponível: R$ ${saldoDisponivel.toLocaleString('pt-BR', {
-              minimumFractionDigits: 2
-            })}`,
-            { duration: 5000 }
-          );
-          setActionLoading(false);
-          return;
-        }
-      }
-
-      await base44.functions.invoke('purchaseActions', {
-        purchaseId: purchase.id,
-        action,
-        comentario,
-      });
-
-      const messages = {
-        aprovar: {
-          title: '✅ Compra aprovada!',
-          desc: 'Solicitação aprovada e saldo comprometido.'
-        },
-        reject: {
-          title: '❌ Solicitação recusada',
-          desc: comentario
-        },
-      };
-
-      const message = messages[action] || {
-        title: '✅ Ação realizada!',
-        desc: ''
-      };
-
-      toast.success(message.title, {
-        description: message.desc,
-        duration: 5000
-      });
-
-      setShowApproval(false);
-      setComentario('');
-      onRefresh?.();
-    } catch (e) {
-      toast.error(`❌ Erro: ${e.message}`, { duration: 5000 });
-    }
-
-    setActionLoading(false);
+  const openReviewDialog = (payment, nextAction) => {
+    const competenciaDefault = getDefaultCompetencia(payment);
+    setReviewingPayment(payment);
+    setAction(nextAction);
+    setComment('');
+    setCompetenciaMes(competenciaDefault.mes);
+    setCompetenciaAno(String(competenciaDefault.ano));
   };
 
-  const handleMarkAsPaid = async () => {
-    if (!hasRubricaVinculada) {
-      toast.error('❌ Vincule uma rubrica ou linha orçamentária antes de marcar como pago.', {
-        duration: 5000
-      });
+  const closeDialog = () => {
+    setReviewingPayment(null);
+    setAction(null);
+    setComment('');
+    setCompetenciaMes('');
+    setCompetenciaAno(String(new Date().getFullYear()));
+  };
+
+  const handleConfirmAction = async () => {
+    if (!reviewingPayment) return;
+
+    const validation = getValidation(reviewingPayment);
+
+    if (
+      action === 'approve' &&
+      reviewingPayment.nf_valor_extraido &&
+      Math.abs(toNumber(reviewingPayment.nf_valor_extraido) - validation.valorSolicitado) > 1
+    ) {
+      toast.error('Valor da NF difere do valor da parcela');
       return;
     }
 
-    const comprovante_url =
-      window.prompt(
-        'Cole a URL do comprovante de pagamento (opcional):',
-        purchase.comprovante_url || ''
-      ) || '';
-
-    const data_pagamento =
-      window.prompt(
-        'Informe a data do pagamento (YYYY-MM-DD) ou deixe vazio para hoje:',
-        purchase.data_pagamento || ''
-      ) || '';
-
-    setActionLoading(true);
-
-    try {
-      await base44.functions.invoke('purchaseActions', {
-        action: 'marcar_pago',
-        purchaseId: purchase.id,
-        comprovante_url,
-        data_pagamento,
-      });
-
-      toast.success('✅ Compra marcada como paga!');
-      onRefresh?.();
-    } catch (e) {
-      toast.error('❌ Erro ao marcar como pago: ' + e.message, { duration: 5000 });
+    if (action === 'approve' && !validation.canApprove) {
+      toast.error('Não é possível aprovar: verifique documentos, parcelas disponíveis, saldo e valor da NF.');
+      return;
     }
 
-    setActionLoading(false);
-  };
-
-  const handleDelete = async () => {
-    if (!window.confirm('Tem certeza que deseja deletar esta solicitação?')) return;
-
-    setActionLoading(true);
-
-    try {
-      await base44.entities.PurchaseRequest.delete(purchase.id);
-      toast.success('✅ Solicitação deletada com sucesso!', {
-        description: purchase.descricao_item,
-        duration: 5000
-      });
-      onRefresh?.();
-    } catch (e) {
-      toast.error(`❌ Erro ao deletar: ${e.message}`, { duration: 5000 });
+    if (action === 'return' && !comment.trim()) {
+      toast.error('Informe o motivo da devolução.');
+      return;
     }
 
-    setActionLoading(false);
+    if (action === 'approve' && (!competenciaMes || !competenciaAno)) {
+      toast.error('Selecione a competência autorizada.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const user = await base44.auth.me();
+      const isApprove = action === 'approve';
+
+      const observacaoFinal = isApprove
+        ? [
+            comment?.trim() || '',
+            `Competência autorizada: ${competenciaMes}/${competenciaAno}`,
+            `Parcelas: ${validation.parcelasPagas}/${validation.parcelasPrevistas} pagas antes desta aprovação`,
+            `Saldo da rubrica/linha no momento da aprovação: ${formatBRL(validation.saldoLinha)}`,
+          ]
+            .filter(Boolean)
+            .join('\n')
+        : comment.trim();
+
+      await base44.entities.TeamPayment.update(reviewingPayment.id, {
+        status: isApprove ? 'APROVADO_COORD' : 'DEVOLVIDO_REVISAO',
+        observacoes: observacaoFinal || null,
+        aprov_coord_nome: user.full_name,
+        aprov_coord_email: user.email,
+        aprov_coord_data: new Date().toISOString(),
+      });
+
+      let purchaseId = null;
+
+      if (isApprove) {
+        try {
+          const purchase = await base44.entities.PurchaseRequest.create({
+            descricao_item: `Pagamento equipe - ${validation.member?.user_name || reviewingPayment.user_email}`,
+            valor_solicitado: validation.valorSolicitado,
+            valor_aprovado: validation.valorSolicitado,
+            status: 'APROVADO_COORD',
+            rubrica_id: validation.budgetLine?.rubrica_id || null,
+            budgetline_id: validation.budgetLine?.id || null,
+            budget_line_id: validation.budgetLine?.id || null,
+            created_by: reviewingPayment.user_email,
+            origem: 'TEAM_PAYMENT',
+            team_payment_id: reviewingPayment.id,
+            centro_custo:
+              validation.budgetLine?.centro_custo ||
+              validation.member?.centro_custo ||
+              '',
+            categoria: 'Equipe',
+            tipo_gasto: 'PAGAMENTO_EQUIPE',
+            fornecedor_nome:
+              validation.member?.user_name ||
+              reviewingPayment.user_email ||
+              'Membro da equipe',
+            observacao:
+              [
+                `Gerado automaticamente a partir de TeamPayment ${reviewingPayment.id}`,
+                `Competência autorizada: ${competenciaMes}/${competenciaAno}`,
+                reviewingPayment.numero_nf ? `NF: ${reviewingPayment.numero_nf}` : '',
+              ]
+                .filter(Boolean)
+                .join(' | '),
+          });
+
+          purchaseId = purchase?.id || null;
+
+          await base44.entities.TeamPayment.update(reviewingPayment.id, {
+            purchase_id: purchaseId,
+          });
+        } catch (e) {
+          console.error('Erro ao criar purchase:', e);
+        }
+      }
+
+      try {
+        await base44.integrations.Core.SendEmail({
+          to: reviewingPayment.user_email,
+          subject: isApprove ? '✅ Envio financeiro aprovado' : '↩️ Envio financeiro devolvido para revisão',
+          body: isApprove
+            ? `Olá! Seu pagamento de ${reviewingPayment.mes_referencia}/${reviewingPayment.ano} foi aprovado pelo coordenador.
+
+Competência autorizada: ${competenciaMes}/${competenciaAno}
+Valor: ${formatBRL(reviewingPayment.valor_nf)}
+${purchaseId ? `Registro financeiro criado: ${purchaseId}` : ''}
+${comment?.trim() ? `Observação: ${comment.trim()}` : ''}
+
+Acesse o pagamento na plataforma para acompanhamento.`
+            : `Olá! Seu envio financeiro de ${reviewingPayment.mes_referencia}/${reviewingPayment.ano} foi devolvido para revisão.
+
+Observação do coordenador: ${comment.trim()}
+
+Acesse o pagamento na plataforma, corrija os documentos e reenvie.`,
+        });
+      } catch {}
+
+      toast.success(isApprove ? 'Envio aprovado com sucesso!' : 'Devolvido para revisão');
+
+      queryClient.invalidateQueries(['team-payments-pending-review']);
+      queryClient.invalidateQueries(['team-payments-pending']);
+      queryClient.invalidateQueries(['team-payments']);
+      queryClient.invalidateQueries(['team-members']);
+      queryClient.invalidateQueries(['purchase-requests']);
+      queryClient.invalidateQueries(['purchases']);
+
+      closeDialog();
+    } catch (e) {
+      toast.error('Erro: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const META_LABELS = {
-    'MC3A-20': 'Ações Educativas',
-    'MC3A-21': 'Exposição / Produção',
-    'MC3A-22': 'Comunicação',
-    'MC3A-23': 'Noturno 2026',
-    'MC3A-24': 'Emenda Parlamentar',
-    'MC3A-25': 'Outras Ações',
-    'MC3A-EXTRA': 'Extra',
+  const handleAttachContract = async (paymentId, file) => {
+    if (!file) return;
+    setUploadingContractFor(paymentId);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      await base44.entities.TeamPayment.update(paymentId, { contract_url: file_url });
+      toast.success('Contrato anexado');
+      queryClient.invalidateQueries(['team-payments-pending-review']);
+    } catch (e) {
+      toast.error('Erro ao anexar: ' + e.message);
+    } finally {
+      setUploadingContractFor(null);
+    }
   };
 
-  const scoreColor =
-    purchase.ai_meta_score >= 80
-      ? 'text-green-700 bg-green-50'
-      : purchase.ai_meta_score >= 50
-      ? 'text-amber-700 bg-amber-50'
-      : 'text-red-700 bg-red-50';
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
-  const rubricaScoreColor =
-    toNumber(purchase.ai_rubrica_score) >= 80
-      ? 'text-green-700 bg-green-50'
-      : toNumber(purchase.ai_rubrica_score) >= 50
-      ? 'text-amber-700 bg-amber-50'
-      : 'text-red-700 bg-red-50';
+  if (payments.length === 0) {
+    return (
+      <div className="border-2 border-dashed border-gray-200 rounded-2xl p-14 text-center">
+        <ClipboardCheck className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+        <p className="text-gray-500 font-medium">Nenhum envio aguardando revisão</p>
+        <p className="text-sm text-gray-400 mt-1">Quando membros enviarem documentos financeiros, aparecerão aqui</p>
+      </div>
+    );
+  }
 
   return (
-    <div
-      className={`border rounded-xl transition-colors ${
-        canAct && !showApproval
-          ? 'border-blue-100 hover:border-blue-200'
-          : 'border-gray-100 hover:border-gray-200'
-      }`}
-    >
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusInfo.color}`}>
-                {statusInfo.label}
-              </span>
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500 font-medium">{payments.length} envio(s) aguardando revisão</p>
 
-              {purchase.meta_id && (
-                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                  {META_LABELS[purchase.meta_id] || purchase.meta_id}
-                </span>
-              )}
+      {payments.map((payment) => {
+        const validation = getValidation(payment);
+        const { member, budgetLine, checklist } = validation;
 
-              {purchase.tipo_gasto && (
-                <span className="text-xs border border-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
-                  {purchase.tipo_gasto}
-                </span>
-              )}
-
-              {purchase.ai_meta_score !== undefined && purchase.ai_meta_score !== null && (
-                <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${scoreColor}`}>
-                  <Sparkles className="w-3 h-3" />
-                  IA Meta: {purchase.ai_meta_score}%
-                </span>
-              )}
-
-              {hasAiRubricaSuggestion && (
-                <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${rubricaScoreColor}`}>
-                  <Sparkles className="w-3 h-3" />
-                  IA Rubrica: {toNumber(purchase.ai_rubrica_score)}%
-                </span>
-              )}
+        return (
+          <div key={payment.id} className="border border-gray-200 rounded-xl p-5 hover:border-gray-300 transition">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-black rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                  {(member?.user_name || payment.user_email)?.charAt(0) || '?'}
+                </div>
+                <div>
+                  <p className="font-semibold text-black">{member?.user_name || payment.user_email}</p>
+                  {member?.funcao && <p className="text-xs text-gray-500">{member.funcao}</p>}
+                  <p className="text-xs text-gray-400">{payment.mes_referencia} / {payment.ano}</p>
+                  {budgetLine && (
+                    <p className="text-xs text-gray-400">
+                      {budgetLine.codigo} — {budgetLine.descricao?.substring(0, 50)}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p className="font-bold text-black text-lg">
+                  {payment.valor_nf ? formatBRL(payment.valor_nf) : '—'}
+                </p>
+                {payment.numero_nf && <p className="text-xs text-gray-500">NF nº {payment.numero_nf}</p>}
+                <Badge className={STATUS_COLORS[payment.status] || 'bg-gray-100 text-gray-700'}>
+                  {STATUS_LABELS[payment.status] || payment.status}
+                </Badge>
+              </div>
             </div>
 
-            <p className="font-medium text-black text-sm truncate">
-              {purchase.descricao_item}
-            </p>
-
-            <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-600">
-              {purchase.fornecedor_nome && (
-                <span>Fornecedor: {purchase.fornecedor_nome}</span>
-              )}
-
-              {budgetLine && (
-                <div className="flex items-center gap-1">
-                  <DollarSign className="w-3 h-3" />
-                  <span>
-                    [{budgetLine.codigo}] {budgetLine.descricao?.substring(0, 35)}
-                  </span>
+            {(payment.nf_valor_extraido || payment.nf_razao_social || payment.nf_competencia) && (
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-3">
+                <p className="text-xs font-semibold text-blue-800 mb-1.5">📊 Dados extraídos da NF (IA)</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-blue-700">
+                  {payment.nf_razao_social && <span><span className="text-blue-500">Emitente:</span> {payment.nf_razao_social}</span>}
+                  {payment.nf_valor_extraido && (
+                    <span>
+                      <span className="text-blue-500">Valor NF:</span> {formatBRL(payment.nf_valor_extraido)}
+                      {toNumber(payment.nf_valor_extraido) !== toNumber(payment.valor_nf) && toNumber(payment.valor_nf) > 0 && (
+                        <span className="text-orange-600 ml-1">⚠️ difere do declarado</span>
+                      )}
+                    </span>
+                  )}
+                  {payment.nf_competencia && <span><span className="text-blue-500">Competência:</span> {payment.nf_competencia}</span>}
+                  {payment.nf_cnpj_emitente && <span><span className="text-blue-500">CNPJ:</span> {payment.nf_cnpj_emitente}</span>}
+                  {payment.nf_data_emissao && <span><span className="text-blue-500">Emissão:</span> {payment.nf_data_emissao}</span>}
+                  {payment.nf_numero_extraido && <span><span className="text-blue-500">Nº NF:</span> {payment.nf_numero_extraido}</span>}
                 </div>
-              )}
+              </div>
+            )}
 
-              {hasRubricaVinculada ? (
-                <div className="flex items-center gap-1 text-green-700">
-                  <LinkIcon className="w-3 h-3" />
-                  <span>Com vínculo financeiro</span>
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2 mb-3">
+              <div className="text-xs font-semibold text-gray-700 flex items-center gap-2">
+                <FileCheck className="w-3.5 h-3.5" />
+                Checklist documental
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <ChecklistItem ok={checklist.contrato.ok} label="Contrato" href={checklist.contrato.href} />
+                <ChecklistItem ok={checklist.nfPdf.ok} label="NF PDF" href={checklist.nfPdf.href} />
+                <ChecklistItem ok={checklist.nfXml.ok} label="NF XML" href={checklist.nfXml.href} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4 text-xs">
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="text-gray-500">Parcelas Previstas</p>
+                <p className="font-semibold text-black">{validation.parcelasPrevistas}</p>
+              </div>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="text-gray-500">Pagas / Restantes</p>
+                <p className="font-semibold text-black">
+                  {validation.parcelasPagas}/{validation.parcelasPrevistas}
+                  <span className="text-gray-400 font-normal"> • restam {validation.parcelasRestantes}</span>
+                </p>
+              </div>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="text-gray-500">Valor da Parcela</p>
+                <p className="font-semibold text-black">{formatBRL(validation.valorParcela)}</p>
+              </div>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="text-gray-500">Saldo da Rubrica / Linha</p>
+                <p className={`font-semibold ${validation.hasSaldo ? 'text-black' : 'text-red-600'}`}>
+                  {budgetLine ? formatBRL(validation.saldoLinha) : 'Sem vínculo'}
+                </p>
+              </div>
+            </div>
+
+            {(!validation.hasDocs || !validation.hasParcelas || !validation.hasSaldo || validation.valorDivergenteDaNF) && (
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 mb-4">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  {!validation.hasDocs && <p>Faltam documentos obrigatórios: contrato, NF PDF e/ou NF XML.</p>}
+                  {!validation.hasParcelas && <p>Não há parcelas disponíveis para este membro.</p>}
+                  {!validation.hasSaldo && <p>Saldo insuficiente ou rubrica/linha não vinculada.</p>}
+                  {validation.valorDivergenteDaNF && <p>O valor extraído da NF difere do valor da parcela.</p>}
                 </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2 mb-4">
+              {payment.nota_fiscal_url && (
+                <a href={payment.nota_fiscal_url} target="_blank" rel="noopener noreferrer">
+                  <Button size="sm" variant="outline" className="text-xs h-7">
+                    <ExternalLink className="w-3 h-3 mr-1" />
+                    PDF da NF
+                  </Button>
+                </a>
+              )}
+              {payment.xml_url && (
+                <a href={payment.xml_url} target="_blank" rel="noopener noreferrer">
+                  <Button size="sm" variant="outline" className="text-xs h-7">
+                    <ExternalLink className="w-3 h-3 mr-1" />
+                    XML da NF
+                  </Button>
+                </a>
+              )}
+              {payment.xlsx_url && (
+                <a href={payment.xlsx_url} target="_blank" rel="noopener noreferrer">
+                  <Button size="sm" variant="outline" className="text-xs h-7">
+                    <ExternalLink className="w-3 h-3 mr-1" />
+                    Planilha XLSX
+                  </Button>
+                </a>
+              )}
+              {checklist.contrato.href ? (
+                <a href={checklist.contrato.href} target="_blank" rel="noopener noreferrer">
+                  <Button size="sm" variant="outline" className="text-xs h-7 border-green-300 text-green-700">
+                    <FileCheck className="w-3 h-3 mr-1" />
+                    Contrato
+                  </Button>
+                </a>
               ) : (
-                <div className="flex items-center gap-1 text-red-600">
-                  <AlertCircle className="w-3 h-3" />
-                  <span>Sem rubrica vinculada</span>
-                </div>
+                <label className="cursor-pointer">
+                  <div className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium border border-dashed border-gray-300 rounded-md hover:border-gray-400 hover:bg-gray-50 transition-colors cursor-pointer">
+                    {uploadingContractFor === payment.id ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Upload className="w-3 h-3" />
+                    )}
+                    Anexar Contrato
+                  </div>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={(e) => handleAttachContract(payment.id, e.target.files[0])}
+                  />
+                </label>
               )}
             </div>
-          </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="text-right">
-              <p className="font-bold text-black">
-                {formatBRL(purchase.valor_solicitado || 0)}
-              </p>
-            </div>
-
-            {canEdit && (
+            <div className="flex gap-2 pt-3 border-t border-gray-100">
+              <Button
+                size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white text-xs h-8 gap-1.5 disabled:opacity-50"
+                onClick={() => openReviewDialog(payment, 'approve')}
+                disabled={!validation.canApprove}
+                title={!validation.canApprove ? 'Verifique checklist, parcelas, saldo e valor da NF antes de aprovar' : ''}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Autorizar Pagamento
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
-                className="text-xs"
-                onClick={() => onEdit?.(purchase)}
+                className="text-xs h-8 gap-1.5 text-orange-600 border-orange-300 hover:bg-orange-50"
+                onClick={() => openReviewDialog(payment, 'return')}
               >
-                <Pencil className="w-3.5 h-3.5 mr-1" />
-                Editar
+                <XCircle className="w-3.5 h-3.5" />
+                Devolver para Revisão
               </Button>
-            )}
+            </div>
+          </div>
+        );
+      })}
 
-            {canAct && (
-              <Button
-                size="sm"
-                variant={showApproval ? 'default' : 'outline'}
-                className={showApproval ? 'bg-black text-white text-xs' : 'text-xs'}
-                onClick={() => {
-                  setShowApproval(!showApproval);
-                  if (!showApproval && !aiSecurityAnalysis) {
-                    analyzeSecurityPayment();
+      {reviewingPayment && (
+        <Dialog open onOpenChange={closeDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {action === 'approve' ? '✅ Confirmar Autorização de Pagamento' : '↩️ Devolver para Revisão'}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="bg-gray-50 rounded-xl p-3 text-sm">
+                <p className="font-semibold text-black">
+                  {getMember(reviewingPayment)?.user_name || reviewingPayment.user_email}
+                </p>
+                <p className="text-gray-500 text-xs mt-0.5">
+                  Envio: {reviewingPayment.mes_referencia} / {reviewingPayment.ano}
+                </p>
+                {reviewingPayment.valor_nf > 0 && (
+                  <p className="font-bold text-black mt-2">{formatBRL(reviewingPayment.valor_nf)}</p>
+                )}
+              </div>
+
+              {action === 'approve' && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Mês da competência *</Label>
+                      <Select value={competenciaMes} onValueChange={setCompetenciaMes}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o mês" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MONTHS.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">Ano da competência *</Label>
+                      <Input
+                        type="number"
+                        value={competenciaAno}
+                        onChange={(e) => setCompetenciaAno(e.target.value)}
+                        min="2024"
+                      />
+                    </div>
+                  </div>
+
+                  {reviewingValidation && !reviewingValidation.canApprove && (
+                    <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        {!reviewingValidation.hasDocs && <p>Checklist documental incompleto.</p>}
+                        {!reviewingValidation.hasParcelas && <p>Não há parcelas restantes para autorizar.</p>}
+                        {!reviewingValidation.hasSaldo && <p>Saldo insuficiente ou sem vínculo de rubrica/linha.</p>}
+                        {reviewingValidation.valorDivergenteDaNF && <p>Valor da NF diverge do valor esperado da parcela.</p>}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div>
+                <label className="text-xs font-medium text-gray-700 mb-1.5 block">
+                  {action === 'approve' ? 'Observação (opcional)' : 'Motivo da devolução *'}
+                </label>
+                <Textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder={
+                    action === 'approve'
+                      ? 'Observações do coordenador...'
+                      : 'Descreva o que precisa ser corrigido ou reapresentado...'
                   }
-                }}
-              >
-                {showApproval ? 'Fechar' : 'Analisar'}
-              </Button>
-            )}
+                  rows={3}
+                />
+              </div>
+            </div>
 
-            {canMarkAsPaidBase && (
+            <DialogFooter>
+              <Button variant="outline" onClick={closeDialog}>
+                Cancelar
+              </Button>
               <Button
-                size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
-                onClick={handleMarkAsPaid}
-                disabled={actionLoading || !canMarkAsPaid}
-                title={
-                  canMarkAsPaid
-                    ? 'Marcar compra como paga'
-                    : 'Vincule uma rubrica antes de marcar como pago'
+                className={
+                  action === 'approve'
+                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    : 'bg-orange-600 hover:bg-orange-700 text-white'
+                }
+                onClick={handleConfirmAction}
+                disabled={
+                  saving ||
+                  (action === 'return' && !comment.trim()) ||
+                  (action === 'approve' && (!reviewingValidation?.canApprove || !competenciaMes || !competenciaAno))
                 }
               >
-                {actionLoading ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                ) : (
-                  <CheckCircle className="w-3.5 h-3.5 mr-1" />
-                )}
-                Marcar pago
+                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                {action === 'approve' ? 'Confirmar Autorização' : 'Devolver'}
               </Button>
-            )}
-
-            {isCoordenador && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-red-600 hover:bg-red-50 text-xs h-8 w-8 p-0"
-                onClick={handleDelete}
-                disabled={actionLoading}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            )}
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setExpanded(!expanded)}
-            >
-              {expanded ? (
-                <ChevronUp className="w-4 h-4" />
-              ) : (
-                <ChevronDown className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {canMarkAsPaidBase && !canMarkAsPaid && (
-          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-            <div>
-              Vincule uma rubrica ou linha orçamentária antes de registrar o pagamento.
-            </div>
-          </div>
-        )}
-
-        {rubricaDivergente && (
-          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-            <div>
-              A rubrica escolhida difere da sugestão da IA. Revise o enquadramento financeiro antes de aprovar.
-            </div>
-          </div>
-        )}
-
-        <div className="mt-3">
-          <PurchaseTimeline purchase={purchase} />
-        </div>
-
-        {showApproval && (
-          <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-black">
-                ✅ Aprovação — Coordenação
-              </p>
-
-              {loadingAnalysis && (
-                <span className="text-xs text-gray-500 flex items-center gap-1">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Analisando segurança...
-                </span>
-              )}
-            </div>
-
-            {aiSecurityAnalysis && (
-              <div
-                className={`p-3 rounded-lg border text-xs ${
-                  aiSecurityAnalysis.risco_nivel === 'alto'
-                    ? 'bg-red-50 border-red-200'
-                    : aiSecurityAnalysis.risco_nivel === 'medio'
-                    ? 'bg-amber-50 border-amber-200'
-                    : 'bg-green-50 border-green-200'
-                }`}
-              >
-                <div className="flex items-start gap-2 mb-2">
-                  <Sparkles
-                    className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
-                      aiSecurityAnalysis.risco_nivel === 'alto'
-                        ? 'text-red-600'
-                        : aiSecurityAnalysis.risco_nivel === 'medio'
-                        ? 'text-amber-600'
-                        : 'text-green-600'
-                    }`}
-                  />
-
-                  <div className="flex-1">
-                    <p className="font-semibold mb-1">Análise de Segurança da IA</p>
-                    <p className="text-gray-700 mb-2">{aiSecurityAnalysis.justificativa}</p>
-
-                    {aiSecurityAnalysis.observacoes && (
-                      <p className="text-gray-600 italic">
-                        Observações: {aiSecurityAnalysis.observacoes}
-                      </p>
-                    )}
-
-                    <p
-                      className={`mt-2 font-medium ${
-                        aiSecurityAnalysis.recomendacao === 'aprovar'
-                          ? 'text-green-700'
-                          : 'text-red-700'
-                      }`}
-                    >
-                      💡 Recomendação:{' '}
-                      {aiSecurityAnalysis.recomendacao === 'aprovar'
-                        ? '✅ Aprovar'
-                        : '❌ Recusar'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {budgetLine && (
-              <div className="text-xs bg-white border rounded-lg px-3 py-2">
-                <span className="text-gray-500">
-                  [{budgetLine.codigo}] Saldo disponível:{' '}
-                </span>
-
-                <strong
-                  className={
-                    saldoDisponivelBudgetLine >= valorSolicitado
-                      ? 'text-green-700'
-                      : 'text-red-700'
-                  }
-                >
-                  {formatBRL(saldoDisponivelBudgetLine)}
-                </strong>
-              </div>
-            )}
-
-            <div>
-              <label className="text-xs text-gray-600 mb-1 block">
-                Justificativa / Comentário
-              </label>
-              <Textarea
-                placeholder="Adicione um comentário ou justificativa (obrigatório para recusar)..."
-                rows={2}
-                value={comentario}
-                onChange={e => setComentario(e.target.value)}
-              />
-            </div>
-
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="outline"
-                className="text-red-600 border-red-200 hover:bg-red-50 text-sm"
-                onClick={() => handleApprovalAction('reject')}
-                disabled={actionLoading || !comentario.trim()}
-              >
-                {actionLoading ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                ) : (
-                  <XCircle className="w-3.5 h-3.5 mr-1" />
-                )}
-                Recusar
-              </Button>
-
-              <Button
-                className="bg-black hover:bg-gray-800 text-white text-sm"
-                onClick={() => handleApprovalAction('aprovar')}
-                disabled={actionLoading}
-              >
-                {actionLoading ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                ) : (
-                  <CheckCircle className="w-3.5 h-3.5 mr-1" />
-                )}
-                Aprovar e comprometer
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {expanded && (
-        <div className="px-4 pb-4 space-y-4 border-t border-gray-50 pt-4">
-          {purchase.ai_analise && (
-            <div
-              className={`p-3 rounded-lg text-xs ${
-                purchase.ai_meta_score >= 80
-                  ? 'bg-green-50 border border-green-100'
-                  : 'bg-amber-50 border border-amber-100'
-              }`}
-            >
-              <p className="font-semibold mb-1 flex items-center gap-1">
-                <Sparkles className="w-3 h-3" />
-                Análise da IA — Meta
-              </p>
-              <p className="text-gray-700">{purchase.ai_analise}</p>
-
-              {purchase.ai_meta_sugerida && purchase.ai_meta_sugerida !== purchase.meta_id && (
-                <p className="mt-1 text-amber-700 font-medium">
-                  Meta sugerida: {purchase.ai_meta_sugerida}
-                </p>
-              )}
-            </div>
-          )}
-
-          {hasAiRubricaSuggestion && (
-            <div
-              className={`p-3 rounded-lg text-xs ${
-                rubricaDivergente
-                  ? 'bg-amber-50 border border-amber-200'
-                  : 'bg-blue-50 border border-blue-100'
-              }`}
-            >
-              <p className="font-semibold mb-2 flex items-center gap-1">
-                <Sparkles className="w-3 h-3" />
-                Sugestão da IA — Rubrica
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-gray-700">
-                <div>
-                  <span className="text-gray-500">Sugestão IA:</span>{' '}
-                  <strong>{aiSuggestedRubricaName || aiSuggestedRubricaId || '—'}</strong>
-                </div>
-                <div>
-                  <span className="text-gray-500">Score:</span>{' '}
-                  <strong>{toNumber(purchase.ai_rubrica_score)}%</strong>
-                </div>
-                <div>
-                  <span className="text-gray-500">Fonte:</span>{' '}
-                  <strong>{purchase.ai_rubrica_source || '—'}</strong>
-                </div>
-                <div>
-                  <span className="text-gray-500">Rubrica final:</span>{' '}
-                  <strong>{selectedRubricaName || purchase.rubrica_id || '—'}</strong>
-                </div>
-              </div>
-
-              {purchase.ai_rubrica_justificativa && (
-                <p className="mt-2 text-gray-700">
-                  {purchase.ai_rubrica_justificativa}
-                </p>
-              )}
-
-              {rubricaDivergente && (
-                <p className="mt-2 text-amber-700 font-medium">
-                  A escolha final diverge da sugestão automática.
-                </p>
-              )}
-            </div>
-          )}
-
-          {(budgetLine || purchase.rubrica_id) && (
-            <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
-              <p className="font-semibold text-xs mb-2 text-blue-900">
-                📋 Vínculo Financeiro
-              </p>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-blue-800">
-                {purchase.rubrica_id && (
-                  <div>
-                    <span className="text-blue-600 font-medium">Rubrica ID:</span>{' '}
-                    {purchase.rubrica_id}
-                  </div>
-                )}
-                {selectedRubricaName && (
-                  <div>
-                    <span className="text-blue-600 font-medium">Rubrica:</span>{' '}
-                    {selectedRubricaName}
-                  </div>
-                )}
-                {budgetLine?.codigo && (
-                  <div>
-                    <span className="text-blue-600 font-medium">Código:</span>{' '}
-                    {budgetLine.codigo}
-                  </div>
-                )}
-                {budgetLine?.natureza_codigo && (
-                  <div>
-                    <span className="text-blue-600 font-medium">Natureza:</span>{' '}
-                    {budgetLine.natureza_codigo}
-                  </div>
-                )}
-                {budgetLine && (
-                  <div>
-                    <span className="text-blue-600 font-medium">Valor PO:</span>{' '}
-                    {formatBRL(budgetLine.valor_total_previsto || 0)}
-                  </div>
-                )}
-                {budgetLine && (
-                  <div>
-                    <span className="text-blue-600 font-medium">Comprometido:</span>{' '}
-                    {formatBRL(budgetLine.saldo_comprometido || 0)}
-                  </div>
-                )}
-                {budgetLine && (
-                  <div>
-                    <span className="text-blue-600 font-medium">Saldo:</span>{' '}
-                    {formatBRL(saldoDisponivelBudgetLine)}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-            {purchase.categoria && (
-              <div>
-                <span className="text-gray-400">Categoria</span>
-                <p className="font-medium text-gray-700">{purchase.categoria}</p>
-              </div>
-            )}
-
-            {purchase.centro_custo && (
-              <div>
-                <span className="text-gray-400">Centro de custo</span>
-                <p className="font-medium text-gray-700">{purchase.centro_custo}</p>
-              </div>
-            )}
-
-            {purchase.meio_pagamento && (
-              <div>
-                <span className="text-gray-400">Pagamento</span>
-                <p className="font-medium text-gray-700">{purchase.meio_pagamento}</p>
-              </div>
-            )}
-
-            {purchase.qtd && (
-              <div>
-                <span className="text-gray-400">Qtd</span>
-                <p className="font-medium text-gray-700">
-                  {purchase.qtd} {purchase.unidade}
-                </p>
-              </div>
-            )}
-
-            {purchase.data_pagamento && (
-              <div>
-                <span className="text-gray-400">Data pgto</span>
-                <p className="font-medium text-gray-700">{purchase.data_pagamento}</p>
-              </div>
-            )}
-          </div>
-
-          <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg">
-            <p className="font-semibold text-xs mb-3 text-amber-900">
-              📎 Documentos Anexados
-            </p>
-
-            <div className="space-y-2 mb-3">
-              <PurchaseDocumentViewer
-                purchaseId={purchase.id}
-                canApproveDocuments={isCoordenador || isAdmin}
-                currentUser={currentUser}
-                onRefresh={onRefresh}
-              />
-            </div>
-
-            <PurchaseDocumentUpload
-              purchaseId={purchase.id}
-              onUploadSuccess={() => onRefresh?.()}
-            />
-          </div>
-
-          {relatedActivity && (
-            <div className="p-3 bg-purple-50 border border-purple-100 rounded-lg">
-              <p className="font-semibold text-xs mb-2 text-purple-900 flex items-center gap-1">
-                <Activity className="w-3 h-3" />
-                Atividade Relacionada
-              </p>
-
-              <div className="space-y-1 text-xs text-purple-800">
-                <p>
-                  <span className="font-medium">Título:</span> {relatedActivity.titulo}
-                </p>
-
-                {relatedActivity.data_realizacao && (
-                  <p>
-                    <span className="font-medium">Data:</span>{' '}
-                    {relatedActivity.data_realizacao}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {(purchase.link_proposta || purchase.comprovante_url || purchase.orcamento_url) && (
-            <div className="flex gap-2 flex-wrap">
-              {purchase.link_proposta && (
-                <a href={purchase.link_proposta} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" size="sm" className="text-xs gap-1">
-                    <ExternalLink className="w-3 h-3" />
-                    Ver Proposta
-                  </Button>
-                </a>
-              )}
-
-              {purchase.orcamento_url && (
-                <a href={purchase.orcamento_url} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" size="sm" className="text-xs gap-1">
-                    <ExternalLink className="w-3 h-3" />
-                    Orçamento
-                  </Button>
-                </a>
-              )}
-
-              {purchase.comprovante_url && (
-                <a href={purchase.comprovante_url} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" size="sm" className="text-xs gap-1">
-                    <ExternalLink className="w-3 h-3" />
-                    Comprovante/NF
-                  </Button>
-                </a>
-              )}
-            </div>
-          )}
-        </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
