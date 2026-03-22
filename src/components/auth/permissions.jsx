@@ -28,13 +28,99 @@ export function isCoordGeral(user) {
 export function isCoordenador(user) {
   if (!user) return false;
   if (isCoordGeral(user)) return true;
-  return ['COORDENADOR', 'ADMIN', 'admin', 'COORD_PRODUCAO', 'COORD_ADMINISTRATIVA', 'COORD_COMUNICACAO', 'CONSULTORIA_PROGRAMACAO'].includes(user.role);
+  return [
+    'COORDENADOR',
+    'ADMIN',
+    'admin',
+    'COORD_PRODUCAO',
+    'COORD_ADMINISTRATIVA',
+    'COORD_COMUNICACAO',
+    'CONSULTORIA_PROGRAMACAO',
+  ].includes(user.role);
 }
 
 /**
  * Verifica se o email pertence a um domínio com aprovação automática
  */
 export function isAutoApprovedDomain(email) {
+  if (!email) return false;
+  const lower = email.toLowerCase();
+  return AUTO_APPROVED_DOMAINS.some(domain => lower.endsWith(domain));
+}
+
+/**
+ * Verifica se o usuário pode editar um relatório
+ */
+export function canEditReport(currentUser, reportAuthorEmail) {
+  if (!currentUser) return false;
+  if (currentUser.email === reportAuthorEmail) return true;
+  return isCoordenador(currentUser);
+}
+
+/**
+ * Verifica se o usuário pode gerenciar usuários (aprovar, editar, excluir permissões)
+ * COORDENADOR também pode quando tem can_manage_users = true
+ */
+export function canManageUsers(user) {
+  if (!user) return false;
+  if (isCoordGeral(user)) return true;
+  return user.can_manage_users === true || ['COORDENADOR', 'admin', 'ADMIN'].includes(user.role);
+}
+
+/**
+ * Verifica se o usuário pode gerenciar permissões de outros usuários
+ * Qualquer COORDENADOR ou ADMIN pode editar permissões
+ */
+export function canManagePermissions(user) {
+  if (!user) return false;
+  return isCoordenador(user);
+}
+
+/**
+ * Todos os usuários autenticados podem acessar a área Equipe.
+ */
+export function canAccessEquipe(user) {
+  return !!user;
+}
+
+/**
+ * Usuário comum pode editar apenas o próprio perfil de equipe.
+ * Coordenadores podem editar qualquer perfil.
+ */
+export function canEditOwnTeamProfile(user, targetEmail) {
+  if (!user || !targetEmail) return false;
+  if (isCoordenador(user)) return true;
+  return String(user.email || '').toLowerCase() === String(targetEmail || '').toLowerCase();
+}
+
+/**
+ * Apenas coordenadores podem editar todos os perfis da equipe.
+ */
+export function canEditAllTeamProfiles(user) {
+  if (!user) return false;
+  return isCoordenador(user);
+}
+
+/**
+ * Regra consolidada para edição de perfil de equipe.
+ */
+export function canEditTeamProfile(user, targetEmail) {
+  if (!user) return false;
+  if (canEditAllTeamProfiles(user)) return true;
+  return canEditOwnTeamProfile(user, targetEmail);
+}
+
+/**
+ * Regra consolidada para visualização de perfil de equipe.
+ * Todos acessam a área; usuário comum vê apenas o próprio perfil;
+ * coordenadores visualizam todos.
+ */
+export function canViewTeamProfile(user, targetEmail) {
+  if (!user) return false;
+  if (isCoordenador(user)) return true;
+  if (!targetEmail) return false;
+  return String(user.email || '').toLowerCase() === String(targetEmail || '').toLowerCase();
+}export function isAutoApprovedDomain(email) {
   if (!email) return false;
   const lower = email.toLowerCase();
   return AUTO_APPROVED_DOMAINS.some(domain => lower.endsWith(domain));
