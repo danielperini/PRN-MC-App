@@ -1,13 +1,12 @@
-// MANTÉM EXATAMENTE O INÍCIO DO SEU ARQUIVO ATÉ O FINAL DO PRIMEIRO COMPONENTE
+    </Dialog>
+  );
+}
 
-// ⛔ REMOVA COMPLETAMENTE TUDO A PARTIR DESTE TRECHO:
-
-}  cronograma_parcelas: [],
-  banco: '',
-  agencia: '',
-  conta: '',
-  tipo_conta: 'Corrente',
-  pix_key: '',
-};
-
-export default function TeamMemberForm(...
+function Section({ title, children }) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold text-black border-b pb-1.5">{title}</h3>
+      {children}
+    </div>
+  );
+}
