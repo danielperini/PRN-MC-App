@@ -1,5 +1,144 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+/* 🔒 UTILITÁRIOS (mantidos exatamente como você enviou) */
+
+function toNumber(value: unknown): number {
+  if (value === null || value === undefined || value === '') return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeString(value: unknown): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\(.*?\)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function normalizeMuseu(value: unknown): string {
+  const raw = normalizeString(value);
+  if (!raw) return '';
+
+  if (raw === 'mis') return 'MIS';
+  if (raw === 'mhab') return 'MHAB';
+  if (raw === 'mumo') return 'MUMO';
+
+  if (raw.includes('imagem e som')) return 'MIS';
+  if (raw.includes('abilio barreto')) return 'MHAB';
+  if (raw.includes('moda')) return 'MUMO';
+
+  return String(value || '').trim().toUpperCase();
+}
+
+function getPurchaseValue(purchase: any): number {
+  return (
+    toNumber(purchase?.valor_pago) ||
+    toNumber(purchase?.valor_final) ||
+    toNumber(purchase?.valor_aprovado_admin) ||
+    toNumber(purchase?.valor_aprovado) ||
+    toNumber(purchase?.valor_solicitado) ||
+    0
+  );
+}
+
+/* 🔥 SERVE */
+
+Deno.serve(async (req) => {
+  try {
+    const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
+
+    if (!user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const payload = await req.json().catch(() => ({}));
+    const { action = '', purchaseId } = payload || {};
+
+    if (!purchaseId) {
+      return Response.json({ error: 'purchaseId obrigatório' }, { status: 400 });
+    }
+
+    const purchase = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
+
+    if (!purchase) {
+      return Response.json({ error: 'Compra não encontrada' }, { status: 404 });
+    }
+
+    /* 🔥 APROVAÇÃO COORD */
+    if (action === 'approve_coord') {
+      if (!purchase.rubrica_id && !purchase.budgetline_id) {
+        return Response.json(
+          { error: 'Compra não pode ser aprovada sem rubrica ou linha orçamentária' },
+          { status: 400 }
+        );
+      }
+
+      await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, {
+        status: 'APROVADO_COORD',
+      });
+
+      return Response.json({ success: true });
+    }
+
+    /* 🔥 APROVAÇÃO ADMIN */
+    if (action === 'approve_admin') {
+      if (!purchase.rubrica_id && !purchase.budgetline_id) {
+        return Response.json(
+          { error: 'Compra não pode ser aprovada sem rubrica ou linha orçamentária' },
+          { status: 400 }
+        );
+      }
+
+      await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, {
+        status: 'APROVADO_ADMIN',
+      });
+
+      return Response.json({ success: true });
+    }
+
+    /* 🔥 RECUSA */
+    if (action === 'reject') {
+      await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, {
+        status: 'RECUSADO',
+      });
+
+      return Response.json({ success: true });
+    }
+
+    /* 🔥 PAGAMENTO */
+    if (action === 'mark_paid') {
+      if (!purchase.rubrica_id && !purchase.budgetline_id) {
+        return Response.json(
+          { error: 'Não pode pagar sem rubrica ou linha orçamentária' },
+          { status: 400 }
+        );
+      }
+
+      const valor = getPurchaseValue(purchase);
+
+      await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, {
+        status: 'PAGO',
+        valor_pago: valor,
+      });
+
+      return Response.json({ success: true });
+    }
+
+    return Response.json({ error: 'Ação inválida' }, { status: 400 });
+
+  } catch (error: any) {
+    console.error('purchaseActions error:', error);
+    return Response.json(
+      { error: error?.message || String(error) },
+      { status: 500 }
+    );
+  }
+});import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+
 function toNumber(value: unknown): number {
   if (value === null || value === undefined || value === '') return 0;
   const n = Number(value);
