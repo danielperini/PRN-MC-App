@@ -1,32 +1,1289 @@
-// 🔥 ALTERAÇÃO PRINCIPAL: apenas ajuste no payload
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  AlertTriangle,
+  Loader2,
+  Sparkles,
+  Link as LinkIcon,
+  X,
+  CheckCircle2,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import PurchaseDocumentUpload from './PurchaseDocumentUpload';
+import { METAS_3_ADITIVO } from '@/components/planoTrabalho';
+import { useQuery } from '@tanstack/react-query';
 
-const payload = {
-  ...form,
+const METAS = METAS_3_ADITIVO.map((m) => ({
+  id: m.codigo,
+  label: `${m.codigo} — ${m.titulo}`,
+}));
 
-  // ❌ NÃO usar mais budgetline
-  budgetline_id: null,
+const CATEGORIAS = [
+  'Serviços (equipe/coordenação)',
+  'Serviços (comunicação: designer, foto, vídeo, imprensa, redes)',
+  'Serviços (produção/infraestrutura/expografia)',
+  'Serviços (eventos/atrações/artistas)',
+  'Serviços (segurança/limpeza)',
+  'Logística (transporte/vans)',
+  'Alimentação (lanche/café/coffeebreak)',
+  'Consultoria / Formação / Acessibilidade',
+  'Materiais de consumo',
+  'Outros',
+];
 
-  report_id,
-  centro_custo: form.centro_custo,
-  rubrica_id: form.rubrica_id,
+const CENTROS = ['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Publicações', 'Geral'];
+const PAGAMENTOS = ['PIX', 'TED/Transferência', 'Boleto', 'Cartão', 'Dinheiro'];
+const MESES = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
 
-  // 🔥 garantir número
-  valor_solicitado: toNumber(form.valor_solicitado),
-  valor_unitario: toNumber(form.valor_unitario),
-  qtd: toNumber(form.qtd) || 1,
-
-  orcamento_url,
-  nota_fiscal_url,
-
-  ai_meta_score: aiAnalysis?.score,
-  ai_meta_sugerida: aiAnalysis?.meta_sugerida,
-  ai_analise: aiAnalysis?.justificativa,
-
-  ai_rubrica_sugerida_id: rubricaSuggestion?.rubrica_id || null,
-  ai_rubrica_sugerida_nome: rubricaSuggestion?.rubrica_nome || null,
-  ai_rubrica_score: rubricaSuggestion?.score || null,
-  ai_rubrica_justificativa: rubricaSuggestion?.justificativa || null,
-  ai_rubrica_source: rubricaSuggestion?.source || null,
-
-  status: 'RASCUNHO',
+const EMPTY = {
+  meta_id: '',
+  meta_extra_descricao: '',
+  budgetline_id: '',
+  rubrica_id: '',
+  categoria: '',
+  tipo_gasto: '',
+  centro_custo: '',
+  descricao_item: '',
+  qtd: 1,
+  unidade: 'un',
+  valor_unitario: '',
+  valor_solicitado: '',
+  fornecedor_nome: '',
+  fornecedor_cnpj: '',
+  fornecedor_contato: '',
+  meio_pagamento: '',
+  detalhe_pagamento: '',
+  observacoes: '',
+  activity_id: '',
+  report_id: '',
+  orcamentos_docs: [],
+  notas_fiscais_docs: [],
 };
+
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeString(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\(.*?\)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function normalizeCentroCusto(value) {
+  const raw = normalizeString(value);
+
+  if (!raw) return '';
+
+  if (raw === 'mis') return 'MIS';
+  if (raw === 'mhab') return 'MHAB';
+  if (raw === 'mumo') return 'MUMO';
+
+  if (raw === 'geral') return 'GLOBAL';
+  if (raw === 'global') return 'GLOBAL';
+  if (raw === 'todos') return 'GLOBAL';
+  if (raw === 'todos os museus') return 'GLOBAL';
+  if (raw === '3 museus') return 'GLOBAL';
+  if (raw === 'tres museus') return 'GLOBAL';
+
+  if (raw.includes('museu da imagem e do som')) return 'MIS';
+  if (raw.includes('imagem e som')) return 'MIS';
+
+  if (raw.includes('historico abilio barreto')) return 'MHAB';
+  if (raw.includes('abilio barreto')) return 'MHAB';
+
+  if (raw.includes('moda')) return 'MUMO';
+
+  if (raw.includes('noturno')) return 'NOTURNO NOS MUSEUS 2026';
+  if (raw.includes('publica')) return 'PUBLICAÇÕES';
+
+  if (raw.includes('geral')) return 'GLOBAL';
+  if (raw.includes('global')) return 'GLOBAL';
+  if (raw.includes('todos os museus')) return 'GLOBAL';
+  if (raw.includes('3 museus')) return 'GLOBAL';
+  if (raw.includes('tres museus')) return 'GLOBAL';
+
+  return String(value || '').trim().toUpperCase();
+}
+
+function sameCentroOrGlobal(entityCentro, selectedCentro) {
+  const entity = normalizeCentroCusto(entityCentro);
+  const selected = normalizeCentroCusto(selectedCentro);
+
+  if (!selected) return true;
+  if (!entity) return true;
+  if (entity === 'GLOBAL') return true;
+  return entity === selected;
+}
+
+function getRubricaCentroCusto(rubrica) {
+  return normalizeCentroCusto(
+    rubrica?.centro_custo ||
+      rubrica?.museu ||
+      rubrica?.museu_codigo ||
+      rubrica?.unidade ||
+      ''
+  );
+}
+
+function formatMoney(value) {
+  return toNumber(value).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+}
+
+export default function PurchaseFormDialog({
+  currentUser,
+  onClose,
+  onSuccess,
+  prefill,
+}) {
+  const { data: rubricas = [] } = useQuery({
+    queryKey: ['rubricas'],
+    queryFn: () => base44.entities.Rubrica.list('-created_date', 999),
+  });
+
+  const [form, setForm] = useState(() =>
+    prefill ? { ...EMPTY, ...prefill, budgetline_id: '' } : EMPTY
+  );
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [analyzingMeta, setAnalyzingMeta] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [activities, setActivities] = useState([]);
+  const [mes, setMes] = useState(
+    prefill?.mes_referencia || MESES[new Date().getMonth()]
+  );
+  const [ano, setAno] = useState(prefill?.ano || new Date().getFullYear());
+  const [orcamentoAnalysis, setOrcamentoAnalysis] = useState(null);
+  const [analisandoOrcamento, setAnalisandoOrcamento] = useState(false);
+
+  const [suggestingRubrica, setSuggestingRubrica] = useState(false);
+  const [rubricaSuggestion, setRubricaSuggestion] = useState(null);
+  const [rubricaSuggestionReason, setRubricaSuggestionReason] = useState('');
+  const [rubricaManuallyChosen, setRubricaManuallyChosen] = useState(!!prefill?.rubrica_id);
+
+  const suggestTimerRef = useRef(null);
+
+  const isFromActivity = !!prefill?.activity_id;
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    if (currentUser?.email) {
+      base44.entities.Activity.list('-created_date', 100)
+        .then((allActivities) => {
+          const today = new Date().toISOString().split('T')[0];
+          const openActivities = allActivities.filter((a) => {
+            if (!a.data_realizacao) return true;
+            return a.data_realizacao >= today;
+          });
+          setActivities(openActivities);
+        })
+        .catch(() => {});
+    }
+  }, [currentUser]);
+
+  const rubricasAtivas = useMemo(() => {
+    return (rubricas || []).filter((r) => r?.ativo !== false);
+  }, [rubricas]);
+
+  const filteredRubricas = useMemo(() => {
+    return rubricasAtivas
+      .filter((r) => sameCentroOrGlobal(getRubricaCentroCusto(r), form.centro_custo))
+      .sort((a, b) => {
+        const ga = String(a?.grupo || '').localeCompare(String(b?.grupo || ''), 'pt-BR');
+        if (ga !== 0) return ga;
+        return String(a?.rubrica || a?.nome || '').localeCompare(
+          String(b?.rubrica || b?.nome || ''),
+          'pt-BR'
+        );
+      });
+  }, [rubricasAtivas, form.centro_custo]);
+
+  const selectedRubrica = useMemo(() => {
+    return rubricasAtivas.find((r) => r.id === form.rubrica_id) || null;
+  }, [rubricasAtivas, form.rubrica_id]);
+
+  useEffect(() => {
+    if (!selectedRubrica) return;
+
+    const rubricaCentro = getRubricaCentroCusto(selectedRubrica);
+    if (!form.centro_custo && rubricaCentro) {
+      const centroAjustado =
+        rubricaCentro === 'GLOBAL' ? 'Geral' : rubricaCentro;
+      set('centro_custo', centroAjustado);
+    }
+  }, [selectedRubrica, form.centro_custo]);
+
+  useEffect(() => {
+    if (!selectedRubrica) return;
+    if (sameCentroOrGlobal(getRubricaCentroCusto(selectedRubrica), form.centro_custo)) return;
+
+    setForm((f) => ({ ...f, rubrica_id: '', budgetline_id: '' }));
+    setRubricaManuallyChosen(false);
+  }, [form.centro_custo]);
+
+  const canSuggestRubrica = useMemo(() => {
+    return (
+      String(form.descricao_item || '').trim().length >= 6 &&
+      !!form.centro_custo &&
+      !!form.categoria &&
+      !!form.tipo_gasto
+    );
+  }, [form.descricao_item, form.centro_custo, form.categoria, form.tipo_gasto]);
+
+  const runSuggestRubrica = async ({ autoApply = false } = {}) => {
+    if (!canSuggestRubrica) return;
+
+    setSuggestingRubrica(true);
+    try {
+      const res = await base44.functions.invoke('suggestRubrica', {
+        descricao: form.descricao_item,
+        fornecedor: form.fornecedor_nome,
+        categoria: form.categoria,
+        tipo_gasto: form.tipo_gasto,
+        centro_custo: form.centro_custo,
+      });
+
+      const suggestion = res?.data?.suggestion || res?.suggestion || null;
+      const reason = res?.data?.reason || res?.reason || '';
+
+      setRubricaSuggestion(suggestion);
+      setRubricaSuggestionReason(reason || '');
+
+      if (!suggestion?.rubrica_id) return;
+
+      const suggestedExists = filteredRubricas.some((r) => r.id === suggestion.rubrica_id);
+      if (!suggestedExists) return;
+
+      const shouldApply =
+        autoApply &&
+        (!form.rubrica_id || !rubricaManuallyChosen);
+
+      if (shouldApply) {
+        setForm((f) => ({
+          ...f,
+          rubrica_id: suggestion.rubrica_id,
+          budgetline_id: '',
+        }));
+      }
+    } catch {
+      setRubricaSuggestion(null);
+      setRubricaSuggestionReason('');
+    } finally {
+      setSuggestingRubrica(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!canSuggestRubrica) {
+      setRubricaSuggestion(null);
+      setRubricaSuggestionReason('');
+      return;
+    }
+
+    if (suggestTimerRef.current) {
+      clearTimeout(suggestTimerRef.current);
+    }
+
+    suggestTimerRef.current = setTimeout(() => {
+      runSuggestRubrica({ autoApply: true });
+    }, 700);
+
+    return () => {
+      if (suggestTimerRef.current) clearTimeout(suggestTimerRef.current);
+    };
+  }, [
+    form.descricao_item,
+    form.fornecedor_nome,
+    form.categoria,
+    form.tipo_gasto,
+    form.centro_custo,
+    canSuggestRubrica,
+    rubricaManuallyChosen,
+  ]);
+
+  const applySuggestedRubrica = () => {
+    if (!rubricaSuggestion?.rubrica_id) {
+      toast.error('Nenhuma sugestão válida disponível.');
+      return;
+    }
+
+    const suggestedExists = filteredRubricas.some((r) => r.id === rubricaSuggestion.rubrica_id);
+    if (!suggestedExists) {
+      toast.error('A sugestão atual não é compatível com o centro de custo selecionado.');
+      return;
+    }
+
+    setForm((f) => ({
+      ...f,
+      rubrica_id: rubricaSuggestion.rubrica_id,
+      budgetline_id: '',
+    }));
+    setRubricaManuallyChosen(false);
+    toast.success('Rubrica sugerida aplicada ao formulário.');
+  };
+
+  const analyzeWithAI = async () => {
+    if (!form.descricao_item || !form.meta_id || !form.categoria || !form.tipo_gasto) {
+      toast.error('Preencha: descrição, meta, categoria e tipo antes de analisar.');
+      return;
+    }
+
+    setAnalyzingMeta(true);
+    try {
+      const res = await base44.functions.invoke('purchaseActions', {
+        action: 'analyze_meta',
+        descricao_item: form.descricao_item,
+        meta_id: form.meta_id,
+        categoria: form.categoria,
+        tipo_gasto: form.tipo_gasto,
+        valor_solicitado: parseFloat(form.valor_solicitado) || 0,
+      });
+      setAiAnalysis(res?.data?.analysis || null);
+    } catch {
+      toast.error('Erro na análise da IA');
+    }
+    setAnalyzingMeta(false);
+  };
+
+  const analisarOrcamentoComIA = async () => {
+    if ((form.orcamentos_docs || []).length === 0) {
+      toast.error('Nenhum orçamento anexado para analisar.');
+      return;
+    }
+
+    setAnalisandoOrcamento(true);
+    try {
+      const orcamento = form.orcamentos_docs[form.orcamentos_docs.length - 1];
+
+      if (orcamento.url) {
+        const res = await base44.integrations.Core.InvokeLLM({
+          prompt: `Analise este contrato/orçamento e extraia os seguintes campos em JSON:
+{
+  "fornecedor_nome": "Nome da empresa/pessoa fornecedora",
+  "fornecedor_cnpj": "CNPJ ou CPF",
+  "fornecedor_contato": "Telefone ou email",
+  "fornecedor_cidade": "Cidade",
+  "descricao_item": "Descrição detalhada do produto/serviço",
+  "valor_solicitado": número do valor total,
+  "valor_unitario": número do valor unitário,
+  "qtd": quantidade,
+  "unidade": "un, diária, serviço, mês, ano, hora, km ou evento",
+  "prazo_entrega": "Prazo em dias ou data",
+  "garantia": "Período de garantia",
+  "condicoes_pagamento": "Condições de pagamento descritas",
+  "meios_pagamento": "PIX, TED/Transferência, Boleto, Cartão ou Dinheiro"
+}
+
+Retorne APENAS o JSON, sem explicações adicionais.`,
+          file_urls: [orcamento.url],
+          response_json_schema: {
+            type: 'object',
+            properties: {
+              fornecedor_nome: { type: 'string' },
+              fornecedor_cnpj: { type: 'string' },
+              fornecedor_contato: { type: 'string' },
+              fornecedor_cidade: { type: 'string' },
+              descricao_item: { type: 'string' },
+              valor_solicitado: { type: 'number' },
+              valor_unitario: { type: 'number' },
+              qtd: { type: 'number' },
+              unidade: { type: 'string' },
+              prazo_entrega: { type: 'string' },
+              garantia: { type: 'string' },
+              condicoes_pagamento: { type: 'string' },
+              meios_pagamento: { type: 'string' },
+            },
+          },
+        });
+
+        setOrcamentoAnalysis(res.data);
+      } else {
+        toast.error('Arquivo não tem URL válido. Tente anexar novamente.');
+      }
+    } catch (e) {
+      toast.error('Erro ao analisar orçamento: ' + e.message);
+    }
+    setAnalisandoOrcamento(false);
+  };
+
+  const preencherComDadosOrcamento = (dados) => {
+    if (dados.fornecedor_nome) set('fornecedor_nome', dados.fornecedor_nome);
+    if (dados.fornecedor_cnpj) set('fornecedor_cnpj', dados.fornecedor_cnpj);
+    if (dados.fornecedor_contato) set('fornecedor_contato', dados.fornecedor_contato);
+    if (dados.descricao_item) set('descricao_item', dados.descricao_item);
+    if (dados.valor_solicitado) set('valor_solicitado', String(dados.valor_solicitado));
+    if (dados.valor_unitario) set('valor_unitario', String(dados.valor_unitario));
+    if (dados.qtd) set('qtd', String(dados.qtd));
+    if (dados.unidade) set('unidade', dados.unidade);
+
+    if (dados.meios_pagamento) {
+      const meio = dados.meios_pagamento.includes('PIX')
+        ? 'PIX'
+        : dados.meios_pagamento.includes('TED') ||
+            dados.meios_pagamento.includes('Transferência')
+          ? 'TED/Transferência'
+          : dados.meios_pagamento.includes('Boleto')
+            ? 'Boleto'
+            : dados.meios_pagamento.includes('Cartão')
+              ? 'Cartão'
+              : dados.meios_pagamento.includes('Dinheiro')
+                ? 'Dinheiro'
+                : '';
+
+      if (meio) set('meio_pagamento', meio);
+    }
+
+    let obs = form.observacoes || '';
+    if (dados.garantia) obs += (obs ? '\n' : '') + `Garantia: ${dados.garantia}`;
+    if (dados.condicoes_pagamento) {
+      obs += (obs ? '\n' : '') + `Condições: ${dados.condicoes_pagamento}`;
+    }
+    if (dados.prazo_entrega) obs += (obs ? '\n' : '') + `Prazo: ${dados.prazo_entrega}`;
+    if (dados.fornecedor_cidade) {
+      obs += (obs ? '\n' : '') + `Cidade: ${dados.fornecedor_cidade}`;
+    }
+    if (obs) set('observacoes', obs);
+
+    setOrcamentoAnalysis(null);
+    toast.success('Formulário preenchido com dados do orçamento!');
+
+    setTimeout(() => {
+      runSuggestRubrica({ autoApply: true });
+    }, 100);
+  };
+
+  const preencherComIA = async () => {
+    if (!orcamentoAnalysis) {
+      toast.error('Analise o orçamento primeiro.');
+      return;
+    }
+    preencherComDadosOrcamento(orcamentoAnalysis);
+  };
+
+  const validateFinanceiro = () => {
+    if (!form.centro_custo) {
+      return 'Selecione o centro de custo.';
+    }
+
+    if (!form.rubrica_id) {
+      return 'Selecione a rubrica orçamentária.';
+    }
+
+    if (!selectedRubrica) {
+      return 'Rubrica selecionada não foi encontrada.';
+    }
+
+    const rubricaCentro = getRubricaCentroCusto(selectedRubrica);
+    if (!sameCentroOrGlobal(rubricaCentro, form.centro_custo)) {
+      return `A rubrica pertence ao centro ${rubricaCentro || 'não definido'} e não é compatível com ${form.centro_custo}.`;
+    }
+
+    return null;
+  };
+
+  const handleSave = async (submeter = false) => {
+    const missingRequired =
+      !form.descricao_item ||
+      !form.meta_id ||
+      !form.rubrica_id ||
+      !form.centro_custo ||
+      !form.categoria ||
+      !form.tipo_gasto ||
+      !form.valor_solicitado;
+
+    if (missingRequired) {
+      toast.error('Preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    const financeiroError = validateFinanceiro();
+    if (financeiroError) {
+      toast.error(financeiroError);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const reportRes = await base44.functions.invoke('purchaseActions', {
+        action: 'ensure_report',
+        mes_referencia: mes,
+        ano,
+      });
+      const report_id = reportRes.data.report_id;
+
+      const orcamento_url = form.orcamentos_docs?.[0]?.url || null;
+      const nota_fiscal_url = form.notas_fiscais_docs?.[0]?.url || null;
+
+      const payload = {
+        ...form,
+        budgetline_id: null,
+        report_id,
+        centro_custo: form.centro_custo,
+        rubrica_id: form.rubrica_id,
+        valor_solicitado: toNumber(form.valor_solicitado),
+        valor_unitario: toNumber(form.valor_unitario),
+        qtd: toNumber(form.qtd) || 1,
+        orcamento_url,
+        nota_fiscal_url,
+        ai_meta_score: aiAnalysis?.score,
+        ai_meta_sugerida: aiAnalysis?.meta_sugerida,
+        ai_analise: aiAnalysis?.justificativa,
+        ai_rubrica_sugerida_id: rubricaSuggestion?.rubrica_id || null,
+        ai_rubrica_sugerida_nome: rubricaSuggestion?.rubrica_nome || null,
+        ai_rubrica_score: rubricaSuggestion?.score || null,
+        ai_rubrica_justificativa: rubricaSuggestion?.justificativa || null,
+        ai_rubrica_source: rubricaSuggestion?.source || null,
+        status: 'RASCUNHO',
+      };
+
+      let created;
+      if (prefill?.id) {
+        await base44.entities.PurchaseRequest.update(prefill.id, payload);
+        created = { id: prefill.id };
+      } else {
+        created = await base44.entities.PurchaseRequest.create(payload);
+      }
+
+      if (submeter) {
+        await base44.functions.invoke('purchaseActions', {
+          action: 'submeter',
+          purchaseId: created.id,
+        });
+
+        await base44.functions
+          .invoke('notifyCoordinatorPurchaseSubmitted', {
+            purchaseId: created.id,
+          })
+          .catch(async () => {
+            try {
+              await base44.functions.invoke('notifyCoordinatorOnPurchaseSubmitted', {
+                purchase_id: created.id,
+                purchase_description: form.descricao_item,
+                requester_name: currentUser?.full_name || 'Usuário',
+                requester_email: currentUser?.email || '',
+                amount: parseFloat(form.valor_solicitado) || 0,
+              });
+            } catch {}
+          });
+
+        toast.success('✅ Solicitação de compra enviada para aprovação!', {
+          description: `Item: ${form.descricao_item}\nValor: R$ ${parseFloat(
+            form.valor_solicitado
+          ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+          duration: 5000,
+        });
+      } else {
+        toast.success('✅ Rascunho salvo com sucesso!', {
+          description: 'Você pode continuar editando ou enviar para aprovação depois.',
+          duration: 5000,
+        });
+      }
+
+      onSuccess();
+    } catch (e) {
+      toast.error('❌ Erro ao salvar: ' + e.message, { duration: 5000 });
+    }
+    setSaving(false);
+  };
+
+  const financeiroError = validateFinanceiro();
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white z-10">
+          <div>
+            <h2 className="text-lg font-bold text-black">
+              {prefill?.id ? 'Editar Solicitação de Compra' : 'Nova Solicitação de Compra'}
+            </h2>
+            <p className="text-xs text-gray-500">3º Termo Aditivo — Museus Centro</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-gray-600 mb-1 block">Mês de referência</Label>
+              <Select value={mes} onValueChange={setMes}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MESES.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-600 mb-1 block">Ano</Label>
+              <Input
+                type="number"
+                value={ano}
+                onChange={(e) => setAno(parseInt(e.target.value, 10))}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-gray-600 mb-1 block">
+                Descrição da compra/serviço *
+              </Label>
+              <Textarea
+                placeholder="Descreva detalhadamente o que será adquirido ou contratado..."
+                value={form.descricao_item}
+                onChange={(e) => set('descricao_item', e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-gray-600 mb-1 block">Tipo de gasto *</Label>
+                <Select
+                  value={form.tipo_gasto}
+                  onValueChange={(v) => {
+                    set('tipo_gasto', v);
+                    setRubricaManuallyChosen(false);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Produto ou serviço?" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Produto">Produto</SelectItem>
+                    <SelectItem value="Serviço">Serviço</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-gray-600 mb-1 block">Categoria *</Label>
+                <Select
+                  value={form.categoria}
+                  onValueChange={(v) => {
+                    set('categoria', v);
+                    setRubricaManuallyChosen(false);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIAS.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 p-4 border border-gray-100 rounded-xl bg-gray-50">
+            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+              Vinculação à Meta 3º Aditivo
+            </Label>
+            <Select
+              value={form.meta_id}
+              onValueChange={(v) => {
+                set('meta_id', v);
+                setAiAnalysis(null);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a meta..." />
+              </SelectTrigger>
+              <SelectContent>
+                {METAS.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {form.meta_id === 'MC3A-EXTRA' && (
+              <Textarea
+                placeholder="Descreva a justificativa para meta extra..."
+                value={form.meta_extra_descricao}
+                onChange={(e) => set('meta_extra_descricao', e.target.value)}
+                rows={2}
+              />
+            )}
+
+            {form.meta_id && form.descricao_item && form.categoria && form.tipo_gasto && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={analyzeWithAI}
+                disabled={analyzingMeta}
+                className="w-full gap-2"
+              >
+                {analyzingMeta ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3 h-3" />
+                )}
+                Analisar correspondência com a meta (IA)
+              </Button>
+            )}
+
+            {aiAnalysis && (
+              <div
+                className={`p-3 rounded-lg border ${
+                  aiAnalysis.score >= 80
+                    ? 'bg-green-50 border-green-200'
+                    : 'bg-amber-50 border-amber-200'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold">Score de correspondência</span>
+                  <span
+                    className={`text-lg font-bold ${
+                      aiAnalysis.score >= 80 ? 'text-green-700' : 'text-amber-700'
+                    }`}
+                  >
+                    {aiAnalysis.score}/100
+                  </span>
+                </div>
+                <p className="text-xs text-gray-700 mb-2">{aiAnalysis.justificativa}</p>
+                {aiAnalysis.alerta && aiAnalysis.meta_sugerida !== form.meta_id && (
+                  <div className="flex items-start gap-2 p-2 bg-amber-100 rounded-md">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-800">
+                      <strong>Sugestão da IA:</strong> esta compra pode se encaixar
+                      melhor em <strong>{aiAnalysis.meta_sugerida}</strong>.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3 p-4 border border-gray-100 rounded-xl">
+            <div className="flex items-center justify-between gap-3">
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                Enquadramento financeiro
+              </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => runSuggestRubrica({ autoApply: false })}
+                disabled={!canSuggestRubrica || suggestingRubrica}
+              >
+                {suggestingRubrica ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3 h-3" />
+                )}
+                Sugerir rubrica com IA
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-gray-600 mb-1 block">Centro de custo *</Label>
+                <Select
+                  value={form.centro_custo}
+                  onValueChange={(v) =>
+                    setForm((f) => ({
+                      ...f,
+                      centro_custo: v,
+                      rubrica_id: '',
+                      budgetline_id: '',
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CENTROS.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs text-gray-600 mb-1 block">Rubrica orçamentária *</Label>
+                <Select
+                  value={form.rubrica_id || ''}
+                  onValueChange={(v) => {
+                    setForm((f) => ({
+                      ...f,
+                      rubrica_id: v,
+                      budgetline_id: '',
+                    }));
+                    setRubricaManuallyChosen(true);
+                  }}
+                  disabled={!form.centro_custo}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        form.centro_custo
+                          ? 'Selecione a rubrica...'
+                          : 'Selecione primeiro o centro de custo'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {filteredRubricas.length === 0 ? (
+                      <div className="px-2 py-2 text-xs text-gray-500">
+                        Nenhuma rubrica compatível com o centro selecionado
+                      </div>
+                    ) : (
+                      filteredRubricas.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.rubrica || r.nome} {r.grupo ? `(${r.grupo})` : ''}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {rubricaSuggestion && (
+              <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-xs space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-blue-900">
+                      Sugestão automática de rubrica
+                    </div>
+                    <div className="text-blue-700">
+                      {rubricaSuggestion.rubrica_nome || 'Rubrica sugerida'}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-blue-900 font-bold">
+                      {rubricaSuggestion.score || 0}/100
+                    </div>
+                    <div className="text-[11px] text-blue-600 uppercase">
+                      {rubricaSuggestion.source || 'ia'}
+                    </div>
+                  </div>
+                </div>
+
+                {rubricaSuggestion.justificativa && (
+                  <p className="text-blue-800">{rubricaSuggestion.justificativa}</p>
+                )}
+
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs border-blue-300 text-blue-700"
+                    onClick={applySuggestedRubrica}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                    Aplicar sugestão
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {!rubricaSuggestion && rubricaSuggestionReason && (
+              <div className="p-2 rounded-lg text-xs bg-gray-50 text-gray-700 border border-gray-200">
+                {rubricaSuggestionReason}
+              </div>
+            )}
+
+            {selectedRubrica && (
+              <div className="p-3 rounded-lg bg-gray-50 border text-xs text-gray-700 space-y-1">
+                <div className="font-semibold text-gray-900">
+                  {selectedRubrica.rubrica || selectedRubrica.nome}
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  <span>
+                    Grupo: <strong>{selectedRubrica.grupo || '—'}</strong>
+                  </span>
+                  <span>
+                    Centro da rubrica:{' '}
+                    <strong>{getRubricaCentroCusto(selectedRubrica) || 'não definido'}</strong>
+                  </span>
+                  <span>
+                    Valor original:{' '}
+                    <strong>{formatMoney(selectedRubrica.valor_rubrica)}</strong>
+                  </span>
+                  <span>
+                    Saldo atual: <strong>{formatMoney(selectedRubrica.saldo)}</strong>
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {financeiroError && (
+              <div className="p-2 rounded-lg text-xs bg-amber-50 text-amber-800 border border-amber-200">
+                {financeiroError}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-gray-600 mb-1 block">Quantidade</Label>
+              <Input
+                type="number"
+                min="1"
+                value={form.qtd}
+                onChange={(e) => {
+                  const qtd = parseFloat(e.target.value) || 1;
+                  const vUnit = parseFloat(form.valor_unitario) || 0;
+                  setForm((f) => ({
+                    ...f,
+                    qtd: e.target.value,
+                    valor_solicitado: qtd * vUnit ? (qtd * vUnit).toFixed(2) : f.valor_solicitado,
+                  }));
+                }}
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-600 mb-1 block">Unidade</Label>
+              <Select value={form.unidade} onValueChange={(v) => set('unidade', v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="un">Unidade (un)</SelectItem>
+                  <SelectItem value="diária">Diária</SelectItem>
+                  <SelectItem value="serviço">Serviço</SelectItem>
+                  <SelectItem value="mês">Mês</SelectItem>
+                  <SelectItem value="ano">Ano</SelectItem>
+                  <SelectItem value="hora">Hora</SelectItem>
+                  <SelectItem value="km">Km</SelectItem>
+                  <SelectItem value="evento">Evento</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-600 mb-1 block">
+                Valor por unidade (R$)
+              </Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="0,00"
+                value={form.valor_unitario || ''}
+                onChange={(e) => {
+                  const vUnit = parseFloat(e.target.value) || 0;
+                  const qtd = parseFloat(form.qtd) || 1;
+                  setForm((f) => ({
+                    ...f,
+                    valor_unitario: e.target.value,
+                    valor_solicitado: (qtd * vUnit).toFixed(2),
+                  }));
+                }}
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-600 mb-1 block">Valor total (R$) *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="0,00"
+                value={form.valor_solicitado}
+                onChange={(e) => set('valor_solicitado', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-xs text-gray-600 mb-1 block">
+              Atividade vinculada{' '}
+              {isFromActivity && (
+                <span className="text-blue-600 font-normal">(herdada)</span>
+              )}
+            </Label>
+            {isFromActivity ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-800 h-9">
+                <LinkIcon className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">
+                  {prefill._activity_titulo || `${form.activity_id?.slice(0, 12)}…`}
+                </span>
+              </div>
+            ) : (
+              <Select
+                value={form.activity_id || '__NONE__'}
+                onValueChange={(v) => set('activity_id', v === '__NONE__' ? '' : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione ou deixe sem vínculo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__NONE__">Sem vínculo com atividade</SelectItem>
+                  {activities.length > 0 && (
+                    <>
+                      <div className="px-2 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100">
+                        Atividades em aberto
+                      </div>
+                      {activities.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.titulo}{' '}
+                          {a.data_realizacao &&
+                            `— ${new Date(a.data_realizacao).toLocaleDateString('pt-BR')}`}
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                  {activities.length === 0 && (
+                    <div className="px-2 py-2 text-xs text-gray-500">
+                      Nenhuma atividade em aberto
+                    </div>
+                  )}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {isFromActivity && (
+            <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs space-y-1">
+              <p className="font-semibold text-blue-800">
+                🔗 Rastreabilidade herdada automaticamente
+              </p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-blue-700 mt-1">
+                {form.report_id && (
+                  <span>
+                    Relatório:{' '}
+                    <code className="bg-blue-100 px-1 rounded">
+                      {form.report_id.slice(0, 8)}…
+                    </code>
+                  </span>
+                )}
+                {form.activity_id && (
+                  <span>
+                    Atividade:{' '}
+                    <code className="bg-blue-100 px-1 rounded">
+                      {form.activity_id.slice(0, 8)}…
+                    </code>
+                  </span>
+                )}
+                {form.meta_id && (
+                  <span>
+                    Meta: <strong>{form.meta_id}</strong>
+                  </span>
+                )}
+                {prefill?.meta_codigo && (
+                  <span>
+                    Cód. Meta: <strong>{prefill.meta_codigo}</strong>
+                  </span>
+                )}
+                {prefill?.classificacao && (
+                  <span>
+                    Classif.: <strong>{prefill.classificacao}</strong>
+                  </span>
+                )}
+                {prefill?.tipo_equipe && (
+                  <span>
+                    Equipe: <strong>{prefill.tipo_equipe}</strong>
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-3 p-4 border border-gray-100 rounded-xl">
+            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+              Fornecedor
+            </Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-gray-600 mb-1 block">
+                  Nome do fornecedor
+                </Label>
+                <Input
+                  placeholder="Empresa ou pessoa"
+                  value={form.fornecedor_nome}
+                  onChange={(e) => {
+                    set('fornecedor_nome', e.target.value);
+                    setRubricaManuallyChosen(false);
+                  }}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-600 mb-1 block">CNPJ/CPF</Label>
+                <Input
+                  placeholder="00.000.000/0001-00"
+                  value={form.fornecedor_cnpj}
+                  onChange={(e) => set('fornecedor_cnpj', e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-gray-600 mb-1 block">Contato</Label>
+                <Input
+                  placeholder="Telefone ou e-mail"
+                  value={form.fornecedor_contato}
+                  onChange={(e) => set('fornecedor_contato', e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-gray-600 mb-1 block">Meio de pagamento</Label>
+              <Select
+                value={form.meio_pagamento}
+                onValueChange={(v) => set('meio_pagamento', v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGAMENTOS.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-600 mb-1 block">
+                Dados para pagamento
+              </Label>
+              <Input
+                placeholder="Chave PIX, dados bancários..."
+                value={form.detalhe_pagamento}
+                onChange={(e) => set('detalhe_pagamento', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="space-y-3 p-4 border border-gray-100 rounded-xl">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                  📋 Orçamentos do Fornecedor
+                </Label>
+                {(form.orcamentos_docs || []).length > 0 && (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={analisarOrcamentoComIA}
+                      disabled={analisandoOrcamento}
+                    >
+                      {analisandoOrcamento ? (
+                        <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                      ) : (
+                        <Sparkles className="w-3 h-3 mr-1" />
+                      )}
+                      Ler orçamento com IA
+                    </Button>
+                    {orcamentoAnalysis && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={preencherComIA}
+                      >
+                        Preencher formulário
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <PurchaseDocumentUpload
+                documents={form.orcamentos_docs || []}
+                onDocumentsChange={(docs) => set('orcamentos_docs', docs)}
+                type="orcamento"
+              />
+            </div>
+
+            <div className="space-y-3 p-4 border border-gray-100 rounded-xl">
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                🧾 Notas Fiscais
+              </Label>
+              <PurchaseDocumentUpload
+                documents={form.notas_fiscais_docs || []}
+                onDocumentsChange={(docs) => set('notas_fiscais_docs', docs)}
+                type="nota_fiscal"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-xs text-gray-600 mb-1 block">Observações</Label>
+            <Textarea
+              placeholder="Informações adicionais..."
+              value={form.observacoes}
+              onChange={(e) => set('observacoes', e.target.value)}
+              rows={2}
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center p-6 border-t bg-gray-50 rounded-b-2xl sticky bottom-0">
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => handleSave(false)} disabled={saving}>
+              Salvar Rascunho
+            </Button>
+            <Button
+              className="bg-black hover:bg-gray-800 text-white"
+              onClick={() => handleSave(true)}
+              disabled={saving || !!financeiroError}
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Enviar para Aprovação
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
