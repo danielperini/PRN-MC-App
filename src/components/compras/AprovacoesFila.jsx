@@ -27,28 +27,31 @@ function formatBRL(value) {
   })}`;
 }
 
+/* 🔥 NOVO: leitura da validação IA */
+function getNFValidation(tp) {
+  try {
+    if (!tp?.resultado_validacao) return null;
+    return JSON.parse(tp.resultado_validacao);
+  } catch {
+    return null;
+  }
+}
+
 function ChecklistItem({ ok, label, href }) {
   return (
-    <div
-      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs ${
-        ok
-          ? 'border-green-200 bg-green-50 text-green-800'
-          : 'border-red-200 bg-red-50 text-red-800'
-      }`}
-    >
+    <div className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs ${
+      ok
+        ? 'border-green-200 bg-green-50 text-green-800'
+        : 'border-red-200 bg-red-50 text-red-800'
+    }`}>
       <span className="font-medium">{label}</span>
       <div className="flex items-center gap-2">
-        {href ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 underline"
-          >
-            <ExternalLink className="w-3 h-3" />
+        {href && (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="underline">
+            <ExternalLink className="w-3 h-3 inline mr-1" />
             Abrir
           </a>
-        ) : null}
+        )}
         <span>{ok ? 'OK' : 'Pendente'}</span>
       </div>
     </div>
@@ -103,35 +106,6 @@ export default function AprovacoesFila({
   const hasOrcamentoVinculado = (p) =>
     !!p?.rubrica_id || !!getBudgetLineId(p);
 
-  const getChecklist = (purchase, tp) => {
-    const contractUrl =
-      tp?.contract_url ||
-      purchase?.contract_url ||
-      purchase?.contrato_url ||
-      purchase?.team_contract_url ||
-      '';
-
-    const nfPdfUrl =
-      tp?.nota_fiscal_url ||
-      purchase?.nota_fiscal_url ||
-      purchase?.nf_pdf_url ||
-      purchase?.nota_fiscal_pdf_url ||
-      '';
-
-    const nfXmlUrl =
-      tp?.xml_url ||
-      purchase?.xml_url ||
-      purchase?.nf_xml_url ||
-      purchase?.nota_fiscal_xml_url ||
-      '';
-
-    return {
-      contrato: { ok: !!contractUrl, href: contractUrl || null },
-      nfPdf: { ok: !!nfPdfUrl, href: nfPdfUrl || null },
-      nfXml: { ok: !!nfXmlUrl, href: nfXmlUrl || null },
-    };
-  };
-
   useEffect(() => {
     let active = true;
 
@@ -149,235 +123,106 @@ export default function AprovacoesFila({
     };
 
     load();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [purchases]);
 
   const handleAction = async (purchase, action) => {
-    if (!podeAprovar) {
-      toast.error('Você não tem permissão para processar solicitações.');
-      return;
-    }
 
-    const comentario = comentarios[purchase.id] || '';
     const tp = teamPayments[purchase.id];
-    const teamPurchase = isTeam(purchase);
+    const validation = getNFValidation(tp);
 
     if (action === 'approve_coord') {
+
       if (!hasOrcamentoVinculado(purchase)) {
-        toast.error('Vincule uma rubrica ou linha orçamentária antes de aprovar.');
+        toast.error('Sem rubrica vinculada');
         return;
       }
 
-      if (teamPurchase && tp && tp.nf_valida === false) {
-        toast.error('NF inválida. Não pode aprovar.');
+      if (validation?.status === 'divergente') {
+        toast.error('NF com divergência detectada');
         return;
       }
-    }
-
-    if (action === 'return_to_user' && !comentario.trim()) {
-      toast.error('Informe um comentário para devolver ao usuário.');
-      return;
     }
 
     setLoading((l) => ({ ...l, [purchase.id]: true }));
 
     try {
-      let backendAction = 'reject';
-      if (action === 'approve_coord') backendAction = 'aprovar';
-      if (action === 'return_to_user') backendAction = 'devolver_usuario';
-
       await base44.functions.invoke('purchaseActions', {
         purchaseId: purchase.id,
-        action: backendAction,
-        comentario,
+        action: action === 'approve_coord' ? 'aprovar' : 'reject',
       });
 
-      if (action === 'approve_coord') {
-        toast.success('Solicitação aprovada.');
-      } else if (action === 'return_to_user') {
-        toast.success('Solicitação devolvida ao usuário.');
-      } else {
-        toast.success('Solicitação recusada.');
-      }
-
+      toast.success('Atualizado');
       await onRefresh?.();
+
     } catch (e) {
-      toast.error('Erro ao processar: ' + (e?.message || 'Erro desconhecido'));
-    } finally {
-      setLoading((l) => ({ ...l, [purchase.id]: false }));
+      toast.error(e.message);
     }
+
+    setLoading((l) => ({ ...l, [purchase.id]: false }));
   };
 
   if (pendentes.length === 0) {
-    return (
-      <div className="text-sm text-gray-400 text-center py-8 border-2 border-dashed border-gray-100 rounded-xl">
-        Nenhuma solicitação pendente
-      </div>
-    );
+    return <div className="text-center text-gray-400 py-8">Nenhuma pendente</div>;
   }
 
   return (
     <div className="space-y-4">
       {pendentes.map((p) => {
+
         const tp = teamPayments[p.id];
+        const validation = getNFValidation(tp);
         const budgetLine = getBudgetLine(p);
-        const vinculoOk = hasOrcamentoVinculado(p);
-        const checklist = getChecklist(p, tp);
-
-        const saldoDisponivel = budgetLine
-          ? toNumber(budgetLine.saldo_inicial) - toNumber(budgetLine.saldo_comprometido)
-          : null;
-
-        const saldoOk =
-          saldoDisponivel === null ||
-          saldoDisponivel >= toNumber(p.valor_solicitado);
 
         return (
-          <div key={p.id} className="border p-4 rounded-xl space-y-4">
-            <div className="flex justify-between gap-4">
-              <div className="space-y-2">
-                <div className="flex gap-2 flex-wrap">
-                  {isTeam(p) && (
-                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
-                      👤 Equipe
-                    </span>
-                  )}
+          <div key={p.id} className="border p-4 rounded-xl space-y-3">
 
-                  {vinculoOk ? (
-                    <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded flex items-center gap-1">
-                      <Link2 className="w-3 h-3" />
-                      Com vínculo orçamentário
-                    </span>
-                  ) : (
-                    <span className="text-xs bg-red-50 text-red-700 px-2 py-1 rounded flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />
-                      Sem vínculo orçamentário
-                    </span>
-                  )}
-                </div>
-
+            <div className="flex justify-between">
+              <div>
                 <p className="font-semibold">{p.descricao_item}</p>
-
-                {isTeam(p) && tp && (
-                  <p className="text-xs text-purple-700">
-                    Parcela {tp.numero_parcela || '-'} • {tp.mes_referencia || '-'} / {tp.ano || '-'}
-                  </p>
-                )}
-
-                {p.fornecedor_nome && (
-                  <p className="text-xs text-gray-500">
-                    {p.fornecedor_nome}
-                    {p.fornecedor_cnpj ? ` — ${p.fornecedor_cnpj}` : ''}
-                  </p>
-                )}
+                <p className="text-xs text-gray-500">{p.fornecedor_nome}</p>
               </div>
 
-              <div className="text-right">
-                <p className="font-bold">{formatBRL(p.valor_solicitado || 0)}</p>
-                {budgetLine && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {budgetLine.codigo} — {budgetLine.descricao}
-                  </p>
-                )}
-              </div>
+              <p className="font-bold">{formatBRL(p.valor_solicitado)}</p>
             </div>
 
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
-              <div className="text-xs font-semibold text-gray-700 flex items-center gap-2">
-                <FileCheck className="w-3.5 h-3.5" />
-                Checklist documental
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <ChecklistItem ok={checklist.contrato.ok} label="Contrato" href={checklist.contrato.href} />
-                <ChecklistItem ok={checklist.nfPdf.ok} label="NF PDF" href={checklist.nfPdf.href} />
-                <ChecklistItem ok={checklist.nfXml.ok} label="NF XML" href={checklist.nfXml.href} />
-              </div>
-            </div>
+            {/* 🔥 NOVO BLOCO IA */}
+            {validation && (
+              <div className={`p-3 rounded-lg text-xs ${
+                validation.status === 'divergente'
+                  ? 'bg-red-50 border border-red-200'
+                  : 'bg-green-50 border border-green-200'
+              }`}>
+                <p>NF: {formatBRL(validation.valor)}</p>
+                <p>Confiança: {validation.confianca}%</p>
 
-            {!vinculoOk && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <div>Esta solicitação não deve ser aprovada enquanto não houver vínculo orçamentário.</div>
-              </div>
-            )}
-
-            {budgetLine && (
-              <div
-                className={`p-3 rounded-lg text-xs ${
-                  saldoOk
-                    ? 'bg-green-50 border border-green-100 text-green-800'
-                    : 'bg-red-50 border border-red-200 text-red-800'
-                }`}
-              >
-                <div className="flex flex-wrap gap-4">
-                  <span>Saldo inicial: <strong>{formatBRL(budgetLine.saldo_inicial)}</strong></span>
-                  <span>Comprometido: <strong>{formatBRL(budgetLine.saldo_comprometido)}</strong></span>
-                  <span>Disponível: <strong>{formatBRL(saldoDisponivel)}</strong></span>
-                </div>
-                {!saldoOk && (
-                  <p className="mt-1 font-semibold">Saldo insuficiente para aprovação.</p>
+                {validation.status === 'divergente' && (
+                  <p className="text-red-600 font-semibold">
+                    Divergência detectada
+                  </p>
                 )}
               </div>
             )}
 
-            <Textarea
-              placeholder="Comentário"
-              value={comentarios[p.id] || ''}
-              onChange={(e) =>
-                setComentarios((prev) => ({ ...prev, [p.id]: e.target.value }))
-              }
-            />
-
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2">
               <Button
-                variant="outline"
-                className="border-amber-200 text-amber-700 hover:bg-amber-50"
-                onClick={() => handleAction(p, 'return_to_user')}
-                disabled={loading[p.id] || !podeAprovar}
-              >
-                {loading[p.id] ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                ) : (
-                  <Undo2 className="w-4 h-4 mr-1" />
-                )}
-                Devolver ao Usuário
-              </Button>
-
-              <Button
-                variant="outline"
-                className="border-red-200 text-red-700 hover:bg-red-50"
-                onClick={() => handleAction(p, 'reject')}
-                disabled={loading[p.id] || !podeAprovar}
-              >
-                {loading[p.id] ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                ) : (
-                  <XCircle className="w-4 h-4 mr-1" />
-                )}
-                Recusar
-              </Button>
-
-              <Button
-                className="bg-black hover:bg-gray-800 text-white disabled:opacity-50"
                 onClick={() => handleAction(p, 'approve_coord')}
                 disabled={
                   loading[p.id] ||
-                  !podeAprovar ||
-                  !vinculoOk ||
-                  !saldoOk ||
-                  (isTeam(p) && tp && tp.nf_valida === false)
+                  validation?.status === 'divergente'
                 }
               >
-                {loading[p.id] ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                ) : (
-                  <CheckCircle className="w-4 h-4 mr-1" />
-                )}
-                Aprovar Pagamento
+                Aprovar
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => handleAction(p, 'reject')}
+              >
+                Recusar
               </Button>
             </div>
+
           </div>
         );
       })}
