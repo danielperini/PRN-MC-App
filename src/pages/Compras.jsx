@@ -263,6 +263,9 @@ function ComprasInner() {
       queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'] }),
       queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
       queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
+      queryClient.invalidateQueries({ queryKey: ['team-member-own'] }),
+      queryClient.invalidateQueries({ queryKey: ['team-members-all-for-coordinator'] }),
+      queryClient.invalidateQueries({ queryKey: ['team-payments'] }),
     ]);
   }, [queryClient]);
 
@@ -394,7 +397,6 @@ function ComprasInner() {
     (p) => p.status === 'SOLICITADO'
   ).length;
 
-  // Total utilizado: soma de todas as compras APROVADO_COORD + APROVADO_ADMIN + PAGO
   const totalUtilizado = useMemo(() => {
     return (purchases || [])
       .filter((p) =>
@@ -414,7 +416,6 @@ function ComprasInner() {
     <div className="min-h-screen bg-white">
       <div className="mx-auto max-w-6xl px-4 py-4 md:px-6 md:py-8">
 
-        {/* Header */}
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black">
@@ -465,7 +466,6 @@ function ComprasInner() {
           </div>
         </div>
 
-        {/* Banner de inconsistências */}
         {isCoordenador && comprasInconsistentes.length > 0 && (
           <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <div className="flex items-start gap-3">
@@ -482,7 +482,6 @@ function ComprasInner() {
           </div>
         )}
 
-        {/* Resumo financeiro */}
         {isCoordenador && (
           <div className="mb-6 grid grid-cols-3 gap-4">
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
@@ -506,17 +505,16 @@ function ComprasInner() {
           </div>
         )}
 
-        {/* Abas */}
         <div className="mb-6 flex w-fit gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1">
           {[
-            { id: 'lista',    label: 'Solicitações' },
+            { id: 'lista', label: 'Solicitações' },
             ...(isCoordenador ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
             { id: 'documentos', label: 'Documentos' },
-            ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
+            { id: 'equipe', label: 'Equipe' },
             ...((podeAprovarSolicitacoes || hasGestaoCompras)
               ? [{ id: 'aprovacoes', label: `Aprovações${pendentesAprovacoes > 0 ? ` (${pendentesAprovacoes})` : ''}` }]
               : []),
-            ...(!isCoordenador ? [{ id: 'pagamentos', label: 'Meus Pagamentos' }] : []),
+            { id: 'pagamentos', label: isCoordenador ? 'Pagamentos da Equipe' : 'Meus Pagamentos' },
           ].map((t) => (
             <button
               key={t.id}
@@ -530,10 +528,8 @@ function ComprasInner() {
           ))}
         </div>
 
-        {/* Aba: Solicitações (tabela) */}
         {tab === 'lista' && (
           <div>
-            {/* Filtros */}
             <div className="mb-4 flex flex-wrap gap-3">
               <div className="relative min-w-48 flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
@@ -604,7 +600,6 @@ function ComprasInner() {
               </Select>
             </div>
 
-            {/* Contagem */}
             <p className="mb-3 text-sm text-gray-500">
               {filtered.length} solicitaç{filtered.length !== 1 ? 'ões' : 'ão'}
               {filters.status !== 'all' || filters.search ? ' (filtradas)' : ''}
@@ -637,8 +632,7 @@ function ComprasInner() {
           </div>
         )}
 
-        {/* Aba: Rubricas */}
-        {tab === 'rubricas' && (
+        {tab === 'rubricas' && isCoordenador && (
           <div className="space-y-6">
             {selectedRubrica ? (
               <div>
@@ -679,11 +673,15 @@ function ComprasInner() {
           </div>
         )}
 
-        {tab === 'equipe' && isCoordenador && (
-          <TeamManager budgetLines={budgetLines} />
+        {tab === 'equipe' && (
+          isCoordenador ? (
+            <TeamManager budgetLines={budgetLines} />
+          ) : (
+            <TeamPaymentSubmit userEmail={currentUser?.email} />
+          )
         )}
 
-        {tab === 'pagamentos' && !isCoordenador && (
+        {tab === 'pagamentos' && (
           <TeamPaymentSubmit userEmail={currentUser?.email} />
         )}
 
