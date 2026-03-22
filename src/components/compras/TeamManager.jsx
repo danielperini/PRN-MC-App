@@ -420,57 +420,121 @@ export default function TeamManager({ budgetLines = [] }) {
             </div>
           ) : (
             <>
-              <div className="border p-4 rounded-xl space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                      <UserCircle2 className="w-5 h-5 text-gray-700" />
+              {(() => {
+                const budgetLine = budgetLineMap[getBudgetLineId(ownMember)] || null;
+
+                const parcelas = toNumber(ownMember.numero_parcelas);
+                const pagasNoContrato = toNumber(ownMember.parcelas_pagas);
+                const valorTotal = toNumber(ownMember.valor_total);
+                const valorParcela =
+                  toNumber(ownMember.valor_parcela) ||
+                  (parcelas > 0 ? valorTotal / parcelas : 0);
+                const saldo = Math.max(0, valorTotal - pagasNoContrato * valorParcela);
+
+                const vencido = isContratoVencido(ownMember.data_fim_contrato);
+                const resumo = getResumoFinanceiro(ownMember, allTeamPayments);
+
+                return (
+                  <div className="border p-4 rounded-xl space-y-3">
+                    <div className="flex justify-between items-start gap-3">
+                      <div>
+                        <p className="font-semibold">{getMemberDisplayName(ownMember)}</p>
+                        <p className="text-xs text-gray-500">{ownMember.funcao || '—'}</p>
+                      </div>
+
+                      <Badge className={vencido ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}>
+                        {vencido ? 'Vencido' : 'Válido'}
+                      </Badge>
                     </div>
-                    <div>
-                      <p className="font-semibold">{getMemberDisplayName(ownMember)}</p>
-                      <p className="text-xs text-gray-500">{ownMember.funcao || '—'}</p>
+
+                    {budgetLine ? (
+                      <p className="text-xs text-gray-500">
+                        {budgetLine.codigo} — {budgetLine.descricao}
+                      </p>
+                    ) : (
+                      <div className="text-xs text-red-600 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>Sem rubrica / linha orçamentária vinculada</span>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-gray-600">
+                      <div>
+                        <CalendarDays className="w-3 h-3 inline mr-1" />
+                        {formatDate(ownMember.data_inicio_contrato)} → {formatDate(ownMember.data_fim_contrato)}
+                      </div>
+
+                      <div>
+                        <Layers3 className="w-3 h-3 inline mr-1" />
+                        {pagasNoContrato}/{parcelas} parcelas
+                      </div>
+
+                      <div>
+                        <Wallet className="w-3 h-3 inline mr-1" />
+                        {formatBRL(valorTotal)}
+                      </div>
+
+                      <div>
+                        Saldo: {formatBRL(saldo)}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                      <div className="rounded-lg bg-gray-50 border border-gray-100 p-2">
+                        <div className="flex items-center gap-1 text-gray-500 mb-1">
+                          <Clock3 className="w-3.5 h-3.5" />
+                          Último envio
+                        </div>
+                        <div className="font-medium text-gray-800">
+                          {resumo.ultimoEnvio
+                            ? `${resumo.ultimoEnvio.mes_referencia || '—'} / ${resumo.ultimoEnvio.ano || '—'}`
+                            : 'Nenhum envio'}
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg bg-gray-50 border border-gray-100 p-2">
+                        <div className="flex items-center gap-1 text-gray-500 mb-1">
+                          <Receipt className="w-3.5 h-3.5" />
+                          Valor da parcela
+                        </div>
+                        <div className="font-medium text-gray-800">
+                          {formatBRL(valorParcela)}
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg bg-gray-50 border border-gray-100 p-2">
+                        <div className="flex items-center gap-1 text-gray-500 mb-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Status último envio
+                        </div>
+                        <div className="font-medium text-gray-800">
+                          {resumo.ultimoEnvio?.status || '—'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-2 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openEdit(ownMember)}
+                      >
+                        <Edit2 className="w-3 h-3 mr-1" />
+                        Editar equipe
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openDocs(ownMember, 'docs')}
+                      >
+                        <FileText className="w-3 h-3 mr-1" />
+                        Documentos
+                      </Button>
                     </div>
                   </div>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => openEdit(ownMember)}
-                  >
-                    <Edit2 className="w-3 h-3 mr-1" />
-                    Editar meu perfil
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-600">
-                  <div>E-mail: {ownMember.user_email || '—'}</div>
-                  <div>Telefone: {ownMember.telefone || '—'}</div>
-                  <div>Tipo pessoa: {ownMember.tipo_pessoa || '—'}</div>
-                  <div>PIX: {ownMember.pix_key || '—'}</div>
-                  <div>Banco: {ownMember.banco || '—'}</div>
-                  <div>Conta: {ownMember.conta || '—'}</div>
-                </div>
-
-                <div className="flex gap-2 flex-wrap pt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => openDocs(ownMember, 'docs')}
-                  >
-                    <FileText className="w-3 h-3 mr-1" />
-                    Meus documentos
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => openDocs(ownMember, 'payment')}
-                  >
-                    <Receipt className="w-3 h-3 mr-1" />
-                    Minhas NF / XML
-                  </Button>
-                </div>
-              </div>
+                );
+              })()}
 
               <TeamPaymentSubmit userEmail={currentUser?.email || ownMember?.user_email || ''} />
             </>
