@@ -19,10 +19,12 @@ import {
   Trash2,
   Receipt,
   FileText,
-  BookOpen,
   CalendarDays,
   Wallet,
   Layers3,
+  AlertCircle,
+  CheckCircle2,
+  Clock3,
 } from 'lucide-react';
 import TeamMemberForm from './TeamMemberForm';
 import TeamMemberDocsPanel from './TeamMemberDocsPanel';
@@ -53,8 +55,44 @@ function formatDate(value) {
 function isContratoVencido(dataFim) {
   if (!dataFim) return false;
   const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
   const fim = new Date(dataFim);
+  if (Number.isNaN(fim.getTime())) return false;
+  fim.setHours(0, 0, 0, 0);
+
   return fim < hoje;
+}
+
+function getBudgetLineId(member) {
+  return (
+    member?.budgetline_id ||
+    member?.budget_line_id ||
+    member?.rubrica_id ||
+    ''
+  );
+}
+
+function getResumoFinanceiro(member, payments) {
+  const memberPayments = (payments || []).filter(
+    (p) =>
+      p?.team_member_id === member?.id ||
+      (p?.user_email && p?.user_email === member?.user_email)
+  );
+
+  const pagos = memberPayments.filter((p) => p?.status === 'PAGO');
+  const aguardando = memberPayments.filter((p) =>
+    ['AGUARDANDO_APROVACAO', 'APROVADO_COORD', 'EM_ANALISE_COORD', 'REVISAO'].includes(p?.status)
+  );
+
+  const ultimoEnvio = memberPayments.length > 0 ? memberPayments[0] : null;
+
+  return {
+    totalEnvios: memberPayments.length,
+    pagos: pagos.length,
+    aguardando: aguardando.length,
+    ultimoEnvio,
+  };
 }
 
 export default function TeamManager({ budgetLines = [] }) {
@@ -63,13 +101,17 @@ export default function TeamManager({ budgetLines = [] }) {
   const [editingMember, setEditingMember] = useState(null);
   const [deletingMember, setDeletingMember] = useState(null);
   const [docsPanel, setDocsPanel] = useState(null);
-  const [paymentMember, setPaymentMember] = useState(null);
 
   const queryClient = useQueryClient();
 
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['team-members'],
-    queryFn: () => base44.entities.TeamMember.list('-created_date', 100),
+    queryFn: () => base44.entities.TeamMember.list('-created_date', 200),
+  });
+
+  const { data: allTeamPayments = [] } = useQuery({
+    queryKey: ['team-payments-manager-all'],
+    queryFn: () => base44.entities.TeamPayment.list('-created_date', 500),
   });
 
   const { data: pendingPayments = [] } = useQuery({
@@ -90,14 +132,18 @@ export default function TeamManager({ budgetLines = [] }) {
     try {
       await base44.entities.TeamMember.delete(deletingMember.id);
       toast.success('Membro removido');
-      queryClient.invalidateQueries(['team-members']);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['team-members'] }),
+        queryClient.invalidateQueries({ queryKey: ['team-payments-manager-all'] }),
+        queryClient.invalidateQueries({ queryKey: ['team-payments-pending'] }),
+      ]);
       setDeletingMember(null);
     } catch (error) {
       toast.error('Erro ao remover: ' + error.message);
     }
   };
 
-  const openDocs = (member) => setDocsPanel({ member });
+  const openDocs = (member, initialMode = 'docs') => setDocsPanel({ member, initialMode });
 
   return (
     <div className="space-y-6">
@@ -111,6 +157,7 @@ export default function TeamManager({ budgetLines = [] }) {
             <p className="text-xs text-gray-500">{members.length} membro(s) cadastrado(s)</p>
           </div>
         </div>
+
         {subTab === 'membros' && (
           <Button
             className="bg-black hover:bg-gray-800"
@@ -155,32 +202,44 @@ export default function TeamManager({ budgetLines = [] }) {
             <div className="space-y-3">
               {members.map((member) => {
                 const budgetLine =
-                  budgetLineMap[member.budgetline_id] ||
-                  budgetLineMap[member.budget_line_id] ||
-                  budgetLineMap[member.rubrica_id] ||
-                  null;
+                  budgetLineMap[getBudgetLineId(member)] || null;
 
                 const parcelas = toNumber(member.numero_parcelas);
-                const pagas = toNumber(member.parcelas_pagas);
+                const pagasNoContrato = toNumber(member.parcelas_pagas);
                 const valorTotal = toNumber(member.valor_total);
                 const valorParcela =
-                  parcelas > 0 ? valorTotal / parcelas : 0;
-                const saldo = valorTotal - pagas * valorParcela;
+                  toNumber(member.valor_parcela) ||
+                  (parcelas > 0 ? valorTotal / parcelas : 0);
+                const saldo = Math.max(0, valorTotal - pagasNoContrato * valorParcela);
 
                 const vencido = isContratoVencido(member.data_fim_contrato);
+                const resumo = getResumoFinanceiro(member, allTeamPayments);
 
                 return (
-                  <div key={member.id} className="border p-4 rounded-xl space-y-2">
-
-                    <div className="flex justify-between items-start">
+                  <div key={member.id} className="border p-4 rounded-xl space-y-3">
+                    <div className="flex justify-between items-start gap-3">
                       <div>
                         <p className="font-semibold">{member.user_name}</p>
-                        <p className="text-xs text-gray-500">{member.funcao}</p>
+                        <p className="text-xs text-gray-500">{member.funcao || '—'}</p>
                       </div>
 
-                      <Badge className={vencido ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}>
-                        {vencido ? 'Vencido' : 'Válido'}
-                      </Badge>
+                      <div className="flex gap-2 flex-wrap justify-end">
+                        <Badge className={vencido ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}>
+                          {vencido ? 'Vencido' : 'Válido'}
+                        </Badge>
+
+                        {resumo.aguardando > 0 && (
+                          <Badge className="bg-amber-100 text-amber-800">
+                            {resumo.aguardando} pendente(s)
+                          </Badge>
+                        )}
+
+                        {resumo.pagos > 0 && (
+                          <Badge className="bg-blue-100 text-blue-800">
+                            {resumo.pagos} pago(s)
+                          </Badge>
+                        )}
+                      </div>
                     </div>
 
                     {budgetLine ? (
@@ -188,54 +247,107 @@ export default function TeamManager({ budgetLines = [] }) {
                         {budgetLine.codigo} — {budgetLine.descricao}
                       </p>
                     ) : (
-                      <p className="text-xs text-red-500">
-                        Sem rubrica vinculada
-                      </p>
+                      <div className="text-xs text-red-600 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>Sem rubrica / linha orçamentária vinculada</span>
+                      </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-gray-600">
                       <div>
                         <CalendarDays className="w-3 h-3 inline mr-1" />
                         {formatDate(member.data_inicio_contrato)} → {formatDate(member.data_fim_contrato)}
                       </div>
+
                       <div>
                         <Layers3 className="w-3 h-3 inline mr-1" />
-                        {pagas}/{parcelas} parcelas
+                        {pagasNoContrato}/{parcelas} parcelas
                       </div>
+
                       <div>
                         <Wallet className="w-3 h-3 inline mr-1" />
                         {formatBRL(valorTotal)}
                       </div>
+
                       <div>
                         Saldo: {formatBRL(saldo)}
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                      <div className="rounded-lg bg-gray-50 border border-gray-100 p-2">
+                        <div className="flex items-center gap-1 text-gray-500 mb-1">
+                          <Clock3 className="w-3.5 h-3.5" />
+                          Último envio
+                        </div>
+                        <div className="font-medium text-gray-800">
+                          {resumo.ultimoEnvio
+                            ? `${resumo.ultimoEnvio.mes_referencia || '—'} / ${resumo.ultimoEnvio.ano || '—'}`
+                            : 'Nenhum envio'}
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg bg-gray-50 border border-gray-100 p-2">
+                        <div className="flex items-center gap-1 text-gray-500 mb-1">
+                          <Receipt className="w-3.5 h-3.5" />
+                          Valor da parcela
+                        </div>
+                        <div className="font-medium text-gray-800">
+                          {formatBRL(valorParcela)}
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg bg-gray-50 border border-gray-100 p-2">
+                        <div className="flex items-center gap-1 text-gray-500 mb-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Status último envio
+                        </div>
+                        <div className="font-medium text-gray-800">
+                          {resumo.ultimoEnvio?.status || '—'}
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="flex gap-2 pt-2 flex-wrap">
-                      <Button size="sm" variant="outline" onClick={() => {
-                        setEditingMember(member);
-                        setShowForm(true);
-                      }}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setEditingMember(member);
+                          setShowForm(true);
+                        }}
+                      >
                         <Edit2 className="w-3 h-3 mr-1" />
                         Editar
                       </Button>
 
-                      <Button size="sm" variant="outline" onClick={() => setPaymentMember(member)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openDocs(member, 'payment')}
+                      >
                         <Receipt className="w-3 h-3 mr-1" />
                         Pagar
                       </Button>
 
-                      <Button size="sm" variant="outline" onClick={() => openDocs(member)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openDocs(member, 'docs')}
+                      >
                         <FileText className="w-3 h-3 mr-1" />
                         Documentos
                       </Button>
 
-                      <Button size="sm" variant="outline" onClick={() => setDeletingMember(member)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setDeletingMember(member)}
+                      >
                         <Trash2 className="w-3 h-3 mr-1" />
                         Remover
                       </Button>
                     </div>
-
                   </div>
                 );
               })}
@@ -244,13 +356,26 @@ export default function TeamManager({ budgetLines = [] }) {
         </>
       )}
 
+      {subTab === 'revisao' && (
+        <TeamPaymentReview
+          members={members}
+          budgetLines={budgetLines}
+        />
+      )}
+
       <TeamMemberForm
         isOpen={showForm}
         onClose={() => {
           setShowForm(false);
           setEditingMember(null);
         }}
-        onSuccess={() => queryClient.invalidateQueries(['team-members'])}
+        onSuccess={async () => {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['team-members'] }),
+            queryClient.invalidateQueries({ queryKey: ['team-payments-manager-all'] }),
+            queryClient.invalidateQueries({ queryKey: ['team-payments-pending'] }),
+          ]);
+        }}
         editingMember={editingMember}
         budgetLines={budgetLines}
       />
@@ -259,13 +384,8 @@ export default function TeamManager({ budgetLines = [] }) {
         <TeamMemberDocsPanel
           member={docsPanel.member}
           onClose={() => setDocsPanel(null)}
-        />
-      )}
-
-      {paymentMember && (
-        <TeamPaymentReview
-          member={paymentMember}
-          onClose={() => setPaymentMember(null)}
+          budgetLines={budgetLines}
+          isCoordenador
         />
       )}
 
@@ -285,7 +405,6 @@ export default function TeamManager({ budgetLines = [] }) {
           </div>
         </AlertDialogContent>
       </AlertDialog>
-
     </div>
   );
 }
