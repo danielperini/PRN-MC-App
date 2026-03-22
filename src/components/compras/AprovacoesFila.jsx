@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,26 +17,9 @@ import { toast } from 'sonner';
 
 function ChecklistItem({ ok, label, href }) {
   return (
-    <div
-      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs ${
-        ok
-          ? 'border-green-200 bg-green-50 text-green-800'
-          : 'border-red-200 bg-red-50 text-red-800'
-      }`}
-    >
-      <span className="font-medium">{label}</span>
-      <div className="flex items-center gap-2">
-        {href ? (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline">
-            <ExternalLink className="w-3 h-3" />
-            Abrir
-          </a>
-        ) : null}
-        <span className="flex items-center gap-1">
-          {ok ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-          {ok ? 'OK' : 'Pendente'}
-        </span>
-      </div>
+    <div className={`flex justify-between text-xs ${ok ? 'text-green-700' : 'text-red-700'}`}>
+      <span>{label}</span>
+      {ok ? 'OK' : 'Pendente'}
     </div>
   );
 }
@@ -44,417 +27,137 @@ function ChecklistItem({ ok, label, href }) {
 export default function AprovacoesFila({
   purchases,
   budgetLines,
-  statusConfig,
   onRefresh,
   currentUser,
-  hasGestaoCompras,
-  podeAprovarSolicitacoes,
 }) {
+
   const [loading, setLoading] = useState({});
   const [comentarios, setComentarios] = useState({});
-  const [saldos, setSaldos] = useState({});
+  const [teamPayments, setTeamPayments] = useState({});
 
-  const isCoordenador = [
-    'admin',
-    'ADMIN',
-    'COORDENADOR',
-    'COORD_COMUNICACAO',
-    'COORD_ADMINISTRATIVA',
-    'COORD_PRODUCAO',
-  ].includes(currentUser?.role);
+  const isCoordenador = ['ADMIN','admin','COORDENADOR'].includes(currentUser?.role);
 
-  const podeAprovar =
-    isCoordenador ||
-    hasGestaoCompras === true ||
-    podeAprovarSolicitacoes === true;
+  const pendentes = purchases.filter(p => p.status === 'SOLICITADO');
 
-  const pendentes_coord = purchases.filter((p) => p.status === 'SOLICITADO');
+  const getBudgetLine = (p) =>
+    budgetLines.find(b =>
+      b.id === p.budgetline_id ||
+      b.id === p.budget_line_id
+    );
 
-  const getBudgetLineId = (purchase) =>
-    purchase?.budgetline_id ||
-    purchase?.budget_line_id ||
-    purchase?.linha_orcamentaria_id ||
-    null;
+  const isTeam = (p) =>
+    p.origem === 'TEAM_PAYMENT' || !!p.team_payment_id;
 
-  const getBudgetLine = (purchase) => {
-    const id = getBudgetLineId(purchase);
-    return budgetLines.find((l) => l.id === id);
-  };
-
-  const hasOrcamentoVinculado = (purchase) =>
-    !!purchase?.rubrica_id || !!getBudgetLineId(purchase);
-
-  const getSaldo = async (purchase) => {
-    const budgetlineId = getBudgetLineId(purchase);
-    if (!budgetlineId) return null;
-    if (saldos[budgetlineId]) return saldos[budgetlineId];
-
-    const res = await base44.functions.invoke('purchaseActions', {
-      action: 'check_budget',
-      budgetline_id: budgetlineId,
-      valor: purchase.valor_solicitado,
-    });
-
-    const info = res?.data || res;
-    setSaldos((s) => ({ ...s, [budgetlineId]: info }));
-    return info;
-  };
-
-  const handleAction = async (purchase, action) => {
-    if (
-      (action === 'approve_coord' || action === 'reject' || action === 'return_to_user') &&
-      !podeAprovar
-    ) {
-      toast.error('Você não tem permissão para processar solicitações.');
-      return;
-    }
-
-    if (action === 'approve_coord' && !hasOrcamentoVinculado(purchase)) {
-      toast.error('Vincule uma rubrica ou linha orçamentária antes de aprovar.');
-      return;
-    }
-
-    const comentario = comentarios[purchase.id] || '';
-
-    if (action === 'return_to_user' && !comentario.trim()) {
-      toast.error('Informe um comentário para devolver ao usuário.');
-      return;
-    }
-
-    setLoading((l) => ({ ...l, [purchase.id]: true }));
-
-    try {
-      if (action === 'approve_coord') {
-        const saldoInfo = await getSaldo(purchase);
-
-        if (saldoInfo && !saldoInfo?.aprovavel) {
-          toast.error(
-            `Saldo insuficiente! Disponível: R$ ${(saldoInfo?.saldo_disponivel || 0).toLocaleString('pt-BR', {
-              minimumFractionDigits: 2,
-            })}`
-          );
-          setLoading((l) => ({ ...l, [purchase.id]: false }));
-          return;
+  useEffect(() => {
+    const load = async () => {
+      const map = {};
+      for (const p of purchases) {
+        if (p.team_payment_id) {
+          try {
+            map[p.id] = await base44.entities.TeamPayment.get(p.team_payment_id);
+          } catch {}
         }
       }
+      setTeamPayments(map);
+    };
+    load();
+  }, [purchases]);
 
-      let backendAction = 'reject';
-      if (action === 'approve_coord') backendAction = 'aprovar';
-      if (action === 'return_to_user') backendAction = 'devolver_usuario';
+  const handleApprove = async (purchase) => {
 
+    const tp = teamPayments[purchase.id];
+
+    if (isTeam(purchase) && tp && tp.nf_valida === false) {
+      toast.error('NF inválida. Não pode aprovar.');
+      return;
+    }
+
+    setLoading(l => ({...l,[purchase.id]:true}));
+
+    try {
       await base44.functions.invoke('purchaseActions', {
         purchaseId: purchase.id,
-        action: backendAction,
-        comentario,
+        action: 'aprovar'
       });
 
-      if (action === 'approve_coord') {
-        toast.success('Pagamento aprovado — saldo comprometido na rubrica.', { duration: 4000 });
-      } else if (action === 'return_to_user') {
-        toast.success('Solicitação devolvida ao usuário para ajuste.', { duration: 4000 });
-      } else {
-        toast.success('Solicitação recusada.', { duration: 3000 });
-      }
+      toast.success('Aprovado');
+      onRefresh?.();
 
-      await onRefresh?.();
-    } catch (e) {
-      toast.error('Erro ao processar: ' + (e?.message || 'Erro desconhecido'));
-    } finally {
-      setLoading((l) => ({ ...l, [purchase.id]: false }));
+    } catch(e){
+      toast.error(e.message);
     }
-  };
 
-  const META_LABELS = {
-    'MC3A-20': 'Ações Educativas',
-    'MC3A-21': 'Exposição / Produção Cultural',
-    'MC3A-22': 'Comunicação e Divulgação',
-    'MC3A-23': 'Noturno nos Museus 2026',
-    'MC3A-24': 'Emenda Parlamentar',
-    'MC3A-25': 'Outras Ações',
-    'MC3A-EXTRA': 'Ações Extras',
-  };
-
-  const getChecklist = (purchase) => {
-    const contractUrl =
-      purchase?.contract_url ||
-      purchase?.contrato_url ||
-      purchase?.team_contract_url ||
-      '';
-
-    const nfPdfUrl =
-      purchase?.nota_fiscal_url ||
-      purchase?.nf_pdf_url ||
-      purchase?.nota_fiscal_pdf_url ||
-      '';
-
-    const nfXmlUrl =
-      purchase?.xml_url ||
-      purchase?.nf_xml_url ||
-      purchase?.nota_fiscal_xml_url ||
-      '';
-
-    return {
-      contrato: {
-        ok: !!contractUrl,
-        href: contractUrl || null,
-      },
-      nfPdf: {
-        ok: !!nfPdfUrl,
-        href: nfPdfUrl || null,
-      },
-      nfXml: {
-        ok: !!nfXmlUrl,
-        href: nfXmlUrl || null,
-      },
-    };
-  };
-
-  const renderCard = (purchase) => {
-    const line = getBudgetLine(purchase);
-    const saldoDisponivel = line
-      ? (line.saldo_inicial || 0) - (line.saldo_comprometido || 0)
-      : null;
-    const saldoOk =
-      saldoDisponivel === null || saldoDisponivel >= (purchase.valor_solicitado || 0);
-    const isLoading = loading[purchase.id];
-    const vinculoOk = hasOrcamentoVinculado(purchase);
-    const budgetlineId = getBudgetLineId(purchase);
-    const checklist = getChecklist(purchase);
-
-    return (
-      <div
-        key={purchase.id}
-        className="border border-gray-100 rounded-xl p-5 space-y-4 hover:border-gray-200 bg-white"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <div className="flex flex-wrap gap-2 mb-2">
-              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                {META_LABELS[purchase.meta_id] || purchase.meta_id}
-              </span>
-
-              {purchase.tipo_gasto && (
-                <span className="text-xs border border-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
-                  {purchase.tipo_gasto}
-                </span>
-              )}
-
-              {purchase.ai_meta_score !== undefined && purchase.ai_meta_score !== null && (
-                <span
-                  className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                    purchase.ai_meta_score >= 80
-                      ? 'bg-green-50 text-green-700'
-                      : 'bg-amber-50 text-amber-700'
-                  }`}
-                >
-                  <Sparkles className="w-3 h-3" />
-                  Score IA: {purchase.ai_meta_score}%
-                </span>
-              )}
-
-              {vinculoOk ? (
-                <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <Link2 className="w-3 h-3" />
-                  Com vínculo orçamentário
-                </span>
-              ) : (
-                <span className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" />
-                  Sem vínculo orçamentário
-                </span>
-              )}
-            </div>
-
-            <p className="font-semibold text-black">{purchase.descricao_item}</p>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {purchase.fornecedor_nome}
-              {purchase.fornecedor_cnpj ? ` — ${purchase.fornecedor_cnpj}` : ''}
-            </p>
-          </div>
-
-          <div className="text-right flex-shrink-0">
-            <p className="text-xl font-bold text-black">
-              R$ {(purchase.valor_solicitado || 0).toLocaleString('pt-BR', {
-                minimumFractionDigits: 2,
-              })}
-            </p>
-            <p className="text-xs text-gray-500">{purchase.categoria}</p>
-          </div>
-        </div>
-
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
-          <div className="text-xs font-semibold text-gray-700 flex items-center gap-2">
-            <FileCheck className="w-3.5 h-3.5" />
-            Checklist documental
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            <ChecklistItem ok={checklist.contrato.ok} label="Contrato" href={checklist.contrato.href} />
-            <ChecklistItem ok={checklist.nfPdf.ok} label="NF PDF" href={checklist.nfPdf.href} />
-            <ChecklistItem ok={checklist.nfXml.ok} label="NF XML" href={checklist.nfXml.href} />
-          </div>
-        </div>
-
-        {!vinculoOk && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs">
-            <p className="font-semibold text-red-800 flex items-center gap-1 mb-1">
-              <AlertTriangle className="w-3.5 h-3.5" />
-              Compra sem rubrica ou linha orçamentária vinculada
-            </p>
-            <p className="text-red-700">
-              Esta solicitação não deve ser aprovada enquanto não houver vínculo orçamentário.
-            </p>
-          </div>
-        )}
-
-        {purchase.ai_meta_score < 80 && purchase.ai_analise && (
-          <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg text-xs">
-            <p className="font-semibold text-amber-800 flex items-center gap-1 mb-1">
-              <AlertTriangle className="w-3.5 h-3.5" />
-              Atenção — Score IA baixo ({purchase.ai_meta_score}%)
-            </p>
-            <p className="text-amber-700">{purchase.ai_analise}</p>
-            {purchase.ai_meta_sugerida && purchase.ai_meta_sugerida !== purchase.meta_id && (
-              <p className="mt-1 font-medium text-amber-800">
-                Meta sugerida: {purchase.ai_meta_sugerida}
-              </p>
-            )}
-          </div>
-        )}
-
-        {line && (
-          <div
-            className={`p-3 rounded-lg text-xs ${
-              saldoOk
-                ? 'bg-green-50 border border-green-100'
-                : 'bg-red-50 border border-red-200'
-            }`}
-          >
-            <p className="font-semibold mb-1">
-              [{line.codigo}] {line.descricao}
-            </p>
-            <div className="flex gap-4 flex-wrap">
-              <span>
-                Saldo inicial:{' '}
-                <strong>
-                  R$ {(line.saldo_inicial || 0).toLocaleString('pt-BR', {
-                    minimumFractionDigits: 2,
-                  })}
-                </strong>
-              </span>
-              <span>
-                Comprometido:{' '}
-                <strong>
-                  R$ {(line.saldo_comprometido || 0).toLocaleString('pt-BR', {
-                    minimumFractionDigits: 2,
-                  })}
-                </strong>
-              </span>
-              <span className={saldoOk ? 'text-green-700' : 'text-red-700'}>
-                Disponível:{' '}
-                <strong>
-                  R$ {(saldoDisponivel || 0).toLocaleString('pt-BR', {
-                    minimumFractionDigits: 2,
-                  })}
-                </strong>
-              </span>
-            </div>
-            {!saldoOk && (
-              <p className="text-red-700 font-semibold mt-1">
-                ⚠️ Saldo insuficiente para aprovação!
-              </p>
-            )}
-          </div>
-        )}
-
-        {!line && budgetlineId && (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-            A compra possui budgetline_id vinculado, mas a linha orçamentária não foi encontrada
-            na listagem carregada.
-          </div>
-        )}
-
-        <Textarea
-          placeholder="Comentário (obrigatório para devolver ao usuário)..."
-          rows={2}
-          value={comentarios[purchase.id] || ''}
-          onChange={(e) =>
-            setComentarios((c) => ({ ...c, [purchase.id]: e.target.value }))
-          }
-        />
-
-        <div className="flex gap-2 justify-end flex-wrap">
-          <Button
-            variant="outline"
-            className="border-amber-200 text-amber-700 hover:bg-amber-50"
-            onClick={() => handleAction(purchase, 'return_to_user')}
-            disabled={isLoading || !podeAprovar}
-          >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-1" />
-            ) : (
-              <Undo2 className="w-4 h-4 mr-1" />
-            )}
-            Devolver ao Usuário
-          </Button>
-
-          <Button
-            variant="outline"
-            className="border-red-200 text-red-700 hover:bg-red-50"
-            onClick={() => handleAction(purchase, 'reject')}
-            disabled={isLoading || !podeAprovar}
-          >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-1" />
-            ) : (
-              <XCircle className="w-4 h-4 mr-1" />
-            )}
-            Recusar
-          </Button>
-
-          <Button
-            className="bg-black hover:bg-gray-800 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-            onClick={() => handleAction(purchase, 'approve_coord')}
-            disabled={isLoading || !saldoOk || !podeAprovar || !vinculoOk}
-            title={
-              !podeAprovar
-                ? 'Você não tem permissão para aprovar'
-                : !vinculoOk
-                  ? 'Vincule rubrica ou linha orçamentária antes de aprovar'
-                  : ''
-            }
-          >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-1" />
-            ) : (
-              <CheckCircle className="w-4 h-4 mr-1" />
-            )}
-            Aprovar Pagamento
-          </Button>
-        </div>
-      </div>
-    );
+    setLoading(l => ({...l,[purchase.id]:false}));
   };
 
   return (
-    <div className="space-y-8">
-      <section>
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4 flex items-center gap-2">
-          <span className="w-5 h-5 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold">
-            {pendentes_coord.length}
-          </span>
-          Aguardando Aprovação da Coordenação
-        </h2>
+    <div className="space-y-4">
 
-        {pendentes_coord.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-6 border-2 border-dashed border-gray-100 rounded-xl">
-            Nenhuma solicitação pendente
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {pendentes_coord.map((p) => renderCard(p))}
+      {pendentes.map(p => {
+
+        const tp = teamPayments[p.id];
+        const budgetLine = getBudgetLine(p);
+
+        return (
+          <div key={p.id} className="border p-4 rounded-xl space-y-3">
+
+            <div className="flex justify-between">
+
+              <div>
+
+                <div className="flex gap-2">
+
+                  {isTeam(p) && (
+                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+                      👤 Equipe
+                    </span>
+                  )}
+
+                </div>
+
+                <p className="font-semibold">{p.descricao_item}</p>
+
+                {isTeam(p) && tp && (
+                  <p className="text-xs text-purple-700">
+                    Parcela {tp.numero_parcela} • {tp.mes_referencia}/{tp.ano}
+                  </p>
+                )}
+
+              </div>
+
+              <p className="font-bold">
+                R$ {Number(p.valor_solicitado || 0).toFixed(2)}
+              </p>
+
+            </div>
+
+            <Textarea
+              placeholder="Comentário"
+              value={comentarios[p.id] || ''}
+              onChange={e => setComentarios({...comentarios,[p.id]:e.target.value})}
+            />
+
+            <div className="flex gap-2">
+
+              <Button
+                onClick={()=>handleApprove(p)}
+                disabled={loading[p.id]}
+              >
+                {loading[p.id] ? <Loader2 className="animate-spin w-4 h-4"/> : <CheckCircle className="w-4 h-4 mr-1"/>}
+                Aprovar
+              </Button>
+
+              <Button variant="outline">
+                <XCircle className="w-4 h-4 mr-1"/>
+                Recusar
+              </Button>
+
+            </div>
+
           </div>
-        )}
-      </section>
+        );
+      })}
+
     </div>
   );
 }
