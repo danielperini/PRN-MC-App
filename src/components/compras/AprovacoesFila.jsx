@@ -2,8 +2,44 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle, XCircle, AlertTriangle, Loader2, Sparkles, Link2, Undo2 } from 'lucide-react';
+import {
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Loader2,
+  Sparkles,
+  Link2,
+  Undo2,
+  ExternalLink,
+  FileCheck,
+} from 'lucide-react';
 import { toast } from 'sonner';
+
+function ChecklistItem({ ok, label, href }) {
+  return (
+    <div
+      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs ${
+        ok
+          ? 'border-green-200 bg-green-50 text-green-800'
+          : 'border-red-200 bg-red-50 text-red-800'
+      }`}
+    >
+      <span className="font-medium">{label}</span>
+      <div className="flex items-center gap-2">
+        {href ? (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline">
+            <ExternalLink className="w-3 h-3" />
+            Abrir
+          </a>
+        ) : null}
+        <span className="flex items-center gap-1">
+          {ok ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+          {ok ? 'OK' : 'Pendente'}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function AprovacoesFila({
   purchases,
@@ -19,8 +55,12 @@ export default function AprovacoesFila({
   const [saldos, setSaldos] = useState({});
 
   const isCoordenador = [
-    'admin', 'ADMIN', 'COORDENADOR',
-    'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO',
+    'admin',
+    'ADMIN',
+    'COORDENADOR',
+    'COORD_COMUNICACAO',
+    'COORD_ADMINISTRATIVA',
+    'COORD_PRODUCAO',
   ].includes(currentUser?.role);
 
   const podeAprovar =
@@ -134,6 +174,41 @@ export default function AprovacoesFila({
     'MC3A-EXTRA': 'Ações Extras',
   };
 
+  const getChecklist = (purchase) => {
+    const contractUrl =
+      purchase?.contract_url ||
+      purchase?.contrato_url ||
+      purchase?.team_contract_url ||
+      '';
+
+    const nfPdfUrl =
+      purchase?.nota_fiscal_url ||
+      purchase?.nf_pdf_url ||
+      purchase?.nota_fiscal_pdf_url ||
+      '';
+
+    const nfXmlUrl =
+      purchase?.xml_url ||
+      purchase?.nf_xml_url ||
+      purchase?.nota_fiscal_xml_url ||
+      '';
+
+    return {
+      contrato: {
+        ok: !!contractUrl,
+        href: contractUrl || null,
+      },
+      nfPdf: {
+        ok: !!nfPdfUrl,
+        href: nfPdfUrl || null,
+      },
+      nfXml: {
+        ok: !!nfXmlUrl,
+        href: nfXmlUrl || null,
+      },
+    };
+  };
+
   const renderCard = (purchase) => {
     const line = getBudgetLine(purchase);
     const saldoDisponivel = line
@@ -144,6 +219,7 @@ export default function AprovacoesFila({
     const isLoading = loading[purchase.id];
     const vinculoOk = hasOrcamentoVinculado(purchase);
     const budgetlineId = getBudgetLineId(purchase);
+    const checklist = getChecklist(purchase);
 
     return (
       <div
@@ -203,6 +279,18 @@ export default function AprovacoesFila({
               })}
             </p>
             <p className="text-xs text-gray-500">{purchase.categoria}</p>
+          </div>
+        </div>
+
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+          <div className="text-xs font-semibold text-gray-700 flex items-center gap-2">
+            <FileCheck className="w-3.5 h-3.5" />
+            Checklist documental
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <ChecklistItem ok={checklist.contrato.ok} label="Contrato" href={checklist.contrato.href} />
+            <ChecklistItem ok={checklist.nfPdf.ok} label="NF PDF" href={checklist.nfPdf.href} />
+            <ChecklistItem ok={checklist.nfXml.ok} label="NF XML" href={checklist.nfXml.href} />
           </div>
         </div>
 
@@ -331,8 +419,8 @@ export default function AprovacoesFila({
               !podeAprovar
                 ? 'Você não tem permissão para aprovar'
                 : !vinculoOk
-                ? 'Vincule rubrica ou linha orçamentária antes de aprovar'
-                : ''
+                  ? 'Vincule rubrica ou linha orçamentária antes de aprovar'
+                  : ''
             }
           >
             {isLoading ? (
