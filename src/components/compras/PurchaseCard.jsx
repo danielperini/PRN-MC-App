@@ -1,26 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import {
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  Sparkles,
-  Activity,
-  DollarSign,
   CheckCircle,
-  XCircle,
   Loader2,
-  Trash2,
-  Pencil,
   AlertCircle,
-  Link as LinkIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import PurchaseTimeline from './PurchaseTimeline';
-import PurchaseDocumentUpload from './PurchaseDocumentUpload';
-import PurchaseDocumentViewer from './PurchaseDocumentViewer';
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -41,16 +28,9 @@ export default function PurchaseCard({
   isCoordenador,
   isAdmin,
   onRefresh,
-  currentUser,
-  onEdit
 }) {
 
-  const [expanded, setExpanded] = useState(false);
-  const [relatedActivity, setRelatedActivity] = useState(null);
-  const [showApproval, setShowApproval] = useState(false);
-  const [comentario, setComentario] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-
   const [teamPayment, setTeamPayment] = useState(null);
 
   const statusInfo = statusConfig[purchase.status] || {
@@ -90,31 +70,50 @@ export default function PurchaseCard({
 
   const canMarkAsPaid = canMarkAsPaidBase && hasRubricaVinculada;
 
+  /* ================= PAGAMENTO ================= */
+
   const handleMarkAsPaid = async () => {
+
+    /* 🔒 VALIDAÇÕES FORTES */
 
     if (!hasRubricaVinculada) {
       toast.error('❌ Vincule uma rubrica antes de pagar');
       return;
     }
 
-    if (isTeamPayment && teamPayment && teamPayment.nf_valida === false) {
-      toast.error('❌ NF inválida. Não é possível pagar.');
-      return;
+    if (isTeamPayment && teamPayment) {
+
+      if (teamPayment.nf_valida === false) {
+        toast.error('❌ NF inválida. Não é possível pagar.');
+        return;
+      }
+
+      if (!teamPayment.nota_fiscal_url) {
+        toast.error('❌ Nota fiscal não anexada.');
+        return;
+      }
     }
 
     setActionLoading(true);
 
     try {
+
+      /* 🔥 BACKEND CENTRAL (JÁ CORRIGIDO) */
       await base44.functions.invoke('purchaseActions', {
         action: 'marcar_pago',
         purchaseId: purchase.id,
       });
 
-      toast.success('Pagamento realizado');
+      toast.success(
+        isTeamPayment
+          ? 'Pagamento da equipe realizado e contabilizado'
+          : 'Pagamento realizado'
+      );
+
       onRefresh?.();
 
     } catch (e) {
-      toast.error(e.message);
+      toast.error('Erro ao pagar: ' + e.message);
     }
 
     setActionLoading(false);
@@ -158,6 +157,14 @@ export default function PurchaseCard({
         </div>
 
       </div>
+
+      {/* ALERTA RUBRICA */}
+      {!hasRubricaVinculada && (
+        <div className="text-xs bg-red-50 text-red-700 p-2 rounded flex items-center gap-2">
+          <AlertCircle className="w-3 h-3"/>
+          Sem rubrica vinculada — não é possível pagar
+        </div>
+      )}
 
       {/* ACTIONS */}
       <div className="flex gap-2">
