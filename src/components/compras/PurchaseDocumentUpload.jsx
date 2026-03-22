@@ -104,7 +104,6 @@ export default function PurchaseDocumentUpload({
         rubricaId ||
         purchase.rubrica_id ||
         purchase.budgetline_id ||
-        purchase.budget_line_id || // 🔥 FIX
         null;
 
       const createdDocs = [];
@@ -152,33 +151,11 @@ export default function PurchaseDocumentUpload({
         } catch (syncError) {
           console.error('Erro ao sincronizar documento com rubrica:', syncError);
         }
-
-        /* 🔥 NOVO: vincular NF automaticamente em pagamento de equipe */
-        if (purchase.team_payment_id && formData.tipo_documento === 'nota_fiscal') {
-          try {
-            await base44.entities.TeamPayment.update(purchase.team_payment_id, {
-              nota_fiscal_url: file_url,
-            });
-          } catch (e) {
-            console.error('Erro ao vincular NF ao TeamPayment:', e);
-          }
-        }
-
-        if (purchase.team_payment_id && formData.tipo_documento === 'xml_nf') {
-          try {
-            await base44.entities.TeamPayment.update(purchase.team_payment_id, {
-              xml_url: file_url,
-            });
-          } catch (e) {
-            console.error('Erro ao vincular XML ao TeamPayment:', e);
-          }
-        }
       }
 
       toast.success(`✅ ${createdDocs.length} documento(s) enviado(s) para aprovação!`);
       handleClose();
       onUploadSuccess?.(createdDocs);
-
     } catch (e) {
       toast.error('Erro ao enviar documentos: ' + e.message);
     } finally {

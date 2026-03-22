@@ -369,6 +369,17 @@ export default function AprovacoesFila({
                   !saldoOk ||
                   (isTeam(p) && tp && tp.nf_valida === false)
                 }
+                title={
+                  !podeAprovar
+                    ? 'Você não tem permissão para aprovar'
+                    : !vinculoOk
+                      ? 'Vincule rubrica ou linha orçamentária antes de aprovar'
+                      : !saldoOk
+                        ? 'Saldo insuficiente'
+                        : isTeam(p) && tp && tp.nf_valida === false
+                          ? 'NF inválida'
+                          : ''
+                }
               >
                 {loading[p.id] ? (
                   <Loader2 className="w-4 h-4 animate-spin mr-1" />

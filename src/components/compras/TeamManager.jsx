@@ -25,6 +25,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock3,
+  UserCircle2,
 } from 'lucide-react';
 import TeamMemberForm from './TeamMemberForm';
 import TeamMemberDocsPanel from './TeamMemberDocsPanel';
@@ -256,7 +257,8 @@ export default function TeamManager({ budgetLines = [] }) {
           ) : (
             <div className="space-y-3">
               {members.map((member) => {
-                const budgetLine = budgetLineMap[getBudgetLineId(member)] || null;
+                const budgetLine =
+                  budgetLineMap[getBudgetLineId(member)] || null;
 
                 const parcelas = toNumber(member.numero_parcelas);
                 const pagasNoContrato = toNumber(member.parcelas_pagas);
@@ -518,7 +520,7 @@ export default function TeamManager({ budgetLines = [] }) {
                         onClick={() => openEdit(ownMember)}
                       >
                         <Edit2 className="w-3 h-3 mr-1" />
-                        Editar meu perfil
+                        Editar equipe
                       </Button>
 
                       <Button
