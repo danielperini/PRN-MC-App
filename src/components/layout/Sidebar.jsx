@@ -47,7 +47,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       items: [
         { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true },
         { name: 'CalendarioAtividades', icon: CalendarDays, label: 'Agenda', show: true },
-        { name: 'Compras', icon: ShoppingCart, label: 'Compras', show: true },
+        { name: 'Compras', icon: ShoppingCart, label: 'Compras e Pagamentos', show: true },
       ],
     },
     {
