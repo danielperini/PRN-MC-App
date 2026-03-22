@@ -74,8 +74,6 @@ export default function PurchaseCard({
 
   const handleMarkAsPaid = async () => {
 
-    /* 🔒 VALIDAÇÕES FORTES */
-
     if (!hasRubricaVinculada) {
       toast.error('❌ Vincule uma rubrica antes de pagar');
       return;
@@ -98,7 +96,6 @@ export default function PurchaseCard({
 
     try {
 
-      /* 🔥 BACKEND CENTRAL (JÁ CORRIGIDO) */
       await base44.functions.invoke('purchaseActions', {
         action: 'marcar_pago',
         purchaseId: purchase.id,
@@ -122,7 +119,6 @@ export default function PurchaseCard({
   return (
     <div className="border rounded-xl p-4 space-y-3">
 
-      {/* HEADER */}
       <div className="flex justify-between">
 
         <div>
@@ -158,7 +154,6 @@ export default function PurchaseCard({
 
       </div>
 
-      {/* ALERTA RUBRICA */}
       {!hasRubricaVinculada && (
         <div className="text-xs bg-red-50 text-red-700 p-2 rounded flex items-center gap-2">
           <AlertCircle className="w-3 h-3"/>
@@ -166,7 +161,6 @@ export default function PurchaseCard({
         </div>
       )}
 
-      {/* ACTIONS */}
       <div className="flex gap-2">
 
         {canMarkAsPaidBase && (
