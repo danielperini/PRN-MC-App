@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { AlertTriangle, Loader2, Sparkles, Link as LinkIcon, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Loader2,
+  Sparkles,
+  Link as LinkIcon,
+  X,
+  CheckCircle2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import PurchaseDocumentUpload from './PurchaseDocumentUpload';
 import { METAS_3_ADITIVO } from '@/components/planoTrabalho';
@@ -181,6 +188,13 @@ export default function PurchaseFormDialog({
   const [orcamentoAnalysis, setOrcamentoAnalysis] = useState(null);
   const [analisandoOrcamento, setAnalisandoOrcamento] = useState(false);
 
+  const [suggestingRubrica, setSuggestingRubrica] = useState(false);
+  const [rubricaSuggestion, setRubricaSuggestion] = useState(null);
+  const [rubricaSuggestionReason, setRubricaSuggestionReason] = useState('');
+  const [rubricaManuallyChosen, setRubricaManuallyChosen] = useState(!!prefill?.rubrica_id);
+
+  const suggestTimerRef = useRef(null);
+
   const isFromActivity = !!prefill?.activity_id;
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -231,6 +245,115 @@ export default function PurchaseFormDialog({
       set('centro_custo', centroAjustado);
     }
   }, [selectedRubrica, form.centro_custo]);
+
+  useEffect(() => {
+    if (!selectedRubrica) return;
+    if (sameCentroOrGlobal(getRubricaCentroCusto(selectedRubrica), form.centro_custo)) return;
+
+    setForm((f) => ({ ...f, rubrica_id: '', budgetline_id: '' }));
+    setRubricaManuallyChosen(false);
+  }, [form.centro_custo]);
+
+  const canSuggestRubrica = useMemo(() => {
+    return (
+      String(form.descricao_item || '').trim().length >= 6 &&
+      !!form.centro_custo &&
+      !!form.categoria &&
+      !!form.tipo_gasto
+    );
+  }, [form.descricao_item, form.centro_custo, form.categoria, form.tipo_gasto]);
+
+  const runSuggestRubrica = async ({ autoApply = false } = {}) => {
+    if (!canSuggestRubrica) return;
+
+    setSuggestingRubrica(true);
+    try {
+      const res = await base44.functions.invoke('suggestRubrica', {
+        descricao: form.descricao_item,
+        fornecedor: form.fornecedor_nome,
+        categoria: form.categoria,
+        tipo_gasto: form.tipo_gasto,
+        centro_custo: form.centro_custo,
+      });
+
+      const suggestion = res?.data?.suggestion || res?.suggestion || null;
+      const reason = res?.data?.reason || res?.reason || '';
+
+      setRubricaSuggestion(suggestion);
+      setRubricaSuggestionReason(reason || '');
+
+      if (!suggestion?.rubrica_id) return;
+
+      const suggestedExists = filteredRubricas.some((r) => r.id === suggestion.rubrica_id);
+      if (!suggestedExists) return;
+
+      const shouldApply =
+        autoApply &&
+        (!form.rubrica_id || !rubricaManuallyChosen);
+
+      if (shouldApply) {
+        setForm((f) => ({
+          ...f,
+          rubrica_id: suggestion.rubrica_id,
+          budgetline_id: '',
+        }));
+      }
+    } catch {
+      setRubricaSuggestion(null);
+      setRubricaSuggestionReason('');
+    } finally {
+      setSuggestingRubrica(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!canSuggestRubrica) {
+      setRubricaSuggestion(null);
+      setRubricaSuggestionReason('');
+      return;
+    }
+
+    if (suggestTimerRef.current) {
+      clearTimeout(suggestTimerRef.current);
+    }
+
+    suggestTimerRef.current = setTimeout(() => {
+      runSuggestRubrica({ autoApply: true });
+    }, 700);
+
+    return () => {
+      if (suggestTimerRef.current) clearTimeout(suggestTimerRef.current);
+    };
+  }, [
+    form.descricao_item,
+    form.fornecedor_nome,
+    form.categoria,
+    form.tipo_gasto,
+    form.centro_custo,
+    canSuggestRubrica,
+    rubricaManuallyChosen,
+  ]);
+
+  const applySuggestedRubrica = () => {
+    if (!rubricaSuggestion?.rubrica_id) {
+      toast.error('Nenhuma sugestão válida disponível.');
+      return;
+    }
+
+    const suggestedExists = filteredRubricas.some((r) => r.id === rubricaSuggestion.rubrica_id);
+    if (!suggestedExists) {
+      toast.error('A sugestão atual não é compatível com o centro de custo selecionado.');
+      return;
+    }
+
+    setForm((f) => ({
+      ...f,
+      rubrica_id: rubricaSuggestion.rubrica_id,
+      budgetline_id: '',
+    }));
+    setRubricaManuallyChosen(false);
+    toast.success('Rubrica sugerida aplicada ao formulário.');
+  };
 
   const analyzeWithAI = async () => {
     if (!form.descricao_item || !form.meta_id || !form.categoria || !form.tipo_gasto) {
@@ -356,6 +479,10 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
 
     setOrcamentoAnalysis(null);
     toast.success('Formulário preenchido com dados do orçamento!');
+
+    setTimeout(() => {
+      runSuggestRubrica({ autoApply: true });
+    }, 100);
   };
 
   const preencherComIA = async () => {
@@ -420,7 +547,7 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
       const orcamento_url = form.orcamentos_docs?.[0]?.url || null;
       const nota_fiscal_url = form.notas_fiscais_docs?.[0]?.url || null;
 
-      const created = await base44.entities.PurchaseRequest.create({
+      const payload = {
         ...form,
         budgetline_id: '',
         report_id,
@@ -434,8 +561,21 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
         ai_meta_score: aiAnalysis?.score,
         ai_meta_sugerida: aiAnalysis?.meta_sugerida,
         ai_analise: aiAnalysis?.justificativa,
+        ai_rubrica_sugerida_id: rubricaSuggestion?.rubrica_id || null,
+        ai_rubrica_sugerida_nome: rubricaSuggestion?.rubrica_nome || null,
+        ai_rubrica_score: rubricaSuggestion?.score || null,
+        ai_rubrica_justificativa: rubricaSuggestion?.justificativa || null,
+        ai_rubrica_source: rubricaSuggestion?.source || null,
         status: 'RASCUNHO',
-      });
+      };
+
+      let created;
+      if (prefill?.id) {
+        await base44.entities.PurchaseRequest.update(prefill.id, payload);
+        created = { id: prefill.id };
+      } else {
+        created = await base44.entities.PurchaseRequest.create(payload);
+      }
 
       if (submeter) {
         await base44.functions.invoke('purchaseActions', {
@@ -444,14 +584,20 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
         });
 
         await base44.functions
-          .invoke('notifyCoordinatorOnPurchaseSubmitted', {
-            purchase_id: created.id,
-            purchase_description: form.descricao_item,
-            requester_name: currentUser?.full_name || 'Usuário',
-            requester_email: currentUser?.email || '',
-            amount: parseFloat(form.valor_solicitado) || 0,
+          .invoke('notifyCoordinatorPurchaseSubmitted', {
+            purchaseId: created.id,
           })
-          .catch(() => {});
+          .catch(async () => {
+            try {
+              await base44.functions.invoke('notifyCoordinatorOnPurchaseSubmitted', {
+                purchase_id: created.id,
+                purchase_description: form.descricao_item,
+                requester_name: currentUser?.full_name || 'Usuário',
+                requester_email: currentUser?.email || '',
+                amount: parseFloat(form.valor_solicitado) || 0,
+              });
+            } catch {}
+          });
 
         toast.success('✅ Solicitação de compra enviada para aprovação!', {
           description: `Item: ${form.descricao_item}\nValor: R$ ${parseFloat(
@@ -480,7 +626,9 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white z-10">
           <div>
-            <h2 className="text-lg font-bold text-black">Nova Solicitação de Compra</h2>
+            <h2 className="text-lg font-bold text-black">
+              {prefill?.id ? 'Editar Solicitação de Compra' : 'Nova Solicitação de Compra'}
+            </h2>
             <p className="text-xs text-gray-500">3º Termo Aditivo — Museus Centro</p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
@@ -530,7 +678,13 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-gray-600 mb-1 block">Tipo de gasto *</Label>
-                <Select value={form.tipo_gasto} onValueChange={(v) => set('tipo_gasto', v)}>
+                <Select
+                  value={form.tipo_gasto}
+                  onValueChange={(v) => {
+                    set('tipo_gasto', v);
+                    setRubricaManuallyChosen(false);
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Produto ou serviço?" />
                   </SelectTrigger>
@@ -542,7 +696,13 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
               </div>
               <div>
                 <Label className="text-xs text-gray-600 mb-1 block">Categoria *</Label>
-                <Select value={form.categoria} onValueChange={(v) => set('categoria', v)}>
+                <Select
+                  value={form.categoria}
+                  onValueChange={(v) => {
+                    set('categoria', v);
+                    setRubricaManuallyChosen(false);
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
@@ -640,9 +800,26 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
           </div>
 
           <div className="space-y-3 p-4 border border-gray-100 rounded-xl">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
-              Enquadramento financeiro
-            </Label>
+            <div className="flex items-center justify-between gap-3">
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                Enquadramento financeiro
+              </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => runSuggestRubrica({ autoApply: false })}
+                disabled={!canSuggestRubrica || suggestingRubrica}
+              >
+                {suggestingRubrica ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3 h-3" />
+                )}
+                Sugerir rubrica com IA
+              </Button>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
@@ -675,13 +852,14 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
                 <Label className="text-xs text-gray-600 mb-1 block">Rubrica orçamentária *</Label>
                 <Select
                   value={form.rubrica_id || ''}
-                  onValueChange={(v) =>
+                  onValueChange={(v) => {
                     setForm((f) => ({
                       ...f,
                       rubrica_id: v,
                       budgetline_id: '',
-                    }))
-                  }
+                    }));
+                    setRubricaManuallyChosen(true);
+                  }}
                   disabled={!form.centro_custo}
                 >
                   <SelectTrigger>
@@ -709,6 +887,52 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
                 </Select>
               </div>
             </div>
+
+            {rubricaSuggestion && (
+              <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-xs space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-blue-900">
+                      Sugestão automática de rubrica
+                    </div>
+                    <div className="text-blue-700">
+                      {rubricaSuggestion.rubrica_nome || 'Rubrica sugerida'}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-blue-900 font-bold">
+                      {rubricaSuggestion.score || 0}/100
+                    </div>
+                    <div className="text-[11px] text-blue-600 uppercase">
+                      {rubricaSuggestion.source || 'ia'}
+                    </div>
+                  </div>
+                </div>
+
+                {rubricaSuggestion.justificativa && (
+                  <p className="text-blue-800">{rubricaSuggestion.justificativa}</p>
+                )}
+
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs border-blue-300 text-blue-700"
+                    onClick={applySuggestedRubrica}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                    Aplicar sugestão
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {!rubricaSuggestion && rubricaSuggestionReason && (
+              <div className="p-2 rounded-lg text-xs bg-gray-50 text-gray-700 border border-gray-200">
+                {rubricaSuggestionReason}
+              </div>
+            )}
 
             {selectedRubrica && (
               <div className="p-3 rounded-lg bg-gray-50 border text-xs text-gray-700 space-y-1">
@@ -915,7 +1139,10 @@ Retorne APENAS o JSON, sem explicações adicionais.`,
                 <Input
                   placeholder="Empresa ou pessoa"
                   value={form.fornecedor_nome}
-                  onChange={(e) => set('fornecedor_nome', e.target.value)}
+                  onChange={(e) => {
+                    set('fornecedor_nome', e.target.value);
+                    setRubricaManuallyChosen(false);
+                  }}
                 />
               </div>
               <div>
