@@ -11,6 +11,9 @@ import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { CARGOS_PLANO_TRABALHO } from '@/components/planoTrabalho';
 
+const DEFAULT_START_DATE = '2026-02-02';
+const ANA_LUIZA_START_DATE = '2026-03-03';
+
 const EMPTY_FORM = {
   user_email: '',
   user_name: '',
@@ -50,6 +53,14 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 function normalizeForm(data) {
   return {
     ...EMPTY_FORM,
@@ -61,6 +72,120 @@ function normalizeForm(data) {
     cronograma_parcelas: Array.isArray(data?.cronograma_parcelas) ? data.cronograma_parcelas : [],
     status: data?.status || 'ATIVO',
   };
+}
+
+function getEquipeFinanceRules(funcao, userName) {
+  const f = normalizeText(funcao);
+  const nome = normalizeText(userName);
+  const isAnaLuiza = nome.includes('ana luiza');
+
+  const rules = [
+    {
+      match: ['coordenador geral'],
+      rubricaKeywords: ['coordenador geral'],
+      valorParcela: 7000,
+      numeroParcelas: 10,
+      objeto: 'Contratação de Coordenador Geral',
+    },
+    {
+      match: ['assistente de coordenacao', 'assistente de coordenação'],
+      rubricaKeywords: ['assistente de coordenacao', 'assistente de coordenação', 'assistente de coordenação e produção'],
+      valorParcela: 5000,
+      numeroParcelas: 10,
+      objeto: 'Contratação de Assistente de Coordenação e Produção',
+    },
+    {
+      match: ['consultoria de programacao', 'consultoria de programação'],
+      rubricaKeywords: ['consultoria de programacao', 'consultoria de programação'],
+      valorParcela: 6000,
+      numeroParcelas: 5,
+      objeto: 'Contratação de Consultoria de Programação',
+    },
+    {
+      match: ['coordenador de comunicacao', 'coordenador de comunicação'],
+      rubricaKeywords: ['coordenador comunicacao', 'coordenador comunicação'],
+      valorParcela: 6000,
+      numeroParcelas: 10,
+      objeto: 'Contratação de Coordenador de Comunicação',
+    },
+    {
+      match: ['analista adm', 'analista administrativo', 'analista financeira', 'analista adm. financeira'],
+      rubricaKeywords: ['analista adm', 'analista financeiro', 'analista adm. financeira'],
+      valorParcela: 5000,
+      numeroParcelas: 10,
+      objeto: 'Contratação de Analista Administrativo-Financeira',
+    },
+    {
+      match: ['assistente administrativo'],
+      rubricaKeywords: ['assistente administrativo'],
+      valorParcela: 4000,
+      numeroParcelas: 10,
+      objeto: 'Contratação de Assistente Administrativo',
+    },
+    {
+      match: ['producao', 'produção', 'produtor', 'produtora'],
+      rubricaKeywords: ['producao mis', 'produção mis', 'producao mis/mumo/mhab', 'produção mis/mumo/mhab'],
+      valorParcela: 4200,
+      numeroParcelas: 9,
+      objeto: 'Contratação de Produção MIS/MUMO/MHAB',
+    },
+    {
+      match: ['assessor de imprensa', 'imprensa'],
+      rubricaKeywords: ['assessor de imprensa'],
+      valorParcela: 3000,
+      numeroParcelas: 9,
+      objeto: 'Contratação de Assessor de Imprensa',
+    },
+    {
+      match: ['rede social', 'marketing', 'marketing cultural', 'social media'],
+      rubricaKeywords: ['rede social', 'marketing cultural'],
+      valorParcela: 2500,
+      numeroParcelas: 9,
+      objeto: 'Contratação de Rede Social / Marketing Cultural',
+    },
+    {
+      match: ['designer'],
+      rubricaKeywords: ['designer'],
+      valorParcela: 5200,
+      numeroParcelas: 10,
+      objeto: 'Contratação de Designer',
+    },
+    {
+      match: ['fotografo', 'fotógrafo', 'fotografia'],
+      rubricaKeywords: ['fotografo', 'fotógrafo'],
+      valorParcela: 1000,
+      numeroParcelas: 9,
+      objeto: 'Contratação de Fotógrafo',
+    },
+    {
+      match: ['educador'],
+      rubricaKeywords: ['educador mis', 'educador mumo', 'educador mhab'],
+      valorParcela: 4600,
+      numeroParcelas: 10,
+      objeto: 'Contratação de Educador MIS / MUMO / MHAB',
+    },
+  ];
+
+  const found = rules.find(rule => rule.match.some(term => f.includes(term)));
+  if (!found) return null;
+
+  return {
+    ...found,
+    parcelas_pagas: isAnaLuiza ? 0 : 1,
+    data_inicio_contrato: isAnaLuiza ? ANA_LUIZA_START_DATE : DEFAULT_START_DATE,
+    valor_total: found.valorParcela * found.numeroParcelas,
+  };
+}
+
+function findBudgetLineByRule(budgetLines, rule) {
+  if (!rule || !Array.isArray(budgetLines)) return null;
+
+  return budgetLines.find(bl => {
+    if (!bl || bl.ativo === false) return false;
+
+    const text = normalizeText(`${bl.codigo || ''} ${bl.nome || ''} ${bl.descricao || ''}`);
+    return rule.rubricaKeywords.some(keyword => text.includes(normalizeText(keyword)));
+  }) || null;
 }
 
 export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMember, budgetLines = [] }) {
@@ -151,6 +276,25 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
         pix_key: termoDoUsuario.pix_key || prev.pix_key,
       }));
     }
+  };
+
+  const applyAutoFinanceByFuncao = (funcao, userName) => {
+    const rule = getEquipeFinanceRules(funcao, userName);
+    const matchedBudgetLine = findBudgetLineByRule(availableBudgetLines, rule);
+
+    if (!rule) return;
+
+    setForm(prev => ({
+      ...prev,
+      funcao,
+      budgetline_id: matchedBudgetLine?.id || prev.budgetline_id || '',
+      data_inicio_contrato: prev.data_inicio_contrato || rule.data_inicio_contrato,
+      numero_parcelas: rule.numeroParcelas,
+      parcelas_pagas: rule.parcelas_pagas,
+      valor_parcela: rule.valorParcela,
+      valor_total: rule.valor_total,
+      objeto_contrato: prev.objeto_contrato || rule.objeto,
+    }));
   };
 
   const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
@@ -281,6 +425,7 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                     value={form.user_email}
                     onValueChange={v => {
                       const user = users.find(u => u.email === v);
+
                       setForm(prev => ({
                         ...prev,
                         user_email: v,
@@ -301,7 +446,12 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                         tipo_conta: user?.tipo_conta || 'Corrente',
                         pix_key: user?.pix_key || '',
                       }));
+
                       preencherFormComTermo(v);
+
+                      if (form.funcao) {
+                        applyAutoFinanceByFuncao(form.funcao, user?.full_name || '');
+                      }
                     }}
                   >
                     <SelectTrigger><SelectValue placeholder="Selecione um usuário" /></SelectTrigger>
@@ -335,8 +485,13 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
             </div>
 
             <div>
-              <Label>Função / Cargo (conforme Plano de Trabalho 3º Aditivo)</Label>
-              <Select value={form.funcao} onValueChange={v => set('funcao', v)}>
+              <Label>Função / Cargo (com auto preenchimento financeiro)</Label>
+              <Select
+                value={form.funcao}
+                onValueChange={v => {
+                  applyAutoFinanceByFuncao(v, form.user_name);
+                }}
+              >
                 <SelectTrigger><SelectValue placeholder="Selecione a função" /></SelectTrigger>
                 <SelectContent>
                   {CARGOS_PLANO_TRABALHO.map(cargo => (
@@ -344,6 +499,9 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-gray-500 mt-1">
+                Para cargos da equipe, o sistema tenta preencher automaticamente rubrica, parcelas, valor total e parcelas já pagas.
+              </p>
             </div>
 
             <div>
