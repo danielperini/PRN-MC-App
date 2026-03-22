@@ -4,20 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import {
-  Upload,
-  FileCheck,
-  Plus,
-  Loader2,
-  AlertCircle,
-  CheckCircle2,
-  ExternalLink,
-  Sparkles,
-  XCircle,
-} from 'lucide-react';
+import { Upload, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -48,7 +37,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
     xml_url:'',
   });
 
-  const [extractedNF,setExtractedNF] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: currentUser } = useQuery({
@@ -116,8 +104,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
   const parcelaAtual = (member?.parcelas_pagas || 0) + 1;
   const valorParcela = calcValorParcela(member);
 
-  /* ================= IA NF ================= */
-
   const handleUploadNF = async (file)=>{
     if(!file) return;
 
@@ -143,8 +129,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
         });
 
         if(extracted?.output){
-          setExtractedNF(extracted.output);
-
           setForm(prev=>({
             ...prev,
             numero_nf:extracted.output.numero || prev.numero_nf,
@@ -170,17 +154,13 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
     try{
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
-
       setForm(prev=>({...prev,xml_url:file_url}));
-
     }catch(e){
       toast.error(e.message);
     }
 
     setUploadingXML(false);
   };
-
-  /* ================= SUBMIT ================= */
 
   const handleSubmit = async (e)=>{
     e.preventDefault();
@@ -190,37 +170,45 @@ export default function TeamPaymentSubmit({ userEmail }) {
       return;
     }
 
+    if(!form.mes_referencia){
+      toast.error('Selecione o mês');
+      return;
+    }
+
     if(!reportApproved){
-      toast.error('Relatório não aprovado');
+      toast.error('Relatório ainda não aprovado para este mês');
       return;
     }
 
-    if(!form.nota_fiscal_url || !form.xml_url || !contractUrl){
-      toast.error('Checklist incompleto');
+    if(!contractUrl){
+      toast.error('Contrato não vinculado ao membro');
       return;
     }
 
-    // valida valor esperado vs NF
+    if(!form.nota_fiscal_url || !form.xml_url){
+      toast.error('Envie NF e XML');
+      return;
+    }
+
     if(valorParcela && Math.abs(form.valor_nf - valorParcela) > 1){
-      toast.error(`Valor da NF difere da parcela esperada (${valorParcela.toFixed(2)})`);
+      toast.error(`Valor da NF difere da parcela (${valorParcela.toFixed(2)})`);
+      return;
+    }
+
+    const existing = payments.find(p=>
+      p.mes_referencia===form.mes_referencia &&
+      p.ano===form.ano &&
+      !['RECUSADO','DEVOLVIDO_REVISAO'].includes(p.status)
+    );
+
+    if(existing){
+      toast.error('Já existe envio para este mês');
       return;
     }
 
     setLoading(true);
 
     try{
-
-      const existing = payments.find(p=>
-        p.mes_referencia===form.mes_referencia &&
-        p.ano===form.ano &&
-        !['RECUSADO','DEVOLVIDO_REVISAO'].includes(p.status)
-      );
-
-      if(existing){
-        toast.error('Já existe envio para este mês');
-        setLoading(false);
-        return;
-      }
 
       await base44.entities.TeamPayment.create({
         team_member_id:member.id,
@@ -240,6 +228,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
       toast.success('Envio realizado');
 
       setShowForm(false);
+
       setForm({
         mes_referencia:'',
         ano:new Date().getFullYear(),
@@ -249,7 +238,13 @@ export default function TeamPaymentSubmit({ userEmail }) {
         xml_url:'',
       });
 
-      queryClient.invalidateQueries(['payments']);
+      await Promise.all([
+        queryClient.invalidateQueries(['payments']),
+        queryClient.invalidateQueries(['team-payments']),
+        queryClient.invalidateQueries(['team-payments-pending']),
+        queryClient.invalidateQueries(['team-payments-pending-review']),
+        queryClient.invalidateQueries(['purchase-requests']),
+      ]);
 
     }catch(e){
       toast.error(e.message);
