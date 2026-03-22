@@ -46,12 +46,12 @@ function ChecklistItem({ ok, label, href }) {
     }`}>
       <span className="font-medium">{label}</span>
       <div className="flex items-center gap-2">
-        {href && (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="underline">
-            <ExternalLink className="w-3 h-3 inline mr-1" />
+        {href ? (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline">
+            <ExternalLink className="w-3 h-3" />
             Abrir
           </a>
-        )}
+        ) : null}
         <span>{ok ? 'OK' : 'Pendente'}</span>
       </div>
     </div>
@@ -66,17 +66,13 @@ export default function AprovacoesFila({
   hasGestaoCompras,
   podeAprovarSolicitacoes,
 }) {
+
   const [loading, setLoading] = useState({});
   const [comentarios, setComentarios] = useState({});
   const [teamPayments, setTeamPayments] = useState({});
 
   const isCoordenador = [
-    'ADMIN',
-    'admin',
-    'COORDENADOR',
-    'COORD_COMUNICACAO',
-    'COORD_ADMINISTRATIVA',
-    'COORD_PRODUCAO',
+    'ADMIN','admin','COORDENADOR','COORD_COMUNICACAO','COORD_ADMINISTRATIVA','COORD_PRODUCAO',
   ].includes(currentUser?.role);
 
   const podeAprovar =
@@ -87,10 +83,7 @@ export default function AprovacoesFila({
   const pendentes = (purchases || []).filter((p) => p.status === 'SOLICITADO');
 
   const getBudgetLineId = (p) =>
-    p?.budgetline_id ||
-    p?.budget_line_id ||
-    p?.linha_orcamentaria_id ||
-    null;
+    p?.budgetline_id || p?.budget_line_id || p?.linha_orcamentaria_id || null;
 
   const getBudgetLine = (p) =>
     (budgetLines || []).find(
@@ -128,13 +121,19 @@ export default function AprovacoesFila({
 
   const handleAction = async (purchase, action) => {
 
+    if (!podeAprovar) {
+      toast.error('Sem permissão');
+      return;
+    }
+
+    const comentario = comentarios[purchase.id] || '';
     const tp = teamPayments[purchase.id];
     const validation = getNFValidation(tp);
 
     if (action === 'approve_coord') {
 
       if (!hasOrcamentoVinculado(purchase)) {
-        toast.error('Sem rubrica vinculada');
+        toast.error('Sem rubrica');
         return;
       }
 
@@ -147,9 +146,15 @@ export default function AprovacoesFila({
     setLoading((l) => ({ ...l, [purchase.id]: true }));
 
     try {
+
+      let backendAction = 'reject';
+      if (action === 'approve_coord') backendAction = 'aprovar';
+      if (action === 'return_to_user') backendAction = 'devolver_usuario';
+
       await base44.functions.invoke('purchaseActions', {
         purchaseId: purchase.id,
-        action: action === 'approve_coord' ? 'aprovar' : 'reject',
+        action: backendAction,
+        comentario,
       });
 
       toast.success('Atualizado');
@@ -163,7 +168,7 @@ export default function AprovacoesFila({
   };
 
   if (pendentes.length === 0) {
-    return <div className="text-center text-gray-400 py-8">Nenhuma pendente</div>;
+    return <div className="text-center py-8 text-gray-400">Nenhuma pendente</div>;
   }
 
   return (
@@ -173,34 +178,36 @@ export default function AprovacoesFila({
         const tp = teamPayments[p.id];
         const validation = getNFValidation(tp);
         const budgetLine = getBudgetLine(p);
+        const vinculoOk = hasOrcamentoVinculado(p);
+
+        const saldoDisponivel = budgetLine
+          ? toNumber(budgetLine.saldo_inicial) - toNumber(budgetLine.saldo_comprometido)
+          : null;
+
+        const saldoOk =
+          saldoDisponivel === null ||
+          saldoDisponivel >= toNumber(p.valor_solicitado);
 
         return (
-          <div key={p.id} className="border p-4 rounded-xl space-y-3">
+          <div key={p.id} className="border p-4 rounded-xl space-y-4">
 
             <div className="flex justify-between">
               <div>
                 <p className="font-semibold">{p.descricao_item}</p>
                 <p className="text-xs text-gray-500">{p.fornecedor_nome}</p>
               </div>
-
               <p className="font-bold">{formatBRL(p.valor_solicitado)}</p>
             </div>
 
-            {/* 🔥 NOVO BLOCO IA */}
+            {/* 🔥 BLOCO IA (DISCRETO) */}
             {validation && (
-              <div className={`p-3 rounded-lg text-xs ${
+              <div className={`text-xs p-2 rounded ${
                 validation.status === 'divergente'
-                  ? 'bg-red-50 border border-red-200'
-                  : 'bg-green-50 border border-green-200'
+                  ? 'bg-red-50 text-red-700'
+                  : 'bg-green-50 text-green-700'
               }`}>
-                <p>NF: {formatBRL(validation.valor)}</p>
-                <p>Confiança: {validation.confianca}%</p>
-
-                {validation.status === 'divergente' && (
-                  <p className="text-red-600 font-semibold">
-                    Divergência detectada
-                  </p>
-                )}
+                NF: {formatBRL(validation.valor)} • Confiança: {validation.confianca}%
+                {validation.status === 'divergente' && ' • Divergente'}
               </div>
             )}
 
@@ -209,6 +216,8 @@ export default function AprovacoesFila({
                 onClick={() => handleAction(p, 'approve_coord')}
                 disabled={
                   loading[p.id] ||
+                  !vinculoOk ||
+                  !saldoOk ||
                   validation?.status === 'divergente'
                 }
               >
