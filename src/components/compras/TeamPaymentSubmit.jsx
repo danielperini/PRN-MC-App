@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,17 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Upload, FileCheck, Plus, Loader2, AlertCircle, CheckCircle2, ExternalLink, Sparkles } from 'lucide-react';
+import {
+  Upload,
+  FileCheck,
+  Plus,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  ExternalLink,
+  Sparkles,
+  XCircle
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -40,17 +50,37 @@ const STATUS_LABELS = {
   FINALIZADO: 'Finalizado',
 };
 
+function ChecklistItem({ ok, label }) {
+  return (
+    <div
+      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs ${
+        ok
+          ? 'border-green-200 bg-green-50 text-green-800'
+          : 'border-red-200 bg-red-50 text-red-800'
+      }`}
+    >
+      <span className="font-medium">{label}</span>
+      <span className="flex items-center gap-1">
+        {ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+        {ok ? 'OK' : 'Pendente'}
+      </span>
+    </div>
+  );
+}
+
 export default function TeamPaymentSubmit({ userEmail }) {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [extractingNF, setExtractingNF] = useState(false);
   const [extractingXLSX, setExtractingXLSX] = useState(false);
+  const [uploadingXML, setUploadingXML] = useState(false);
   const [form, setForm] = useState({
     mes_referencia: '',
     ano: new Date().getFullYear(),
     numero_nf: '',
     valor_nf: 0,
     nota_fiscal_url: '',
+    xml_url: '',
     xlsx_url: '',
   });
   const [extractedNF, setExtractedNF] = useState(null);
@@ -67,7 +97,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
     queryFn: () => base44.entities.TeamPayment.filter({ user_email: userEmail }, '-created_date', 50),
   });
 
-  // Check if report for selected month is approved
   const { data: monthReport, isLoading: loadingReport } = useQuery({
     queryKey: ['report-month-check', userEmail, form.mes_referencia, form.ano],
     queryFn: async () => {
@@ -84,6 +113,16 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
   const reportApproved = monthReport?.status === 'APPROVED';
 
+  const contractUrl = teamMember?.contract_url || teamMember?.contrato_url || '';
+
+  const checklistAtual = useMemo(() => {
+    return {
+      contrato: !!contractUrl,
+      nfPdf: !!form.nota_fiscal_url,
+      nfXml: !!form.xml_url,
+    };
+  }, [contractUrl, form.nota_fiscal_url, form.xml_url]);
+
   const handleUploadNF = async (file) => {
     if (!file) return;
     setLoading(true);
@@ -92,7 +131,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
       setForm(prev => ({ ...prev, nota_fiscal_url: file_url }));
       toast.success('Nota fiscal anexada — extraindo dados com IA...');
 
-      // AI extraction
       setExtractingNF(true);
       try {
         const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
@@ -122,7 +160,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
           toast.success('Dados extraídos automaticamente da nota fiscal!');
         }
       } catch {
-        // Silent — extraction is best-effort
       } finally {
         setExtractingNF(false);
       }
@@ -130,6 +167,20 @@ export default function TeamPaymentSubmit({ userEmail }) {
       toast.error('Erro ao enviar arquivo: ' + error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUploadXML = async (file) => {
+    if (!file) return;
+    setUploadingXML(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setForm(prev => ({ ...prev, xml_url: file_url }));
+      toast.success('XML da nota fiscal anexado com sucesso');
+    } catch (error) {
+      toast.error('Erro ao enviar XML: ' + error.message);
+    } finally {
+      setUploadingXML(false);
     }
   };
 
@@ -159,6 +210,11 @@ export default function TeamPaymentSubmit({ userEmail }) {
       return;
     }
 
+    if (!checklistAtual.contrato || !checklistAtual.nfPdf || !checklistAtual.nfXml) {
+      toast.error('Checklist incompleto. É obrigatório ter contrato, NF em PDF e XML.');
+      return;
+    }
+
     setLoading(true);
     try {
       const existing = payments.find(p =>
@@ -182,10 +238,11 @@ export default function TeamPaymentSubmit({ userEmail }) {
         numero_nf: form.numero_nf,
         valor_nf: form.valor_nf,
         nota_fiscal_url: form.nota_fiscal_url,
+        xml_url: form.xml_url || null,
         xlsx_url: form.xlsx_url || null,
+        contract_url: contractUrl || null,
         numero_parcela: (teamMember.parcelas_pagas || 0) + 1,
         status: 'AGUARDANDO_APROVACAO',
-        // AI extracted data
         nf_numero_extraido: extractedNF?.numero || null,
         nf_valor_extraido: extractedNF?.valor_total || null,
         nf_cnpj_emitente: extractedNF?.cnpj_emitente || null,
@@ -204,7 +261,15 @@ export default function TeamPaymentSubmit({ userEmail }) {
       } catch {}
 
       toast.success('Documentos enviados para aprovação do coordenador!');
-      setForm({ mes_referencia: '', ano: new Date().getFullYear(), numero_nf: '', valor_nf: 0, nota_fiscal_url: '', xlsx_url: '' });
+      setForm({
+        mes_referencia: '',
+        ano: new Date().getFullYear(),
+        numero_nf: '',
+        valor_nf: 0,
+        nota_fiscal_url: '',
+        xml_url: '',
+        xlsx_url: ''
+      });
       setExtractedNF(null);
       setShowForm(false);
       queryClient.invalidateQueries(['team-payments']);
@@ -226,7 +291,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-semibold text-black">Meus Documentos Financeiros</h2>
@@ -240,7 +304,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
         </Button>
       </div>
 
-      {/* Payment history */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-black">Histórico de Envios</h3>
         {payments.length === 0 ? (
@@ -248,56 +311,78 @@ export default function TeamPaymentSubmit({ userEmail }) {
             Nenhum envio registrado ainda
           </p>
         ) : (
-          payments.map(payment => (
-            <div key={payment.id} className="border border-gray-200 rounded-xl p-4">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <p className="font-semibold text-sm text-black">{payment.mes_referencia} / {payment.ano}</p>
-                  {payment.numero_nf && <p className="text-xs text-gray-500">NF: {payment.numero_nf}</p>}
-                  {payment.valor_nf > 0 && (
-                    <p className="text-sm font-bold text-black mt-1">
-                      R$ {payment.valor_nf?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </p>
+          payments.map(payment => {
+            const paymentChecklist = {
+              contrato: !!(payment.contract_url || contractUrl),
+              nfPdf: !!payment.nota_fiscal_url,
+              nfXml: !!payment.xml_url,
+            };
+
+            return (
+              <div key={payment.id} className="border border-gray-200 rounded-xl p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <p className="font-semibold text-sm text-black">{payment.mes_referencia} / {payment.ano}</p>
+                    {payment.numero_nf && <p className="text-xs text-gray-500">NF: {payment.numero_nf}</p>}
+                    {payment.valor_nf > 0 && (
+                      <p className="text-sm font-bold text-black mt-1">
+                        R$ {payment.valor_nf?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                    )}
+                  </div>
+                  <Badge className={STATUS_COLORS[payment.status] || STATUS_COLORS.RASCUNHO}>
+                    {STATUS_LABELS[payment.status] || payment.status}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+                  <ChecklistItem ok={paymentChecklist.contrato} label="Contrato" />
+                  <ChecklistItem ok={paymentChecklist.nfPdf} label="NF PDF" />
+                  <ChecklistItem ok={paymentChecklist.nfXml} label="NF XML" />
+                </div>
+
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  {(payment.contract_url || contractUrl) && (
+                    <a href={payment.contract_url || contractUrl} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="outline" className="text-xs h-7 border-green-300 text-green-700">
+                        <FileCheck className="w-3 h-3 mr-1" />Contrato
+                      </Button>
+                    </a>
+                  )}
+                  {payment.nota_fiscal_url && (
+                    <a href={payment.nota_fiscal_url} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="outline" className="text-xs h-7">
+                        <ExternalLink className="w-3 h-3 mr-1" />PDF NF
+                      </Button>
+                    </a>
+                  )}
+                  {payment.xml_url && (
+                    <a href={payment.xml_url} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="outline" className="text-xs h-7">
+                        <ExternalLink className="w-3 h-3 mr-1" />XML NF
+                      </Button>
+                    </a>
+                  )}
+                  {payment.xlsx_url && (
+                    <a href={payment.xlsx_url} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="outline" className="text-xs h-7">
+                        <ExternalLink className="w-3 h-3 mr-1" />Planilha
+                      </Button>
+                    </a>
                   )}
                 </div>
-                <Badge className={STATUS_COLORS[payment.status] || STATUS_COLORS.RASCUNHO}>
-                  {STATUS_LABELS[payment.status] || payment.status}
-                </Badge>
-              </div>
-              <div className="flex gap-2 mt-2 flex-wrap">
-                {payment.nota_fiscal_url && (
-                  <a href={payment.nota_fiscal_url} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="outline" className="text-xs h-7">
-                      <ExternalLink className="w-3 h-3 mr-1" />PDF NF
-                    </Button>
-                  </a>
-                )}
-                {payment.xlsx_url && (
-                  <a href={payment.xlsx_url} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="outline" className="text-xs h-7">
-                      <ExternalLink className="w-3 h-3 mr-1" />Planilha
-                    </Button>
-                  </a>
-                )}
-                {payment.contract_url && (
-                  <a href={payment.contract_url} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="outline" className="text-xs h-7 border-green-300 text-green-700">
-                      <FileCheck className="w-3 h-3 mr-1" />Contrato
-                    </Button>
-                  </a>
+
+                {payment.observacoes && (
+                  <p className="text-xs text-orange-700 bg-orange-50 border border-orange-100 p-2 rounded-lg mt-2 italic">
+                    💬 Observação do coordenador: {payment.observacoes}
+                  </p>
                 )}
               </div>
-              {payment.observacoes && (
-                <p className="text-xs text-orange-700 bg-orange-50 border border-orange-100 p-2 rounded-lg mt-2 italic">
-                  💬 Observação do coordenador: {payment.observacoes}
-                </p>
-              )}
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
-      {/* Form Dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -305,7 +390,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Mês e Ano */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Mês de Referência *</Label>
@@ -327,7 +411,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
               </div>
             </div>
 
-            {/* Report status check */}
             {form.mes_referencia && (
               <div className={`p-3 rounded-xl border text-sm flex items-start gap-2 ${
                 loadingReport
@@ -353,7 +436,17 @@ export default function TeamPaymentSubmit({ userEmail }) {
               </div>
             )}
 
-            {/* NF data */}
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+              <div className="text-xs font-semibold text-gray-700">
+                Checklist obrigatório para envio
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                <ChecklistItem ok={checklistAtual.contrato} label="Contrato" />
+                <ChecklistItem ok={checklistAtual.nfPdf} label="NF PDF" />
+                <ChecklistItem ok={checklistAtual.nfXml} label="NF XML" />
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Número da NF</Label>
@@ -368,7 +461,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
                 <Input
                   type="number"
                   value={form.valor_nf}
-                  onChange={e => setForm({ ...form, valor_nf: parseFloat(e.target.value) })}
+                  onChange={e => setForm({ ...form, valor_nf: parseFloat(e.target.value) || 0 })}
                   step="0.01"
                   min="0"
                   required
@@ -376,7 +469,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
               </div>
             </div>
 
-            {/* Upload Nota Fiscal */}
             <div>
               <Label>Nota Fiscal em PDF *</Label>
               <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center">
@@ -414,7 +506,35 @@ export default function TeamPaymentSubmit({ userEmail }) {
               </div>
             </div>
 
-            {/* AI Extracted Preview */}
+            <div>
+              <Label>XML da Nota Fiscal *</Label>
+              <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center">
+                {form.xml_url ? (
+                  <div className="flex items-center justify-center gap-2 text-green-600">
+                    <FileCheck className="w-5 h-5" />
+                    <span className="text-sm font-medium">XML enviado com sucesso</span>
+                  </div>
+                ) : (
+                  <label className="cursor-pointer">
+                    {uploadingXML ? (
+                      <Loader2 className="w-8 h-8 text-gray-400 mx-auto mb-2 animate-spin" />
+                    ) : (
+                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    )}
+                    <p className="text-sm text-gray-600">{uploadingXML ? 'Enviando...' : 'Clique para enviar XML da NF'}</p>
+                    <p className="text-xs text-gray-400 mt-1">Arquivo .xml da mesma nota fiscal enviada em PDF</p>
+                    <input
+                      type="file"
+                      accept=".xml,text/xml,application/xml"
+                      onChange={e => handleUploadXML(e.target.files[0])}
+                      className="hidden"
+                      disabled={uploadingXML}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+
             {extractedNF && (
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                 <div className="flex items-center gap-1.5 text-blue-800 font-semibold text-xs mb-2">
@@ -431,7 +551,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
               </div>
             )}
 
-            {/* Upload XLSX (opcional) */}
             <div>
               <Label>Planilha XLSX <span className="text-gray-400 font-normal">(opcional)</span></Label>
               <div className="border-2 border-dashed border-gray-200 rounded-xl p-3 text-center">
@@ -460,7 +579,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex gap-2 justify-end border-t pt-4">
               <Button type="button" variant="outline" onClick={() => { setShowForm(false); setExtractedNF(null); }}>
                 Cancelar
@@ -468,7 +586,14 @@ export default function TeamPaymentSubmit({ userEmail }) {
               <Button
                 type="submit"
                 className="bg-black hover:bg-gray-800"
-                disabled={loading || !form.nota_fiscal_url || !reportApproved || loadingReport}
+                disabled={
+                  loading ||
+                  !form.nota_fiscal_url ||
+                  !form.xml_url ||
+                  !reportApproved ||
+                  loadingReport ||
+                  !checklistAtual.contrato
+                }
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 Enviar para Aprovação
