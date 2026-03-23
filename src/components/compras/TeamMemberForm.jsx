@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 const EMPTY_FORM = {
@@ -33,6 +33,10 @@ const EMPTY_FORM = {
   conta: '',
   pix_key: '',
   budgetline_id: '',
+  parcelas: '',
+  data_inicio: '',
+  data_fim: '',
+  contrato_url: '',
 };
 
 function normalizeForm(data) {
@@ -55,6 +59,7 @@ export default function TeamMemberForm({
   budgetLines = [],
 }) {
   const [loading, setLoading] = useState(false);
+  const [loadingContrato, setLoadingContrato] = useState(false);
   const [form, setForm] = useState(normalizeForm(editingMember));
 
   const { data: currentUser } = useQuery({
@@ -93,6 +98,59 @@ export default function TeamMemberForm({
         label: `${b.codigo || ''} - ${b.descricao || ''}`,
       }));
   }, [finalBudgetLines]);
+
+  // 🔥 IA LEITURA CONTRATO
+  const handleUploadContrato = async (file) => {
+    if (!file) return;
+
+    setLoadingContrato(true);
+
+    try {
+      const upload = await base44.storage.upload(file);
+
+      const result = await base44.integrations.Core.InvokeLLM({
+        prompt: `
+Analise este contrato e extraia:
+
+- número de parcelas
+- data de início
+- data de fim
+- CNPJ ou CPF
+- valor mensal (se houver)
+
+Responda em JSON.
+`,
+        file_urls: [upload.url],
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            parcelas: { type: 'string' },
+            data_inicio: { type: 'string' },
+            data_fim: { type: 'string' },
+            cnpj: { type: 'string' },
+            cpf: { type: 'string' }
+          }
+        }
+      });
+
+      setForm(prev => ({
+        ...prev,
+        contrato_url: upload.url,
+        parcelas: result?.parcelas || prev.parcelas,
+        data_inicio: result?.data_inicio || prev.data_inicio,
+        data_fim: result?.data_fim || prev.data_fim,
+        cnpj: result?.cnpj || prev.cnpj,
+        cpf: result?.cpf || prev.cpf,
+      }));
+
+      toast.success('Contrato lido pela IA e dados preenchidos');
+
+    } catch (e) {
+      toast.error('Erro ao processar contrato');
+    }
+
+    setLoadingContrato(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -143,126 +201,30 @@ export default function TeamMemberForm({
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
+          {/* 🔥 CONTRATO IA */}
           <div>
-            <Label>Nome</Label>
+            <Label>Contrato (PDF)</Label>
             <Input
-              value={form.user_name}
-              onChange={(e) => setForm({ ...form, user_name: e.target.value })}
+              type="file"
+              accept=".pdf"
+              onChange={(e) => handleUploadContrato(e.target.files[0])}
             />
+            {loadingContrato && (
+              <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <Loader2 className="animate-spin w-3 h-3" />
+                Lendo contrato com IA...
+              </div>
+            )}
           </div>
 
-          <div>
-            <Label>E-mail</Label>
-            <Input
-              type="email"
-              value={form.user_email}
-              disabled={isSelfEdit} // 🔥 bloqueado no perfil próprio
-              onChange={(e) => setForm({ ...form, user_email: e.target.value })}
-            />
-          </div>
+          <Input placeholder="Nome" value={form.user_name} onChange={(e) => setForm({ ...form, user_name: e.target.value })} />
+          <Input placeholder="Função" value={form.funcao} onChange={(e) => setForm({ ...form, funcao: e.target.value })} />
+          <Input placeholder="Telefone" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
 
-          <div>
-            <Label>Função</Label>
-            <Input
-              value={form.funcao}
-              onChange={(e) => setForm({ ...form, funcao: e.target.value })}
-            />
-          </div>
-
-          <div>
-            <Label>Telefone</Label>
-            <Input
-              value={form.telefone}
-              onChange={(e) => setForm({ ...form, telefone: e.target.value })}
-            />
-          </div>
-
-          {!isSelfEdit && (
-            <div>
-              <Label>Linha Orçamentária</Label>
-              <Select
-                value={form.budgetline_id || ''}
-                onValueChange={(v) =>
-                  setForm((prev) => ({ ...prev, budgetline_id: v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-
-                <SelectContent>
-                  {budgetOptions.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div>
-            <Label>Tipo de pessoa</Label>
-            <Select
-              value={form.tipo_pessoa}
-              onValueChange={(v) =>
-                setForm({
-                  ...form,
-                  tipo_pessoa: v,
-                  cpf: v === 'PF' ? form.cpf : '',
-                  cnpj: v === 'PJ' ? form.cnpj : '',
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PF">PF</SelectItem>
-                <SelectItem value="PJ">PJ</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {form.tipo_pessoa === 'PF' && (
-            <Input
-              placeholder="CPF"
-              value={form.cpf}
-              onChange={(e) => setForm({ ...form, cpf: e.target.value })}
-            />
-          )}
-
-          {form.tipo_pessoa === 'PJ' && (
-            <Input
-              placeholder="CNPJ"
-              value={form.cnpj}
-              onChange={(e) => setForm({ ...form, cnpj: e.target.value })}
-            />
-          )}
-
-          <Input
-            placeholder="Banco"
-            value={form.banco}
-            onChange={(e) => setForm({ ...form, banco: e.target.value })}
-          />
-
-          <Input
-            placeholder="Agência"
-            value={form.agencia}
-            onChange={(e) => setForm({ ...form, agencia: e.target.value })}
-          />
-
-          <Input
-            placeholder="Conta"
-            value={form.conta}
-            onChange={(e) => setForm({ ...form, conta: e.target.value })}
-          />
-
-          <Input
-            placeholder="PIX"
-            value={form.pix_key}
-            onChange={(e) => setForm({ ...form, pix_key: e.target.value })}
-          />
+          {/* 🔥 CAMPOS PREENCHIDOS PELA IA */}
+          <Input placeholder="Parcelas" value={form.parcelas} onChange={(e) => setForm({ ...form, parcelas: e.target.value })} />
+          <Input placeholder="Data início" value={form.data_inicio} onChange={(e) => setForm({ ...form, data_inicio: e.target.value })} />
+          <Input placeholder="Data fim" value={form.data_fim} onChange={(e) => setForm({ ...form, data_fim: e.target.value })} />
 
           <Button type="submit" disabled={loading}>
             {loading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Salvar'}
