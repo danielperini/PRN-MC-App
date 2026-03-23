@@ -33,7 +33,6 @@ const EMPTY_FORM = {
   conta: '',
   pix_key: '',
   budgetline_id: '',
-  rubrica_id: '',
 };
 
 function normalizeForm(data) {
@@ -42,12 +41,6 @@ function normalizeForm(data) {
     ...(data || {}),
     tipo_pessoa: data?.tipo_pessoa || 'PF',
     budgetline_id:
-      data?.budgetline_id ||
-      data?.budget_line_id ||
-      data?.rubrica_id ||
-      '',
-    rubrica_id:
-      data?.rubrica_id ||
       data?.budgetline_id ||
       data?.budget_line_id ||
       '',
@@ -64,6 +57,17 @@ export default function TeamMemberForm({
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(normalizeForm(editingMember));
 
+  const { data: currentUser } = useQuery({
+    queryKey: ['auth-me'],
+    queryFn: () => base44.auth.me(),
+  });
+
+  const isSelfEdit =
+    editingMember?.user_email &&
+    currentUser?.email &&
+    String(editingMember.user_email).toLowerCase() ===
+      String(currentUser.email).toLowerCase();
+
   const { data: budgetLinesFromDB = [] } = useQuery({
     queryKey: ['team-form-budgetlines'],
     queryFn: () => base44.entities.BudgetLine.list('codigo', 200),
@@ -75,14 +79,6 @@ export default function TeamMemberForm({
       setForm(normalizeForm(editingMember));
     }
   }, [isOpen, editingMember]);
-
-  const setBudgetLine = (value) => {
-    setForm((prev) => ({
-      ...prev,
-      budgetline_id: value,
-      rubrica_id: value,
-    }));
-  };
 
   const finalBudgetLines = useMemo(() => {
     if (budgetLines && budgetLines.length > 0) return budgetLines;
@@ -106,8 +102,8 @@ export default function TeamMemberForm({
       return;
     }
 
-    if (!form.budgetline_id) {
-      toast.error('Selecione a rubrica/linha');
+    if (!form.budgetline_id && !isSelfEdit) {
+      toast.error('Selecione a linha orçamentária');
       return;
     }
 
@@ -116,8 +112,6 @@ export default function TeamMemberForm({
     try {
       const payload = {
         ...form,
-        budgetline_id: form.budgetline_id,
-        rubrica_id: form.budgetline_id,
         cpf: form.tipo_pessoa === 'PF' ? form.cpf : '',
         cnpj: form.tipo_pessoa === 'PJ' ? form.cnpj : '',
       };
@@ -128,7 +122,7 @@ export default function TeamMemberForm({
         await base44.entities.TeamMember.create(payload);
       }
 
-      toast.success('Salvo');
+      toast.success('Dados atualizados');
       onSuccess?.();
       onClose?.();
     } catch (e) {
@@ -142,10 +136,13 @@ export default function TeamMemberForm({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{editingMember?.id ? 'Editar equipe' : 'Adicionar membro'}</DialogTitle>
+          <DialogTitle>
+            {isSelfEdit ? 'Editar meu perfil' : editingMember?.id ? 'Editar equipe' : 'Adicionar membro'}
+          </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+
           <div>
             <Label>Nome</Label>
             <Input
@@ -159,6 +156,7 @@ export default function TeamMemberForm({
             <Input
               type="email"
               value={form.user_email}
+              disabled={isSelfEdit} // 🔥 bloqueado no perfil próprio
               onChange={(e) => setForm({ ...form, user_email: e.target.value })}
             />
           </div>
@@ -179,37 +177,34 @@ export default function TeamMemberForm({
             />
           </div>
 
-          <div>
-            <Label>Rubrica / Linha Orçamentária</Label>
+          {!isSelfEdit && (
+            <div>
+              <Label>Linha Orçamentária</Label>
+              <Select
+                value={form.budgetline_id || ''}
+                onValueChange={(v) =>
+                  setForm((prev) => ({ ...prev, budgetline_id: v }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
 
-            <Select
-              value={form.budgetline_id || ''}
-              onValueChange={(v) => setBudgetLine(v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-
-              <SelectContent>
-                {budgetOptions.length === 0 && (
-                  <div className="px-2 py-2 text-xs text-gray-500">
-                    Nenhuma linha encontrada
-                  </div>
-                )}
-
-                {budgetOptions.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                <SelectContent>
+                  {budgetOptions.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div>
             <Label>Tipo de pessoa</Label>
             <Select
-              value={form.tipo_pessoa || 'PF'}
+              value={form.tipo_pessoa}
               onValueChange={(v) =>
                 setForm({
                   ...form,
@@ -220,7 +215,7 @@ export default function TeamMemberForm({
               }
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="PF">PF</SelectItem>
@@ -230,60 +225,49 @@ export default function TeamMemberForm({
           </div>
 
           {form.tipo_pessoa === 'PF' && (
-            <div>
-              <Label>CPF</Label>
-              <Input
-                value={form.cpf}
-                onChange={(e) => setForm({ ...form, cpf: e.target.value })}
-              />
-            </div>
+            <Input
+              placeholder="CPF"
+              value={form.cpf}
+              onChange={(e) => setForm({ ...form, cpf: e.target.value })}
+            />
           )}
 
           {form.tipo_pessoa === 'PJ' && (
-            <div>
-              <Label>CNPJ</Label>
-              <Input
-                value={form.cnpj}
-                onChange={(e) => setForm({ ...form, cnpj: e.target.value })}
-              />
-            </div>
+            <Input
+              placeholder="CNPJ"
+              value={form.cnpj}
+              onChange={(e) => setForm({ ...form, cnpj: e.target.value })}
+            />
           )}
 
-          <div>
-            <Label>Banco</Label>
-            <Input
-              value={form.banco}
-              onChange={(e) => setForm({ ...form, banco: e.target.value })}
-            />
-          </div>
+          <Input
+            placeholder="Banco"
+            value={form.banco}
+            onChange={(e) => setForm({ ...form, banco: e.target.value })}
+          />
 
-          <div>
-            <Label>Agência</Label>
-            <Input
-              value={form.agencia}
-              onChange={(e) => setForm({ ...form, agencia: e.target.value })}
-            />
-          </div>
+          <Input
+            placeholder="Agência"
+            value={form.agencia}
+            onChange={(e) => setForm({ ...form, agencia: e.target.value })}
+          />
 
-          <div>
-            <Label>Conta</Label>
-            <Input
-              value={form.conta}
-              onChange={(e) => setForm({ ...form, conta: e.target.value })}
-            />
-          </div>
+          <Input
+            placeholder="Conta"
+            value={form.conta}
+            onChange={(e) => setForm({ ...form, conta: e.target.value })}
+          />
 
-          <div>
-            <Label>PIX</Label>
-            <Input
-              value={form.pix_key}
-              onChange={(e) => setForm({ ...form, pix_key: e.target.value })}
-            />
-          </div>
+          <Input
+            placeholder="PIX"
+            value={form.pix_key}
+            onChange={(e) => setForm({ ...form, pix_key: e.target.value })}
+          />
 
           <Button type="submit" disabled={loading}>
             {loading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Salvar'}
           </Button>
+
         </form>
       </DialogContent>
     </Dialog>
