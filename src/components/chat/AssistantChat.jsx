@@ -1,60 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { MessageCircle, X, Send, Minimize2, Maximize2, Lightbulb, FileText, HelpCircle } from 'lucide-react';
+import { MessageCircle, X, Send, Minimize2, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useQuery } from '@tanstack/react-query';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-
-const TERCEIRO_ADITIVO_CONTEXT = `
-3º ADITIVO (até nov/2026): 90 ações educ., 36 culturais. MUMO, MIS, MHAB. Tudo GRÁTIS e acessível.
-`;
-
-const MANUAL_CONTEXT = `
-PROFISSIONAL: 1.Novo → 2.Preencha museu/mês → 3.Adicione atividades (META/ROTINA/EXTRA) → 4.Resumo executivo → 5.Enviar para revisão. Auto-save a cada 5s.
-COORDENADOR: Revisar → Devolver (feedback) ou Aprovar. Delegar se necessário.
-STATUS: DRAFT → SUBMITTED → IN_REVIEW → APPROVED/RETURNED
-EXPORTAÇÃO: PDF, CSV, Google Drive sync automático.
-`;
-
-const systemPrompt = `Você é um assistente especializado da Plataforma Museu Centro.
-
-ESTILO DE RESPOSTA (OBRIGATÓRIO):
-- SEM EMOJIS ou símbolos decorativos
-- Formatação estruturada com seções claras
-- Texto conciso e objetivo
-- Listas numeradas para passo-a-passo
-- Negrito para destaques
-- Respostas bem resumidas (máx 300 palavras)
-- Evite repetições
-- Cite fontes quando necessário
-
-ÁREAS DE CONHECIMENTO:
-1. Criação e gerenciamento de relatórios mensais
-2. Workflow de aprovação (DRAFT → SUBMITTED → IN_REVIEW → APPROVED)
-3. Classificação de atividades (META, ROTINA, EXTRA)
-4. 3º Termo Aditivo (23 metas do contrato vigente)
-5. Museus MUMO, MIS e MHAB
-6. Funcionalidades: Templates, PDF, Google Drive, IA
-
-INFORMAÇÕES IMPORTANTES:
-- Vigência: até 29 de novembro de 2026
-- Todas as ações são GRATUITAS
-- Classificação indicativa LIVRE
-- Acessibilidade garantida
-
-INSTRUÇÕES:
-- Respostas diretas e úteis
-- Passo-a-passo numerado quando necessário
-- Sempre mencione status quando relevante
-- Dirija para coordenador quando necessário
-- Seja profissional e objetivo`;
 
 export default function AssistantChat() {
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Olá! Sou seu assistente de gestão cultural. Tenho acesso ao 3º Termo Aditivo (contrato vigente) e posso ajudá-lo com relatórios, metas, atividades dos museus e muito mais. Como posso ajudar?' }
+    { role: 'assistant', content: 'Assistente ativo. Faça sua pergunta.' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -64,188 +18,69 @@ export default function AssistantChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const { data: reportContext } = useQuery({
-    queryKey: ['recent-reports'],
-    queryFn: () => base44.entities.Report.list('-created_date', 5),
-    enabled: open,
-  });
+  async function buscarContexto(pergunta) {
+    try {
+      const chunks = await base44.entities.KnowledgeChunk.list('-created_date', 200);
 
-  const { data: knowledgeDocs = [] } = useQuery({
-    queryKey: ['knowledge-docs-chat'],
-    queryFn: () => base44.entities.KnowledgeDocument.filter({ ativo: true }, '-created_date', 20),
-    enabled: open,
-  });
+      const relevantes = chunks
+        .map(c => ({
+          ...c,
+          score: (c.texto_chunk || '').toLowerCase().includes(pergunta.toLowerCase()) ? 10 : 0
+        }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
 
-  const suggestedQuestions = [
-    // BÁSICO - CRIAR E ENVIAR
-    'Como criar um novo relatório?',
-    'Como salvar meu relatório como rascunho?',
-    'Como enviar relatório para revisão?',
-    'O que significa cada status (DRAFT, SUBMITTED, IN_REVIEW, etc)?',
-    
-    // ATIVIDADES E CLASSIFICAÇÃO
-    'O que é uma atividade META?',
-    'Qual a diferença entre META, ROTINA e EXTRA?',
-    'Como preencher uma atividade META?',
-    'O que é Público Estimado?',
-    'Como registrar atividades com múltiplas ocorrências?',
-    
-    // CAMPOS ESPECÍFICOS
-    'Como preencher o Resumo Executivo?',
-    'O que colocar em Pontos Positivos?',
-    'Como descrever Dificuldades e Desafios?',
-    'O que são Sugestões de Melhoria?',
-    'Como adicionar Momentos Especiais?',
-    
-    // TEMPLATES
-    'Como salvar um relatório como Template?',
-    'Como carregar um Template?',
-    'Posso compartilhar Templates com minha equipe?',
-    'Como reutilizar um Template salvo?',
-    
-    // EXPORTAÇÃO E COMPARTILHAMENTO
-    'Como exportar relatório em PDF?',
-    'Como exportar dados em CSV?',
-    'O relatório é sincronizado para Google Drive?',
-    'Como compartilhar relatório aprovado?',
-    'Posso imprimir meu relatório?',
-    
-    // BUSCA E FILTROS
-    'Como usar a busca de relatórios?',
-    'Como filtrar por museu, mês ou status?',
-    'Como encontrar relatórios de um profissional específico?',
-    'Posso filtrar por classificação de atividade?',
-    
-    // IA E SUGESTÕES
-    'Como usar IA para gerar sugestões?',
-    'A IA pode criar resumo executivo?',
-    'Posso pedir IA para revisar pontos positivos?',
-    'Como usar análise de tendências?',
-    
-    // PARA COORDENADORES
-    'Como coordenador: como revisar relatórios?',
-    'Como "Assumir Revisão" de um relatório?',
-    'Como devolver relatório com feedback?',
-    'Como adicionar comentários por seção?',
-    'Como aprovar um relatório?',
-    'Como delegar revisão a outro coordenador?',
-    'Como visualizar o Painel de Coordenação?',
-    'Como ver log de aprovações?',
-    
-    // PROBLEMAS E DÚVIDAS
-    'Perdi meu relatório em rascunho. O que faço?',
-    'Posso editar após enviar?',
-    'Meu relatório foi devolvido. Como editar novamente?',
-    'Qual o limite de tempo para enviar?',
-    'Posso deletar um relatório?',
-    'Como vejo comentários do coordenador?',
-    
-    // PLANO DE TRABALHO E METAS
-    'Quais são as metas do 3º Aditivo?',
-    'Qual o Plano de Trabalho vigente?',
-    'Quantas ações educativas devem ser feitas?',
-    'Quantas ações culturais devem ser feitas?',
-    'Qual é a vigência do contrato?',
-    'O que é o Noturno nos Museus?',
-    'Quais são os objetivos do MUMO, MIS e MHAB?',
-    'Como atividades impactam as metas?',
-    'O que são "Diárias de Educadores"?',
-    'O que são "Consultorias"?',
-    'O que é "Acessibilidade" no contrato?',
-    
-    // MUSEUS
-    'Informações sobre MUMO (Museu da Moda)?',
-    'Informações sobre MIS BH (Imagem e Som)?',
-    'Informações sobre MHAB (Histórico)?',
-    'Qual é a exposição atual de cada museu?',
-    
-    // PÚBLICO E IMPACTO
-    'Como calcular público estimado?',
-    'Como registrar público por faixa etária?',
-    'Como documentar acessibilidade da atividade?',
-    'O que é "Classificação Indicativa LIVRE"?',
-    
-    // EQUIPES
-    'Qual é minha equipe?',
-    'Como filtrar atividades por equipe?',
-    'Como ver atividades de outras equipes?',
-    
-    // PRAZOS E COMPLIANCE
-    'Qual é o prazo para enviar relatório?',
-    'Como funciona Compliance?',
-    'Sou obrigado a submeter relatório mensal?',
-    'Posso pedir Isenção de Relatório?',
-    
-    // SEGURANÇA E PRIVACIDADE
-    'Quem pode ver meu relatório?',
-    'Meu relatório é privado?',
-    'Como funciona a sincronização Google Drive?',
-    'Meu relatório é seguro?',
-    
-    // FUNCIONALIDADES AVANÇADAS
-    'Como usar Auto-save?',
-    'O que é Versionamento de Relatório?',
-    'Como ver histórico de alterações?',
-    'Como adicionar anexos/arquivos?',
-    'Posso fazer backup do meu relatório?',
-    
-    // NOTIFICAÇÕES
-    'Como recebo notificações?',
-    'Serei notificado quando relatório for aprovado?',
-    'Como funcionam alertas de prazos?',
-    'Posso customizar notificações?',
-    
-    // GERAL
-    'Me explique o 3º Termo Aditivo vigente',
-    'Qual é a estrutura completa da plataforma?',
-    'Como funciona o workflow de relatórios?',
-    'Qual é o público-alvo da plataforma?',
-    'Preciso de ajuda técnica, para quem falo?'
-  ];
-
-  const handleSuggestedQuestion = (question) => {
-    setInput(question);
-    setTimeout(() => {
-      const fakeEvent = { key: 'Enter' };
-      handleSend(question);
-    }, 0);
-  };
+      return relevantes.map(c => c.texto_chunk).join('\n\n');
+    } catch {
+      return '';
+    }
+  }
 
   const handleSend = async (questionText = null) => {
     const textToSend = questionText || input;
-    if (!textToSend.trim()) return;
+
+    if (!textToSend.trim() || loading) return;
 
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
     setLoading(true);
-    if (!input.trim()) return;
 
     try {
-      const reportCtx = reportContext?.length > 0
-        ? `Relatórios recentes: ${reportContext.map(r => `${r.numero_protocolo} - ${r.author_name}`).join(', ')}`
-        : '';
+      const contexto = await buscarContexto(textToSend);
 
-      // Monta contexto dinâmico dos documentos da base de conhecimento
-      const docsContext = knowledgeDocs.length > 0
-        ? `\n\n=== BASE DE DOCUMENTOS DE REFERÊNCIA ===\n${knowledgeDocs.map(d =>
-            `--- ${d.titulo} (${d.categoria}${d.versao ? ', ' + d.versao : ''}) ---\n${d.conteudo_extraido || '(sem conteúdo extraído)'}`
-          ).join('\n\n')}`
-        : '';
+      const prompt = `
+Você é o assistente da plataforma Museus Centro.
+
+REGRAS:
+- Use SOMENTE a base abaixo
+- Nunca invente
+- Seja direto e objetivo
+- Use passo a passo quando necessário
+
+BASE:
+${contexto || 'Sem dados relevantes'}
+
+PERGUNTA:
+${textToSend}
+`;
 
       const response = await base44.integrations.Core.InvokeLLM({
-        prompt: `${systemPrompt}\n\n${TERCEIRO_ADITIVO_CONTEXT}\n\n${MANUAL_CONTEXT}${docsContext}\n\n${reportCtx}\n\nPergunta do usuário: ${textToSend}`,
-        add_context_from_internet: false,
-        model: 'claude_sonnet_4_6',
+        prompt,
+        add_context_from_internet: false
       });
 
-      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: response || 'Sem resposta encontrada.' }
+      ]);
+
     } catch (error) {
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'Desculpe, ocorreu um erro ao processar sua pergunta. Tente novamente.' 
-      }]);
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: 'Erro ao responder. Tente novamente.' }
+      ]);
     } finally {
-      setLoading(false);
+      setLoading(false); // ✅ GARANTE QUE NUNCA TRAVA
     }
   };
 
@@ -253,133 +88,53 @@ export default function AssistantChat() {
     return (
       <Button
         onClick={() => setOpen(true)}
-        className="fixed bottom-20 md:bottom-6 right-4 md:right-6 w-12 h-12 md:w-14 md:h-14 rounded-full bg-black hover:bg-gray-800 text-white shadow-lg flex items-center justify-center z-50"
-        title="Assistente de Ajuda"
+        className="fixed bottom-6 right-6 w-12 h-12 rounded-full bg-black text-white"
       >
-        <MessageCircle className="w-6 h-6" />
+        <MessageCircle />
       </Button>
     );
   }
 
   return (
-    <div className={`fixed bottom-20 md:bottom-6 right-0 md:right-6 ${minimized ? 'w-full md:w-80 h-16 rounded-t-xl' : 'w-full md:w-96 h-[60vh] md:h-96 rounded-t-xl md:rounded-xl'} bg-white border border-gray-200 shadow-xl flex flex-col z-50 transition-all duration-200`}>
-      {/* Header */}
-       <div className="flex items-center justify-between h-16 px-4 border-b border-gray-100 bg-gray-50 rounded-t-xl flex-shrink-0">
-         <div className="flex items-center gap-2">
-           <h3 className="font-semibold text-black text-sm">Assistente de Ajuda</h3>
-           <TooltipProvider>
-             <Tooltip>
-               <TooltipTrigger asChild>
-                 <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
-               </TooltipTrigger>
-               <TooltipContent side="bottom" className="max-w-xs text-xs bg-gray-900 text-white border-0">
-                 <div className="space-y-1.5">
-                   <p className="font-semibold">Ajuda sobre Plano de Trabalho</p>
-                   <p>O plano de trabalho anual define as metas e atividades esperadas para cada período. Consulte seu coordenador para detalhes específicos do seu museu.</p>
-                   <p className="text-gray-300 text-[10px] pt-1">Dica: use "Qual é o plano de trabalho?" para mais informações</p>
-                 </div>
-               </TooltipContent>
-             </Tooltip>
-           </TooltipProvider>
-         </div>
+    <div className={`fixed bottom-6 right-6 ${minimized ? 'h-16' : 'h-96'} w-80 bg-white border rounded-xl flex flex-col`}>
+
+      <div className="flex justify-between p-2 border-b">
+        <span>Assistente</span>
         <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setMinimized(!minimized)}
-          >
-            {minimized ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
+          <Button onClick={() => setMinimized(!minimized)}>
+            {minimized ? <Maximize2 /> : <Minimize2 />}
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setOpen(false)}
-          >
-            <X className="w-3.5 h-3.5" />
+          <Button onClick={() => setOpen(false)}>
+            <X />
           </Button>
         </div>
       </div>
 
       {!minimized && (
         <>
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {messages.length === 1 ? (
-              <div className="space-y-4">
-                <div className="text-center py-4">
-                  <Lightbulb className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                  <p className="text-xs text-gray-500">Perguntas frequentes</p>
-                </div>
-                <div className="space-y-2">
-                  {suggestedQuestions.map((q, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handleSuggestedQuestion(q)}
-                      className="w-full text-left text-xs p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 transition-colors"
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-                <div className="pt-2 border-t border-gray-100">
-                  <button
-                    onClick={() => handleSuggestedQuestion('Me explique o 3º Termo Aditivo vigente')}
-                    className="w-full text-left text-xs p-2 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 transition-colors flex items-center gap-2"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    Ver 3º Aditivo (contrato vigente)
-                  </button>
+          <div className="flex-1 overflow-auto p-3 space-y-2">
+            {messages.map((m, i) => (
+              <div key={i} className={m.role === 'user' ? 'text-right' : ''}>
+                <div className="inline-block p-2 bg-gray-100 rounded">
+                  {m.content}
                 </div>
               </div>
-            ) : (
-              <>
-                {messages.map((msg, i) => (
-                   <div
-                     key={i}
-                     className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                   >
-                     <div
-                       className={`max-w-[85%] px-3 py-2.5 rounded-lg text-sm leading-relaxed ${
-                         msg.role === 'user'
-                           ? 'bg-black text-white'
-                           : 'bg-gray-100 text-gray-900 whitespace-pre-wrap'
-                       }`}
-                     >
-                       {msg.content}
-                     </div>
-                   </div>
-                 ))}
-                {loading && (
-                  <div className="flex justify-start">
-                    <div className="bg-gray-100 text-gray-900 px-3 py-2 rounded-lg text-sm">
-                      Digitando...
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+            ))}
+
+            {loading && <div>Digitando...</div>}
+
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
-          <div className="h-16 px-4 py-3 border-t border-gray-100 flex gap-2 flex-shrink-0">
+          <div className="flex p-2 gap-2 border-t">
             <Input
-            placeholder="Faça uma pergunta sobre relatórios atuais e antigos, uso do app, ou metas do projeto."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && !loading && handleSend()}
-            className="text-sm h-10"
-            disabled={loading}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              disabled={loading}
             />
-            <Button
-              size="icon"
-              className="h-10 w-10 bg-black hover:bg-gray-800 text-white"
-              onClick={handleSend}
-              disabled={loading || !input.trim()}
-            >
-              <Send className="w-4 h-4" />
+            <Button onClick={handleSend} disabled={loading}>
+              <Send />
             </Button>
           </div>
         </>
