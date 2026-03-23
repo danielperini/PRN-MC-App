@@ -4,7 +4,7 @@ import RequireAuth from '../components/auth/RequireAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { HelpCircle, Send, Loader2, FileText } from 'lucide-react';
+import { HelpCircle, Send, Loader2, FileText, BookOpen } from 'lucide-react';
 
 const CARGOS_PRIORITARIOS = [
   'coordenador',
@@ -18,6 +18,43 @@ const CARGOS_PRIORITARIOS = [
   'produtor cultural',
   'consultoria programação',
 ];
+
+const MANUAL_KEYWORDS = [
+  'manual',
+  'ajuda',
+  'instrução',
+  'instrucoes',
+  'regras',
+  'fluxo',
+  'treinamento',
+  'tutorial',
+  'guia',
+];
+
+const DEFAULT_ASSISTANT_PROMPT = `Você é o assistente oficial da plataforma Museus Centro.
+
+REGRAS GERAIS:
+- Use sempre a Biblioteca de Conhecimento ativa e o Manual do sistema como base principal.
+- Nunca invente informações.
+- Nunca use conhecimento externo.
+- Se não encontrar informação suficiente na base, diga exatamente: "Não encontrei essa informação na base de conhecimento."
+- Priorize regras operacionais, fluxos aprovados, documentos ativos, manuais, contratos, pagamentos, compras, equipe, aprovações e rubricas.
+- Equipe é gerida e paga pelos coordenadores.
+- Profissional apenas envia nota fiscal.
+- Pagamento de equipe acontece via módulo Equipe.
+- Compras são usadas para fornecedores, materiais e serviços.
+- Nunca misture o fluxo de Compras com o fluxo de Equipe.
+- Rubrica só é debitada quando aprovado.
+- Responda em português do Brasil, de forma clara, direta e útil.`;
+
+function withTimeout(promise, ms, label = 'Operação') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} demorou mais do que o esperado.`)), ms)
+    ),
+  ]);
+}
 
 function normalizeText(value) {
   return String(value || '')
@@ -38,6 +75,22 @@ function uniqueStrings(values = []) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+function isManualDocument(docOrChunk) {
+  const text = normalizeText(
+    [
+      docOrChunk?.titulo,
+      docOrChunk?.document_title,
+      docOrChunk?.categoria,
+      docOrChunk?.tags,
+      docOrChunk?.descricao,
+    ]
+      .filter(Boolean)
+      .join(' ')
+  );
+
+  return MANUAL_KEYWORDS.some((keyword) => text.includes(keyword));
+}
+
 function scoreChunk(chunk, pergunta) {
   const perguntaNormalizada = normalizeText(pergunta);
   const termosPergunta = uniqueStrings(splitTerms(pergunta));
@@ -52,7 +105,7 @@ function scoreChunk(chunk, pergunta) {
 
   let score = 0;
 
-  if (!textoChunk && !tituloChunk) return 0;
+  if (!textoChunk && !tituloChunk && !origemTitulo) return 0;
 
   if (textoChunk.includes(perguntaNormalizada)) score += 30;
   if (tituloChunk.includes(perguntaNormalizada)) score += 18;
@@ -90,6 +143,8 @@ function scoreChunk(chunk, pergunta) {
 
   if (perguntaSobreValores && salarios) score += 12;
   if (perguntaSobreValores && textoChunk.includes('r$')) score += 8;
+
+  if (isManualDocument(chunk)) score += 10;
 
   return score;
 }
@@ -130,6 +185,16 @@ ${chunk?.texto_chunk || chunk?.conteudo_extraido || ''}
     .join('\n\n');
 }
 
+function dedupeByKey(items, getKey) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = getKey(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function AssistenteInner() {
   const [conversation, setConversation] = useState([]);
   const [input, setInput] = useState('');
@@ -146,19 +211,15 @@ function AssistenteInner() {
 
     async function loadKnowledgeConfig() {
       try {
-        const settings = await base44.entities.KnowledgeLibrarySettings.list(
-          '-created_date',
-          10
+        const settings = await withTimeout(
+          base44.entities.KnowledgeLibrarySettings.list('-created_date', 10),
+          10000,
+          'Carregamento da configuração'
         );
         const config = Array.isArray(settings) ? settings[0] : null;
 
         if (!mounted) return;
-
-        if (config?.usar_no_assistente_ajuda === false) {
-          setKnowledgeEnabled(false);
-        } else {
-          setKnowledgeEnabled(true);
-        }
+        setKnowledgeEnabled(config?.usar_no_assistente_ajuda !== false);
       } catch (error) {
         console.error('Erro ao carregar configuração da biblioteca:', error);
         if (mounted) setKnowledgeEnabled(true);
@@ -174,13 +235,19 @@ function AssistenteInner() {
 
   async function buscarContextoConhecimento(pergunta, maxChunks = 5) {
     try {
-      const [docs, chunks] = await Promise.all([
-        base44.entities.KnowledgeDocument.list('-created_date', 100),
-        base44.entities.KnowledgeChunk.list('-created_date', 500),
-      ]);
+      const [docs, chunks] = await withTimeout(
+        Promise.all([
+          base44.entities.KnowledgeDocument.list('-created_date', 150),
+          base44.entities.KnowledgeChunk.list('-created_date', 800),
+        ]),
+        15000,
+        'Busca da base de conhecimento'
+      );
 
       const documentosAtivos = (docs || []).filter((doc) => doc?.ativo);
       const docIdsAtivos = new Set(documentosAtivos.map((doc) => doc.id));
+
+      const documentosManuais = documentosAtivos.filter((doc) => isManualDocument(doc));
 
       const chunksAtivos = (chunks || []).filter((chunk) => {
         const ativoNoChunk = chunk?.ativo !== false;
@@ -198,18 +265,38 @@ function AssistenteInner() {
         .filter((chunk) => chunk._score > 0)
         .sort((a, b) => b._score - a._score);
 
-      const selecionados =
-        chunksPontuados.length > 0
-          ? chunksPontuados.slice(0, maxChunks)
-          : documentosAtivos.slice(0, maxChunks).map((doc, index) => ({
-              knowledge_document_id: doc.id,
-              texto_chunk: (doc?.conteudo_extraido || '').slice(0, 3500),
-              categoria: doc?.categoria || '',
-              cargo_relacionado: doc?.cargo_relacionado || '',
-              tags: doc?.tags || '',
-              document_title: doc?.titulo || '',
-              _score: 1 - index * 0.01,
-            }));
+      const manualChunks = chunksAtivos
+        .filter((chunk) => isManualDocument(chunk))
+        .map((chunk) => ({
+          ...chunk,
+          _score: scoreChunk(chunk, pergunta) + 15,
+        }))
+        .sort((a, b) => b._score - a._score)
+        .slice(0, 2);
+
+      const melhoresChunks = chunksPontuados.slice(0, maxChunks);
+      let selecionados = dedupeByKey(
+        [...manualChunks, ...melhoresChunks],
+        (item) =>
+          `${item?.knowledge_document_id || item?.document_id || 'sem-doc'}-${item?.chunk_index || item?.texto_chunk?.slice(0, 80) || ''}`
+      ).slice(0, Math.max(maxChunks, 6));
+
+      if (selecionados.length === 0) {
+        const fallbackDocs = dedupeByKey(
+          [...documentosManuais, ...documentosAtivos],
+          (doc) => doc?.id
+        ).slice(0, Math.max(maxChunks, 4));
+
+        selecionados = fallbackDocs.map((doc, index) => ({
+          knowledge_document_id: doc.id,
+          texto_chunk: (doc?.conteudo_extraido || doc?.resumo_ia || '').slice(0, 4500),
+          categoria: doc?.categoria || '',
+          cargo_relacionado: doc?.cargo_relacionado || '',
+          tags: doc?.tags || '',
+          document_title: doc?.titulo || '',
+          _score: 100 - index,
+        }));
+      }
 
       return {
         contexto: buildKnowledgeContext(selecionados, documentosAtivos),
@@ -243,9 +330,10 @@ function AssistenteInner() {
       let config = {};
 
       try {
-        const settings = await base44.entities.KnowledgeLibrarySettings.list(
-          '-created_date',
-          5
+        const settings = await withTimeout(
+          base44.entities.KnowledgeLibrarySettings.list('-created_date', 5),
+          10000,
+          'Carregamento da configuração da IA'
         );
         config = settings?.[0] || {};
       } catch (e) {
@@ -253,13 +341,9 @@ function AssistenteInner() {
       }
 
       const usarBase = config?.usar_no_assistente_ajuda !== false;
-      const maxChunks = config?.max_chunks_por_resposta || 5;
+      const maxChunks = Number(config?.max_chunks_por_resposta) || 6;
       const promptBase =
-        config?.prompt_base_assistente ||
-        `Você é o assistente oficial da plataforma Museus Centro.
-Use somente a Biblioteca de Conhecimento ativa.
-Nunca invente informações.
-Se não encontrar a resposta na base, responda exatamente: "Não encontrei essa informação na base de conhecimento."`;
+        config?.prompt_base_assistente || DEFAULT_ASSISTANT_PROMPT;
 
       let contexto = '';
       let quantidadeContextos = 0;
@@ -282,7 +366,6 @@ Se não encontrar a resposta na base, responda exatamente: "Não encontrei essa 
             content: 'Não encontrei essa informação na base de conhecimento.',
           },
         ]);
-        setLoading(false);
         return;
       }
 
@@ -297,14 +380,16 @@ Se não encontrar a resposta na base, responda exatamente: "Não encontrei essa 
 ${promptBase}
 
 REGRAS OBRIGATÓRIAS:
-- Use SOMENTE a base de conhecimento abaixo
-- NÃO invente
-- NÃO use conhecimento externo
+- Consulte sempre a Biblioteca de Conhecimento e o Manual do sistema presentes no contexto abaixo.
+- Analise o contexto documental a cada pergunta antes de responder.
+- Use SOMENTE a base de conhecimento abaixo.
+- NÃO invente.
+- NÃO use conhecimento externo.
 - Se não estiver na base, responda exatamente: "Não encontrei essa informação na base de conhecimento."
-- Se houver valores, salários, pagamentos, parcelas, contratos ou cargos, informe apenas o que estiver claramente presente no contexto
-- Priorize salários, contratos, pagamentos e cargos
-- Responda em português do Brasil
-- Seja claro, direto e útil
+- Se houver valores, salários, pagamentos, parcelas, contratos ou cargos, informe apenas o que estiver claramente presente no contexto.
+- Priorize regras operacionais, fluxo de equipe, fluxo de compras, aprovação, rubricas, documentos, manual e ajuda.
+- Responda em português do Brasil.
+- Seja claro, direto e útil.
 
 HISTÓRICO:
 ${historico || 'Sem histórico anterior.'}
@@ -312,17 +397,21 @@ ${historico || 'Sem histórico anterior.'}
 BASE DE CONHECIMENTO ATIVA: ${usarBase ? 'SIM' : 'NÃO'}
 QUANTIDADE DE CONTEXTOS SELECIONADOS: ${quantidadeContextos}
 
-CONTEXTO:
+CONTEXTO DOCUMENTAL:
 ${contexto || 'Nenhum contexto documental relevante encontrado.'}
 
 PERGUNTA:
 ${pergunta}
 `.trim();
 
-      const result = await base44.integrations.Core.InvokeLLM({
-        prompt,
-        add_context_from_internet: false,
-      });
+      const result = await withTimeout(
+        base44.integrations.Core.InvokeLLM({
+          prompt,
+          add_context_from_internet: false,
+        }),
+        30000,
+        'Resposta da IA'
+      );
 
       const resposta = typeof result === 'string' ? result : String(result || '');
 
@@ -341,7 +430,10 @@ ${pergunta}
         ...prev,
         {
           role: 'assistant',
-          content: 'Erro ao consultar a base de conhecimento.',
+          content:
+            error?.message?.includes('demorou mais do que o esperado')
+              ? 'A resposta da IA demorou mais do que o esperado. Tente novamente com uma pergunta mais específica.'
+              : 'Erro ao consultar a base de conhecimento.',
         },
       ]);
     } finally {
@@ -360,7 +452,7 @@ ${pergunta}
             </h1>
           </div>
           <p className="text-gray-500 text-sm">
-            Responde com base nos documentos ativos da Biblioteca de Conhecimento
+            Consulta sempre a Biblioteca de Conhecimento e o Manual do sistema antes de responder
           </p>
         </div>
 
@@ -374,6 +466,11 @@ ${pergunta}
                   : 'Base de conhecimento desativada na configuração'}
               </span>
             </div>
+
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <BookOpen className="w-4 h-4" />
+              <span>Manual priorizado</span>
+            </div>
           </div>
 
           <ScrollArea className="flex-1 p-6">
@@ -381,7 +478,7 @@ ${pergunta}
               {conversation.length === 0 && (
                 <div className="text-center text-gray-400 mt-10">
                   Faça uma pergunta sobre contratos, salários, pagamentos, metas,
-                  documentos ou uso da plataforma
+                  documentos, manual, compras, equipe ou uso da plataforma
                 </div>
               )}
 
@@ -406,8 +503,11 @@ ${pergunta}
 
               {loading && (
                 <div className="flex justify-start">
-                  <div className="bg-gray-100 text-black rounded-2xl px-4 py-3">
+                  <div className="bg-gray-100 text-black rounded-2xl px-4 py-3 flex items-center gap-2">
                     <Loader2 className="animate-spin w-5 h-5 text-gray-400" />
+                    <span className="text-sm text-gray-600">
+                      Analisando manual e base de conhecimento...
+                    </span>
                   </div>
                 </div>
               )}
