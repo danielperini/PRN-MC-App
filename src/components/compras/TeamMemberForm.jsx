@@ -99,7 +99,7 @@ export default function TeamMemberForm({
       }));
   }, [finalBudgetLines]);
 
-  // 🔥 IA LEITURA CONTRATO
+  // 🔥 IA CONTRATO
   const handleUploadContrato = async (file) => {
     if (!file) return;
 
@@ -143,10 +143,10 @@ Responda em JSON.
         cpf: result?.cpf || prev.cpf,
       }));
 
-      toast.success('Contrato lido pela IA e dados preenchidos');
+      toast.success('Contrato lido pela IA');
 
     } catch (e) {
-      toast.error('Erro ao processar contrato');
+      toast.error('Erro ao ler contrato');
     }
 
     setLoadingContrato(false);
@@ -201,7 +201,7 @@ Responda em JSON.
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          {/* 🔥 CONTRATO IA */}
+          {/* 🔥 CONTRATO */}
           <div>
             <Label>Contrato (PDF)</Label>
             <Input
@@ -210,9 +210,9 @@ Responda em JSON.
               onChange={(e) => handleUploadContrato(e.target.files[0])}
             />
             {loadingContrato && (
-              <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+              <div className="text-xs text-gray-500 flex gap-1 mt-1">
                 <Loader2 className="animate-spin w-3 h-3" />
-                Lendo contrato com IA...
+                Lendo contrato...
               </div>
             )}
           </div>
@@ -221,7 +221,7 @@ Responda em JSON.
           <Input placeholder="Função" value={form.funcao} onChange={(e) => setForm({ ...form, funcao: e.target.value })} />
           <Input placeholder="Telefone" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
 
-          {/* 🔥 CAMPOS PREENCHIDOS PELA IA */}
+          {/* 🔥 CAMPOS IA */}
           <Input placeholder="Parcelas" value={form.parcelas} onChange={(e) => setForm({ ...form, parcelas: e.target.value })} />
           <Input placeholder="Data início" value={form.data_inicio} onChange={(e) => setForm({ ...form, data_inicio: e.target.value })} />
           <Input placeholder="Data fim" value={form.data_fim} onChange={(e) => setForm({ ...form, data_fim: e.target.value })} />
