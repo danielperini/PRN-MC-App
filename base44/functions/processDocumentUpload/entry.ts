@@ -44,13 +44,19 @@ function detectFileType(file_url: string) {
 function parseTags(tags: unknown) {
   if (!tags) return [];
   if (Array.isArray(tags)) {
-    return tags.map((v) => String(v).trim()).filter(Boolean);
+    return tags.map((v) => String(v || '').trim()).filter(Boolean);
   }
 
   return String(tags)
     .split(',')
     .map((v) => v.trim())
     .filter(Boolean);
+}
+
+function uniqueStrings(values: unknown[]) {
+  return Array.from(
+    new Set(values.map((v) => String(v || '').trim()).filter(Boolean))
+  );
 }
 
 function chunkText(text: string, maxSize = 2000) {
@@ -69,7 +75,10 @@ function chunkText(text: string, maxSize = 2000) {
       continue;
     }
 
-    if (current) chunks.push(current);
+    if (current) {
+      chunks.push(current);
+      current = '';
+    }
 
     if (p.length <= maxSize) {
       current = p;
@@ -113,14 +122,16 @@ async function extractGenericText(base44: any, file_url: string) {
     });
 
     return normalizeText(extracted?.output?.conteudo_completo || '');
-  } catch {
+  } catch (error) {
+    console.error('Erro no ExtractDataFromUploadedFile:', error);
     return '';
   }
 }
 
 async function analyzeWithLLM(base44: any, file_url: string) {
-  const result = await base44.integrations.Core.InvokeLLM({
-    prompt: `
+  try {
+    const result = await base44.integrations.Core.InvokeLLM({
+      prompt: `
 Analise profundamente este documento.
 
 Extraia:
@@ -138,28 +149,39 @@ Regras:
 - Se for PDF, interprete o conteúdo de forma estruturada.
 - Responda em português do Brasil.
 `,
-    file_urls: [file_url],
-    response_json_schema: {
-      type: 'object',
-      properties: {
-        conteudo: { type: 'string' },
-        resumo: { type: 'string' },
-        temas: { type: 'array', items: { type: 'string' } },
-        cargos: { type: 'array', items: { type: 'string' } },
-        valores: { type: 'array', items: { type: 'string' } },
-        tags: { type: 'array', items: { type: 'string' } },
+      file_urls: [file_url],
+      response_json_schema: {
+        type: 'object',
+        properties: {
+          conteudo: { type: 'string' },
+          resumo: { type: 'string' },
+          temas: { type: 'array', items: { type: 'string' } },
+          cargos: { type: 'array', items: { type: 'string' } },
+          valores: { type: 'array', items: { type: 'string' } },
+          tags: { type: 'array', items: { type: 'string' } },
+        },
       },
-    },
-  });
+    });
 
-  return {
-    conteudo: normalizeText(result?.conteudo || ''),
-    resumo: normalizeText(result?.resumo || ''),
-    temas: Array.isArray(result?.temas) ? result.temas : [],
-    cargos: Array.isArray(result?.cargos) ? result.cargos : [],
-    valores: Array.isArray(result?.valores) ? result.valores : [],
-    tags: Array.isArray(result?.tags) ? result.tags : [],
-  };
+    return {
+      conteudo: normalizeText(result?.conteudo || ''),
+      resumo: normalizeText(result?.resumo || ''),
+      temas: Array.isArray(result?.temas) ? result.temas : [],
+      cargos: Array.isArray(result?.cargos) ? result.cargos : [],
+      valores: Array.isArray(result?.valores) ? result.valores : [],
+      tags: Array.isArray(result?.tags) ? result.tags : [],
+    };
+  } catch (error) {
+    console.error('Erro na análise com LLM:', error);
+    return {
+      conteudo: '',
+      resumo: '',
+      temas: [],
+      cargos: [],
+      valores: [],
+      tags: [],
+    };
+  }
 }
 
 Deno.serve(async (req) => {
@@ -198,7 +220,7 @@ Deno.serve(async (req) => {
       try {
         texto = await extractPdfText(file_url);
       } catch (error) {
-        console.warn('Falha na leitura direta do PDF, seguindo para fallback:', error);
+        console.error('Falha na leitura direta do PDF:', error);
       }
     } else {
       texto = await extractGenericText(base44, file_url);
@@ -213,70 +235,105 @@ Deno.serve(async (req) => {
     texto = normalizeText(texto);
 
     if (!texto) {
-      return Response.json(
-        { error: 'Não foi possível extrair conteúdo do documento.' },
-        { status: 422 }
-      );
+      texto = `Documento enviado: ${titulo}\nArquivo: ${file_name}\nTipo: ${fileType}`;
     }
 
-    const tags = Array.from(
-      new Set([
-        ...parseTags(rawTags),
-        ...(ia.tags || []),
-        ...(ia.temas || []),
-        ...(ia.cargos || []),
-      ].map((v) => String(v || '').trim()).filter(Boolean))
-    );
+    const finalTags = uniqueStrings([
+      ...parseTags(rawTags),
+      ...(ia.tags || []),
+      ...(ia.temas || []),
+      ...(ia.cargos || []),
+      categoria || '',
+      cargo_relacionado || '',
+      fileType,
+    ]);
 
-    const chunks = chunkText(texto);
-    const finalChunks = chunks.length > 0 ? chunks : [texto.slice(0, 2000)];
-
-    const docPayload: Record<string, unknown> = {
+    const docBasePayload: Record<string, unknown> = {
       titulo,
-      descricao: descricao || '',
       categoria: categoria || 'Outro',
+      ativo: true,
       file_url,
       file_name,
       conteudo_extraido: texto,
+    };
+
+    let doc: any = null;
+
+    try {
+      doc = await base44.asServiceRole.entities.KnowledgeDocument.create(docBasePayload);
+    } catch (createError: any) {
+      console.error('Erro ao criar KnowledgeDocument (payload base):', createError);
+
+      return Response.json(
+        {
+          error:
+            createError?.message ||
+            'Falha ao criar KnowledgeDocument. Verifique a estrutura da entidade.',
+        },
+        { status: 500 }
+      );
+    }
+
+    const enrichmentPayload: Record<string, unknown> = {
+      descricao: descricao || '',
       resumo_ia: ia.resumo || '',
       cargos_identificados: (ia.cargos || []).join(', '),
       salarios_e_pagamentos: (ia.valores || []).join('\n'),
-      tags: tags.join(', '),
+      tags: finalTags.join(', '),
       cargo_relacionado: cargo_relacionado || '',
       tipo_arquivo: fileType,
-      ativo: true,
       processado_por_ia: true,
       status_processamento: 'processado',
       created_by_email: user.email || '',
     };
 
-    const doc = await base44.asServiceRole.entities.KnowledgeDocument.create(docPayload);
+    try {
+      await base44.asServiceRole.entities.KnowledgeDocument.update(doc.id, enrichmentPayload);
+      doc = { ...doc, ...enrichmentPayload };
+    } catch (updateError) {
+      console.error('Erro ao enriquecer KnowledgeDocument:', updateError);
+    }
+
+    const chunks = chunkText(texto);
+    const finalChunks = chunks.length > 0 ? chunks : [texto.slice(0, 2000)];
 
     for (let i = 0; i < finalChunks.length; i++) {
+      const chunkPayload: Record<string, unknown> = {
+        knowledge_document_id: doc.id,
+        chunk_index: i + 1,
+        texto_chunk: finalChunks[i],
+      };
+
       try {
-        await base44.asServiceRole.entities.KnowledgeChunk.create({
-          knowledge_document_id: doc.id,
-          chunk_index: i + 1,
-          titulo: `${titulo} — trecho ${i + 1}`,
-          texto_chunk: finalChunks[i],
-          categoria: categoria || 'Outro',
-          cargo_relacionado: cargo_relacionado || '',
-          tags: tags.join(', '),
-          ativo: true,
-          document_title: titulo,
-        });
+        await base44.asServiceRole.entities.KnowledgeChunk.create(chunkPayload);
       } catch (chunkError) {
-        console.warn(`Erro ao criar chunk ${i + 1}:`, chunkError);
+        console.error(`Erro ao criar chunk base ${i + 1}:`, chunkError);
+
+        try {
+          await base44.asServiceRole.entities.KnowledgeChunk.create({
+            ...chunkPayload,
+            titulo: `${titulo} — trecho ${i + 1}`,
+            categoria: categoria || 'Outro',
+            cargo_relacionado: cargo_relacionado || '',
+            tags: finalTags.join(', '),
+            ativo: true,
+            document_title: titulo,
+          });
+        } catch (chunkError2) {
+          console.error(`Erro ao criar chunk enriquecido ${i + 1}:`, chunkError2);
+        }
       }
     }
 
     return Response.json({
       success: true,
-      chunks: finalChunks.length,
       document: doc,
+      chunks: finalChunks.length,
+      file_type: fileType,
+      saved: true,
     });
   } catch (err: any) {
-    console.error('processDocumentUpload error:', err);
+    console.error('processDocumentUpload fatal error:', err);
     return Response.json(
       { error: err?.message || 'Erro interno ao processar documento' },
       { status: 500 }
