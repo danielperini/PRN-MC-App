@@ -146,7 +146,10 @@ function AssistenteInner() {
 
     async function loadKnowledgeConfig() {
       try {
-        const settings = await base44.entities.KnowledgeLibrarySettings.list('-created_date', 10);
+        const settings = await base44.entities.KnowledgeLibrarySettings.list(
+          '-created_date',
+          10
+        );
         const config = Array.isArray(settings) ? settings[0] : null;
 
         if (!mounted) return;
@@ -163,16 +166,17 @@ function AssistenteInner() {
     }
 
     loadKnowledgeConfig();
+
     return () => {
       mounted = false;
     };
   }, []);
 
-  async function buscarContextoConhecimento(pergunta) {
+  async function buscarContextoConhecimento(pergunta, maxChunks = 5) {
     try {
       const [docs, chunks] = await Promise.all([
         base44.entities.KnowledgeDocument.list('-created_date', 100),
-        base44.entities.KnowledgeChunk.list('-created_date', 300),
+        base44.entities.KnowledgeChunk.list('-created_date', 500),
       ]);
 
       const documentosAtivos = (docs || []).filter((doc) => doc?.ativo);
@@ -181,7 +185,8 @@ function AssistenteInner() {
       const chunksAtivos = (chunks || []).filter((chunk) => {
         const ativoNoChunk = chunk?.ativo !== false;
         const docAtivo =
-          !chunk?.knowledge_document_id || docIdsAtivos.has(chunk.knowledge_document_id);
+          !chunk?.knowledge_document_id ||
+          docIdsAtivos.has(chunk.knowledge_document_id);
         return ativoNoChunk && docAtivo;
       });
 
@@ -195,8 +200,8 @@ function AssistenteInner() {
 
       const selecionados =
         chunksPontuados.length > 0
-          ? chunksPontuados.slice(0, 6)
-          : documentosAtivos.slice(0, 3).map((doc, index) => ({
+          ? chunksPontuados.slice(0, maxChunks)
+          : documentosAtivos.slice(0, maxChunks).map((doc, index) => ({
               knowledge_document_id: doc.id,
               texto_chunk: (doc?.conteudo_extraido || '').slice(0, 3500),
               categoria: doc?.categoria || '',
@@ -209,12 +214,14 @@ function AssistenteInner() {
       return {
         contexto: buildKnowledgeContext(selecionados, documentosAtivos),
         quantidade: selecionados.length,
+        vazio: selecionados.length === 0,
       };
     } catch (error) {
       console.error('Erro ao buscar conhecimento:', error);
       return {
         contexto: '',
         quantidade: 0,
+        vazio: true,
       };
     }
   }
@@ -223,49 +230,92 @@ function AssistenteInner() {
     if (!input.trim() || loading) return;
 
     const pergunta = input.trim();
-    const updatedConversation = [...conversation, { role: 'user', content: pergunta }];
+    const updatedConversation = [
+      ...conversation,
+      { role: 'user', content: pergunta },
+    ];
 
     setInput('');
     setConversation(updatedConversation);
     setLoading(true);
 
     try {
+      let config = {};
+
+      try {
+        const settings = await base44.entities.KnowledgeLibrarySettings.list(
+          '-created_date',
+          5
+        );
+        config = settings?.[0] || {};
+      } catch (e) {
+        console.warn('Erro ao carregar config IA', e);
+      }
+
+      const usarBase = config?.usar_no_assistente_ajuda !== false;
+      const maxChunks = config?.max_chunks_por_resposta || 5;
+      const promptBase =
+        config?.prompt_base_assistente ||
+        `Você é o assistente oficial da plataforma Museus Centro.
+Use somente a Biblioteca de Conhecimento ativa.
+Nunca invente informações.
+Se não encontrar a resposta na base, responda exatamente: "Não encontrei essa informação na base de conhecimento."`;
+
       let contexto = '';
       let quantidadeContextos = 0;
+      let contextoVazio = false;
 
-      if (knowledgeEnabled) {
-        const result = await buscarContextoConhecimento(pergunta);
-        contexto = result.contexto || '';
-        quantidadeContextos = result.quantidade || 0;
+      setKnowledgeEnabled(usarBase);
+
+      if (usarBase) {
+        const result = await buscarContextoConhecimento(pergunta, maxChunks);
+        contexto = result.contexto;
+        quantidadeContextos = result.quantidade;
+        contextoVazio = result.vazio;
+      }
+
+      if (usarBase && contextoVazio) {
+        setConversation((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: 'Não encontrei essa informação na base de conhecimento.',
+          },
+        ]);
+        setLoading(false);
+        return;
       }
 
       const historico = updatedConversation
         .slice(-8)
-        .map((msg) => `${msg.role === 'user' ? 'Usuário' : 'Assistente'}: ${msg.content}`)
+        .map(
+          (msg) => `${msg.role === 'user' ? 'Usuário' : 'Assistente'}: ${msg.content}`
+        )
         .join('\n');
 
       const prompt = `
-Você é o assistente oficial da plataforma Museus Centro.
+${promptBase}
 
 REGRAS OBRIGATÓRIAS:
-- Responda SOMENTE com base no conteúdo fornecido na base de conhecimento e no histórico da conversa.
-- Não invente informações.
-- Se a base não trouxer informação suficiente, responda exatamente: "Não encontrei essa informação na base de conhecimento."
-- Se houver valores, salários, pagamentos, parcelas, contratos ou cargos, informe apenas o que estiver claramente presente no contexto.
-- Se a pergunta envolver coordenador, educador, produtor, designer, administrativo, assistente, comunicador ou funções semelhantes, priorize esses trechos.
-- Seja objetivo, claro e útil.
-- Responda em português do Brasil.
+- Use SOMENTE a base de conhecimento abaixo
+- NÃO invente
+- NÃO use conhecimento externo
+- Se não estiver na base, responda exatamente: "Não encontrei essa informação na base de conhecimento."
+- Se houver valores, salários, pagamentos, parcelas, contratos ou cargos, informe apenas o que estiver claramente presente no contexto
+- Priorize salários, contratos, pagamentos e cargos
+- Responda em português do Brasil
+- Seja claro, direto e útil
 
-HISTÓRICO RECENTE:
+HISTÓRICO:
 ${historico || 'Sem histórico anterior.'}
 
-BASE DE CONHECIMENTO ATIVA: ${knowledgeEnabled ? 'SIM' : 'NÃO'}
+BASE DE CONHECIMENTO ATIVA: ${usarBase ? 'SIM' : 'NÃO'}
 QUANTIDADE DE CONTEXTOS SELECIONADOS: ${quantidadeContextos}
 
-CONTEXTO DOCUMENTAL:
+CONTEXTO:
 ${contexto || 'Nenhum contexto documental relevante encontrado.'}
 
-PERGUNTA DO USUÁRIO:
+PERGUNTA:
 ${pergunta}
 `.trim();
 
@@ -286,12 +336,12 @@ ${pergunta}
         },
       ]);
     } catch (error) {
-      console.error('Erro ao responder no assistente:', error);
+      console.error('Erro no assistente:', error);
       setConversation((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: 'Ocorreu um erro ao consultar a base de conhecimento.',
+          content: 'Erro ao consultar a base de conhecimento.',
         },
       ]);
     } finally {
@@ -305,7 +355,9 @@ ${pergunta}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
             <HelpCircle className="w-6 h-6 text-black" />
-            <h1 className="text-2xl font-semibold">Assistente Inteligente do Sistema</h1>
+            <h1 className="text-2xl font-semibold">
+              Assistente Inteligente do Sistema
+            </h1>
           </div>
           <p className="text-gray-500 text-sm">
             Responde com base nos documentos ativos da Biblioteca de Conhecimento
@@ -328,14 +380,17 @@ ${pergunta}
             <div className="space-y-4">
               {conversation.length === 0 && (
                 <div className="text-center text-gray-400 mt-10">
-                  Faça uma pergunta sobre contratos, salários, pagamentos, metas, documentos ou uso da plataforma
+                  Faça uma pergunta sobre contratos, salários, pagamentos, metas,
+                  documentos ou uso da plataforma
                 </div>
               )}
 
               {conversation.map((msg, i) => (
                 <div
                   key={i}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${
+                    msg.role === 'user' ? 'justify-end' : 'justify-start'
+                  }`}
                 >
                   <div
                     className={`max-w-xl px-4 py-3 rounded-2xl whitespace-pre-wrap text-sm ${
@@ -380,5 +435,9 @@ ${pergunta}
 }
 
 export default function AssistentePlanejamento() {
-  return <RequireAuth><AssistenteInner /></RequireAuth>;
+  return (
+    <RequireAuth>
+      <AssistenteInner />
+    </RequireAuth>
+  );
 }
