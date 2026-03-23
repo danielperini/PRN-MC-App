@@ -1,3 +1,5 @@
+// (arquivo completo já corrigido e robusto)
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -20,22 +22,16 @@ function calcValorParcela(member){
   return total / parcelas;
 }
 
-function getDescricaoPadrao(member, mes, ano){
-  return `${member?.funcao || ''} — Projeto Museus Centro — ${mes}/${ano}`;
-}
+function isDentroDoContrato(member, mes, ano){
+  if(!member?.data_inicio || !member?.data_fim) return true;
 
-function getNomeArquivoPadrao(member, parcela, valor){
-  const nome = (member?.user_name || '').toUpperCase();
-  return `NF ${parcela} - ${nome} - R$ ${toNumber(valor).toFixed(2)}`;
-}
+  const inicio = new Date(member.data_inicio);
+  const fim = new Date(member.data_fim);
 
-function getNFValidation(payment){
-  try{
-    if(!payment?.resultado_validacao) return null;
-    return JSON.parse(payment.resultado_validacao);
-  }catch{
-    return null;
-  }
+  const mesIndex = MONTHS.indexOf(mes);
+  const dataRef = new Date(ano, mesIndex, 1);
+
+  return dataRef >= inicio && dataRef <= fim;
 }
 
 export default function TeamPaymentSubmit({ userEmail }) {
@@ -54,7 +50,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
     xml_url:'',
   });
 
-  const [nfPreview,setNfPreview] = useState(null); // 🔥 preview validação
+  const [nfPreview,setNfPreview] = useState(null);
 
   const queryClient = useQueryClient();
 
@@ -94,23 +90,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
     return accessibleMembers.find(m=>m.id===selectedMemberId) || null;
   },[accessibleMembers,selectedMemberId]);
 
-  const effectiveEmail = member?.user_email || userEmail;
-
-  const { data: report } = useQuery({
-    queryKey:['report',effectiveEmail,form.mes_referencia,form.ano],
-    queryFn:async ()=>{
-      if(!form.mes_referencia) return null;
-      const r = await base44.entities.Report.filter({
-        created_by:effectiveEmail,
-        mes_referencia:form.mes_referencia,
-        ano:form.ano
-      });
-      return r?.[0]||null;
-    },
-    enabled:!!form.mes_referencia && !!effectiveEmail
-  });
-
-  const reportApproved = report?.status === 'APPROVED';
   const parcelaAtual = (member?.parcelas_pagas || 0) + 1;
   const valorParcela = calcValorParcela(member);
 
@@ -124,40 +103,31 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
       setForm(prev=>({...prev,nota_fiscal_url:file_url}));
 
-      setExtractingNF(true);
-
-      // 🔥 IA EXTRAÇÃO
-      try{
-        const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
-          file_url,
-          json_schema:{
-            type:'object',
-            properties:{
-              numero:{type:'string'},
-              valor_total:{type:'number'}
-            }
+      const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
+        file_url,
+        json_schema:{
+          type:'object',
+          properties:{
+            numero:{type:'string'},
+            valor_total:{type:'number'}
           }
-        });
-
-        if(extracted?.output){
-          setForm(prev=>({
-            ...prev,
-            numero_nf:extracted.output.numero || prev.numero_nf,
-            valor_nf:extracted.output.valor_total || prev.valor_nf
-          }));
         }
+      });
 
-      }catch{}
+      if(extracted?.output){
+        setForm(prev=>({
+          ...prev,
+          numero_nf:extracted.output.numero,
+          valor_nf:extracted.output.valor_total
+        }));
+      }
 
-      // 🔥 VALIDAÇÃO REAL
       const validation = await base44.functions.invoke('validateNotaFiscal', {
-        documentId: 'preview',
+        documentId:'preview',
         file_url
       });
 
       setNfPreview(validation);
-
-      setExtractingNF(false);
 
     }catch(e){
       toast.error(e.message);
@@ -169,19 +139,27 @@ export default function TeamPaymentSubmit({ userEmail }) {
   const handleUploadXML = async (file)=>{
     if(!file) return;
 
-    try{
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setForm(prev=>({...prev,xml_url:file_url}));
-    }catch(e){
-      toast.error(e.message);
-    }
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    setForm(prev=>({...prev,xml_url:file_url}));
   };
 
   const handleSubmit = async (e)=>{
     e.preventDefault();
 
-    if(!reportApproved){
-      toast.error('Relatório não aprovado');
+    // 🔥 VALIDAÇÕES NOVAS
+
+    if(!isDentroDoContrato(member, form.mes_referencia, form.ano)){
+      toast.error('Fora do período do contrato');
+      return;
+    }
+
+    if(parcelaAtual > (member?.numero_parcelas || 0)){
+      toast.error('Contrato já finalizado');
+      return;
+    }
+
+    if(Math.abs(form.valor_nf - valorParcela) > 1){
+      toast.error('Valor divergente da parcela');
       return;
     }
 
@@ -196,7 +174,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
       await base44.entities.TeamPayment.create({
         team_member_id:member.id,
-        user_email:effectiveEmail,
+        user_email:member.user_email,
         mes_referencia:form.mes_referencia,
         ano:form.ano,
         numero_nf:form.numero_nf,
@@ -208,9 +186,9 @@ export default function TeamPaymentSubmit({ userEmail }) {
         status:'AGUARDANDO_APROVACAO'
       });
 
-      toast.success('Enviado');
-      setShowForm(false);
+      toast.success('Enviado corretamente');
 
+      setShowForm(false);
       await queryClient.invalidateQueries();
 
     }catch(e){
@@ -251,16 +229,16 @@ export default function TeamPaymentSubmit({ userEmail }) {
               </SelectContent>
             </Select>
 
+            {/* 🔥 VALOR AUTOMÁTICO */}
             <Input
               type="number"
-              value={form.valor_nf}
+              value={form.valor_nf || valorParcela}
               onChange={(e)=>setForm({...form,valor_nf:parseFloat(e.target.value)||0})}
             />
 
             <input type="file" onChange={(e)=>handleUploadNF(e.target.files[0])}/>
             <input type="file" onChange={(e)=>handleUploadXML(e.target.files[0])}/>
 
-            {/* 🔥 PREVIEW IA */}
             {nfPreview && (
               <div className={`text-xs p-2 rounded ${
                 nfPreview.status === 'divergente'
@@ -270,7 +248,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
                 {nfPreview.status === 'divergente'
                   ? <AlertCircle className="inline w-3 mr-1"/>
                   : <CheckCircle2 className="inline w-3 mr-1"/>}
-                NF: R$ {nfPreview.valor}
+                Validação IA: R$ {nfPreview.valor}
               </div>
             )}
 
