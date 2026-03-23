@@ -70,6 +70,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       label: 'Recursos',
       items: [
         { name: 'AssistentePlanejamento', icon: HelpCircle, label: 'Assistente IA', show: true },
+        { name: 'Manual', icon: BookOpen, label: 'Manual e Ajuda', show: true }, // ✅ NOVO
         { name: 'LeitorNoticias', icon: Newspaper, label: 'Notícias', show: true }
       ]
     }
