@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Upload } from 'lucide-react';
+import { Upload, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 function toNumber(v) {
@@ -15,13 +15,8 @@ function formatBRL(v) {
   return `R$ ${toNumber(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 }
 
-/* 🔥 CORREÇÃO: NÃO usar rubrica como budgetline */
 function getBudgetLineId(member) {
-  return (
-    member?.budgetline_id ||
-    member?.budget_line_id ||
-    ''
-  );
+  return member?.budgetline_id || member?.budget_line_id || '';
 }
 
 function getNFValidation(tp) {
@@ -38,9 +33,11 @@ export default function TeamMemberDocsPanel({
   onClose,
   isCoordenador,
   budgetLines = [],
+  initialMode = 'docs' // 🔥 NOVO
 }) {
   const queryClient = useQueryClient();
   const [loadingAction, setLoadingAction] = useState(null);
+  const [mode, setMode] = useState(initialMode); // 🔥 CONTROLE DE MODO
 
   const { data: payments = [] } = useQuery({
     queryKey: ['team-payments-member', member.id],
@@ -106,7 +103,6 @@ export default function TeamMemberDocsPanel({
           nota_fiscal_url: file_url
         });
 
-        /* 🔥 VALIDAÇÃO AUTOMÁTICA */
         await base44.functions.invoke('validateNotaFiscal', {
           documentId: payment.id,
           purchaseId: payment.purchase_id || null
@@ -165,14 +161,12 @@ export default function TeamMemberDocsPanel({
         });
       }
 
-      /* 🔥 FLUXO OFICIAL */
       await base44.functions.invoke('purchaseActions', {
         purchaseId,
         action: 'aprovar'
       });
 
       toast.success('Pagamento enviado ao financeiro');
-
       await queryClient.invalidateQueries();
 
     } catch (e) {
@@ -182,6 +176,22 @@ export default function TeamMemberDocsPanel({
     setLoadingAction(null);
   };
 
+  const criarNovoPagamento = async () => {
+    try {
+      await base44.entities.TeamPayment.create({
+        team_member_id: member.id,
+        user_email: member.user_email,
+        status: 'AGUARDANDO_APROVACAO'
+      });
+
+      toast.success('Novo pagamento criado');
+      await queryClient.invalidateQueries();
+
+    } catch (e) {
+      toast.error(e.message);
+    }
+  };
+
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-3xl">
@@ -189,67 +199,105 @@ export default function TeamMemberDocsPanel({
           <DialogTitle>{member.user_name}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {enrichedPayments.map((p, i) => {
+        {/* 🔥 TABS INTERNAS */}
+        <div className="flex gap-2 border-b pb-2">
+          <Button
+            size="sm"
+            variant={mode === 'docs' ? 'default' : 'outline'}
+            onClick={() => setMode('docs')}
+          >
+            Documentos
+          </Button>
 
-            const divergente = p.nfValidation?.status === 'divergente';
-
-            return (
-              <div key={p.id} className="border rounded-lg p-4 space-y-3">
-
-                <div className="flex justify-between">
-                  <p>Parcela {i + 1}</p>
-
-                  <Badge className={
-                    divergente
-                      ? 'bg-red-100 text-red-700'
-                      : p.ready
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-700'
-                  }>
-                    {divergente ? 'DIVERGENTE' : p.ready ? 'PRONTO' : 'PENDENTE'}
-                  </Badge>
-                </div>
-
-                {/* BLOCO IA */}
-                {p.nfValidation && (
-                  <div className={`text-xs p-2 rounded ${
-                    divergente ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
-                  }`}>
-                    NF: {formatBRL(p.nfValidation.valor)} • Confiança: {p.nfValidation.confianca}%
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <label>
-                    <Button size="sm" variant="outline">
-                      <Upload className="w-3 h-3 mr-1"/> NF PDF
-                    </Button>
-                    <input type="file" hidden onChange={(e)=>uploadNF(p,e.target.files[0],'pdf')} />
-                  </label>
-
-                  <label>
-                    <Button size="sm" variant="outline">
-                      XML
-                    </Button>
-                    <input type="file" hidden onChange={(e)=>uploadNF(p,e.target.files[0],'xml')} />
-                  </label>
-                </div>
-
-                {isCoordenador && (
-                  <Button
-                    size="sm"
-                    className="bg-black text-white"
-                    onClick={() => autorizarPagamento(p)}
-                    disabled={!p.ready || loadingAction === p.id}
-                  >
-                    Autorizar pagamento
-                  </Button>
-                )}
-              </div>
-            );
-          })}
+          <Button
+            size="sm"
+            variant={mode === 'payment' ? 'default' : 'outline'}
+            onClick={() => setMode('payment')}
+          >
+            Pagamentos
+          </Button>
         </div>
+
+        {/* 🔥 MODO PAGAMENTO */}
+        {mode === 'payment' && (
+          <div className="space-y-4">
+
+            <Button size="sm" onClick={criarNovoPagamento}>
+              <Plus className="w-3 h-3 mr-1"/>
+              Novo pagamento
+            </Button>
+
+            {enrichedPayments.map((p, i) => (
+              <div key={p.id} className="border rounded-lg p-3">
+                Parcela {i + 1} • {formatBRL(p.valor)}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 🔥 MODO DOCUMENTOS */}
+        {mode === 'docs' && (
+          <div className="space-y-4">
+            {enrichedPayments.map((p, i) => {
+
+              const divergente = p.nfValidation?.status === 'divergente';
+
+              return (
+                <div key={p.id} className="border rounded-lg p-4 space-y-3">
+
+                  <div className="flex justify-between">
+                    <p>Parcela {i + 1}</p>
+
+                    <Badge className={
+                      divergente
+                        ? 'bg-red-100 text-red-700'
+                        : p.ready
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-700'
+                    }>
+                      {divergente ? 'DIVERGENTE' : p.ready ? 'PRONTO' : 'PENDENTE'}
+                    </Badge>
+                  </div>
+
+                  {p.nfValidation && (
+                    <div className={`text-xs p-2 rounded ${
+                      divergente ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+                    }`}>
+                      NF: {formatBRL(p.nfValidation.valor)}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <label>
+                      <Button size="sm" variant="outline">
+                        <Upload className="w-3 h-3 mr-1"/> NF PDF
+                      </Button>
+                      <input type="file" hidden onChange={(e)=>uploadNF(p,e.target.files[0],'pdf')} />
+                    </label>
+
+                    <label>
+                      <Button size="sm" variant="outline">
+                        XML
+                      </Button>
+                      <input type="file" hidden onChange={(e)=>uploadNF(p,e.target.files[0],'xml')} />
+                    </label>
+                  </div>
+
+                  {isCoordenador && (
+                    <Button
+                      size="sm"
+                      onClick={() => autorizarPagamento(p)}
+                      disabled={!p.ready || loadingAction === p.id}
+                    >
+                      Autorizar pagamento
+                    </Button>
+                  )}
+
+                </div>
+              );
+            })}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
