@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Loader2, Upload } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const EMPTY_FORM = {
@@ -34,8 +34,11 @@ const EMPTY_FORM = {
   pix_key: '',
   budgetline_id: '',
   parcelas: '',
+  valor_parcela: '',
   data_inicio: '',
   data_fim: '',
+  data_assinatura: '',
+  objeto: '',
   contrato_url: '',
 };
 
@@ -99,7 +102,7 @@ export default function TeamMemberForm({
       }));
   }, [finalBudgetLines]);
 
-  // 🔥 IA CONTRATO
+  // 🔥 IA CONTRATO EVOLUÍDA
   const handleUploadContrato = async (file) => {
     if (!file) return;
 
@@ -110,40 +113,78 @@ export default function TeamMemberForm({
 
       const result = await base44.integrations.Core.InvokeLLM({
         prompt: `
-Analise este contrato e extraia:
+Analise este contrato e extraia apenas se existir:
 
-- número de parcelas
-- data de início
-- data de fim
-- CNPJ ou CPF
-- valor mensal (se houver)
+nome
+cargo / função
+CPF ou CNPJ
+tipo de pessoa (PF ou PJ)
+razão social
+representante legal
+valor da parcela
+número de parcelas
+data de início
+data de fim
+data de assinatura
+dados bancários (banco, agência, conta, pix)
+objeto resumido
 
-Responda em JSON.
+Regras:
+- não inventar dados
+- se não tiver, deixar vazio
+- responder em JSON limpo
 `,
         file_urls: [upload.url],
         response_json_schema: {
           type: 'object',
           properties: {
+            user_name: { type: 'string' },
+            funcao: { type: 'string' },
+            cpf: { type: 'string' },
+            cnpj: { type: 'string' },
+            tipo_pessoa: { type: 'string' },
+            valor_parcela: { type: 'string' },
             parcelas: { type: 'string' },
             data_inicio: { type: 'string' },
             data_fim: { type: 'string' },
-            cnpj: { type: 'string' },
-            cpf: { type: 'string' }
+            data_assinatura: { type: 'string' },
+            banco: { type: 'string' },
+            agencia: { type: 'string' },
+            conta: { type: 'string' },
+            pix_key: { type: 'string' },
+            objeto: { type: 'string' }
           }
         }
       });
 
+      // 🔥 NÃO SOBRESCREVE AUTOMATICAMENTE
       setForm(prev => ({
         ...prev,
         contrato_url: upload.url,
-        parcelas: result?.parcelas || prev.parcelas,
-        data_inicio: result?.data_inicio || prev.data_inicio,
-        data_fim: result?.data_fim || prev.data_fim,
-        cnpj: result?.cnpj || prev.cnpj,
-        cpf: result?.cpf || prev.cpf,
+
+        user_name: prev.user_name || result?.user_name,
+        funcao: prev.funcao || result?.funcao,
+
+        cpf: prev.cpf || result?.cpf,
+        cnpj: prev.cnpj || result?.cnpj,
+        tipo_pessoa: result?.tipo_pessoa || prev.tipo_pessoa,
+
+        valor_parcela: prev.valor_parcela || result?.valor_parcela,
+        parcelas: prev.parcelas || result?.parcelas,
+
+        data_inicio: prev.data_inicio || result?.data_inicio,
+        data_fim: prev.data_fim || result?.data_fim,
+        data_assinatura: prev.data_assinatura || result?.data_assinatura,
+
+        banco: prev.banco || result?.banco,
+        agencia: prev.agencia || result?.agencia,
+        conta: prev.conta || result?.conta,
+        pix_key: prev.pix_key || result?.pix_key,
+
+        objeto: prev.objeto || result?.objeto,
       }));
 
-      toast.success('Contrato lido pela IA');
+      toast.success('Contrato analisado. Revise antes de salvar.');
 
     } catch (e) {
       toast.error('Erro ao ler contrato');
@@ -201,7 +242,6 @@ Responda em JSON.
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          {/* 🔥 CONTRATO */}
           <div>
             <Label>Contrato (PDF)</Label>
             <Input
@@ -221,8 +261,9 @@ Responda em JSON.
           <Input placeholder="Função" value={form.funcao} onChange={(e) => setForm({ ...form, funcao: e.target.value })} />
           <Input placeholder="Telefone" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
 
-          {/* 🔥 CAMPOS IA */}
           <Input placeholder="Parcelas" value={form.parcelas} onChange={(e) => setForm({ ...form, parcelas: e.target.value })} />
+          <Input placeholder="Valor parcela" value={form.valor_parcela} onChange={(e) => setForm({ ...form, valor_parcela: e.target.value })} />
+
           <Input placeholder="Data início" value={form.data_inicio} onChange={(e) => setForm({ ...form, data_inicio: e.target.value })} />
           <Input placeholder="Data fim" value={form.data_fim} onChange={(e) => setForm({ ...form, data_fim: e.target.value })} />
 
