@@ -29,6 +29,7 @@ const PAGE_TITLES = {
   Perfil: 'Perfil',
   BaseConhecimento: 'Conhecimento',
   LeitorNoticias: 'Notícias',
+  Manual: 'Manual e Ajuda',
 };
 
 export default function Layout({ children, currentPageName }) {
@@ -36,7 +37,7 @@ export default function Layout({ children, currentPageName }) {
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    base44.auth.isAuthenticated().then(isAuth => {
+    base44.auth.isAuthenticated().then((isAuth) => {
       if (isAuth) base44.auth.me().then(setCurrentUser);
     });
   }, []);
@@ -46,8 +47,8 @@ export default function Layout({ children, currentPageName }) {
       <div className="min-h-screen bg-white font-sans">
         {/* Desktop Sidebar */}
         <div className="hidden md:block border-r border-black/10">
-          <Sidebar 
-            currentPageName={currentPageName} 
+          <Sidebar
+            currentPageName={currentPageName}
             collapsed={sidebarCollapsed}
             onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
             currentUser={currentUser}
@@ -55,7 +56,11 @@ export default function Layout({ children, currentPageName }) {
         </div>
 
         {/* Main Content */}
-        <div className={`hidden md:flex md:flex-col ${sidebarCollapsed ? 'ml-20' : 'ml-64'} min-h-screen transition-all duration-300`}>
+        <div
+          className={`hidden md:flex md:flex-col ${
+            sidebarCollapsed ? 'ml-20' : 'ml-64'
+          } min-h-screen transition-all duration-300`}
+        >
           {/* Top Nav */}
           <div className="border-b border-black/10">
             <TopNav currentUser={currentUser} />
@@ -70,7 +75,9 @@ export default function Layout({ children, currentPageName }) {
         {/* Mobile Layout */}
         <div className="md:hidden flex flex-col min-h-screen bg-white font-sans">
           <div className="border-b border-black/10">
-            <MobileHeader title={PAGE_TITLES[currentPageName] || 'Museus Centro'} />
+            <MobileHeader
+              title={PAGE_TITLES[currentPageName] || 'Museus Centro'}
+            />
           </div>
           <main className="flex-1 overflow-auto bg-white pt-14 pb-16 px-4 animate-slide-in">
             {children}
