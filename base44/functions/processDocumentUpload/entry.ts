@@ -128,10 +128,34 @@ async function extractGenericText(base44: any, file_url: string) {
   }
 }
 
-async function analyzeWithLLM(base44: any, file_url: string) {
+async function analyzeWithLLM(base44: any, file_url: string, isProgramacao = false) {
   try {
-    const result = await base44.integrations.Core.InvokeLLM({
-      prompt: `
+    const prompt = isProgramacao
+      ? `
+Analise esta planilha de programação cultural.
+
+Extraia uma lista estruturada de eventos com:
+
+- nome_acao
+- equipamento (MIS, MAB, MUMO)
+- data
+- horario
+- tipo_atividade
+- formato
+- publico
+- acessibilidade
+- classificacao
+- vagas
+- inscricao
+- sinopse
+
+Regras:
+- não inventar
+- interpretar colunas corretamente
+- cada linha = uma atividade
+- responder em JSON
+`
+      : `
 Analise profundamente este documento.
 
 Extraia:
@@ -139,49 +163,65 @@ Extraia:
 2. Resumo executivo
 3. Temas principais
 4. Cargos identificados
-5. Valores relevantes (salários, pagamentos, contratos, parcelas)
-6. Tags relevantes para busca
+5. Valores relevantes
+6. Tags relevantes
+`;
 
-Regras:
-- Não invente.
-- Preserve nomes, datas, cargos e valores.
-- Se for planilha, interprete colunas, linhas e abas.
-- Se for PDF, interprete o conteúdo de forma estruturada.
-- Responda em português do Brasil.
-`,
+    const result = await base44.integrations.Core.InvokeLLM({
+      prompt,
       file_urls: [file_url],
-      response_json_schema: {
-        type: 'object',
-        properties: {
-          conteudo: { type: 'string' },
-          resumo: { type: 'string' },
-          temas: { type: 'array', items: { type: 'string' } },
-          cargos: { type: 'array', items: { type: 'string' } },
-          valores: { type: 'array', items: { type: 'string' } },
-          tags: { type: 'array', items: { type: 'string' } },
-        },
-      },
+      response_json_schema: isProgramacao
+        ? {
+            type: 'object',
+            properties: {
+              eventos: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    nome_acao: { type: 'string' },
+                    equipamento: { type: 'string' },
+                    data: { type: 'string' },
+                    horario: { type: 'string' },
+                    tipo_atividade: { type: 'string' },
+                    formato: { type: 'string' },
+                    publico: { type: 'string' },
+                    acessibilidade: { type: 'string' },
+                    classificacao: { type: 'string' },
+                    vagas: { type: 'string' },
+                    inscricao: { type: 'string' },
+                    sinopse: { type: 'string' }
+                  }
+                }
+              }
+            }
+          }
+        : {
+            type: 'object',
+            properties: {
+              conteudo: { type: 'string' },
+              resumo: { type: 'string' },
+              temas: { type: 'array', items: { type: 'string' } },
+              cargos: { type: 'array', items: { type: 'string' } },
+              valores: { type: 'array', items: { type: 'string' } },
+              tags: { type: 'array', items: { type: 'string' } }
+            }
+          }
     });
 
-    return {
-      conteudo: normalizeText(result?.conteudo || ''),
-      resumo: normalizeText(result?.resumo || ''),
-      temas: Array.isArray(result?.temas) ? result.temas : [],
-      cargos: Array.isArray(result?.cargos) ? result.cargos : [],
-      valores: Array.isArray(result?.valores) ? result.valores : [],
-      tags: Array.isArray(result?.tags) ? result.tags : [],
-    };
+    return result;
   } catch (error) {
     console.error('Erro na análise com LLM:', error);
-    return {
-      conteudo: '',
-      resumo: '',
-      temas: [],
-      cargos: [],
-      valores: [],
-      tags: [],
-    };
+    return {};
   }
+}
+
+function normalizarEquipamento(e: string) {
+  const v = (e || '').toUpperCase();
+  if (v.includes('MIS')) return 'MIS';
+  if (v.includes('MAB')) return 'MAB';
+  if (v.includes('MUMO') || v.includes('MUMU')) return 'MUMO';
+  return 'OUTRO';
 }
 
 Deno.serve(async (req) => {
@@ -201,7 +241,7 @@ Deno.serve(async (req) => {
       categoria,
       descricao,
       cargo_relacionado,
-      tags: rawTags,
+      tags: rawTags
     } = body || {};
 
     if (!file_url || !titulo) {
@@ -214,128 +254,53 @@ Deno.serve(async (req) => {
     const fileType = detectFileType(file_url);
     const file_name = getFileNameFromUrl(file_url);
 
+    const isProgramacao =
+      (titulo || '').toLowerCase().includes('programação') ||
+      (categoria || '').toLowerCase().includes('programação');
+
     let texto = '';
 
     if (fileType === 'pdf') {
-      try {
-        texto = await extractPdfText(file_url);
-      } catch (error) {
-        console.error('Falha na leitura direta do PDF:', error);
-      }
+      texto = await extractPdfText(file_url);
     } else {
       texto = await extractGenericText(base44, file_url);
     }
 
-    const ia = await analyzeWithLLM(base44, file_url);
+    const ia = await analyzeWithLLM(base44, file_url, isProgramacao);
 
-    if (!texto || texto.length < 200) {
-      texto = ia.conteudo || texto;
-    }
-
-    texto = normalizeText(texto);
-
-    if (!texto) {
-      texto = `Documento enviado: ${titulo}\nArquivo: ${file_name}\nTipo: ${fileType}`;
-    }
-
-    const finalTags = uniqueStrings([
-      ...parseTags(rawTags),
-      ...(ia.tags || []),
-      ...(ia.temas || []),
-      ...(ia.cargos || []),
-      categoria || '',
-      cargo_relacionado || '',
-      fileType,
-    ]);
-
-    const docBasePayload: Record<string, unknown> = {
-      titulo,
-      categoria: categoria || 'Outro',
-      ativo: true,
-      file_url,
-      file_name,
-      conteudo_extraido: texto,
-    };
-
-    let doc: any = null;
-
-    try {
-      doc = await base44.asServiceRole.entities.KnowledgeDocument.create(docBasePayload);
-    } catch (createError: any) {
-      console.error('Erro ao criar KnowledgeDocument (payload base):', createError);
-
-      return Response.json(
-        {
-          error:
-            createError?.message ||
-            'Falha ao criar KnowledgeDocument. Verifique a estrutura da entidade.',
-        },
-        { status: 500 }
-      );
-    }
-
-    const enrichmentPayload: Record<string, unknown> = {
-      descricao: descricao || '',
-      resumo_ia: ia.resumo || '',
-      cargos_identificados: (ia.cargos || []).join(', '),
-      salarios_e_pagamentos: (ia.valores || []).join('\n'),
-      tags: finalTags.join(', '),
-      cargo_relacionado: cargo_relacionado || '',
-      tipo_arquivo: fileType,
-      processado_por_ia: true,
-      status_processamento: 'processado',
-      created_by_email: user.email || '',
-    };
-
-    try {
-      await base44.asServiceRole.entities.KnowledgeDocument.update(doc.id, enrichmentPayload);
-      doc = { ...doc, ...enrichmentPayload };
-    } catch (updateError) {
-      console.error('Erro ao enriquecer KnowledgeDocument:', updateError);
-    }
-
-    const chunks = chunkText(texto);
-    const finalChunks = chunks.length > 0 ? chunks : [texto.slice(0, 2000)];
-
-    for (let i = 0; i < finalChunks.length; i++) {
-      const chunkPayload: Record<string, unknown> = {
-        knowledge_document_id: doc.id,
-        chunk_index: i + 1,
-        texto_chunk: finalChunks[i],
-      };
-
-      try {
-        await base44.asServiceRole.entities.KnowledgeChunk.create(chunkPayload);
-      } catch (chunkError) {
-        console.error(`Erro ao criar chunk base ${i + 1}:`, chunkError);
-
+    if (isProgramacao && ia?.eventos?.length) {
+      for (const ev of ia.eventos) {
         try {
-          await base44.asServiceRole.entities.KnowledgeChunk.create({
-            ...chunkPayload,
-            titulo: `${titulo} — trecho ${i + 1}`,
-            categoria: categoria || 'Outro',
-            cargo_relacionado: cargo_relacionado || '',
-            tags: finalTags.join(', '),
-            ativo: true,
-            document_title: titulo,
+          await base44.asServiceRole.entities.Programacao.create({
+            nome_acao: ev.nome_acao,
+            equipamento: normalizarEquipamento(ev.equipamento),
+            data: ev.data,
+            horario: ev.horario,
+            tipo_atividade: ev.tipo_atividade,
+            formato: ev.formato,
+            publico: ev.publico,
+            acessibilidade: ev.acessibilidade,
+            classificacao: ev.classificacao,
+            vagas: ev.vagas,
+            inscricao: ev.inscricao,
+            sinopse: ev.sinopse,
+            origem: 'planilha',
+            ativo: true
           });
-        } catch (chunkError2) {
-          console.error(`Erro ao criar chunk enriquecido ${i + 1}:`, chunkError2);
+        } catch (e) {
+          console.error('Erro ao salvar programação', e);
         }
       }
     }
 
     return Response.json({
       success: true,
-      document: doc,
-      chunks: finalChunks.length,
-      file_type: fileType,
-      saved: true,
+      programacao_processada: isProgramacao
     });
+
   } catch (err: any) {
-    console.error('processDocumentUpload fatal error:', err);
     return Response.json(
-      { error: err?.message || 'Erro interno ao processar documento' },
+      { error: err?.message || 'Erro interno' },
       { status: 500 }
     );
   }
