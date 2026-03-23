@@ -33,7 +33,19 @@ function UploadDialog({ open, onClose, onSaved }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState('');
 
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+
+  const resetForm = () => {
+    setForm({
+      titulo: '',
+      categoria: '',
+      cargo_relacionado: '',
+      tags: ''
+    });
+    setFile(null);
+    setProgress('');
+    setUploading(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -62,13 +74,13 @@ function UploadDialog({ open, onClose, onSaved }) {
       });
 
       if (res.data?.success) {
-        toast.success('Documento analisado e indexado para o assistente');
+        toast.success('Documento Salvo');
         onSaved();
+        resetForm();
         onClose();
       } else {
         toast.error(res.data?.error || 'Erro ao processar documento');
       }
-
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -78,34 +90,55 @@ function UploadDialog({ open, onClose, onSaved }) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) {
+          resetForm();
+          onClose();
+        }
+      }}
+    >
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Adicionar Documento Inteligente</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <Input
+            placeholder="Título"
+            value={form.titulo}
+            onChange={(e) => set('titulo', e.target.value)}
+          />
 
-          <Input placeholder="Título" value={form.titulo} onChange={e => set('titulo', e.target.value)} />
-
-          <Select onValueChange={v => set('categoria', v)}>
+          <Select value={form.categoria} onValueChange={(v) => set('categoria', v)}>
             <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
             <SelectContent>
-              {CATEGORIAS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              {CATEGORIAS.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
-          <Select onValueChange={v => set('cargo_relacionado', v)}>
+          <Select value={form.cargo_relacionado} onValueChange={(v) => set('cargo_relacionado', v)}>
             <SelectTrigger><SelectValue placeholder="Relacionado a qual cargo?" /></SelectTrigger>
             <SelectContent>
-              {CARGOS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              {CARGOS.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
-          <Input placeholder="Tags (ex: salário, contrato, pagamento)" value={form.tags} onChange={e => set('tags', e.target.value)} />
+          <Input
+            placeholder="Tags (ex: salário, contrato, pagamento)"
+            value={form.tags}
+            onChange={(e) => set('tags', e.target.value)}
+          />
 
-          <Input type="file" accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.txt"
-            onChange={e => setFile(e.target.files[0])}
+          <Input
+            type="file"
+            accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.txt"
+            onChange={(e) => setFile(e.target.files[0])}
           />
 
           {uploading && (
@@ -117,7 +150,7 @@ function UploadDialog({ open, onClose, onSaved }) {
 
           <DialogFooter>
             <Button type="submit" disabled={uploading}>
-              {uploading ? 'Processando...' : 'Enviar para IA'}
+              {uploading ? 'Salvando...' : 'Salvar Documento'}
             </Button>
           </DialogFooter>
         </form>
@@ -129,7 +162,6 @@ function UploadDialog({ open, onClose, onSaved }) {
 function DocCard({ doc, onToggle, onDelete, onPreview }) {
   return (
     <div className="border rounded-lg p-4 space-y-2">
-
       <div className="flex justify-between">
         <div>
           <p className="font-semibold">{doc.titulo}</p>
@@ -162,7 +194,6 @@ function DocCard({ doc, onToggle, onDelete, onPreview }) {
           <pre className="text-xs whitespace-pre-wrap">{doc.salarios_e_pagamentos}</pre>
         </div>
       )}
-
     </div>
   );
 }
@@ -189,7 +220,6 @@ function BaseConhecimentoInner() {
 
   return (
     <div className="p-6">
-
       <div className="flex justify-between mb-6">
         <h1 className="text-xl font-bold">Biblioteca de Conhecimento IA</h1>
         <Button onClick={() => setShowUpload(true)}>
@@ -198,7 +228,7 @@ function BaseConhecimentoInner() {
       </div>
 
       <div className="space-y-4">
-        {docs.map(doc => (
+        {docs.map((doc) => (
           <DocCard
             key={doc.id}
             doc={doc}
@@ -221,7 +251,6 @@ function BaseConhecimentoInner() {
             <DialogTitle>{preview.titulo}</DialogTitle>
 
             <div className="space-y-4 text-sm">
-
               {preview.resumo_ia && (
                 <div>
                   <b>Resumo:</b>
@@ -235,12 +264,10 @@ function BaseConhecimentoInner() {
                   {preview.conteudo_extraido}
                 </pre>
               </div>
-
             </div>
           </DialogContent>
         </Dialog>
       )}
-
     </div>
   );
 }
