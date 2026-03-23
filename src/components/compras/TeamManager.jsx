@@ -1,6 +1,4 @@
-// 🔥 APENAS AJUSTES PONTUAIS — COMPATÍVEL COM IA DE CONTRATO
-
-// ... (tudo igual até MemberCard)
+// 🔥 APENAS AJUSTES PONTUAIS — COMPATÍVEL COM IA DE CONTRATO + AUTO PREENCHIMENTO
 
 function MemberCard({
   member,
@@ -14,7 +12,6 @@ function MemberCard({
   showPayButton = true,
   editLabel = 'Editar equipe',
 }) {
-  // 🔥 COMPATIBILIDADE NOVA + ANTIGA
   const parcelas =
     toNumber(member.parcelas) ||
     toNumber(member.numero_parcelas);
@@ -34,23 +31,35 @@ function MemberCard({
 
   const saldo = Math.max(0, valorTotal - pagasNoContrato * valorParcela);
 
-  // 🔥 NOVO CAMPO DE DATA
   const dataInicio =
-    member.data_inicio || member.data_inicio_contrato;
+    member.data_inicio ||
+    member.data_inicio_contrato ||
+    member.contract_start_date;
 
   const dataFim =
-    member.data_fim || member.data_fim_contrato;
+    member.data_fim ||
+    member.data_fim_contrato ||
+    member.contract_end_date;
 
   const vencido = isContratoVencido(dataFim);
 
   const resumo = getResumoFinanceiro(member, allTeamPayments);
+
+  // 🔥 NOVO: INDICA SE VEIO DE IA
+  const preenchidoPorIA = member.preenchido_por_ia === true;
 
   return (
     <div className="border p-4 rounded-xl space-y-3">
       <div className="flex justify-between items-start gap-3">
         <div>
           <p className="font-semibold">{getMemberDisplayName(member)}</p>
-          <p className="text-xs text-gray-500">{member.funcao || '—'}</p>
+          <p className="text-xs text-gray-500">{member.funcao || member.cargo || '—'}</p>
+
+          {preenchidoPorIA && (
+            <p className="text-[10px] text-blue-600 mt-1">
+              Dados preenchidos automaticamente por contrato
+            </p>
+          )}
         </div>
 
         <div className="flex gap-2 flex-wrap justify-end">
