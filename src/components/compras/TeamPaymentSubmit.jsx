@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Upload, Loader2, Plus } from 'lucide-react';
+import { Upload, Loader2, Plus, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -21,13 +21,21 @@ function calcValorParcela(member){
 }
 
 function getDescricaoPadrao(member, mes, ano){
-  return `${member?.funcao || ''} — Projeto Museus Centro — Termo de Colaboração 01-031.069/24-80 — Parceria SMC/FMC — ${mes}/${ano}`;
+  return `${member?.funcao || ''} — Projeto Museus Centro — ${mes}/${ano}`;
 }
 
 function getNomeArquivoPadrao(member, parcela, valor){
   const nome = (member?.user_name || '').toUpperCase();
-  const funcao = (member?.funcao || '').toUpperCase();
-  return `NF ${parcela} ${funcao} - ${nome} - MUSEUS CENTRO - R$ ${toNumber(valor).toFixed(2)}`;
+  return `NF ${parcela} - ${nome} - R$ ${toNumber(valor).toFixed(2)}`;
+}
+
+function getNFValidation(payment){
+  try{
+    if(!payment?.resultado_validacao) return null;
+    return JSON.parse(payment.resultado_validacao);
+  }catch{
+    return null;
+  }
 }
 
 export default function TeamPaymentSubmit({ userEmail }) {
@@ -35,7 +43,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
   const [showForm,setShowForm] = useState(false);
   const [loading,setLoading] = useState(false);
   const [extractingNF,setExtractingNF] = useState(false);
-  const [uploadingXML,setUploadingXML] = useState(false);
   const [selectedMemberId,setSelectedMemberId] = useState('');
 
   const [form,setForm] = useState({
@@ -46,6 +53,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
     nota_fiscal_url:'',
     xml_url:'',
   });
+
+  const [nfPreview,setNfPreview] = useState(null); // 🔥 preview validação
 
   const queryClient = useQueryClient();
 
@@ -87,12 +96,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
   const effectiveEmail = member?.user_email || userEmail;
 
-  const { data: payments = [] } = useQuery({
-    queryKey:['payments',effectiveEmail],
-    queryFn:()=> base44.entities.TeamPayment.filter({ user_email:effectiveEmail },'-created_date',50),
-    enabled:!!effectiveEmail
-  });
-
   const { data: report } = useQuery({
     queryKey:['report',effectiveEmail,form.mes_referencia,form.ano],
     queryFn:async ()=>{
@@ -108,9 +111,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
   });
 
   const reportApproved = report?.status === 'APPROVED';
-
-  const contractUrl = member?.contrato_url || member?.contract_url;
-
   const parcelaAtual = (member?.parcelas_pagas || 0) + 1;
   const valorParcela = calcValorParcela(member);
 
@@ -126,6 +126,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
       setExtractingNF(true);
 
+      // 🔥 IA EXTRAÇÃO
       try{
         const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
           file_url,
@@ -148,6 +149,14 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
       }catch{}
 
+      // 🔥 VALIDAÇÃO REAL
+      const validation = await base44.functions.invoke('validateNotaFiscal', {
+        documentId: 'preview',
+        file_url
+      });
+
+      setNfPreview(validation);
+
       setExtractingNF(false);
 
     }catch(e){
@@ -160,38 +169,19 @@ export default function TeamPaymentSubmit({ userEmail }) {
   const handleUploadXML = async (file)=>{
     if(!file) return;
 
-    setUploadingXML(true);
-
     try{
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setForm(prev=>({...prev,xml_url:file_url}));
     }catch(e){
       toast.error(e.message);
     }
-
-    setUploadingXML(false);
   };
 
   const handleSubmit = async (e)=>{
     e.preventDefault();
 
-    if(!member){
-      toast.error('Membro não encontrado');
-      return;
-    }
-
-    if(!form.mes_referencia){
-      toast.error('Selecione o mês');
-      return;
-    }
-
     if(!reportApproved){
-      toast.error('Relatório ainda não aprovado para este mês');
-      return;
-    }
-
-    if(!contractUrl){
-      toast.error('Contrato não vinculado ao membro');
+      toast.error('Relatório não aprovado');
       return;
     }
 
@@ -200,28 +190,9 @@ export default function TeamPaymentSubmit({ userEmail }) {
       return;
     }
 
-    if(valorParcela && Math.abs(form.valor_nf - valorParcela) > 1){
-      toast.error(`Valor da NF difere da parcela (${valorParcela.toFixed(2)})`);
-      return;
-    }
-
-    const existing = payments.find(p=>
-      p.mes_referencia===form.mes_referencia &&
-      p.ano===form.ano &&
-      !['RECUSADO','DEVOLVIDO_REVISAO'].includes(p.status)
-    );
-
-    if(existing){
-      toast.error('Já existe envio para este mês');
-      return;
-    }
-
     setLoading(true);
 
     try{
-
-      const descricao_nf = getDescricaoPadrao(member, form.mes_referencia, form.ano);
-      const nome_arquivo_nf = getNomeArquivoPadrao(member, parcelaAtual, form.valor_nf || valorParcela);
 
       await base44.entities.TeamPayment.create({
         team_member_id:member.id,
@@ -232,41 +203,15 @@ export default function TeamPaymentSubmit({ userEmail }) {
         valor_nf:form.valor_nf,
         nota_fiscal_url:form.nota_fiscal_url,
         xml_url:form.xml_url,
-        contract_url:contractUrl,
         numero_parcela:parcelaAtual,
         valor_parcela_previsto:valorParcela,
-        descricao_nf,
-        nome_arquivo_nf,
-        banco: member?.banco || '',
-        agencia: member?.agencia || '',
-        conta: member?.conta || '',
-        pix_key: member?.pix_key || '',
-        tipo_pessoa: member?.tipo_pessoa || '',
-        cpf: member?.tipo_pessoa === 'PF' ? member?.cpf || '' : '',
-        cnpj: member?.tipo_pessoa === 'PJ' ? member?.cnpj || '' : '',
         status:'AGUARDANDO_APROVACAO'
       });
 
-      toast.success('Envio realizado');
-
+      toast.success('Enviado');
       setShowForm(false);
 
-      setForm({
-        mes_referencia:'',
-        ano:new Date().getFullYear(),
-        numero_nf:'',
-        valor_nf:0,
-        nota_fiscal_url:'',
-        xml_url:'',
-      });
-
-      await Promise.all([
-        queryClient.invalidateQueries(['payments']),
-        queryClient.invalidateQueries(['team-payments']),
-        queryClient.invalidateQueries(['team-payments-pending']),
-        queryClient.invalidateQueries(['team-payments-pending-review']),
-        queryClient.invalidateQueries(['purchase-requests']),
-      ]);
+      await queryClient.invalidateQueries();
 
     }catch(e){
       toast.error(e.message);
@@ -282,83 +227,56 @@ export default function TeamPaymentSubmit({ userEmail }) {
   return (
     <div className="space-y-6">
 
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="font-semibold">
-            Financeiro — {member.user_name}
-          </h2>
-          <p className="text-xs text-gray-500">
-            Parcela {parcelaAtual} de {member.numero_parcelas}
-          </p>
-        </div>
-
-        <Button onClick={()=>setShowForm(true)}>
-          <Plus className="w-4 h-4 mr-2"/>
-          Novo envio
-        </Button>
-      </div>
+      <Button onClick={()=>setShowForm(true)}>
+        <Plus className="w-4 h-4 mr-2"/>
+        Novo envio
+      </Button>
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent>
 
           <DialogHeader>
-            <DialogTitle>
-              Envio mensal — parcela {parcelaAtual}
-            </DialogTitle>
+            <DialogTitle>Envio mensal</DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
 
-            <div>
-              <Label>Mês</Label>
-              <Select
-                value={form.mes_referencia}
-                onValueChange={(v)=>setForm({...form,mes_referencia:v})}
-              >
-                <SelectTrigger>
-                  <SelectValue/>
-                </SelectTrigger>
-                <SelectContent>
-                  {MONTHS.map(m=>(
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Select
+              value={form.mes_referencia}
+              onValueChange={(v)=>setForm({...form,mes_referencia:v})}
+            >
+              <SelectTrigger><SelectValue/></SelectTrigger>
+              <SelectContent>
+                {MONTHS.map(m=><SelectItem key={m} value={m}>{m}</SelectItem>)}
+              </SelectContent>
+            </Select>
 
-            <div>
-              <Label>Valor esperado</Label>
-              <Input value={valorParcela.toFixed(2)} disabled />
-            </div>
+            <Input
+              type="number"
+              value={form.valor_nf}
+              onChange={(e)=>setForm({...form,valor_nf:parseFloat(e.target.value)||0})}
+            />
 
-            <div>
-              <Label>Valor NF</Label>
-              <Input
-                type="number"
-                value={form.valor_nf}
-                onChange={(e)=>setForm({...form,valor_nf:parseFloat(e.target.value)||0})}
-              />
-            </div>
+            <input type="file" onChange={(e)=>handleUploadNF(e.target.files[0])}/>
+            <input type="file" onChange={(e)=>handleUploadXML(e.target.files[0])}/>
 
-            <div>
-              <Label>NF PDF</Label>
-              <input type="file" onChange={(e)=>handleUploadNF(e.target.files[0])}/>
-              {extractingNF && <span className="text-xs">Extraindo IA...</span>}
-            </div>
+            {/* 🔥 PREVIEW IA */}
+            {nfPreview && (
+              <div className={`text-xs p-2 rounded ${
+                nfPreview.status === 'divergente'
+                  ? 'bg-red-50 text-red-700'
+                  : 'bg-green-50 text-green-700'
+              }`}>
+                {nfPreview.status === 'divergente'
+                  ? <AlertCircle className="inline w-3 mr-1"/>
+                  : <CheckCircle2 className="inline w-3 mr-1"/>}
+                NF: R$ {nfPreview.valor}
+              </div>
+            )}
 
-            <div>
-              <Label>XML</Label>
-              <input type="file" onChange={(e)=>handleUploadXML(e.target.files[0])}/>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={()=>setShowForm(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin"/> : 'Enviar'}
-              </Button>
-            </div>
+            <Button type="submit" disabled={loading}>
+              {loading ? <Loader2 className="animate-spin w-4"/> : 'Enviar'}
+            </Button>
 
           </form>
 
