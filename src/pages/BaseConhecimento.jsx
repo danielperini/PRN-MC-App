@@ -4,12 +4,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { BookOpen, Upload, Trash2, Eye, EyeOff, FileText, Plus, X, AlertTriangle, Loader2 } from 'lucide-react';
+import { BookOpen, Upload, Trash2, Eye, EyeOff, Plus, Loader2 } from 'lucide-react';
 
 const CATEGORIAS = ['Contrato', 'Plano de Trabalho', 'Manual', 'Meta', 'Relatório', 'Financeiro', 'RH', 'Outro'];
 
@@ -25,9 +24,7 @@ const CARGOS = [
 function UploadDialog({ open, onClose, onSaved }) {
   const [form, setForm] = useState({
     titulo: '',
-    descricao: '',
     categoria: '',
-    versao: '',
     cargo_relacionado: '',
     tags: ''
   });
@@ -57,7 +54,7 @@ function UploadDialog({ open, onClose, onSaved }) {
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
 
-      setProgress('Processando conteúdo com IA (PDF/Excel)...');
+      setProgress('IA analisando documento (PDF/Excel)...');
 
       const res = await base44.functions.invoke('processDocumentUpload', {
         file_url,
@@ -65,12 +62,13 @@ function UploadDialog({ open, onClose, onSaved }) {
       });
 
       if (res.data?.success) {
-        toast.success('Documento processado com sucesso pela IA');
+        toast.success('Documento analisado e indexado para o assistente');
         onSaved();
         onClose();
       } else {
         toast.error(res.data?.error || 'Erro ao processar documento');
       }
+
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -130,23 +128,41 @@ function UploadDialog({ open, onClose, onSaved }) {
 
 function DocCard({ doc, onToggle, onDelete, onPreview }) {
   return (
-    <div className="border rounded-lg p-3 flex justify-between">
-      <div>
-        <p className="font-medium">{doc.titulo}</p>
+    <div className="border rounded-lg p-4 space-y-2">
 
-        <div className="flex gap-2 mt-1 flex-wrap">
-          <Badge>{doc.categoria}</Badge>
-          {doc.cargo_relacionado && <Badge variant="outline">{doc.cargo_relacionado}</Badge>}
+      <div className="flex justify-between">
+        <div>
+          <p className="font-semibold">{doc.titulo}</p>
+
+          <div className="flex gap-2 mt-1 flex-wrap">
+            <Badge>{doc.categoria}</Badge>
+            {doc.cargo_relacionado && <Badge variant="outline">{doc.cargo_relacionado}</Badge>}
+            {doc.processado_por_ia && <Badge className="bg-green-100 text-green-700">IA</Badge>}
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <Button size="sm" onClick={() => onPreview(doc)}><Eye /></Button>
+          <Button size="sm" onClick={() => onToggle(doc)}>
+            {doc.ativo ? <Eye /> : <EyeOff />}
+          </Button>
+          <Button size="sm" onClick={() => onDelete(doc)}><Trash2 /></Button>
         </div>
       </div>
 
-      <div className="flex gap-2">
-        <Button size="sm" onClick={() => onPreview(doc)}><Eye /></Button>
-        <Button size="sm" onClick={() => onToggle(doc)}>
-          {doc.ativo ? <Eye /> : <EyeOff />}
-        </Button>
-        <Button size="sm" onClick={() => onDelete(doc)}><Trash2 /></Button>
-      </div>
+      {doc.resumo_ia && (
+        <div className="text-sm text-gray-600">
+          <b>Resumo IA:</b> {doc.resumo_ia}
+        </div>
+      )}
+
+      {doc.salarios_e_pagamentos && (
+        <div className="text-sm text-blue-700">
+          <b>Valores identificados:</b><br />
+          <pre className="text-xs whitespace-pre-wrap">{doc.salarios_e_pagamentos}</pre>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -158,7 +174,7 @@ function BaseConhecimentoInner() {
 
   const { data: docs = [] } = useQuery({
     queryKey: ['docs'],
-    queryFn: () => base44.entities.KnowledgeDocument.list(),
+    queryFn: () => base44.entities.KnowledgeDocument.list('-created_date', 100),
   });
 
   const toggle = async (doc) => {
@@ -177,11 +193,11 @@ function BaseConhecimentoInner() {
       <div className="flex justify-between mb-6">
         <h1 className="text-xl font-bold">Biblioteca de Conhecimento IA</h1>
         <Button onClick={() => setShowUpload(true)}>
-          <Plus /> Adicionar
+          <Plus /> Adicionar Documento
         </Button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {docs.map(doc => (
           <DocCard
             key={doc.id}
@@ -193,15 +209,34 @@ function BaseConhecimentoInner() {
         ))}
       </div>
 
-      <UploadDialog open={showUpload} onClose={() => setShowUpload(false)} onSaved={() => queryClient.invalidateQueries({ queryKey: ['docs'] })} />
+      <UploadDialog
+        open={showUpload}
+        onClose={() => setShowUpload(false)}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: ['docs'] })}
+      />
 
       {preview && (
         <Dialog open onOpenChange={() => setPreview(null)}>
-          <DialogContent>
+          <DialogContent className="max-w-2xl">
             <DialogTitle>{preview.titulo}</DialogTitle>
-            <pre className="text-xs max-h-[400px] overflow-auto">
-              {preview.conteudo_extraido}
-            </pre>
+
+            <div className="space-y-4 text-sm">
+
+              {preview.resumo_ia && (
+                <div>
+                  <b>Resumo:</b>
+                  <p>{preview.resumo_ia}</p>
+                </div>
+              )}
+
+              <div>
+                <b>Conteúdo:</b>
+                <pre className="max-h-[300px] overflow-auto text-xs">
+                  {preview.conteudo_extraido}
+                </pre>
+              </div>
+
+            </div>
           </DialogContent>
         </Dialog>
       )}
