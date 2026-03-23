@@ -1,14 +1,143 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { MessageCircle, X, Send, Minimize2, Maximize2 } from 'lucide-react';
+import { MessageCircle, X, Send, Minimize2, Maximize2, BookOpen, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+
+const MANUAL_KEYWORDS = [
+  'manual',
+  'ajuda',
+  'tutorial',
+  'guia',
+  'fluxo',
+  'como',
+  'passo a passo',
+  'sistema',
+  'plataforma',
+  'relatório',
+  'relatorio',
+  'compras',
+  'equipe',
+  'rubrica',
+  'aprovação',
+  'aprovacao',
+  'documento',
+  'biblioteca',
+  'assistente',
+];
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function splitTerms(text) {
+  return normalizeText(text)
+    .split(/[\s,;:.!?()\/\\\-_"'`]+/)
+    .map((term) => term.trim())
+    .filter((term) => term.length >= 2);
+}
+
+function uniqueStrings(values = []) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function isManualLike(item) {
+  const text = normalizeText(
+    [
+      item?.titulo,
+      item?.document_title,
+      item?.categoria,
+      item?.tags,
+      item?.descricao,
+      item?.resumo_ia,
+    ]
+      .filter(Boolean)
+      .join(' ')
+  );
+
+  return MANUAL_KEYWORDS.some((keyword) => text.includes(normalizeText(keyword)));
+}
+
+function scoreText(text, question) {
+  const source = normalizeText(text);
+  const q = normalizeText(question);
+  const terms = uniqueStrings(splitTerms(question));
+
+  let score = 0;
+
+  if (!source) return 0;
+  if (source.includes(q)) score += 40;
+
+  for (const term of terms) {
+    if (source.includes(term)) score += 4;
+  }
+
+  return score;
+}
+
+function scoreChunk(chunk, question) {
+  const joined = [
+    chunk?.texto_chunk,
+    chunk?.titulo,
+    chunk?.document_title,
+    chunk?.categoria,
+    chunk?.tags,
+    chunk?.cargo_relacionado,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  let score = scoreText(joined, question);
+
+  if (isManualLike(chunk)) score += 18;
+
+  const q = normalizeText(question);
+  const text = normalizeText(joined);
+
+  if (q.includes('relatorio') && text.includes('relatorio')) score += 14;
+  if (q.includes('revis') && text.includes('revis')) score += 10;
+  if (q.includes('nota fiscal') && text.includes('nota fiscal')) score += 12;
+  if (q.includes('compra') && text.includes('compr')) score += 10;
+  if (q.includes('equipe') && text.includes('equip')) score += 10;
+  if (q.includes('rubrica') && text.includes('rubrica')) score += 12;
+  if (q.includes('manual') && isManualLike(chunk)) score += 15;
+  if ((q.includes('como') || q.includes('passo')) && isManualLike(chunk)) score += 8;
+
+  return score;
+}
+
+function withTimeout(promise, ms, label = 'Operação') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} demorou mais do que o esperado.`)), ms)
+    ),
+  ]);
+}
+
+function dedupe(items, getKey) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = getKey(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 export default function AssistantChat() {
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Assistente ativo. Faça sua pergunta.' }
+    {
+      role: 'assistant',
+      content:
+        'Assistente ativo. Posso buscar respostas na Biblioteca de Conhecimento e no Manual do sistema. Faça sua pergunta.',
+    },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,22 +145,111 @@ export default function AssistantChat() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, loading]);
 
   async function buscarContexto(pergunta) {
     try {
-      const chunks = await base44.entities.KnowledgeChunk.list('-created_date', 200);
+      const [docs, chunks] = await withTimeout(
+        Promise.all([
+          base44.entities.KnowledgeDocument.list('-created_date', 120),
+          base44.entities.KnowledgeChunk.list('-created_date', 700),
+        ]),
+        15000,
+        'Busca da base de conhecimento'
+      );
 
-      const relevantes = chunks
-        .map(c => ({
-          ...c,
-          score: (c.texto_chunk || '').toLowerCase().includes(pergunta.toLowerCase()) ? 10 : 0
+      const docsAtivos = (docs || []).filter((doc) => doc?.ativo);
+      const docsById = docsAtivos.reduce((acc, doc) => {
+        if (doc?.id) acc[doc.id] = doc;
+        return acc;
+      }, {});
+
+      const chunksAtivos = (chunks || []).filter((chunk) => {
+        const chunkAtivo = chunk?.ativo !== false;
+        const docAtivo =
+          !chunk?.knowledge_document_id || !!docsById[chunk.knowledge_document_id];
+        return chunkAtivo && docAtivo;
+      });
+
+      const rankedChunks = chunksAtivos
+        .map((chunk) => ({
+          ...chunk,
+          _score: scoreChunk(chunk, pergunta),
         }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5);
+        .filter((chunk) => chunk._score > 0)
+        .sort((a, b) => b._score - a._score);
 
-      return relevantes.map(c => c.texto_chunk).join('\n\n');
-    } catch {
+      const manualChunks = rankedChunks.filter((chunk) => isManualLike(chunk)).slice(0, 3);
+      const topChunks = rankedChunks.slice(0, 6);
+
+      const selectedChunks = dedupe(
+        [...manualChunks, ...topChunks],
+        (item) =>
+          `${item?.knowledge_document_id || 'x'}-${item?.chunk_index || item?.texto_chunk?.slice(0, 80) || ''}`
+      ).slice(0, 7);
+
+      if (selectedChunks.length > 0) {
+        return selectedChunks
+          .map((chunk, index) => {
+            const doc =
+              docsById[chunk?.knowledge_document_id] ||
+              docsById[chunk?.document_id] ||
+              null;
+
+            const title =
+              doc?.titulo ||
+              chunk?.document_title ||
+              chunk?.titulo ||
+              'Documento sem título';
+
+            const category = doc?.categoria || chunk?.categoria || 'Sem categoria';
+            const tags = chunk?.tags || doc?.tags || '';
+            const resumo = doc?.resumo_ia || '';
+
+            return `
+[Contexto ${index + 1}]
+Documento: ${title}
+Categoria: ${category}
+${tags ? `Tags: ${tags}` : ''}
+${resumo ? `Resumo: ${resumo}` : ''}
+Trecho:
+${chunk?.texto_chunk || ''}
+`.trim();
+          })
+          .join('\n\n');
+      }
+
+      const fallbackDocs = docsAtivos
+        .map((doc) => ({
+          ...doc,
+          _score:
+            scoreText(
+              [doc?.titulo, doc?.categoria, doc?.tags, doc?.resumo_ia, doc?.conteudo_extraido]
+                .filter(Boolean)
+                .join(' '),
+              pergunta
+            ) + (isManualLike(doc) ? 15 : 0),
+        }))
+        .sort((a, b) => b._score - a._score)
+        .slice(0, 4);
+
+      if (fallbackDocs.length === 0) return '';
+
+      return fallbackDocs
+        .map(
+          (doc, index) => `
+[Documento ${index + 1}]
+Título: ${doc?.titulo || 'Documento sem título'}
+Categoria: ${doc?.categoria || 'Sem categoria'}
+${doc?.tags ? `Tags: ${doc.tags}` : ''}
+${doc?.resumo_ia ? `Resumo: ${doc.resumo_ia}` : ''}
+Trecho:
+${(doc?.conteudo_extraido || '').slice(0, 3500)}
+`.trim()
+        )
+        .join('\n\n');
+    } catch (error) {
+      console.error('Erro ao buscar contexto:', error);
       return '';
     }
   }
@@ -42,45 +260,91 @@ export default function AssistantChat() {
     if (!textToSend.trim() || loading) return;
 
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
+    setMessages((prev) => [...prev, { role: 'user', content: textToSend }]);
     setLoading(true);
 
     try {
       const contexto = await buscarContexto(textToSend);
 
+      const recentHistory = messages
+        .slice(-6)
+        .map((m) => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`)
+        .join('\n');
+
       const prompt = `
 Você é o assistente da plataforma Museus Centro.
 
 REGRAS:
-- Use SOMENTE a base abaixo
-- Nunca invente
-- Seja direto e objetivo
-- Use passo a passo quando necessário
+- Consulte sempre a Biblioteca de Conhecimento.
+- Para perguntas sobre funcionamento do sistema, priorize o Manual e documentos de ajuda.
+- Leia os documentos do contexto antes de responder.
+- Use SOMENTE a base abaixo.
+- Nunca invente.
+- Não use internet.
+- Se não houver base suficiente, responda exatamente: "Não encontrei essa informação na base de conhecimento."
+- Quando a pergunta for operacional, responda com:
+  1. tela/caminho
+  2. botão principal
+  3. passo a passo
+  4. atenção
+- Seja direto, claro e útil.
+- Responda em português do Brasil.
 
-BASE:
-${contexto || 'Sem dados relevantes'}
+REGRAS DO SISTEMA:
+- Equipe é gerida e paga pelos coordenadores.
+- Profissional apenas envia nota fiscal.
+- Pagamento de equipe acontece via módulo Equipe.
+- Compras são usadas para fornecedores, materiais e serviços.
+- Nunca misturar os fluxos de Compras e Equipe.
+- Toda nota fiscal da equipe precisa ser aprovada antes do pagamento.
+- Rubrica só é debitada quando aprovado.
+
+HISTÓRICO RECENTE:
+${recentHistory || 'Sem histórico anterior.'}
+
+BASE DE CONHECIMENTO:
+${contexto || 'Não encontrei essa informação na base de conhecimento.'}
 
 PERGUNTA:
 ${textToSend}
-`;
+`.trim();
 
-      const response = await base44.integrations.Core.InvokeLLM({
-        prompt,
-        add_context_from_internet: false
-      });
+      const response = await withTimeout(
+        base44.integrations.Core.InvokeLLM({
+          prompt,
+          add_context_from_internet: false,
+        }),
+        30000,
+        'Resposta da IA'
+      );
 
-      setMessages(prev => [
+      const finalResponse =
+        typeof response === 'string'
+          ? response
+          : String(response || 'Não encontrei essa informação na base de conhecimento.');
+
+      setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: response || 'Sem resposta encontrada.' }
+        {
+          role: 'assistant',
+          content:
+            finalResponse.trim() ||
+            'Não encontrei essa informação na base de conhecimento.',
+        },
       ]);
-
     } catch (error) {
-      setMessages(prev => [
+      console.error('Erro ao responder no chat:', error);
+      setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: 'Erro ao responder. Tente novamente.' }
+        {
+          role: 'assistant',
+          content: error?.message?.includes('demorou mais do que o esperado')
+            ? 'A resposta demorou mais do que o esperado. Tente novamente com uma pergunta mais específica.'
+            : 'Erro ao responder. Tente novamente.',
+        },
       ]);
     } finally {
-      setLoading(false); // ✅ GARANTE QUE NUNCA TRAVA
+      setLoading(false);
     }
   };
 
@@ -96,16 +360,26 @@ ${textToSend}
   }
 
   return (
-    <div className={`fixed bottom-6 right-6 ${minimized ? 'h-16' : 'h-96'} w-80 bg-white border rounded-xl flex flex-col`}>
+    <div
+      className={`fixed bottom-6 right-6 ${minimized ? 'h-16' : 'h-96'} w-80 md:w-96 bg-white border rounded-xl flex flex-col shadow-xl z-50`}
+    >
+      <div className="flex justify-between items-center p-2 border-b bg-gray-50 rounded-t-xl">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-sm">Assistente</span>
+          <div className="flex items-center gap-1 text-[10px] text-gray-500">
+            <BookOpen className="w-3 h-3" />
+            <span>Manual</span>
+            <FileText className="w-3 h-3 ml-1" />
+            <span>Biblioteca</span>
+          </div>
+        </div>
 
-      <div className="flex justify-between p-2 border-b">
-        <span>Assistente</span>
         <div className="flex gap-1">
-          <Button onClick={() => setMinimized(!minimized)}>
-            {minimized ? <Maximize2 /> : <Minimize2 />}
+          <Button variant="ghost" size="icon" onClick={() => setMinimized(!minimized)}>
+            {minimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
           </Button>
-          <Button onClick={() => setOpen(false)}>
-            <X />
+          <Button variant="ghost" size="icon" onClick={() => setOpen(false)}>
+            <X className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -115,13 +389,23 @@ ${textToSend}
           <div className="flex-1 overflow-auto p-3 space-y-2">
             {messages.map((m, i) => (
               <div key={i} className={m.role === 'user' ? 'text-right' : ''}>
-                <div className="inline-block p-2 bg-gray-100 rounded">
+                <div
+                  className={`inline-block p-2 rounded max-w-[88%] text-sm whitespace-pre-wrap ${
+                    m.role === 'user'
+                      ? 'bg-black text-white'
+                      : 'bg-gray-100 text-gray-900'
+                  }`}
+                >
                   {m.content}
                 </div>
               </div>
             ))}
 
-            {loading && <div>Digitando...</div>}
+            {loading && (
+              <div className="text-sm text-gray-500 bg-gray-100 rounded inline-block p-2">
+                Buscando no manual e na biblioteca...
+              </div>
+            )}
 
             <div ref={messagesEndRef} />
           </div>
@@ -132,9 +416,10 @@ ${textToSend}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               disabled={loading}
+              placeholder="Pergunte sobre o sistema, manual, fluxos ou documentos"
             />
-            <Button onClick={handleSend} disabled={loading}>
-              <Send />
+            <Button onClick={() => handleSend()} disabled={loading || !input.trim()}>
+              <Send className="w-4 h-4" />
             </Button>
           </div>
         </>
