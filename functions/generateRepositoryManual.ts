@@ -11,18 +11,38 @@ function normalizeText(value: unknown) {
     .trim();
 }
 
-function chunkText(text: string, maxSize = 3000) {
+function chunkText(text: string, maxSize = 3500) {
   const normalized = normalizeText(text);
   if (!normalized) return [];
 
+  const paragraphs = normalized.split('\n\n');
   const chunks: string[] = [];
-  let i = 0;
+  let current = '';
 
-  while (i < normalized.length) {
-    chunks.push(normalized.slice(i, i + maxSize));
-    i += maxSize;
+  for (const paragraph of paragraphs) {
+    const next = current ? `${current}\n\n${paragraph}` : paragraph;
+
+    if (next.length <= maxSize) {
+      current = next;
+      continue;
+    }
+
+    if (current) chunks.push(current);
+
+    if (paragraph.length <= maxSize) {
+      current = paragraph;
+      continue;
+    }
+
+    let rest = paragraph;
+    while (rest.length > maxSize) {
+      chunks.push(rest.slice(0, maxSize));
+      rest = rest.slice(maxSize);
+    }
+    current = rest;
   }
 
+  if (current) chunks.push(current);
   return chunks;
 }
 
@@ -30,11 +50,18 @@ function isRelevantFile(path: string) {
   const lower = path.toLowerCase();
 
   if (
-    lower.includes('node_modules') ||
-    lower.includes('.git') ||
-    lower.includes('dist') ||
-    lower.includes('build')
-  ) return false;
+    lower.includes('node_modules/') ||
+    lower.includes('.git/') ||
+    lower.includes('dist/') ||
+    lower.includes('build/') ||
+    lower.includes('coverage/') ||
+    lower.includes('.next/') ||
+    lower.includes('package-lock.json') ||
+    lower.includes('pnpm-lock.yaml') ||
+    lower.includes('yarn.lock')
+  ) {
+    return false;
+  }
 
   return (
     lower.endsWith('.jsx') ||
@@ -48,99 +75,175 @@ function isRelevantFile(path: string) {
 
 async function githubJson(url: string) {
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'MuseusCentro' },
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'MuseusCentro-Base44',
+    },
   });
 
-  if (!res.ok) throw new Error(`GitHub error ${res.status}`);
-  return res.json();
-}
-
-async function fetchTree(repo: string, branch: string) {
-  const ref = await githubJson(`${GITHUB_API}/repos/${repo}/git/refs/heads/${branch}`);
-  const commit = await githubJson(`${GITHUB_API}/repos/${repo}/git/commits/${ref.object.sha}`);
-  const tree = await githubJson(`${GITHUB_API}/repos/${repo}/git/trees/${commit.tree.sha}?recursive=1`);
-  return tree.tree;
-}
-
-async function getRepoFiles(repo: string) {
-  try {
-    return await fetchTree(repo, 'main');
-  } catch {
-    return await fetchTree(repo, 'master');
+  if (!res.ok) {
+    throw new Error(`GitHub API ${res.status} em ${url}`);
   }
+
+  return await res.json();
 }
 
-async function fetchFile(repo: string, path: string) {
-  const url = `https://raw.githubusercontent.com/${repo}/main/${path}`;
-  const res = await fetch(url);
-  if (!res.ok) return '';
+async function fetchRepoTree(repo: string, branch = 'main') {
+  const refData = await githubJson(`${GITHUB_API}/repos/${repo}/git/refs/heads/${branch}`);
+  const treeSha = refData?.object?.sha;
+
+  if (!treeSha) {
+    throw new Error('Não foi possível obter o SHA da branch');
+  }
+
+  const commitData = await githubJson(`${GITHUB_API}/repos/${repo}/git/commits/${treeSha}`);
+  const rootTreeSha = commitData?.tree?.sha;
+
+  if (!rootTreeSha) {
+    throw new Error('Não foi possível obter a árvore do repositório');
+  }
+
+  const treeData = await githubJson(
+    `${GITHUB_API}/repos/${repo}/git/trees/${rootTreeSha}?recursive=1`
+  );
+
+  return Array.isArray(treeData?.tree) ? treeData.tree : [];
+}
+
+async function fetchFileContent(repo: string, path: string, branch = 'main') {
+  const rawUrl = `https://raw.githubusercontent.com/${repo}/${branch}/${path}`;
+  const res = await fetch(rawUrl);
+
+  if (!res.ok) {
+    throw new Error(`Falha ao baixar ${path}: ${res.status}`);
+  }
+
   return await res.text();
 }
 
-async function buildDigest(repo: string) {
-  const tree = await getRepoFiles(repo);
+function rankPaths(paths: string[]) {
+  const priorityTerms = [
+    'src/pages/',
+    'src/components/',
+    'functions/',
+    'layout',
+    'auth',
+    'compras',
+    'reports',
+    'rubricas',
+    'baseconhecimento',
+    'assistente',
+    'plataforma',
+    'pages.config',
+    'readme',
+  ];
 
-  const files = tree
-    .filter((f: any) => f.type === 'blob' && isRelevantFile(f.path))
-    .slice(0, 80);
+  return [...paths].sort((a, b) => {
+    const score = (path: string) =>
+      priorityTerms.reduce((acc, term, idx) => {
+        if (path.toLowerCase().includes(term.toLowerCase())) {
+          return acc + (priorityTerms.length - idx) * 10;
+        }
+        return acc;
+      }, 0);
 
-  const collected = [];
+    return score(b) - score(a);
+  });
+}
 
-  for (const f of files) {
+async function buildRepositoryDigest(repo: string, branch = 'main', maxFiles = 35) {
+  const tree = await fetchRepoTree(repo, branch);
+
+  const relevantPaths = rankPaths(
+    tree
+      .filter((item: any) => item?.type === 'blob' && isRelevantFile(item?.path || ''))
+      .map((item: any) => item.path)
+  ).slice(0, maxFiles);
+
+  const collected: Array<{ path: string; content: string }> = [];
+
+  for (const path of relevantPaths) {
     try {
-      const content = await fetchFile(repo, f.path);
-      if (content) {
-        collected.push({
-          path: f.path,
-          content: content.slice(0, 20000),
-        });
-      }
-    } catch {}
+      const content = await fetchFileContent(repo, path, branch);
+      collected.push({
+        path,
+        content: content.slice(0, 18000),
+      });
+    } catch (error) {
+      console.error(`Erro ao ler ${path}:`, error);
+    }
   }
 
   const digest = collected
-    .map((f, i) => `
-[Arquivo ${i + 1}]
-${f.path}
+    .map(
+      (file, index) => `
+[Arquivo ${index + 1}]
+Caminho: ${file.path}
 
-${f.content}
-`)
-    .join('\n\n');
+Conteúdo:
+${file.content}
+`.trim()
+    )
+    .join('\n\n------------------------------\n\n');
 
-  return { collected, digest };
+  return {
+    files: collected,
+    digest,
+  };
 }
 
-async function generateManual(base44: any, repo: string, digest: string) {
-  return await base44.integrations.Core.InvokeLLM({
+async function generateManualWithLLM(base44: any, repo: string, digest: string) {
+  const result = await base44.integrations.Core.InvokeLLM({
     prompt: `
-Você é especialista no sistema Museus Centro.
+Você é um analista técnico do sistema Museus Centro.
 
-Crie um MANUAL COMPLETO baseado no código abaixo.
+Sua tarefa é ler a amostra do repositório abaixo e gerar um MANUAL DE INSTRUÇÕES COMPLETO em português do Brasil.
 
-OBRIGATÓRIO:
-- Explicar TODAS as páginas detectadas
-- Explicar fluxo de compras, pagamentos, equipe
-- Explicar relatórios e rubricas
-- Explicar assistente e base de conhecimento
-- Explicar erros e validações
-- Explicar uso real do sistema
+Objetivos do manual:
+1. Explicar o sistema de forma operacional.
+2. Explicar página por página e módulo por módulo.
+3. Explicar fluxos de relatório, compras, pagamentos, equipe, rubricas, documentos, biblioteca de conhecimento e assistente.
+4. Explicar como o usuário deve operar o sistema.
+5. Explicar regras, bloqueios e validações observadas no código.
+6. Ser útil tanto para profissionais quanto para coordenação.
 
-ESTILO:
-- Manual técnico + operacional
-- Direto e prático
-- Português Brasil
+Regras:
+- Baseie-se SOMENTE no conteúdo fornecido.
+- Não invente páginas ou funções que não apareçam no repositório analisado.
+- Escreva em português do Brasil.
+- Organize com títulos, subtítulos e linguagem objetiva.
+- Gere também um resumo executivo curto.
 
-CÓDIGO:
+Repositório analisado: ${repo}
+
+AMOSTRA DO REPOSITÓRIO:
 ${digest}
 `,
     response_json_schema: {
       type: 'object',
       properties: {
-        manual: { type: 'string' },
         resumo: { type: 'string' },
+        manual_completo: { type: 'string' },
+        modulos_identificados: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+        },
       },
     },
   });
+
+  return {
+    resumo: normalizeText(result?.resumo || ''),
+    manual: normalizeText(result?.manual_completo || ''),
+    modulos: Array.isArray(result?.modulos_identificados)
+      ? result.modulos_identificados
+      : [],
+    tags: Array.isArray(result?.tags) ? result.tags : [],
+  };
 }
 
 Deno.serve(async (req) => {
@@ -148,54 +251,91 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
 
-    if (!user) return Response.json({ error: 'Não autenticado' }, { status: 401 });
-
-    const { repo = DEFAULT_REPO } = await req.json().catch(() => ({}));
-
-    const { collected, digest } = await buildDigest(repo);
-
-    if (!digest) {
-      return Response.json({ error: 'Falha ao ler repositório' }, { status: 500 });
+    if (!user) {
+      return Response.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
-    const ai = await generateManual(base44, repo, digest);
+    const body = await req.json().catch(() => ({}));
+    const repo = String(body?.repo || DEFAULT_REPO).trim();
+    const branch = String(body?.branch || 'main').trim() || 'main';
 
-    const manual = normalizeText(ai.manual || '');
-    const resumo = normalizeText(ai.resumo || '');
+    const digestData = await buildRepositoryDigest(repo, branch, 35);
 
-    if (!manual) {
-      return Response.json({ error: 'IA não gerou manual' }, { status: 500 });
+    if (!digestData.files.length) {
+      return Response.json(
+        { error: 'Nenhum arquivo relevante foi lido do repositório.' },
+        { status: 422 }
+      );
     }
+
+    const llm = await generateManualWithLLM(base44, repo, digestData.digest);
+
+    if (!llm.manual) {
+      return Response.json(
+        { error: 'A IA não conseguiu gerar o manual do repositório.' },
+        { status: 422 }
+      );
+    }
+
+    const tags = Array.from(
+      new Set([
+        'manual',
+        'repositorio',
+        'github',
+        'instrucoes',
+        ...llm.modulos,
+        ...llm.tags,
+      ])
+    );
 
     const doc = await base44.asServiceRole.entities.KnowledgeDocument.create({
-      titulo: `Manual do Sistema`,
+      titulo: `Manual do Repositório — ${repo}`,
+      descricao: `Manual técnico e operacional gerado por IA a partir do repositório ${repo}`,
       categoria: 'Manual',
-      conteudo_extraido: manual,
-      resumo_ia: resumo,
-      tags: 'manual,sistema,operacao',
+      conteudo_extraido: llm.manual,
+      resumo_ia: llm.resumo,
+      tags: tags.join(', '),
+      tipo_arquivo: 'repositorio',
       ativo: true,
       processado_por_ia: true,
+      status_processamento: 'processado',
+      created_by_email: user.email || '',
       file_url: `https://github.com/${repo}`,
+      file_name: `${repo.replace('/', '_')}_manual.md`,
     });
 
-    const chunks = chunkText(manual);
+    const chunks = chunkText(llm.manual, 3500);
 
     for (let i = 0; i < chunks.length; i++) {
-      await base44.asServiceRole.entities.KnowledgeChunk.create({
-        knowledge_document_id: doc.id,
-        chunk_index: i,
-        texto_chunk: chunks[i],
-        categoria: 'Manual',
-      });
+      try {
+        await base44.asServiceRole.entities.KnowledgeChunk.create({
+          knowledge_document_id: doc.id,
+          chunk_index: i + 1,
+          titulo: `Manual do Repositório — trecho ${i + 1}`,
+          texto_chunk: chunks[i],
+          categoria: 'Manual',
+          tags: tags.join(', '),
+          ativo: true,
+          document_title: doc.titulo,
+        });
+      } catch (chunkError) {
+        console.error(`Erro ao criar chunk ${i + 1}:`, chunkError);
+      }
     }
 
     return Response.json({
       success: true,
-      arquivos: collected.length,
+      document: doc,
+      arquivos_lidos: digestData.files.length,
       chunks: chunks.length,
+      repo,
+      branch,
     });
-
-  } catch (e: any) {
-    return Response.json({ error: e.message }, { status: 500 });
+  } catch (error: any) {
+    console.error('generateRepositoryManual error:', error);
+    return Response.json(
+      { error: error?.message || 'Erro ao gerar manual do repositório' },
+      { status: 500 }
+    );
   }
 });
