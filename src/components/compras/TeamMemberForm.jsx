@@ -40,6 +40,7 @@ const EMPTY_FORM = {
   data_assinatura: '',
   objeto: '',
   contrato_url: '',
+  preenchido_por_ia: false,
 };
 
 function normalizeForm(data) {
@@ -93,7 +94,7 @@ export default function TeamMemberForm({
     return budgetLinesFromDB;
   }, [budgetLines, budgetLinesFromDB]);
 
-  // 🔥 NOVA INTEGRAÇÃO COM FUNCTION
+  // 🔥 IA DE CONTRATO FINAL
   const handleUploadContrato = async (file) => {
     if (!file) return;
 
@@ -102,7 +103,7 @@ export default function TeamMemberForm({
     try {
       const upload = await base44.storage.upload(file);
 
-      const response = await fetch('/functions/extractTeamContract', {
+      const response = await fetch('/functions/extractTeamContractData', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file_url: upload.url }),
@@ -114,24 +115,25 @@ export default function TeamMemberForm({
         throw new Error(data?.error || 'Erro na extração');
       }
 
-      const result = data.extracted || {};
+      const result = data || {};
 
       setForm(prev => ({
         ...prev,
         contrato_url: upload.url,
+        preenchido_por_ia: true,
 
-        user_name: prev.user_name || result?.user_name,
-        funcao: prev.funcao || result?.funcao,
+        user_name: prev.user_name || result?.nome,
+        funcao: prev.funcao || result?.cargo,
 
         cpf: prev.cpf || result?.cpf,
         cnpj: prev.cnpj || result?.cnpj,
         tipo_pessoa: result?.tipo_pessoa || prev.tipo_pessoa,
 
         valor_parcela: prev.valor_parcela || result?.valor_parcela,
-        parcelas: prev.parcelas || result?.parcelas,
+        parcelas: prev.parcelas || result?.numero_parcelas,
 
-        data_inicio: prev.data_inicio || result?.data_inicio,
-        data_fim: prev.data_fim || result?.data_fim,
+        data_inicio: prev.data_inicio || result?.vigencia_inicio,
+        data_fim: prev.data_fim || result?.vigencia_fim,
         data_assinatura: prev.data_assinatura || result?.data_assinatura,
 
         banco: prev.banco || result?.banco,
@@ -139,13 +141,13 @@ export default function TeamMemberForm({
         conta: prev.conta || result?.conta,
         pix_key: prev.pix_key || result?.pix_key,
 
-        objeto: prev.objeto || result?.objeto,
+        objeto: prev.objeto || result?.objeto_resumo,
       }));
 
-      if (result?.campos_revisao?.length > 0) {
-        toast.warning('Contrato lido. Alguns campos precisam revisão.');
+      if (result?.campos_com_baixa_confianca?.length > 0) {
+        toast.warning('Contrato lido. Revise alguns campos.');
       } else {
-        toast.success('Contrato analisado. Revise antes de salvar.');
+        toast.success('Contrato analisado com sucesso.');
       }
 
     } catch (e) {
