@@ -3,10 +3,10 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import {
-  Building2, FileText, Users, Eye, Paperclip, Settings, Shield,
+  Building2, FileText, Users, Eye, Paperclip, Settings,
   HelpCircle, BarChart3, History, ChevronLeft, ChevronRight,
-  CalendarDays, Layers, BookOpen, ShoppingCart, Banknote, Target, Newspaper,
-  DollarSign, ChevronDown, Images, ScrollText
+  CalendarDays, BookOpen, ShoppingCart, Newspaper,
+  ChevronDown, Images, ScrollText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SuggestionForm from '@/components/sidebar/SuggestionForm';
@@ -26,7 +26,6 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
   }, [currentUser?.email]);
 
   const coord = checkCoordenador(currentUser);
-  const coordGeral = isCoordGeral(currentUser);
   const canManageUsersFlag = canManageUsers(currentUser) || customPerms?.can_manage_users === true;
 
   const canViewMenu = (requiredPerm) => {
@@ -37,34 +36,22 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
 
   const navSections = [
     {
-      label: null,
-      items: [
-        { name: 'Dashboard', icon: BarChart3, label: 'Dashboard', show: true },
-      ],
+      items: [{ name: 'Dashboard', icon: BarChart3, label: 'Dashboard', show: true }]
     },
     {
       label: 'Trabalho',
       items: [
         { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true },
         { name: 'CalendarioAtividades', icon: CalendarDays, label: 'Agenda', show: true },
-        { name: 'Compras', icon: ShoppingCart, label: 'Compras e Pagamentos', show: true },
-      ],
-    },
-    {
-      label: 'Financeiro',
-      items: [
-        { name: 'RubricasPorMuseu', icon: Building2, label: 'Rubricas por Museu', show: true },
-        { name: 'Fornecedores', icon: Building2, label: 'Fornecedores', show: coord },
-      ],
+        { name: 'Compras', icon: ShoppingCart, label: 'Compras e Pagamentos', show: true }
+      ]
     },
     {
       label: 'Gestão',
       items: [
-        { name: 'CoordReview', icon: Eye, label: 'Revisão', show: coord && canViewMenu('can_review_reports') },
         { name: 'UserManagement', icon: Users, label: 'Usuários', show: canManageUsersFlag },
         { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: true },
-        { name: 'GaleriaFotos', icon: Images, label: 'Galeria de Fotos', show: true },
-        { name: 'ActivityLog', icon: History, label: 'Auditoria', show: coord },
+        { name: 'GaleriaFotos', icon: Images, label: 'Galeria', show: true },
 
         {
           name: 'PlataformaAdmin',
@@ -72,137 +59,114 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           label: 'Plataforma',
           show: coord && canViewMenu('can_manage_platform'),
           submenu: [
-            {
-              name: 'PlataformaAdmin',
-              label: 'Painel da Plataforma'
-            },
-            {
-              name: 'PlataformaConfig',
-              label: 'Configurações'
-            },
-            {
-              name: 'BaseConhecimento',
-              label: 'Conhecimento',
-              show: coord
-            }
-          ].filter(i => !i.show || i.show)
-        },
-      ],
+            { name: 'PlataformaAdmin', label: 'Painel' },
+            { name: 'PlataformaConfig', label: 'Configurações' },
+            { name: 'BaseConhecimento', label: 'Conhecimento' }
+          ]
+        }
+      ]
     },
-
     {
       label: 'Recursos',
       items: [
-        { name: 'MeusDados', icon: Users, label: 'Meus Dados', show: true },
-        { name: 'AssistentePlanejamento', icon: HelpCircle, label: 'Assistente de IA do MC', show: true },
-        { name: 'GeradorTermoCompromisso', icon: ScrollText, label: 'Gerador de Termos de Compromisso', show: true },
-        { name: 'LeitorNoticias', icon: Newspaper, label: 'Curadoria Notícias', show: coord || customPerms?.can_curate_news === true },
-      ],
-    },
-  ].map(section => ({
-    ...section,
-    items: section.items.filter(i => i.show),
-  })).filter(section => section.items.length > 0);
+        { name: 'AssistentePlanejamento', icon: HelpCircle, label: 'Assistente IA', show: true },
+        { name: 'LeitorNoticias', icon: Newspaper, label: 'Notícias', show: true }
+      ]
+    }
+  ].map(s => ({ ...s, items: s.items.filter(i => i.show) }))
+   .filter(s => s.items.length > 0);
 
   return (
-    <aside
-      className={`fixed left-0 top-0 h-screen bg-[#0a0a0a] border-r border-white/5 transition-all duration-300 z-40 flex flex-col ${
-        collapsed ? 'w-[72px]' : 'w-64'
-      }`}
-    >
-      <div className={`flex items-center border-b border-white/5 h-16 ${collapsed ? 'justify-center px-0' : 'justify-between px-4'}`}>
+    <aside className={`fixed left-0 top-0 h-screen bg-[#0b0b0c] border-r border-white/10 transition-all ${collapsed ? 'w-[72px]' : 'w-64'} flex flex-col`}>
+
+      {/* LOGO */}
+      <div className={`flex items-center h-16 border-b border-white/10 ${collapsed ? 'justify-center' : 'justify-between px-4'}`}>
         {!collapsed && (
-          <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-md">
-              <Building2 className="w-4.5 h-4.5 text-black" />
+          <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
+            <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center">
+              <Building2 className="w-4 h-4 text-black" />
             </div>
-            <div>
-              <span className="font-bold text-white text-base tracking-tight">Museus Centro</span>
-              <p className="text-[10px] text-white/30 leading-none -mt-0.5">FMC / PBH</p>
-            </div>
+            <span className="text-white font-semibold text-sm">Museus Centro</span>
           </Link>
         )}
-        {collapsed && (
-          <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-md">
-            <Building2 className="w-4 h-4 text-black" />
-          </div>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={`h-7 w-7 text-white/40 hover:text-white hover:bg-white/10 rounded-lg ${collapsed ? 'absolute bottom-auto top-4 right-2' : ''}`}
-          onClick={onToggle}
-        >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+
+        <Button variant="ghost" size="icon" onClick={onToggle}>
+          {collapsed ? <ChevronRight /> : <ChevronLeft />}
         </Button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 scrollbar-thin">
-        {navSections.map((section, sIdx) => (
-          <div key={sIdx} className={sIdx > 0 ? 'mt-1' : ''}>
-            {section.label && !collapsed && (
-              <p className="text-[9px] uppercase tracking-[0.15em] text-white/25 font-semibold px-3 pt-3 pb-1.5 select-none">
+      {/* NAV */}
+      <nav className="flex-1 px-2 py-3 space-y-2">
+
+        {navSections.map((section, idx) => (
+          <div key={idx}>
+
+            {!collapsed && section.label && (
+              <p className="text-[10px] uppercase text-white/30 px-3 mb-1">
                 {section.label}
               </p>
-            )}
-            {section.label && collapsed && sIdx > 0 && (
-              <div className="mx-auto w-8 border-t border-white/10 my-2" />
             )}
 
             {section.items.map(item => {
               const Icon = item.icon;
-              const isActive = currentPageName === item.name || (item.submenu && item.submenu.some(s => s.name === currentPageName));
+              const isActive = currentPageName === item.name;
               const isExpanded = expandedSections[item.name];
-              const hasSubmenu = item.submenu && item.submenu.length > 0;
+              const hasSubmenu = item.submenu;
 
               return (
                 <div key={item.name}>
-                  <HelpWrapper componentKey={`sidebar-${item.name.toLowerCase()}`} label={item.label}>
-                    {hasSubmenu ? (
+
+                  {hasSubmenu ? (
+                    <Button
+                      variant="ghost"
+                      onClick={() => setExpandedSections(p => ({ ...p, [item.name]: !p[item.name] }))}
+                      className={`w-full justify-start gap-2 ${
+                        isActive ? 'bg-white text-black' : 'text-white/70 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {!collapsed && item.label}
+                      {!collapsed && <ChevronDown className="ml-auto w-4 h-4" />}
+                    </Button>
+                  ) : (
+                    <Link to={createPageUrl(item.name)}>
                       <Button
                         variant="ghost"
-                        onClick={() => setExpandedSections(p => ({ ...p, [item.name]: !p[item.name] }))}
-                        className={`w-full h-9 gap-2.5 text-[13px] font-medium ${
-                          collapsed ? 'justify-center px-0' : 'justify-start px-3'
-                        } ${
-                          isActive ? 'bg-white text-black' : 'text-white/60 hover:text-white hover:bg-white/8'
+                        className={`w-full justify-start gap-2 ${
+                          isActive ? 'bg-white text-black' : 'text-white/70 hover:text-white hover:bg-white/10'
                         }`}
                       >
-                        <Icon className={`${collapsed ? 'w-5 h-5' : 'w-4 h-4'}`} />
-                        {!collapsed && <span>{item.label}</span>}
-                        {!collapsed && <ChevronDown className={`ml-auto w-4 h-4 ${isExpanded ? 'rotate-180' : ''}`} />}
+                        <Icon className="w-4 h-4" />
+                        {!collapsed && item.label}
                       </Button>
-                    ) : (
-                      <Link to={createPageUrl(item.name)}>
-                        <Button variant="ghost" className="w-full h-9 gap-2.5">
-                          <Icon className="w-4 h-4" />
-                          {!collapsed && <span>{item.label}</span>}
-                        </Button>
-                      </Link>
-                    )}
-                  </HelpWrapper>
+                    </Link>
+                  )}
 
                   {hasSubmenu && isExpanded && !collapsed && (
-                    <div className="pl-2">
+                    <div className="pl-4">
                       {item.submenu.map(sub => (
                         <Link key={sub.name} to={createPageUrl(sub.name)}>
-                          <Button variant="ghost" className="w-full h-8 text-xs justify-start">
+                          <Button variant="ghost" className="w-full justify-start text-xs text-white/60 hover:text-white">
                             {sub.label}
                           </Button>
                         </Link>
                       ))}
                     </div>
                   )}
+
                 </div>
               );
             })}
           </div>
         ))}
+
       </nav>
 
-      <div className={`border-t border-white/5 px-2 py-2 ${collapsed ? 'flex justify-center' : ''}`}>
+      {/* FOOTER */}
+      <div className="border-t border-white/10 p-2">
         <SuggestionForm currentUser={currentUser} collapsed={collapsed} />
       </div>
+
     </aside>
   );
 }
