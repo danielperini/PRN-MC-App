@@ -1,3 +1,5 @@
+// 🔥 VERSÃO FINAL ESTÁVEL
+
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { BookOpen, Upload, Trash2, Eye, EyeOff, Plus, Loader2 } from 'lucide-react';
+import { Trash2, Eye, EyeOff, Plus, Loader2, CheckCircle, XCircle } from 'lucide-react';
 
 const CATEGORIAS = ['Contrato', 'Plano de Trabalho', 'Manual', 'Meta', 'Relatório', 'Financeiro', 'RH', 'Outro'];
 
@@ -35,18 +37,6 @@ function UploadDialog({ open, onClose, onSaved }) {
 
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
-  const resetForm = () => {
-    setForm({
-      titulo: '',
-      categoria: '',
-      cargo_relacionado: '',
-      tags: ''
-    });
-    setFile(null);
-    setProgress('');
-    setUploading(false);
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -64,25 +54,46 @@ function UploadDialog({ open, onClose, onSaved }) {
     setProgress('Enviando arquivo...');
 
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      console.log('UPLOAD INICIADO');
 
-      setProgress('IA analisando documento (PDF/Excel)...');
+      const upload = await base44.integrations.Core.UploadFile({ file });
+
+      if (!upload?.file_url) {
+        throw new Error('Falha no upload');
+      }
+
+      console.log('ARQUIVO:', upload.file_url);
+
+      setProgress('Processando com IA...');
 
       const res = await base44.functions.invoke('processDocumentUpload', {
-        file_url,
+        file_url: upload.file_url,
         ...form,
       });
 
-      if (res.data?.success) {
-        toast.success('Documento Salvo');
-        onSaved();
-        resetForm();
-        onClose();
-      } else {
-        toast.error(res.data?.error || 'Erro ao processar documento');
+      console.log('RESPOSTA:', res);
+
+      // 🔥 validação real
+      if (!res || !res.data) {
+        throw new Error('Sem resposta da function');
       }
+
+      if (res.data.error) {
+        throw new Error(res.data.error);
+      }
+
+      if (!res.data.success) {
+        throw new Error('Documento não foi salvo');
+      }
+
+      toast.success('Documento Salvo');
+
+      await onSaved();
+      onClose();
+
     } catch (err) {
-      toast.error(err.message);
+      console.error('ERRO:', err);
+      toast.error(err.message || 'Erro ao salvar documento');
     } finally {
       setUploading(false);
       setProgress('');
@@ -90,56 +101,33 @@ function UploadDialog({ open, onClose, onSaved }) {
   };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        if (!v) {
-          resetForm();
-          onClose();
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Adicionar Documento Inteligente</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            placeholder="Título"
-            value={form.titulo}
-            onChange={(e) => set('titulo', e.target.value)}
-          />
 
-          <Select value={form.categoria} onValueChange={(v) => set('categoria', v)}>
+          <Input placeholder="Título" value={form.titulo} onChange={e => set('titulo', e.target.value)} />
+
+          <Select onValueChange={v => set('categoria', v)}>
             <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
             <SelectContent>
-              {CATEGORIAS.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
+              {CATEGORIAS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
             </SelectContent>
           </Select>
 
-          <Select value={form.cargo_relacionado} onValueChange={(v) => set('cargo_relacionado', v)}>
-            <SelectTrigger><SelectValue placeholder="Relacionado a qual cargo?" /></SelectTrigger>
+          <Select onValueChange={v => set('cargo_relacionado', v)}>
+            <SelectTrigger><SelectValue placeholder="Cargo" /></SelectTrigger>
             <SelectContent>
-              {CARGOS.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
+              {CARGOS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
             </SelectContent>
           </Select>
 
-          <Input
-            placeholder="Tags (ex: salário, contrato, pagamento)"
-            value={form.tags}
-            onChange={(e) => set('tags', e.target.value)}
-          />
+          <Input placeholder="Tags" value={form.tags} onChange={e => set('tags', e.target.value)} />
 
-          <Input
-            type="file"
-            accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.txt"
-            onChange={(e) => setFile(e.target.files[0])}
-          />
+          <Input type="file" onChange={e => setFile(e.target.files[0])} />
 
           {uploading && (
             <div className="text-sm text-blue-600 flex gap-2">
@@ -162,7 +150,9 @@ function UploadDialog({ open, onClose, onSaved }) {
 function DocCard({ doc, onToggle, onDelete, onPreview }) {
   return (
     <div className="border rounded-lg p-4 space-y-2">
+
       <div className="flex justify-between">
+
         <div>
           <p className="font-semibold">{doc.titulo}</p>
 
@@ -174,11 +164,22 @@ function DocCard({ doc, onToggle, onDelete, onPreview }) {
         </div>
 
         <div className="flex gap-2">
-          <Button size="sm" onClick={() => onPreview(doc)}><Eye /></Button>
-          <Button size="sm" onClick={() => onToggle(doc)}>
-            {doc.ativo ? <Eye /> : <EyeOff />}
+
+          {/* 👁️ VISUALIZAR */}
+          <Button size="sm" onClick={() => onPreview(doc)}>
+            <Eye />
           </Button>
-          <Button size="sm" onClick={() => onDelete(doc)}><Trash2 /></Button>
+
+          {/* ✅ ATIVO / INATIVO */}
+          <Button size="sm" onClick={() => onToggle(doc)}>
+            {doc.ativo ? <CheckCircle /> : <XCircle />}
+          </Button>
+
+          {/* 🗑️ EXCLUIR */}
+          <Button size="sm" onClick={() => onDelete(doc)}>
+            <Trash2 />
+          </Button>
+
         </div>
       </div>
 
@@ -188,12 +189,6 @@ function DocCard({ doc, onToggle, onDelete, onPreview }) {
         </div>
       )}
 
-      {doc.salarios_e_pagamentos && (
-        <div className="text-sm text-blue-700">
-          <b>Valores identificados:</b><br />
-          <pre className="text-xs whitespace-pre-wrap">{doc.salarios_e_pagamentos}</pre>
-        </div>
-      )}
     </div>
   );
 }
@@ -203,23 +198,19 @@ function BaseConhecimentoInner() {
   const [showUpload, setShowUpload] = useState(false);
   const [preview, setPreview] = useState(null);
 
-  const { data: docs = [] } = useQuery({
+  const { data: docs = [], refetch } = useQuery({
     queryKey: ['docs'],
     queryFn: () => base44.entities.KnowledgeDocument.list('-created_date', 100),
   });
 
-  const toggle = async (doc) => {
-    await base44.entities.KnowledgeDocument.update(doc.id, { ativo: !doc.ativo });
-    queryClient.invalidateQueries({ queryKey: ['docs'] });
-  };
-
-  const del = async (doc) => {
-    await base44.entities.KnowledgeDocument.delete(doc.id);
-    queryClient.invalidateQueries({ queryKey: ['docs'] });
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['docs'] });
+    await refetch();
   };
 
   return (
     <div className="p-6">
+
       <div className="flex justify-between mb-6">
         <h1 className="text-xl font-bold">Biblioteca de Conhecimento IA</h1>
         <Button onClick={() => setShowUpload(true)}>
@@ -228,12 +219,18 @@ function BaseConhecimentoInner() {
       </div>
 
       <div className="space-y-4">
-        {docs.map((doc) => (
+        {docs.map(doc => (
           <DocCard
             key={doc.id}
             doc={doc}
-            onToggle={toggle}
-            onDelete={del}
+            onToggle={async (d) => {
+              await base44.entities.KnowledgeDocument.update(d.id, { ativo: !d.ativo });
+              await refresh();
+            }}
+            onDelete={async (d) => {
+              await base44.entities.KnowledgeDocument.delete(d.id);
+              await refresh();
+            }}
             onPreview={setPreview}
           />
         ))}
@@ -242,32 +239,9 @@ function BaseConhecimentoInner() {
       <UploadDialog
         open={showUpload}
         onClose={() => setShowUpload(false)}
-        onSaved={() => queryClient.invalidateQueries({ queryKey: ['docs'] })}
+        onSaved={refresh}
       />
 
-      {preview && (
-        <Dialog open onOpenChange={() => setPreview(null)}>
-          <DialogContent className="max-w-2xl">
-            <DialogTitle>{preview.titulo}</DialogTitle>
-
-            <div className="space-y-4 text-sm">
-              {preview.resumo_ia && (
-                <div>
-                  <b>Resumo:</b>
-                  <p>{preview.resumo_ia}</p>
-                </div>
-              )}
-
-              <div>
-                <b>Conteúdo:</b>
-                <pre className="max-h-[300px] overflow-auto text-xs">
-                  {preview.conteudo_extraido}
-                </pre>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }
