@@ -93,16 +93,7 @@ export default function TeamMemberForm({
     return budgetLinesFromDB;
   }, [budgetLines, budgetLinesFromDB]);
 
-  const budgetOptions = useMemo(() => {
-    return (finalBudgetLines || [])
-      .filter((b) => !!b?.id)
-      .map((b) => ({
-        id: b.id,
-        label: `${b.codigo || ''} - ${b.descricao || ''}`,
-      }));
-  }, [finalBudgetLines]);
-
-  // 🔥 IA CONTRATO EVOLUÍDA
+  // 🔥 NOVA INTEGRAÇÃO COM FUNCTION
   const handleUploadContrato = async (file) => {
     if (!file) return;
 
@@ -111,53 +102,20 @@ export default function TeamMemberForm({
     try {
       const upload = await base44.storage.upload(file);
 
-      const result = await base44.integrations.Core.InvokeLLM({
-        prompt: `
-Analise este contrato e extraia apenas se existir:
-
-nome
-cargo / função
-CPF ou CNPJ
-tipo de pessoa (PF ou PJ)
-razão social
-representante legal
-valor da parcela
-número de parcelas
-data de início
-data de fim
-data de assinatura
-dados bancários (banco, agência, conta, pix)
-objeto resumido
-
-Regras:
-- não inventar dados
-- se não tiver, deixar vazio
-- responder em JSON limpo
-`,
-        file_urls: [upload.url],
-        response_json_schema: {
-          type: 'object',
-          properties: {
-            user_name: { type: 'string' },
-            funcao: { type: 'string' },
-            cpf: { type: 'string' },
-            cnpj: { type: 'string' },
-            tipo_pessoa: { type: 'string' },
-            valor_parcela: { type: 'string' },
-            parcelas: { type: 'string' },
-            data_inicio: { type: 'string' },
-            data_fim: { type: 'string' },
-            data_assinatura: { type: 'string' },
-            banco: { type: 'string' },
-            agencia: { type: 'string' },
-            conta: { type: 'string' },
-            pix_key: { type: 'string' },
-            objeto: { type: 'string' }
-          }
-        }
+      const response = await fetch('/functions/extractTeamContract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file_url: upload.url }),
       });
 
-      // 🔥 NÃO SOBRESCREVE AUTOMATICAMENTE
+      const data = await response.json();
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Erro na extração');
+      }
+
+      const result = data.extracted || {};
+
       setForm(prev => ({
         ...prev,
         contrato_url: upload.url,
@@ -184,7 +142,11 @@ Regras:
         objeto: prev.objeto || result?.objeto,
       }));
 
-      toast.success('Contrato analisado. Revise antes de salvar.');
+      if (result?.campos_revisao?.length > 0) {
+        toast.warning('Contrato lido. Alguns campos precisam revisão.');
+      } else {
+        toast.success('Contrato analisado. Revise antes de salvar.');
+      }
 
     } catch (e) {
       toast.error('Erro ao ler contrato');
