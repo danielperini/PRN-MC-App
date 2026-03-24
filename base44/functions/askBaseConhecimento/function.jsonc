@@ -1,1 +1,4 @@
-
+{
+  "name": "askBaseConhecimento",
+  "entry": "entry.ts"
+}
