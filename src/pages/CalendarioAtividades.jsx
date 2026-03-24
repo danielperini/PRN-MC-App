@@ -38,7 +38,6 @@ function mapItems(items) {
         descricao: item.descricao || '',
         classificacao: item.classificacao || '',
         equipe_responsavel: item.equipe || '',
-        publico_estimado: item.publico_estimado || '',
         museu: item.museu || 'Externo',
         _date: date,
       };
@@ -102,12 +101,28 @@ function CalendarioAtividadesInner() {
     <div className="w-full py-6 md:py-10">
       <div className="max-w-5xl mx-auto px-4 md:px-6">
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        {/* HEADER */}
+        <div className="flex flex-col gap-4 mb-6">
           <div className="flex items-center gap-3">
-            <Calendar className="w-6 h-6 text-black" />
-            <h1 className="text-3xl font-bold text-black">Agenda</h1>
+            <Calendar className="w-6 h-6" />
+            <h1 className="text-3xl font-bold">Agenda</h1>
           </div>
 
+          {/* 🔥 ABAS POR MUSEU */}
+          <div className="flex gap-2 flex-wrap">
+            {MUSEUS.map((m) => (
+              <Button
+                key={m}
+                size="sm"
+                variant={filtroMuseu === m ? 'default' : 'outline'}
+                onClick={() => setFiltroMuseu(m)}
+              >
+                {m}
+              </Button>
+            ))}
+          </div>
+
+          {/* FILTROS */}
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
@@ -115,13 +130,6 @@ function CalendarioAtividadesInner() {
             </Button>
 
             <Filter className="w-4 h-4 text-gray-500" />
-
-            <Select value={filtroMuseu} onValueChange={setFiltroMuseu}>
-              <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {MUSEUS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-              </SelectContent>
-            </Select>
 
             <Select value={filtroEquipe} onValueChange={setFiltroEquipe}>
               <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
@@ -136,106 +144,54 @@ function CalendarioAtividadesInner() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3 mb-2 text-xs">
-          {Object.entries(CLASSIF_COLORS).map(([k, v]) => (
-            <span key={k} className={`px-2 py-0.5 rounded-full font-medium ${v}`}>{k}</span>
-          ))}
-        </div>
-
-        <div className="text-xs text-gray-500 mb-6">
-          Origem: Google Sheets em tempo real
-          {mirrorData?.last_sync ? ` · Atualizado em ${new Date(mirrorData.last_sync).toLocaleString('pt-BR')}` : ''}
-        </div>
-
+        {/* LISTA */}
         {isLoading ? (
-          <div className="text-center py-20 text-gray-400">Carregando ações...</div>
-        ) : atividadesFiltradas.length === 0 ? (
-          <div className="text-center py-16 border border-dashed border-gray-200 rounded-xl">
-            <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">Nenhuma ação encontrada</p>
-          </div>
+          <div className="text-center py-20 text-gray-400">Carregando...</div>
         ) : (
           <div className="space-y-6">
 
+            {/* PRÓXIMAS */}
             {atividadesAgrupadasPeriodo.proximas.length > 0 && (
               <div>
-                <button
-                  onClick={() => setExpandedGroup(expandedGroup === 'proximas' ? null : 'proximas')}
-                  className="w-full flex items-center gap-3 mb-4"
-                >
-                  <ChevronDown className={`w-5 h-5 ${expandedGroup === 'proximas' ? 'rotate-180' : ''}`} />
-                  <h2 className="text-lg font-semibold">Próximas Ações</h2>
-                  <Badge className="ml-auto">{atividadesAgrupadasPeriodo.proximas.length}</Badge>
-                </button>
+                <h2 className="text-lg font-semibold mb-3">Próximas</h2>
 
-                {(expandedGroup === 'proximas' || expandedGroup === null) && (
-                  <div className="space-y-3 pl-8">
-                    {atividadesAgrupadasPeriodo.proximas.map((a) => (
-                      <div key={a.id} className="flex gap-4 p-4 border rounded-lg">
-                        <div className={`w-3 h-3 rounded-full mt-1.5 ${MUSEU_COLORS[a.museu]}`} />
-                        <div>
-                          <div className="flex gap-2 mb-1">
-                            <span className="font-semibold text-sm">{a.titulo}</span>
-                            {a.classificacao && (
-                              <Badge className={CLASSIF_COLORS[a.classificacao]}>
-                                {a.classificacao}
-                              </Badge>
-                            )}
-                          </div>
-
-                          <div className="text-xs text-gray-600">
-                            {format(a._date, "d 'de' MMMM", { locale: ptBR })} · {a.museu} · {a.equipe_responsavel}
-                          </div>
-
-                          {a.descricao && (
-                            <p className="text-xs text-gray-500 mt-1">{a.descricao}</p>
-                          )}
+                <div className="space-y-3">
+                  {atividadesAgrupadasPeriodo.proximas.map((a) => (
+                    <div key={a.id} className="flex gap-4 p-4 border rounded-lg">
+                      <div className={`w-3 h-3 rounded-full mt-1.5 ${MUSEU_COLORS[a.museu]}`} />
+                      <div>
+                        <div className="font-semibold text-sm">{a.titulo}</div>
+                        <div className="text-xs text-gray-600">
+                          {format(a._date, "d 'de' MMMM", { locale: ptBR })} · {a.museu}
                         </div>
+                        {a.descricao && (
+                          <p className="text-xs text-gray-500 mt-1">{a.descricao}</p>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
+            {/* PASSADAS */}
             {atividadesAgrupadasPeriodo.passadas.length > 0 && (
               <div>
-                <button
-                  onClick={() => setExpandedGroup(expandedGroup === 'passadas' ? null : 'passadas')}
-                  className="w-full flex items-center gap-3 mb-4"
-                >
-                  <ChevronDown className={`w-5 h-5 ${expandedGroup === 'passadas' ? 'rotate-180' : ''}`} />
-                  <h2 className="text-lg font-semibold text-gray-600">Ações Passadas</h2>
-                  <Badge className="ml-auto">{atividadesAgrupadasPeriodo.passadas.length}</Badge>
-                </button>
+                <h2 className="text-lg font-semibold text-gray-500 mb-3">Passadas</h2>
 
-                {expandedGroup === 'passadas' && (
-                  <div className="space-y-3 pl-8">
-                    {atividadesAgrupadasPeriodo.passadas.map((a) => (
-                      <div key={a.id} className="flex gap-4 p-4 border rounded-lg opacity-70">
-                        <div className={`w-3 h-3 rounded-full mt-1.5 ${MUSEU_COLORS[a.museu]}`} />
-                        <div>
-                          <div className="flex gap-2 mb-1">
-                            <span className="font-semibold text-sm">{a.titulo}</span>
-                            {a.classificacao && (
-                              <Badge className={CLASSIF_COLORS[a.classificacao]}>
-                                {a.classificacao}
-                              </Badge>
-                            )}
-                          </div>
-
-                          <div className="text-xs text-gray-500">
-                            {format(a._date, "d 'de' MMMM", { locale: ptBR })} · {a.museu} · {a.equipe_responsavel}
-                          </div>
-
-                          {a.descricao && (
-                            <p className="text-xs text-gray-400 mt-1">{a.descricao}</p>
-                          )}
+                <div className="space-y-3">
+                  {atividadesAgrupadasPeriodo.passadas.map((a) => (
+                    <div key={a.id} className="flex gap-4 p-4 border rounded-lg opacity-60">
+                      <div className={`w-3 h-3 rounded-full mt-1.5 ${MUSEU_COLORS[a.museu]}`} />
+                      <div>
+                        <div className="font-semibold text-sm">{a.titulo}</div>
+                        <div className="text-xs text-gray-500">
+                          {format(a._date, "d 'de' MMMM", { locale: ptBR })} · {a.museu}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
