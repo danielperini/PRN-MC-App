@@ -4,8 +4,8 @@ import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Filter, ChevronDown } from 'lucide-react';
-import { format, parseISO, isValid, isBefore, startOfDay } from 'date-fns';
+import { Calendar, Filter, ChevronDown, RefreshCw } from 'lucide-react';
+import { format, isValid, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const MUSEUS = ['Todos', 'MHAB', 'MIS', 'MUMO', 'Externo'];
@@ -24,54 +24,180 @@ const MUSEU_COLORS = {
   Externo: 'bg-gray-500',
 };
 
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function parseFlexibleDate(value) {
+  if (!value) return null;
+
+  if (value instanceof Date && isValid(value)) return value;
+
+  const text = String(value).trim();
+  if (!text) return null;
+
+  const iso = new Date(text);
+  if (isValid(iso)) return iso;
+
+  const brMatch = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (brMatch) {
+    const day = Number(brMatch[1]);
+    const month = Number(brMatch[2]);
+    let year = Number(brMatch[3]);
+    if (year < 100) year += 2000;
+    const d = new Date(year, month - 1, day);
+    if (isValid(d)) return d;
+  }
+
+  return null;
+}
+
+function findValueByPossibleKeys(values, possibleKeys) {
+  const entries = Object.entries(values || {});
+
+  for (const [key, value] of entries) {
+    const normalizedKey = normalizeText(key);
+    const matched = possibleKeys.some((candidate) => normalizedKey.includes(candidate));
+    if (matched && String(value || '').trim()) {
+      return value;
+    }
+  }
+
+  return '';
+}
+
+function detectMuseum(values) {
+  const explicitMuseum =
+    findValueByPossibleKeys(values, ['museu', 'unidade', 'local']) || '';
+
+  const sourceText = explicitMuseum || Object.values(values || {}).join(' ');
+  const text = normalizeText(sourceText);
+
+  if (text.includes('mhab') || text.includes('mab')) return 'MHAB';
+  if (text.includes('mis')) return 'MIS';
+  if (text.includes('mumo') || text.includes('mumu')) return 'MUMO';
+
+  return 'Externo';
+}
+
+function detectClassification(values) {
+  const explicit =
+    findValueByPossibleKeys(values, ['classificacao', 'tipo', 'categoria']) || '';
+
+  const text = normalizeText(explicit);
+
+  if (text.includes('meta')) return 'META';
+  if (text.includes('rotina')) return 'ROTINA';
+  if (text.includes('extra')) return 'EXTRA';
+
+  return '';
+}
+
+function detectEquipe(values) {
+  const explicit =
+    findValueByPossibleKeys(values, ['equipe', 'responsavel', 'área', 'area', 'setor']) || '';
+
+  const text = normalizeText(explicit);
+
+  if (text.includes('comunic')) return 'Comunicação';
+  if (text.includes('admin')) return 'Administração';
+  if (text.includes('educ')) return 'Educativo';
+  if (text.includes('produ')) return 'Produção';
+
+  return explicit ? 'Outra' : '';
+}
+
+function mapSpreadsheetItemsToActivities(items) {
+  return (Array.isArray(items) ? items : [])
+    .map((item, index) => {
+      const values = item?.values || {};
+
+      const rawDate =
+        findValueByPossibleKeys(values, ['data']) ||
+        findValueByPossibleKeys(values, ['dia']) ||
+        item?.first_text ||
+        '';
+
+      const parsedDate = parseFlexibleDate(rawDate);
+
+      if (!parsedDate) return null;
+
+      const titulo =
+        findValueByPossibleKeys(values, ['titulo', 'atividade', 'acao', 'ação', 'programacao', 'programação', 'evento', 'nome']) ||
+        item?.first_text ||
+        `Atividade ${index + 1}`;
+
+      const descricao =
+        findValueByPossibleKeys(values, ['descricao', 'descrição', 'resumo', 'observacao', 'observação', 'detalhe']) || '';
+
+      const equipe = detectEquipe(values);
+      const museu = detectMuseum(values);
+      const classificacao = detectClassification(values);
+      const publicoEstimado =
+        findValueByPossibleKeys(values, ['publico', 'público', 'participantes']) || '';
+
+      return {
+        id: `${item?.row_index || index}-${titulo}`,
+        titulo,
+        nome: titulo,
+        descricao,
+        classificacao,
+        equipe_responsavel: equipe,
+        publico_estimado: publicoEstimado,
+        _reportId: item?.row_index || index,
+        _reportMuseu: museu,
+        _reportAuthor: 'Google Sheets',
+        _reportMes: '',
+        _date: parsedDate,
+        _raw: item,
+      };
+    })
+    .filter(Boolean);
+}
+
 function CalendarioAtividadesInner() {
   const [filtroMuseu, setFiltroMuseu] = useState('Todos');
   const [filtroEquipe, setFiltroEquipe] = useState('Todas');
   const [expandedGroup, setExpandedGroup] = useState(null);
 
-  // Buscar todos os relatórios
-  const { data: reports = [], isLoading } = useQuery({
-    queryKey: ['reports-calendario'],
-    queryFn: () => base44.entities.Report.list('-updated_date', 500),
+  const {
+    data: mirrorData,
+    isLoading,
+    refetch,
+    isFetching,
+  } = useQuery({
+    queryKey: ['calendario-atividades-google-sheet'],
+    queryFn: async () => {
+      const res = await base44.functions.invoke('syncBaseConhecimento', {
+        mode: 'calendario_atividades',
+      });
+
+      return res?.data || {};
+    },
   });
 
-  // Extrair todas as atividades com data
   const todasAtividades = useMemo(() => {
-    const result = [];
-    for (const report of reports) {
-      const atividades = Array.isArray(report.atividades) ? report.atividades : [];
-      for (const ativ of atividades) {
-        if (!ativ.data_realizacao) continue;
-        const date = parseISO(ativ.data_realizacao);
-        if (!isValid(date)) continue;
-        result.push({
-          ...ativ,
-          _reportId: report.id,
-          _reportMuseu: report.museu || ativ.museu || '',
-          _reportAuthor: report.author_name || '',
-          _reportMes: report.mes_referencia || '',
-          _date: date,
-        });
-      }
-    }
-    return result;
-  }, [reports]);
+    return mapSpreadsheetItemsToActivities(mirrorData?.items || []);
+  }, [mirrorData]);
 
-  // Aplicar filtros
   const atividadesFiltradas = useMemo(() => {
-    return todasAtividades.filter(a => {
-      if (filtroMuseu !== 'Todos' && a._reportMuseu !== filtroMuseu && a.museu !== filtroMuseu) return false;
+    return todasAtividades.filter((a) => {
+      if (filtroMuseu !== 'Todos' && a._reportMuseu !== filtroMuseu) return false;
       if (filtroEquipe !== 'Todas' && a.equipe_responsavel !== filtroEquipe) return false;
       return true;
     });
   }, [todasAtividades, filtroMuseu, filtroEquipe]);
 
-  // Agrupar por período (próximas/passadas)
   const hoje = startOfDay(new Date());
+
   const atividadesAgrupadasPeriodo = useMemo(() => {
     const proximas = [];
     const passadas = [];
-    
+
     for (const ativ of atividadesFiltradas) {
       if (isBefore(ativ._date, hoje)) {
         passadas.push(ativ);
@@ -79,64 +205,72 @@ function CalendarioAtividadesInner() {
         proximas.push(ativ);
       }
     }
-    
-    // Ordenar: próximas por data crescente, passadas por data decrescente
+
     proximas.sort((a, b) => a._date - b._date);
     passadas.sort((a, b) => b._date - a._date);
-    
+
     return { proximas, passadas };
-  }, [atividadesFiltradas]);
+  }, [atividadesFiltradas, hoje]);
 
   return (
     <div className="w-full py-6 md:py-10">
       <div className="max-w-5xl mx-auto px-4 md:px-6">
 
-        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
             <Calendar className="w-6 h-6 text-black" />
             <h1 className="text-3xl font-bold text-black">Agenda</h1>
           </div>
-          {/* Filtros */}
+
           <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+
             <Filter className="w-4 h-4 text-gray-500" />
+
             <Select value={filtroMuseu} onValueChange={setFiltroMuseu}>
               <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {MUSEUS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                {MUSEUS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
               </SelectContent>
             </Select>
+
             <Select value={filtroEquipe} onValueChange={setFiltroEquipe}>
               <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {EQUIPES.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                {EQUIPES.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}
               </SelectContent>
             </Select>
+
             <Badge variant="outline" className="text-xs">
               {atividadesFiltradas.length} ações
             </Badge>
           </div>
         </div>
 
-        {/* Legenda */}
-        <div className="flex flex-wrap gap-3 mb-6 text-xs">
+        <div className="flex flex-wrap gap-3 mb-2 text-xs">
           {Object.entries(CLASSIF_COLORS).map(([k, v]) => (
             <span key={k} className={`px-2 py-0.5 rounded-full font-medium ${v}`}>{k}</span>
           ))}
         </div>
 
-        {/* Lista de ações */}
+        <div className="text-xs text-gray-500 mb-6">
+          Origem: Google Sheets em tempo real
+          {mirrorData?.last_sync ? ` · Atualizado em ${new Date(mirrorData.last_sync).toLocaleString('pt-BR')}` : ''}
+        </div>
+
         {isLoading ? (
           <div className="text-center py-20 text-gray-400">Carregando ações...</div>
         ) : atividadesFiltradas.length === 0 ? (
           <div className="text-center py-16 border border-dashed border-gray-200 rounded-xl">
             <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">Nenhuma ação cadastrada com os filtros aplicados</p>
+            <p className="text-gray-500">Nenhuma ação encontrada na planilha com os filtros aplicados</p>
           </div>
         ) : (
           <div className="space-y-6">
 
-            {/* Ações Próximas */}
             {atividadesAgrupadasPeriodo.proximas.length > 0 && (
               <div>
                 <button
@@ -150,8 +284,8 @@ function CalendarioAtividadesInner() {
 
                 {(expandedGroup === 'proximas' || expandedGroup === null) && (
                   <div className="space-y-3 pl-8">
-                    {atividadesAgrupadasPeriodo.proximas.map((a, i) => (
-                      <div key={i} className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    {atividadesAgrupadasPeriodo.proximas.map((a) => (
+                      <div key={a.id} className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                         <div className={`w-3 h-3 rounded-full flex-shrink-0 mt-1.5 ${MUSEU_COLORS[a._reportMuseu] || 'bg-gray-300'}`} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-2">
@@ -162,14 +296,17 @@ function CalendarioAtividadesInner() {
                               </Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-xs text-gray-600 mb-2">
+
+                          <div className="flex items-center gap-2 text-xs text-gray-600 mb-2 flex-wrap">
                             <span className="font-medium">{format(a._date, "d 'de' MMMM", { locale: ptBR })}</span>
                             {a._reportMuseu && <span>·</span>}
                             {a._reportMuseu && <span>{a._reportMuseu}</span>}
                             {a.equipe_responsavel && <span>·</span>}
                             {a.equipe_responsavel && <span>{a.equipe_responsavel}</span>}
                           </div>
+
                           {a.descricao && <p className="text-xs text-gray-600 line-clamp-2 mb-2">{a.descricao}</p>}
+
                           <p className="text-xs text-gray-400">
                             {a._reportAuthor}
                             {a.publico_estimado ? ` · ${a.publico_estimado} pessoas` : ''}
@@ -182,7 +319,6 @@ function CalendarioAtividadesInner() {
               </div>
             )}
 
-            {/* Ações Passadas */}
             {atividadesAgrupadasPeriodo.passadas.length > 0 && (
               <div>
                 <button
@@ -196,8 +332,8 @@ function CalendarioAtividadesInner() {
 
                 {expandedGroup === 'passadas' && (
                   <div className="space-y-3 pl-8">
-                    {atividadesAgrupadasPeriodo.passadas.map((a, i) => (
-                      <div key={i} className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors opacity-70">
+                    {atividadesAgrupadasPeriodo.passadas.map((a) => (
+                      <div key={a.id} className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors opacity-70">
                         <div className={`w-3 h-3 rounded-full flex-shrink-0 mt-1.5 ${MUSEU_COLORS[a._reportMuseu] || 'bg-gray-300'}`} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-2">
@@ -208,14 +344,17 @@ function CalendarioAtividadesInner() {
                               </Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+
+                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 flex-wrap">
                             <span className="font-medium">{format(a._date, "d 'de' MMMM", { locale: ptBR })}</span>
                             {a._reportMuseu && <span>·</span>}
                             {a._reportMuseu && <span>{a._reportMuseu}</span>}
                             {a.equipe_responsavel && <span>·</span>}
                             {a.equipe_responsavel && <span>{a.equipe_responsavel}</span>}
                           </div>
+
                           {a.descricao && <p className="text-xs text-gray-500 line-clamp-2 mb-2">{a.descricao}</p>}
+
                           <p className="text-xs text-gray-400">
                             {a._reportAuthor}
                             {a.publico_estimado ? ` · ${a.publico_estimado} pessoas` : ''}
