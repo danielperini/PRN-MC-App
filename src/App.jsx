@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ChecklistProducao from './pages/ChecklistProducao';
 import RubricasPorMuseu from './pages/RubricasPorMuseu';
+import BaseConhecimento from './pages/BaseConhecimento';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -20,7 +21,6 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
-  // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
@@ -29,18 +29,15 @@ const AuthenticatedApp = () => {
     );
   }
 
-  // Handle authentication errors
   if (authError) {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
       navigateToLogin();
       return null;
     }
   }
 
-  // Render the main app
   return (
     <Routes>
       <Route path="/" element={
@@ -48,6 +45,7 @@ const AuthenticatedApp = () => {
           <MainPage />
         </LayoutWrapper>
       } />
+
       {Object.entries(Pages).map(([path, Page]) => (
         <Route
           key={path}
@@ -59,16 +57,40 @@ const AuthenticatedApp = () => {
           }
         />
       ))}
-      <Route path="/ChecklistProducao" element={<LayoutWrapper currentPageName="ChecklistProducao"><ChecklistProducao /></LayoutWrapper>} />
-      <Route path="/RubricasPorMuseu" element={<LayoutWrapper currentPageName="RubricasPorMuseu"><RubricasPorMuseu /></LayoutWrapper>} />
+
+      <Route
+        path="/ChecklistProducao"
+        element={
+          <LayoutWrapper currentPageName="ChecklistProducao">
+            <ChecklistProducao />
+          </LayoutWrapper>
+        }
+      />
+
+      <Route
+        path="/RubricasPorMuseu"
+        element={
+          <LayoutWrapper currentPageName="RubricasPorMuseu">
+            <RubricasPorMuseu />
+          </LayoutWrapper>
+        }
+      />
+
+      <Route
+        path="/BaseConhecimento"
+        element={
+          <LayoutWrapper currentPageName="BaseConhecimento">
+            <BaseConhecimento />
+          </LayoutWrapper>
+        }
+      />
+
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
 };
 
-
 function App() {
-
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
