@@ -1,4 +1,18 @@
 {
-  "name": "askBaseConhecimento",
-  "entry": "entry.ts"
+  "name": "syncBaseConhecimento",
+  "entry": "entry.ts",
+  "automations": [
+    {
+      "type": "scheduled",
+      "name": "sync_base_conhecimento_diario_2359_brasilia",
+      "description": "Atualiza a Biblioteca de Conhecimento IA todos os dias às 23:59 no horário de Brasília.",
+      "function_args": {
+        "mode": "daily_automation"
+      },
+      "is_active": true,
+      "schedule_mode": "recurring",
+      "schedule_type": "cron",
+      "cron_expression": "59 2 * * *"
+    }
+  ]
 }
