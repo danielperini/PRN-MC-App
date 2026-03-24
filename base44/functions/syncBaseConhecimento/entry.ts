@@ -47,8 +47,7 @@ function parseCsv(text: string): string[][] {
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
     .split('\n')
-    .filter((line) => line.trim() !== '')
-    .map(parseCsvLine);
+    .map(parseCsvLine); // 🔥 NÃO FILTRA MAIS LINHAS VAZIAS
 }
 
 function normalizeHeader(value: string, index: number) {
@@ -103,7 +102,6 @@ function parseFlexibleDate(value: any) {
     const day = Number(brMatch[1]);
     const month = Number(brMatch[2]);
     let year = Number(brMatch[3]);
-
     if (year < 100) year += 2000;
 
     const d = new Date(year, month - 1, day);
@@ -173,7 +171,7 @@ function mapStructuredFields(values: Record<string, any>, firstText: string, row
   const rawDate =
     findValueByPossibleKeys(values, ['data']) ||
     findValueByPossibleKeys(values, ['dia']) ||
-    '';
+    firstText || '';
 
   const parsedDate = parseFlexibleDate(rawDate);
 
@@ -216,33 +214,27 @@ function normalizeMatrix(matrix: string[][]) {
   const headers = matrix[0].map(normalizeHeader);
   const rows = matrix.slice(1);
 
-  const items = rows
-    .map((row, index) => {
-      const values: Record<string, any> = {};
+  const items = rows.map((row, index) => {
+    const values: Record<string, any> = {};
 
-      headers.forEach((header, colIndex) => {
-        values[header] = row[colIndex] ?? '';
-      });
+    headers.forEach((header, colIndex) => {
+      values[header] = row[colIndex] ?? '';
+    });
 
-      const firstText =
-        row.find((cell) => String(cell || '').trim() !== '') || '';
+    const firstText =
+      row.find((cell) => String(cell || '').trim() !== '') || '';
 
-      const hasAnyValue = row.some((cell) => String(cell || '').trim() !== '');
+    const structured = mapStructuredFields(values, firstText, index + 2);
 
-      const structured = mapStructuredFields(values, firstText, index + 2);
-
-      return {
-        row_index: index + 2,
-        first_text: firstText,
-        inferred_month: inferMonth(firstText),
-        values,
-        raw: row,
-        ...structured,
-        hasAnyValue,
-      };
-    })
-    .filter((item) => item.hasAnyValue)
-    .map(({ hasAnyValue, ...rest }) => rest);
+    return {
+      row_index: index + 2,
+      first_text: firstText,
+      inferred_month: inferMonth(firstText),
+      values,
+      raw: row,
+      ...structured,
+    };
+  });
 
   return {
     headers,
@@ -287,7 +279,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         ok: true,
-        message: 'Base carregada com sucesso (sem persistência).',
+        message: 'Base carregada com sucesso (100% espelhada).',
         slug: MIRROR_SLUG,
         titulo: MIRROR_TITLE,
         pasta: MIRROR_FOLDER,
