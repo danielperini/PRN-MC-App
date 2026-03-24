@@ -2,18 +2,13 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 import * as XLSX from 'npm:xlsx@0.18.5';
 
 const SHEET_ID = '1I8Tbj5URR7gEX_zZEAFVIkAAfBCs58LC';
-const GID = '869093013';
+const GID = '580065331';
 const SOURCE_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit?gid=${GID}#gid=${GID}`;
 const XLSX_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=xlsx`;
 
 const MIRROR_SLUG = 'base-conhecimento-ia-google-sheet';
 const MIRROR_TITLE = 'Biblioteca de Conhecimento IA';
 const MIRROR_FOLDER = 'Biblioteca do Conhecimento';
-
-function normalizeHeader(value: string, index: number) {
-  const clean = String(value || '').trim();
-  return clean || `coluna_${index + 1}`;
-}
 
 function normalizeText(value: any) {
   return String(value || '')
@@ -23,7 +18,49 @@ function normalizeText(value: any) {
     .toLowerCase();
 }
 
-function parseDate(value: any) {
+function normalizeHeader(value: any, index: number) {
+  const clean = String(value || '').trim();
+  return clean || `coluna_${index + 1}`;
+}
+
+function extractSheetMonthYear(sheetName: string) {
+  const text = normalizeText(sheetName);
+
+  const monthMap: Record<string, number> = {
+    janeiro: 1,
+    fevereiro: 2,
+    marco: 3,
+    abril: 4,
+    maio: 5,
+    junho: 6,
+    julho: 7,
+    agosto: 8,
+    setembro: 9,
+    outubro: 10,
+    novembro: 11,
+    dezembro: 12,
+  };
+
+  let month: number | null = null;
+  let year: number | null = null;
+
+  for (const [name, num] of Object.entries(monthMap)) {
+    if (text.includes(name)) {
+      month = num;
+      break;
+    }
+  }
+
+  const yearMatch = text.match(/(20\d{2}|\d{2})/);
+  if (yearMatch) {
+    year = Number(yearMatch[1]);
+    if (year < 100) year += 2000;
+  }
+
+  return { month, year };
+}
+
+function parseDateWithSheetContext(value: any, sheetName = '') {
   if (!value) return null;
 
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
@@ -31,19 +68,37 @@ function parseDate(value: any) {
   const text = String(value).trim();
   if (!text) return null;
 
-  const iso = new Date(text);
-  if (!Number.isNaN(iso.getTime())) return iso;
+  const direct = new Date(text);
+  if (!Number.isNaN(direct.getTime())) return direct;
 
-  const br = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
-  if (br) {
-    const day = Number(br[1]);
-    const month = Number(br[2]);
-    let year = Number(br[3]);
+  const ctx = extractSheetMonthYear(sheetName);
 
+  const fullBr = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (fullBr) {
+    let year = Number(fullBr[3]);
     if (year < 100) year += 2000;
+    return new Date(year, Number(fullBr[2]) - 1, Number(fullBr[1]));
+  }
 
-    const d = new Date(year, month - 1, day);
-    if (!Number.isNaN(d.getTime())) return d;
+  const partialBr = text.match(/^(\d{1,2})[\/.-](\d{1,2})$/);
+  if (partialBr && ctx.year) {
+    return new Date(ctx.year, Number(partialBr[2]) - 1, Number(partialBr[1]));
+  }
+
+  const firstDateInPeriod = text.match(/(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?/);
+  if (firstDateInPeriod) {
+    const day = Number(firstDateInPeriod[1]);
+    const month = Number(firstDateInPeriod[2]);
+    let year = firstDateInPeriod[3] ? Number(firstDateInPeriod[3]) : ctx.year || new Date().getFullYear();
+    if (year < 100) year += 2000;
+    return new Date(year, month - 1, day);
+  }
+
+  if (ctx.month && ctx.year) {
+    const dayOnly = text.match(/^(\d{1,2})$/);
+    if (dayOnly) {
+      return new Date(ctx.year, ctx.month - 1, Number(dayOnly[1]));
+    }
   }
 
   return null;
@@ -54,7 +109,6 @@ function findValueByPossibleKeys(values: Record<string, any>, possibleKeys: stri
 
   for (const [key, value] of entries) {
     const normalizedKey = normalizeText(key);
-
     if (
       possibleKeys.some((candidate) => normalizedKey.includes(candidate)) &&
       String(value || '').trim()
@@ -67,70 +121,54 @@ function findValueByPossibleKeys(values: Record<string, any>, possibleKeys: stri
 }
 
 function detectMuseum(values: Record<string, any>, sheetName = '') {
-  const explicitMuseum =
-    findValueByPossibleKeys(values, ['museu', 'unidade', 'local', 'equipamento']) || '';
+  const equipamento =
+    findValueByPossibleKeys(values, ['equipamento']) ||
+    findValueByPossibleKeys(values, ['museu']) ||
+    findValueByPossibleKeys(values, ['local']) ||
+    '';
 
-  const sourceText = `${sheetName} ${explicitMuseum} ${Object.values(values || {}).join(' ')}`;
+  const sourceText = `${sheetName} ${equipamento} ${Object.values(values || {}).join(' ')}`;
   const text = normalizeText(sourceText);
 
-  if (text.includes('mhab') || text.includes('mab')) return 'MHAB';
-  if (text.includes('mis')) return 'MIS';
-  if (text.includes('mumo') || text.includes('mumu')) return 'MUMO';
+  if (text.includes('mhab') || text.includes('mab') || text.includes('abilio barreto')) return 'MHAB';
+  if (text.includes('mis') || text.includes('imagem e som')) return 'MIS';
+  if (text.includes('mumo') || text.includes('mumu') || text.includes('museu da moda')) return 'MUMO';
 
   return 'Externo';
 }
 
-function detectClassification(values: Record<string, any>) {
-  const explicit =
-    findValueByPossibleKeys(values, ['classificacao', 'classificação', 'tipo', 'categoria']) || '';
+function rowLooksLikeHeader(row: any[]) {
+  const text = normalizeText((row || []).join(' | '));
+  if (!text) return false;
 
-  const text = normalizeText(explicit);
+  const signals = [
+    'equipamento',
+    'nome da acao',
+    'nome',
+    'sinopse',
+    'tipo de atividade',
+    'formato',
+    'data',
+    'horario',
+    'horário',
+    'vagas',
+    'inscricao',
+    'inscrição',
+    'publico',
+    'público',
+  ];
 
-  if (text.includes('meta')) return 'META';
-  if (text.includes('rotina')) return 'ROTINA';
-  if (text.includes('extra')) return 'EXTRA';
-
-  return '';
+  return signals.some((signal) => text.includes(signal));
 }
 
-function detectEquipe(values: Record<string, any>) {
-  const explicit =
-    findValueByPossibleKeys(values, ['equipe', 'responsavel', 'responsável', 'area', 'área', 'setor']) || '';
-
-  const text = normalizeText(explicit);
-
-  if (text.includes('comunic')) return 'Comunicação';
-  if (text.includes('admin')) return 'Administração';
-  if (text.includes('educ')) return 'Educativo';
-  if (text.includes('produ')) return 'Produção';
-
-  return explicit ? String(explicit) : '';
-}
-
-function inferMonthLabel(date: Date | null, values: Record<string, any>, sheetName = '') {
+function inferMonthLabel(date: Date | null, sheetName = '') {
   if (date && !Number.isNaN(date.getTime())) {
     return new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(date);
   }
 
-  const source = normalizeText(`${sheetName} ${Object.values(values || {}).join(' ')}`);
-
-  const monthMap: Record<string, string> = {
-    janeiro: 'janeiro',
-    fevereiro: 'fevereiro',
-    marco: 'março',
-    abril: 'abril',
-    maio: 'maio',
-    junho: 'junho',
-    julho: 'julho',
-    agosto: 'agosto',
-    setembro: 'setembro',
-    outubro: 'outubro',
-    novembro: 'novembro',
-    dezembro: 'dezembro',
-  };
-
-  for (const [key, label] of Object.entries(monthMap)) {
-    if (source.includes(key)) return label;
+  const ctx = extractSheetMonthYear(sheetName);
+  if (ctx.month) {
+    return new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date(2026, ctx.month - 1, 1));
   }
 
   return '';
@@ -139,78 +177,67 @@ function inferMonthLabel(date: Date | null, values: Record<string, any>, sheetNa
 function mapStructuredFields(values: Record<string, any>, firstText: string, rowIndex: number, sheetName = '') {
   const rawDate =
     findValueByPossibleKeys(values, ['data']) ||
-    findValueByPossibleKeys(values, ['dia']) ||
+    findValueByPossibleKeys(values, ['periodo']) ||
+    findValueByPossibleKeys(values, ['período']) ||
     '';
 
-  const parsedDate = parseDate(rawDate);
+  const parsedDate = parseDateWithSheetContext(rawDate, sheetName);
 
   const titulo =
-    findValueByPossibleKeys(values, [
-      'titulo',
-      'título',
-      'atividade',
-      'acao',
-      'ação',
-      'programacao',
-      'programação',
-      'evento',
-      'nome',
-    ]) ||
+    findValueByPossibleKeys(values, ['nome da acao', 'nome da ação', 'nome atividade para divulgacao', 'nome da atividade para divulgacao', 'nome']) ||
     firstText ||
     `Atividade ${rowIndex}`;
 
-  const descricao =
-    findValueByPossibleKeys(values, [
-      'descricao',
-      'descrição',
-      'resumo',
-      'observacao',
-      'observação',
-      'detalhe',
-    ]) || '';
+  const sinopse =
+    findValueByPossibleKeys(values, ['sinopse', 'descricao', 'descrição', 'resumo']) || '';
 
-  const equipe = detectEquipe(values);
+  const tipoAtividade =
+    findValueByPossibleKeys(values, ['tipo de atividade', 'tipo']) || '';
+
+  const formato =
+    findValueByPossibleKeys(values, ['formato']) || '';
+
+  const horario =
+    findValueByPossibleKeys(values, ['horario', 'horário']) || '';
+
+  const vagas =
+    findValueByPossibleKeys(values, ['vagas']) || '';
+
+  const inscricaoAcesso =
+    findValueByPossibleKeys(values, ['inscricao/acesso', 'inscrição/acesso', 'inscricao', 'inscrição']) || '';
+
+  const linkImagens =
+    findValueByPossibleKeys(values, ['link de imagens', 'link imagens']) || '';
+
+  const local =
+    findValueByPossibleKeys(values, ['local']) || '';
+
+  const endereco =
+    findValueByPossibleKeys(values, ['endereco completo', 'endereço completo']) || '';
+
+  const equipe =
+    findValueByPossibleKeys(values, ['equipe', 'responsavel', 'responsável', 'setor']) || '';
+
   const museu = detectMuseum(values, sheetName);
-  const classificacao = detectClassification(values);
-  const publico_estimado =
-    findValueByPossibleKeys(values, ['publico', 'público', 'participantes']) || '';
 
   return {
     data: rawDate || '',
     data_iso: parsedDate ? parsedDate.toISOString() : '',
-    month_label: inferMonthLabel(parsedDate, values, sheetName),
+    month_label: inferMonthLabel(parsedDate, sheetName),
     museu,
     titulo,
-    descricao,
+    descricao: sinopse,
+    sinopse,
+    tipo_atividade: tipoAtividade,
+    formato,
+    horario,
+    vagas,
+    inscricao_acesso: inscricaoAcesso,
+    link_imagens: linkImagens,
+    local,
+    endereco,
     equipe,
-    classificacao,
-    publico_estimado,
   };
-}
-
-function rowLooksLikeHeader(row: any[]) {
-  const text = normalizeText((row || []).join(' | '));
-
-  if (!text) return false;
-
-  const headerSignals = [
-    'data',
-    'atividade',
-    'programacao',
-    'programação',
-    'titulo',
-    'título',
-    'evento',
-    'museu',
-    'local',
-    'responsavel',
-    'responsável',
-    'equipe',
-    'publico',
-    'público',
-  ];
-
-  return headerSignals.some((signal) => text.includes(signal));
 }
 
 function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
@@ -218,25 +245,19 @@ function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
 
   let items: any[] = [];
   let currentHeaders: string[] = [];
+  let lastEquipamento = '';
 
   for (let i = 0; i < matrix.length; i++) {
-    const row = matrix[i] || [];
+    const row = Array.isArray(matrix[i]) ? matrix[i] : [];
+    const hasAnyValue = row.some((cell) => String(cell || '').trim() !== '');
+    if (!hasAnyValue) continue;
 
-    const isHeader = row.some((cell) =>
-      String(cell || '').toLowerCase().includes('data')
-    );
-
-    if (isHeader) {
+    if (rowLooksLikeHeader(row)) {
       currentHeaders = row.map((h, idx) => normalizeHeader(h, idx));
       continue;
     }
 
-    if (!currentHeaders.length) {
-      if (rowLooksLikeHeader(row)) {
-        currentHeaders = row.map((h, idx) => normalizeHeader(h, idx));
-      }
-      continue;
-    }
+    if (!currentHeaders.length) continue;
 
     const values: Record<string, any> = {};
 
@@ -244,10 +265,22 @@ function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
       values[header] = row[colIndex] ?? '';
     });
 
+    const equipamentoAtual =
+      values['Equipamento'] ||
+      values['equipamento'] ||
+      row[0] ||
+      '';
+
+    if (String(equipamentoAtual || '').trim()) {
+      lastEquipamento = String(equipamentoAtual).trim();
+    }
+
+    if (!values['Equipamento'] && !values['equipamento'] && lastEquipamento) {
+      values['Equipamento'] = lastEquipamento;
+    }
+
     const firstText =
       row.find((cell) => String(cell || '').trim() !== '') || '';
-
-    if (!firstText) continue;
 
     const structured = mapStructuredFields(
       values,
@@ -255,6 +288,8 @@ function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
       i + rowOffset,
       sheetName
     );
+
+    if (!structured.titulo || !structured.data) continue;
 
     items.push({
       row_index: i + rowOffset,
@@ -287,12 +322,10 @@ function groupByDay(items: any[]) {
 
   items.forEach((item) => {
     if (!item.data_iso) return;
-
     const date = new Date(item.data_iso);
     if (Number.isNaN(date.getTime())) return;
 
     const key = getDayKey(date);
-
     if (!map[key]) map[key] = [];
     map[key].push(item);
   });
