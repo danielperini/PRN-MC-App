@@ -7,17 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Calendar, RefreshCw, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import {
-  format,
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
-  addDays,
-  addMonths,
-  subMonths,
-  isSameDay,
-} from 'date-fns';
+import { format, startOfMonth, addMonths, subMonths, isSameMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const MUSEUS = ['Todos', 'MHAB', 'MIS', 'MUMO', 'Externo'];
@@ -45,6 +35,7 @@ function mapItems(items) {
         inscricao: item.inscricao || item.inscricao_acesso || '',
         link: item.link || '',
         museu: item.museu || 'Externo',
+        data: item.data || format(date, 'dd/MM/yyyy'),
         _date: date,
         raw: item,
       };
@@ -55,7 +46,6 @@ function mapItems(items) {
 function CalendarioAtividadesInner() {
   const [filtroMuseu, setFiltroMuseu] = useState('Todos');
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
-  const [selectedDay, setSelectedDay] = useState(new Date());
 
   const [showEditor, setShowEditor] = useState(false);
   const [form, setForm] = useState({});
@@ -79,42 +69,34 @@ function CalendarioAtividadesInner() {
       ...(grupo.passadas || []),
     ];
 
-    return mapItems(combinadas);
+    return mapItems(combinadas).sort((a, b) => a._date.getTime() - b._date.getTime());
   }, [mirrorData, filtroMuseu]);
 
-  const atividadesDoDiaSelecionado = useMemo(() => {
-    return todasAtividades.filter((a) => isSameDay(a._date, selectedDay));
-  }, [todasAtividades, selectedDay]);
+  const atividadesDoMes = useMemo(() => {
+    return todasAtividades.filter((a) => isSameMonth(a._date, currentMonth));
+  }, [todasAtividades, currentMonth]);
 
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
-  const calendarStart = startOfWeek(monthStart);
-  const calendarEnd = endOfWeek(monthEnd);
-
-  const calendarDays = [];
-  let day = calendarStart;
-
-  while (day <= calendarEnd) {
-    calendarDays.push(day);
-    day = addDays(day, 1);
-  }
-
-  const activitiesByDayKey = useMemo(() => {
+  const atividadesAgrupadasPorMes = useMemo(() => {
     const map = new Map();
 
-    todasAtividades.forEach((activity) => {
-      const key = format(activity._date, 'yyyy-MM-dd');
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(activity);
+    atividadesDoMes.forEach((atividade) => {
+      const key = format(atividade._date, 'yyyy-MM');
+      if (!map.has(key)) {
+        map.set(key, {
+          label: format(atividade._date, 'MMMM yyyy', { locale: ptBR }),
+          items: [],
+        });
+      }
+      map.get(key).items.push(atividade);
     });
 
-    return map;
-  }, [todasAtividades]);
+    return Array.from(map.values());
+  }, [atividadesDoMes]);
 
   const abrirNovo = () => {
     setForm({
       nome: '',
-      data: format(selectedDay, 'yyyy-MM-dd'),
+      data: format(currentMonth, 'yyyy-MM-dd'),
       museu: 'MIS',
       horario: '',
       vagas: '',
@@ -170,7 +152,7 @@ function CalendarioAtividadesInner() {
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex items-center gap-3">
             <Calendar className="w-6 h-6" />
-            <h1 className="text-3xl font-bold">Agenda</h1>
+            <h1 className="text-3xl font-bold">Programação</h1>
           </div>
 
           <div className="flex gap-2 flex-wrap">
@@ -196,101 +178,81 @@ function CalendarioAtividadesInner() {
               Nova atividade
             </Button>
 
-            <Badge>{todasAtividades.length}</Badge>
+            <Badge>{atividadesDoMes.length}</Badge>
           </div>
         </div>
 
         {isLoading ? (
           <div>Carregando...</div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
-            <div>
-              <div className="flex justify-between mb-4">
-                <Button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
-                  <ChevronLeft />
-                </Button>
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <Button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
+                <ChevronLeft />
+              </Button>
 
-                <div>{format(currentMonth, 'MMMM yyyy', { locale: ptBR })}</div>
-
-                <Button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
-                  <ChevronRight />
-                </Button>
+              <div className="text-lg font-semibold capitalize">
+                {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
               </div>
 
-              <div className="grid grid-cols-7 gap-2">
-                {calendarDays.map((d) => {
-                  const key = format(d, 'yyyy-MM-dd');
-                  const acts = activitiesByDayKey.get(key) || [];
-
-                  const agrupado = {};
-                  acts.forEach((a) => {
-                    if (!agrupado[a.museu]) agrupado[a.museu] = [];
-                    agrupado[a.museu].push(a);
-                  });
-
-                  return (
-                    <div
-                      key={key}
-                      onClick={() => setSelectedDay(d)}
-                      className="border p-2 cursor-pointer hover:bg-gray-50"
-                    >
-                      <div className="text-sm font-medium">{format(d, 'd')}</div>
-
-                      {Object.entries(agrupado).map(([museu, lista]) => (
-                        <div key={museu} className="mt-1">
-                          <div className="text-[10px] font-bold">{museu}</div>
-                          {lista.map((a) => (
-                            <div key={a.id} className="text-[10px] truncate">
-                              {a.nome}
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
+              <Button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
+                <ChevronRight />
+              </Button>
             </div>
 
-            <div>
-              <h2 className="font-semibold mb-3">
-                {format(selectedDay, 'd MMMM yyyy', { locale: ptBR })}
-              </h2>
+            {atividadesAgrupadasPorMes.length === 0 ? (
+              <div className="border rounded-lg p-6 text-sm text-gray-500">
+                Nenhuma atividade encontrada para este mês.
+              </div>
+            ) : (
+              atividadesAgrupadasPorMes.map((grupo) => (
+                <div key={grupo.label} className="space-y-4">
+                  <h2 className="text-xl font-semibold capitalize">{grupo.label}</h2>
 
-              {atividadesDoDiaSelecionado.map((a) => (
-                <div key={a.id} className="border p-3 mb-3 rounded">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="font-semibold">{a.nome}</div>
-                    <div className={`w-2 h-2 rounded-full ${MUSEU_COLORS[a.museu] || 'bg-gray-400'}`} />
-                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {grupo.items.map((a) => (
+                      <div key={a.id} className="border rounded-lg p-4 bg-white shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="font-semibold leading-tight">{a.nome}</div>
+                          <div className={`w-2 h-2 rounded-full ${MUSEU_COLORS[a.museu] || 'bg-gray-400'}`} />
+                        </div>
 
-                  <div className="text-xs text-gray-500">
-                    {[a.museu, a.horario].filter(Boolean).join(' · ')}
-                  </div>
+                        <div className="text-xs text-gray-500">
+                          {[a.data, a.museu, a.horario].filter(Boolean).join(' · ')}
+                        </div>
 
-                  {a.descricao ? (
-                    <div className="text-sm mt-2">{a.descricao}</div>
-                  ) : null}
+                        {a.descricao ? (
+                          <div className="text-sm mt-3 text-gray-700">
+                            {a.descricao}
+                          </div>
+                        ) : null}
 
-                  <div className="text-xs text-gray-600 mt-2 space-y-1">
-                    {a.vagas ? <div>Vagas: {a.vagas}</div> : null}
-                    {a.inscricao ? <div>{a.inscricao}</div> : null}
-                  </div>
+                        <div className="text-xs text-gray-600 mt-3 space-y-1">
+                          {a.vagas ? <div>Vagas: {a.vagas}</div> : null}
+                          {a.inscricao ? <div>{a.inscricao}</div> : null}
+                        </div>
 
-                  <div className="flex gap-2 mt-3">
-                    <Button size="sm" onClick={() => abrirEditar(a)}>
-                      Editar
-                    </Button>
+                        <div className="flex gap-2 mt-4">
+                          <Button size="sm" onClick={() => abrirEditar(a)}>
+                            Editar
+                          </Button>
 
-                    {a.link ? (
-                      <Button size="sm" variant="outline" onClick={() => window.open(a.link, '_blank')}>
-                        Saiba mais
-                      </Button>
-                    ) : null}
+                          {a.link ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => window.open(a.link, '_blank')}
+                            >
+                              Saiba mais
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
+              ))
+            )}
           </div>
         )}
       </div>
