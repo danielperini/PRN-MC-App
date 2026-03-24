@@ -5,10 +5,11 @@ import RequireAuth from '../components/auth/RequireAuth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, Filter, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Calendar, RefreshCw, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import {
   format,
-  isSameMonth,
   startOfMonth,
   endOfMonth,
   startOfWeek,
@@ -21,7 +22,6 @@ import {
 import { ptBR } from 'date-fns/locale';
 
 const MUSEUS = ['Todos', 'MHAB', 'MIS', 'MUMO', 'Externo'];
-const EQUIPES = ['Todas', 'Comunicação', 'Administração', 'Educativo', 'Produção', 'Outra'];
 
 const MUSEU_COLORS = {
   MHAB: 'bg-purple-500',
@@ -38,12 +38,17 @@ function mapItems(items) {
       const date = new Date(item.data_iso);
 
       return {
-        id: `${item.row_index || index}-${item.titulo || index}`,
-        titulo: item.titulo || `Atividade ${index + 1}`,
-        descricao: item.descricao || '',
-        equipe_responsavel: item.equipe || '',
+        id: `${item.row_index || index}-${item.nome || index}`,
+        nome: item.nome || item.titulo || `Atividade ${index + 1}`,
+        descricao: item.sinopse || item.descricao || '',
+        tipo: item.tipo || item.tipo_atividade || '',
+        horario: item.horario || '',
+        vagas: item.vagas || '',
+        inscricao: item.inscricao || item.inscricao_acesso || '',
+        link: item.link || '',
         museu: item.museu || 'Externo',
         _date: date,
+        raw: item,
       };
     })
     .filter(Boolean);
@@ -51,9 +56,12 @@ function mapItems(items) {
 
 function CalendarioAtividadesInner() {
   const [filtroMuseu, setFiltroMuseu] = useState('Todos');
-  const [filtroEquipe, setFiltroEquipe] = useState('Todas');
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
   const [selectedDay, setSelectedDay] = useState(new Date());
+
+  const [showEditor, setShowEditor] = useState(false);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
 
   const { data: mirrorData, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['calendario-atividades-google-sheet'],
@@ -63,7 +71,6 @@ function CalendarioAtividadesInner() {
     },
   });
 
-  // 🔥 NOVO: usa timeline estruturado
   const todasAtividades = useMemo(() => {
     const timeline = mirrorData?.timeline_by_museum || {};
     const grupo = timeline[filtroMuseu] || timeline['Todos'] || {};
@@ -77,16 +84,9 @@ function CalendarioAtividadesInner() {
     return mapItems(combinadas);
   }, [mirrorData, filtroMuseu]);
 
-  const atividadesFiltradas = useMemo(() => {
-    return todasAtividades.filter((a) => {
-      if (filtroEquipe !== 'Todas' && a.equipe_responsavel !== filtroEquipe) return false;
-      return true;
-    });
-  }, [todasAtividades, filtroEquipe]);
-
   const atividadesDoDiaSelecionado = useMemo(() => {
-    return atividadesFiltradas.filter((a) => isSameDay(a._date, selectedDay));
-  }, [atividadesFiltradas, selectedDay]);
+    return todasAtividades.filter((a) => isSameDay(a._date, selectedDay));
+  }, [todasAtividades, selectedDay]);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -104,14 +104,53 @@ function CalendarioAtividadesInner() {
   const activitiesByDayKey = useMemo(() => {
     const map = new Map();
 
-    atividadesFiltradas.forEach((activity) => {
+    todasAtividades.forEach((activity) => {
       const key = format(activity._date, 'yyyy-MM-dd');
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(activity);
     });
 
     return map;
-  }, [atividadesFiltradas]);
+  }, [todasAtividades]);
+
+  const abrirNovo = () => {
+    setForm({
+      nome: '',
+      data: format(selectedDay, 'yyyy-MM-dd'),
+      museu: 'MIS',
+      horario: '',
+      tipo: '',
+      vagas: '',
+      inscricao: '',
+      descricao: '',
+    });
+    setShowEditor(true);
+  };
+
+  const abrirEditar = (item) => {
+    setForm({ ...item.raw });
+    setShowEditor(true);
+  };
+
+  const salvar = async () => {
+    setSaving(true);
+
+    try {
+      // 🔥 aqui será integrado com backend de escrita no Google Sheets
+      await base44.functions.invoke('updateProgramacaoMuseu', {
+        data: form,
+      });
+
+      await refetch();
+      alert('Salvo e sincronizado com sucesso');
+
+      setShowEditor(false);
+    } catch (e) {
+      alert('Erro ao salvar');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="w-full py-6">
@@ -124,7 +163,6 @@ function CalendarioAtividadesInner() {
             <h1 className="text-3xl font-bold">Agenda</h1>
           </div>
 
-          {/* FILTRO MUSEU */}
           <div className="flex gap-2 flex-wrap">
             {MUSEUS.map((m) => (
               <Button
@@ -143,18 +181,12 @@ function CalendarioAtividadesInner() {
               <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
             </Button>
 
-            <Select value={filtroEquipe} onValueChange={setFiltroEquipe}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {EQUIPES.map((e) => (
-                  <SelectItem key={e} value={e}>{e}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Button onClick={abrirNovo}>
+              <Plus className="w-4 h-4 mr-2" />
+              Nova atividade
+            </Button>
 
-            <Badge>{atividadesFiltradas.length}</Badge>
+            <Badge>{todasAtividades.length}</Badge>
           </div>
 
         </div>
@@ -162,9 +194,8 @@ function CalendarioAtividadesInner() {
         {isLoading ? (
           <div>Carregando...</div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
 
-            {/* CALENDÁRIO */}
             <div>
 
               <div className="flex justify-between mb-4">
@@ -184,17 +215,28 @@ function CalendarioAtividadesInner() {
                   const key = format(d, 'yyyy-MM-dd');
                   const acts = activitiesByDayKey.get(key) || [];
 
+                  const agrupado = {};
+                  acts.forEach((a) => {
+                    if (!agrupado[a.museu]) agrupado[a.museu] = [];
+                    agrupado[a.museu].push(a);
+                  });
+
                   return (
                     <div
                       key={key}
                       onClick={() => setSelectedDay(d)}
-                      className="border p-2 cursor-pointer"
+                      className="border p-2 cursor-pointer hover:bg-gray-50"
                     >
-                      <div>{format(d, 'd')}</div>
+                      <div className="text-sm font-medium">{format(d, 'd')}</div>
 
-                      {acts.map((a) => (
-                        <div key={a.id} className="text-xs">
-                          {a.titulo}
+                      {Object.entries(agrupado).map(([museu, lista]) => (
+                        <div key={museu} className="mt-1">
+                          <div className="text-[10px] font-bold">{museu}</div>
+                          {lista.map((a) => (
+                            <div key={a.id} className="text-[10px] truncate">
+                              {a.nome}
+                            </div>
+                          ))}
                         </div>
                       ))}
                     </div>
@@ -204,15 +246,22 @@ function CalendarioAtividadesInner() {
 
             </div>
 
-            {/* LATERAL */}
             <div>
-              <h2 className="font-semibold mb-2">
-                {format(selectedDay, "d MMMM", { locale: ptBR })}
+              <h2 className="font-semibold mb-3">
+                {format(selectedDay, "d MMMM yyyy", { locale: ptBR })}
               </h2>
 
               {atividadesDoDiaSelecionado.map((a) => (
-                <div key={a.id} className="border p-2 mb-2">
-                  {a.titulo}
+                <div key={a.id} className="border p-3 mb-3 rounded">
+                  <div className="font-semibold">{a.nome}</div>
+                  <div className="text-xs text-gray-500">
+                    {a.museu} · {a.horario}
+                  </div>
+                  <div className="text-sm">{a.descricao}</div>
+
+                  <Button size="sm" className="mt-2" onClick={() => abrirEditar(a)}>
+                    Editar
+                  </Button>
                 </div>
               ))}
             </div>
@@ -220,6 +269,31 @@ function CalendarioAtividadesInner() {
           </div>
         )}
       </div>
+
+      <Dialog open={showEditor} onOpenChange={setShowEditor}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar atividade</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Input placeholder="Nome" value={form.nome || ''} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+            <Input placeholder="Data" value={form.data || ''} onChange={(e) => setForm({ ...form, data: e.target.value })} />
+            <Input placeholder="Horário" value={form.horario || ''} onChange={(e) => setForm({ ...form, horario: e.target.value })} />
+            <Input placeholder="Tipo" value={form.tipo || ''} onChange={(e) => setForm({ ...form, tipo: e.target.value })} />
+            <Input placeholder="Vagas" value={form.vagas || ''} onChange={(e) => setForm({ ...form, vagas: e.target.value })} />
+            <Input placeholder="Inscrição" value={form.inscricao || ''} onChange={(e) => setForm({ ...form, inscricao: e.target.value })} />
+            <Input placeholder="Descrição" value={form.descricao || ''} onChange={(e) => setForm({ ...form, descricao: e.target.value })} />
+          </div>
+
+          <DialogFooter>
+            <Button onClick={salvar} disabled={saving}>
+              {saving ? 'Salvando...' : 'Salvar e sincronizar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
