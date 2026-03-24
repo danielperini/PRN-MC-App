@@ -1,6 +1,6 @@
-// 🔥 VERSÃO FINAL ESTÁVEL
+// 🔥 VERSÃO FINAL COM ESPELHO GOOGLE SHEETS + IA
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Trash2, Eye, EyeOff, Plus, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Trash2, Eye, Plus, Loader2, CheckCircle, XCircle, RefreshCw, Database } from 'lucide-react';
 
 const CATEGORIAS = ['Contrato', 'Plano de Trabalho', 'Manual', 'Meta', 'Relatório', 'Financeiro', 'RH', 'Outro'];
 
@@ -22,6 +22,9 @@ const CARGOS = [
   'Administrativo',
   'Assistente'
 ];
+
+const MIRROR_SLUG = 'base-conhecimento-ia-google-sheet';
+const ONE_DAY = 24 * 60 * 60 * 1000;
 
 function UploadDialog({ open, onClose, onSaved }) {
   const [form, setForm] = useState({
@@ -54,15 +57,11 @@ function UploadDialog({ open, onClose, onSaved }) {
     setProgress('Enviando arquivo...');
 
     try {
-      console.log('UPLOAD INICIADO');
-
       const upload = await base44.integrations.Core.UploadFile({ file });
 
       if (!upload?.file_url) {
         throw new Error('Falha no upload');
       }
-
-      console.log('ARQUIVO:', upload.file_url);
 
       setProgress('Processando com IA...');
 
@@ -71,19 +70,8 @@ function UploadDialog({ open, onClose, onSaved }) {
         ...form,
       });
 
-      console.log('RESPOSTA:', res);
-
-      // 🔥 validação real
-      if (!res || !res.data) {
-        throw new Error('Sem resposta da function');
-      }
-
-      if (res.data.error) {
-        throw new Error(res.data.error);
-      }
-
-      if (!res.data.success) {
-        throw new Error('Documento não foi salvo');
+      if (!res || !res.data || res.data.error || !res.data.success) {
+        throw new Error(res?.data?.error || 'Documento não foi salvo');
       }
 
       toast.success('Documento Salvo');
@@ -92,7 +80,6 @@ function UploadDialog({ open, onClose, onSaved }) {
       onClose();
 
     } catch (err) {
-      console.error('ERRO:', err);
       toast.error(err.message || 'Erro ao salvar documento');
     } finally {
       setUploading(false);
@@ -150,7 +137,6 @@ function UploadDialog({ open, onClose, onSaved }) {
 function DocCard({ doc, onToggle, onDelete, onPreview }) {
   return (
     <div className="border rounded-lg p-4 space-y-2">
-
       <div className="flex justify-between">
 
         <div>
@@ -164,22 +150,17 @@ function DocCard({ doc, onToggle, onDelete, onPreview }) {
         </div>
 
         <div className="flex gap-2">
-
-          {/* 👁️ VISUALIZAR */}
           <Button size="sm" onClick={() => onPreview(doc)}>
             <Eye />
           </Button>
 
-          {/* ✅ ATIVO / INATIVO */}
           <Button size="sm" onClick={() => onToggle(doc)}>
             {doc.ativo ? <CheckCircle /> : <XCircle />}
           </Button>
 
-          {/* 🗑️ EXCLUIR */}
           <Button size="sm" onClick={() => onDelete(doc)}>
             <Trash2 />
           </Button>
-
         </div>
       </div>
 
@@ -188,7 +169,6 @@ function DocCard({ doc, onToggle, onDelete, onPreview }) {
           <b>Resumo IA:</b> {doc.resumo_ia}
         </div>
       )}
-
     </div>
   );
 }
@@ -197,6 +177,8 @@ function BaseConhecimentoInner() {
   const queryClient = useQueryClient();
   const [showUpload, setShowUpload] = useState(false);
   const [preview, setPreview] = useState(null);
+  const [mirror, setMirror] = useState(null);
+  const [syncing, setSyncing] = useState(false);
 
   const { data: docs = [], refetch } = useQuery({
     queryKey: ['docs'],
@@ -208,16 +190,85 @@ function BaseConhecimentoInner() {
     await refetch();
   };
 
+  const loadMirror = async () => {
+    const res = await base44.entities.BibliotecaConhecimentoIA.list({
+      filter: { slug: MIRROR_SLUG },
+      limit: 1,
+    });
+    return res?.[0] || null;
+  };
+
+  const syncMirror = async (mode = 'manual') => {
+    setSyncing(true);
+    try {
+      await base44.functions.invoke('syncBaseConhecimento', { mode });
+      const updated = await loadMirror();
+      setMirror(updated);
+      toast.success('Base sincronizada');
+    } catch (e) {
+      toast.error('Erro ao sincronizar');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const bootstrap = async () => {
+    const current = await loadMirror();
+
+    if (!current) {
+      await syncMirror('first_load');
+      return;
+    }
+
+    const last = current?.last_sync ? new Date(current.last_sync).getTime() : 0;
+
+    if (!last || (Date.now() - last > ONE_DAY)) {
+      await syncMirror('auto');
+    } else {
+      setMirror(current);
+    }
+  };
+
+  useEffect(() => {
+    bootstrap();
+  }, []);
+
   return (
     <div className="p-6">
 
+      {/* HEADER */}
       <div className="flex justify-between mb-6">
         <h1 className="text-xl font-bold">Biblioteca de Conhecimento IA</h1>
-        <Button onClick={() => setShowUpload(true)}>
-          <Plus /> Adicionar Documento
-        </Button>
+
+        <div className="flex gap-2">
+          <Button onClick={() => syncMirror()}>
+            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+          </Button>
+
+          <Button onClick={() => setShowUpload(true)}>
+            <Plus /> Adicionar Documento
+          </Button>
+        </div>
       </div>
 
+      {/* STATUS ESPELHO */}
+      <div className="border rounded-lg p-4 mb-6 flex justify-between items-center">
+        <div>
+          <div className="text-xs text-gray-500">Espelho Google Sheets</div>
+          <div className="font-medium flex items-center gap-2">
+            <Database className="w-4 h-4" />
+            {mirror?.total_items || 0} registros
+          </div>
+        </div>
+
+        <div className="text-sm text-gray-500">
+          {mirror?.last_sync
+            ? new Date(mirror.last_sync).toLocaleString('pt-BR')
+            : 'Nunca sincronizado'}
+        </div>
+      </div>
+
+      {/* DOCUMENTOS IA */}
       <div className="space-y-4">
         {docs.map(doc => (
           <DocCard
@@ -241,7 +292,6 @@ function BaseConhecimentoInner() {
         onClose={() => setShowUpload(false)}
         onSaved={refresh}
       />
-
     </div>
   );
 }
