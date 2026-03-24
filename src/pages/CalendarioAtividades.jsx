@@ -38,7 +38,7 @@ function mapItems(items) {
       const date = new Date(item.data_iso);
 
       return {
-        id: `${item.row_index || index}-${item.nome || index}`,
+        id: `${item.row_index || index}-${item.nome || item.titulo || index}`,
         nome: item.nome || item.titulo || `Atividade ${index + 1}`,
         descricao: item.sinopse || item.descricao || '',
         tipo: item.tipo || item.tipo_atividade || '',
@@ -73,12 +73,12 @@ function CalendarioAtividadesInner() {
 
   const todasAtividades = useMemo(() => {
     const timeline = mirrorData?.timeline_by_museum || {};
-    const grupo = timeline[filtroMuseu] || timeline['Todos'] || {};
+    const grupo = timeline[filtroMuseu] || timeline.Todos || {};
 
     const combinadas = [
       ...(grupo.futuras || []),
       ...(grupo.atuais || []),
-      ...(grupo.passadas || [])
+      ...(grupo.passadas || []),
     ];
 
     return mapItems(combinadas);
@@ -123,12 +123,20 @@ function CalendarioAtividadesInner() {
       vagas: '',
       inscricao: '',
       descricao: '',
+      link: '',
     });
     setShowEditor(true);
   };
 
   const abrirEditar = (item) => {
-    setForm({ ...item.raw });
+    setForm({
+      ...item.raw,
+      nome: item.raw?.nome || item.raw?.titulo || '',
+      descricao: item.raw?.descricao || item.raw?.sinopse || '',
+      tipo: item.raw?.tipo || item.raw?.tipo_atividade || '',
+      inscricao: item.raw?.inscricao || item.raw?.inscricao_acesso || '',
+      link: item.raw?.link || '',
+    });
     setShowEditor(true);
   };
 
@@ -136,17 +144,25 @@ function CalendarioAtividadesInner() {
     setSaving(true);
 
     try {
-      // 🔥 aqui será integrado com backend de escrita no Google Sheets
-      await base44.functions.invoke('updateProgramacaoMuseu', {
+      const res = await base44.functions.invoke('updateProgramacaoMuseu', {
         data: form,
       });
 
-      await refetch();
-      alert('Salvo e sincronizado com sucesso');
+      if (res?.data?.locked) {
+        alert('Este mês já está bloqueado para edição');
+        return;
+      }
 
+      await refetch();
+      alert(res?.data?.message || 'Salvo e sincronizado com sucesso');
       setShowEditor(false);
     } catch (e) {
-      alert('Erro ao salvar');
+      const msg =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        'Erro ao salvar';
+
+      alert(msg);
     } finally {
       setSaving(false);
     }
@@ -155,9 +171,7 @@ function CalendarioAtividadesInner() {
   return (
     <div className="w-full py-6">
       <div className="max-w-7xl mx-auto px-4">
-
         <div className="flex flex-col gap-4 mb-6">
-
           <div className="flex items-center gap-3">
             <Calendar className="w-6 h-6" />
             <h1 className="text-3xl font-bold">Agenda</h1>
@@ -188,22 +202,19 @@ function CalendarioAtividadesInner() {
 
             <Badge>{todasAtividades.length}</Badge>
           </div>
-
         </div>
 
         {isLoading ? (
           <div>Carregando...</div>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
-
             <div>
-
               <div className="flex justify-between mb-4">
                 <Button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
                   <ChevronLeft />
                 </Button>
 
-                <div>{format(currentMonth, "MMMM yyyy", { locale: ptBR })}</div>
+                <div>{format(currentMonth, 'MMMM yyyy', { locale: ptBR })}</div>
 
                 <Button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
                   <ChevronRight />
@@ -243,29 +254,47 @@ function CalendarioAtividadesInner() {
                   );
                 })}
               </div>
-
             </div>
 
             <div>
               <h2 className="font-semibold mb-3">
-                {format(selectedDay, "d MMMM yyyy", { locale: ptBR })}
+                {format(selectedDay, 'd MMMM yyyy', { locale: ptBR })}
               </h2>
 
               {atividadesDoDiaSelecionado.map((a) => (
                 <div key={a.id} className="border p-3 mb-3 rounded">
-                  <div className="font-semibold">{a.nome}</div>
-                  <div className="text-xs text-gray-500">
-                    {a.museu} · {a.horario}
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="font-semibold">{a.nome}</div>
+                    <div className={`w-2 h-2 rounded-full ${MUSEU_COLORS[a.museu] || 'bg-gray-400'}`} />
                   </div>
-                  <div className="text-sm">{a.descricao}</div>
 
-                  <Button size="sm" className="mt-2" onClick={() => abrirEditar(a)}>
-                    Editar
-                  </Button>
+                  <div className="text-xs text-gray-500">
+                    {[a.museu, a.horario, a.tipo].filter(Boolean).join(' · ')}
+                  </div>
+
+                  {a.descricao ? (
+                    <div className="text-sm mt-2">{a.descricao}</div>
+                  ) : null}
+
+                  <div className="text-xs text-gray-600 mt-2 space-y-1">
+                    {a.vagas ? <div>Vagas: {a.vagas}</div> : null}
+                    {a.inscricao ? <div>{a.inscricao}</div> : null}
+                  </div>
+
+                  <div className="flex gap-2 mt-3">
+                    <Button size="sm" onClick={() => abrirEditar(a)}>
+                      Editar
+                    </Button>
+
+                    {a.link ? (
+                      <Button size="sm" variant="outline" onClick={() => window.open(a.link, '_blank')}>
+                        Saiba mais
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </div>
-
           </div>
         )}
       </div>
@@ -273,17 +302,63 @@ function CalendarioAtividadesInner() {
       <Dialog open={showEditor} onOpenChange={setShowEditor}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar atividade</DialogTitle>
+            <DialogTitle>{form?.id ? 'Editar atividade' : 'Nova atividade'}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-2">
-            <Input placeholder="Nome" value={form.nome || ''} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
-            <Input placeholder="Data" value={form.data || ''} onChange={(e) => setForm({ ...form, data: e.target.value })} />
-            <Input placeholder="Horário" value={form.horario || ''} onChange={(e) => setForm({ ...form, horario: e.target.value })} />
-            <Input placeholder="Tipo" value={form.tipo || ''} onChange={(e) => setForm({ ...form, tipo: e.target.value })} />
-            <Input placeholder="Vagas" value={form.vagas || ''} onChange={(e) => setForm({ ...form, vagas: e.target.value })} />
-            <Input placeholder="Inscrição" value={form.inscricao || ''} onChange={(e) => setForm({ ...form, inscricao: e.target.value })} />
-            <Input placeholder="Descrição" value={form.descricao || ''} onChange={(e) => setForm({ ...form, descricao: e.target.value })} />
+            <Input
+              placeholder="Nome"
+              value={form.nome || ''}
+              onChange={(e) => setForm({ ...form, nome: e.target.value })}
+            />
+
+            <Input
+              placeholder="Data"
+              value={form.data || ''}
+              onChange={(e) => setForm({ ...form, data: e.target.value })}
+            />
+
+            <Input
+              placeholder="Museu"
+              value={form.museu || ''}
+              onChange={(e) => setForm({ ...form, museu: e.target.value })}
+            />
+
+            <Input
+              placeholder="Horário"
+              value={form.horario || ''}
+              onChange={(e) => setForm({ ...form, horario: e.target.value })}
+            />
+
+            <Input
+              placeholder="Tipo"
+              value={form.tipo || ''}
+              onChange={(e) => setForm({ ...form, tipo: e.target.value })}
+            />
+
+            <Input
+              placeholder="Vagas"
+              value={form.vagas || ''}
+              onChange={(e) => setForm({ ...form, vagas: e.target.value })}
+            />
+
+            <Input
+              placeholder="Inscrição"
+              value={form.inscricao || ''}
+              onChange={(e) => setForm({ ...form, inscricao: e.target.value })}
+            />
+
+            <Input
+              placeholder="Link"
+              value={form.link || ''}
+              onChange={(e) => setForm({ ...form, link: e.target.value })}
+            />
+
+            <Input
+              placeholder="Descrição"
+              value={form.descricao || ''}
+              onChange={(e) => setForm({ ...form, descricao: e.target.value })}
+            />
           </div>
 
           <DialogFooter>
@@ -293,11 +368,14 @@ function CalendarioAtividadesInner() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }
 
 export default function CalendarioAtividades() {
-  return <RequireAuth><CalendarioAtividadesInner /></RequireAuth>;
+  return (
+    <RequireAuth>
+      <CalendarioAtividadesInner />
+    </RequireAuth>
+  );
 }
