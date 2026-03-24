@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -41,7 +40,6 @@ function mapItems(items) {
         id: `${item.row_index || index}-${item.nome || item.titulo || index}`,
         nome: item.nome || item.titulo || `Atividade ${index + 1}`,
         descricao: item.sinopse || item.descricao || '',
-        tipo: item.tipo || item.tipo_atividade || '',
         horario: item.horario || '',
         vagas: item.vagas || '',
         inscricao: item.inscricao || item.inscricao_acesso || '',
@@ -119,7 +117,6 @@ function CalendarioAtividadesInner() {
       data: format(selectedDay, 'yyyy-MM-dd'),
       museu: 'MIS',
       horario: '',
-      tipo: '',
       vagas: '',
       inscricao: '',
       descricao: '',
@@ -133,7 +130,6 @@ function CalendarioAtividadesInner() {
       ...item.raw,
       nome: item.raw?.nome || item.raw?.titulo || '',
       descricao: item.raw?.descricao || item.raw?.sinopse || '',
-      tipo: item.raw?.tipo || item.raw?.tipo_atividade || '',
       inscricao: item.raw?.inscricao || item.raw?.inscricao_acesso || '',
       link: item.raw?.link || '',
     });
@@ -269,7 +265,7 @@ function CalendarioAtividadesInner() {
                   </div>
 
                   <div className="text-xs text-gray-500">
-                    {[a.museu, a.horario, a.tipo].filter(Boolean).join(' · ')}
+                    {[a.museu, a.horario].filter(Boolean).join(' · ')}
                   </div>
 
                   {a.descricao ? (
@@ -328,12 +324,6 @@ function CalendarioAtividadesInner() {
               placeholder="Horário"
               value={form.horario || ''}
               onChange={(e) => setForm({ ...form, horario: e.target.value })}
-            />
-
-            <Input
-              placeholder="Tipo"
-              value={form.tipo || ''}
-              onChange={(e) => setForm({ ...form, tipo: e.target.value })}
             />
 
             <Input
