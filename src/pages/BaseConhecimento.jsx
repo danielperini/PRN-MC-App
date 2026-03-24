@@ -1,16 +1,13 @@
-// 🔥 VERSÃO FINAL COM CHAT IA INTEGRADO (SEM QUEBRAR NADA)
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Trash2, Eye, Plus, Loader2, CheckCircle, XCircle, RefreshCw, Database, MessageCircle } from 'lucide-react';
+import { Loader2, RefreshCw, MessageCircle } from 'lucide-react';
 
 const CATEGORIAS = ['Contrato', 'Plano de Trabalho', 'Manual', 'Meta', 'Relatório', 'Financeiro', 'RH', 'Outro'];
 
@@ -91,22 +88,6 @@ function UploadDialog({ open, onClose, onSaved }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input placeholder="Título" value={form.titulo} onChange={e => set('titulo', e.target.value)} />
 
-          <Select onValueChange={v => set('categoria', v)}>
-            <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
-            <SelectContent>
-              {CATEGORIAS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <Select onValueChange={v => set('cargo_relacionado', v)}>
-            <SelectTrigger><SelectValue placeholder="Cargo" /></SelectTrigger>
-            <SelectContent>
-              {CARGOS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <Input placeholder="Tags" value={form.tags} onChange={e => set('tags', e.target.value)} />
-
           <Input type="file" onChange={e => setFile(e.target.files[0])} />
 
           {uploading && (
@@ -144,7 +125,6 @@ function BaseConhecimentoInner() {
   const [syncing, setSyncing] = useState(false);
   const [busca, setBusca] = useState('');
 
-  // 🔥 CHAT
   const [pergunta, setPergunta] = useState('');
   const [resposta, setResposta] = useState('');
   const [loadingIA, setLoadingIA] = useState(false);
@@ -176,7 +156,10 @@ function BaseConhecimentoInner() {
     try {
       const res = await base44.functions.invoke('askBaseConhecimento', {
         pergunta,
-        contexto: mirror?.items || []
+        contexto: mirror?.items || [],
+        grouped_by_day: mirror?.grouped_by_day || {},
+        grouped_by_month: mirror?.grouped_by_month || {},
+        counts_by_museum: mirror?.counts_by_museum || {}
       });
 
       setResposta(res?.data?.resposta || 'Sem resposta');
@@ -213,15 +196,15 @@ function BaseConhecimentoInner() {
         </div>
       </div>
 
-      {/* 🔥 CHAT IA */}
+      {/* CHAT IA */}
       <div className="border rounded-lg p-4 mb-6 space-y-3">
         <div className="flex items-center gap-2 font-semibold">
           <MessageCircle className="w-4 h-4" />
-          Consultar base (IA)
+          Consultar programação e base
         </div>
 
         <Input
-          placeholder="Pergunte sobre programação, meses ou equipe"
+          placeholder="Ex: programação MIS março, o que tem hoje, agenda da semana"
           value={pergunta}
           onChange={(e) => setPergunta(e.target.value)}
         />
