@@ -1,4 +1,4 @@
-// 🔥 VERSÃO FINAL COM ESPELHO GOOGLE SHEETS + IA
+// 🔥 VERSÃO FINAL SEM ENTITY (GOOGLE SHEETS DIRETO)
 
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
@@ -23,7 +23,6 @@ const CARGOS = [
   'Assistente'
 ];
 
-const MIRROR_SLUG = 'base-conhecimento-ia-google-sheet';
 const ONE_DAY = 24 * 60 * 60 * 1000;
 
 function UploadDialog({ open, onClose, onSaved }) {
@@ -190,20 +189,19 @@ function BaseConhecimentoInner() {
     await refetch();
   };
 
+  // 🔥 NOVO LOAD (SEM ENTITY)
   const loadMirror = async () => {
-    const res = await base44.entities.BibliotecaConhecimentoIA.list({
-      filter: { slug: MIRROR_SLUG },
-      limit: 1,
+    const res = await base44.functions.invoke('syncBaseConhecimento', {
+      mode: 'load_only'
     });
-    return res?.[0] || null;
+    return res?.data || null;
   };
 
   const syncMirror = async (mode = 'manual') => {
     setSyncing(true);
     try {
-      await base44.functions.invoke('syncBaseConhecimento', { mode });
-      const updated = await loadMirror();
-      setMirror(updated);
+      const res = await base44.functions.invoke('syncBaseConhecimento', { mode });
+      setMirror(res?.data);
       toast.success('Base sincronizada');
     } catch (e) {
       toast.error('Erro ao sincronizar');
@@ -213,20 +211,8 @@ function BaseConhecimentoInner() {
   };
 
   const bootstrap = async () => {
-    const current = await loadMirror();
-
-    if (!current) {
-      await syncMirror('first_load');
-      return;
-    }
-
-    const last = current?.last_sync ? new Date(current.last_sync).getTime() : 0;
-
-    if (!last || (Date.now() - last > ONE_DAY)) {
-      await syncMirror('auto');
-    } else {
-      setMirror(current);
-    }
+    const data = await loadMirror();
+    setMirror(data);
   };
 
   useEffect(() => {
@@ -236,7 +222,6 @@ function BaseConhecimentoInner() {
   return (
     <div className="p-6">
 
-      {/* HEADER */}
       <div className="flex justify-between mb-6">
         <h1 className="text-xl font-bold">Biblioteca de Conhecimento IA</h1>
 
@@ -251,10 +236,9 @@ function BaseConhecimentoInner() {
         </div>
       </div>
 
-      {/* STATUS ESPELHO */}
       <div className="border rounded-lg p-4 mb-6 flex justify-between items-center">
         <div>
-          <div className="text-xs text-gray-500">Espelho Google Sheets</div>
+          <div className="text-xs text-gray-500">Google Sheets (tempo real)</div>
           <div className="font-medium flex items-center gap-2">
             <Database className="w-4 h-4" />
             {mirror?.total_items || 0} registros
@@ -264,11 +248,10 @@ function BaseConhecimentoInner() {
         <div className="text-sm text-gray-500">
           {mirror?.last_sync
             ? new Date(mirror.last_sync).toLocaleString('pt-BR')
-            : 'Nunca sincronizado'}
+            : 'Carregando...'}
         </div>
       </div>
 
-      {/* DOCUMENTOS IA */}
       <div className="space-y-4">
         {docs.map(doc => (
           <DocCard
