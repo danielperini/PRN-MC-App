@@ -128,18 +128,7 @@ function normalizeMatrix(matrix: string[][]) {
   };
 }
 
-async function getExistingMirror(base44: any) {
-  const existing = await base44.asServiceRole.entities.BibliotecaConhecimentoIA.list({
-    filter: { slug: MIRROR_SLUG },
-    limit: 1,
-  });
-
-  return existing?.[0] || null;
-}
-
 Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
-
   try {
     const body =
       req.method === 'POST'
@@ -149,12 +138,7 @@ Deno.serve(async (req) => {
     const mode = body?.args?.mode || body?.mode || 'manual';
     const nowIso = new Date().toISOString();
 
-    const response = await fetch(CSV_URL, {
-      method: 'GET',
-      headers: {
-        accept: 'text/csv,text/plain;q=0.9,*/*;q=0.8',
-      },
-    });
+    const response = await fetch(CSV_URL);
 
     if (!response.ok) {
       return new Response(
@@ -174,42 +158,22 @@ Deno.serve(async (req) => {
     const matrix = parseCsv(csvText);
     const normalized = normalizeMatrix(matrix);
 
-    const payload = {
-      slug: MIRROR_SLUG,
-      titulo: MIRROR_TITLE,
-      pasta: MIRROR_FOLDER,
-      tipo: 'google_sheet_mirror',
-      origem: 'google_sheets_csv',
-      source_url: SOURCE_URL,
-      source_sheet_id: SHEET_ID,
-      source_gid: GID,
-      headers: normalized.headers,
-      items: normalized.items,
-      raw_matrix: normalized.raw_matrix,
-      total_items: normalized.total_items,
-      last_sync: nowIso,
-      status: 'sincronizado',
-      sync_mode: mode,
-    };
-
-    const existing = await getExistingMirror(base44);
-
-    const saved = existing
-      ? await base44.asServiceRole.entities.BibliotecaConhecimentoIA.update(
-          existing.id,
-          payload
-        )
-      : await base44.asServiceRole.entities.BibliotecaConhecimentoIA.create(
-          payload
-        );
-
     return new Response(
       JSON.stringify({
         ok: true,
-        message: 'Base de conhecimento sincronizada com sucesso.',
+        message: 'Base carregada com sucesso (sem persistência).',
+        slug: MIRROR_SLUG,
+        titulo: MIRROR_TITLE,
+        pasta: MIRROR_FOLDER,
+        tipo: 'google_sheet_runtime',
+        origem: 'google_sheets_csv',
+        source_url: SOURCE_URL,
+        headers: normalized.headers,
+        items: normalized.items,
+        raw_matrix: normalized.raw_matrix,
         total_items: normalized.total_items,
         last_sync: nowIso,
-        record: saved,
+        sync_mode: mode,
       }),
       {
         status: 200,
