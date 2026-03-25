@@ -18,12 +18,23 @@ function normalizeText(value: any) {
     .toLowerCase();
 }
 
+function cleanValue(value: any) {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const d = String(value.getDate()).padStart(2, '0');
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const y = value.getFullYear();
+    return `${d}/${m}/${y}`;
+  }
+  return String(value).trim();
+}
+
 function normalizeHeader(value: any, index: number) {
-  const clean = String(value || '').trim();
+  const clean = cleanValue(value);
   return clean || `coluna_${index + 1}`;
 }
 
-function parseDate(value: any) {
+function parseDateWithSheetContext(value: any, sheetName = '') {
   if (!value) return null;
 
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
@@ -31,103 +42,395 @@ function parseDate(value: any) {
   const text = String(value).trim();
   if (!text) return null;
 
-  const match = text.match(/(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?/);
+  const direct = new Date(text);
+  if (!Number.isNaN(direct.getTime()) && /\d{4}/.test(text)) return direct;
 
-  if (match) {
-    const day = Number(match[1]);
-    const month = Number(match[2]);
-    let year = match[3] ? Number(match[3]) : new Date().getFullYear();
+  const sheetText = normalizeText(sheetName);
+
+  const monthMap: Record<string, number> = {
+    janeiro: 1,
+    fevereiro: 2,
+    marco: 3,
+    abril: 4,
+    maio: 5,
+    junho: 6,
+    julho: 7,
+    agosto: 8,
+    setembro: 9,
+    outubro: 10,
+    novembro: 11,
+    dezembro: 12,
+  };
+
+  let inferredMonth: number | null = null;
+  let inferredYear: number | null = null;
+
+  for (const [name, num] of Object.entries(monthMap)) {
+    if (sheetText.includes(name)) {
+      inferredMonth = num;
+      break;
+    }
+  }
+
+  const yearMatch = sheetText.match(/(20\d{2}|\d{2})/);
+  if (yearMatch) {
+    inferredYear = Number(yearMatch[1]);
+    if (inferredYear < 100) inferredYear += 2000;
+  }
+
+  const fullBr = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (fullBr) {
+    let year = Number(fullBr[3]);
+    if (year < 100) year += 2000;
+    return new Date(year, Number(fullBr[2]) - 1, Number(fullBr[1]));
+  }
+
+  const partialBr = text.match(/^(\d{1,2})[\/.-](\d{1,2})$/);
+  if (partialBr && inferredYear) {
+    return new Date(inferredYear, Number(partialBr[2]) - 1, Number(partialBr[1]));
+  }
+
+  const firstDateInPeriod = text.match(/(\d{1,2})(?:\s*a\s*\d{1,2})?\s+de\s+([a-zç]+)(?:\s+de\s+(20\d{2}|\d{2}))?/i);
+  if (firstDateInPeriod) {
+    const day = Number(firstDateInPeriod[1]);
+    const monthName = normalizeText(firstDateInPeriod[2]);
+    const month = monthMap[monthName];
+    let year = firstDateInPeriod[3] ? Number(firstDateInPeriod[3]) : inferredYear || new Date().getFullYear();
+    if (year < 100) year += 2000;
+    if (month) return new Date(year, month - 1, day);
+  }
+
+  const dateInSentence = text.match(/(\d{1,2})(?:,\d{1,2})*(?:\s*e\s*\d{1,2})?\s+de\s+([a-zç]+)/i);
+  if (dateInSentence) {
+    const day = Number(dateInSentence[1].split(',')[0]);
+    const monthName = normalizeText(dateInSentence[2]);
+    const month = monthMap[monthName];
+    const year = inferredYear || new Date().getFullYear();
+    if (month) return new Date(year, month - 1, day);
+  }
+
+  const firstDatePeriod = text.match(/(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?/);
+  if (firstDatePeriod) {
+    const day = Number(firstDatePeriod[1]);
+    const month = Number(firstDatePeriod[2]);
+    let year = firstDatePeriod[3] ? Number(firstDatePeriod[3]) : inferredYear || new Date().getFullYear();
     if (year < 100) year += 2000;
     return new Date(year, month - 1, day);
+  }
+
+  if (inferredMonth && inferredYear) {
+    const dayOnly = text.match(/^(\d{1,2})$/);
+    if (dayOnly) {
+      return new Date(inferredYear, inferredMonth - 1, Number(dayOnly[1]));
+    }
   }
 
   return null;
 }
 
-function findValue(values: Record<string, any>, keys: string[]) {
-  for (const [k, v] of Object.entries(values)) {
-    const nk = normalizeText(k);
-    if (keys.some((kk) => nk.includes(kk)) && String(v || '').trim()) {
-      return v;
-    }
-  }
-  return '';
-}
+function detectMuseum(equipamento: string, values: Record<string, any>) {
+  const sourceText = `${equipamento} ${values?.local || ''} ${values?.endereco_completo || ''}`;
+  const text = normalizeText(sourceText);
 
-function detectMuseum(values: Record<string, any>) {
-  const text = normalizeText(Object.values(values).join(' '));
-
-  if (text.includes('mhab') || text.includes('abilio')) return 'MHAB';
-  if (text.includes('mis')) return 'MIS';
-  if (text.includes('mumo') || text.includes('museu da moda')) return 'MUMO';
-
+  if (text.includes('mhab') || text.includes('mhab ') || text.includes('abilio barreto')) return 'MHAB';
+  if (text.includes('mis') || text.includes('imagem e do som') || text.includes('imagem e som')) return 'MIS';
+  if (text.includes('mumo') || text.includes('mumu') || text.includes('museu da moda')) return 'MUMO';
   return 'Externo';
 }
 
-function mapRow(values: Record<string, any>, index: number) {
-  const rawDate =
-    findValue(values, ['data']) ||
-    findValue(values, ['periodo']) ||
-    findValue(values, ['período']);
+function summarizeActivity(values: Record<string, any>) {
+  const nome = values.nome_divulgacao || values.nome || '';
+  const sinopse = values.sinopse || '';
+  const tipo = values.tipo_de_atividade || '';
+  const formato = values.formato || '';
+  const data = values.data || '';
+  const horario = values.horario || '';
+  const publico = values.publico_alvo || '';
+  const acessibilidade = values.acessibilidade || '';
+  const vagas = values.vagas || '';
+  const inscricao = values.inscricao_acesso || '';
+  const contato = values.contato_da_atracao || '';
+  const local = values.local || '';
+  const endereco = values.endereco_completo || '';
+  const status = values.status || '';
+  const referencia = values.pessoa_de_referencia || '';
+  const contratacao = values.contratacao || '';
+  const insumos = values.insumos || '';
+  const fotografia = values.fotografia || '';
+  const necessidades = values.outras_necessidades || '';
+  const divulgacao = values.material_de_divulgacao || '';
+  const servico = values.servico || '';
+  const briefing = values.briefing || values.briefing_link || '';
+  const classificacao = values.classificacao_indicativa || '';
+  const minibios = values.minibios || '';
+  const objetivo = sinopse || '';
+  const valor = values.valor || '';
 
-  const parsedDate = parseDate(rawDate);
+  const parts = [
+    nome ? `${nome}.` : '',
+    objetivo ? `${objetivo}` : '',
+    tipo || formato ? `Trata-se de uma atividade ${[tipo, formato].filter(Boolean).join(', ')}.` : '',
+    data || horario ? `A programação acontece ${[data && `em ${data}`, horario && `às ${horario}`].filter(Boolean).join(' ')}.` : '',
+    local || endereco ? `Será realizada em ${[local, endereco].filter(Boolean).join(', ')}.` : '',
+    publico ? `O público-alvo é: ${publico}.` : '',
+    acessibilidade ? `Informações de acessibilidade: ${acessibilidade}.` : '',
+    classificacao ? `Classificação indicativa: ${classificacao}.` : '',
+    vagas ? `Número de vagas: ${vagas}.` : '',
+    inscricao ? `Forma de inscrição ou acesso: ${inscricao}.` : '',
+    contato ? `Contato da atração: ${contato}.` : '',
+    referencia ? `Pessoa de referência: ${referencia}.` : '',
+    valor ? `Valor informado: ${valor}.` : '',
+    status ? `Status da atividade: ${status}.` : '',
+    contratacao ? `Situação de contratação: ${contratacao}.` : '',
+    insumos ? `Insumos previstos: ${insumos}.` : '',
+    fotografia ? `Necessidade de fotografia: ${fotografia}.` : '',
+    necessidades ? `Outras necessidades: ${necessidades}.` : '',
+    divulgacao ? `Divulgação prevista em: ${divulgacao}.` : '',
+    servico ? `Serviços relacionados: ${servico}.` : '',
+    briefing ? `Briefing disponível em: ${briefing}.` : '',
+    minibios ? `Minibio(s): ${minibios}.` : '',
+  ].filter(Boolean);
 
-  const nome =
-    findValue(values, ['nome da acao', 'nome da ação', 'nome atividade', 'nome']) ||
-    `Atividade ${index}`;
-
-  const sinopse = findValue(values, ['sinopse', 'descricao', 'descrição']);
-  const tipo = findValue(values, ['tipo']);
-  const horario = findValue(values, ['horario']);
-  const vagas = findValue(values, ['vagas']);
-  const inscricao = findValue(values, ['inscricao']);
-  const link = findValue(values, ['link']);
-
-  return {
-    nome,
-    titulo: nome,
-    sinopse,
-    descricao: sinopse,
-    tipo,
-    horario,
-    vagas,
-    inscricao,
-    link,
-    museu: detectMuseum(values),
-    data: rawDate,
-    data_iso: parsedDate ? parsedDate.toISOString() : '',
-  };
+  return parts.join(' ');
 }
 
-function normalizeSheet(matrix: any[][]) {
-  if (!matrix.length) return [];
+function rowLooksLikeMainHeader(row: any[]) {
+  const text = normalizeText((row || []).join(' | '));
+  return text.includes('equipamento') && text.includes('programacao');
+}
 
-  const headers = matrix[0].map(normalizeHeader);
+function rowLooksLikeFieldHeader(row: any[]) {
+  const text = normalizeText((row || []).join(' | '));
+  return (
+    text.includes('nome da acao') ||
+    text.includes('nome') ||
+    text.includes('sinopse') ||
+    text.includes('tipo de atividade') ||
+    text.includes('formato') ||
+    text.includes('data') ||
+    text.includes('horario') ||
+    text.includes('publico-alvo') ||
+    text.includes('publico alvo') ||
+    text.includes('inscricao/acesso') ||
+    text.includes('inscrição/acesso')
+  );
+}
 
-  const items: any[] = [];
+function mapHeaderKey(header: string) {
+  const h = normalizeText(header);
 
-  for (let i = 1; i < matrix.length; i++) {
-    const row = matrix[i];
-    const values: Record<string, any> = {};
+  if (h === 'nome' || h.includes('nome da acao')) return 'nome';
+  if (h.includes('nome da atividade para divulgacao')) return 'nome_divulgacao';
+  if (h.includes('sinopse')) return 'sinopse';
+  if (h.includes('tipo de atividade')) return 'tipo_de_atividade';
+  if (h.includes('formato')) return 'formato';
+  if (h === 'data' || h.includes('data ')) return 'data';
+  if (h.includes('horario')) return 'horario';
+  if (h.includes('publico-alvo') || h.includes('publico alvo')) return 'publico_alvo';
+  if (h.includes('acessibilidade')) return 'acessibilidade';
+  if (h.includes('classificacao indicativa')) return 'classificacao_indicativa';
+  if (h === 'vagas' || h.includes('vagas')) return 'vagas';
+  if (h.includes('inscricao/acesso') || h.includes('inscrição/acesso')) return 'inscricao_acesso';
+  if (h.includes('contato da atracao') || h.includes('contato da atração')) return 'contato_da_atracao';
+  if (h === 'valor') return 'valor';
+  if (h.includes('requisicao feita')) return 'requisicao_feita';
+  if (h === 'local') return 'local';
+  if (h.includes('endereco completo') || h.includes('endereço completo')) return 'endereco_completo';
+  if (h === 'status') return 'status';
+  if (h.includes('data de fechamento')) return 'data_de_fechamento';
+  if (h.includes('pessoa de referencia') || h.includes('pessoa de referência')) return 'pessoa_de_referencia';
+  if (h.includes('contratacao') || h.includes('contratação')) return 'contratacao';
+  if (h.includes('insumos')) return 'insumos';
+  if (h.includes('fotografia')) return 'fotografia';
+  if (h.includes('outras necessidades')) return 'outras_necessidades';
+  if (h.includes('link de imagens')) return 'link_imagens';
+  if (h.includes('minibios')) return 'minibios';
+  if (h.includes('material de divulgacao') || h.includes('material de divulgação')) return 'material_de_divulgacao';
+  if (h === 'servico' || h === 'serviço') return 'servico';
+  if (h.includes('briefing')) return 'briefing';
+  return h.replace(/[^\w]+/g, '_');
+}
 
-    headers.forEach((h, idx) => {
-      values[h] = row[idx];
-    });
+function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
+  if (!Array.isArray(matrix) || !matrix.length) return [];
 
-    const item = mapRow(values, i);
+  let fieldHeaders: string[] = [];
+  let items: any[] = [];
 
-    if (!item.nome || !item.data_iso) continue;
+  for (let i = 0; i < matrix.length; i++) {
+    const row = Array.isArray(matrix[i]) ? matrix[i] : [];
+    const cleanedRow = row.map(cleanValue);
+    const hasAnyValue = cleanedRow.some((v) => String(v || '').trim() !== '');
+    if (!hasAnyValue) continue;
 
-    items.push(item);
+    if (rowLooksLikeMainHeader(cleanedRow)) continue;
+
+    if (rowLooksLikeFieldHeader(cleanedRow)) {
+      fieldHeaders = cleanedRow.map((h, idx) => mapHeaderKey(normalizeHeader(h, idx)));
+      continue;
+    }
+
+    if (!fieldHeaders.length) continue;
+
+    const equipamento = cleanValue(cleanedRow[0]);
+    const nome = cleanValue(cleanedRow[1]);
+
+    if (!equipamento || !nome) continue;
+
+    const values: Record<string, any> = {
+      equipamento,
+    };
+
+    for (let c = 1; c < fieldHeaders.length; c++) {
+      const key = fieldHeaders[c];
+      values[key] = cleanValue(cleanedRow[c]);
+    }
+
+    const parsedDate = parseDateWithSheetContext(values.data, sheetName);
+    const museu = detectMuseum(equipamento, values);
+
+    const item = {
+      id: `${sheetName}-${i + rowOffset}-${nome}`,
+      row_index: i + rowOffset,
+      sheet_name: sheetName,
+      month_label: format(parsedDate || new Date(), 'MMMM yyyy', { locale: ptBR }),
+      museu,
+      equipamento,
+      nome: values.nome_divulgacao || values.nome || nome,
+      titulo: values.nome_divulgacao || values.nome || nome,
+      sinopse: values.sinopse || '',
+      descricao: values.sinopse || '',
+      tipo: values.tipo_de_atividade || '',
+      tipo_atividade: values.tipo_de_atividade || '',
+      formato: values.formato || '',
+      data: values.data || '',
+      data_iso: parsedDate ? parsedDate.toISOString() : '',
+      horario: values.horario || '',
+      publico_alvo: values.publico_alvo || '',
+      acessibilidade: values.acessibilidade || '',
+      classificacao_indicativa: values.classificacao_indicativa || '',
+      vagas: values.vagas || '',
+      inscricao: values.inscricao_acesso || '',
+      inscricao_acesso: values.inscricao_acesso || '',
+      contato_da_atracao: values.contato_da_atracao || '',
+      valor: values.valor || '',
+      requisicao_feita: values.requisicao_feita || '',
+      local: values.local || '',
+      endereco_completo: values.endereco_completo || '',
+      status: values.status || '',
+      data_de_fechamento: values.data_de_fechamento || '',
+      pessoa_de_referencia: values.pessoa_de_referencia || '',
+      contratacao: values.contratacao || '',
+      insumos: values.insumos || '',
+      fotografia: values.fotografia || '',
+      outras_necessidades: values.outras_necessidades || '',
+      nome_divulgacao: values.nome_divulgacao || '',
+      link: values.link_imagens || '',
+      link_imagens: values.link_imagens || '',
+      minibios: values.minibios || '',
+      material_de_divulgacao: values.material_de_divulgacao || '',
+      servico: values.servico || '',
+      briefing: values.briefing || '',
+      resumo_ia: summarizeActivity(values),
+      raw_values: values,
+    };
+
+    if (item.nome && item.data_iso) {
+      items.push(item);
+    }
   }
 
   return items;
 }
 
-function groupTimeline(items: any[]) {
-  const now = new Date();
+function getDayKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
-  const map: any = {
+function getMonthKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+function groupByDay(items: any[]) {
+  const map: Record<string, any[]> = {};
+  items.forEach((item) => {
+    if (!item.data_iso) return;
+    const date = new Date(item.data_iso);
+    if (Number.isNaN(date.getTime())) return;
+    const key = getDayKey(date);
+    if (!map[key]) map[key] = [];
+    map[key].push(item);
+  });
+  return map;
+}
+
+function groupByMonth(items: any[]) {
+  const map: Record<string, any[]> = {};
+  items.forEach((item) => {
+    if (!item.data_iso) return;
+    const date = new Date(item.data_iso);
+    if (Number.isNaN(date.getTime())) return;
+    const key = getMonthKey(date);
+    if (!map[key]) map[key] = [];
+    map[key].push(item);
+  });
+  return map;
+}
+
+function groupByMuseumAndMonth(items: any[]) {
+  const map: Record<string, Record<string, any[]>> = {
+    MIS: {},
+    MHAB: {},
+    MUMO: {},
+    Externo: {},
+    Todos: {},
+  };
+
+  items.forEach((item) => {
+    if (!item.data_iso) return;
+    const date = new Date(item.data_iso);
+    if (Number.isNaN(date.getTime())) return;
+
+    const monthKey = getMonthKey(date);
+    const museu = item.museu || 'Externo';
+
+    if (!map[museu]) map[museu] = {};
+    if (!map[museu][monthKey]) map[museu][monthKey] = [];
+    if (!map.Todos[monthKey]) map.Todos[monthKey] = [];
+
+    map[museu][monthKey].push(item);
+    map.Todos[monthKey].push(item);
+  });
+
+  return map;
+}
+
+function countByMuseum(items: any[]) {
+  const map: Record<string, number> = {
+    MIS: 0,
+    MHAB: 0,
+    MUMO: 0,
+    Externo: 0,
+  };
+
+  items.forEach((item) => {
+    const key = item.museu || 'Externo';
+    map[key] = (map[key] || 0) + 1;
+  });
+
+  return map;
+}
+
+function groupTimelineByMuseum(items: any[]) {
+  const now = new Date();
+  const nowDay = getDayKey(now);
+
+  const map: Record<string, { futuras: any[]; atuais: any[]; passadas: any[] }> = {
     Todos: { futuras: [], atuais: [], passadas: [] },
     MIS: { futuras: [], atuais: [], passadas: [] },
     MHAB: { futuras: [], atuais: [], passadas: [] },
@@ -136,17 +439,25 @@ function groupTimeline(items: any[]) {
   };
 
   items.forEach((item) => {
-    const d = new Date(item.data_iso);
-    const today = new Date();
+    if (!item.data_iso) return;
+    const date = new Date(item.data_iso);
+    if (Number.isNaN(date.getTime())) return;
 
-    let bucket = 'passadas';
-    if (d.toDateString() === today.toDateString()) bucket = 'atuais';
-    else if (d > today) bucket = 'futuras';
+    const itemDay = getDayKey(date);
+    let bucket: 'futuras' | 'atuais' | 'passadas' = 'passadas';
 
-    const m = item.museu || 'Externo';
+    if (itemDay > nowDay) bucket = 'futuras';
+    else if (itemDay === nowDay) bucket = 'atuais';
 
+    const museu = item.museu || 'Externo';
     map.Todos[bucket].push(item);
-    map[m][bucket].push(item);
+    map[museu][bucket].push(item);
+  });
+
+  Object.values(map).forEach((group) => {
+    group.futuras.sort((a, b) => new Date(a.data_iso).getTime() - new Date(b.data_iso).getTime());
+    group.atuais.sort((a, b) => new Date(a.data_iso).getTime() - new Date(b.data_iso).getTime());
+    group.passadas.sort((a, b) => new Date(b.data_iso).getTime() - new Date(a.data_iso).getTime());
   });
 
   return map;
@@ -156,33 +467,96 @@ Deno.serve(async (req) => {
   createClientFromRequest(req);
 
   try {
+    const body =
+      req.method === 'POST'
+        ? await req.json().catch(() => ({}))
+        : {};
+
+    const mode = body?.args?.mode || body?.mode || 'manual';
+    const nowIso = new Date().toISOString();
+
     const response = await fetch(XLSX_URL);
 
+    if (!response.ok) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: `Falha ao ler planilha. HTTP ${response.status}`,
+          source_url: SOURCE_URL,
+        }),
+        {
+          status: 500,
+          headers: { 'content-type': 'application/json' },
+        }
+      );
+    }
+
     const arrayBuffer = await response.arrayBuffer();
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
 
     let allItems: any[] = [];
+    let runningOffset = 0;
 
     workbook.SheetNames.forEach((sheetName) => {
       const ws = workbook.Sheets[sheetName];
-      const matrix = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      const items = normalizeSheet(matrix);
+      const matrix = XLSX.utils.sheet_to_json(ws, {
+        header: 1,
+        raw: false,
+        defval: '',
+      }) as any[][];
+
+      const items = normalizeSheet(sheetName, matrix, runningOffset);
       allItems = allItems.concat(items);
+      runningOffset += items.length + 10;
     });
 
-    const timeline = groupTimeline(allItems);
+    const groupedByDay = groupByDay(allItems);
+    const groupedByMonth = groupByMonth(allItems);
+    const groupedByMuseumAndMonth = groupByMuseumAndMonth(allItems);
+    const countsByMuseum = countByMuseum(allItems);
+    const timelineByMuseum = groupTimelineByMuseum(allItems);
 
     return new Response(
       JSON.stringify({
         ok: true,
+        message: 'Base carregada com sucesso a partir da planilha de programação.',
+        slug: MIRROR_SLUG,
+        titulo: MIRROR_TITLE,
+        pasta: MIRROR_FOLDER,
+        tipo: 'google_sheet_runtime',
+        origem: 'google_sheets_xlsx',
+        source_url: SOURCE_URL,
+        source_sheet_id: SHEET_ID,
+        source_gid: GID,
+        sheet_names: workbook.SheetNames,
         items: allItems,
-        timeline_by_museum: timeline,
+        total_items: allItems.length,
+        grouped_by_day: groupedByDay,
+        grouped_by_month: groupedByMonth,
+        grouped_by_museum_and_month: groupedByMuseumAndMonth,
+        counts_by_museum: countsByMuseum,
+        timeline_by_museum: timelineByMuseum,
+        last_sync: nowIso,
+        sync_mode: mode,
       }),
-      { headers: { 'content-type': 'application/json' } }
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }
     );
-  } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: String(e) }), {
-      status: 500,
-    });
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Erro inesperado na sincronização.',
+      }),
+      {
+        status: 500,
+        headers: { 'content-type': 'application/json' },
+      }
+    );
   }
 });
