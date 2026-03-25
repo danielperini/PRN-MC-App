@@ -2,16 +2,38 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
-import { useCurrentUser } from '../components/auth/useCurrentUser';
-import { Calendar, MapPin, Users, Clock, Download, ChevronDown } from 'lucide-react';
+import { Calendar, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-const STATUS_CONFIG = {
-  ATIVO: { label: 'Ativo', color: 'bg-green-100 text-green-800 border-green-300' },
-};
+function getDateSafe(prog) {
+  if (prog.data_iso) {
+    const d = new Date(prog.data_iso);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  if (prog.data && prog.data.includes('/')) {
+    const parts = prog.data.split('/');
+    if (parts.length === 3) {
+      const [d, m, y] = parts;
+      const date = new Date(Number(y), Number(m) - 1, Number(d));
+      if (!isNaN(date.getTime())) return date;
+    }
+  }
+
+  return null;
+}
+
+function getMonthLabel(date) {
+  if (!date) return 'Sem data';
+
+  return date.toLocaleDateString('pt-BR', {
+    month: 'long',
+    year: 'numeric',
+  });
+}
 
 function ProgramacoesAgendaInner() {
   const [expandedId, setExpandedId] = useState(null);
@@ -19,7 +41,7 @@ function ProgramacoesAgendaInner() {
 
   const { data: programacoes = [], isLoading } = useQuery({
     queryKey: ['programacoes'],
-    queryFn: () => base44.entities.Programacao.list('-data', 500),
+    queryFn: () => base44.entities.Programacao.list('-data', 1000),
   });
 
   const programacoesFiltradas = useMemo(() => {
@@ -31,21 +53,39 @@ function ProgramacoesAgendaInner() {
 
   const museus = [...new Set(programacoes.map(p => p.equipamento).filter(Boolean))];
 
-  const agruparPorMes = useMemo(() => {
+  const agrupado = useMemo(() => {
     const grupos = {};
 
     programacoesFiltradas.forEach(prog => {
-      const data = prog.data || 'sem-data';
+      const date = getDateSafe(prog);
 
-      const mes = data.includes('/')
-        ? data.split('/').slice(1).join('/') // MM/YYYY
-        : data;
+      const mesLabel = getMonthLabel(date);
 
-      if (!grupos[mes]) grupos[mes] = [];
-      grupos[mes].push(prog);
+      if (!grupos[mesLabel]) grupos[mesLabel] = [];
+
+      grupos[mesLabel].push({
+        ...prog,
+        _date: date,
+      });
     });
 
-    return grupos;
+    // ordenar meses
+    const ordered = Object.entries(grupos)
+      .sort((a, b) => {
+        const da = a[1][0]?._date?.getTime() || 0;
+        const db = b[1][0]?._date?.getTime() || 0;
+        return da - db;
+      })
+      .reduce((acc, [k, v]) => {
+        acc[k] = v.sort((a, b) => {
+          const da = a._date?.getTime() || 0;
+          const db = b._date?.getTime() || 0;
+          return da - db;
+        });
+        return acc;
+      }, {});
+
+    return ordered;
   }, [programacoesFiltradas]);
 
   return (
@@ -79,15 +119,15 @@ function ProgramacoesAgendaInner() {
 
         {isLoading ? (
           <div className="text-center py-20 text-gray-400">Carregando...</div>
-        ) : Object.keys(agruparPorMes).length === 0 ? (
+        ) : Object.keys(agrupado).length === 0 ? (
           <Card className="p-8 text-center border-gray-200">
             Nenhuma atividade encontrada
           </Card>
         ) : (
           <div className="space-y-8">
-            {Object.entries(agruparPorMes).map(([mes, progs]) => (
+            {Object.entries(agrupado).map(([mes, progs]) => (
               <div key={mes}>
-                <h2 className="text-lg font-semibold mb-4">{mes}</h2>
+                <h2 className="text-lg font-semibold mb-4 capitalize">{mes}</h2>
 
                 <div className="space-y-3">
                   {progs.map(prog => {
@@ -111,6 +151,7 @@ function ProgramacoesAgendaInner() {
                                 <span>{prog.data}</span>
                                 {prog.horario && <span>{prog.horario}</span>}
                                 {prog.local && <span>{prog.local}</span>}
+                                {prog.equipamento && <span>{prog.equipamento}</span>}
                               </div>
                             </div>
 
@@ -132,13 +173,15 @@ function ProgramacoesAgendaInner() {
                               {prog.inscricao && <div>Inscrição: {prog.inscricao}</div>}
                             </div>
 
-                            <Button
-                              size="sm"
-                              className="mt-4"
-                              onClick={() => window.open(prog.link_imagens || '#')}
-                            >
-                              Saiba mais
-                            </Button>
+                            {prog.link_imagens && (
+                              <Button
+                                size="sm"
+                                className="mt-4"
+                                onClick={() => window.open(prog.link_imagens, '_blank')}
+                              >
+                                Saiba mais
+                              </Button>
+                            )}
 
                           </div>
                         )}
@@ -157,5 +200,9 @@ function ProgramacoesAgendaInner() {
 }
 
 export default function ProgramacoesAgenda() {
-  return <RequireAuth><ProgramacoesAgendaInner /></RequireAuth>;
+  return (
+    <RequireAuth>
+      <ProgramacoesAgendaInner />
+    </RequireAuth>
+  );
 }
