@@ -229,6 +229,30 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId
     (u.full_name || u.email).toLowerCase().includes(coRespSearch.toLowerCase())
   );
 
+  const toInt = (value, fallback = 0) => {
+    if (value === '' || value === null || value === undefined) return fallback;
+    const n = parseInt(value, 10);
+    return Number.isNaN(n) ? fallback : n;
+  };
+
+  const updateCamposDerivados = (field, rawValue) => {
+    const proximaQuantidade =
+      field === 'quantas_repeticoes'
+        ? rawValue
+        : (atividade.quantas_repeticoes ?? '');
+
+    const proximoProduto =
+      field === 'quantidade_produto'
+        ? rawValue
+        : (atividade.quantidade_produto ?? '');
+
+    const repeticoes = toInt(proximaQuantidade, 0);
+    const quantidadeProduto = toInt(proximoProduto, 0);
+
+    onChange('atividades_total', repeticoes);
+    onChange('produtos_total', repeticoes * quantidadeProduto);
+  };
+
   const handleAiMeta = async () => {
     if (!atividade.nome && !atividade.descricao_executado && !atividade.objetivo) {
       toast.warning('Preencha pelo menos o nome ou descrição da atividade antes de usar a IA', {
@@ -331,12 +355,6 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
 
     setAiLoading(false);
   };
-
-  const repeticoes = parseInt(atividade.quantas_repeticoes || 0, 10);
-  const quantidadeProduto = parseInt(atividade.quantidade_produto || 0, 10);
-
-  const atividadesTotal = repeticoes;
-  const produtosTotal = quantidadeProduto * repeticoes;
 
   return (
     <div className={`border rounded-xl overflow-hidden ${hasDupWarning ? 'border-amber-400' : errors.length > 0 ? 'border-red-200' : 'border-gray-200'}`}>
@@ -608,8 +626,11 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
               <Input
                 type="number"
                 placeholder="0"
-                value={atividade.publico_estimado || ''}
-                onChange={e => onChange('publico_estimado', parseInt(e.target.value, 10) || 0)}
+                value={atividade.publico_estimado ?? ''}
+                onChange={e => {
+                  const raw = e.target.value;
+                  onChange('publico_estimado', raw === '' ? '' : toInt(raw, 0));
+                }}
                 disabled={!canEdit}
               />
             </Field>
@@ -622,45 +643,48 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                 onChange={e => {
                   const raw = e.target.value;
 
-                  onChange('quantas_repeticoes', raw);
-
                   if (raw === '') {
+                    onChange('quantas_repeticoes', '');
                     onChange('atividades_total', 0);
                     onChange('produtos_total', 0);
                     return;
                   }
 
-                  const val = parseInt(raw, 10);
-                  if (!isNaN(val) && val >= 0 && val <= 99) {
-                    onChange('atividades_total', val);
-                    onChange('produtos_total', (parseInt(atividade.quantidade_produto, 10) || 0) * val);
+                  if (/^\d+$/.test(raw)) {
+                    onChange('quantas_repeticoes', raw);
+                    updateCamposDerivados('quantas_repeticoes', raw);
                   }
                 }}
                 onBlur={() => {
-                  if (atividade.quantas_repeticoes === '' || atividade.quantas_repeticoes === null || atividade.quantas_repeticoes === undefined) {
+                  if (
+                    atividade.quantas_repeticoes === '' ||
+                    atividade.quantas_repeticoes === null ||
+                    atividade.quantas_repeticoes === undefined
+                  ) {
                     return;
                   }
 
-                  const val = parseInt(atividade.quantas_repeticoes, 10);
-                  if (!isNaN(val)) {
-                    const normalizado = Math.max(0, Math.min(99, val));
-                    onChange('quantas_repeticoes', normalizado);
-                    onChange('atividades_total', normalizado);
-                    onChange('produtos_total', (parseInt(atividade.quantidade_produto, 10) || 0) * normalizado);
-                  }
+                  const normalizado = Math.max(0, Math.min(99, toInt(atividade.quantas_repeticoes, 0)));
+                  onChange('quantas_repeticoes', normalizado);
+                  onChange('atividades_total', normalizado);
+                  onChange(
+                    'produtos_total',
+                    normalizado * toInt(atividade.quantidade_produto, 0)
+                  );
                 }}
                 disabled={!canEdit}
                 min="0"
                 max="99"
+                inputMode="numeric"
               />
             </Field>
 
             <Field label="Total de atividades realizadas">
               <Input
                 type="number"
-                value={atividade.atividades_total || 0}
+                value={atividade.atividades_total ?? 0}
                 readOnly
-                disabled={true}
+                disabled
               />
             </Field>
 
@@ -682,7 +706,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
               <Input
                 type="number"
                 placeholder="0"
-                value={atividade.quantidade_produto === undefined || atividade.quantidade_produto === null ? '' : atividade.quantidade_produto}
+                value={atividade.quantidade_produto ?? ''}
                 onChange={e => {
                   const raw = e.target.value;
 
@@ -692,23 +716,39 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                     return;
                   }
 
-                  const qtd = parseInt(raw, 10);
-                  if (!isNaN(qtd) && qtd >= 0) {
-                    onChange('quantidade_produto', qtd);
-                    onChange('produtos_total', qtd * (parseInt(atividade.quantas_repeticoes, 10) || 0));
+                  if (/^\d+$/.test(raw)) {
+                    onChange('quantidade_produto', raw);
+                    updateCamposDerivados('quantidade_produto', raw);
                   }
+                }}
+                onBlur={() => {
+                  if (
+                    atividade.quantidade_produto === '' ||
+                    atividade.quantidade_produto === null ||
+                    atividade.quantidade_produto === undefined
+                  ) {
+                    return;
+                  }
+
+                  const normalizado = Math.max(0, toInt(atividade.quantidade_produto, 0));
+                  onChange('quantidade_produto', normalizado);
+                  onChange(
+                    'produtos_total',
+                    normalizado * toInt(atividade.quantas_repeticoes, 0)
+                  );
                 }}
                 disabled={!canEdit}
                 min="0"
+                inputMode="numeric"
               />
             </Field>
 
             <Field label="Total de produtos gerados">
               <Input
                 type="number"
-                value={atividade.produtos_total || 0}
+                value={atividade.produtos_total ?? 0}
                 readOnly
-                disabled={true}
+                disabled
               />
             </Field>
           </div>
