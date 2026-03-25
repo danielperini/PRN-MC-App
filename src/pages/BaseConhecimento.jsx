@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
-import { useCurrentUser } from '../components/auth/useCurrentUser';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +27,21 @@ function normalizeText(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim();
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const base64 = result.includes(',') ? result.split(',')[1] : result;
+      resolve(base64);
+    };
+
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 function getDocTitle(doc, index) {
@@ -80,7 +94,6 @@ function getDocIcon(doc) {
 
 function BaseConhecimentoInner() {
   const queryClient = useQueryClient();
-  const { user: currentUser } = useCurrentUser();
 
   const [busca, setBusca] = useState('');
   const [pergunta, setPergunta] = useState('');
@@ -151,73 +164,30 @@ function BaseConhecimentoInner() {
       return;
     }
 
-    if (!currentUser?.email) {
-      toast.error('Usuário não identificado.');
-      return;
-    }
-
     setUploading(true);
 
     try {
-      const uploadedFile = await base44.integrations.Core.UploadFile({
-        file: selectedFile,
-      });
+      const contentBase64 = await fileToBase64(selectedFile);
 
-      if (!uploadedFile?.file_url) {
-        throw new Error('Falha ao gravar o arquivo no storage.');
-      }
-
-      const createdDoc = await base44.asServiceRole.entities.KnowledgeDocument.create({
-        title: selectedFile.name.replace(/\.[^/.]+$/, ''),
-        name: selectedFile.name.replace(/\.[^/.]+$/, ''),
+      const res = await base44.functions.invoke('processDocumentUpload', {
         file_name: selectedFile.name,
-        file_url: uploadedFile.file_url,
         mime_type: selectedFile.type || '',
         size_bytes: selectedFile.size || 0,
+        content_base64: contentBase64,
+        titulo: selectedFile.name.replace(/\.[^/.]+$/, ''),
         categoria: 'Biblioteca do Conhecimento',
         descricao: `Arquivo gravado na biblioteca em ${new Date().toLocaleString('pt-BR')}`,
         tags: ['biblioteca', 'upload_manual'],
-        processing_status: 'salvo',
-        status: 'salvo',
-        processado_ia: false,
-        tipo_documento: 'nao_classificado',
-        summary: '',
-        analysis: '',
-        extracted_text: '',
-        conteudo_extraido: '',
-        uploaded_by_email: currentUser.email,
-        uploaded_by_name: currentUser.name || currentUser.full_name || '',
-        created_by_email: currentUser.email,
-        created_date: new Date().toISOString(),
-        ativo: true,
       });
 
-      if (!createdDoc?.id) {
-        throw new Error('Arquivo enviado, mas não foi possível criar o registro na biblioteca.');
+      if (res?.data?.ok === false) {
+        throw new Error(res?.data?.error || 'Falha no processamento do arquivo.');
       }
 
       toast.success('Arquivo gravado na biblioteca com sucesso.');
 
-      await Promise.all([
-        refetchDocs(),
-        queryClient.invalidateQueries({ queryKey: ['knowledge-docs'] }),
-      ]);
-
       setSelectedFile(null);
       setShowUpload(false);
-
-      toast.success('Análise por IA iniciada.');
-
-      try {
-        await base44.functions.invoke('processKnowledgeDocument', {
-          document_id: createdDoc.id,
-        });
-
-        toast.success('Análise por IA concluída e biblioteca atualizada.');
-      } catch (processingError) {
-        console.error('Erro ao processar documento com IA:', processingError);
-        toast.error('O arquivo foi gravado, mas a análise por IA falhou.');
-      }
 
       await Promise.all([
         refetchDocs(),
@@ -225,6 +195,12 @@ function BaseConhecimentoInner() {
         queryClient.invalidateQueries({ queryKey: ['knowledge-docs'] }),
         queryClient.invalidateQueries({ queryKey: ['base-conhecimento'] }),
       ]);
+
+      if (res?.data?.ia_processed) {
+        toast.success('Análise por IA concluída.');
+      } else {
+        toast.success('Arquivo salvo. A análise será atualizada na biblioteca.');
+      }
     } catch (error) {
       toast.error(error?.message || 'Erro ao gravar arquivo na biblioteca.');
     } finally {
