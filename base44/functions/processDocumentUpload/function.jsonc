@@ -1,1 +1,4 @@
-
+{
+  "name": "processDocumentUpload",
+  "entry": "entry.ts"
+}
