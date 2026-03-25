@@ -1,735 +1,785 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-import pdfParse from 'npm:pdf-parse@1.1.1';
-import * as XLSX from 'npm:xlsx@0.18.5';
+import React, { useState, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import RequireAuth from '../components/auth/RequireAuth';
+import { useCurrentUser } from '../components/auth/useCurrentUser';
+import { Cloud, Calendar, AlertTriangle, HardDrive, ChevronDown, Loader2, FileText, Info, Download, File, Eye, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import BackupMonthlyDialog from '../components/backup/BackupMonthlyDialog';
+import BackupHistoryTable from '../components/backup/BackupHistoryTable';
+import FileBackupStatus from '../components/backup/FileBackupStatus';
+import FileHierarchy from '../components/gallery/FileHierarchy';
+import FilePreviewViewer from '../components/gallery/FilePreviewViewer';
+import GoogleDriveImporter from '../components/drive/GoogleDriveImporter';
+import { toast } from 'sonner';
 
-function normalizeText(value: any) {
-  return String(value || '')
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]+\n/g, '\n')
-    .trim();
-}
+function GestorArquivosInner() {
+  const { user: currentUser } = useCurrentUser();
+  const queryClient = useQueryClient();
+  const [selectedDate, setSelectedDate] = useState('');
+  const [searchFileName, setSearchFileName] = useState('');
+  const [searchContent, setSearchContent] = useState('');
+  const [sortBy, setSortBy] = useState('date-desc');
+  const [duplicateWarnings, setDuplicateWarnings] = useState([]);
+  const [previewFile, setPreviewFile] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [showHistory, setShowHistory] = useState('contratos');
+  const [showMonthlyBackup, setShowMonthlyBackup] = useState(false);
+  const [backupDriveLoading, setBackupDriveLoading] = useState(false);
+  const [backupFullLoading, setBackupFullLoading] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploadFiles, setUploadFiles] = useState([]);
+  const [uploadNotes, setUploadNotes] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [showDriveImporter, setShowDriveImporter] = useState(false);
+  const [backupOverrides, setBackupOverrides] = useState({});
 
-function normalizeLoose(value: any) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
-}
+  const handleBackupDone = (attachmentId, info) => {
+    setBackupOverrides(prev => ({ ...prev, [attachmentId]: { backup_done: true, ...info } }));
+  };
 
-function uniqueStrings(values: unknown[]) {
-  return Array.from(
-    new Set(values.map((v) => String(v || '').trim()).filter(Boolean))
+  const isCoordinator = currentUser?.role === 'admin' || currentUser?.role === 'COORDENADOR';
+  const isGeneralCoordinator = isCoordinator && (
+    currentUser?.email === 'daniel@periniprojetos.com.br' ||
+    currentUser?.email === 'danielperini.mc@vidadutodasartes.org.br'
+  );
+  const isOtherCoordinator = isCoordinator && !isGeneralCoordinator;
+
+  const { data: backups = [], isLoading } = useQuery({
+    queryKey: ['google-drive-backups', selectedDate, searchFileName, searchContent, currentUser?.email, sortBy],
+    queryFn: async () => {
+      try {
+        const approvedReports = await base44.entities.Report.filter({ status: 'APPROVED' });
+        const approvedReportIds = new Set(approvedReports.map(r => r.id));
+        const allAttachments = await base44.entities.Attachment.list();
+
+        const backupsData = allAttachments
+          .filter(att => approvedReportIds.has(att.report_id))
+          .map(att => {
+            const report = approvedReports.find(r => r.id === att.report_id);
+            const reportNumber = report?.numero_protocolo || '';
+            const authorName = report?.author_name || 'Desconhecido';
+            const mes = report?.mes_referencia || '';
+            const ano = report?.ano || '';
+            const reportLabel = `${authorName} — ${mes}${ano ? `/${ano}` : ''}`;
+
+            return {
+              id: att.id,
+              date: att.created_date?.split('T')[0] || new Date().toISOString().split('T')[0],
+              timestamp: att.created_date || new Date().toISOString(),
+              fileName: att.file_name,
+              fileType: att.file_type,
+              size: att.file_size ? `${(att.file_size / 1024 / 1024).toFixed(2)} MB` : 'N/A',
+              fileUrl: att.file_url,
+              summary: att.description || 'Arquivo anexado a relatório',
+              reportId: att.report_id,
+              reportLabel,
+              displayName: reportNumber ? `${reportNumber}` : att.file_name,
+              backup_done: att.backup_done || false,
+              drive_file_id: att.drive_file_id || null,
+              backup_date: att.backup_date || null,
+              created_by: att.created_by || att.created_by_email || '',
+            };
+          });
+
+        return backupsData
+          .filter(b => {
+            const dateMatch = !selectedDate || b.date === selectedDate;
+            const fileNameMatch = !searchFileName || b.fileName?.toLowerCase().includes(searchFileName.toLowerCase());
+            const contentMatch =
+              !searchContent ||
+              b.summary?.toLowerCase().includes(searchContent.toLowerCase()) ||
+              b.fileType?.toLowerCase().includes(searchContent.toLowerCase());
+            return dateMatch && fileNameMatch && contentMatch;
+          })
+          .sort((a, b) => {
+            if (sortBy === 'date-desc') return new Date(b.timestamp) - new Date(a.timestamp);
+            if (sortBy === 'date-asc') return new Date(a.timestamp) - new Date(b.timestamp);
+            if (sortBy === 'name-asc') return (a.fileName || '').localeCompare(b.fileName || '');
+            if (sortBy === 'name-desc') return (b.fileName || '').localeCompare(a.fileName || '');
+            return 0;
+          });
+      } catch (error) {
+        toast.error('Erro ao carregar arquivos');
+        return [];
+      }
+    },
+    enabled: !!currentUser?.email
+  });
+
+  const { data: duplicates = [] } = useQuery({
+    queryKey: ['duplicate-activities', currentUser?.email],
+    queryFn: async () => {
+      try {
+        const res = await base44.functions.invoke('detectDuplicateActivities', {});
+        return res.data?.duplicates || [];
+      } catch (error) {
+        console.error('Erro ao detectar duplicatas:', error);
+        return [];
+      }
+    },
+    enabled: Boolean(isCoordinator && !!currentUser?.email)
+  });
+
+  const { data: teamMembers = [] } = useQuery({
+    queryKey: ['team-members'],
+    queryFn: () => base44.entities.TeamMember.list(),
+    enabled: !!currentUser?.email
+  });
+
+  const { data: invoiceSubmissions = [] } = useQuery({
+    queryKey: ['invoice-submissions'],
+    queryFn: () => base44.entities.InvoiceSubmission.list(),
+    enabled: !!currentUser?.email
+  });
+
+  useEffect(() => {
+    if (duplicates.length > 0 && isCoordinator) {
+      setDuplicateWarnings(duplicates);
+    }
+  }, [duplicates, isCoordinator]);
+
+  const handlePreviewFile = (backup) => {
+    setPreviewFile(backup);
+    setShowPreview(true);
+  };
+
+  const canManageFile = (backup) => {
+    if (isGeneralCoordinator) return true;
+    if (isOtherCoordinator) return true;
+    return backup.created_by === currentUser?.email;
+  };
+
+  const handleBackupFull = async () => {
+    setBackupFullLoading(true);
+    try {
+      await base44.functions.invoke('backupToGoogleDrive');
+      toast.success('Backup completo realizado com sucesso!');
+    } catch (error) {
+      toast.error('Erro no backup completo: ' + (error.message || 'desconhecido'));
+    } finally {
+      setBackupFullLoading(false);
+    }
+  };
+
+  const handleBackupDrive = async () => {
+    setBackupDriveLoading(true);
+    try {
+      const response = await base44.functions.invoke('backupDriveFolders', {});
+      const count = response.data?.totalFilesCopied || 0;
+      toast.success(count > 0 ? `Backup Drive: ${count} arquivo(s) copiado(s)` : 'Backup Drive: nenhum arquivo novo.');
+    } catch (error) {
+      toast.error('Erro no backup Drive: ' + (error.message || 'desconhecido'));
+    } finally {
+      setBackupDriveLoading(false);
+    }
+  };
+
+  const handleDownloadBackup = async (backup) => {
+    if (backup.fileUrl) {
+      window.open(backup.fileUrl, '_blank');
+      toast.success(`Download iniciado: ${backup.fileName}`);
+    } else {
+      toast.error('URL do arquivo não disponível');
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    const MAX_FILE_SIZE = 100 * 1024 * 1024;
+    let totalSize = uploadFiles.reduce((sum, f) => sum + f.size, 0);
+    const validFiles = [];
+
+    files.forEach(file => {
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`${file.name} excede o limite de 100MB`);
+        return;
+      }
+      totalSize += file.size;
+      if (totalSize > MAX_FILE_SIZE) {
+        toast.error('Total de arquivos excede 100MB');
+        return;
+      }
+      validFiles.push(file);
+    });
+
+    setUploadFiles([...uploadFiles, ...validFiles]);
+  };
+
+  const handleUploadFiles = async () => {
+    if (uploadFiles.length === 0) {
+      toast.error('Selecione pelo menos um arquivo');
+      return;
+    }
+
+    if (!currentUser?.email) {
+      toast.error('Usuário não identificado');
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      let enviados = 0;
+      let processadosIA = 0;
+      let errosIA = 0;
+
+      for (const file of uploadFiles) {
+        const uploadedFile = await base44.integrations.Core.UploadFile({ file });
+
+        const createdDoc = await base44.asServiceRole.entities.KnowledgeDocument.create({
+          title: file.name.replace(/\.[^/.]+$/, ''),
+          name: file.name.replace(/\.[^/.]+$/, ''),
+          file_name: file.name,
+          file_url: uploadedFile.file_url,
+          mime_type: file.type || '',
+          categoria: 'Documento de Referência',
+          descricao: uploadNotes || `Documento adicionado em ${new Date().toLocaleDateString('pt-BR')}`,
+          tags: [],
+          processing_status: 'processando',
+          status: 'processando',
+          processado_ia: false,
+          tipo_documento: 'nao_classificado',
+          extracted_text: '',
+          conteudo_extraido: '',
+          uploaded_by_email: currentUser.email,
+          uploaded_by_name: currentUser.name || currentUser.full_name || '',
+          created_by_email: currentUser.email,
+          ativo: true,
+        });
+
+        enviados += 1;
+
+        try {
+          await base44.functions.invoke('processKnowledgeDocument', {
+            document_id: createdDoc.id,
+          });
+          processadosIA += 1;
+        } catch (error) {
+          errosIA += 1;
+          console.error('Erro ao processar documento com IA:', error);
+          toast.error(`Arquivo salvo, mas houve falha no processamento automático: ${file.name}`);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['google-drive-backups'] });
+      queryClient.invalidateQueries({ queryKey: ['knowledge-documents'] });
+      queryClient.invalidateQueries({ queryKey: ['programacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['agenda-programacao'] });
+
+      if (errosIA === 0) {
+        toast.success(`${enviados} arquivo(s) enviado(s) e processado(s) com sucesso`);
+      } else {
+        toast.success(`${enviados} arquivo(s) enviado(s). ${processadosIA} processado(s) por IA e ${errosIA} com falha de processamento.`);
+      }
+
+      setUploadFiles([]);
+      setUploadNotes('');
+      setShowUploadDialog(false);
+    } catch (error) {
+      toast.error('Erro ao fazer upload: ' + (error.message || 'desconhecido'));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleImportComplete = () => {
+    queryClient.invalidateQueries({ queryKey: ['google-drive-backups'] });
+    queryClient.invalidateQueries({ queryKey: ['knowledge-documents'] });
+    queryClient.invalidateQueries({ queryKey: ['programacoes'] });
+    queryClient.invalidateQueries({ queryKey: ['agenda-programacao'] });
+  };
+
+  const handleDeleteContract = async (memberId) => {
+    if (!window.confirm('Tem certeza que deseja deletar este contrato?')) return;
+
+    try {
+      await base44.entities.TeamMember.update(memberId, {
+        contrato_url: '',
+        descricao_contrato: '',
+        objeto_contrato: ''
+      });
+
+      const attachments = await base44.entities.Attachment.filter({ activity_id: memberId });
+      for (const att of attachments) {
+        if (att.description?.includes('Contrato')) {
+          await base44.entities.Attachment.delete(att.id);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      toast.success('Contrato deletado com sucesso');
+    } catch (error) {
+      toast.error('Erro ao deletar contrato: ' + error.message);
+    }
+  };
+
+  const handleDeleteInvoice = async (submissionId, nfIndex) => {
+    if (!window.confirm('Tem certeza que deseja deletar esta nota fiscal?')) return;
+
+    try {
+      const submission = invoiceSubmissions.find(s => s.id === submissionId);
+      const updatedInvoices = submission.notas_fiscais.filter((_, idx) => idx !== nfIndex);
+      const newTotal = updatedInvoices.reduce((sum, nf) => sum + (nf.valor || 0), 0);
+
+      await base44.entities.InvoiceSubmission.update(submissionId, {
+        notas_fiscais: updatedInvoices,
+        valor_total: newTotal
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['invoice-submissions'] });
+      toast.success('Nota fiscal deletada com sucesso');
+    } catch (error) {
+      toast.error('Erro ao deletar nota fiscal: ' + error.message);
+    }
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-6">
+        <div className="text-center">
+          <Cloud className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900">Carregando...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Adicionar Arquivos à Biblioteca</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex gap-2">
+                <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-blue-700 space-y-1">
+                  <p><strong>Limite:</strong> 100MB por lote</p>
+                  <p><strong>PDFs, Word e Excel:</strong> serão enviados para a biblioteca e processados automaticamente por IA</p>
+                  <p><strong>Programações:</strong> quando identificadas, entram automaticamente na agenda</p>
+                  <p><strong>Suporte:</strong> PDF, Word, Excel, imagens</p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium">Selecionar Arquivos</Label>
+              <input
+                type="file"
+                multiple
+                onChange={handleFileSelect}
+                disabled={uploading}
+                className="mt-2 w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 disabled:opacity-50"
+              />
+            </div>
+
+            {uploadFiles.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Arquivos Selecionados ({uploadFiles.length})</Label>
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {uploadFiles.map((file, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-xs p-2 bg-gray-50 rounded">
+                      <span className="text-gray-700">{file.name}</span>
+                      <span className="text-gray-500">{(file.size / 1024 / 1024).toFixed(2)}MB</span>
+                      <button
+                        onClick={() => setUploadFiles(uploadFiles.filter((_, i) => i !== idx))}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <Label className="text-sm font-medium">Notas / Descrição (opcional)</Label>
+              <Textarea
+                placeholder="Adicione informações sobre estes arquivos"
+                value={uploadNotes}
+                onChange={(e) => setUploadNotes(e.target.value)}
+                className="mt-2 text-sm resize-none h-20"
+                disabled={uploading}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUploadDialog(false)} disabled={uploading}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleUploadFiles}
+              disabled={uploading || uploadFiles.length === 0}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Enviar {uploadFiles.length > 0 ? `(${uploadFiles.length})` : ''}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <BackupMonthlyDialog isOpen={showMonthlyBackup} onClose={() => setShowMonthlyBackup(false)} />
+      <FilePreviewViewer file={previewFile} isOpen={showPreview} onClose={() => setShowPreview(false)} />
+      <GoogleDriveImporter
+        isOpen={showDriveImporter}
+        onClose={() => setShowDriveImporter(false)}
+        onImportComplete={handleImportComplete}
+      />
+
+      <div className="min-h-screen bg-white">
+        <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
+
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 md:mb-8">
+            <div className="flex-1">
+              <h1 className="text-2xl md:text-3xl font-semibold text-black tracking-tight">Galeria de Arquivos</h1>
+            </div>
+
+            <div className="flex gap-2 w-full md:w-auto">
+              <Button
+                onClick={() => setShowUploadDialog(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white gap-2 flex-1 md:flex-none"
+              >
+                <FileText className="w-4 h-4" />
+                Adicionar Arquivo
+              </Button>
+
+              <Button
+                onClick={() => setShowDriveImporter(true)}
+                className="bg-green-600 hover:bg-green-700 text-white gap-2 flex-1 md:flex-none"
+              >
+                <Download className="w-4 h-4" />
+                Google Drive
+              </Button>
+
+              {isGeneralCoordinator && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button className="bg-black hover:bg-gray-800 text-white gap-2 flex-1 md:flex-none">
+                      <HardDrive className="w-4 h-4" />
+                      Backup
+                      <ChevronDown className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={handleBackupDrive} disabled={backupDriveLoading}>
+                      {backupDriveLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Cloud className="w-4 h-4 mr-2 text-blue-500" />}
+                      Backup Drive (Pastas)
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem onClick={() => setShowMonthlyBackup(true)}>
+                      <Calendar className="w-4 h-4 mr-2 text-green-600" />
+                      Backup Relatórios do Mês
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator />
+
+                    <DropdownMenuItem onClick={handleBackupFull} disabled={backupFullLoading}>
+                      {backupFullLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <HardDrive className="w-4 h-4 mr-2 text-gray-600" />}
+                      Backup Completo (Drive)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-lg md:rounded-xl p-3 md:p-4 mb-6 md:mb-8 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <Label className="text-xs font-medium text-gray-600">Data</Label>
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value)}
+                  className="mt-1 text-sm"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-medium text-gray-600">Nome do Arquivo</Label>
+                <Input
+                  placeholder="Buscar nome..."
+                  value={searchFileName}
+                  onChange={e => setSearchFileName(e.target.value)}
+                  className="mt-1 text-sm"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-medium text-gray-600">Conteúdo / Resumo</Label>
+                <Input
+                  placeholder="Buscar conteúdo..."
+                  value={searchContent}
+                  onChange={e => setSearchContent(e.target.value)}
+                  className="mt-1 text-sm"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-medium text-gray-600">Ordenar</Label>
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="mt-1 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date-desc">Mais recentes</SelectItem>
+                    <SelectItem value="date-asc">Mais antigos</SelectItem>
+                    <SelectItem value="name-asc">Nome (A-Z)</SelectItem>
+                    <SelectItem value="name-desc">Nome (Z-A)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {(selectedDate || searchFileName || searchContent) && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSelectedDate('');
+                  setSearchFileName('');
+                  setSearchContent('');
+                }}
+                className="border-gray-300 w-full sm:w-auto text-sm"
+              >
+                Limpar Filtros
+              </Button>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex gap-2 border-b">
+              {[
+                { key: 'contratos', label: 'Contratos' },
+                { key: 'invoices', label: 'Notas Fiscais' },
+                { key: 'arquivos', label: 'Arquivos' },
+                { key: 'backups', label: 'Histórico de Backups' },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setShowHistory(tab.key)}
+                  className={`px-4 py-2 font-medium text-sm border-b-2 ${
+                    showHistory === tab.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {showHistory === 'contratos' && (
+              <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <h3 className="text-lg font-semibold mb-4 text-black flex items-center gap-2">
+                  <File className="w-5 h-5" /> Contratos
+                </h3>
+
+                {teamMembers.filter(m => m.contrato_url).length > 0 ? (
+                  <div className="space-y-3">
+                    {teamMembers
+                      .filter(m => m.contrato_url)
+                      .sort((a, b) => (b.data_criacao || '').localeCompare(a.data_criacao || ''))
+                      .map(member => (
+                        <div key={member.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                          <div>
+                            <p className="font-medium text-black">{member.user_name}</p>
+                            <p className="text-sm text-gray-500">
+                              {member.funcao} • {member.valor_total ? `R$ ${member.valor_total.toLocaleString('pt-BR')}` : 'Valor não especificado'}
+                              {member.data_criacao && ` • ${new Date(member.data_criacao).toLocaleDateString('pt-BR')}`}
+                            </p>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <a
+                              href={member.contrato_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                            >
+                              <Eye className="w-4 h-4" />
+                              Ler
+                            </a>
+
+                            <a
+                              href={member.contrato_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download={member.user_name}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
+                            >
+                              <Download className="w-4 h-4" />
+                              Baixar
+                            </a>
+
+                            {(isCoordinator || member.user_email === currentUser?.email) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDeleteContract(member.id)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <FileText className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-500">Nenhum contrato anexado</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {showHistory === 'invoices' && (
+              <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <h3 className="text-lg font-semibold mb-4 text-black flex items-center gap-2">
+                  <File className="w-5 h-5" /> Notas Fiscais
+                </h3>
+
+                {invoiceSubmissions.some(inv => inv.notas_fiscais?.length > 0) ? (
+                  <div className="space-y-3">
+                    {invoiceSubmissions
+                      .filter(inv => inv.notas_fiscais?.length > 0)
+                      .flatMap(inv => inv.notas_fiscais.map(nf => ({
+                        ...nf,
+                        submissionId: inv.id,
+                        userEmail: inv.user_email,
+                        userName: inv.user_name,
+                        data_submissao: inv.data_submissao
+                      })))
+                      .sort((a, b) => (b.data_submissao || '').localeCompare(a.data_submissao || ''))
+                      .map((nf, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                          <div>
+                            <p className="font-medium text-black">{nf.userName}</p>
+                            <p className="text-sm text-gray-500">
+                              NF {nf.numero} • {nf.fornecedor} • R$ {nf.valor?.toLocaleString('pt-BR')}
+                              {nf.data_submissao && ` • ${new Date(nf.data_submissao).toLocaleDateString('pt-BR')}`}
+                            </p>
+                          </div>
+
+                          <div className="flex gap-2">
+                            {nf.file_url && (
+                              <a
+                                href={nf.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                              >
+                                <Download className="w-4 h-4" />
+                                Download
+                              </a>
+                            )}
+
+                            {(isCoordinator || nf.userEmail === currentUser?.email) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDeleteInvoice(nf.submissionId, invoiceSubmissions.find(s => s.id === nf.submissionId)?.notas_fiscais.indexOf(nf))}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <FileText className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-500">Nenhuma nota fiscal anexada</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {showHistory === 'arquivos' && (
+              <div>
+                <h3 className="text-lg font-semibold mb-4 text-black">Arquivos</h3>
+                {isLoading ? (
+                  <div className="text-center py-12 text-gray-400">Carregando arquivos...</div>
+                ) : (
+                  <FileHierarchy
+                    backups={backups.map(b => ({ ...b, ...(backupOverrides[b.id] || {}) }))}
+                    onPreview={handlePreviewFile}
+                    canManageFile={canManageFile}
+                    isGeneralCoordinator={isGeneralCoordinator}
+                    renderBackupStatus={(backup) => (
+                      <FileBackupStatus
+                        attachment={backup}
+                        onBackupDone={(info) => handleBackupDone(backup.id, info)}
+                      />
+                    )}
+                  />
+                )}
+              </div>
+            )}
+
+            {showHistory === 'backups' && (
+              <div className="bg-white border border-gray-200 rounded-lg p-4 md:p-6">
+                <h3 className="text-lg font-semibold mb-4 text-gray-900">Histórico de Backups</h3>
+                <BackupHistoryTable />
+              </div>
+            )}
+          </div>
+
+          <div className="mt-6 md:mt-8 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-xs md:text-sm text-blue-800">
+              {isGeneralCoordinator ? (
+                <span><strong>👨‍💼 Coordenador Geral:</strong> Você tem acesso total à plataforma e pode conceder permissões</span>
+              ) : isOtherCoordinator ? (
+                <span><strong>🔐 Coordenador:</strong> Você pode gerenciar arquivos e recursos (exceto gerenciamento de usuários)</span>
+              ) : (
+                <span><strong>👤 Usuário Regular:</strong> Você pode gerenciar apenas seus próprios arquivos</span>
+              )}
+            </p>
+          </div>
+
+          {isGeneralCoordinator && duplicateWarnings.length > 0 && (
+            <div className="mt-6 md:mt-8 space-y-3">
+              {duplicateWarnings.map((dup, idx) => (
+                <div key={idx} className="p-3 md:p-4 bg-amber-50 border border-amber-200 rounded-lg md:rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-xs md:text-sm font-semibold text-amber-900">
+                        Risco de duplicação: {dup.risk_score}%
+                      </p>
+                      <p className="text-xs text-amber-800 mt-1">
+                        <strong>"{dup.activity1_titulo}"</strong> e <strong>"{dup.activity2_titulo}"</strong> podem ser a mesma atividade.
+                      </p>
+                      {dup.public_match && <p className="text-xs text-amber-700 mt-1">⚠️ Públicos similares detectados</p>}
+                      {dup.date_proximity && <p className="text-xs text-amber-700">⚠️ Datas muito próximas</p>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+        </div>
+      </div>
+    </>
   );
 }
 
-function detectFileType(fileName: string, mimeType = '') {
-  const lower = String(fileName || '').toLowerCase();
-  const mime = String(mimeType || '').toLowerCase();
-
-  if (lower.endsWith('.pdf') || mime.includes('pdf')) return 'pdf';
-  if (lower.endsWith('.xlsx') || mime.includes('spreadsheetml')) return 'xlsx';
-  if (lower.endsWith('.xls') || mime.includes('excel')) return 'xls';
-  if (lower.endsWith('.csv') || mime.includes('csv')) return 'csv';
-  if (lower.endsWith('.docx') || mime.includes('wordprocessingml')) return 'docx';
-  if (lower.endsWith('.doc')) return 'doc';
-  if (lower.endsWith('.txt') || mime.includes('text/plain')) return 'txt';
-
-  return 'outro';
+export default function GestorArquivos() {
+  return <RequireAuth><GestorArquivosInner /></RequireAuth>;
 }
-
-function normalizarEquipamento(e: string) {
-  const v = normalizeLoose(e);
-
-  if (v.includes('mis')) return 'MIS';
-  if (v.includes('mab') || v.includes('mhab')) return 'MHAB';
-  if (v.includes('mumo') || v.includes('mumu')) return 'MUMO';
-
-  return 'Externo';
-}
-
-function parseDateValue(value: any) {
-  if (!value) return '';
-
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    const d = String(value.getDate()).padStart(2, '0');
-    const m = String(value.getMonth() + 1).padStart(2, '0');
-    const y = value.getFullYear();
-    return `${d}/${m}/${y}`;
-  }
-
-  if (typeof value === 'number' && Number.isFinite(value) && value > 20000 && value < 80000) {
-    try {
-      const parsed = XLSX.SSF.parse_date_code(value);
-      if (parsed?.y && parsed?.m && parsed?.d) {
-        const d = String(parsed.d).padStart(2, '0');
-        const m = String(parsed.m).padStart(2, '0');
-        const y = String(parsed.y);
-        return `${d}/${m}/${y}`;
-      }
-    } catch (_) {
-      // ignora
-    }
-  }
-
-  const text = String(value).trim();
-  if (!text) return '';
-
-  const br = text.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/);
-  if (br) {
-    const d = String(Number(br[1])).padStart(2, '0');
-    const m = String(Number(br[2])).padStart(2, '0');
-    const y = br[3]
-      ? String(Number(br[3]) < 100 ? Number(br[3]) + 2000 : Number(br[3]))
-      : '';
-    return y ? `${d}/${m}/${y}` : `${d}/${m}`;
-  }
-
-  return text;
-}
-
-function stringifyCell(value: any) {
-  if (value === null || value === undefined) return '';
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return parseDateValue(value);
-  }
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    const parsedDate = parseDateValue(value);
-    if (parsedDate && parsedDate !== String(value).trim()) return parsedDate;
-  }
-  return String(value).trim();
-}
-
-function normalizeHeader(header: string) {
-  const h = normalizeLoose(header);
-
-  if (h === 'equipamento') return 'equipamento';
-  if (
-    h === 'nome' ||
-    h.includes('nome da acao') ||
-    h.includes('nome da ação') ||
-    h.includes('nome da programacao') ||
-    h.includes('nome da programação')
-  ) return 'nome';
-  if (
-    h.includes('nome da atividade para divulgacao') ||
-    h.includes('nome da atividade para divulgação')
-  ) return 'nome_divulgacao';
-  if (h.includes('sinopse')) return 'sinopse';
-  if (h.includes('tipo de atividade')) return 'tipo_atividade';
-  if (h.includes('formato')) return 'formato';
-  if (h === 'data' || h.includes('data ou periodo') || h.includes('data/periodo') || h.includes('periodo')) return 'data';
-  if (h.includes('horario') || h.includes('horário') || h.includes('hora')) return 'horario';
-  if (h.includes('publico-alvo') || h.includes('publico alvo') || h.includes('público-alvo')) return 'publico';
-  if (h.includes('acessibilidade')) return 'acessibilidade';
-  if (h.includes('classificacao indicativa') || h.includes('classificação indicativa')) return 'classificacao';
-  if (h.includes('vagas')) return 'vagas';
-  if (
-    h.includes('inscricao/acesso') ||
-    h.includes('inscrição/acesso') ||
-    h.includes('inscricao') ||
-    h.includes('inscrição') ||
-    h.includes('link de inscricao') ||
-    h.includes('link de inscrição') ||
-    h.includes('acesso')
-  ) return 'inscricao';
-  if (h.includes('contato da atracao') || h.includes('contato da atração')) return 'contato';
-  if (h === 'local') return 'local';
-  if (h.includes('endereco completo') || h.includes('endereço completo') || h.includes('endereco')) return 'endereco';
-  if (h.includes('link de imagens')) return 'link_imagens';
-  if (h.includes('minibios') || h.includes('mini bios')) return 'minibios';
-  if (h.includes('material de divulgacao') || h.includes('material de divulgação')) return 'material_divulgacao';
-
-  return h.replace(/[^\w]+/g, '_');
-}
-
-function isLikelyHeaderRow(row: string[]) {
-  const mapped = row.map(normalizeHeader);
-
-  const scoreKeys = [
-    'equipamento',
-    'nome',
-    'nome_divulgacao',
-    'data',
-    'horario',
-    'tipo_atividade',
-    'formato',
-    'publico',
-    'sinopse',
-    'local',
-    'inscricao',
-    'vagas',
-  ];
-
-  const score = scoreKeys.filter((k) => mapped.includes(k)).length;
-  return score >= 3;
-}
-
-function findHeaderRowIndex(matrix: string[][]) {
-  const maxRows = Math.min(matrix.length, 8);
-
-  for (let i = 0; i < maxRows; i++) {
-    if (isLikelyHeaderRow(matrix[i] || [])) return i;
-  }
-
-  return -1;
-}
-
-function buildHeadersForSheet(matrix: string[][]) {
-  if (!Array.isArray(matrix) || matrix.length < 2) {
-    return { headerRowIndex: -1, headers: [] as string[] };
-  }
-
-  if (matrix.length >= 3) {
-    const row2 = (matrix[1] || []).map(stringifyCell);
-    const row3 = (matrix[2] || []).map(stringifyCell);
-
-    const isLegacyMainHeader =
-      normalizeHeader(row2[0]) === 'equipamento' &&
-      normalizeLoose(row2[1]) === 'programacao';
-
-    if (isLegacyMainHeader) {
-      const headers = row3.map((h, idx) => {
-        if (idx === 0) return 'equipamento';
-        if (idx === 1 && !normalizeHeader(h)) return 'nome';
-        return normalizeHeader(h);
-      });
-
-      if (!headers[1]) headers[1] = 'nome';
-
-      return { headerRowIndex: 2, headers };
-    }
-  }
-
-  const headerRowIndex = findHeaderRowIndex(matrix);
-  if (headerRowIndex < 0) {
-    return { headerRowIndex: -1, headers: [] as string[] };
-  }
-
-  const rawHeaders = (matrix[headerRowIndex] || []).map(stringifyCell);
-  const headers = rawHeaders.map((h) => normalizeHeader(h));
-
-  return { headerRowIndex, headers };
-}
-
-function parseSpreadsheetProgramacaoFromBuffer(buffer: ArrayBuffer) {
-  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
-  const eventos: any[] = [];
-
-  workbook.SheetNames.forEach((sheetName) => {
-    const ws = workbook.Sheets[sheetName];
-    const matrixRaw = XLSX.utils.sheet_to_json(ws, {
-      header: 1,
-      raw: false,
-      defval: '',
-    }) as any[][];
-
-    const matrix = (matrixRaw || []).map((row) => (row || []).map(stringifyCell));
-    if (!Array.isArray(matrix) || matrix.length < 2) return;
-
-    const { headerRowIndex, headers } = buildHeadersForSheet(matrix);
-    if (headerRowIndex < 0 || !headers.length) return;
-
-    for (let i = headerRowIndex + 1; i < matrix.length; i++) {
-      const row = (matrix[i] || []).map(stringifyCell);
-      const hasAnyValue = row.some((v) => String(v || '').trim() !== '');
-      if (!hasAnyValue) continue;
-
-      const values: Record<string, any> = {};
-      for (let c = 0; c < headers.length; c++) {
-        const key = headers[c];
-        if (!key) continue;
-        values[key] = row[c] || '';
-      }
-
-      const equipamento = values.equipamento || row[0] || '';
-      const nome =
-        values.nome_divulgacao ||
-        values.nome ||
-        row[1] ||
-        row.find((cell, idx) => idx > 0 && String(cell || '').trim()) ||
-        '';
-
-      if (!nome) continue;
-
-      eventos.push({
-        nome_acao: normalizeText(nome),
-        equipamento: normalizarEquipamento(equipamento || sheetName),
-        data: parseDateValue(values.data || ''),
-        horario: normalizeText(values.horario || ''),
-        tipo_atividade: normalizeText(values.tipo_atividade || ''),
-        formato: normalizeText(values.formato || ''),
-        publico: normalizeText(values.publico || ''),
-        acessibilidade: normalizeText(values.acessibilidade || ''),
-        classificacao: normalizeText(values.classificacao || ''),
-        vagas: normalizeText(values.vagas || ''),
-        inscricao: normalizeText(values.inscricao || ''),
-        sinopse: normalizeText(values.sinopse || ''),
-        local: normalizeText(values.local || ''),
-        endereco: normalizeText(values.endereco || ''),
-        link_imagens: normalizeText(values.link_imagens || ''),
-        minibios: normalizeText(values.minibios || ''),
-        material_divulgacao: normalizeText(values.material_divulgacao || ''),
-      });
-    }
-  });
-
-  return eventos;
-}
-
-function dedupeProgramacaoEvents(eventos: any[]) {
-  const map = new Map<string, any>();
-
-  for (const ev of eventos || []) {
-    if (!ev?.nome_acao) continue;
-
-    const key = [
-      normalizeLoose(ev.nome_acao),
-      normalizeLoose(ev.equipamento),
-      normalizeLoose(ev.data),
-      normalizeLoose(ev.horario),
-      normalizeLoose(ev.local),
-    ].join('|');
-
-    if (!map.has(key)) {
-      map.set(key, ev);
-      continue;
-    }
-
-    const prev = map.get(key) || {};
-    map.set(key, {
-      ...prev,
-      ...ev,
-      sinopse: ev.sinopse || prev.sinopse || '',
-      endereco: ev.endereco || prev.endereco || '',
-      link_imagens: ev.link_imagens || prev.link_imagens || '',
-      minibios: ev.minibios || prev.minibios || '',
-      material_divulgacao: ev.material_divulgacao || prev.material_divulgacao || '',
-    });
-  }
-
-  return Array.from(map.values());
-}
-
-async function extractPdfText(fileUrl: string) {
-  const res = await fetch(fileUrl);
-  if (!res.ok) throw new Error(`Falha ao baixar PDF: ${res.status}`);
-
-  const buffer = Buffer.from(await res.arrayBuffer());
-  const data = await pdfParse(buffer);
-  return normalizeText(data.text || '');
-}
-
-async function extractGenericText(base44: any, fileUrl: string) {
-  try {
-    const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
-      file_url: fileUrl,
-      json_schema: {
-        type: 'object',
-        properties: {
-          conteudo_completo: { type: 'string' },
-        },
-      },
-    });
-
-    return normalizeText(extracted?.output?.conteudo_completo || '');
-  } catch (error) {
-    console.error('Erro no ExtractDataFromUploadedFile:', error);
-    return '';
-  }
-}
-
-async function analyzeWithLLM(base44: any, fileUrl: string) {
-  try {
-    const result = await base44.integrations.Core.InvokeLLM({
-      prompt: `
-Analise o documento e classifique.
-
-Responda com:
-- tipo_documento: programacao | contrato | nota_fiscal | recibo | relatorio | outro
-- resumo
-- tags
-- eventos (somente se for programação)
-
-Para cada evento de programação, extraia:
-- nome_acao
-- equipamento
-- data
-- horario
-- tipo_atividade
-- formato
-- publico
-- acessibilidade
-- classificacao
-- vagas
-- inscricao
-- sinopse
-- local
-- endereco
-- link_imagens
-- minibios
-- material_divulgacao
-
-Regras:
-- não inventar
-- se não for programação, eventos deve vir vazio
-- responder em JSON
-`,
-      file_urls: [fileUrl],
-      response_json_schema: {
-        type: 'object',
-        properties: {
-          tipo_documento: { type: 'string' },
-          resumo: { type: 'string' },
-          tags: { type: 'array', items: { type: 'string' } },
-          eventos: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                nome_acao: { type: 'string' },
-                equipamento: { type: 'string' },
-                data: { type: 'string' },
-                horario: { type: 'string' },
-                tipo_atividade: { type: 'string' },
-                formato: { type: 'string' },
-                publico: { type: 'string' },
-                acessibilidade: { type: 'string' },
-                classificacao: { type: 'string' },
-                vagas: { type: 'string' },
-                inscricao: { type: 'string' },
-                sinopse: { type: 'string' },
-                local: { type: 'string' },
-                endereco: { type: 'string' },
-                link_imagens: { type: 'string' },
-                minibios: { type: 'string' },
-                material_divulgacao: { type: 'string' },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    return result || {};
-  } catch (error) {
-    console.error('Erro na análise com LLM:', error);
-    return {};
-  }
-}
-
-function inferTipoDocumento(doc: any, fileType: string, extractedText: string, llmType: string) {
-  const llm = normalizeLoose(llmType || '');
-  if (llm.includes('programacao')) return 'programacao';
-  if (llm.includes('contrato')) return 'contrato';
-  if (llm.includes('nota_fiscal')) return 'nota_fiscal';
-  if (llm.includes('recibo')) return 'recibo';
-  if (llm.includes('relatorio')) return 'relatorio';
-
-  const joined = normalizeLoose([
-    doc?.title,
-    doc?.name,
-    doc?.file_name,
-    doc?.categoria,
-    doc?.descricao,
-    extractedText?.slice(0, 3000),
-  ].join(' '));
-
-  if (
-    joined.includes('programacao') ||
-    joined.includes('agenda') ||
-    joined.includes('atividade') ||
-    joined.includes('museu') ||
-    joined.includes('oficina') ||
-    joined.includes('caderno de artista')
-  ) return 'programacao';
-
-  if (joined.includes('contrato') || joined.includes('vigencia') || joined.includes('vigência')) return 'contrato';
-  if (joined.includes('nota fiscal') || joined.includes('danfe') || joined.includes('nf-e')) return 'nota_fiscal';
-  if (joined.includes('recibo')) return 'recibo';
-  if (joined.includes('relatorio') || joined.includes('relatório')) return 'relatorio';
-
-  if (fileType === 'pdf' || fileType === 'docx' || fileType === 'doc') return 'documento';
-  return 'outro';
-}
-
-async function getDocumentById(base44: any, documentId: string) {
-  if (!documentId) return null;
-
-  try {
-    return await base44.asServiceRole.entities.KnowledgeDocument.get(documentId);
-  } catch (error) {
-    console.error('Erro ao buscar KnowledgeDocument por get:', error);
-  }
-
-  try {
-    const list = await base44.asServiceRole.entities.KnowledgeDocument.list({ limit: 1, where: { id: documentId } });
-    if (Array.isArray(list)) return list[0] || null;
-    if (Array.isArray(list?.items)) return list.items[0] || null;
-    return null;
-  } catch (error) {
-    console.error('Erro ao buscar KnowledgeDocument por list:', error);
-    return null;
-  }
-}
-
-async function updateKnowledgeDocumentSafe(base44: any, id: string, payload: Record<string, any>) {
-  if (!id) return;
-  try {
-    await base44.asServiceRole.entities.KnowledgeDocument.update(id, payload);
-  } catch (error) {
-    console.error('Erro ao atualizar KnowledgeDocument:', error);
-  }
-}
-
-async function upsertProgramacaoEvents(base44: any, eventos: any[]) {
-  const unicos = dedupeProgramacaoEvents(eventos);
-  let salvos = 0;
-
-  for (const ev of unicos) {
-    try {
-      const equipment = normalizarEquipamento(ev.equipamento || '');
-      const existing = await base44.asServiceRole.entities.Programacao.list({
-        limit: 1,
-        where: {
-          nome_acao: ev.nome_acao || '',
-          data: ev.data || '',
-          equipamento: equipment,
-        },
-      });
-
-      const found = Array.isArray(existing)
-        ? existing[0]
-        : Array.isArray(existing?.items)
-          ? existing.items[0]
-          : null;
-
-      const payload = {
-        nome_acao: ev.nome_acao || '',
-        equipamento: equipment,
-        data: ev.data || '',
-        horario: ev.horario || '',
-        tipo_atividade: ev.tipo_atividade || '',
-        formato: ev.formato || '',
-        publico: ev.publico || '',
-        acessibilidade: ev.acessibilidade || '',
-        classificacao: ev.classificacao || '',
-        vagas: ev.vagas || '',
-        inscricao: ev.inscricao || '',
-        sinopse: ev.sinopse || '',
-        local: ev.local || '',
-        endereco: ev.endereco || '',
-        link_imagens: ev.link_imagens || '',
-        minibios: ev.minibios || '',
-        material_divulgacao: ev.material_divulgacao || '',
-        origem: 'knowledge_document_ia',
-        ativo: true,
-      };
-
-      if (found?.id) {
-        await base44.asServiceRole.entities.Programacao.update(found.id, payload);
-      } else {
-        await base44.asServiceRole.entities.Programacao.create(payload);
-      }
-
-      salvos += 1;
-    } catch (error) {
-      console.error('Erro ao salvar programação:', error);
-    }
-  }
-
-  return {
-    totalRecebido: eventos.length,
-    totalUnico: unicos.length,
-    totalSalvo: salvos,
-  };
-}
-
-Deno.serve(async (req) => {
-  try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-
-    if (!user) {
-      return Response.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
-    }
-
-    const body = await req.json().catch(() => ({}));
-    const documentId = String(
-      body?.args?.document_id ||
-      body?.document_id ||
-      ''
-    ).trim();
-
-    if (!documentId) {
-      return Response.json(
-        { ok: false, error: 'document_id é obrigatório.' },
-        { status: 400 }
-      );
-    }
-
-    const doc = await getDocumentById(base44, documentId);
-
-    if (!doc) {
-      return Response.json(
-        { ok: false, error: 'KnowledgeDocument não encontrado.' },
-        { status: 404 }
-      );
-    }
-
-    const fileUrl = doc.file_url || '';
-    const fileName = doc.file_name || doc.name || doc.title || 'arquivo';
-    const mimeType = doc.mime_type || '';
-    const fileType = detectFileType(fileName, mimeType);
-
-    if (!fileUrl) {
-      await updateKnowledgeDocumentSafe(base44, documentId, {
-        processing_status: 'erro',
-        status: 'erro',
-        analysis: JSON.stringify({ error: 'Arquivo sem file_url.' }),
-      });
-
-      return Response.json(
-        { ok: false, error: 'Documento sem file_url.' },
-        { status: 400 }
-      );
-    }
-
-    await updateKnowledgeDocumentSafe(base44, documentId, {
-      processing_status: 'processando',
-      status: 'processando',
-    });
-
-    let extractedText = '';
-    let eventos: any[] = [];
-    let analysis: any = {};
-    let tipoDocumento = 'outro';
-
-    try {
-      if (fileType === 'pdf') {
-        extractedText = await extractPdfText(fileUrl);
-      } else if (fileType === 'xlsx' || fileType === 'xls' || fileType === 'csv') {
-        const response = await fetch(fileUrl);
-        if (!response.ok) {
-          throw new Error(`Falha ao baixar planilha: ${response.status}`);
-        }
-        const buffer = await response.arrayBuffer();
-        eventos = parseSpreadsheetProgramacaoFromBuffer(buffer);
-
-        try {
-          const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
-          const parts: string[] = [];
-
-          for (const sheetName of workbook.SheetNames) {
-            const ws = workbook.Sheets[sheetName];
-            const csv = XLSX.utils.sheet_to_csv(ws);
-            const text = normalizeText(csv || '');
-            if (text) parts.push(`ABA: ${sheetName}\n${text}`);
-          }
-
-          extractedText = normalizeText(parts.join('\n\n'));
-        } catch (error) {
-          console.error('Erro ao extrair texto da planilha:', error);
-        }
-      } else {
-        extractedText = await extractGenericText(base44, fileUrl);
-      }
-
-      analysis = await analyzeWithLLM(base44, fileUrl);
-
-      tipoDocumento = inferTipoDocumento(doc, fileType, extractedText, analysis?.tipo_documento || '');
-
-      if (!eventos.length && tipoDocumento === 'programacao' && Array.isArray(analysis?.eventos)) {
-        eventos = analysis.eventos.map((ev: any) => ({
-          nome_acao: normalizeText(ev?.nome_acao || ''),
-          equipamento: normalizarEquipamento(ev?.equipamento || ''),
-          data: parseDateValue(ev?.data || ''),
-          horario: normalizeText(ev?.horario || ''),
-          tipo_atividade: normalizeText(ev?.tipo_atividade || ''),
-          formato: normalizeText(ev?.formato || ''),
-          publico: normalizeText(ev?.publico || ''),
-          acessibilidade: normalizeText(ev?.acessibilidade || ''),
-          classificacao: normalizeText(ev?.classificacao || ''),
-          vagas: normalizeText(ev?.vagas || ''),
-          inscricao: normalizeText(ev?.inscricao || ''),
-          sinopse: normalizeText(ev?.sinopse || ''),
-          local: normalizeText(ev?.local || ''),
-          endereco: normalizeText(ev?.endereco || ''),
-          link_imagens: normalizeText(ev?.link_imagens || ''),
-          minibios: normalizeText(ev?.minibios || ''),
-          material_divulgacao: normalizeText(ev?.material_divulgacao || ''),
-        })).filter((ev: any) => ev.nome_acao);
-      }
-
-      const resultadoProgramacao =
-        tipoDocumento === 'programacao' && eventos.length
-          ? await upsertProgramacaoEvents(base44, eventos)
-          : { totalRecebido: eventos.length, totalUnico: eventos.length, totalSalvo: 0 };
-
-      const finalTags = uniqueStrings([
-        ...(Array.isArray(doc.tags) ? doc.tags : []),
-        fileType,
-        tipoDocumento,
-        ...(Array.isArray(analysis?.tags) ? analysis.tags : []),
-      ]);
-
-      await updateKnowledgeDocumentSafe(base44, documentId, {
-        tags: finalTags,
-        processing_status: 'processado',
-        status: 'processado',
-        extracted_text: extractedText || '',
-        conteudo_extraido: extractedText || '',
-        summary: normalizeText(analysis?.resumo || ''),
-        analysis: JSON.stringify({
-          ...analysis,
-          tipo_documento_inferido: tipoDocumento,
-        }),
-        tipo_documento: tipoDocumento,
-        processado_ia: true,
-        total_eventos_extraidos: resultadoProgramacao.totalRecebido,
-        total_eventos_salvos: resultadoProgramacao.totalSalvo,
-        agenda_updated: resultadoProgramacao.totalSalvo > 0,
-      });
-
-      return Response.json({
-        ok: true,
-        success: true,
-        document_id: documentId,
-        tipo_documento: tipoDocumento,
-        processado_ia: true,
-        agenda_updated: resultadoProgramacao.totalSalvo > 0,
-        total_eventos_extraidos: resultadoProgramacao.totalRecebido,
-        total_eventos_unicos: resultadoProgramacao.totalUnico,
-        total_eventos_salvos: resultadoProgramacao.totalSalvo,
-      });
-    } catch (processingError: any) {
-      await updateKnowledgeDocumentSafe(base44, documentId, {
-        processing_status: 'erro',
-        status: 'erro',
-        processado_ia: false,
-        analysis: JSON.stringify({
-          error: processingError?.message || 'Erro no processamento automático',
-        }),
-      });
-
-      return Response.json(
-        {
-          ok: false,
-          document_id: documentId,
-          error: processingError?.message || 'Erro no processamento automático',
-        },
-        { status: 500 }
-      );
-    }
-  } catch (error: any) {
-    return Response.json(
-      {
-        ok: false,
-        error: error?.message || 'Erro interno',
-      },
-      { status: 500 }
-    );
-  }
-});
