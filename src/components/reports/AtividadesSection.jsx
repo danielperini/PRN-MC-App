@@ -81,13 +81,13 @@ const EMPTY_ATIVIDADE = {
   museu: '',
   tipo_acao: '',
   nome: '',
-publico_estimado: '',
-quantas_repeticoes: '',
-publico_total: '',
-produto_realizado: '',
-quantidade_produto: '',
-atividades_total: 0,
-produtos_total: 0,
+  publico_estimado: '',
+  quantas_repeticoes: '',
+  publico_total: '',
+  produto_realizado: '',
+  quantidade_produto: '',
+  atividades_total: 0,
+  produtos_total: 0,
   objetivo: '',
   descricao_executado: '',
   equipe_envolvida: '',
@@ -164,7 +164,6 @@ function UserPicker({ value = [], onChange, disabled }) {
 
   return (
     <div className="space-y-2">
-      {/* Selected badges */}
       {selectedUsers.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {selectedUsers.map(u => (
@@ -218,7 +217,6 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId
   const [users, setUsers] = useState([]);
   const [coRespSearch, setCoRespSearch] = useState('');
 
-  // Carregar usuários disponíveis
   useEffect(() => {
     base44.entities.User.list().then(setUsers).catch(() => {});
   }, []);
@@ -227,12 +225,11 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId
   const isMeta = atividade.classificacao === 'META';
   const isRotinaOrExtra = atividade.classificacao === 'ROTINA' || atividade.classificacao === 'EXTRA';
   const coRespUser = users.find(u => u.email === atividade.co_responsavel_email);
-  const filteredUsers = users.filter(u => 
+  const filteredUsers = users.filter(u =>
     (u.full_name || u.email).toLowerCase().includes(coRespSearch.toLowerCase())
   );
 
   const handleAiMeta = async () => {
-    // Validar dados essenciais
     if (!atividade.nome && !atividade.descricao_executado && !atividade.objetivo) {
       toast.warning('Preencha pelo menos o nome ou descrição da atividade antes de usar a IA', {
         description: 'A IA precisa de informações suficientes para sugerir uma meta adequada.'
@@ -281,7 +278,6 @@ Responda APENAS com JSON: {"meta_codigo": "META_XX", "justificativa": "Uma frase
   };
 
   const handleAiResultados = async () => {
-    // Validar dados essenciais
     if (!atividade.descricao_executado && !atividade.objetivo) {
       toast.warning('Preencha a "Descrição do executado" ou "Objetivo" antes de usar a IA', {
         description: 'Esses dados são essenciais para gerar uma sugestão de resultados adequada.'
@@ -308,17 +304,16 @@ Escreva em português do Brasil, de forma objetiva e profissional.`;
   };
 
   const handleAiJustificativa = async () => {
-  // Validar dados essenciais
-  if (!atividade.tipo_acao && !atividade.descricao_executado && !atividade.objetivo) {
-    toast.warning('Preencha o "Tipo de ação" e descrição antes de usar a IA', {
-      description: 'A IA precisa dessas informações para gerar uma justificativa adequada.'
-    });
-    return;
-  }
+    if (!atividade.tipo_acao && !atividade.descricao_executado && !atividade.objetivo) {
+      toast.warning('Preencha o "Tipo de ação" e descrição antes de usar a IA', {
+        description: 'A IA precisa dessas informações para gerar uma justificativa adequada.'
+      });
+      return;
+    }
 
-  setAiLoading(true);
+    setAiLoading(true);
 
-  const prompt = `Com base na seguinte atividade de museu, escreva uma justificativa técnica clara explicando por que esta atividade é considerada "${atividade.classificacao}" (máximo 3 linhas):
+    const prompt = `Com base na seguinte atividade de museu, escreva uma justificativa técnica clara explicando por que esta atividade é considerada "${atividade.classificacao}" (máximo 3 linhas):
 Nome: ${atividade.nome || ''}
 Tipo de ação: ${atividade.tipo_acao || ''}
 Descrição: ${atividade.descricao_executado || atividade.objetivo || ''}
@@ -326,30 +321,27 @@ Museu: ${atividade.museu || ''}
 Classificação: ${atividade.classificacao || ''}
 Escreva em português do Brasil, de forma técnica e concisa.`;
 
-  const result = await base44.integrations.Core.InvokeLLM({ prompt });
-  onChange('justificativa_tecnica', result);
+    const result = await base44.integrations.Core.InvokeLLM({ prompt });
+    onChange('justificativa_tecnica', result);
 
-  toast.success('Sugestão gerada! ✨', {
-    description: 'Revise a justificativa proposta e ajuste se necessário.',
-    action: { label: 'OK', onClick: () => {} }
-  });
+    toast.success('Sugestão gerada! ✨', {
+      description: 'Revise a justificativa proposta e ajuste se necessário.',
+      action: { label: 'OK', onClick: () => {} }
+    });
 
-  setAiLoading(false);
-};
-const repeticoes = parseInt(atividade.quantas_repeticoes || 0, 10);
-const quantidadeProduto = parseInt(atividade.quantidade_produto || 0, 10);
+    setAiLoading(false);
+  };
 
-const atividadesTotal = repeticoes;
-const produtosTotal = quantidadeProduto * repeticoes;
+  const repeticoes = parseInt(atividade.quantas_repeticoes || 0, 10);
+  const quantidadeProduto = parseInt(atividade.quantidade_produto || 0, 10);
 
+  const atividadesTotal = repeticoes;
+  const produtosTotal = quantidadeProduto * repeticoes;
 
   return (
     <div className={`border rounded-xl overflow-hidden ${hasDupWarning ? 'border-amber-400' : errors.length > 0 ? 'border-red-200' : 'border-gray-200'}`}>
-      {/* Card header */}
-       <div
-        className="flex items-center justify-between px-5 py-3 bg-gray-50"
-      >
-        <div 
+      <div className="flex items-center justify-between px-5 py-3 bg-gray-50">
+        <div
           className="flex items-center gap-3 flex-wrap flex-1 cursor-pointer"
           onClick={() => setExpanded(e => !e)}
         >
@@ -420,7 +412,6 @@ const produtosTotal = quantidadeProduto * repeticoes;
 
       {expanded && (
         <div className="p-5 space-y-6">
-          {/* Classificação — primeiro campo, sempre visível */}
           <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
             <Field label="Classificação da Atividade" required>
               <Select value={atividade.classificacao || ''} onValueChange={v => onChange('classificacao', v)} disabled={!canEdit}>
@@ -434,7 +425,6 @@ const produtosTotal = quantidadeProduto * repeticoes;
             </Field>
           </div>
 
-          {/* Campos condicionais: META */}
           {isMeta && (
             <div className="p-4 border border-blue-100 bg-blue-50/30 rounded-xl space-y-4">
               <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Dados da Meta — 3º Termo Aditivo</p>
@@ -504,7 +494,6 @@ const produtosTotal = quantidadeProduto * repeticoes;
             </div>
           )}
 
-          {/* Campos condicionais: ROTINA / EXTRA */}
           {isRotinaOrExtra && (
             <div className="p-4 border border-green-100 bg-green-50/20 rounded-xl space-y-2">
               <div className="flex items-center justify-between">
@@ -533,7 +522,6 @@ const produtosTotal = quantidadeProduto * repeticoes;
             </div>
           )}
 
-          {/* Dados básicos */}
           <div className="grid md:grid-cols-2 gap-4">
             <Field label="Nome da atividade">
               <Input
@@ -617,103 +605,115 @@ const produtosTotal = quantidadeProduto * repeticoes;
               </Select>
             </Field>
             <Field label="Público estimado (por ocorrência)">
-  <Input
-    type="number"
-    placeholder="0"
-    value={atividade.publico_estimado || ''}
-    onChange={e => onChange('publico_estimado', parseInt(e.target.value, 10) || 0)}
-    disabled={!canEdit}
-  />
-</Field>
+              <Input
+                type="number"
+                placeholder="0"
+                value={atividade.publico_estimado || ''}
+                onChange={e => onChange('publico_estimado', parseInt(e.target.value, 10) || 0)}
+                disabled={!canEdit}
+              />
+            </Field>
 
-<Field label="Quantas vezes ocorreu?">
-  <Input
-    type="number"
-    placeholder="1"
-    value={atividade.quantas_repeticoes === undefined || atividade.quantas_repeticoes === null ? '' : atividade.quantas_repeticoes}
-    onChange={e => {
-      const raw = e.target.value;
+            <Field label="Quantas vezes ocorreu?">
+              <Input
+                type="number"
+                placeholder="1"
+                value={atividade.quantas_repeticoes ?? ''}
+                onChange={e => {
+                  const raw = e.target.value;
 
-      if (raw === '') {
-        onChange('quantas_repeticoes', '');
-        onChange('atividades_total', 0);
-        onChange('produtos_total', 0);
-        return;
-      }
+                  onChange('quantas_repeticoes', raw);
 
-      const val = parseInt(raw, 10);
-      if (!isNaN(val) && val >= 0 && val <= 99) {
-        onChange('quantas_repeticoes', val);
-        onChange('atividades_total', val);
-        onChange('produtos_total', (parseInt(atividade.quantidade_produto, 10) || 0) * val);
-      }
-    }}
-    disabled={!canEdit}
-    min="0"
-    max="99"
-  />
-</Field>
+                  if (raw === '') {
+                    onChange('atividades_total', 0);
+                    onChange('produtos_total', 0);
+                    return;
+                  }
 
-<Field label="Total de atividades realizadas">
-  <Input
-    type="number"
-    value={atividade.atividades_total || 0}
-    readOnly
-    disabled={true}
-  />
-</Field>
+                  const val = parseInt(raw, 10);
+                  if (!isNaN(val) && val >= 0 && val <= 99) {
+                    onChange('atividades_total', val);
+                    onChange('produtos_total', (parseInt(atividade.quantidade_produto, 10) || 0) * val);
+                  }
+                }}
+                onBlur={() => {
+                  if (atividade.quantas_repeticoes === '' || atividade.quantas_repeticoes === null || atividade.quantas_repeticoes === undefined) {
+                    return;
+                  }
 
-<Field label="Produto realizado">
-  <Select
-    value={atividade.produto_realizado || ''}
-    onValueChange={v => onChange('produto_realizado', v)}
-    disabled={!canEdit}
-  >
-    <SelectTrigger><SelectValue placeholder="Selecione o produto" /></SelectTrigger>
-    <SelectContent>
-      {PRODUTOS_OPCOES.map(p => (
-        <SelectItem key={p} value={p}>{p}</SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
-</Field>
-<Field label="Quantidade de produtos gerados">
-  <Input
-    type="number"
-    placeholder="0"
-    value={atividade.quantidade_produto === undefined || atividade.quantidade_produto === null ? '' : atividade.quantidade_produto}
-    onChange={e => {
-      const raw = e.target.value;
+                  const val = parseInt(atividade.quantas_repeticoes, 10);
+                  if (!isNaN(val)) {
+                    const normalizado = Math.max(0, Math.min(99, val));
+                    onChange('quantas_repeticoes', normalizado);
+                    onChange('atividades_total', normalizado);
+                    onChange('produtos_total', (parseInt(atividade.quantidade_produto, 10) || 0) * normalizado);
+                  }
+                }}
+                disabled={!canEdit}
+                min="0"
+                max="99"
+              />
+            </Field>
 
-      if (raw === '') {
-        onChange('quantidade_produto', '');
-        onChange('produtos_total', 0);
-        return;
-      }
+            <Field label="Total de atividades realizadas">
+              <Input
+                type="number"
+                value={atividade.atividades_total || 0}
+                readOnly
+                disabled={true}
+              />
+            </Field>
 
-      const qtd = parseInt(raw, 10);
-      if (!isNaN(qtd) && qtd >= 0) {
-        onChange('quantidade_produto', qtd);
-        onChange('produtos_total', qtd * (parseInt(atividade.quantas_repeticoes, 10) || 0));
-      }
-    }}
-    disabled={!canEdit}
-    min="0"
-  />
-</Field>
+            <Field label="Produto realizado">
+              <Select
+                value={atividade.produto_realizado || ''}
+                onValueChange={v => onChange('produto_realizado', v)}
+                disabled={!canEdit}
+              >
+                <SelectTrigger><SelectValue placeholder="Selecione o produto" /></SelectTrigger>
+                <SelectContent>
+                  {PRODUTOS_OPCOES.map(p => (
+                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Quantidade de produtos gerados">
+              <Input
+                type="number"
+                placeholder="0"
+                value={atividade.quantidade_produto === undefined || atividade.quantidade_produto === null ? '' : atividade.quantidade_produto}
+                onChange={e => {
+                  const raw = e.target.value;
 
-<Field label="Total de produtos gerados">
-  <Input
-    type="number"
-    value={atividade.produtos_total || 0}
-    readOnly
-    disabled={true}
-  />
-</Field>
-</div>
+                  if (raw === '') {
+                    onChange('quantidade_produto', '');
+                    onChange('produtos_total', 0);
+                    return;
+                  }
 
-            {/* Seção de Mobilização (condicional) */}
-            {atividade.eh_mobilizacao && (
+                  const qtd = parseInt(raw, 10);
+                  if (!isNaN(qtd) && qtd >= 0) {
+                    onChange('quantidade_produto', qtd);
+                    onChange('produtos_total', qtd * (parseInt(atividade.quantas_repeticoes, 10) || 0));
+                  }
+                }}
+                disabled={!canEdit}
+                min="0"
+              />
+            </Field>
+
+            <Field label="Total de produtos gerados">
+              <Input
+                type="number"
+                value={atividade.produtos_total || 0}
+                readOnly
+                disabled={true}
+              />
+            </Field>
+          </div>
+
+          {atividade.eh_mobilizacao && (
             <div className="p-4 border border-purple-100 bg-purple-50/20 rounded-xl space-y-4">
               <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Dados de Mobilização/Divulgação</p>
               <Field label="Tipo de mobilização">
@@ -725,69 +725,67 @@ const produtosTotal = quantidadeProduto * repeticoes;
                 </Select>
               </Field>
               <Field label="Descrição da ação de mobilização/divulgação">
-                <Textarea 
+                <Textarea
                   placeholder="Descreva em detalhes a ação de mobilização (ex: quantidade de pessoas contatadas, conteúdo compartilhado, resultado da ação)..."
-                  value={atividade.descricao_mobilizacao || ''} 
-                  onChange={e => onChange('descricao_mobilizacao', e.target.value)} 
+                  value={atividade.descricao_mobilizacao || ''}
+                  onChange={e => onChange('descricao_mobilizacao', e.target.value)}
                   disabled={!canEdit}
                   rows={3}
                 />
               </Field>
             </div>
+          )}
+
+          <div className="p-4 border border-gray-100 bg-gray-50/50 rounded-xl space-y-4">
+            <Field label="Houve contratações de profissionais da cadeia da cultura?">
+              <Select value={atividade.houve_contratacoes ? 'sim' : 'nao'} onValueChange={v => onChange('houve_contratacoes', v === 'sim')} disabled={!canEdit}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nao">Não</SelectItem>
+                  <SelectItem value="sim">Sim</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            {atividade.houve_contratacoes && (
+              <div className="space-y-4 p-4 bg-white border border-gray-200 rounded-lg">
+                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Detalhes das Contratações</p>
+                <div className="grid md:grid-cols-3 gap-4">
+                  <Field label="Número de trabalhadores envolvidos">
+                    <Input
+                      type="number"
+                      placeholder="Ex: 5"
+                      value={atividade.numero_trabalhadores ?? ''}
+                      onChange={e => onChange('numero_trabalhadores', parseInt(e.target.value) || '')}
+                      disabled={!canEdit}
+                      min="0"
+                    />
+                  </Field>
+                  <Field label="Número de empresas envolvidas">
+                    <Input
+                      type="number"
+                      placeholder="Ex: 2"
+                      value={atividade.numero_empresas ?? ''}
+                      onChange={e => onChange('numero_empresas', parseInt(e.target.value) || '')}
+                      disabled={!canEdit}
+                      min="0"
+                    />
+                  </Field>
+                  <Field label="Valor aproximado gasto (R$)">
+                    <Input
+                      type="number"
+                      placeholder="Ex: 5000.00"
+                      value={atividade.valor_aproximado ?? ''}
+                      onChange={e => onChange('valor_aproximado', parseFloat(e.target.value) || '')}
+                      disabled={!canEdit}
+                      min="0"
+                      step="0.01"
+                    />
+                  </Field>
+                </div>
+              </div>
             )}
+          </div>
 
-            {/* Seção de Contratações (condicional) */}
-            <div className="p-4 border border-gray-100 bg-gray-50/50 rounded-xl space-y-4">
-             <Field label="Houve contratações de profissionais da cadeia da cultura?">
-               <Select value={atividade.houve_contratacoes ? 'sim' : 'nao'} onValueChange={v => onChange('houve_contratacoes', v === 'sim')} disabled={!canEdit}>
-                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                 <SelectContent>
-                   <SelectItem value="nao">Não</SelectItem>
-                   <SelectItem value="sim">Sim</SelectItem>
-                 </SelectContent>
-               </Select>
-             </Field>
-             {atividade.houve_contratacoes && (
-               <div className="space-y-4 p-4 bg-white border border-gray-200 rounded-lg">
-                 <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Detalhes das Contratações</p>
-                 <div className="grid md:grid-cols-3 gap-4">
-                   <Field label="Número de trabalhadores envolvidos">
-                     <Input 
-                       type="number" 
-                       placeholder="Ex: 5" 
-                       value={atividade.numero_trabalhadores ?? ''} 
-                       onChange={e => onChange('numero_trabalhadores', parseInt(e.target.value) || '')} 
-                       disabled={!canEdit}
-                       min="0"
-                     />
-                   </Field>
-                   <Field label="Número de empresas envolvidas">
-                     <Input 
-                       type="number" 
-                       placeholder="Ex: 2" 
-                       value={atividade.numero_empresas ?? ''} 
-                       onChange={e => onChange('numero_empresas', parseInt(e.target.value) || '')} 
-                       disabled={!canEdit}
-                       min="0"
-                     />
-                   </Field>
-                   <Field label="Valor aproximado gasto (R$)">
-                     <Input 
-                       type="number" 
-                       placeholder="Ex: 5000.00" 
-                       value={atividade.valor_aproximado ?? ''} 
-                       onChange={e => onChange('valor_aproximado', parseFloat(e.target.value) || '')} 
-                       disabled={!canEdit}
-                       min="0"
-                       step="0.01"
-                     />
-                   </Field>
-                 </div>
-               </div>
-             )}
-            </div>
-
-            {/* Registro detalhado */}
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Registro Detalhado</p>
             <div className="space-y-3">
@@ -833,12 +831,9 @@ const produtosTotal = quantidadeProduto * repeticoes;
               <Field label="Depoimento de Participantes ou Fatos Marcantes">
                 <Textarea placeholder="Relatos dos participantes, histórias marcantes, feedback importante..." value={atividade.depoimento_participantes || ''} onChange={e => onChange('depoimento_participantes', e.target.value)} disabled={!canEdit} rows={3} />
               </Field>
-              </div>
-              </div>
+            </div>
+          </div>
 
-
-
-          {/* Clipping Automático */}
           {canEdit && (
             <ClippingAutomatico
               atividade={atividade}
@@ -846,7 +841,6 @@ const produtosTotal = quantidadeProduto * repeticoes;
             />
           )}
 
-          {/* Anexos vinculados a esta atividade */}
           {reportId && (
             <ActivityAttachments
               reportId={reportId}
@@ -856,11 +850,11 @@ const produtosTotal = quantidadeProduto * repeticoes;
               canEdit={canEdit}
             />
           )}
-          </div>
-          )}
-          </div>
-          );
-          }
+        </div>
+      )}
+    </div>
+  );
+}
 
 async function verificarDuplicata(novaAtiv, atividades) {
   if (!novaAtiv.nome && !novaAtiv.descricao_executado) return null;
@@ -895,20 +889,19 @@ Responda APENAS com um JSON: {"duplicata": true/false, "motivo": "breve explica�
 
 export default function AtividadesSection({ atividades = [], canEdit, onChange, reportId }) {
   const [checkingDup, setCheckingDup] = React.useState(false);
-  const [dupWarning, setDupWarning] = React.useState(null); // { index, motivo }
+  const [dupWarning, setDupWarning] = React.useState(null);
   const [selectedIndices, setSelectedIndices] = React.useState(new Set());
   const [bulkEditorOpen, setBulkEditorOpen] = React.useState(false);
   const [attachmentCounts, setAttachmentCounts] = React.useState({});
-  const [deleteConfirm, setDeleteConfirm] = React.useState(null); // { index, activityId, hasAttachments }
+  const [deleteConfirm, setDeleteConfirm] = React.useState(null);
 
   React.useEffect(() => {
-    // Fetch attachment counts for each activity
     if (reportId) {
       atividades.forEach(async (ativ, idx) => {
         if (ativ && ativ.activity_id) {
-          const attachments = await base44.entities.Attachment.filter({ 
-            report_id: reportId, 
-            activity_id: ativ.activity_id 
+          const attachments = await base44.entities.Attachment.filter({
+            report_id: reportId,
+            activity_id: ativ.activity_id
           }).catch(() => []);
           if (attachments.length > 0) {
             setAttachmentCounts(prev => ({ ...prev, [idx]: attachments.length }));
@@ -926,7 +919,6 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
   const remove = async (i, deleteAttachments) => {
     const ativ = atividades[i];
     if (deleteAttachments && ativ?.activity_id && reportId) {
-      // Delete all attachments for this activity
       const atts = await base44.entities.Attachment.filter({ report_id: reportId, activity_id: ativ.activity_id }).catch(() => []);
       await Promise.all(atts.map(a => base44.entities.Attachment.delete(a.id).catch(() => {})));
     }
@@ -951,7 +943,6 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
     const updated = atividades.map((a, idx) => idx === i ? { ...a, [field]: value } : a);
     onChange(updated);
 
-    // Verificar duplicata quando nome ou data muda
     if ((field === 'nome' || field === 'data_inicio') && value && canEdit) {
       const novaAtiv = updated[i];
       const outras = updated.filter((_, idx) => idx !== i);
@@ -989,7 +980,7 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
   };
 
   const handleBulkApply = (updates) => {
-    const updated = atividades.map((a, idx) => 
+    const updated = atividades.map((a, idx) =>
       selectedIndices.has(idx) ? { ...a, ...updates } : a
     );
     onChange(updated);
@@ -999,10 +990,9 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
 
   return (
     <section>
-      {/* Activity Summarizer — Análise de IA */}
       {canEdit && atividades.length > 0 && (
         <div className="mb-6 pb-6 border-b border-gray-100">
-          <ActivitySummarizer 
+          <ActivitySummarizer
             atividades={atividades}
             canEdit={canEdit}
             onApplySuggestions={handleApplySuggestion}
@@ -1010,9 +1000,8 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
         </div>
       )}
 
-      {/* Bulk Editor */}
-      <BulkActivityEditor 
-        open={bulkEditorOpen} 
+      <BulkActivityEditor
+        open={bulkEditorOpen}
         selectedActivities={selectedActivities}
         onApply={handleBulkApply}
         onClose={() => setBulkEditorOpen(false)}
@@ -1039,9 +1028,9 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
         </div>
         <div className="flex gap-2">
           {selectedCount > 0 && canEdit && (
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="gap-1.5 text-blue-600 border-blue-200 hover:bg-blue-50"
               onClick={() => setBulkEditorOpen(true)}
             >
@@ -1056,7 +1045,6 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
         </div>
       </div>
 
-      {/* Info: Atividades do mês de referência */}
       <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
         <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">ℹ️ Sobre as Atividades</p>
         <p className="text-sm text-blue-700 leading-relaxed">
@@ -1065,17 +1053,17 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
       </div>
 
       {dupWarning && (
-         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
-           <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-           <div className="flex-1">
-             <p className="text-sm font-medium text-amber-800">Possível duplicata detectada (Atividade {dupWarning.index + 1})</p>
-             <p className="text-xs text-amber-600 mt-0.5">{dupWarning.motivo}</p>
-           </div>
-           <button onClick={() => setDupWarning(null)} className="text-amber-400 hover:text-amber-600">
-             <X className="w-4 h-4" />
-           </button>
-         </div>
-       )}
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800">Possível duplicata detectada (Atividade {dupWarning.index + 1})</p>
+            <p className="text-xs text-amber-600 mt-0.5">{dupWarning.motivo}</p>
+          </div>
+          <button onClick={() => setDupWarning(null)} className="text-amber-400 hover:text-amber-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {atividades.length === 0 ? (
         <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
@@ -1088,24 +1076,24 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
         </div>
       ) : (
         <div className="space-y-4">
-           {atividades.map((ativ, i) => {
-             if (!ativ) return null;
-             return (
-               <AtividadeCard
-                 key={i}
-                 atividade={ativ}
-                 index={i}
-                 canEdit={canEdit}
-                 onChange={(field, value) => update(i, field, value)}
-                 onRemove={() => requestRemove(i)}
-                 reportId={reportId}
-                 hasDupWarning={dupWarning?.index === i}
-                 isSelected={selectedIndices.has(i)}
-                 onSelect={canEdit ? () => toggleSelection(i) : null}
-                 hasAttachments={attachmentCounts[i] > 0}
-               />
-             );
-           })}
+          {atividades.map((ativ, i) => {
+            if (!ativ) return null;
+            return (
+              <AtividadeCard
+                key={i}
+                atividade={ativ}
+                index={i}
+                canEdit={canEdit}
+                onChange={(field, value) => update(i, field, value)}
+                onRemove={() => requestRemove(i)}
+                reportId={reportId}
+                hasDupWarning={dupWarning?.index === i}
+                isSelected={selectedIndices.has(i)}
+                onSelect={canEdit ? () => toggleSelection(i) : null}
+                hasAttachments={attachmentCounts[i] > 0}
+              />
+            );
+          })}
           {canEdit && (
             <Button variant="outline" className="w-full border-dashed gap-2" onClick={add}>
               <Plus className="w-4 h-4" />Inserir Nova Atividade
@@ -1113,32 +1101,32 @@ export default function AtividadesSection({ atividades = [], canEdit, onChange, 
           )}
         </div>
       )}
-    {/* Delete activity confirmation dialog */}
-    <AlertDialog open={!!deleteConfirm} onOpenChange={o => !o && setDeleteConfirm(null)}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Excluir atividade</AlertDialogTitle>
-          <AlertDialogDescription>
-            Esta atividade possui <strong>{deleteConfirm?.count} anexo(s)</strong>. Deseja também excluir os anexos vinculados?
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-          <AlertDialogCancel onClick={() => setDeleteConfirm(null)}>Cancelar</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-gray-700 hover:bg-gray-800 text-white"
-            onClick={() => remove(deleteConfirm.index, false)}
-          >
-            Manter anexos
-          </AlertDialogAction>
-          <AlertDialogAction
-            className="bg-red-600 hover:bg-red-700 text-white"
-            onClick={() => remove(deleteConfirm.index, true)}
-          >
-            Excluir anexos também
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+
+      <AlertDialog open={!!deleteConfirm} onOpenChange={o => !o && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir atividade</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta atividade possui <strong>{deleteConfirm?.count} anexo(s)</strong>. Deseja também excluir os anexos vinculados?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel onClick={() => setDeleteConfirm(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-gray-700 hover:bg-gray-800 text-white"
+              onClick={() => remove(deleteConfirm.index, false)}
+            >
+              Manter anexos
+            </AlertDialogAction>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => remove(deleteConfirm.index, true)}
+            >
+              Excluir anexos também
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
