@@ -70,7 +70,14 @@ function getDocIcon(doc) {
   const ext = getDocExtension(doc);
   const mime = String(doc?.mime_type || '').toLowerCase();
 
-  if (ext === 'xlsx' || ext === 'xls' || ext === 'csv' || mime.includes('sheet') || mime.includes('excel') || mime.includes('csv')) {
+  if (
+    ext === 'xlsx' ||
+    ext === 'xls' ||
+    ext === 'csv' ||
+    mime.includes('sheet') ||
+    mime.includes('excel') ||
+    mime.includes('csv')
+  ) {
     return <FileSpreadsheet className="w-4 h-4" />;
   }
 
@@ -164,13 +171,19 @@ function BaseConhecimentoInner() {
         mime_type: selectedFile.type || '',
         size_bytes: selectedFile.size || 0,
         content_base64: contentBase64,
+        titulo: selectedFile.name,
       });
 
       if (res?.data?.ok === false) {
         throw new Error(res?.data?.error || 'Falha no processamento do arquivo.');
       }
 
-      toast.success('Arquivo enviado para leitura automática de IA.');
+      if (res?.data?.agenda_updated) {
+        toast.success('Arquivo enviado. Biblioteca e agenda atualizadas.');
+      } else {
+        toast.success('Arquivo enviado para leitura automática de IA.');
+      }
+
       setSelectedFile(null);
       setShowUpload(false);
 
@@ -179,6 +192,7 @@ function BaseConhecimentoInner() {
         refetchMirror(),
         queryClient.invalidateQueries({ queryKey: ['knowledge-docs'] }),
         queryClient.invalidateQueries({ queryKey: ['base-conhecimento'] }),
+        queryClient.invalidateQueries({ queryKey: ['agenda-programacao'] }),
       ]);
     } catch (error) {
       toast.error(error?.message || 'Erro ao enviar arquivo.');
@@ -264,7 +278,8 @@ function BaseConhecimentoInner() {
     );
   }, [docs, busca]);
 
-  const totalItens = mirror?.total_items || (Array.isArray(mirror?.items) ? mirror.items.length : 0);
+  const totalItens =
+    mirror?.total_items || (Array.isArray(mirror?.items) ? mirror.items.length : 0);
   const totalDocs = Array.isArray(docs) ? docs.length : 0;
 
   return (
@@ -386,7 +401,10 @@ function BaseConhecimentoInner() {
             </div>
           ) : (
             itensFiltrados.map((item, i) => (
-              <div key={`${item?.id || item?.row_index || i}-${item?.titulo || item?.nome || i}`} className="border rounded-lg p-4">
+              <div
+                key={`${item?.id || item?.row_index || i}-${item?.titulo || item?.nome || i}`}
+                className="border rounded-lg p-4"
+              >
                 <div className="font-semibold">
                   {item?.nome || item?.titulo || 'Sem título'}
                 </div>
