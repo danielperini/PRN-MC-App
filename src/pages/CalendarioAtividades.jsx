@@ -17,6 +17,37 @@ const MUSEU_COLORS = {
   Externo: 'bg-gray-500',
 };
 
+function parseDateToISO(dataStr) {
+  if (!dataStr) return null;
+
+  const parts = dataStr.split('/');
+  if (parts.length === 3) {
+    const [d, m, y] = parts;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  return null;
+}
+
+function normalizeFromEntity(items = []) {
+  return items.map((i) => {
+    const data_iso = parseDateToISO(i.data);
+
+    return {
+      nome: i.nome_acao || '',
+      data: i.data || '',
+      data_iso,
+      horario: i.horario || '',
+      museu: i.equipamento || 'Externo',
+      sinopse: i.sinopse || '',
+      vagas: i.vagas || '',
+      inscricao: i.inscricao || '',
+      link_imagens: i.link_imagens || '',
+      raw: i,
+    };
+  });
+}
+
 function buildAgendaFromItems(items = []) {
   const result = {};
 
@@ -51,21 +82,38 @@ function CalendarioAtividadesInner() {
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['agenda-programacao'],
     queryFn: async () => {
-      const res = await base44.functions.invoke('syncBaseConhecimento');
-      return res?.data || {};
+      const sync = await base44.functions.invoke('syncBaseConhecimento');
+
+      // 🔥 fallback real na entity
+      const entity = await base44.entities.Programacao.list({
+        limit: 1000,
+      });
+
+      return {
+        sync: sync?.data || {},
+        entity: entity || [],
+      };
     },
   });
 
-  // 🔥 fallback inteligente
   const agenda = useMemo(() => {
-    if (data?.agenda) return data.agenda;
+    const sync = data?.sync || {};
 
-    if (data?.grouped_by_museum_and_month) {
-      return data.grouped_by_museum_and_month;
+    // prioridade 1
+    if (sync?.agenda) return sync.agenda;
+
+    if (sync?.grouped_by_museum_and_month) {
+      return sync.grouped_by_museum_and_month;
     }
 
-    if (data?.items) {
-      return buildAgendaFromItems(data.items);
+    if (sync?.items) {
+      return buildAgendaFromItems(sync.items);
+    }
+
+    // 🔥 fallback final (resolve seu problema)
+    if (data?.entity?.length) {
+      const normalized = normalizeFromEntity(data.entity);
+      return buildAgendaFromItems(normalized);
     }
 
     return {};
@@ -109,9 +157,8 @@ function CalendarioAtividadesInner() {
       }
 
       await refetch();
-      alert(res?.data?.message || 'Salvo e sincronizado com sucesso');
       setShowEditor(false);
-    } catch (e) {
+    } catch {
       alert('Erro ao salvar');
     } finally {
       setSaving(false);
@@ -161,7 +208,7 @@ function CalendarioAtividadesInner() {
           <div>Carregando...</div>
         ) : meses.length === 0 ? (
           <div className="border p-6 text-gray-500">
-            Nenhuma atividade encontrada. Verifique a planilha ou sincronização.
+            Nenhuma atividade encontrada.
           </div>
         ) : (
           <div className="space-y-10">
@@ -198,30 +245,12 @@ function CalendarioAtividadesInner() {
                             </div>
 
                             <div className="text-sm mt-3 text-gray-700">
-                              {a.resumo_ia || a.sinopse}
+                              {a.sinopse}
                             </div>
 
                             <div className="text-xs mt-3 space-y-1">
                               {a.vagas && <div>Vagas: {a.vagas}</div>}
                               {a.inscricao && <div>{a.inscricao}</div>}
-                            </div>
-
-                            <div className="flex gap-2 mt-4">
-
-                              <Button size="sm" onClick={() => abrirEditar(a)}>
-                                Editar
-                              </Button>
-
-                              {a.link_imagens && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => window.open(a.link_imagens, '_blank')}
-                                >
-                                  Saiba mais
-                                </Button>
-                              )}
-
                             </div>
 
                           </div>
@@ -251,15 +280,12 @@ function CalendarioAtividadesInner() {
             <Input placeholder="Data" value={form.data || ''} onChange={(e) => setForm({ ...form, data: e.target.value })} />
             <Input placeholder="Museu" value={form.museu || ''} onChange={(e) => setForm({ ...form, museu: e.target.value })} />
             <Input placeholder="Horário" value={form.horario || ''} onChange={(e) => setForm({ ...form, horario: e.target.value })} />
-            <Input placeholder="Vagas" value={form.vagas || ''} onChange={(e) => setForm({ ...form, vagas: e.target.value })} />
-            <Input placeholder="Inscrição" value={form.inscricao || ''} onChange={(e) => setForm({ ...form, inscricao: e.target.value })} />
-            <Input placeholder="Link imagens" value={form.link_imagens || ''} onChange={(e) => setForm({ ...form, link_imagens: e.target.value })} />
 
           </div>
 
           <DialogFooter>
             <Button onClick={salvar} disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar e sincronizar'}
+              {saving ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>
         </DialogContent>
