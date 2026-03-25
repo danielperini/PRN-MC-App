@@ -82,51 +82,24 @@ function CalendarioAtividadesInner() {
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['agenda-programacao'],
     queryFn: async () => {
-      let sync = null;
 
-      try {
-        sync = await base44.functions.invoke('syncBaseConhecimento');
-      } catch (e) {
-        console.warn('Sync falhou, usando fallback entity');
-      }
+      // 🔥 REMOVIDO syncBaseConhecimento (instável)
 
       const entity = await base44.entities.Programacao.list({
         limit: 2000,
         sort: { field: 'data', direction: 'asc' },
       });
 
-      return {
-        sync: sync?.data || {},
-        entity: entity || [],
-      };
+      return entity || [];
     },
   });
 
   const agenda = useMemo(() => {
-    const sync = data?.sync || {};
+    if (!data?.length) return {};
 
-    // 🔥 prioridade 1 — agenda pronta
-    if (sync?.agenda && Object.keys(sync.agenda).length) {
-      return sync.agenda;
-    }
+    const normalized = normalizeFromEntity(data);
+    return buildAgendaFromItems(normalized);
 
-    // 🔥 prioridade 2 — estrutura alternativa
-    if (sync?.grouped_by_museum_and_month) {
-      return sync.grouped_by_museum_and_month;
-    }
-
-    // 🔥 prioridade 3 — items crus do sync
-    if (sync?.items?.length) {
-      return buildAgendaFromItems(sync.items);
-    }
-
-    // 🔥 prioridade 4 — ENTITY (GARANTE QUE SEMPRE MOSTRA)
-    if (data?.entity?.length) {
-      const normalized = normalizeFromEntity(data.entity);
-      return buildAgendaFromItems(normalized);
-    }
-
-    return {};
   }, [data]);
 
   const meses = useMemo(() => {
@@ -140,7 +113,13 @@ function CalendarioAtividadesInner() {
 
         return { mes, museus, total };
       })
-      .sort((a, b) => a.mes.localeCompare(b.mes));
+      .sort((a, b) => {
+        const parseMes = (m) => {
+          const [mesNome, ano] = m.split(' de ');
+          return new Date(`${mesNome} 1, ${ano}`);
+        };
+        return parseMes(a.mes) - parseMes(b.mes);
+      });
   }, [agenda]);
 
   const abrirNovo = () => {
@@ -157,14 +136,9 @@ function CalendarioAtividadesInner() {
     setSaving(true);
 
     try {
-      const res = await base44.functions.invoke('updateProgramacaoMuseu', {
+      await base44.functions.invoke('updateProgramacaoMuseu', {
         data: form,
       });
-
-      if (res?.data?.locked) {
-        alert('Este mês já está bloqueado para edição');
-        return;
-      }
 
       await refetch();
       setShowEditor(false);
@@ -248,23 +222,14 @@ function CalendarioAtividadesInner() {
                             className="border rounded-lg p-4 bg-white shadow-sm cursor-pointer hover:shadow-md"
                             onClick={() => abrirEditar(a)}
                           >
+                            <div className="font-semibold">{a.nome}</div>
 
-                            <div className="flex justify-between mb-2">
-                              <div className="font-semibold">{a.nome}</div>
-                              <div className={`w-2 h-2 rounded-full ${MUSEU_COLORS[a.museu]}`} />
-                            </div>
-
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-gray-500 mt-1">
                               {a.data} {a.horario ? `· ${a.horario}` : ''}
                             </div>
 
                             <div className="text-sm mt-3 text-gray-700 line-clamp-4">
                               {a.sinopse}
-                            </div>
-
-                            <div className="text-xs mt-3 space-y-1">
-                              {a.vagas && <div>Vagas: {a.vagas}</div>}
-                              {a.inscricao && <div>{a.inscricao}</div>}
                             </div>
 
                           </div>
@@ -289,12 +254,10 @@ function CalendarioAtividadesInner() {
           </DialogHeader>
 
           <div className="space-y-2">
-
             <Input placeholder="Nome" value={form.nome || ''} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
             <Input placeholder="Data" value={form.data || ''} onChange={(e) => setForm({ ...form, data: e.target.value })} />
             <Input placeholder="Museu" value={form.museu || ''} onChange={(e) => setForm({ ...form, museu: e.target.value })} />
             <Input placeholder="Horário" value={form.horario || ''} onChange={(e) => setForm({ ...form, horario: e.target.value })} />
-
           </div>
 
           <DialogFooter>
