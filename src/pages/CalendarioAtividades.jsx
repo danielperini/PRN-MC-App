@@ -17,6 +17,31 @@ const MUSEU_COLORS = {
   Externo: 'bg-gray-500',
 };
 
+function buildAgendaFromItems(items = []) {
+  const result = {};
+
+  items.forEach((item) => {
+    if (!item?.data_iso) return;
+
+    const date = new Date(item.data_iso);
+    if (isNaN(date.getTime())) return;
+
+    const mes = date.toLocaleDateString('pt-BR', {
+      month: 'long',
+      year: 'numeric',
+    });
+
+    const museu = item.museu || 'Externo';
+
+    if (!result[mes]) result[mes] = {};
+    if (!result[mes][museu]) result[mes][museu] = [];
+
+    result[mes][museu].push(item);
+  });
+
+  return result;
+}
+
 function CalendarioAtividadesInner() {
   const [filtroMuseu, setFiltroMuseu] = useState('Todos');
   const [showEditor, setShowEditor] = useState(false);
@@ -31,7 +56,20 @@ function CalendarioAtividadesInner() {
     },
   });
 
-  const agenda = data?.agenda || {};
+  // 🔥 fallback inteligente
+  const agenda = useMemo(() => {
+    if (data?.agenda) return data.agenda;
+
+    if (data?.grouped_by_museum_and_month) {
+      return data.grouped_by_museum_and_month;
+    }
+
+    if (data?.items) {
+      return buildAgendaFromItems(data.items);
+    }
+
+    return {};
+  }, [data]);
 
   const meses = useMemo(() => {
     return Object.entries(agenda)
@@ -121,6 +159,10 @@ function CalendarioAtividadesInner() {
 
         {isLoading ? (
           <div>Carregando...</div>
+        ) : meses.length === 0 ? (
+          <div className="border p-6 text-gray-500">
+            Nenhuma atividade encontrada. Verifique a planilha ou sincronização.
+          </div>
         ) : (
           <div className="space-y-10">
 
@@ -156,7 +198,7 @@ function CalendarioAtividadesInner() {
                             </div>
 
                             <div className="text-sm mt-3 text-gray-700">
-                              {a.resumo_ia}
+                              {a.resumo_ia || a.sinopse}
                             </div>
 
                             <div className="text-xs mt-3 space-y-1">
