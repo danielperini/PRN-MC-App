@@ -7,8 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Calendar, RefreshCw, Plus } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
 const MUSEUS = ['Todos', 'MHAB', 'MIS', 'MUMO', 'Externo'];
 
@@ -19,38 +17,13 @@ const MUSEU_COLORS = {
   Externo: 'bg-gray-500',
 };
 
-function mapItems(items) {
-  return (Array.isArray(items) ? items : [])
-    .map((item, index) => {
-      if (!item?.data_iso) return null;
-
-      const date = new Date(item.data_iso);
-
-      return {
-        id: `${item.row_index || index}-${index}`,
-        nome: item.nome || item.titulo || `Atividade ${index + 1}`,
-        descricao: item.resumo_ia || item.sinopse || item.descricao || '',
-        sinopse: item.sinopse || item.descricao || '',
-        horario: item.horario || '',
-        vagas: item.vagas || '',
-        inscricao: item.inscricao || item.inscricao_acesso || '',
-        link: item.link || item.link_imagens || '',
-        museu: item.museu || 'Externo',
-        data: item.data || format(date, 'dd/MM/yyyy'),
-        _date: date,
-        raw: item,
-      };
-    })
-    .filter(Boolean);
-}
-
 function CalendarioAtividadesInner() {
   const [filtroMuseu, setFiltroMuseu] = useState('Todos');
   const [showEditor, setShowEditor] = useState(false);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
 
-  const { data: mirrorData, isLoading, refetch, isFetching } = useQuery({
+  const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['agenda-programacao'],
     queryFn: async () => {
       const res = await base44.functions.invoke('syncBaseConhecimento');
@@ -58,68 +31,29 @@ function CalendarioAtividadesInner() {
     },
   });
 
-  const todasAtividades = useMemo(() => {
-    const grouped = mirrorData?.grouped_by_museum_and_month || {};
+  const agenda = data?.agenda || {};
 
-    if (filtroMuseu === 'Todos') {
-      const meses = grouped?.Todos || {};
-      const combinadas = Object.values(meses).flat();
-      return mapItems(combinadas).sort((a, b) => a._date.getTime() - b._date.getTime());
-    }
+  const meses = useMemo(() => {
+    return Object.entries(agenda)
+      .map(([mes, museus]) => {
+        let total = 0;
 
-    const meses = grouped?.[filtroMuseu] || {};
-    const combinadas = Object.values(meses).flat();
-    return mapItems(combinadas).sort((a, b) => a._date.getTime() - b._date.getTime());
-  }, [mirrorData, filtroMuseu]);
-
-  const atividadesAgrupadasPorMes = useMemo(() => {
-    const map = new Map();
-
-    todasAtividades.forEach((atividade) => {
-      const key = format(atividade._date, 'yyyy-MM');
-
-      if (!map.has(key)) {
-        map.set(key, {
-          key,
-          label: format(atividade._date, 'MMMM yyyy', { locale: ptBR }),
-          museus: {},
+        Object.values(museus).forEach((arr) => {
+          total += arr.length;
         });
-      }
 
-      const grupo = map.get(key);
-
-      if (!grupo.museus[atividade.museu]) {
-        grupo.museus[atividade.museu] = [];
-      }
-
-      grupo.museus[atividade.museu].push(atividade);
-    });
-
-    return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
-  }, [todasAtividades]);
+        return { mes, museus, total };
+      })
+      .sort((a, b) => a.mes.localeCompare(b.mes));
+  }, [agenda]);
 
   const abrirNovo = () => {
-    setForm({
-      nome: '',
-      data: '',
-      museu: 'MIS',
-      horario: '',
-      vagas: '',
-      inscricao: '',
-      descricao: '',
-      link: '',
-    });
+    setForm({});
     setShowEditor(true);
   };
 
   const abrirEditar = (item) => {
-    setForm({
-      ...item.raw,
-      nome: item.raw?.nome || item.raw?.titulo || '',
-      descricao: item.raw?.sinopse || item.raw?.descricao || '',
-      inscricao: item.raw?.inscricao || item.raw?.inscricao_acesso || '',
-      link: item.raw?.link || item.raw?.link_imagens || '',
-    });
+    setForm(item.raw || item);
     setShowEditor(true);
   };
 
@@ -140,12 +74,7 @@ function CalendarioAtividadesInner() {
       alert(res?.data?.message || 'Salvo e sincronizado com sucesso');
       setShowEditor(false);
     } catch (e) {
-      const msg =
-        e?.response?.data?.message ||
-        e?.response?.data?.error ||
-        'Erro ao salvar';
-
-      alert(msg);
+      alert('Erro ao salvar');
     } finally {
       setSaving(false);
     }
@@ -154,6 +83,7 @@ function CalendarioAtividadesInner() {
   return (
     <div className="w-full py-6">
       <div className="max-w-7xl mx-auto px-4">
+
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex items-center gap-3">
             <Calendar className="w-6 h-6" />
@@ -183,76 +113,86 @@ function CalendarioAtividadesInner() {
               Nova atividade
             </Button>
 
-            <Badge>{todasAtividades.length}</Badge>
+            <Badge>
+              {meses.reduce((acc, m) => acc + m.total, 0)}
+            </Badge>
           </div>
         </div>
 
         {isLoading ? (
           <div>Carregando...</div>
         ) : (
-          <div className="space-y-8">
-            {atividadesAgrupadasPorMes.length === 0 ? (
-              <div className="border rounded-lg p-6 text-sm text-gray-500">
-                Nenhuma atividade encontrada.
-              </div>
-            ) : (
-              atividadesAgrupadasPorMes.map((grupo) => (
-                <div key={grupo.key} className="space-y-5">
-                  <h2 className="text-2xl font-semibold capitalize">{grupo.label}</h2>
+          <div className="space-y-10">
 
-                  {Object.entries(grupo.museus).map(([museu, items]) => (
-                    <div key={`${grupo.key}-${museu}`} className="space-y-3">
+            {meses.map(({ mes, museus }) => (
+              <div key={mes} className="space-y-6">
+
+                <h2 className="text-2xl font-semibold capitalize">
+                  {mes}
+                </h2>
+
+                {Object.entries(museus)
+                  .filter(([m]) => filtroMuseu === 'Todos' || filtroMuseu === m)
+                  .map(([museu, items]) => (
+                    <div key={museu} className="space-y-3">
+
                       <div className="flex items-center gap-2">
-                        <div className={`w-2.5 h-2.5 rounded-full ${MUSEU_COLORS[museu] || 'bg-gray-400'}`} />
+                        <div className={`w-2.5 h-2.5 rounded-full ${MUSEU_COLORS[museu]}`} />
                         <h3 className="text-lg font-semibold">{museu}</h3>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {items.map((a) => (
-                          <div key={a.id} className="border rounded-lg p-4 bg-white shadow-sm">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="font-semibold leading-tight">{a.nome}</div>
-                              <div className={`w-2 h-2 rounded-full ${MUSEU_COLORS[a.museu] || 'bg-gray-400'}`} />
+
+                        {items.map((a, idx) => (
+                          <div key={idx} className="border rounded-lg p-4 bg-white shadow-sm">
+
+                            <div className="flex justify-between mb-2">
+                              <div className="font-semibold">{a.nome}</div>
+                              <div className={`w-2 h-2 rounded-full ${MUSEU_COLORS[a.museu]}`} />
                             </div>
 
                             <div className="text-xs text-gray-500">
-                              {[a.data, a.horario].filter(Boolean).join(' · ')}
+                              {a.data} {a.horario ? `· ${a.horario}` : ''}
                             </div>
 
-                            {a.descricao ? (
-                              <div className="text-sm mt-3 text-gray-700">
-                                {a.descricao}
-                              </div>
-                            ) : null}
+                            <div className="text-sm mt-3 text-gray-700">
+                              {a.resumo_ia}
+                            </div>
 
-                            <div className="text-xs text-gray-600 mt-3 space-y-1">
-                              {a.vagas ? <div>Vagas: {a.vagas}</div> : null}
-                              {a.inscricao ? <div>{a.inscricao}</div> : null}
+                            <div className="text-xs mt-3 space-y-1">
+                              {a.vagas && <div>Vagas: {a.vagas}</div>}
+                              {a.inscricao && <div>{a.inscricao}</div>}
                             </div>
 
                             <div className="flex gap-2 mt-4">
+
                               <Button size="sm" onClick={() => abrirEditar(a)}>
                                 Editar
                               </Button>
 
-                              {a.link ? (
+                              {a.link_imagens && (
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => window.open(a.link, '_blank')}
+                                  onClick={() => window.open(a.link_imagens, '_blank')}
                                 >
                                   Saiba mais
                                 </Button>
-                              ) : null}
+                              )}
+
                             </div>
+
                           </div>
                         ))}
+
                       </div>
+
                     </div>
                   ))}
-                </div>
-              ))
-            )}
+
+              </div>
+            ))}
+
           </div>
         )}
       </div>
@@ -260,57 +200,19 @@ function CalendarioAtividadesInner() {
       <Dialog open={showEditor} onOpenChange={setShowEditor}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{form?.id ? 'Editar atividade' : 'Nova atividade'}</DialogTitle>
+            <DialogTitle>Editar atividade</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-2">
-            <Input
-              placeholder="Nome"
-              value={form.nome || ''}
-              onChange={(e) => setForm({ ...form, nome: e.target.value })}
-            />
 
-            <Input
-              placeholder="Data"
-              value={form.data || ''}
-              onChange={(e) => setForm({ ...form, data: e.target.value })}
-            />
+            <Input placeholder="Nome" value={form.nome || ''} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+            <Input placeholder="Data" value={form.data || ''} onChange={(e) => setForm({ ...form, data: e.target.value })} />
+            <Input placeholder="Museu" value={form.museu || ''} onChange={(e) => setForm({ ...form, museu: e.target.value })} />
+            <Input placeholder="Horário" value={form.horario || ''} onChange={(e) => setForm({ ...form, horario: e.target.value })} />
+            <Input placeholder="Vagas" value={form.vagas || ''} onChange={(e) => setForm({ ...form, vagas: e.target.value })} />
+            <Input placeholder="Inscrição" value={form.inscricao || ''} onChange={(e) => setForm({ ...form, inscricao: e.target.value })} />
+            <Input placeholder="Link imagens" value={form.link_imagens || ''} onChange={(e) => setForm({ ...form, link_imagens: e.target.value })} />
 
-            <Input
-              placeholder="Museu"
-              value={form.museu || ''}
-              onChange={(e) => setForm({ ...form, museu: e.target.value })}
-            />
-
-            <Input
-              placeholder="Horário"
-              value={form.horario || ''}
-              onChange={(e) => setForm({ ...form, horario: e.target.value })}
-            />
-
-            <Input
-              placeholder="Vagas"
-              value={form.vagas || ''}
-              onChange={(e) => setForm({ ...form, vagas: e.target.value })}
-            />
-
-            <Input
-              placeholder="Inscrição"
-              value={form.inscricao || ''}
-              onChange={(e) => setForm({ ...form, inscricao: e.target.value })}
-            />
-
-            <Input
-              placeholder="Link"
-              value={form.link || ''}
-              onChange={(e) => setForm({ ...form, link: e.target.value })}
-            />
-
-            <Input
-              placeholder="Descrição"
-              value={form.descricao || ''}
-              onChange={(e) => setForm({ ...form, descricao: e.target.value })}
-            />
           </div>
 
           <DialogFooter>
