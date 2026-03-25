@@ -4,390 +4,485 @@ import { format } from 'npm:date-fns@2.30.0';
 import { ptBR } from 'npm:date-fns@2.30.0/locale';
 
 const SHEET_ID = '1I8Tbj5URR7gEX_zZEAFVIkAAfBCs58LC';
+const GID = '580065331';
+const SOURCE_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit?gid=${GID}#gid=${GID}`;
 const XLSX_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=xlsx`;
 
-function normalizeText(v: any) {
-  return String(v || '')
+const MIRROR_SLUG = 'base-conhecimento-ia-google-sheet';
+const MIRROR_TITLE = 'Biblioteca de Conhecimento IA';
+const MIRROR_FOLDER = 'Biblioteca do Conhecimento';
+
+function normalizeText(value: any) {
+  return String(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
+    .trim()
+    .toLowerCase();
 }
 
-function clean(v: any) {
-  if (v === null || v === undefined) return '';
-  return String(v).trim();
-}
+function cleanValue(value: any) {
+  if (value === null || value === undefined) return '';
 
-function parseDateCell(value: any) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value;
+    const d = String(value.getDate()).padStart(2, '0');
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const y = value.getFullYear();
+    return `${d}/${m}/${y}`;
   }
 
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    try {
-      const parsed = XLSX.SSF.parse_date_code(value);
-      if (parsed?.y && parsed?.m && parsed?.d) {
-        return new Date(parsed.y, parsed.m - 1, parsed.d);
-      }
-    } catch (_) {
-      // ignora
+  return String(value).trim();
+}
+
+function normalizeHeader(value: any, index: number) {
+  const clean = cleanValue(value);
+  return clean || `coluna_${index + 1}`;
+}
+
+function extractSheetMonthYear(sheetName = '') {
+  const sheetText = normalizeText(sheetName);
+
+  const monthMap: Record<string, number> = {
+    janeiro: 1,
+    fevereiro: 2,
+    marco: 3,
+    abril: 4,
+    maio: 5,
+    junho: 6,
+    julho: 7,
+    agosto: 8,
+    setembro: 9,
+    outubro: 10,
+    novembro: 11,
+    dezembro: 12,
+  };
+
+  let inferredMonth: number | null = null;
+  let inferredYear: number | null = null;
+
+  for (const [name, num] of Object.entries(monthMap)) {
+    if (sheetText.includes(name)) {
+      inferredMonth = num;
+      break;
     }
   }
 
-  return null;
+  const yearMatch = sheetText.match(/(20\d{2}|\d{2})/);
+  if (yearMatch) {
+    inferredYear = Number(yearMatch[1]);
+    if (inferredYear < 100) inferredYear += 2000;
+  }
+
+  return { inferredMonth, inferredYear, monthMap };
 }
 
-function parseDateFlexible(value: any) {
-  if (!value && value !== 0) return null;
+function parseDateWithSheetContext(value: any, sheetName = '') {
+  if (!value) return null;
 
-  const excelDate = parseDateCell(value);
-  if (excelDate) return excelDate;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
 
   const text = String(value).trim();
   if (!text) return null;
 
-  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (iso) {
-    return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  const direct = new Date(text);
+  if (!Number.isNaN(direct.getTime()) && /\d{4}/.test(text)) return direct;
+
+  const { inferredMonth, inferredYear, monthMap } = extractSheetMonthYear(sheetName);
+
+  const fullBr = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (fullBr) {
+    let year = Number(fullBr[3]);
+    if (year < 100) year += 2000;
+    return new Date(year, Number(fullBr[2]) - 1, Number(fullBr[1]));
   }
 
-  const simple = text.match(/^(\d{1,2})[\/.-](\d{1,2})$/);
-  if (simple) {
-    const year = new Date().getFullYear();
-    return new Date(year, Number(simple[2]) - 1, Number(simple[1]));
+  const partialBr = text.match(/^(\d{1,2})[\/.-](\d{1,2})$/);
+  if (partialBr && inferredYear) {
+    return new Date(inferredYear, Number(partialBr[2]) - 1, Number(partialBr[1]));
   }
 
-  const full = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
-  if (full) {
-    let y = Number(full[3]);
-    if (y < 100) y += 2000;
-    return new Date(y, Number(full[2]) - 1, Number(full[1]));
+  const textual = text.match(/(\d{1,2})(?:\s*a\s*\d{1,2})?\s+de\s+([a-zç]+)(?:\s+de\s+(20\d{2}|\d{2}))?/i);
+  if (textual) {
+    const day = Number(textual[1]);
+    const monthName = normalizeText(textual[2]);
+    const month = monthMap[monthName];
+    let year = textual[3] ? Number(textual[3]) : inferredYear || new Date().getFullYear();
+    if (year < 100) year += 2000;
+    if (month) return new Date(year, month - 1, day);
+  }
+
+  const firstDatePeriod = text.match(/(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?/);
+  if (firstDatePeriod) {
+    const day = Number(firstDatePeriod[1]);
+    const month = Number(firstDatePeriod[2]);
+    let year = firstDatePeriod[3] ? Number(firstDatePeriod[3]) : inferredYear || new Date().getFullYear();
+    if (year < 100) year += 2000;
+    return new Date(year, month - 1, day);
+  }
+
+  if (inferredMonth && inferredYear) {
+    const dayOnly = text.match(/^(\d{1,2})$/);
+    if (dayOnly) {
+      return new Date(inferredYear, inferredMonth - 1, Number(dayOnly[1]));
+    }
   }
 
   return null;
 }
 
-function formatDateBR(date: Date | null) {
-  if (!date || Number.isNaN(date.getTime())) return '';
-  const d = String(date.getDate()).padStart(2, '0');
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const y = date.getFullYear();
-  return `${d}/${m}/${y}`;
-}
+function detectMuseum(equipamento: string, values: Record<string, any>) {
+  const sourceText = `${equipamento} ${values?.local || ''} ${values?.endereco_completo || ''}`;
+  const text = normalizeText(sourceText);
 
-function detectMuseum(text: string) {
-  const t = normalizeText(text);
-
-  if (t.includes('mis')) return 'MIS';
-  if (t.includes('mhab') || t.includes('mab')) return 'MHAB';
-  if (t.includes('mumo') || t.includes('mumu')) return 'MUMO';
-
+  if (text.includes('mhab') || text.includes('abilio barreto')) return 'MHAB';
+  if (text.includes('mis') || text.includes('imagem e do som') || text.includes('imagem e som')) return 'MIS';
+  if (text.includes('mumo') || text.includes('mumu') || text.includes('museu da moda')) return 'MUMO';
   return 'Externo';
 }
 
-function normalizeHeader(header: any) {
+function summarizeActivity(values: Record<string, any>) {
+  const nome = values.nome_divulgacao || values.nome || '';
+  const sinopse = values.sinopse || '';
+  const tipo = values.tipo_de_atividade || '';
+  const formato = values.formato || '';
+  const data = values.data || '';
+  const horario = values.horario || '';
+  const publico = values.publico_alvo || '';
+  const acessibilidade = values.acessibilidade || '';
+  const vagas = values.vagas || '';
+  const inscricao = values.inscricao_acesso || '';
+  const contato = values.contato_da_atracao || '';
+  const local = values.local || '';
+  const endereco = values.endereco_completo || '';
+  const status = values.status || '';
+  const referencia = values.pessoa_de_referencia || '';
+  const contratacao = values.contratacao || '';
+  const insumos = values.insumos || '';
+  const fotografia = values.fotografia || '';
+  const necessidades = values.outras_necessidades || '';
+  const divulgacao = values.material_de_divulgacao || '';
+  const servico = values.servico || '';
+  const briefing = values.briefing || '';
+  const classificacao = values.classificacao_indicativa || '';
+  const minibios = values.minibios || '';
+  const valor = values.valor || '';
+
+  return [
+    nome ? `${nome}.` : '',
+    sinopse || '',
+    tipo || formato ? `Trata-se de uma atividade ${[tipo, formato].filter(Boolean).join(', ')}.` : '',
+    data || horario ? `A programação acontece ${[data && `em ${data}`, horario && `às ${horario}`].filter(Boolean).join(' ')}.` : '',
+    local || endereco ? `Será realizada em ${[local, endereco].filter(Boolean).join(', ')}.` : '',
+    publico ? `Público-alvo: ${publico}.` : '',
+    acessibilidade ? `Acessibilidade: ${acessibilidade}.` : '',
+    classificacao ? `Classificação indicativa: ${classificacao}.` : '',
+    vagas ? `Número de vagas: ${vagas}.` : '',
+    inscricao ? `Forma de inscrição ou acesso: ${inscricao}.` : '',
+    contato ? `Contato da atração: ${contato}.` : '',
+    referencia ? `Pessoa de referência: ${referencia}.` : '',
+    valor ? `Valor informado: ${valor}.` : '',
+    status ? `Status da atividade: ${status}.` : '',
+    contratacao ? `Situação de contratação: ${contratacao}.` : '',
+    insumos ? `Insumos previstos: ${insumos}.` : '',
+    fotografia ? `Necessidade de fotografia: ${fotografia}.` : '',
+    necessidades ? `Outras necessidades: ${necessidades}.` : '',
+    divulgacao ? `Divulgação prevista em: ${divulgacao}.` : '',
+    servico ? `Serviços relacionados: ${servico}.` : '',
+    briefing ? `Briefing disponível em: ${briefing}.` : '',
+    minibios ? `Minibio(s): ${minibios}.` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function mapHeaderKey(header: string) {
   const h = normalizeText(header);
 
-  if (h === 'equipamento') return 'equipamento';
-  if (
-    h === 'nome' ||
-    h.includes('nome da acao') ||
-    h.includes('nome da ação') ||
-    h.includes('nome da programacao') ||
-    h.includes('nome da programação')
-  ) return 'nome';
-  if (
-    h.includes('nome da atividade para divulgacao') ||
-    h.includes('nome da atividade para divulgação')
-  ) return 'nome_divulgacao';
-  if (h === 'data' || h.includes('data ou periodo') || h.includes('data/periodo') || h.includes('periodo')) return 'data';
-  if (h.includes('horario') || h.includes('horário') || h.includes('hora')) return 'horario';
-  if (h.includes('vagas')) return 'vagas';
-  if (
-    h.includes('inscricao/acesso') ||
-    h.includes('inscrição/acesso') ||
-    h.includes('inscricao') ||
-    h.includes('inscrição') ||
-    h.includes('acesso') ||
-    h.includes('link de inscricao') ||
-    h.includes('link de inscrição')
-  ) return 'inscricao';
-  if (h.includes('link de imagens')) return 'link_imagens';
+  if (h === 'nome' || h.includes('nome da acao') || h.includes('nome da ação')) return 'nome';
+  if (h.includes('nome da atividade para divulgacao') || h.includes('nome da atividade para divulgação')) return 'nome_divulgacao';
   if (h.includes('sinopse')) return 'sinopse';
-  if (h.includes('tipo de atividade')) return 'tipo_atividade';
+  if (h.includes('tipo de atividade')) return 'tipo_de_atividade';
   if (h.includes('formato')) return 'formato';
-  if (h.includes('publico-alvo') || h.includes('publico alvo') || h.includes('público-alvo')) return 'publico';
+  if (h === 'data') return 'data';
+  if (h.includes('horario') || h.includes('horário')) return 'horario';
+  if (h.includes('publico-alvo') || h.includes('público-alvo') || h.includes('publico alvo')) return 'publico_alvo';
   if (h.includes('acessibilidade')) return 'acessibilidade';
-  if (h.includes('classificacao indicativa') || h.includes('classificação indicativa')) return 'classificacao';
+  if (h.includes('classificacao indicativa') || h.includes('classificação indicativa')) return 'classificacao_indicativa';
+  if (h.includes('vagas')) return 'vagas';
+  if (h.includes('inscricao/acesso') || h.includes('inscrição/acesso')) return 'inscricao_acesso';
+  if (h.includes('contato da atracao') || h.includes('contato da atração')) return 'contato_da_atracao';
+  if (h === 'valor') return 'valor';
+  if (h.includes('requisicao feita') || h.includes('requisição feita')) return 'requisicao_feita';
   if (h === 'local') return 'local';
-  if (h.includes('endereco completo') || h.includes('endereço completo') || h.includes('endereco')) return 'endereco';
-  if (h.includes('minibios') || h.includes('mini bios')) return 'minibios';
-  if (h.includes('material de divulgacao') || h.includes('material de divulgação')) return 'material_divulgacao';
-
+  if (h.includes('endereco completo') || h.includes('endereço completo')) return 'endereco_completo';
+  if (h === 'status') return 'status';
+  if (h.includes('data de fechamento')) return 'data_de_fechamento';
+  if (h.includes('pessoa de referencia') || h.includes('pessoa de referência')) return 'pessoa_de_referencia';
+  if (h.includes('contratacao') || h.includes('contratação')) return 'contratacao';
+  if (h.includes('insumos')) return 'insumos';
+  if (h.includes('fotografia')) return 'fotografia';
+  if (h.includes('outras necessidades')) return 'outras_necessidades';
+  if (h.includes('link de imagens')) return 'link_imagens';
+  if (h.includes('minibios')) return 'minibios';
+  if (h.includes('material de divulgacao') || h.includes('material de divulgação')) return 'material_de_divulgacao';
+  if (h === 'servico' || h === 'serviço') return 'servico';
+  if (h.includes('briefing')) return 'briefing';
   return h.replace(/[^\w]+/g, '_');
 }
 
-function isLikelyHeaderRow(row: any[]) {
-  const mapped = (row || []).map(normalizeHeader);
+function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
+  if (!Array.isArray(matrix) || !matrix.length) return [];
 
-  const keys = [
-    'equipamento',
-    'nome',
-    'nome_divulgacao',
-    'data',
-    'horario',
-    'tipo_atividade',
-    'sinopse',
-    'inscricao',
-    'vagas',
-  ];
-
-  const score = keys.filter((k) => mapped.includes(k)).length;
-  return score >= 3;
-}
-
-function findHeaderRowIndex(matrix: any[][]) {
-  const maxRows = Math.min(matrix.length, 8);
-
-  for (let i = 0; i < maxRows; i++) {
-    if (isLikelyHeaderRow(matrix[i] || [])) return i;
-  }
-
-  return -1;
-}
-
-function buildHeadersForSheet(matrix: any[][]) {
-  if (!Array.isArray(matrix) || matrix.length < 2) {
-    return { headerRowIndex: -1, headers: [] as string[] };
-  }
-
-  if (matrix.length >= 3) {
-    const row2 = (matrix[1] || []).map(clean);
-    const row3 = (matrix[2] || []).map(clean);
-
-    const isLegacyMainHeader =
-      normalizeHeader(row2[0]) === 'equipamento' &&
-      normalizeText(row2[1]) === 'programacao';
-
-    if (isLegacyMainHeader) {
-      const headers = row3.map((h, idx) => {
-        if (idx === 0) return 'equipamento';
-        if (idx === 1 && !normalizeHeader(h)) return 'nome';
-        return normalizeHeader(h);
-      });
-
-      if (!headers[1]) headers[1] = 'nome';
-
-      return { headerRowIndex: 2, headers };
-    }
-  }
-
-  const headerRowIndex = findHeaderRowIndex(matrix);
-  if (headerRowIndex < 0) {
-    return { headerRowIndex: -1, headers: [] as string[] };
-  }
-
-  const headers = (matrix[headerRowIndex] || []).map((h) => normalizeHeader(h));
-  return { headerRowIndex, headers };
-}
-
-function normalizeSheet(sheetName: string, matrix: any[][]) {
   const items: any[] = [];
-  if (!Array.isArray(matrix) || matrix.length < 2) return items;
 
-  const { headerRowIndex, headers } = buildHeadersForSheet(matrix);
-  if (headerRowIndex < 0 || !headers.length) return items;
+  if (matrix.length < 4) return items;
 
-  for (let i = headerRowIndex + 1; i < matrix.length; i++) {
-    const row = matrix[i] || [];
-    const hasAnyValue = row.some((cell) => clean(cell) !== '');
+  const row2 = (matrix[1] || []).map(cleanValue);
+  const row3 = (matrix[2] || []).map(cleanValue);
+
+  const isMainHeader =
+    normalizeText(row2[0]) === 'equipamento' &&
+    normalizeText(row2[1]) === 'programacao';
+
+  if (!isMainHeader) return items;
+
+  const fieldHeaders = row3.map((h, idx) => mapHeaderKey(normalizeHeader(h, idx)));
+
+  for (let i = 3; i < matrix.length; i++) {
+    const row = Array.isArray(matrix[i]) ? matrix[i] : [];
+    const cleanedRow = row.map(cleanValue);
+    const hasAnyValue = cleanedRow.some((v) => String(v || '').trim() !== '');
     if (!hasAnyValue) continue;
 
-    const obj: Record<string, any> = {};
-    headers.forEach((h, idx) => {
-      if (!h) return;
-      obj[h] = row[idx];
-    });
+    const equipamento = cleanValue(cleanedRow[0]);
+    const nome = cleanValue(cleanedRow[1]);
 
-    const nome =
-      clean(obj.nome_divulgacao) ||
-      clean(obj.nome) ||
-      '';
+    if (!equipamento || !nome) continue;
 
-    if (!nome) continue;
+    const values: Record<string, any> = { equipamento };
 
-    let date = parseDateFlexible(obj.data);
-    if (!date) {
-      date = new Date();
+    for (let c = 1; c < fieldHeaders.length; c++) {
+      const key = fieldHeaders[c];
+      values[key] = cleanValue(cleanedRow[c]);
     }
 
-    const dataBr = clean(obj.data) || formatDateBR(date);
+    const parsedDate = parseDateWithSheetContext(values.data, sheetName);
+    const museu = detectMuseum(equipamento, values);
 
-    items.push({
-      nome,
-      nome_acao: nome,
-      data: dataBr,
-      data_iso: date.toISOString(),
-      horario: clean(obj.horario),
-      vagas: clean(obj.vagas),
-      inscricao: clean(obj.inscricao),
-      link_imagens: clean(obj.link_imagens),
-      sinopse: clean(obj.sinopse),
-      museu: detectMuseum(clean(obj.equipamento) || sheetName),
-      equipamento: detectMuseum(clean(obj.equipamento) || sheetName),
-      tipo_atividade: clean(obj.tipo_atividade),
-      formato: clean(obj.formato),
-      publico: clean(obj.publico),
-      acessibilidade: clean(obj.acessibilidade),
-      classificacao: clean(obj.classificacao),
-      local: clean(obj.local),
-      endereco: clean(obj.endereco),
-      minibios: clean(obj.minibios),
-      material_divulgacao: clean(obj.material_divulgacao),
-      raw: obj,
-    });
+    const item = {
+      id: `${sheetName}-${i + rowOffset}-${nome}`,
+      row_index: i + rowOffset,
+      sheet_name: sheetName,
+      month_label: parsedDate ? format(parsedDate, 'MMMM yyyy', { locale: ptBR }) : sheetName,
+      museu,
+      equipamento,
+      nome: values.nome_divulgacao || values.nome || nome,
+      titulo: values.nome_divulgacao || values.nome || nome,
+      sinopse: values.sinopse || '',
+      descricao: values.sinopse || '',
+      tipo: values.tipo_de_atividade || '',
+      tipo_atividade: values.tipo_de_atividade || '',
+      formato: values.formato || '',
+      data: values.data || '',
+      data_iso: parsedDate ? parsedDate.toISOString() : '',
+      horario: values.horario || '',
+      publico_alvo: values.publico_alvo || '',
+      acessibilidade: values.acessibilidade || '',
+      classificacao_indicativa: values.classificacao_indicativa || '',
+      vagas: values.vagas || '',
+      inscricao: values.inscricao_acesso || '',
+      inscricao_acesso: values.inscricao_acesso || '',
+      contato_da_atracao: values.contato_da_atracao || '',
+      valor: values.valor || '',
+      requisicao_feita: values.requisicao_feita || '',
+      local: values.local || '',
+      endereco_completo: values.endereco_completo || '',
+      status: values.status || '',
+      data_de_fechamento: values.data_de_fechamento || '',
+      pessoa_de_referencia: values.pessoa_de_referencia || '',
+      contratacao: values.contratacao || '',
+      insumos: values.insumos || '',
+      fotografia: values.fotografia || '',
+      outras_necessidades: values.outras_necessidades || '',
+      nome_divulgacao: values.nome_divulgacao || '',
+      link: values.link_imagens || '',
+      link_imagens: values.link_imagens || '',
+      minibios: values.minibios || '',
+      material_de_divulgacao: values.material_de_divulgacao || '',
+      servico: values.servico || '',
+      briefing: values.briefing || '',
+      resumo_ia: summarizeActivity(values),
+      raw: values,
+      raw_values: values,
+    };
+
+    if (item.nome && item.data_iso) {
+      items.push(item);
+    }
   }
 
   return items;
 }
 
-function dedupeItems(items: any[]) {
-  const map = new Map<string, any>();
-
-  for (const item of items || []) {
-    const key = [
-      normalizeText(item?.nome || item?.nome_acao),
-      normalizeText(item?.data),
-      normalizeText(item?.horario),
-      normalizeText(item?.museu || item?.equipamento),
-      normalizeText(item?.local),
-    ].join('|');
-
-    if (!key.replace(/\|/g, '')) continue;
-
-    if (!map.has(key)) {
-      map.set(key, item);
-      continue;
-    }
-
-    const prev = map.get(key) || {};
-    map.set(key, {
-      ...prev,
-      ...item,
-      sinopse: clean(item.sinopse) || clean(prev.sinopse),
-      endereco: clean(item.endereco) || clean(prev.endereco),
-      link_imagens: clean(item.link_imagens) || clean(prev.link_imagens),
-      minibios: clean(item.minibios) || clean(prev.minibios),
-      material_divulgacao: clean(item.material_divulgacao) || clean(prev.material_divulgacao),
-    });
-  }
-
-  return Array.from(map.values());
+function getMonthKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
 }
 
 function buildAgenda(items: any[]) {
   const agenda: Record<string, Record<string, any[]>> = {};
 
   items.forEach((item) => {
+    if (!item?.data_iso) return;
+
     const date = new Date(item.data_iso);
     if (Number.isNaN(date.getTime())) return;
 
-    const mes = format(date, 'MMMM yyyy', { locale: ptBR });
-    const museu = item.museu || item.equipamento || 'Externo';
+    const monthLabel = format(date, 'MMMM yyyy', { locale: ptBR });
+    const museu = item.museu || 'Externo';
 
-    if (!agenda[mes]) agenda[mes] = {};
-    if (!agenda[mes][museu]) agenda[mes][museu] = [];
+    if (!agenda[monthLabel]) agenda[monthLabel] = {};
+    if (!agenda[monthLabel][museu]) agenda[monthLabel][museu] = [];
 
-    agenda[mes][museu].push(item);
+    agenda[monthLabel][museu].push(item);
   });
 
-  Object.keys(agenda).forEach((mes) => {
-    Object.keys(agenda[mes]).forEach((museu) => {
-      agenda[mes][museu].sort((a, b) => {
-        const da = new Date(a.data_iso).getTime();
-        const db = new Date(b.data_iso).getTime();
-        return da - db;
-      });
+  Object.values(agenda).forEach((museus) => {
+    Object.values(museus).forEach((arr) => {
+      arr.sort((a, b) => new Date(a.data_iso).getTime() - new Date(b.data_iso).getTime());
     });
   });
 
   return agenda;
 }
 
-function buildGroupedByMuseumAndMonth(items: any[]) {
-  const grouped: Record<string, Record<string, any[]>> = {};
+function groupByMuseumAndMonth(items: any[]) {
+  const map: Record<string, Record<string, any[]>> = {
+    MIS: {},
+    MHAB: {},
+    MUMO: {},
+    Externo: {},
+    Todos: {},
+  };
 
   items.forEach((item) => {
-    const museum = item.museu || item.equipamento || 'Externo';
+    if (!item.data_iso) return;
     const date = new Date(item.data_iso);
     if (Number.isNaN(date.getTime())) return;
 
-    const monthKey = format(date, 'yyyy-MM');
-    if (!grouped[museum]) grouped[museum] = {};
-    if (!grouped[museum][monthKey]) grouped[museum][monthKey] = [];
+    const monthKey = getMonthKey(date);
+    const museu = item.museu || 'Externo';
 
-    grouped[museum][monthKey].push(item);
+    if (!map[museu]) map[museu] = {};
+    if (!map[museu][monthKey]) map[museu][monthKey] = [];
+    if (!map.Todos[monthKey]) map.Todos[monthKey] = [];
+
+    map[museu][monthKey].push(item);
+    map.Todos[monthKey].push(item);
   });
 
-  return grouped;
+  return map;
+}
+
+function countByMuseum(items: any[]) {
+  const map: Record<string, number> = {
+    MIS: 0,
+    MHAB: 0,
+    MUMO: 0,
+    Externo: 0,
+  };
+
+  items.forEach((item) => {
+    const key = item.museu || 'Externo';
+    map[key] = (map[key] || 0) + 1;
+  });
+
+  return map;
 }
 
 Deno.serve(async (req) => {
   createClientFromRequest(req);
 
   try {
-    const res = await fetch(XLSX_URL);
+    const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
+    const mode = body?.args?.mode || body?.mode || 'manual';
+    const nowIso = new Date().toISOString();
 
-    if (!res.ok) {
-      return Response.json(
-        { ok: false, error: `Falha ao baixar planilha: ${res.status}` },
-        { status: 500 }
+    const response = await fetch(XLSX_URL);
+
+    if (!response.ok) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: `Falha ao ler planilha. HTTP ${response.status}`,
+          source_url: SOURCE_URL,
+        }),
+        {
+          status: 500,
+          headers: { 'content-type': 'application/json' },
+        }
       );
     }
 
-    const buffer = await res.arrayBuffer();
-
-    const workbook = XLSX.read(buffer, {
-      type: 'array',
-      cellDates: true,
-    });
+    const arrayBuffer = await response.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
 
     let allItems: any[] = [];
+    let runningOffset = 0;
 
     workbook.SheetNames.forEach((sheetName) => {
       const ws = workbook.Sheets[sheetName];
-
       const matrix = XLSX.utils.sheet_to_json(ws, {
         header: 1,
-        raw: true,
+        raw: false,
         defval: '',
       }) as any[][];
 
-      const items = normalizeSheet(sheetName, matrix);
+      const items = normalizeSheet(sheetName, matrix, runningOffset);
       allItems = allItems.concat(items);
+      runningOffset += items.length + 10;
     });
-
-    allItems = dedupeItems(allItems);
 
     const agenda = buildAgenda(allItems);
-    const groupedByMuseumAndMonth = buildGroupedByMuseumAndMonth(allItems);
+    const groupedByMuseumAndMonth = groupByMuseumAndMonth(allItems);
+    const countsByMuseum = countByMuseum(allItems);
 
-    return Response.json({
-      ok: true,
-      total: allItems.length,
-      items: allItems,
-      agenda,
-      grouped_by_museum_and_month: groupedByMuseumAndMonth,
-      source: 'google_sheets_xlsx',
-    });
-  } catch (error) {
-    return Response.json(
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        message: 'Base carregada com sucesso a partir da planilha de programação.',
+        slug: MIRROR_SLUG,
+        titulo: MIRROR_TITLE,
+        pasta: MIRROR_FOLDER,
+        tipo: 'google_sheet_runtime',
+        origem: 'google_sheets_xlsx',
+        source_url: SOURCE_URL,
+        source_sheet_id: SHEET_ID,
+        source_gid: GID,
+        sheet_names: workbook.SheetNames,
+        items: allItems,
+        total_items: allItems.length,
+        agenda,
+        grouped_by_museum_and_month: groupedByMuseumAndMonth,
+        counts_by_museum: countsByMuseum,
+        last_sync: nowIso,
+        sync_mode: mode,
+      }),
       {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
         ok: false,
-        error: error instanceof Error ? error.message : 'Erro ao sincronizar base de conhecimento.',
-      },
-      { status: 500 }
+        error: error instanceof Error ? error.message : 'Erro inesperado na sincronização.',
+      }),
+      {
+        status: 500,
+        headers: { 'content-type': 'application/json' },
+      }
     );
   }
 });

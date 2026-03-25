@@ -82,24 +82,41 @@ function CalendarioAtividadesInner() {
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['agenda-programacao'],
     queryFn: async () => {
+      const sync = await base44.functions.invoke('syncBaseConhecimento');
 
-      // 🔥 REMOVIDO syncBaseConhecimento (instável)
-
+      // 🔥 fallback real na entity
       const entity = await base44.entities.Programacao.list({
-        limit: 2000,
-        sort: { field: 'data', direction: 'asc' },
+        limit: 1000,
       });
 
-      return entity || [];
+      return {
+        sync: sync?.data || {},
+        entity: entity || [],
+      };
     },
   });
 
   const agenda = useMemo(() => {
-    if (!data?.length) return {};
+    const sync = data?.sync || {};
 
-    const normalized = normalizeFromEntity(data);
-    return buildAgendaFromItems(normalized);
+    // prioridade 1
+    if (sync?.agenda) return sync.agenda;
 
+    if (sync?.grouped_by_museum_and_month) {
+      return sync.grouped_by_museum_and_month;
+    }
+
+    if (sync?.items) {
+      return buildAgendaFromItems(sync.items);
+    }
+
+    // 🔥 fallback final (resolve seu problema)
+    if (data?.entity?.length) {
+      const normalized = normalizeFromEntity(data.entity);
+      return buildAgendaFromItems(normalized);
+    }
+
+    return {};
   }, [data]);
 
   const meses = useMemo(() => {
@@ -113,13 +130,7 @@ function CalendarioAtividadesInner() {
 
         return { mes, museus, total };
       })
-      .sort((a, b) => {
-        const parseMes = (m) => {
-          const [mesNome, ano] = m.split(' de ');
-          return new Date(`${mesNome} 1, ${ano}`);
-        };
-        return parseMes(a.mes) - parseMes(b.mes);
-      });
+      .sort((a, b) => a.mes.localeCompare(b.mes));
   }, [agenda]);
 
   const abrirNovo = () => {
@@ -136,9 +147,14 @@ function CalendarioAtividadesInner() {
     setSaving(true);
 
     try {
-      await base44.functions.invoke('updateProgramacaoMuseu', {
+      const res = await base44.functions.invoke('updateProgramacaoMuseu', {
         data: form,
       });
+
+      if (res?.data?.locked) {
+        alert('Este mês já está bloqueado para edição');
+        return;
+      }
 
       await refetch();
       setShowEditor(false);
@@ -217,19 +233,24 @@ function CalendarioAtividadesInner() {
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 
                         {items.map((a, idx) => (
-                          <div
-                            key={idx}
-                            className="border rounded-lg p-4 bg-white shadow-sm cursor-pointer hover:shadow-md"
-                            onClick={() => abrirEditar(a)}
-                          >
-                            <div className="font-semibold">{a.nome}</div>
+                          <div key={idx} className="border rounded-lg p-4 bg-white shadow-sm">
 
-                            <div className="text-xs text-gray-500 mt-1">
+                            <div className="flex justify-between mb-2">
+                              <div className="font-semibold">{a.nome}</div>
+                              <div className={`w-2 h-2 rounded-full ${MUSEU_COLORS[a.museu]}`} />
+                            </div>
+
+                            <div className="text-xs text-gray-500">
                               {a.data} {a.horario ? `· ${a.horario}` : ''}
                             </div>
 
-                            <div className="text-sm mt-3 text-gray-700 line-clamp-4">
+                            <div className="text-sm mt-3 text-gray-700">
                               {a.sinopse}
+                            </div>
+
+                            <div className="text-xs mt-3 space-y-1">
+                              {a.vagas && <div>Vagas: {a.vagas}</div>}
+                              {a.inscricao && <div>{a.inscricao}</div>}
                             </div>
 
                           </div>
@@ -254,10 +275,12 @@ function CalendarioAtividadesInner() {
           </DialogHeader>
 
           <div className="space-y-2">
+
             <Input placeholder="Nome" value={form.nome || ''} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
             <Input placeholder="Data" value={form.data || ''} onChange={(e) => setForm({ ...form, data: e.target.value })} />
             <Input placeholder="Museu" value={form.museu || ''} onChange={(e) => setForm({ ...form, museu: e.target.value })} />
             <Input placeholder="Horário" value={form.horario || ''} onChange={(e) => setForm({ ...form, horario: e.target.value })} />
+
           </div>
 
           <DialogFooter>
