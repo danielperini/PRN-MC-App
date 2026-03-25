@@ -6,104 +6,25 @@ function normalizeText(value: string) {
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]+\n/g, '\n')
     .trim();
 }
 
-function getFileNameFromUrl(file_url: string) {
-  try {
-    const clean = file_url.split('?')[0];
-    return decodeURIComponent(clean.split('/').pop() || 'arquivo');
-  } catch {
-    return 'arquivo';
-  }
-}
+function detectFileType(file_name: string) {
+  const lower = String(file_name || '').toLowerCase();
 
-function detectFileType(file_url: string) {
-  const lower = String(file_url || '').toLowerCase();
-
-  if (lower.includes('.pdf')) return 'pdf';
-  if (lower.includes('.xlsx')) return 'xlsx';
-  if (lower.includes('.xls')) return 'xls';
-  if (lower.includes('.csv')) return 'csv';
-  if (lower.includes('.docx')) return 'docx';
-  if (lower.includes('.doc')) return 'doc';
-  if (lower.includes('.txt')) return 'txt';
-
-  if (lower.includes('pdf')) return 'pdf';
-  if (lower.includes('xlsx')) return 'xlsx';
-  if (lower.includes('xls')) return 'xls';
-  if (lower.includes('csv')) return 'csv';
-  if (lower.includes('docx')) return 'docx';
-  if (lower.includes('doc')) return 'doc';
-  if (lower.includes('txt')) return 'txt';
+  if (lower.endsWith('.pdf')) return 'pdf';
+  if (lower.endsWith('.xlsx')) return 'xlsx';
+  if (lower.endsWith('.xls')) return 'xls';
+  if (lower.endsWith('.csv')) return 'csv';
+  if (lower.endsWith('.docx')) return 'docx';
+  if (lower.endsWith('.doc')) return 'doc';
+  if (lower.endsWith('.txt')) return 'txt';
 
   return 'outro';
 }
 
-function parseTags(tags: unknown) {
-  if (!tags) return [];
-  if (Array.isArray(tags)) {
-    return tags.map((v) => String(v || '').trim()).filter(Boolean);
-  }
-
-  return String(tags)
-    .split(',')
-    .map((v) => v.trim())
-    .filter(Boolean);
-}
-
-function uniqueStrings(values: unknown[]) {
-  return Array.from(
-    new Set(values.map((v) => String(v || '').trim()).filter(Boolean))
-  );
-}
-
-function chunkText(text: string, maxSize = 2000) {
-  const normalized = normalizeText(text);
-  if (!normalized) return [];
-
-  const paragraphs = normalized.split('\n\n');
-  const chunks: string[] = [];
-  let current = '';
-
-  for (const p of paragraphs) {
-    const next = current ? `${current}\n\n${p}` : p;
-
-    if (next.length <= maxSize) {
-      current = next;
-      continue;
-    }
-
-    if (current) {
-      chunks.push(current);
-      current = '';
-    }
-
-    if (p.length <= maxSize) {
-      current = p;
-      continue;
-    }
-
-    let rest = p;
-    while (rest.length > maxSize) {
-      chunks.push(rest.slice(0, maxSize));
-      rest = rest.slice(maxSize);
-    }
-    current = rest;
-  }
-
-  if (current) chunks.push(current);
-
-  return chunks;
-}
-
 async function extractPdfText(file_url: string) {
   const res = await fetch(file_url);
-  if (!res.ok) {
-    throw new Error(`Falha ao baixar PDF: ${res.status}`);
-  }
-
   const buffer = Buffer.from(await res.arrayBuffer());
   const data = await pdfParse(buffer);
   return normalizeText(data.text || '');
@@ -116,112 +37,33 @@ async function extractGenericText(base44: any, file_url: string) {
       json_schema: {
         type: 'object',
         properties: {
-          conteudo_completo: { type: 'string' },
-        },
-      },
+          conteudo: { type: 'string' }
+        }
+      }
     });
 
-    return normalizeText(extracted?.output?.conteudo_completo || '');
-  } catch (error) {
-    console.error('Erro no ExtractDataFromUploadedFile:', error);
+    return normalizeText(extracted?.output?.conteudo || '');
+  } catch {
     return '';
   }
 }
 
-async function analyzeWithLLM(base44: any, file_url: string, isProgramacao = false) {
+async function analyzeWithLLM(base44: any, file_url: string) {
   try {
-    const prompt = isProgramacao
-      ? `
-Analise esta planilha de programação cultural.
-
-Extraia uma lista estruturada de eventos com:
-
-- nome_acao
-- equipamento (MIS, MAB, MUMO)
-- data
-- horario
-- tipo_atividade
-- formato
-- publico
-- acessibilidade
-- classificacao
-- vagas
-- inscricao
-- sinopse
-
-Regras:
-- não inventar
-- interpretar colunas corretamente
-- cada linha = uma atividade
-- responder em JSON
-`
-      : `
-Analise profundamente este documento.
+    return await base44.integrations.Core.InvokeLLM({
+      prompt: `
+Analise este documento.
 
 Extraia:
-1. Conteúdo completo estruturado
-2. Resumo executivo
-3. Temas principais
-4. Cargos identificados
-5. Valores relevantes
-6. Tags relevantes
-`;
-
-    const result = await base44.integrations.Core.InvokeLLM({
-      prompt,
-      file_urls: [file_url],
-      response_json_schema: isProgramacao
-        ? {
-            type: 'object',
-            properties: {
-              eventos: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    nome_acao: { type: 'string' },
-                    equipamento: { type: 'string' },
-                    data: { type: 'string' },
-                    horario: { type: 'string' },
-                    tipo_atividade: { type: 'string' },
-                    formato: { type: 'string' },
-                    publico: { type: 'string' },
-                    acessibilidade: { type: 'string' },
-                    classificacao: { type: 'string' },
-                    vagas: { type: 'string' },
-                    inscricao: { type: 'string' },
-                    sinopse: { type: 'string' }
-                  }
-                }
-              }
-            }
-          }
-        : {
-            type: 'object',
-            properties: {
-              conteudo: { type: 'string' },
-              resumo: { type: 'string' },
-              temas: { type: 'array', items: { type: 'string' } },
-              cargos: { type: 'array', items: { type: 'string' } },
-              valores: { type: 'array', items: { type: 'string' } },
-              tags: { type: 'array', items: { type: 'string' } }
-            }
-          }
+- resumo
+- temas
+- informações estruturadas
+`,
+      file_urls: [file_url]
     });
-
-    return result;
-  } catch (error) {
-    console.error('Erro na análise com LLM:', error);
+  } catch {
     return {};
   }
-}
-
-function normalizarEquipamento(e: string) {
-  const v = (e || '').toUpperCase();
-  if (v.includes('MIS')) return 'MIS';
-  if (v.includes('MAB')) return 'MAB';
-  if (v.includes('MUMO') || v.includes('MUMU')) return 'MUMO';
-  return 'OUTRO';
 }
 
 Deno.serve(async (req) => {
@@ -233,31 +75,29 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json();
 
     const {
-      file_url,
-      titulo,
-      categoria,
-      descricao,
-      cargo_relacionado,
-      tags: rawTags
+      file_name,
+      mime_type,
+      content_base64
     } = body || {};
 
-    if (!file_url || !titulo) {
-      return Response.json(
-        { error: 'Arquivo e título obrigatórios' },
-        { status: 400 }
-      );
+    if (!file_name || !content_base64) {
+      return Response.json({ error: 'Arquivo inválido' }, { status: 400 });
     }
 
-    const fileType = detectFileType(file_url);
-    const file_name = getFileNameFromUrl(file_url);
+    // 🔥 upload real
+    const upload = await base44.storage.upload({
+      file_name,
+      content_base64
+    });
 
-    const isProgramacao =
-      (titulo || '').toLowerCase().includes('programação') ||
-      (categoria || '').toLowerCase().includes('programação');
+    const file_url = upload?.file_url;
 
+    const fileType = detectFileType(file_name);
+
+    // 🔥 extração texto
     let texto = '';
 
     if (fileType === 'pdf') {
@@ -266,36 +106,24 @@ Deno.serve(async (req) => {
       texto = await extractGenericText(base44, file_url);
     }
 
-    const ia = await analyzeWithLLM(base44, file_url, isProgramacao);
+    // 🔥 IA
+    const ia = await analyzeWithLLM(base44, file_url);
 
-    if (isProgramacao && ia?.eventos?.length) {
-      for (const ev of ia.eventos) {
-        try {
-          await base44.asServiceRole.entities.Programacao.create({
-            nome_acao: ev.nome_acao,
-            equipamento: normalizarEquipamento(ev.equipamento),
-            data: ev.data,
-            horario: ev.horario,
-            tipo_atividade: ev.tipo_atividade,
-            formato: ev.formato,
-            publico: ev.publico,
-            acessibilidade: ev.acessibilidade,
-            classificacao: ev.classificacao,
-            vagas: ev.vagas,
-            inscricao: ev.inscricao,
-            sinopse: ev.sinopse,
-            origem: 'planilha',
-            ativo: true
-          });
-        } catch (e) {
-          console.error('Erro ao salvar programação', e);
-        }
-      }
-    }
+    // 🔥 SALVA NA BASE (CORREÇÃO PRINCIPAL)
+    const doc = await base44.asServiceRole.entities.KnowledgeDocument.create({
+      title: file_name,
+      file_name,
+      file_url,
+      mime_type,
+      conteudo: texto,
+      resumo: ia?.resumo || '',
+      status: 'processado'
+    });
 
     return Response.json({
-      success: true,
-      programacao_processada: isProgramacao
+      ok: true,
+      document_id: doc.id,
+      file_url
     });
 
   } catch (err: any) {
