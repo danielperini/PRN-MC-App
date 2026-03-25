@@ -70,7 +70,14 @@ function getDocIcon(doc) {
   const ext = getDocExtension(doc);
   const mime = String(doc?.mime_type || '').toLowerCase();
 
-  if (ext === 'xlsx' || ext === 'xls' || ext === 'csv' || mime.includes('sheet') || mime.includes('excel') || mime.includes('csv')) {
+  if (
+    ext === 'xlsx' ||
+    ext === 'xls' ||
+    ext === 'csv' ||
+    mime.includes('sheet') ||
+    mime.includes('excel') ||
+    mime.includes('csv')
+  ) {
     return <FileSpreadsheet className="w-4 h-4" />;
   }
 
@@ -119,7 +126,10 @@ function BaseConhecimentoInner() {
   } = useQuery({
     queryKey: ['knowledge-docs'],
     queryFn: async () => {
-      return await base44.entities.KnowledgeDocument.list('-created_date', 200);
+      const res = await base44.functions.invoke('listKnowledgeDocuments', {
+        limit: 200,
+      });
+      return res?.data?.items || [];
     },
     staleTime: 1000 * 60 * 2,
   });
@@ -257,6 +267,8 @@ function BaseConhecimentoInner() {
           doc?.summary,
           doc?.analysis,
           doc?.description,
+          doc?.descricao,
+          doc?.tipo_documento,
         ]
           .filter(Boolean)
           .join(' ')
@@ -264,7 +276,8 @@ function BaseConhecimentoInner() {
     );
   }, [docs, busca]);
 
-  const totalItens = mirror?.total_items || (Array.isArray(mirror?.items) ? mirror.items.length : 0);
+  const totalItens =
+    mirror?.total_items || (Array.isArray(mirror?.items) ? mirror.items.length : 0);
   const totalDocs = Array.isArray(docs) ? docs.length : 0;
 
   return (
@@ -286,6 +299,11 @@ function BaseConhecimentoInner() {
           <Button onClick={() => refetchMirror()} disabled={isFetchingMirror}>
             <RefreshCw className={`w-4 h-4 mr-2 ${isFetchingMirror ? 'animate-spin' : ''}`} />
             Atualizar base
+          </Button>
+
+          <Button onClick={() => refetchDocs()} variant="outline">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Atualizar arquivos
           </Button>
         </div>
       </div>
@@ -386,7 +404,10 @@ function BaseConhecimentoInner() {
             </div>
           ) : (
             itensFiltrados.map((item, i) => (
-              <div key={`${item?.id || item?.row_index || i}-${item?.titulo || item?.nome || i}`} className="border rounded-lg p-4">
+              <div
+                key={`${item?.id || item?.row_index || i}-${item?.titulo || item?.nome || i}`}
+                className="border rounded-lg p-4"
+              >
                 <div className="font-semibold">
                   {item?.nome || item?.titulo || 'Sem título'}
                 </div>
@@ -442,6 +463,7 @@ function BaseConhecimentoInner() {
                     {[
                       getDocExtension(doc) ? `.${getDocExtension(doc)}` : '',
                       doc?.mime_type || '',
+                      doc?.tipo_documento || '',
                       status,
                       doc?.created_date ? new Date(doc.created_date).toLocaleString('pt-BR') : '',
                     ]
