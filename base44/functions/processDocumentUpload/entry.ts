@@ -34,32 +34,33 @@ function base64ToArrayBuffer(contentBase64: string) {
   return bytes.buffer;
 }
 
-// 🔥 CRÍTICO: NUNCA FALHAR A CRIAÇÃO
-async function ensureKnowledgeDocument(base44: any, payload: any) {
+// 🔥 GARANTE QUE SEMPRE EXISTE DOCUMENTO
+async function createDocumentSafe(base44: any, payload: any) {
   try {
     return await base44.asServiceRole.entities.KnowledgeDocument.create(payload);
   } catch (e) {
-    console.error('ERRO CREATE KnowledgeDocument:', e);
+    console.error('ERRO CREATE:', e);
 
-    // fallback mínimo (NUNCA perde upload)
+    // fallback mínimo
     return await base44.asServiceRole.entities.KnowledgeDocument.create({
       title: payload.title || payload.file_name,
-      name: payload.name || payload.file_name,
+      name: payload.file_name,
       file_name: payload.file_name,
       file_url: payload.file_url,
       processing_status: 'erro_parcial',
       status: 'erro_parcial',
+      tags: ['erro'],
     });
   }
 }
 
-async function safeUpdate(base44: any, id: string, payload: any) {
+async function updateSafe(base44: any, id: string, payload: any) {
   if (!id) return;
 
   try {
     await base44.asServiceRole.entities.KnowledgeDocument.update(id, payload);
   } catch (e) {
-    console.error('ERRO UPDATE KnowledgeDocument:', e);
+    console.error('ERRO UPDATE:', e);
   }
 }
 
@@ -95,7 +96,7 @@ Deno.serve(async (req) => {
 
     const fileType = detectFileType(file_name, mime_type);
 
-    // 🔥 1. SALVA STORAGE (GARANTIDO)
+    // 🔥 1. STORAGE
     const upload = await base44.storage.upload({
       file_name,
       content_base64,
@@ -107,8 +108,8 @@ Deno.serve(async (req) => {
       throw new Error('Falha no storage');
     }
 
-    // 🔥 2. CRIA DOCUMENTO IMEDIATO (ANTES DE QUALQUER PROCESSAMENTO)
-    const doc = await ensureKnowledgeDocument(base44, {
+    // 🔥 2. CRIA DOCUMENTO (IMEDIATO E COMPLETO)
+    const doc = await createDocumentSafe(base44, {
       title: titulo || file_name,
       name: titulo || file_name,
       file_name,
@@ -116,15 +117,17 @@ Deno.serve(async (req) => {
       mime_type: mime_type || '',
       categoria: categoria || '',
       descricao: descricao || '',
+      tags: [fileType, 'upload'],
       processing_status: 'processando',
       status: 'processando',
       uploaded_by_email: user?.email || '',
       uploaded_by_name: user?.full_name || user?.name || '',
+      created_at: new Date().toISOString(),
     });
 
     knowledgeDocId = doc?.id;
 
-    // 🔥 3. EXTRAÇÃO SEGURA (NUNCA QUEBRA FLUXO)
+    // 🔥 3. EXTRAÇÃO (SEGURA)
     let texto = '';
 
     try {
@@ -138,6 +141,7 @@ Deno.serve(async (req) => {
       if (fileType === 'xlsx' || fileType === 'xls') {
         const buffer = base64ToArrayBuffer(content_base64);
         const workbook = XLSX.read(buffer, { type: 'array' });
+
         texto = workbook.SheetNames.join('\n');
       }
     } catch (e) {
@@ -145,10 +149,11 @@ Deno.serve(async (req) => {
     }
 
     // 🔥 4. UPDATE FINAL (GARANTIDO)
-    await safeUpdate(base44, knowledgeDocId, {
-      extracted_text: texto,
+    await updateSafe(base44, knowledgeDocId, {
+      extracted_text: texto || '',
       processing_status: 'processado',
       status: 'processado',
+      updated_at: new Date().toISOString(),
     });
 
     return Response.json({
@@ -162,7 +167,7 @@ Deno.serve(async (req) => {
     console.error('ERRO GERAL:', err);
 
     if (base44 && knowledgeDocId) {
-      await safeUpdate(base44, knowledgeDocId, {
+      await updateSafe(base44, knowledgeDocId, {
         processing_status: 'erro',
         status: 'erro',
       });
