@@ -14,6 +14,12 @@ const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Ag
 const ANOS = [2025, 2026, 2027];
 const METAS = ['MC3A-20','MC3A-21','MC3A-22','MC3A-23','MC3A-24','MC3A-25','MC3A-EXTRA'];
 
+function toNumberOrZero(value) {
+  if (value === '' || value === null || value === undefined) return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function RelatorioMetaInner() {
   const { user } = useCurrentUser();
   const [mesFiltro, setMesFiltro] = useState('todos');
@@ -39,7 +45,6 @@ function RelatorioMetaInner() {
     queryFn: () => base44.entities.BudgetLine.list(),
   });
 
-  // Filter reports by mes/ano
   const filteredReportIds = useMemo(() => {
     return new Set(
       reports
@@ -52,13 +57,11 @@ function RelatorioMetaInner() {
     );
   }, [reports, mesFiltro, anoFiltro]);
 
-  // Activities filtered
   const filteredActivities = useMemo(() => {
     if (mesFiltro === 'todos' && !anoFiltro) return atividades;
     return atividades.filter(a => filteredReportIds.has(a.report_id));
   }, [atividades, filteredReportIds, mesFiltro, anoFiltro]);
 
-  // Purchases filtered
   const filteredPurchases = useMemo(() => {
     return compras.filter(c => {
       const report = reports.find(r => r.id === c.report_id);
@@ -72,7 +75,6 @@ function RelatorioMetaInner() {
     });
   }, [compras, reports, mesFiltro, anoFiltro]);
 
-  // Per-meta data
   const metaData = useMemo(() => {
     return METAS.map(meta => {
       const atividadesMeta = filteredActivities.filter(
@@ -80,16 +82,24 @@ function RelatorioMetaInner() {
       );
       const comprasMeta = filteredPurchases.filter(c => c.meta_id === meta);
 
-      const totalPublico = atividadesMeta.reduce(
-        (s, a) => s + (Number(a.publico_estimado) || 0) * (Number(a.quantas_repeticoes) || 1), 0
-      );
-      const totalOcorrencias = atividadesMeta.reduce(
-        (s, a) => s + (Number(a.quantas_repeticoes) || 1), 0
-      );
+      const totalPublico = atividadesMeta.reduce((s, a) => {
+        const publicoEstimado = toNumberOrZero(a.publico_estimado);
+        const repeticoes = toNumberOrZero(a.quantas_repeticoes);
+        return s + (publicoEstimado * repeticoes);
+      }, 0);
+
+      const totalOcorrencias = atividadesMeta.reduce((s, a) => {
+        const repeticoes = toNumberOrZero(a.quantas_repeticoes);
+        return s + repeticoes;
+      }, 0);
 
       const totalSolicitado = comprasMeta.reduce((s, c) => s + (Number(c.valor_solicitado) || 0), 0);
-      const totalAprovado = comprasMeta.filter(c => ['APROVADO_ADMIN','PAGO'].includes(c.status)).reduce((s, c) => s + (Number(c.valor_aprovado_admin || c.valor_solicitado) || 0), 0);
-      const totalPago = comprasMeta.filter(c => c.status === 'PAGO').reduce((s, c) => s + (Number(c.valor_aprovado_admin || c.valor_solicitado) || 0), 0);
+      const totalAprovado = comprasMeta
+        .filter(c => ['APROVADO_ADMIN','PAGO'].includes(c.status))
+        .reduce((s, c) => s + (Number(c.valor_aprovado_admin || c.valor_solicitado) || 0), 0);
+      const totalPago = comprasMeta
+        .filter(c => c.status === 'PAGO')
+        .reduce((s, c) => s + (Number(c.valor_aprovado_admin || c.valor_solicitado) || 0), 0);
 
       const museus = [...new Set(atividadesMeta.map(a => a.museu || '').filter(Boolean))];
       const statusMetas = atividadesMeta.map(a => a.status_meta).filter(Boolean);
@@ -109,7 +119,6 @@ function RelatorioMetaInner() {
     });
   }, [filteredActivities, filteredPurchases]);
 
-  // Grand totals
   const totals = useMemo(() => ({
     atividades: metaData.reduce((s, m) => s + m.atividades.length, 0),
     publico: metaData.reduce((s, m) => s + m.totalPublico, 0),
@@ -125,7 +134,6 @@ function RelatorioMetaInner() {
   return (
     <div className="min-h-screen bg-white">
       <div className="w-full py-6 md:py-10">
-        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -144,7 +152,6 @@ function RelatorioMetaInner() {
           />
         </div>
 
-        {/* Filtros */}
         <div className="flex flex-wrap gap-3 mb-8 p-4 bg-gray-50 rounded-xl border border-gray-200">
           <div className="flex items-center gap-2">
             <Label className="text-xs text-gray-600 whitespace-nowrap">Mês</Label>
@@ -174,23 +181,21 @@ function RelatorioMetaInner() {
           </Badge>
         </div>
 
-        {/* Totais gerais */}
-         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
-           {[
-             { label: 'Atividades / Meta', value: totals.atividades, color: 'text-blue-700' },
-             { label: 'Público Total', value: totals.publico.toLocaleString('pt-BR'), color: 'text-green-700' },
-             { label: 'Solicitado', value: `R$ ${totals.solicitado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'text-gray-700' },
-             { label: 'Aprovado', value: `R$ ${totals.aprovado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'text-indigo-700' },
-             { label: 'Pago', value: `R$ ${totals.pago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'text-emerald-700' },
-           ].map(({ label, value, color }) => (
-             <div key={label} className="bg-white border border-gray-200 rounded-xl p-4">
-               <p className="text-xs text-gray-500 mb-1">{label}</p>
-               <p className={`text-lg font-bold ${color}`}>{value}</p>
-             </div>
-           ))}
-         </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+          {[
+            { label: 'Atividades / Meta', value: totals.atividades, color: 'text-blue-700' },
+            { label: 'Público Total', value: totals.publico.toLocaleString('pt-BR'), color: 'text-green-700' },
+            { label: 'Solicitado', value: `R$ ${totals.solicitado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'text-gray-700' },
+            { label: 'Aprovado', value: `R$ ${totals.aprovado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'text-indigo-700' },
+            { label: 'Pago', value: `R$ ${totals.pago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'text-emerald-700' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="bg-white border border-gray-200 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-1">{label}</p>
+              <p className={`text-lg font-bold ${color}`}>{value}</p>
+            </div>
+          ))}
+        </div>
 
-        {/* Cards por meta */}
         <div className="space-y-6">
           {metaData.map(data => (
             <MetaReportCard key={data.meta} data={data} periodoLabel={periodoLabel} />
