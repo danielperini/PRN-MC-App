@@ -82,11 +82,17 @@ function CalendarioAtividadesInner() {
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['agenda-programacao'],
     queryFn: async () => {
-      const sync = await base44.functions.invoke('syncBaseConhecimento');
+      let sync = null;
 
-      // 🔥 fallback real na entity
+      try {
+        sync = await base44.functions.invoke('syncBaseConhecimento');
+      } catch (e) {
+        console.warn('Sync falhou, usando fallback entity');
+      }
+
       const entity = await base44.entities.Programacao.list({
-        limit: 1000,
+        limit: 2000,
+        sort: { field: 'data', direction: 'asc' },
       });
 
       return {
@@ -99,18 +105,22 @@ function CalendarioAtividadesInner() {
   const agenda = useMemo(() => {
     const sync = data?.sync || {};
 
-    // prioridade 1
-    if (sync?.agenda) return sync.agenda;
+    // 🔥 prioridade 1 — agenda pronta
+    if (sync?.agenda && Object.keys(sync.agenda).length) {
+      return sync.agenda;
+    }
 
+    // 🔥 prioridade 2 — estrutura alternativa
     if (sync?.grouped_by_museum_and_month) {
       return sync.grouped_by_museum_and_month;
     }
 
-    if (sync?.items) {
+    // 🔥 prioridade 3 — items crus do sync
+    if (sync?.items?.length) {
       return buildAgendaFromItems(sync.items);
     }
 
-    // 🔥 fallback final (resolve seu problema)
+    // 🔥 prioridade 4 — ENTITY (GARANTE QUE SEMPRE MOSTRA)
     if (data?.entity?.length) {
       const normalized = normalizeFromEntity(data.entity);
       return buildAgendaFromItems(normalized);
@@ -233,7 +243,11 @@ function CalendarioAtividadesInner() {
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 
                         {items.map((a, idx) => (
-                          <div key={idx} className="border rounded-lg p-4 bg-white shadow-sm">
+                          <div
+                            key={idx}
+                            className="border rounded-lg p-4 bg-white shadow-sm cursor-pointer hover:shadow-md"
+                            onClick={() => abrirEditar(a)}
+                          >
 
                             <div className="flex justify-between mb-2">
                               <div className="font-semibold">{a.nome}</div>
@@ -244,7 +258,7 @@ function CalendarioAtividadesInner() {
                               {a.data} {a.horario ? `· ${a.horario}` : ''}
                             </div>
 
-                            <div className="text-sm mt-3 text-gray-700">
+                            <div className="text-sm mt-3 text-gray-700 line-clamp-4">
                               {a.sinopse}
                             </div>
 
