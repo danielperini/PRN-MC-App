@@ -76,12 +76,23 @@ function extractSheetMonthYear(sheetName = '') {
 }
 
 function parseDateWithSheetContext(value: any, sheetName = '') {
-  if (!value) return null;
+  if (!value && value !== 0) return null;
 
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
 
   const text = String(value).trim();
   if (!text) return null;
+
+  if (typeof value === 'number' && Number.isFinite(value) && value > 20000 && value < 80000) {
+    try {
+      const parsed = XLSX.SSF.parse_date_code(value);
+      if (parsed?.y && parsed?.m && parsed?.d) {
+        return new Date(parsed.y, parsed.m - 1, parsed.d);
+      }
+    } catch (_) {
+      // ignora
+    }
+  }
 
   const direct = new Date(text);
   if (!Number.isNaN(direct.getTime()) && /\d{4}/.test(text)) return direct;
@@ -133,7 +144,7 @@ function detectMuseum(equipamento: string, values: Record<string, any>) {
   const sourceText = `${equipamento} ${values?.local || ''} ${values?.endereco_completo || ''}`;
   const text = normalizeText(sourceText);
 
-  if (text.includes('mhab') || text.includes('abilio barreto')) return 'MHAB';
+  if (text.includes('mhab') || text.includes('abilio barreto') || text.includes('abílio barreto')) return 'MHAB';
   if (text.includes('mis') || text.includes('imagem e do som') || text.includes('imagem e som')) return 'MIS';
   if (text.includes('mumo') || text.includes('mumu') || text.includes('museu da moda')) return 'MUMO';
   return 'Externo';
@@ -197,18 +208,25 @@ function summarizeActivity(values: Record<string, any>) {
 function mapHeaderKey(header: string) {
   const h = normalizeText(header);
 
+  if (h === 'equipamento') return 'equipamento';
   if (h === 'nome' || h.includes('nome da acao') || h.includes('nome da ação')) return 'nome';
+  if (h.includes('nome da programacao') || h.includes('nome da programação')) return 'nome';
   if (h.includes('nome da atividade para divulgacao') || h.includes('nome da atividade para divulgação')) return 'nome_divulgacao';
   if (h.includes('sinopse')) return 'sinopse';
   if (h.includes('tipo de atividade')) return 'tipo_de_atividade';
   if (h.includes('formato')) return 'formato';
-  if (h === 'data') return 'data';
-  if (h.includes('horario') || h.includes('horário')) return 'horario';
+  if (h === 'data' || h.includes('data ou periodo') || h.includes('data/periodo') || h.includes('periodo')) return 'data';
+  if (h.includes('horario') || h.includes('horário') || h.includes('hora')) return 'horario';
   if (h.includes('publico-alvo') || h.includes('público-alvo') || h.includes('publico alvo')) return 'publico_alvo';
   if (h.includes('acessibilidade')) return 'acessibilidade';
   if (h.includes('classificacao indicativa') || h.includes('classificação indicativa')) return 'classificacao_indicativa';
   if (h.includes('vagas')) return 'vagas';
-  if (h.includes('inscricao/acesso') || h.includes('inscrição/acesso')) return 'inscricao_acesso';
+  if (
+    h.includes('inscricao/acesso') ||
+    h.includes('inscrição/acesso') ||
+    h.includes('inscricao') ||
+    h.includes('inscrição')
+  ) return 'inscricao_acesso';
   if (h.includes('contato da atracao') || h.includes('contato da atração')) return 'contato_da_atracao';
   if (h === 'valor') return 'valor';
   if (h.includes('requisicao feita') || h.includes('requisição feita')) return 'requisicao_feita';
@@ -226,7 +244,48 @@ function mapHeaderKey(header: string) {
   if (h.includes('material de divulgacao') || h.includes('material de divulgação')) return 'material_de_divulgacao';
   if (h === 'servico' || h === 'serviço') return 'servico';
   if (h.includes('briefing')) return 'briefing';
+
   return h.replace(/[^\w]+/g, '_');
+}
+
+function scoreHeaderRow(row: any[]) {
+  const normalized = (row || []).map((cell) => normalizeText(cell)).join(' ');
+
+  const keywords = [
+    'nome',
+    'atividade',
+    'programacao',
+    'programação',
+    'data',
+    'horario',
+    'horário',
+    'equipamento',
+    'sinopse',
+    'vagas',
+    'inscricao',
+    'inscrição',
+    'local',
+  ];
+
+  return keywords.reduce((score, keyword) => {
+    return score + (normalized.includes(normalizeText(keyword)) ? 1 : 0);
+  }, 0);
+}
+
+function findHeaderRowIndex(matrix: any[][]) {
+  const maxRows = Math.min(matrix.length, 8);
+  let bestIndex = -1;
+  let bestScore = 0;
+
+  for (let i = 0; i < maxRows; i++) {
+    const score = scoreHeaderRow(matrix[i] || []);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = i;
+    }
+  }
+
+  return bestScore >= 2 ? bestIndex : -1;
 }
 
 function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
@@ -234,56 +293,78 @@ function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
 
   const items: any[] = [];
 
-  if (matrix.length < 4) return items;
+  let headerRowIndex = -1;
+  let fieldHeaders: string[] = [];
 
-  const row2 = (matrix[1] || []).map(cleanValue);
-  const row3 = (matrix[2] || []).map(cleanValue);
+  if (matrix.length >= 3) {
+    const row2 = (matrix[1] || []).map(cleanValue);
+    const row3 = (matrix[2] || []).map(cleanValue);
 
-  const isMainHeader =
-    normalizeText(row2[0]) === 'equipamento' &&
-    normalizeText(row2[1]) === 'programacao';
+    const isMainHeader =
+      normalizeText(row2[0]) === 'equipamento' &&
+      (
+        normalizeText(row2[1]) === 'programacao' ||
+        normalizeText(row2[1]) === 'programação'
+      );
 
-  if (!isMainHeader) return items;
+    if (isMainHeader) {
+      headerRowIndex = 2;
+      fieldHeaders = row3.map((h, idx) => mapHeaderKey(normalizeHeader(h, idx)));
+    }
+  }
 
-  const fieldHeaders = row3.map((h, idx) => mapHeaderKey(normalizeHeader(h, idx)));
+  if (headerRowIndex === -1) {
+    const detectedHeaderIndex = findHeaderRowIndex(matrix);
+    if (detectedHeaderIndex === -1) return items;
 
-  for (let i = 3; i < matrix.length; i++) {
+    headerRowIndex = detectedHeaderIndex;
+    fieldHeaders = (matrix[headerRowIndex] || []).map((h, idx) =>
+      mapHeaderKey(normalizeHeader(h, idx))
+    );
+  }
+
+  for (let i = headerRowIndex + 1; i < matrix.length; i++) {
     const row = Array.isArray(matrix[i]) ? matrix[i] : [];
     const cleanedRow = row.map(cleanValue);
     const hasAnyValue = cleanedRow.some((v) => String(v || '').trim() !== '');
     if (!hasAnyValue) continue;
 
-    const equipamento = cleanValue(cleanedRow[0]);
-    const nome = cleanValue(cleanedRow[1]);
+    const values: Record<string, any> = {};
 
-    if (!equipamento || !nome) continue;
-
-    const values: Record<string, any> = { equipamento };
-
-    for (let c = 1; c < fieldHeaders.length; c++) {
+    for (let c = 0; c < fieldHeaders.length; c++) {
       const key = fieldHeaders[c];
+      if (!key) continue;
       values[key] = cleanValue(cleanedRow[c]);
     }
 
+    const equipamento = cleanValue(values.equipamento || cleanedRow[0] || '');
+    const nome =
+      cleanValue(values.nome_divulgacao) ||
+      cleanValue(values.nome) ||
+      '';
+
+    if (!nome) continue;
+
     const parsedDate = parseDateWithSheetContext(values.data, sheetName);
+    const date = parsedDate || new Date();
     const museu = detectMuseum(equipamento, values);
 
     const item = {
       id: `${sheetName}-${i + rowOffset}-${nome}`,
       row_index: i + rowOffset,
       sheet_name: sheetName,
-      month_label: parsedDate ? format(parsedDate, 'MMMM yyyy', { locale: ptBR }) : sheetName,
+      month_label: format(date, 'MMMM yyyy', { locale: ptBR }),
       museu,
       equipamento,
-      nome: values.nome_divulgacao || values.nome || nome,
-      titulo: values.nome_divulgacao || values.nome || nome,
+      nome,
+      titulo: nome,
       sinopse: values.sinopse || '',
       descricao: values.sinopse || '',
       tipo: values.tipo_de_atividade || '',
       tipo_atividade: values.tipo_de_atividade || '',
       formato: values.formato || '',
       data: values.data || '',
-      data_iso: parsedDate ? parsedDate.toISOString() : '',
+      data_iso: date.toISOString(),
       horario: values.horario || '',
       publico_alvo: values.publico_alvo || '',
       acessibilidade: values.acessibilidade || '',
@@ -315,9 +396,7 @@ function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
       raw_values: values,
     };
 
-    if (item.nome && item.data_iso) {
-      items.push(item);
-    }
+    items.push(item);
   }
 
   return items;
@@ -400,6 +479,40 @@ function countByMuseum(items: any[]) {
   return map;
 }
 
+function dedupeItems(items: any[]) {
+  const seen = new Map<string, any>();
+
+  for (const item of items || []) {
+    const key = [
+      normalizeText(item?.nome),
+      normalizeText(item?.data),
+      normalizeText(item?.horario),
+      normalizeText(item?.museu),
+      normalizeText(item?.local),
+    ].join('|');
+
+    if (!key.replace(/\|/g, '')) continue;
+
+    if (!seen.has(key)) {
+      seen.set(key, item);
+      continue;
+    }
+
+    const prev = seen.get(key) || {};
+    seen.set(key, {
+      ...prev,
+      ...item,
+      sinopse: item.sinopse || prev.sinopse || '',
+      descricao: item.descricao || prev.descricao || '',
+      link_imagens: item.link_imagens || prev.link_imagens || '',
+      minibios: item.minibios || prev.minibios || '',
+      material_de_divulgacao: item.material_de_divulgacao || prev.material_de_divulgacao || '',
+    });
+  }
+
+  return Array.from(seen.values());
+}
+
 Deno.serve(async (req) => {
   createClientFromRequest(req);
 
@@ -442,6 +555,8 @@ Deno.serve(async (req) => {
       allItems = allItems.concat(items);
       runningOffset += items.length + 10;
     });
+
+    allItems = dedupeItems(allItems);
 
     const agenda = buildAgenda(allItems);
     const groupedByMuseumAndMonth = groupByMuseumAndMonth(allItems);
