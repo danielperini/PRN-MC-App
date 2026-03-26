@@ -15,7 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import AtividadesSection, { validateAtividade } from '../components/reports/AtividadesSection';
 import PDFExportButton from '../components/reports/PDFExportButton';
 import AIAssistButton from '../components/reports/AIAssistButton';
@@ -207,8 +207,12 @@ function ReportEditorInner() {
   const saveMutation = useMutation({
     mutationFn: async (data) => {
       const { id, created_date, updated_date, created_by, ...payload } = data;
+
       if (!reportId && !payload.numero_protocolo) {
-        payload.numero_protocolo = await gerarNumeroProtocolo(payload.mes_referencia || 'SEM', payload.ano || 2026);
+        payload.numero_protocolo = await gerarNumeroProtocolo(
+          payload.mes_referencia || 'SEM',
+          payload.ano || 2026
+        );
       }
 
       return reportId
@@ -218,63 +222,81 @@ function ReportEditorInner() {
     onSuccess: (saved) => {
       queryClient.invalidateQueries(['report', reportId]);
       queryClient.invalidateQueries(['my-reports']);
-   const submitMutation = useMutation({
-  mutationFn: async () => {
-    if (!declaracaoAceita) {
-      toast.error('Aceite a declaração de responsabilidade antes de enviar.');
-      throw new Error('Declaração não aceita');
-    }
-    if (!formData.mes_referencia) {
-      toast.error('Selecione o mês de referência antes de enviar.');
-      throw new Error('Mês obrigatório');
-    }
-    if (!formData.author_name) {
-      toast.error('Informe o nome do profissional antes de enviar.');
-      throw new Error('Nome obrigatório');
-    }
-    if (!formData.museu) {
-      toast.error('Selecione o museu antes de enviar.');
-      throw new Error('Museu obrigatório');
-    }
+      toast.success('Rascunho salvo', {
+        description: '✓ Suas alterações foram gravadas com sucesso.'
+      });
 
-    const { id, created_date, updated_date, created_by, ...payload } = formData;
-
-    if (!reportId && !payload.numero_protocolo) {
-      payload.numero_protocolo = await gerarNumeroProtocolo(
-        payload.mes_referencia,
-        payload.ano || 2026
-      );
-    }
-
-    const data = { ...payload, status: 'SUBMITTED' };
-
-    return reportId
-      ? base44.entities.Report.update(reportId, data)
-      : base44.entities.Report.create(data);
-  },
-  onSuccess: () => {
-    setShowSubmitConfirm(false);
-    queryClient.invalidateQueries(['my-reports']);
-    toast.success('Relatório enviado para revisão!', {
-      description: '✓ O coordenador será notificado em breve.'
-    });
-    setTimeout(() => navigate(createPageUrl('Dashboard')), 1500);
-  },
-  onError: (e) => {
-    const silentErrors = [
-      'Declaração não aceita',
-      'Mês obrigatório',
-      'Nome obrigatório',
-      'Museu obrigatório'
-    ];
-
-    if (!silentErrors.includes(e.message)) {
-      toast.error('Erro ao enviar relatório', {
-        description: 'Não foi possível enviar. Tente novamente.'
+      if (!reportId && saved?.id) {
+        navigate(createPageUrl(`ReportEditor?id=${saved.id}`), { replace: true });
+      }
+    },
+    onError: () => {
+      toast.error('Erro ao salvar rascunho', {
+        description: 'Não foi possível gravar as alterações. Tente novamente.'
       });
     }
-  }
-});
+  });
+
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      if (!declaracaoAceita) {
+        toast.error('Aceite a declaração de responsabilidade antes de enviar.');
+        throw new Error('Declaração não aceita');
+      }
+
+      if (!formData.mes_referencia) {
+        toast.error('Selecione o mês de referência antes de enviar.');
+        throw new Error('Mês obrigatório');
+      }
+
+      if (!formData.author_name) {
+        toast.error('Informe o nome do profissional antes de enviar.');
+        throw new Error('Nome obrigatório');
+      }
+
+      if (!formData.museu) {
+        toast.error('Selecione o museu antes de enviar.');
+        throw new Error('Museu obrigatório');
+      }
+
+      const { id, created_date, updated_date, created_by, ...payload } = formData;
+
+      if (!reportId && !payload.numero_protocolo) {
+        payload.numero_protocolo = await gerarNumeroProtocolo(
+          payload.mes_referencia,
+          payload.ano || 2026
+        );
+      }
+
+      const data = { ...payload, status: 'SUBMITTED' };
+
+      return reportId
+        ? base44.entities.Report.update(reportId, data)
+        : base44.entities.Report.create(data);
+    },
+    onSuccess: () => {
+      setShowSubmitConfirm(false);
+      queryClient.invalidateQueries(['my-reports']);
+      toast.success('Relatório enviado para revisão!', {
+        description: '✓ O coordenador será notificado em breve.'
+      });
+      setTimeout(() => navigate(createPageUrl('Dashboard')), 1500);
+    },
+    onError: (e) => {
+      const silentErrors = [
+        'Declaração não aceita',
+        'Mês obrigatório',
+        'Nome obrigatório',
+        'Museu obrigatório'
+      ];
+
+      if (!silentErrors.includes(e.message)) {
+        toast.error('Erro ao enviar relatório', {
+          description: 'Não foi possível enviar. Tente novamente.'
+        });
+      }
+    }
+  });
 
   const handleSubmitClick = () => {
     if (!declaracaoAceita) {
