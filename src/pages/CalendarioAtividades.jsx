@@ -62,6 +62,28 @@ function normalizeFromEntity(items = []) {
   });
 }
 
+function normalizeFromSyncItems(items = []) {
+  return items.map((i) => {
+    const dataISO = parseDateToISO(i.data_inicio || i.data);
+
+    return {
+      id: i.id,
+      nome: i.titulo || i.nome_acao || i.nome || '',
+      data: i.data || dataISO || '',
+      data_iso: dataISO,
+      horario: i.horario || '',
+      museu: i.museu || i.equipamento || 'Externo',
+      sinopse: i.sinopse || i.descricao || '',
+      vagas: i.vagas || '',
+      inscricao: i.link_inscricao || i.inscricao || '',
+      material_divulgacao: i.material_divulgacao || '',
+      link_imagens: i.link_imagens || '',
+      local: i.local || '',
+      raw: i,
+    };
+  });
+}
+
 function buildAgendaFromItems(items = []) {
   const result = {};
 
@@ -96,20 +118,46 @@ function CalendarioAtividadesInner() {
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['agenda-programacao'],
     queryFn: async () => {
+      let syncRaw = null;
       let syncData = {};
+      let syncError = null;
 
       try {
         const sync = await base44.functions.invoke('syncProgramacao');
-        syncData = sync?.data || {};
+        syncRaw = sync;
+        syncData = sync?.data || sync || {};
+
+        if (syncData?.ok === false) {
+          syncError = syncData?.error || 'Falha ao sincronizar programação.';
+        }
       } catch (e) {
         console.error('Falha no syncProgramacao:', e);
+        syncError =
+          e?.message ||
+          e?.response?.data?.error ||
+          'Erro ao executar syncProgramacao.';
       }
 
-      const entity = await base44.entities.Programacao.list('-data_inicio', 1000);
+      let entity = [];
+      let entityError = null;
+
+      try {
+        const list = await base44.entities.Programacao.list('-data_inicio', 1000);
+        entity = Array.isArray(list) ? list : [];
+      } catch (e) {
+        console.error('Falha ao carregar Programacao:', e);
+        entityError =
+          e?.message ||
+          e?.response?.data?.error ||
+          'Erro ao carregar entity Programacao.';
+      }
 
       return {
+        syncRaw,
         sync: syncData,
-        entity: Array.isArray(entity) ? entity : [],
+        syncError,
+        entity,
+        entityError,
       };
     },
   });
@@ -123,11 +171,12 @@ function CalendarioAtividadesInner() {
       return sync.grouped_by_museum_and_month;
     }
 
-    if (sync?.items) {
-      return buildAgendaFromItems(sync.items);
+    if (Array.isArray(sync?.items) && sync.items.length > 0) {
+      const normalized = normalizeFromSyncItems(sync.items);
+      return buildAgendaFromItems(normalized);
     }
 
-    if (data?.entity?.length) {
+    if (Array.isArray(data?.entity) && data.entity.length > 0) {
       const normalized = normalizeFromEntity(data.entity);
       return buildAgendaFromItems(normalized);
     }
@@ -135,7 +184,6 @@ function CalendarioAtividadesInner() {
     return {};
   }, [data]);
 
-  // 🔥 CORREÇÃO CRÍTICA: ordenar por data real
   const meses = useMemo(() => {
     return Object.entries(agenda)
       .map(([mes, museus]) => {
@@ -188,7 +236,9 @@ function CalendarioAtividadesInner() {
         data: form,
       });
 
-      if (res?.data?.locked) {
+      const payload = res?.data || res;
+
+      if (payload?.locked) {
         alert('Este mês já está bloqueado para edição');
         return;
       }
@@ -202,10 +252,17 @@ function CalendarioAtividadesInner() {
     }
   };
 
+  const debugSheets = data?.sync?.debug_sheets || [];
+  const totalEventosSync = data?.sync?.total_eventos || 0;
+  const totalProcessados = data?.sync?.total_processados || 0;
+  const totalErros = data?.sync?.total_erros || 0;
+  const syncError = data?.syncError;
+  const entityError = data?.entityError;
+  const entityCount = Array.isArray(data?.entity) ? data.entity.length : 0;
+
   return (
     <div className="w-full py-6">
       <div className="max-w-7xl mx-auto px-4">
-
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex items-center gap-3">
             <Calendar className="w-6 h-6" />
@@ -239,6 +296,75 @@ function CalendarioAtividadesInner() {
           </div>
         </div>
 
+        {(syncError || entityError || debugSheets.length > 0) && (
+          <div className="mb-6 border rounded-lg p-4 bg-slate-50 text-sm space-y-3">
+            <div className="font-semibold">Diagnóstico da sincronização</div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="border rounded p-3 bg-white">
+                <div className="text-xs text-gray-500">Eventos no sync</div>
+                <div className="text-lg font-semibold">{totalEventosSync}</div>
+              </div>
+
+              <div className="border rounded p-3 bg-white">
+                <div className="text-xs text-gray-500">Processados</div>
+                <div className="text-lg font-semibold">{totalProcessados}</div>
+              </div>
+
+              <div className="border rounded p-3 bg-white">
+                <div className="text-xs text-gray-500">Erros no sync</div>
+                <div className="text-lg font-semibold">{totalErros}</div>
+              </div>
+
+              <div className="border rounded p-3 bg-white">
+                <div className="text-xs text-gray-500">Registros em Programacao</div>
+                <div className="text-lg font-semibold">{entityCount}</div>
+              </div>
+            </div>
+
+            {syncError && (
+              <div className="border rounded p-3 bg-red-50 text-red-700">
+                <strong>Erro do syncProgramacao:</strong> {syncError}
+              </div>
+            )}
+
+            {entityError && (
+              <div className="border rounded p-3 bg-red-50 text-red-700">
+                <strong>Erro ao ler Programacao:</strong> {entityError}
+              </div>
+            )}
+
+            {debugSheets.length > 0 && (
+              <div className="overflow-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="text-left border-b">
+                      <th className="py-2 pr-3">Aba</th>
+                      <th className="py-2 pr-3">Header</th>
+                      <th className="py-2 pr-3">Linha inicial</th>
+                      <th className="py-2 pr-3">Linhas válidas</th>
+                      <th className="py-2 pr-3">Eventos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {debugSheets.map((sheet, idx) => (
+                      <tr key={`${sheet.sheetName || 'sheet'}-${idx}`} className="border-b">
+                        <td className="py-2 pr-3">{sheet.sheetName || '—'}</td>
+                        <td className="py-2 pr-3">
+                          {sheet.ignored ? 'ignorada' : sheet.headerDetected ? 'detectado' : 'fallback'}
+                        </td>
+                        <td className="py-2 pr-3">{sheet.dataStartIndex ?? '—'}</td>
+                        <td className="py-2 pr-3">{sheet.rowsValidas ?? '—'}</td>
+                        <td className="py-2 pr-3">{sheet.eventosExtraidos ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {isLoading ? (
           <div>Carregando...</div>
         ) : totalFiltrado === 0 ? (
@@ -266,7 +392,6 @@ function CalendarioAtividadesInner() {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-
                         {items.map((a, idx) => (
                           <div
                             key={a.id || idx}
@@ -296,9 +421,7 @@ function CalendarioAtividadesInner() {
                               {a.vagas && <div>Vagas: {a.vagas}</div>}
                             </div>
 
-                            {/* 🔥 LINKS */}
                             <div className="flex gap-2 mt-3 flex-wrap">
-
                               {a.inscricao && (
                                 <a
                                   href={a.inscricao}
@@ -324,12 +447,9 @@ function CalendarioAtividadesInner() {
                                   </Button>
                                 </a>
                               )}
-
                             </div>
-
                           </div>
                         ))}
-
                       </div>
                     </div>
                   ))}
