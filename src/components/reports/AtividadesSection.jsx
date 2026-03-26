@@ -14,6 +14,10 @@ export function validateAtividade(atividade = {}) {
     errors.push('Classificação é obrigatória');
   }
 
+  if (!atividade.nome || !String(atividade.nome).trim()) {
+    errors.push('Nome da atividade é obrigatório');
+  }
+
   return errors;
 }
 
@@ -51,16 +55,21 @@ export default function AtividadesSection({
     setAtividades((prev) => {
       const list = Array.isArray(prev) ? [...prev] : [];
       list.push({
+        classificacao: '',
+        justificativa_tecnica: '',
         nome: '',
         data_inicio: '',
         data_fim: '',
         publico_estimado: 0,
         quantas_vezes_ocorreu: 1,
+        total_atividades: 0,
         museu: '',
         museu_lista: [],
         tipo_acao: '',
         tipo_acao_lista: [],
         produto_realizado: '',
+        quantidade_produtos: 0,
+        total_produtos_gerados: 0,
       });
       return list;
     });
