@@ -31,7 +31,7 @@ import { Sparkles } from 'lucide-react';
 import SaveTemplateDialog from '../components/templates/SaveTemplateDialog';
 import LoadFromTemplateDialog from '../components/templates/LoadFromTemplateDialog';
 import AttachmentsSection from '../components/reports/AttachmentsSection';
-import { runWithFeedback } from '@/lib/actionFeedback';
+
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
@@ -218,7 +218,7 @@ function ReportEditorInner() {
     onSuccess: (saved) => {
       queryClient.invalidateQueries(['report', reportId]);
       queryClient.invalidateQueries(['my-reports']);
-     const submitMutation = useMutation({
+   const submitMutation = useMutation({
   mutationFn: async () => {
     if (!declaracaoAceita) {
       toast.error('Aceite a declaração de responsabilidade antes de enviar.');
@@ -252,7 +252,6 @@ function ReportEditorInner() {
       ? base44.entities.Report.update(reportId, data)
       : base44.entities.Report.create(data);
   },
-
   onSuccess: () => {
     setShowSubmitConfirm(false);
     queryClient.invalidateQueries(['my-reports']);
@@ -261,7 +260,6 @@ function ReportEditorInner() {
     });
     setTimeout(() => navigate(createPageUrl('Dashboard')), 1500);
   },
-
   onError: (e) => {
     const silentErrors = [
       'Declaração não aceita',
@@ -277,53 +275,6 @@ function ReportEditorInner() {
     }
   }
 });
-        success: 'Relatório enviado para revisão',
-        error: 'Erro ao enviar relatório',
-      }
-    );
-  },
-
-  onSuccess: () => {
-    setShowSubmitConfirm(false);
-    queryClient.invalidateQueries(['my-reports']);
-
-    setTimeout(() => {
-      navigate(createPageUrl('Dashboard'));
-    }, 1200);
-  },
-
-  onError: () => {
-    // já tratado pelo runWithFeedback
-  },
-});
-
-      return reportId
-        ? base44.entities.Report.update(reportId, data)
-        : base44.entities.Report.create(data);
-    },
-    onSuccess: () => {
-      setShowSubmitConfirm(false);
-      queryClient.invalidateQueries(['my-reports']);
-      toast.success('Relatório enviado para revisão!', {
-        description: '✓ O coordenador será notificado em breve.'
-      });
-      setTimeout(() => navigate(createPageUrl('Dashboard')), 1500);
-    },
-    onError: (e) => {
-      const silentErrors = [
-        'Declaração não aceita',
-        'Mês obrigatório',
-        'Nome obrigatório',
-        'Museu obrigatório'
-      ];
-
-      if (!silentErrors.includes(e.message)) {
-        toast.error('Erro ao enviar relatório', {
-          description: 'Não foi possível enviar. Tente novamente.'
-        });
-      }
-    }
-  });
 
   const handleSubmitClick = () => {
     if (!declaracaoAceita) {
