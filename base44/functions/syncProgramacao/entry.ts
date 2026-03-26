@@ -41,11 +41,7 @@ function normalizeHeader(value: any) {
 
 function uniqueStrings(values: any[]) {
   return Array.from(
-    new Set(
-      (values || [])
-        .map((v) => safeString(v))
-        .filter(Boolean)
-    )
+    new Set((values || []).map((v) => safeString(v)).filter(Boolean))
   );
 }
 
@@ -101,10 +97,7 @@ function parseFlexibleDateList(value: any, sheetName = '') {
   const original = safeString(value);
   if (!original) return [];
 
-  const text = original
-    .replace(/\n/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const text = original.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
 
   const monthYear = parseSheetMonthYear(sheetName);
   const results: string[] = [];
@@ -131,7 +124,10 @@ function parseFlexibleDateList(value: any, sheetName = '') {
   }
 
   for (const monthName of Object.keys(MONTHS_PT)) {
-    const regex = new RegExp(`(\\d{1,2}(?:\\s*,\\s*\\d{1,2})*(?:\\s*e\\s*\\d{1,2})?)\\s+de\\s+${monthName}`, 'gi');
+    const regex = new RegExp(
+      `(\\d{1,2}(?:\\s*,\\s*\\d{1,2})*(?:\\s*e\\s*\\d{1,2})?)\\s+de\\s+${monthName}`,
+      'gi'
+    );
 
     for (const match of text.matchAll(regex)) {
       const days = (match[1] || '').match(/\d{1,2}/g) || [];
@@ -323,9 +319,8 @@ function inferTitleFromRow(row: Record<string, any>) {
 function normalizeProgramacaoRows(row: Record<string, any>, sheetName: string) {
   const equipamento = safeString(getCell(row, ['equipamento']));
   const titulo =
-    safeString(
-      getCell(row, ['nome da acao', 'programacao nome da acao', 'programacao', 'nome'])
-    ) || inferTitleFromRow(row);
+    safeString(getCell(row, ['nome da acao', 'programacao nome da acao', 'programacao', 'nome'])) ||
+    inferTitleFromRow(row);
 
   const descricao = safeString(getCell(row, ['sinopse', 'descricao', 'descrição', 'resumo']));
   const tipo = safeString(getCell(row, ['tipo de atividade', 'tipo']));
@@ -351,9 +346,7 @@ function normalizeProgramacaoRows(row: Record<string, any>, sheetName: string) {
   const museu = detectMuseu(`${equipamento} ${titulo} ${local}`);
   const datas = parseFlexibleDateList(dataRaw, sheetName);
 
-  if (!titulo) {
-    return [];
-  }
+  if (!titulo) return [];
 
   const datasFinais = datas.length > 0 ? datas : [new Date().toISOString()];
 
@@ -414,80 +407,116 @@ function buildKnowledgeText(eventos: any[], sourceUrl: string) {
   return lines.join('\n');
 }
 
+function serializeError(error: any) {
+  return {
+    message: error?.message || String(error),
+    name: error?.name || '',
+    stack: error?.stack || '',
+    response: error?.response?.data || null,
+    status: error?.response?.status || null,
+  };
+}
+
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
-  try {
-    const sourceUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=xlsx`;
-    const response = await fetch(sourceUrl);
+  const stageErrors: Record<string, any> = {};
+  const debugSheets: any[] = [];
+  let sourceUrl = '';
+  let fileUrl = '';
+  let knowledgeDoc: any = null;
 
-    if (!response.ok) {
+  try {
+    sourceUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=xlsx`;
+
+    let buffer: ArrayBuffer;
+    let workbook: XLSX.WorkBook;
+    let contentBase64 = '';
+
+    try {
+      const response = await fetch(sourceUrl);
+
+      if (!response.ok) {
+        return Response.json(
+          { ok: false, stage: 'download', error: `Falha ao baixar planilha pública: ${response.status}` },
+          { status: 502 }
+        );
+      }
+
+      buffer = await response.arrayBuffer();
+      workbook = XLSX.read(buffer, { type: 'array' });
+      contentBase64 = toBase64(buffer);
+    } catch (error) {
       return Response.json(
-        { ok: false, error: `Falha ao baixar planilha pública: ${response.status}` },
-        { status: 502 }
+        { ok: false, stage: 'download_or_parse', error: serializeError(error) },
+        { status: 500 }
       );
     }
 
-    const buffer = await response.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
-    const contentBase64 = toBase64(buffer);
-
     const eventosBrutos: any[] = [];
-    const debugSheets: any[] = [];
 
     for (const sheetName of workbook.SheetNames) {
-      const sheet = workbook.Sheets[sheetName];
-      const matrix = XLSX.utils.sheet_to_json(sheet, {
-        header: 1,
-        defval: '',
-        raw: false,
-      }) as any[][];
+      try {
+        const sheet = workbook.Sheets[sheetName];
+        const matrix = XLSX.utils.sheet_to_json(sheet, {
+          header: 1,
+          defval: '',
+          raw: false,
+        }) as any[][];
 
-      if (!Array.isArray(matrix) || matrix.length < 2) {
+        if (!Array.isArray(matrix) || matrix.length < 2) {
+          debugSheets.push({
+            sheetName,
+            ignored: true,
+            reason: 'aba_sem_dados_suficientes',
+          });
+          continue;
+        }
+
+        const detectedHeader = detectHeader(matrix);
+        const headerInfo = detectedHeader || {
+          score: 0,
+          headerIndex: 0,
+          dataStartIndex: 1,
+          headers: (matrix[0] || []).map(normalizeHeader),
+        };
+
+        const rows = matrix.slice(headerInfo.dataStartIndex);
+        let eventosSheet = 0;
+        let rowsValidas = 0;
+
+        for (const row of rows) {
+          const nonEmptyCount = (row || []).filter((cell) => safeString(cell) !== '').length;
+          if (nonEmptyCount < 2) continue;
+
+          rowsValidas++;
+          const rowObject = rowToObject(headerInfo.headers, row as any[]);
+          const eventos = normalizeProgramacaoRows(rowObject, sheetName);
+
+          if (eventos.length > 0) {
+            eventosBrutos.push(...eventos);
+            eventosSheet += eventos.length;
+          }
+        }
+
+        debugSheets.push({
+          sheetName,
+          headerDetected: Boolean(detectedHeader),
+          headerIndex: headerInfo.headerIndex,
+          dataStartIndex: headerInfo.dataStartIndex,
+          headers: headerInfo.headers,
+          totalRows: matrix.length,
+          rowsValidas,
+          eventosExtraidos: eventosSheet,
+        });
+      } catch (error) {
         debugSheets.push({
           sheetName,
           ignored: true,
-          reason: 'aba_sem_dados_suficientes',
+          reason: 'erro_na_aba',
+          error: serializeError(error),
         });
-        continue;
       }
-
-      const detectedHeader = detectHeader(matrix);
-      const headerInfo = detectedHeader || {
-        score: 0,
-        headerIndex: 0,
-        dataStartIndex: 1,
-        headers: (matrix[0] || []).map(normalizeHeader),
-      };
-
-      const rows = matrix.slice(headerInfo.dataStartIndex);
-      let eventosSheet = 0;
-      let rowsValidas = 0;
-
-      for (const row of rows) {
-        const nonEmptyCount = (row || []).filter((cell) => safeString(cell) !== '').length;
-        if (nonEmptyCount < 2) continue;
-
-        rowsValidas++;
-        const rowObject = rowToObject(headerInfo.headers, row as any[]);
-        const eventos = normalizeProgramacaoRows(rowObject, sheetName);
-
-        if (eventos.length > 0) {
-          eventosBrutos.push(...eventos);
-          eventosSheet += eventos.length;
-        }
-      }
-
-      debugSheets.push({
-        sheetName,
-        headerDetected: Boolean(detectedHeader),
-        headerIndex: headerInfo.headerIndex,
-        dataStartIndex: headerInfo.dataStartIndex,
-        headers: headerInfo.headers,
-        totalRows: matrix.length,
-        rowsValidas,
-        eventosExtraidos: eventosSheet,
-      });
     }
 
     const uniqueMap = new Map<string, any>();
@@ -505,82 +534,82 @@ Deno.serve(async (req) => {
       return Response.json(
         {
           ok: false,
+          stage: 'extract',
           error: 'Nenhum evento válido foi encontrado na planilha.',
           sheets_lidas: workbook.SheetNames,
           debug_sheets: debugSheets,
         },
-        { status: 400 }
+        { status: 200 }
       );
     }
 
-    const upload = await base44.storage.upload({
-      file_name: `programacao_museus_centro_${new Date().toISOString().slice(0, 10)}.xlsx`,
-      content_base64: contentBase64,
-    });
+    try {
+      const upload = await base44.storage.upload({
+        file_name: `programacao_museus_centro_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        content_base64: contentBase64,
+      });
 
-    const fileUrl = upload?.file_url || upload?.url || '';
+      fileUrl = upload?.file_url || upload?.url || '';
+      if (!fileUrl) {
+        stageErrors.storage = { message: 'Upload sem file_url/url.' };
+      }
+    } catch (error) {
+      stageErrors.storage = serializeError(error);
+    }
 
-    if (!fileUrl) {
-      return Response.json(
-        {
-          ok: false,
-          error: 'Falha ao salvar planilha no storage.',
+    try {
+      const knowledgeTitle = 'Base IA Segmentada - Programação Museus Centro';
+      const knowledgeText = buildKnowledgeText(eventos, sourceUrl);
+
+      const existingDocs = await base44.asServiceRole.entities.KnowledgeDocument.filter(
+        { title: knowledgeTitle },
+        '-updated_date',
+        10
+      );
+
+      const knowledgePayload = {
+        title: knowledgeTitle,
+        name: knowledgeTitle,
+        file_name: `programacao_museus_centro_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        file_url: fileUrl || '',
+        mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        categoria: 'Programação',
+        descricao: 'Espelho da planilha pública de programação dos Museus Centro.',
+        tags: uniqueStrings(['programacao', 'agenda', 'museus', 'planilha_publica']),
+        processing_status: 'processado',
+        status: 'processado',
+        summary: `Base pública sincronizada com ${eventos.length} eventos.`,
+        extracted_text: knowledgeText,
+        analysis: JSON.stringify({
+          source_url: sourceUrl,
+          total_eventos: eventos.length,
+          abas_lidas: workbook.SheetNames,
           debug_sheets: debugSheets,
-        },
-        { status: 500 }
-      );
-    }
+          synced_at: new Date().toISOString(),
+        }),
+      };
 
-    const knowledgeTitle = 'Base IA Segmentada - Programação Museus Centro';
-    const knowledgeText = buildKnowledgeText(eventos, sourceUrl);
-
-    const existingDocs = await base44.asServiceRole.entities.KnowledgeDocument.filter(
-      { title: knowledgeTitle },
-      '-updated_date',
-      10
-    );
-
-    let knowledgeDoc: any;
-
-    const knowledgePayload = {
-      title: knowledgeTitle,
-      name: knowledgeTitle,
-      file_name: `programacao_museus_centro_${new Date().toISOString().slice(0, 10)}.xlsx`,
-      file_url: fileUrl,
-      mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      categoria: 'Programação',
-      descricao: 'Espelho da planilha pública de programação dos Museus Centro.',
-      tags: uniqueStrings(['programacao', 'agenda', 'museus', 'planilha_publica']),
-      processing_status: 'processado',
-      status: 'processado',
-      summary: `Base pública sincronizada com ${eventos.length} eventos.`,
-      extracted_text: knowledgeText,
-      analysis: JSON.stringify({
-        source_url: sourceUrl,
-        total_eventos: eventos.length,
-        abas_lidas: workbook.SheetNames,
-        debug_sheets: debugSheets,
-        synced_at: new Date().toISOString(),
-      }),
-    };
-
-    if (Array.isArray(existingDocs) && existingDocs.length > 0) {
-      knowledgeDoc = await base44.asServiceRole.entities.KnowledgeDocument.update(
-        existingDocs[0].id,
-        knowledgePayload
-      );
-    } else {
-      knowledgeDoc = await base44.asServiceRole.entities.KnowledgeDocument.create(knowledgePayload);
+      if (Array.isArray(existingDocs) && existingDocs.length > 0) {
+        knowledgeDoc = await base44.asServiceRole.entities.KnowledgeDocument.update(
+          existingDocs[0].id,
+          knowledgePayload
+        );
+      } else {
+        knowledgeDoc = await base44.asServiceRole.entities.KnowledgeDocument.create(knowledgePayload);
+      }
+    } catch (error) {
+      stageErrors.knowledge_document = serializeError(error);
     }
 
     let processados = 0;
     let erros = 0;
+    const programacaoErrors: any[] = [];
 
     for (const ev of eventos) {
       const payload = {
         ...ev,
         knowledge_document_id: knowledgeDoc?.id || '',
-        storage_file_url: fileUrl,
+        storage_file_url: fileUrl || '',
         sync_source_url: sourceUrl,
         updated_at: new Date().toISOString(),
       };
@@ -604,9 +633,20 @@ Deno.serve(async (req) => {
 
         processados++;
       } catch (error) {
-        console.error('Erro ao sincronizar evento:', ev?.titulo, ev?.data_inicio, error);
         erros++;
+        if (programacaoErrors.length < 20) {
+          programacaoErrors.push({
+            titulo: ev?.titulo || '',
+            data_inicio: ev?.data_inicio || '',
+            museu: ev?.museu || '',
+            error: serializeError(error),
+          });
+        }
       }
+    }
+
+    if (programacaoErrors.length > 0) {
+      stageErrors.programacao = programacaoErrors;
     }
 
     return Response.json({
@@ -616,21 +656,25 @@ Deno.serve(async (req) => {
       total_processados: processados,
       total_erros: erros,
       source_url: sourceUrl,
-      storage_file_url: fileUrl,
+      storage_file_url: fileUrl || '',
       knowledge_document_id: knowledgeDoc?.id || '',
       items: eventos,
       grouped_by_museum_and_month: groupByMuseumAndMonth(eventos),
       sheets_lidas: workbook.SheetNames,
       debug_sheets: debugSheets,
+      stage_errors: stageErrors,
       message: 'Programação sincronizada com sucesso.',
     });
   } catch (error) {
     return Response.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : 'Erro inesperado ao sincronizar programação.',
+        stage: 'unexpected_top_level',
+        error: serializeError(error),
+        debug_sheets: debugSheets,
+        stage_errors: stageErrors,
       },
-      { status: 500 }
+      { status: 200 }
     );
   }
 });
