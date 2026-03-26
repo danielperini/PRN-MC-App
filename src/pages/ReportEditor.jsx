@@ -218,46 +218,65 @@ function ReportEditorInner() {
     onSuccess: (saved) => {
       queryClient.invalidateQueries(['report', reportId]);
       queryClient.invalidateQueries(['my-reports']);
-      const submitMutation = useMutation({
+     const submitMutation = useMutation({
   mutationFn: async () => {
-    return await runWithFeedback(
-      async () => {
-        if (!declaracaoAceita) {
-          throw new Error('Aceite a declaração antes de enviar');
-        }
+    if (!declaracaoAceita) {
+      toast.error('Aceite a declaração de responsabilidade antes de enviar.');
+      throw new Error('Declaração não aceita');
+    }
+    if (!formData.mes_referencia) {
+      toast.error('Selecione o mês de referência antes de enviar.');
+      throw new Error('Mês obrigatório');
+    }
+    if (!formData.author_name) {
+      toast.error('Informe o nome do profissional antes de enviar.');
+      throw new Error('Nome obrigatório');
+    }
+    if (!formData.museu) {
+      toast.error('Selecione o museu antes de enviar.');
+      throw new Error('Museu obrigatório');
+    }
 
-        if (!formData.mes_referencia) {
-          throw new Error('Selecione o mês de referência');
-        }
+    const { id, created_date, updated_date, created_by, ...payload } = formData;
 
-        if (!formData.author_name) {
-          throw new Error('Informe o nome do profissional');
-        }
+    if (!reportId && !payload.numero_protocolo) {
+      payload.numero_protocolo = await gerarNumeroProtocolo(
+        payload.mes_referencia,
+        payload.ano || 2026
+      );
+    }
 
-        if (!formData.museu) {
-          throw new Error('Selecione o museu');
-        }
+    const data = { ...payload, status: 'SUBMITTED' };
 
-        const { id, created_date, updated_date, created_by, ...payload } = formData;
+    return reportId
+      ? base44.entities.Report.update(reportId, data)
+      : base44.entities.Report.create(data);
+  },
 
-        if (!reportId && !payload.numero_protocolo) {
-          payload.numero_protocolo = await gerarNumeroProtocolo(
-            payload.mes_referencia,
-            payload.ano || 2026
-          );
-        }
+  onSuccess: () => {
+    setShowSubmitConfirm(false);
+    queryClient.invalidateQueries(['my-reports']);
+    toast.success('Relatório enviado para revisão!', {
+      description: '✓ O coordenador será notificado em breve.'
+    });
+    setTimeout(() => navigate(createPageUrl('Dashboard')), 1500);
+  },
 
-        const data = {
-          ...payload,
-          status: 'SUBMITTED',
-        };
+  onError: (e) => {
+    const silentErrors = [
+      'Declaração não aceita',
+      'Mês obrigatório',
+      'Nome obrigatório',
+      'Museu obrigatório'
+    ];
 
-        return reportId
-          ? base44.entities.Report.update(reportId, data)
-          : base44.entities.Report.create(data);
-      },
-      {
-        loading: 'Enviando relatório...',
+    if (!silentErrors.includes(e.message)) {
+      toast.error('Erro ao enviar relatório', {
+        description: 'Não foi possível enviar. Tente novamente.'
+      });
+    }
+  }
+});
         success: 'Relatório enviado para revisão',
         error: 'Erro ao enviar relatório',
       }
