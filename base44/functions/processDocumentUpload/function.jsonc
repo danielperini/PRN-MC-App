@@ -1,4 +1,4 @@
 {
-  "name": "processDocumentUpload",
-  "entry": "entry.ts"
+  "runtime": "deno",
+  "entrypoint": "entry.ts"
 }
