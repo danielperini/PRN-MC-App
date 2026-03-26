@@ -3,12 +3,15 @@ import { appParams } from '@/lib/app-params';
 
 const { appId, token, functionsVersion, appBaseUrl } = appParams;
 
-//Create a client with authentication required
+if (!appId) {
+  console.error('VITE_BASE44_APP_ID não configurado.');
+}
+
 export const base44 = createClient({
   appId,
-  token,
+  token: token || undefined,
   functionsVersion,
   serverUrl: '',
-  requiresAuth: false,
-  appBaseUrl
+  requiresAuth: true,
+  appBaseUrl,
 });
