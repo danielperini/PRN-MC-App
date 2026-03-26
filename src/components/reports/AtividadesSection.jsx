@@ -235,6 +235,29 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId
     return Number.isNaN(n) ? fallback : n;
   };
 
+
+  const normalizeIntString = (value, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
+    if (value === '' || value === null || value === undefined) return '';
+    const n = toInt(value, min);
+    const clamped = Math.max(min, Math.min(max, n));
+    return String(clamped);
+  };
+
+  const toFloat = (value, fallback = 0) => {
+    if (value === '' || value === null || value === undefined) return fallback;
+    const normalized = String(value).replace(',', '.');
+    const n = parseFloat(normalized);
+    return Number.isNaN(n) ? fallback : n;
+  };
+
+  const normalizeMoneyString = (value) => {
+    if (value === '' || value === null || value === undefined) return '';
+    const n = Math.max(0, toFloat(value, 0));
+    // Keep it stable: up to 2 decimals, trim trailing zeros.
+    const fixed = n.toFixed(2);
+    return fixed.replace(/\.00$/, '').replace(/(\.[0-9])0$/, '$1');
+  };
+
   const updateCamposDerivados = (field, rawValue) => {
     const proximaQuantidade =
       field === 'quantas_repeticoes'
@@ -629,9 +652,31 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                 value={atividade.publico_estimado ?? ''}
                 onChange={e => {
                   const raw = e.target.value;
-                  onChange('publico_estimado', raw === '' ? '' : toInt(raw, 0));
+
+                  if (raw === '') {
+                    onChange('publico_estimado', '');
+                    return;
+                  }
+
+                  if (/^\d+$/.test(raw)) {
+                    onChange('publico_estimado', raw);
+                  }
+                }}
+                onBlur={() => {
+                  if (
+                    atividade.publico_estimado === '' ||
+                    atividade.publico_estimado === null ||
+                    atividade.publico_estimado === undefined
+                  ) {
+                    return;
+                  }
+
+                  const normalizadoStr = normalizeIntString(atividade.publico_estimado, { min: 0 });
+                  onChange('publico_estimado', normalizadoStr);
                 }}
                 disabled={!canEdit}
+                min="0"
+                inputMode="numeric"
               />
             </Field>
 
@@ -664,8 +709,10 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                     return;
                   }
 
-                  const normalizado = Math.max(0, Math.min(99, toInt(atividade.quantas_repeticoes, 0)));
-                  onChange('quantas_repeticoes', normalizado);
+                  const normalizadoStr = normalizeIntString(atividade.quantas_repeticoes, { min: 0, max: 99 });
+
+                  const normalizado = toInt(normalizadoStr, 0);
+                  onChange('quantas_repeticoes', normalizadoStr);
                   onChange('atividades_total', normalizado);
                   onChange(
                     'produtos_total',
@@ -730,8 +777,10 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                     return;
                   }
 
-                  const normalizado = Math.max(0, toInt(atividade.quantidade_produto, 0));
-                  onChange('quantidade_produto', normalizado);
+                  const normalizadoStr = normalizeIntString(atividade.quantidade_produto, { min: 0 });
+
+                  const normalizado = toInt(normalizadoStr, 0);
+                  onChange('quantidade_produto', normalizadoStr);
                   onChange(
                     'produtos_total',
                     normalizado * toInt(atividade.quantas_repeticoes, 0)
@@ -795,9 +844,33 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                       type="number"
                       placeholder="Ex: 5"
                       value={atividade.numero_trabalhadores ?? ''}
-                      onChange={e => onChange('numero_trabalhadores', parseInt(e.target.value) || '')}
+                      onChange={e => {
+                        const raw = e.target.value;
+
+                        if (raw === '') {
+                          onChange('numero_trabalhadores', '');
+                          return;
+                        }
+
+                        if (/^\d+$/.test(raw)) {
+                          onChange('numero_trabalhadores', raw);
+                        }
+                      }}
+                      onBlur={() => {
+                        if (
+                          atividade.numero_trabalhadores === '' ||
+                          atividade.numero_trabalhadores === null ||
+                          atividade.numero_trabalhadores === undefined
+                        ) {
+                          return;
+                        }
+
+                        const normalizadoStr = normalizeIntString(atividade.numero_trabalhadores, { min: 0 });
+                        onChange('numero_trabalhadores', normalizadoStr);
+                      }}
                       disabled={!canEdit}
                       min="0"
+                      inputMode="numeric"
                     />
                   </Field>
                   <Field label="Número de empresas envolvidas">
@@ -805,9 +878,33 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                       type="number"
                       placeholder="Ex: 2"
                       value={atividade.numero_empresas ?? ''}
-                      onChange={e => onChange('numero_empresas', parseInt(e.target.value) || '')}
+                      onChange={e => {
+                        const raw = e.target.value;
+
+                        if (raw === '') {
+                          onChange('numero_empresas', '');
+                          return;
+                        }
+
+                        if (/^\d+$/.test(raw)) {
+                          onChange('numero_empresas', raw);
+                        }
+                      }}
+                      onBlur={() => {
+                        if (
+                          atividade.numero_empresas === '' ||
+                          atividade.numero_empresas === null ||
+                          atividade.numero_empresas === undefined
+                        ) {
+                          return;
+                        }
+
+                        const normalizadoStr = normalizeIntString(atividade.numero_empresas, { min: 0 });
+                        onChange('numero_empresas', normalizadoStr);
+                      }}
                       disabled={!canEdit}
                       min="0"
+                      inputMode="numeric"
                     />
                   </Field>
                   <Field label="Valor aproximado gasto (R$)">
@@ -815,7 +912,30 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                       type="number"
                       placeholder="Ex: 5000.00"
                       value={atividade.valor_aproximado ?? ''}
-                      onChange={e => onChange('valor_aproximado', parseFloat(e.target.value) || '')}
+                      onChange={e => {
+                        const raw = e.target.value;
+
+                        if (raw === '') {
+                          onChange('valor_aproximado', '');
+                          return;
+                        }
+
+                        if (/^\d+(?:[\.,]\d{0,2})?$/.test(raw)) {
+                          onChange('valor_aproximado', raw);
+                        }
+                      }}
+                      onBlur={() => {
+                        if (
+                          atividade.valor_aproximado === '' ||
+                          atividade.valor_aproximado === null ||
+                          atividade.valor_aproximado === undefined
+                        ) {
+                          return;
+                        }
+
+                        const normalizadoStr = normalizeMoneyString(atividade.valor_aproximado);
+                        onChange('valor_aproximado', normalizadoStr);
+                      }}
                       disabled={!canEdit}
                       min="0"
                       step="0.01"
