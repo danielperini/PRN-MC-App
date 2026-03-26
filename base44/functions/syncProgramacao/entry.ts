@@ -1,680 +1,620 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 import * as XLSX from 'npm:xlsx@0.18.5';
+import { format } from 'npm:date-fns@2.30.0';
+import { ptBR } from 'npm:date-fns@2.30.0/locale';
 
 const SHEET_ID = '1I8Tbj5URR7gEX_zZEAFVIkAAfBCs58LC';
-
-const MONTHS_PT: Record<string, number> = {
-  janeiro: 1,
-  fevereiro: 2,
-  marco: 3,
-  março: 3,
-  abril: 4,
-  maio: 5,
-  junho: 6,
-  julho: 7,
-  agosto: 8,
-  setembro: 9,
-  outubro: 10,
-  novembro: 11,
-  dezembro: 12,
-};
+const SOURCE_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
+const XLSX_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=xlsx`;
 
 function normalizeText(value: any) {
   return String(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+    .trim()
+    .toLowerCase();
 }
 
-function safeString(value: any) {
-  return String(value || '').trim();
-}
+function cleanValue(value: any) {
+  if (value === null || value === undefined) return '';
 
-function normalizeHeader(value: any) {
-  return normalizeText(value)
-    .replace(/[^a-z0-9 ]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function uniqueStrings(values: any[]) {
-  return Array.from(
-    new Set((values || []).map((v) => safeString(v)).filter(Boolean))
-  );
-}
-
-function toBase64(buffer: ArrayBuffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  const chunkSize = 0x8000;
-
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const d = String(value.getDate()).padStart(2, '0');
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const y = value.getFullYear();
+    return `${d}/${m}/${y}`;
   }
 
-  return btoa(binary);
+  return String(value).trim();
 }
 
-function detectMuseu(text = '') {
-  const t = normalizeText(text);
+function normalizeHeader(value: any, index: number) {
+  const clean = cleanValue(value);
+  return clean || `coluna_${index + 1}`;
+}
 
-  if (t.includes('mhab')) return 'MHAB';
-  if (t.includes('mis')) return 'MIS';
-  if (t.includes('mumo') || t.includes('mumu')) return 'MUMO';
-  if (t.includes('atuacao geral')) return 'Atuação Geral';
+function extractSheetMonthYear(sheetName = '') {
+  const sheetText = normalizeText(sheetName);
 
+  const monthMap: Record<string, number> = {
+    janeiro: 1,
+    fevereiro: 2,
+    marco: 3,
+    abril: 4,
+    maio: 5,
+    junho: 6,
+    julho: 7,
+    agosto: 8,
+    setembro: 9,
+    outubro: 10,
+    novembro: 11,
+    dezembro: 12,
+  };
+
+  let inferredMonth: number | null = null;
+  let inferredYear: number | null = null;
+
+  for (const [name, num] of Object.entries(monthMap)) {
+    if (sheetText.includes(name)) {
+      inferredMonth = num;
+      break;
+    }
+  }
+
+  const yearMatch = sheetText.match(/(20\d{2}|\d{2})/);
+  if (yearMatch) {
+    inferredYear = Number(yearMatch[1]);
+    if (inferredYear < 100) inferredYear += 2000;
+  }
+
+  return { inferredMonth, inferredYear, monthMap };
+}
+
+function parseDateWithSheetContext(value: any, sheetName = ''): Date | null {
+  if (!value && value !== 0) return null;
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+
+  const text = String(value).trim();
+  if (!text) return null;
+
+  if (typeof value === 'number' && Number.isFinite(value) && value > 20000 && value < 80000) {
+    try {
+      const parsed = XLSX.SSF.parse_date_code(value);
+      if (parsed?.y && parsed?.m && parsed?.d) {
+        return new Date(parsed.y, parsed.m - 1, parsed.d);
+      }
+    } catch (_) {
+      // ignora
+    }
+  }
+
+  const direct = new Date(text);
+  if (!Number.isNaN(direct.getTime()) && /\d{4}/.test(text)) return direct;
+
+  const { inferredMonth, inferredYear, monthMap } = extractSheetMonthYear(sheetName);
+
+  const fullBr = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (fullBr) {
+    let year = Number(fullBr[3]);
+    if (year < 100) year += 2000;
+    return new Date(year, Number(fullBr[2]) - 1, Number(fullBr[1]));
+  }
+
+  const partialBr = text.match(/^(\d{1,2})[\/.-](\d{1,2})$/);
+  if (partialBr && inferredYear) {
+    return new Date(inferredYear, Number(partialBr[2]) - 1, Number(partialBr[1]));
+  }
+
+  const textual = text.match(/(\d{1,2})(?:\s*a\s*\d{1,2})?\s+de\s+([a-zç]+)(?:\s+de\s+(20\d{2}|\d{2}))?/i);
+  if (textual) {
+    const day = Number(textual[1]);
+    const monthName = normalizeText(textual[2]);
+    const month = monthMap[monthName];
+    let year = textual[3] ? Number(textual[3]) : inferredYear || new Date().getFullYear();
+    if (year < 100) year += 2000;
+    if (month) return new Date(year, month - 1, day);
+  }
+
+  const firstDatePeriod = text.match(/(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?/);
+  if (firstDatePeriod) {
+    const day = Number(firstDatePeriod[1]);
+    const month = Number(firstDatePeriod[2]);
+    let year = firstDatePeriod[3] ? Number(firstDatePeriod[3]) : inferredYear || new Date().getFullYear();
+    if (year < 100) year += 2000;
+    return new Date(year, month - 1, day);
+  }
+
+  if (inferredMonth && inferredYear) {
+    const dayOnly = text.match(/^(\d{1,2})$/);
+    if (dayOnly) {
+      return new Date(inferredYear, inferredMonth - 1, Number(dayOnly[1]));
+    }
+  }
+
+  return null;
+}
+
+function detectMuseum(equipamento: string, values: Record<string, any>) {
+  const sourceText = `${equipamento} ${values?.local || ''} ${values?.endereco_completo || ''}`;
+  const text = normalizeText(sourceText);
+
+  if (text.includes('mhab') || text.includes('abilio barreto') || text.includes('abílio barreto')) return 'MHAB';
+  if (text.includes('mis') || text.includes('imagem e do som') || text.includes('imagem e som')) return 'MIS';
+  if (text.includes('mumo') || text.includes('mumu') || text.includes('museu da moda')) return 'MUMO';
   return 'Externo';
 }
 
-function parseSheetMonthYear(sheetName: string) {
-  const text = normalizeText(sheetName);
-  const monthName = Object.keys(MONTHS_PT).find((m) => text.includes(m));
-  const yearMatch = text.match(/(20\d{2}|\d{2})/);
+function summarizeActivity(values: Record<string, any>) {
+  const nome = values.nome_divulgacao || values.nome || '';
+  const sinopse = values.sinopse || '';
+  const tipo = values.tipo_de_atividade || '';
+  const formato = values.formato || '';
+  const data = values.data || '';
+  const horario = values.horario || '';
+  const publico = values.publico_alvo || '';
+  const acessibilidade = values.acessibilidade || '';
+  const vagas = values.vagas || '';
+  const inscricao = values.inscricao_acesso || '';
+  const contato = values.contato_da_atracao || '';
+  const local = values.local || '';
+  const endereco = values.endereco_completo || '';
+  const status = values.status || '';
+  const referencia = values.pessoa_de_referencia || '';
+  const contratacao = values.contratacao || '';
+  const insumos = values.insumos || '';
+  const fotografia = values.fotografia || '';
+  const necessidades = values.outras_necessidades || '';
+  const divulgacao = values.material_de_divulgacao || '';
+  const servico = values.servico || '';
+  const briefing = values.briefing || '';
+  const classificacao = values.classificacao_indicativa || '';
+  const minibios = values.minibios || '';
+  const valor = values.valor || '';
 
-  if (!monthName || !yearMatch) return null;
-
-  let year = Number(yearMatch[1]);
-  if (year < 100) year += 2000;
-
-  return {
-    month: MONTHS_PT[monthName],
-    year,
-  };
-}
-
-function buildISO(year: number, month: number, day: number) {
-  if (!year || !month || !day) return null;
-
-  const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-  const d = new Date(`${iso}T00:00:00.000Z`);
-
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
-}
-
-function parseFlexibleDateList(value: any, sheetName = '') {
-  const original = safeString(value);
-  if (!original) return [];
-
-  const text = original.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-
-  const monthYear = parseSheetMonthYear(sheetName);
-  const results: string[] = [];
-  const seen = new Set<string>();
-
-  const pushIso = (iso: string | null) => {
-    if (!iso) return;
-    const key = iso.slice(0, 10);
-    if (seen.has(key)) return;
-    seen.add(key);
-    results.push(iso);
-  };
-
-  for (const match of text.matchAll(/\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/g)) {
-    let year = Number(match[3]);
-    if (year < 100) year += 2000;
-    pushIso(buildISO(year, Number(match[2]), Number(match[1])));
-  }
-
-  for (const match of text.matchAll(/\b(\d{1,2})\/(\d{1,2})\b/g)) {
-    const year = monthYear?.year;
-    if (!year) continue;
-    pushIso(buildISO(year, Number(match[2]), Number(match[1])));
-  }
-
-  for (const monthName of Object.keys(MONTHS_PT)) {
-    const regex = new RegExp(
-      `(\\d{1,2}(?:\\s*,\\s*\\d{1,2})*(?:\\s*e\\s*\\d{1,2})?)\\s+de\\s+${monthName}`,
-      'gi'
-    );
-
-    for (const match of text.matchAll(regex)) {
-      const days = (match[1] || '').match(/\d{1,2}/g) || [];
-      const year = monthYear?.year || new Date().getUTCFullYear();
-      const month = MONTHS_PT[monthName];
-
-      for (const day of days) {
-        pushIso(buildISO(year, month, Number(day)));
-      }
-    }
-  }
-
-  if (results.length === 0) {
-    const parsed = new Date(original);
-    if (!Number.isNaN(parsed.getTime())) {
-      pushIso(parsed.toISOString());
-    }
-  }
-
-  return results.sort((a, b) => a.localeCompare(b));
-}
-
-function buildMonthKey(iso: string | null) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-}
-
-function formatMonthLabel(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString('pt-BR', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
-function groupByMuseumAndMonth(items: any[]) {
-  const grouped: Record<string, Record<string, any[]>> = {};
-
-  for (const item of items) {
-    if (!item?.data_inicio) continue;
-
-    const monthLabel = formatMonthLabel(item.data_inicio);
-    const museu = item.museu || 'Externo';
-
-    if (!grouped[monthLabel]) grouped[monthLabel] = {};
-    if (!grouped[monthLabel][museu]) grouped[monthLabel][museu] = [];
-
-    grouped[monthLabel][museu].push(item);
-  }
-
-  Object.values(grouped).forEach((museus: any) => {
-    Object.values(museus).forEach((arr: any) => {
-      arr.sort((a: any, b: any) => (a.data_inicio || '').localeCompare(b.data_inicio || ''));
-    });
-  });
-
-  return grouped;
-}
-
-function scoreHeaderRow(rowA: any[] = [], rowB: any[] = []) {
-  const headers: string[] = [];
-  const max = Math.max(rowA.length, rowB.length);
-
-  for (let i = 0; i < max; i++) {
-    headers.push(normalizeHeader(`${rowA[i] || ''} ${rowB[i] || ''}`));
-  }
-
-  const joined = headers.join(' | ');
-  let score = 0;
-
-  if (joined.includes('equipamento')) score += 3;
-  if (joined.includes('nome da acao')) score += 5;
-  if (joined.includes('sinopse')) score += 3;
-  if (joined.includes('tipo de atividade')) score += 3;
-  if (joined.includes('data')) score += 5;
-  if (joined.includes('horario')) score += 4;
-  if (joined.includes('vagas')) score += 3;
-  if (joined.includes('inscricao acesso')) score += 3;
-  if (joined.includes('material de divulgacao aprovado')) score += 3;
-
-  return { score, headers };
-}
-
-function detectHeader(matrix: any[][]) {
-  let best = {
-    score: -1,
-    headerIndex: 0,
-    dataStartIndex: 1,
-    headers: [] as string[],
-  };
-
-  for (let i = 0; i < Math.min(matrix.length, 12); i++) {
-    const singleHeaders = (matrix[i] || []).map(normalizeHeader);
-    const singleJoined = singleHeaders.join(' | ');
-    let singleScore = 0;
-
-    if (singleJoined.includes('equipamento')) singleScore += 3;
-    if (singleJoined.includes('nome da acao')) singleScore += 5;
-    if (singleJoined.includes('sinopse')) singleScore += 3;
-    if (singleJoined.includes('data')) singleScore += 5;
-    if (singleJoined.includes('horario')) singleScore += 4;
-    if (singleJoined.includes('vagas')) singleScore += 3;
-
-    if (singleScore > best.score) {
-      best = {
-        score: singleScore,
-        headerIndex: i,
-        dataStartIndex: i + 1,
-        headers: singleHeaders,
-      };
-    }
-
-    if (i < matrix.length - 1) {
-      const combined = scoreHeaderRow(matrix[i] || [], matrix[i + 1] || []);
-      if (combined.score > best.score) {
-        best = {
-          score: combined.score,
-          headerIndex: i,
-          dataStartIndex: i + 2,
-          headers: combined.headers,
-        };
-      }
-    }
-  }
-
-  return best.score >= 8 ? best : null;
-}
-
-function rowToObject(headers: string[], row: any[]) {
-  const obj: Record<string, any> = {};
-
-  headers.forEach((header, index) => {
-    if (!header) return;
-    obj[header] = row[index];
-  });
-
-  return obj;
-}
-
-function getCell(row: Record<string, any>, keys: string[]) {
-  const rowKeys = Object.keys(row);
-
-  for (const key of keys) {
-    const normalizedKey = normalizeHeader(key);
-
-    const exactMatch = rowKeys.find((k) => normalizeHeader(k) === normalizedKey);
-    if (exactMatch) {
-      const value = row[exactMatch];
-      if (value !== undefined && value !== null && safeString(value) !== '') {
-        return value;
-      }
-    }
-
-    const partialMatch = rowKeys.find((k) => normalizeHeader(k).includes(normalizedKey));
-    if (partialMatch) {
-      const value = row[partialMatch];
-      if (value !== undefined && value !== null && safeString(value) !== '') {
-        return value;
-      }
-    }
-  }
-
-  return '';
-}
-
-function inferTitleFromRow(row: Record<string, any>) {
-  const candidates = Object.values(row)
-    .map((v) => safeString(v))
+  return [
+    nome ? `${nome}.` : '',
+    sinopse || '',
+    tipo || formato ? `Trata-se de uma atividade ${[tipo, formato].filter(Boolean).join(', ')}.` : '',
+    data || horario ? `A programação acontece ${[data && `em ${data}`, horario && `às ${horario}`].filter(Boolean).join(' ')}.` : '',
+    local || endereco ? `Será realizada em ${[local, endereco].filter(Boolean).join(', ')}.` : '',
+    publico ? `Público-alvo: ${publico}.` : '',
+    acessibilidade ? `Acessibilidade: ${acessibilidade}.` : '',
+    classificacao ? `Classificação indicativa: ${classificacao}.` : '',
+    vagas ? `Número de vagas: ${vagas}.` : '',
+    inscricao ? `Forma de inscrição ou acesso: ${inscricao}.` : '',
+    contato ? `Contato da atração: ${contato}.` : '',
+    referencia ? `Pessoa de referência: ${referencia}.` : '',
+    valor ? `Valor informado: ${valor}.` : '',
+    status ? `Status da atividade: ${status}.` : '',
+    contratacao ? `Situação de contratação: ${contratacao}.` : '',
+    insumos ? `Insumos previstos: ${insumos}.` : '',
+    fotografia ? `Necessidade de fotografia: ${fotografia}.` : '',
+    necessidades ? `Outras necessidades: ${necessidades}.` : '',
+    divulgacao ? `Divulgação prevista em: ${divulgacao}.` : '',
+    servico ? `Serviços relacionados: ${servico}.` : '',
+    briefing ? `Briefing disponível em: ${briefing}.` : '',
+    minibios ? `Minibio(s): ${minibios}.` : '',
+  ]
     .filter(Boolean)
-    .filter((v) => v.length > 4);
-
-  const best = candidates.find((v) => {
-    const n = normalizeText(v);
-    if (!n) return false;
-    if (n.includes('programacao museus centro')) return false;
-    if (n.includes('mes:')) return false;
-    if (n.includes('data de fechamento')) return false;
-    if (n.includes('equipamento')) return false;
-    if (n.includes('nome da acao')) return false;
-    return true;
-  });
-
-  return best || '';
+    .join(' ');
 }
 
-function normalizeProgramacaoRows(row: Record<string, any>, sheetName: string) {
-  const equipamento = safeString(getCell(row, ['equipamento']));
-  const titulo =
-    safeString(getCell(row, ['nome da acao', 'programacao nome da acao', 'programacao', 'nome'])) ||
-    inferTitleFromRow(row);
+function mapHeaderKey(header: string) {
+  const h = normalizeText(header);
 
-  const descricao = safeString(getCell(row, ['sinopse', 'descricao', 'descrição', 'resumo']));
-  const tipo = safeString(getCell(row, ['tipo de atividade', 'tipo']));
-  const formato = safeString(getCell(row, ['formato']));
-  const dataRaw = getCell(row, ['data']);
-  const horario = safeString(getCell(row, ['horario']));
-  const publico = safeString(getCell(row, ['publico alvo', 'público alvo']));
-  const acessibilidade = safeString(getCell(row, ['acessibilidade']));
-  const classificacao = safeString(
-    getCell(row, ['classificacao indicativa', 'classificação indicativa'])
-  );
-  const vagas = safeString(getCell(row, ['vagas']));
-  const inscricao = safeString(
-    getCell(row, ['inscricao acesso', 'inscricao', 'link inscricao', 'link inscrição', 'link'])
-  );
-  const linkImagens = safeString(getCell(row, ['link de imagens', 'link imagens']));
-  const minibios = safeString(getCell(row, ['minibios', 'mini bios', 'minibio']));
-  const materialDivulgacao = safeString(
-    getCell(row, ['material de divulgacao aprovado', 'material divulgacao aprovado'])
-  );
-  const observacoes = safeString(getCell(row, ['observacoes', 'observações']));
-  const local = safeString(getCell(row, ['local'])) || equipamento;
-  const museu = detectMuseu(`${equipamento} ${titulo} ${local}`);
-  const datas = parseFlexibleDateList(dataRaw, sheetName);
+  if (h === 'equipamento') return 'equipamento';
+  if (h === 'nome' || h.includes('nome da acao') || h.includes('nome da ação')) return 'nome';
+  if (h.includes('nome da programacao') || h.includes('nome da programação')) return 'nome';
+  if (h.includes('nome da atividade para divulgacao') || h.includes('nome da atividade para divulgação')) return 'nome_divulgacao';
+  if (h.includes('sinopse')) return 'sinopse';
+  if (h.includes('tipo de atividade')) return 'tipo_de_atividade';
+  if (h.includes('formato')) return 'formato';
+  if (h === 'data' || h.includes('data ou periodo') || h.includes('data/periodo') || h.includes('periodo')) return 'data';
+  if (h.includes('horario') || h.includes('horário') || h.includes('hora')) return 'horario';
+  if (h.includes('publico-alvo') || h.includes('público-alvo') || h.includes('publico alvo')) return 'publico_alvo';
+  if (h.includes('acessibilidade')) return 'acessibilidade';
+  if (h.includes('classificacao indicativa') || h.includes('classificação indicativa')) return 'classificacao_indicativa';
+  if (h.includes('vagas')) return 'vagas';
+  if (
+    h.includes('inscricao/acesso') ||
+    h.includes('inscrição/acesso') ||
+    h.includes('inscricao') ||
+    h.includes('inscrição')
+  ) return 'inscricao_acesso';
+  if (h.includes('contato da atracao') || h.includes('contato da atração')) return 'contato_da_atracao';
+  if (h === 'valor') return 'valor';
+  if (h.includes('requisicao feita') || h.includes('requisição feita')) return 'requisicao_feita';
+  if (h === 'local') return 'local';
+  if (h.includes('endereco completo') || h.includes('endereço completo')) return 'endereco_completo';
+  if (h === 'status') return 'status';
+  if (h.includes('data de fechamento')) return 'data_de_fechamento';
+  if (h.includes('pessoa de referencia') || h.includes('pessoa de referência')) return 'pessoa_de_referencia';
+  if (h.includes('contratacao') || h.includes('contratação')) return 'contratacao';
+  if (h.includes('insumos')) return 'insumos';
+  if (h.includes('fotografia')) return 'fotografia';
+  if (h.includes('outras necessidades')) return 'outras_necessidades';
+  if (h.includes('link de imagens')) return 'link_imagens';
+  if (h.includes('minibios')) return 'minibios';
+  if (h.includes('material de divulgacao') || h.includes('material de divulgação')) return 'material_de_divulgacao';
+  if (h === 'servico' || h === 'serviço') return 'servico';
+  if (h.includes('briefing')) return 'briefing';
 
-  if (!titulo) return [];
-
-  const datasFinais = datas.length > 0 ? datas : [new Date().toISOString()];
-
-  return datasFinais.map((iso) => ({
-    titulo,
-    nome_acao: titulo,
-    descricao,
-    sinopse: descricao,
-    data: iso.slice(0, 10),
-    data_inicio: iso,
-    data_fim: null,
-    horario,
-    vagas,
-    inscricao,
-    link_inscricao: inscricao,
-    material_divulgacao: materialDivulgacao,
-    link_imagens: linkImagens,
-    minibios,
-    observacoes,
-    tipo,
-    tipo_atividade: tipo,
-    formato,
-    publico_alvo: publico,
-    acessibilidade,
-    classificacao_indicativa: classificacao,
-    local,
-    museu,
-    equipamento: equipamento || museu,
-    origem: 'planilha_publica',
-    ativo: true,
-    status: 'CONFIRMADA',
-    month_key: buildMonthKey(iso),
-    aba_origem: sheetName,
-  }));
+  return h.replace(/[^\w]+/g, '_');
 }
 
-function buildKnowledgeText(eventos: any[], sourceUrl: string) {
-  const lines = [
-    'Base espelhada da programação pública dos Museus Centro.',
-    `Fonte: ${sourceUrl}`,
-    `Total de eventos: ${eventos.length}`,
-    '',
+function scoreHeaderRow(row: any[]) {
+  const normalized = (row || []).map((cell) => normalizeText(cell)).join(' ');
+
+  const keywords = [
+    'nome',
+    'atividade',
+    'programacao',
+    'programação',
+    'data',
+    'horario',
+    'horário',
+    'equipamento',
+    'sinopse',
+    'vagas',
+    'inscricao',
+    'inscrição',
+    'local',
   ];
 
-  for (const ev of eventos) {
-    lines.push(`Título: ${ev.titulo}`);
-    lines.push(`Museu: ${ev.museu}`);
-    lines.push(`Aba: ${ev.aba_origem || ''}`);
-    lines.push(`Data: ${ev.data_inicio || ''}`);
-    lines.push(`Horário: ${ev.horario || ''}`);
-    lines.push(`Vagas: ${ev.vagas || ''}`);
-    lines.push(`Inscrição: ${ev.link_inscricao || ''}`);
-    lines.push(`Material de divulgação: ${ev.material_divulgacao || ''}`);
-    lines.push(`Descrição: ${ev.descricao || ''}`);
-    lines.push('---');
-  }
-
-  return lines.join('\n');
+  return keywords.reduce((score, keyword) => {
+    return score + (normalized.includes(normalizeText(keyword)) ? 1 : 0);
+  }, 0);
 }
 
-function serializeError(error: any) {
+function findHeaderRowIndex(matrix: any[][]) {
+  const maxRows = Math.min(matrix.length, 8);
+  let bestIndex = -1;
+  let bestScore = 0;
+
+  for (let i = 0; i < maxRows; i++) {
+    const score = scoreHeaderRow(matrix[i] || []);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = i;
+    }
+  }
+
+  return bestScore >= 2 ? bestIndex : -1;
+}
+
+function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
+  if (!Array.isArray(matrix) || !matrix.length) return [];
+
+  const items: any[] = [];
+
+  let headerRowIndex = -1;
+  let fieldHeaders: string[] = [];
+
+  if (matrix.length >= 3) {
+    const row2 = (matrix[1] || []).map(cleanValue);
+    const row3 = (matrix[2] || []).map(cleanValue);
+
+    const isMainHeader =
+      normalizeText(row2[0]) === 'equipamento' &&
+      (
+        normalizeText(row2[1]) === 'programacao' ||
+        normalizeText(row2[1]) === 'programação'
+      );
+
+    if (isMainHeader) {
+      headerRowIndex = 2;
+      fieldHeaders = row3.map((h, idx) => mapHeaderKey(normalizeHeader(h, idx)));
+    }
+  }
+
+  if (headerRowIndex === -1) {
+    const detectedHeaderIndex = findHeaderRowIndex(matrix);
+    if (detectedHeaderIndex === -1) return items;
+
+    headerRowIndex = detectedHeaderIndex;
+    fieldHeaders = (matrix[headerRowIndex] || []).map((h, idx) =>
+      mapHeaderKey(normalizeHeader(h, idx))
+    );
+  }
+
+  for (let i = headerRowIndex + 1; i < matrix.length; i++) {
+    const row = Array.isArray(matrix[i]) ? matrix[i] : [];
+    const cleanedRow = row.map(cleanValue);
+    const hasAnyValue = cleanedRow.some((v) => String(v || '').trim() !== '');
+    if (!hasAnyValue) continue;
+
+    const values: Record<string, any> = {};
+
+    for (let c = 0; c < fieldHeaders.length; c++) {
+      const key = fieldHeaders[c];
+      if (!key) continue;
+      values[key] = cleanValue(cleanedRow[c]);
+    }
+
+    const equipamento = cleanValue(values.equipamento || cleanedRow[0] || '');
+    const nome =
+      cleanValue(values.nome_divulgacao) ||
+      cleanValue(values.nome) ||
+      '';
+
+    if (!nome) continue;
+
+    const parsedDate = parseDateWithSheetContext(values.data, sheetName);
+    const date = parsedDate || new Date();
+    const museu = detectMuseum(equipamento, values);
+
+    const item = {
+      id: `${sheetName}-${i + rowOffset}-${nome}`,
+      row_index: i + rowOffset,
+      sheet_name: sheetName,
+      month_label: format(date, 'MMMM yyyy', { locale: ptBR }),
+      museu,
+      equipamento,
+      nome,
+      titulo: nome,
+      sinopse: values.sinopse || '',
+      descricao: values.sinopse || '',
+      tipo: values.tipo_de_atividade || '',
+      tipo_atividade: values.tipo_de_atividade || '',
+      formato: values.formato || '',
+      data: values.data || '',
+      data_iso: date.toISOString(),
+      horario: values.horario || '',
+      publico_alvo: values.publico_alvo || '',
+      acessibilidade: values.acessibilidade || '',
+      classificacao_indicativa: values.classificacao_indicativa || '',
+      vagas: values.vagas || '',
+      inscricao: values.inscricao_acesso || '',
+      inscricao_acesso: values.inscricao_acesso || '',
+      contato_da_atracao: values.contato_da_atracao || '',
+      valor: values.valor || '',
+      requisicao_feita: values.requisicao_feita || '',
+      local: values.local || '',
+      endereco_completo: values.endereco_completo || '',
+      status: values.status || '',
+      data_de_fechamento: values.data_de_fechamento || '',
+      pessoa_de_referencia: values.pessoa_de_referencia || '',
+      contratacao: values.contratacao || '',
+      insumos: values.insumos || '',
+      fotografia: values.fotografia || '',
+      outras_necessidades: values.outras_necessidades || '',
+      nome_divulgacao: values.nome_divulgacao || '',
+      link: values.link_imagens || '',
+      link_imagens: values.link_imagens || '',
+      minibios: values.minibios || '',
+      material_de_divulgacao: values.material_de_divulgacao || '',
+      servico: values.servico || '',
+      briefing: values.briefing || '',
+      resumo_ia: summarizeActivity(values),
+      raw: values,
+      raw_values: values,
+    };
+
+    items.push(item);
+  }
+
+  return items;
+}
+
+function dedupeItems(items: any[]) {
+  const seen = new Map<string, any>();
+
+  for (const item of items || []) {
+    const key = [
+      normalizeText(item?.nome),
+      normalizeText(item?.data),
+      normalizeText(item?.horario),
+      normalizeText(item?.museu),
+      normalizeText(item?.local),
+    ].join('|');
+
+    if (!key.replace(/\|/g, '')) continue;
+
+    if (!seen.has(key)) {
+      seen.set(key, item);
+      continue;
+    }
+
+    const prev = seen.get(key) || {};
+    seen.set(key, {
+      ...prev,
+      ...item,
+      sinopse: item.sinopse || prev.sinopse || '',
+      descricao: item.descricao || prev.descricao || '',
+      link_imagens: item.link_imagens || prev.link_imagens || '',
+      minibios: item.minibios || prev.minibios || '',
+      material_de_divulgacao: item.material_de_divulgacao || prev.material_de_divulgacao || '',
+    });
+  }
+
+  return Array.from(seen.values());
+}
+
+function buildProgramacaoPayload(item: any) {
   return {
-    message: error?.message || String(error),
-    name: error?.name || '',
-    stack: error?.stack || '',
-    response: error?.response?.data || null,
-    status: error?.response?.status || null,
+    nome: item.nome || '',
+    titulo: item.titulo || item.nome || '',
+    nome_acao: item.nome || '',
+    data: item.data || '',
+    data_inicio: item.data_iso || '',
+    data_iso: item.data_iso || '',
+    horario: item.horario || '',
+    museu: item.museu || 'Externo',
+    equipamento: item.equipamento || item.museu || 'Externo',
+    local: item.local || '',
+    endereco_completo: item.endereco_completo || '',
+    sinopse: item.sinopse || '',
+    descricao: item.descricao || '',
+    tipo: item.tipo || '',
+    tipo_atividade: item.tipo_atividade || item.tipo || '',
+    formato: item.formato || '',
+    vagas: item.vagas || '',
+    inscricao: item.inscricao || '',
+    link_inscricao: item.inscricao_acesso || item.inscricao || '',
+    material_divulgacao: item.material_de_divulgacao || '',
+    link_imagens: item.link_imagens || '',
+    minibios: item.minibios || '',
+    resumo_ia: item.resumo_ia || '',
+    publico_alvo: item.publico_alvo || '',
+    acessibilidade: item.acessibilidade || '',
+    classificacao_indicativa: item.classificacao_indicativa || '',
+    status: item.status || '',
+    briefing: item.briefing || '',
+    servico: item.servico || '',
+    valor: item.valor || '',
+    origem: 'syncProgramacao',
+    sheet_name: item.sheet_name || '',
+    month_label: item.month_label || '',
+    row_index: item.row_index ?? null,
+    raw_values: item.raw_values || item.raw || {},
   };
+}
+
+async function replaceProgramacao(base44: any, items: any[]) {
+  const existing = await base44.entities.Programacao.list('-created_date', 5000);
+  const existingList = Array.isArray(existing) ? existing : [];
+
+  for (const record of existingList) {
+    if (!record?.id) continue;
+    await base44.entities.Programacao.delete(record.id);
+  }
+
+  let created = 0;
+  const errors: any[] = [];
+
+  for (const item of items) {
+    try {
+      const payload = buildProgramacaoPayload(item);
+      await base44.entities.Programacao.create(payload);
+      created++;
+    } catch (error: any) {
+      errors.push({
+        nome: item?.nome || '',
+        data: item?.data || '',
+        museu: item?.museu || '',
+        error: error?.message || String(error),
+      });
+    }
+  }
+
+  return {
+    deleted_previous: existingList.length,
+    created,
+    errors,
+  };
+}
+
+function countByMuseum(items: any[]) {
+  const map: Record<string, number> = {
+    MIS: 0,
+    MHAB: 0,
+    MUMO: 0,
+    Externo: 0,
+  };
+
+  items.forEach((item) => {
+    const key = item.museu || 'Externo';
+    map[key] = (map[key] || 0) + 1;
+  });
+
+  return map;
 }
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
-  const stageErrors: Record<string, any> = {};
-  const debugSheets: any[] = [];
-  let sourceUrl = '';
-  let fileUrl = '';
-  let knowledgeDoc: any = null;
-
   try {
-    sourceUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=xlsx`;
+    const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
+    const mode = body?.args?.mode || body?.mode || 'manual';
+    const nowIso = new Date().toISOString();
 
-    let buffer: ArrayBuffer;
-    let workbook: XLSX.WorkBook;
-    let contentBase64 = '';
+    const response = await fetch(XLSX_URL);
 
-    try {
-      const response = await fetch(sourceUrl);
-
-      if (!response.ok) {
-        return Response.json(
-          { ok: false, stage: 'download', error: `Falha ao baixar planilha pública: ${response.status}` },
-          { status: 502 }
-        );
-      }
-
-      buffer = await response.arrayBuffer();
-      workbook = XLSX.read(buffer, { type: 'array' });
-      contentBase64 = toBase64(buffer);
-    } catch (error) {
-      return Response.json(
-        { ok: false, stage: 'download_or_parse', error: serializeError(error) },
-        { status: 500 }
+    if (!response.ok) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: `Falha ao ler planilha. HTTP ${response.status}`,
+          source_url: SOURCE_URL,
+        }),
+        {
+          status: 500,
+          headers: { 'content-type': 'application/json' },
+        }
       );
     }
 
-    const eventosBrutos: any[] = [];
+    const arrayBuffer = await response.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+
+    let allItems: any[] = [];
+    let runningOffset = 0;
+    const debugSheets: any[] = [];
 
     for (const sheetName of workbook.SheetNames) {
       try {
-        const sheet = workbook.Sheets[sheetName];
-        const matrix = XLSX.utils.sheet_to_json(sheet, {
+        const ws = workbook.Sheets[sheetName];
+        const matrix = XLSX.utils.sheet_to_json(ws, {
           header: 1,
-          defval: '',
           raw: false,
+          defval: '',
         }) as any[][];
 
-        if (!Array.isArray(matrix) || matrix.length < 2) {
-          debugSheets.push({
-            sheetName,
-            ignored: true,
-            reason: 'aba_sem_dados_suficientes',
-          });
-          continue;
-        }
-
-        const detectedHeader = detectHeader(matrix);
-        const headerInfo = detectedHeader || {
-          score: 0,
-          headerIndex: 0,
-          dataStartIndex: 1,
-          headers: (matrix[0] || []).map(normalizeHeader),
-        };
-
-        const rows = matrix.slice(headerInfo.dataStartIndex);
-        let eventosSheet = 0;
-        let rowsValidas = 0;
-
-        for (const row of rows) {
-          const nonEmptyCount = (row || []).filter((cell) => safeString(cell) !== '').length;
-          if (nonEmptyCount < 2) continue;
-
-          rowsValidas++;
-          const rowObject = rowToObject(headerInfo.headers, row as any[]);
-          const eventos = normalizeProgramacaoRows(rowObject, sheetName);
-
-          if (eventos.length > 0) {
-            eventosBrutos.push(...eventos);
-            eventosSheet += eventos.length;
-          }
-        }
+        const items = normalizeSheet(sheetName, matrix, runningOffset);
+        allItems = allItems.concat(items);
 
         debugSheets.push({
           sheetName,
-          headerDetected: Boolean(detectedHeader),
-          headerIndex: headerInfo.headerIndex,
-          dataStartIndex: headerInfo.dataStartIndex,
-          headers: headerInfo.headers,
-          totalRows: matrix.length,
-          rowsValidas,
-          eventosExtraidos: eventosSheet,
+          totalRows: Array.isArray(matrix) ? matrix.length : 0,
+          eventosExtraidos: items.length,
         });
-      } catch (error) {
+
+        runningOffset += items.length + 10;
+      } catch (error: any) {
         debugSheets.push({
           sheetName,
-          ignored: true,
-          reason: 'erro_na_aba',
-          error: serializeError(error),
+          totalRows: 0,
+          eventosExtraidos: 0,
+          error: error?.message || String(error),
         });
       }
     }
 
-    const uniqueMap = new Map<string, any>();
+    allItems = dedupeItems(allItems);
 
-    for (const ev of eventosBrutos) {
-      const key = [ev.titulo, ev.data_inicio, ev.museu, ev.aba_origem].join('|');
-      if (!uniqueMap.has(key)) uniqueMap.set(key, ev);
-    }
+    const programacaoSync = await replaceProgramacao(base44, allItems);
+    const countsByMuseum = countByMuseum(allItems);
 
-    const eventos = Array.from(uniqueMap.values()).sort((a, b) =>
-      `${a.data_inicio}|${a.titulo}`.localeCompare(`${b.data_inicio}|${b.titulo}`)
-    );
-
-    if (eventos.length === 0) {
-      return Response.json(
-        {
-          ok: false,
-          stage: 'extract',
-          error: 'Nenhum evento válido foi encontrado na planilha.',
-          sheets_lidas: workbook.SheetNames,
-          debug_sheets: debugSheets,
-        },
-        { status: 200 }
-      );
-    }
-
-    try {
-      const upload = await base44.storage.upload({
-        file_name: `programacao_museus_centro_${new Date().toISOString().slice(0, 10)}.xlsx`,
-        content_base64: contentBase64,
-      });
-
-      fileUrl = upload?.file_url || upload?.url || '';
-      if (!fileUrl) {
-        stageErrors.storage = { message: 'Upload sem file_url/url.' };
-      }
-    } catch (error) {
-      stageErrors.storage = serializeError(error);
-    }
-
-    try {
-      const knowledgeTitle = 'Base IA Segmentada - Programação Museus Centro';
-      const knowledgeText = buildKnowledgeText(eventos, sourceUrl);
-
-      const existingDocs = await base44.asServiceRole.entities.KnowledgeDocument.filter(
-        { title: knowledgeTitle },
-        '-updated_date',
-        10
-      );
-
-      const knowledgePayload = {
-        title: knowledgeTitle,
-        name: knowledgeTitle,
-        file_name: `programacao_museus_centro_${new Date().toISOString().slice(0, 10)}.xlsx`,
-        file_url: fileUrl || '',
-        mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        categoria: 'Programação',
-        descricao: 'Espelho da planilha pública de programação dos Museus Centro.',
-        tags: uniqueStrings(['programacao', 'agenda', 'museus', 'planilha_publica']),
-        processing_status: 'processado',
-        status: 'processado',
-        summary: `Base pública sincronizada com ${eventos.length} eventos.`,
-        extracted_text: knowledgeText,
-        analysis: JSON.stringify({
-          source_url: sourceUrl,
-          total_eventos: eventos.length,
-          abas_lidas: workbook.SheetNames,
-          debug_sheets: debugSheets,
-          synced_at: new Date().toISOString(),
-        }),
-      };
-
-      if (Array.isArray(existingDocs) && existingDocs.length > 0) {
-        knowledgeDoc = await base44.asServiceRole.entities.KnowledgeDocument.update(
-          existingDocs[0].id,
-          knowledgePayload
-        );
-      } else {
-        knowledgeDoc = await base44.asServiceRole.entities.KnowledgeDocument.create(knowledgePayload);
-      }
-    } catch (error) {
-      stageErrors.knowledge_document = serializeError(error);
-    }
-
-    let processados = 0;
-    let erros = 0;
-    const programacaoErrors: any[] = [];
-
-    for (const ev of eventos) {
-      const payload = {
-        ...ev,
-        knowledge_document_id: knowledgeDoc?.id || '',
-        storage_file_url: fileUrl || '',
-        sync_source_url: sourceUrl,
-        updated_at: new Date().toISOString(),
-      };
-
-      try {
-        const existing = await base44.asServiceRole.entities.Programacao.filter(
-          {
-            titulo: ev.titulo,
-            data_inicio: ev.data_inicio,
-            museu: ev.museu,
-          },
-          '-updated_date',
-          5
-        );
-
-        if (Array.isArray(existing) && existing.length > 0) {
-          await base44.asServiceRole.entities.Programacao.update(existing[0].id, payload);
-        } else {
-          await base44.asServiceRole.entities.Programacao.create(payload);
-        }
-
-        processados++;
-      } catch (error) {
-        erros++;
-        if (programacaoErrors.length < 20) {
-          programacaoErrors.push({
-            titulo: ev?.titulo || '',
-            data_inicio: ev?.data_inicio || '',
-            museu: ev?.museu || '',
-            error: serializeError(error),
-          });
-        }
-      }
-    }
-
-    if (programacaoErrors.length > 0) {
-      stageErrors.programacao = programacaoErrors;
-    }
-
-    return Response.json({
-      ok: true,
-      synced: true,
-      total_eventos: eventos.length,
-      total_processados: processados,
-      total_erros: erros,
-      source_url: sourceUrl,
-      storage_file_url: fileUrl || '',
-      knowledge_document_id: knowledgeDoc?.id || '',
-      items: eventos,
-      grouped_by_museum_and_month: groupByMuseumAndMonth(eventos),
-      sheets_lidas: workbook.SheetNames,
-      debug_sheets: debugSheets,
-      stage_errors: stageErrors,
-      message: 'Programação sincronizada com sucesso.',
-    });
-  } catch (error) {
-    return Response.json(
-      {
-        ok: false,
-        stage: 'unexpected_top_level',
-        error: serializeError(error),
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        message: 'Programação sincronizada com sucesso.',
+        source_url: SOURCE_URL,
+        source_sheet_id: SHEET_ID,
+        sheet_names: workbook.SheetNames,
+        total_items: allItems.length,
+        counts_by_museum: countsByMuseum,
+        last_sync: nowIso,
+        sync_mode: mode,
         debug_sheets: debugSheets,
-        stage_errors: stageErrors,
-      },
-      { status: 200 }
+        programacao_sync: programacaoSync,
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: error instanceof Error ? error.message : 'Erro inesperado na sincronização.',
+      }),
+      {
+        status: 500,
+        headers: { 'content-type': 'application/json' },
+      }
     );
   }
 });
