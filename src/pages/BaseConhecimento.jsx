@@ -213,12 +213,14 @@ function BaseConhecimentoInner() {
         content_base64: contentBase64,
         titulo: selectedFile.name.replace(/\.[^/.]+$/, ''),
         categoria: 'Biblioteca do Conhecimento',
-        descricao: `Arquivo gravado na biblioteca em ${new Date().toLocaleString('pt-BR')}`,
+        descricao: `Arquivo enviado para a biblioteca em ${new Date().toLocaleString('pt-BR')}`,
         tags: ['biblioteca', 'upload_manual'],
       });
 
-      if (res?.data?.ok === false) {
-        throw new Error(res?.data?.error || 'Falha no processamento do arquivo.');
+      const result = res?.data || {};
+
+      if (!result?.ok || !result?.saved || !result?.knowledge_document_id) {
+        throw new Error(result?.error || 'Arquivo não foi gravado na biblioteca.');
       }
 
       setSelectedFile(null);
@@ -226,13 +228,19 @@ function BaseConhecimentoInner() {
 
       await refreshAll();
 
-      toast.success('Arquivo gravado na biblioteca com sucesso.');
-
-      if (res?.data?.ia_processed) {
-        toast.success('Análise por IA concluída.');
+      if (result?.ia_processed) {
+        toast.success('Arquivo gravado com sucesso.', {
+          description: 'Análise automática concluída.',
+        });
+      } else {
+        toast.success('Arquivo gravado com sucesso.', {
+          description: 'A análise automática não foi concluída.',
+        });
       }
     } catch (error) {
-      toast.error(error?.message || 'Erro ao gravar arquivo na biblioteca.');
+      toast.error('Arquivo não foi gravado na biblioteca.', {
+        description: error?.message || 'O envio falhou antes da gravação.',
+      });
     } finally {
       setUploading(false);
     }
