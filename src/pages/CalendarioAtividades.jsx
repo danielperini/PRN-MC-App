@@ -40,29 +40,7 @@ function parseDateToISO(dataStr) {
   return null;
 }
 
-function normalizeFromEntity(items = []) {
-  return items.map((i) => {
-    const dataISO = parseDateToISO(i.data_inicio || i.data);
-
-    return {
-      id: i.id,
-      nome: i.titulo || i.nome_acao || i.nome || '',
-      data: i.data || dataISO || '',
-      data_iso: dataISO,
-      horario: i.horario || '',
-      museu: i.museu || i.equipamento || 'Externo',
-      sinopse: i.sinopse || i.descricao || '',
-      vagas: i.vagas || '',
-      inscricao: i.link_inscricao || i.inscricao || '',
-      material_divulgacao: i.material_divulgacao || '',
-      link_imagens: i.link_imagens || '',
-      local: i.local || '',
-      raw: i,
-    };
-  });
-}
-
-function normalizeFromSyncItems(items = []) {
+function normalizeItems(items = []) {
   return items.map((i) => {
     const dataISO = parseDateToISO(i.data_inicio || i.data);
 
@@ -114,75 +92,22 @@ function CalendarioAtividadesInner() {
   const [showEditor, setShowEditor] = useState(false);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncInfo, setSyncInfo] = useState(null);
+  const [syncError, setSyncError] = useState(null);
 
-  const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ['agenda-programacao'],
+  const { data: entityData, isLoading, refetch, isFetching } = useQuery({
+    queryKey: ['agenda-programacao-entity'],
     queryFn: async () => {
-      let syncRaw = null;
-      let syncData = {};
-      let syncError = null;
-
-      try {
-        const sync = await base44.functions.invoke('syncProgramacao');
-        syncRaw = sync;
-        syncData = sync?.data || sync || {};
-
-        if (syncData?.ok === false) {
-          syncError = syncData?.error || 'Falha ao sincronizar programação.';
-        }
-      } catch (e) {
-        console.error('Falha no syncProgramacao:', e);
-        syncError =
-          e?.message ||
-          e?.response?.data?.error ||
-          'Erro ao executar syncProgramacao.';
-      }
-
-      let entity = [];
-      let entityError = null;
-
-      try {
-        const list = await base44.entities.Programacao.list('-data_inicio', 1000);
-        entity = Array.isArray(list) ? list : [];
-      } catch (e) {
-        console.error('Falha ao carregar Programacao:', e);
-        entityError =
-          e?.message ||
-          e?.response?.data?.error ||
-          'Erro ao carregar entity Programacao.';
-      }
-
-      return {
-        syncRaw,
-        sync: syncData,
-        syncError,
-        entity,
-        entityError,
-      };
+      const entity = await base44.entities.Programacao.list('-data_inicio', 1000);
+      return Array.isArray(entity) ? entity : [];
     },
   });
 
   const agenda = useMemo(() => {
-    const sync = data?.sync || {};
-
-    if (sync?.agenda) return sync.agenda;
-
-    if (sync?.grouped_by_museum_and_month) {
-      return sync.grouped_by_museum_and_month;
-    }
-
-    if (Array.isArray(sync?.items) && sync.items.length > 0) {
-      const normalized = normalizeFromSyncItems(sync.items);
-      return buildAgendaFromItems(normalized);
-    }
-
-    if (Array.isArray(data?.entity) && data.entity.length > 0) {
-      const normalized = normalizeFromEntity(data.entity);
-      return buildAgendaFromItems(normalized);
-    }
-
-    return {};
-  }, [data]);
+    const normalized = normalizeItems(entityData || []);
+    return buildAgendaFromItems(normalized);
+  }, [entityData]);
 
   const meses = useMemo(() => {
     return Object.entries(agenda)
@@ -218,6 +143,29 @@ function CalendarioAtividadesInner() {
     }, 0);
   }, [meses, filtroMuseu]);
 
+  const sincronizarAgora = async () => {
+    setSyncLoading(true);
+    setSyncError(null);
+    setSyncInfo(null);
+
+    try {
+      const res = await base44.functions.invoke('syncProgramacao');
+      const payload = res?.data || res || {};
+
+      setSyncInfo(payload);
+
+      if (payload?.ok === false) {
+        setSyncError(payload?.error || 'Falha ao sincronizar programação.');
+      }
+
+      await refetch();
+    } catch (e) {
+      setSyncError(e?.message || 'Erro ao executar syncProgramacao.');
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
   const abrirNovo = () => {
     setForm({});
     setShowEditor(true);
@@ -252,13 +200,11 @@ function CalendarioAtividadesInner() {
     }
   };
 
-  const debugSheets = data?.sync?.debug_sheets || [];
-  const totalEventosSync = data?.sync?.total_eventos || 0;
-  const totalProcessados = data?.sync?.total_processados || 0;
-  const totalErros = data?.sync?.total_erros || 0;
-  const syncError = data?.syncError;
-  const entityError = data?.entityError;
-  const entityCount = Array.isArray(data?.entity) ? data.entity.length : 0;
+  const debugSheets = syncInfo?.debug_sheets || [];
+  const totalEventosSync = syncInfo?.total_eventos || 0;
+  const totalProcessados = syncInfo?.total_processados || 0;
+  const totalErros = syncInfo?.total_erros || 0;
+  const entityCount = Array.isArray(entityData) ? entityData.length : 0;
 
   return (
     <div className="w-full py-6">
@@ -283,8 +229,13 @@ function CalendarioAtividadesInner() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button onClick={() => refetch()}>
+            <Button onClick={() => refetch()} variant="outline">
               <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+            </Button>
+
+            <Button onClick={sincronizarAgora} disabled={syncLoading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${syncLoading ? 'animate-spin' : ''}`} />
+              {syncLoading ? 'Sincronizando...' : 'Atualizar da planilha'}
             </Button>
 
             <Button onClick={abrirNovo}>
@@ -296,7 +247,7 @@ function CalendarioAtividadesInner() {
           </div>
         </div>
 
-        {(syncError || entityError || debugSheets.length > 0) && (
+        {(syncError || syncInfo) && (
           <div className="mb-6 border rounded-lg p-4 bg-slate-50 text-sm space-y-3">
             <div className="font-semibold">Diagnóstico da sincronização</div>
 
@@ -328,10 +279,10 @@ function CalendarioAtividadesInner() {
               </div>
             )}
 
-            {entityError && (
-              <div className="border rounded p-3 bg-red-50 text-red-700">
-                <strong>Erro ao ler Programacao:</strong> {entityError}
-              </div>
+            {syncInfo?.stage_errors && (
+              <pre className="border rounded p-3 bg-white overflow-auto text-xs whitespace-pre-wrap">
+                {JSON.stringify(syncInfo.stage_errors, null, 2)}
+              </pre>
             )}
 
             {debugSheets.length > 0 && (
