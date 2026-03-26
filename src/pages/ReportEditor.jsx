@@ -31,7 +31,7 @@ import { Sparkles } from 'lucide-react';
 import SaveTemplateDialog from '../components/templates/SaveTemplateDialog';
 import LoadFromTemplateDialog from '../components/templates/LoadFromTemplateDialog';
 import AttachmentsSection from '../components/reports/AttachmentsSection';
-
+import { runWithFeedback } from '@/lib/actionFeedback';
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
@@ -218,46 +218,65 @@ function ReportEditorInner() {
     onSuccess: (saved) => {
       queryClient.invalidateQueries(['report', reportId]);
       queryClient.invalidateQueries(['my-reports']);
-      toast.success('Rascunho salvo', {
-        description: '✓ Suas alterações foram gravadas com sucesso.'
-      });
+      const submitMutation = useMutation({
+  mutationFn: async () => {
+    return await runWithFeedback(
+      async () => {
+        if (!declaracaoAceita) {
+          throw new Error('Aceite a declaração antes de enviar');
+        }
 
-      if (!reportId && saved?.id) {
-        navigate(createPageUrl(`ReportEditor?id=${saved.id}`), { replace: true });
-      }
-    },
-    onError: () =>
-      toast.error('Erro ao salvar rascunho', {
-        description: 'Não foi possível gravar as alterações. Tente novamente.'
-      })
-  });
+        if (!formData.mes_referencia) {
+          throw new Error('Selecione o mês de referência');
+        }
 
-  const submitMutation = useMutation({
-    mutationFn: async () => {
-      if (!declaracaoAceita) {
-        toast.error('Aceite a declaração de responsabilidade antes de enviar.');
-        throw new Error('Declaração não aceita');
-      }
-      if (!formData.mes_referencia) {
-        toast.error('Selecione o mês de referência antes de enviar.');
-        throw new Error('Mês obrigatório');
-      }
-      if (!formData.author_name) {
-        toast.error('Informe o nome do profissional antes de enviar.');
-        throw new Error('Nome obrigatório');
-      }
-      if (!formData.museu) {
-        toast.error('Selecione o museu antes de enviar.');
-        throw new Error('Museu obrigatório');
-      }
+        if (!formData.author_name) {
+          throw new Error('Informe o nome do profissional');
+        }
 
-      const { id, created_date, updated_date, created_by, ...payload } = formData;
+        if (!formData.museu) {
+          throw new Error('Selecione o museu');
+        }
 
-      if (!reportId && !payload.numero_protocolo) {
-        payload.numero_protocolo = await gerarNumeroProtocolo(payload.mes_referencia, payload.ano || 2026);
+        const { id, created_date, updated_date, created_by, ...payload } = formData;
+
+        if (!reportId && !payload.numero_protocolo) {
+          payload.numero_protocolo = await gerarNumeroProtocolo(
+            payload.mes_referencia,
+            payload.ano || 2026
+          );
+        }
+
+        const data = {
+          ...payload,
+          status: 'SUBMITTED',
+        };
+
+        return reportId
+          ? base44.entities.Report.update(reportId, data)
+          : base44.entities.Report.create(data);
+      },
+      {
+        loading: 'Enviando relatório...',
+        success: 'Relatório enviado para revisão',
+        error: 'Erro ao enviar relatório',
       }
+    );
+  },
 
-      const data = { ...payload, status: 'SUBMITTED' };
+  onSuccess: () => {
+    setShowSubmitConfirm(false);
+    queryClient.invalidateQueries(['my-reports']);
+
+    setTimeout(() => {
+      navigate(createPageUrl('Dashboard'));
+    }, 1200);
+  },
+
+  onError: () => {
+    // já tratado pelo runWithFeedback
+  },
+});
 
       return reportId
         ? base44.entities.Report.update(reportId, data)
