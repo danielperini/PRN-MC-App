@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Calendar, RefreshCw, Plus } from 'lucide-react';
+import { Calendar, RefreshCw, Plus, ExternalLink } from 'lucide-react';
 
 const MUSEUS = ['Todos', 'MHAB', 'MIS', 'MUMO', 'Externo', 'Atuação Geral', 'OUTRO'];
 
@@ -54,6 +54,7 @@ function normalizeFromEntity(items = []) {
       sinopse: i.sinopse || i.descricao || '',
       vagas: i.vagas || '',
       inscricao: i.link_inscricao || i.inscricao || '',
+      material_divulgacao: i.material_divulgacao || '',
       link_imagens: i.link_imagens || '',
       local: i.local || '',
       raw: i,
@@ -134,18 +135,28 @@ function CalendarioAtividadesInner() {
     return {};
   }, [data]);
 
+  // 🔥 CORREÇÃO CRÍTICA: ordenar por data real
   const meses = useMemo(() => {
     return Object.entries(agenda)
       .map(([mes, museus]) => {
         let total = 0;
+        let firstDate = null;
 
         Object.values(museus).forEach((arr) => {
           total += arr.length;
+
+          arr.forEach((item) => {
+            if (item.data_iso) {
+              if (!firstDate || item.data_iso < firstDate) {
+                firstDate = item.data_iso;
+              }
+            }
+          });
         });
 
-        return { mes, museus, total };
+        return { mes, museus, total, firstDate };
       })
-      .sort((a, b) => a.mes.localeCompare(b.mes, 'pt-BR'));
+      .sort((a, b) => (a.firstDate || '').localeCompare(b.firstDate || ''));
   }, [agenda]);
 
   const totalFiltrado = useMemo(() => {
@@ -194,6 +205,7 @@ function CalendarioAtividadesInner() {
   return (
     <div className="w-full py-6">
       <div className="max-w-7xl mx-auto px-4">
+
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex items-center gap-3">
             <Calendar className="w-6 h-6" />
@@ -254,6 +266,7 @@ function CalendarioAtividadesInner() {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+
                         {items.map((a, idx) => (
                           <div
                             key={a.id || idx}
@@ -281,10 +294,42 @@ function CalendarioAtividadesInner() {
 
                             <div className="text-xs mt-3 space-y-1">
                               {a.vagas && <div>Vagas: {a.vagas}</div>}
-                              {a.inscricao && <div>{a.inscricao}</div>}
                             </div>
+
+                            {/* 🔥 LINKS */}
+                            <div className="flex gap-2 mt-3 flex-wrap">
+
+                              {a.inscricao && (
+                                <a
+                                  href={a.inscricao}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Button size="sm" variant="outline">
+                                    Saiba mais <ExternalLink className="w-3 h-3 ml-1" />
+                                  </Button>
+                                </a>
+                              )}
+
+                              {a.material_divulgacao && (
+                                <a
+                                  href={a.material_divulgacao}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Button size="sm" variant="secondary">
+                                    Material divulgação
+                                  </Button>
+                                </a>
+                              )}
+
+                            </div>
+
                           </div>
                         ))}
+
                       </div>
                     </div>
                   ))}
