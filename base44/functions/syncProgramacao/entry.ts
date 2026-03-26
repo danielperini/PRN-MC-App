@@ -275,24 +275,58 @@ function rowToObject(headers: string[], row: any[]) {
 }
 
 function getCell(row: Record<string, any>, keys: string[]) {
-  for (const key of keys) {
-    const foundKey = Object.keys(row).find((k) => k === key || k.includes(key));
-    if (!foundKey) continue;
+  const rowKeys = Object.keys(row);
 
-    const value = row[foundKey];
-    if (value !== undefined && value !== null && safeString(value) !== '') {
-      return value;
+  for (const key of keys) {
+    const normalizedKey = normalizeHeader(key);
+
+    const exactMatch = rowKeys.find((k) => normalizeHeader(k) === normalizedKey);
+    if (exactMatch) {
+      const value = row[exactMatch];
+      if (value !== undefined && value !== null && safeString(value) !== '') {
+        return value;
+      }
+    }
+
+    const partialMatch = rowKeys.find((k) => normalizeHeader(k).includes(normalizedKey));
+    if (partialMatch) {
+      const value = row[partialMatch];
+      if (value !== undefined && value !== null && safeString(value) !== '') {
+        return value;
+      }
     }
   }
 
   return '';
 }
 
+function inferTitleFromRow(row: Record<string, any>) {
+  const candidates = Object.values(row)
+    .map((v) => safeString(v))
+    .filter(Boolean)
+    .filter((v) => v.length > 4);
+
+  const best = candidates.find((v) => {
+    const n = normalizeText(v);
+    if (!n) return false;
+    if (n.includes('programacao museus centro')) return false;
+    if (n.includes('mes:')) return false;
+    if (n.includes('data de fechamento')) return false;
+    if (n.includes('equipamento')) return false;
+    if (n.includes('nome da acao')) return false;
+    return true;
+  });
+
+  return best || '';
+}
+
 function normalizeProgramacaoRows(row: Record<string, any>, sheetName: string) {
   const equipamento = safeString(getCell(row, ['equipamento']));
-  const titulo = safeString(
-    getCell(row, ['nome da acao', 'programacao nome da acao', 'programacao', 'nome'])
-  );
+  const titulo =
+    safeString(
+      getCell(row, ['nome da acao', 'programacao nome da acao', 'programacao', 'nome'])
+    ) || inferTitleFromRow(row);
+
   const descricao = safeString(getCell(row, ['sinopse', 'descricao', 'descrição', 'resumo']));
   const tipo = safeString(getCell(row, ['tipo de atividade', 'tipo']));
   const formato = safeString(getCell(row, ['formato']));
@@ -317,9 +351,13 @@ function normalizeProgramacaoRows(row: Record<string, any>, sheetName: string) {
   const museu = detectMuseu(`${equipamento} ${titulo} ${local}`);
   const datas = parseFlexibleDateList(dataRaw, sheetName);
 
-  if (!titulo || datas.length === 0) return [];
+  if (!titulo) {
+    return [];
+  }
 
-  return datas.map((iso) => ({
+  const datasFinais = datas.length > 0 ? datas : [new Date().toISOString()];
+
+  return datasFinais.map((iso) => ({
     titulo,
     nome_acao: titulo,
     descricao,
@@ -395,6 +433,7 @@ Deno.serve(async (req) => {
     const contentBase64 = toBase64(buffer);
 
     const eventosBrutos: any[] = [];
+    const debugSheets: any[] = [];
 
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
@@ -404,24 +443,51 @@ Deno.serve(async (req) => {
         raw: false,
       }) as any[][];
 
-      if (!Array.isArray(matrix) || matrix.length < 3) continue;
+      if (!Array.isArray(matrix) || matrix.length < 2) {
+        debugSheets.push({
+          sheetName,
+          ignored: true,
+          reason: 'aba_sem_dados_suficientes',
+        });
+        continue;
+      }
 
-      const headerInfo = detectHeader(matrix);
-      if (!headerInfo) continue;
+      const detectedHeader = detectHeader(matrix);
+      const headerInfo = detectedHeader || {
+        score: 0,
+        headerIndex: 0,
+        dataStartIndex: 1,
+        headers: (matrix[0] || []).map(normalizeHeader),
+      };
 
       const rows = matrix.slice(headerInfo.dataStartIndex);
+      let eventosSheet = 0;
+      let rowsValidas = 0;
 
       for (const row of rows) {
         const nonEmptyCount = (row || []).filter((cell) => safeString(cell) !== '').length;
         if (nonEmptyCount < 2) continue;
 
+        rowsValidas++;
         const rowObject = rowToObject(headerInfo.headers, row as any[]);
         const eventos = normalizeProgramacaoRows(rowObject, sheetName);
 
         if (eventos.length > 0) {
           eventosBrutos.push(...eventos);
+          eventosSheet += eventos.length;
         }
       }
+
+      debugSheets.push({
+        sheetName,
+        headerDetected: Boolean(detectedHeader),
+        headerIndex: headerInfo.headerIndex,
+        dataStartIndex: headerInfo.dataStartIndex,
+        headers: headerInfo.headers,
+        totalRows: matrix.length,
+        rowsValidas,
+        eventosExtraidos: eventosSheet,
+      });
     }
 
     const uniqueMap = new Map<string, any>();
@@ -441,6 +507,7 @@ Deno.serve(async (req) => {
           ok: false,
           error: 'Nenhum evento válido foi encontrado na planilha.',
           sheets_lidas: workbook.SheetNames,
+          debug_sheets: debugSheets,
         },
         { status: 400 }
       );
@@ -455,7 +522,11 @@ Deno.serve(async (req) => {
 
     if (!fileUrl) {
       return Response.json(
-        { ok: false, error: 'Falha ao salvar planilha no storage.' },
+        {
+          ok: false,
+          error: 'Falha ao salvar planilha no storage.',
+          debug_sheets: debugSheets,
+        },
         { status: 500 }
       );
     }
@@ -488,6 +559,7 @@ Deno.serve(async (req) => {
         source_url: sourceUrl,
         total_eventos: eventos.length,
         abas_lidas: workbook.SheetNames,
+        debug_sheets: debugSheets,
         synced_at: new Date().toISOString(),
       }),
     };
@@ -549,6 +621,7 @@ Deno.serve(async (req) => {
       items: eventos,
       grouped_by_museum_and_month: groupByMuseumAndMonth(eventos),
       sheets_lidas: workbook.SheetNames,
+      debug_sheets: debugSheets,
       message: 'Programação sincronizada com sucesso.',
     });
   } catch (error) {
