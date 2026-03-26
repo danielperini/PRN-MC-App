@@ -8,22 +8,33 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Calendar, RefreshCw, Plus } from 'lucide-react';
 
-const MUSEUS = ['Todos', 'MHAB', 'MIS', 'MUMO', 'Externo'];
+const MUSEUS = ['Todos', 'MHAB', 'MIS', 'MUMO', 'Externo', 'Atuação Geral', 'OUTRO'];
 
 const MUSEU_COLORS = {
   MHAB: 'bg-purple-500',
   MIS: 'bg-cyan-500',
   MUMO: 'bg-pink-500',
   Externo: 'bg-gray-500',
+  'Atuação Geral': 'bg-amber-500',
+  OUTRO: 'bg-slate-500',
 };
 
 function parseDateToISO(dataStr) {
   if (!dataStr) return null;
 
-  const parts = dataStr.split('/');
+  if (typeof dataStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dataStr)) {
+    return dataStr.slice(0, 10);
+  }
+
+  const parts = String(dataStr).split('/');
   if (parts.length === 3) {
     const [d, m, y] = parts;
-    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+
+  const parsed = new Date(dataStr);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
   }
 
   return null;
@@ -31,18 +42,20 @@ function parseDateToISO(dataStr) {
 
 function normalizeFromEntity(items = []) {
   return items.map((i) => {
-    const data_iso = parseDateToISO(i.data);
+    const dataISO = parseDateToISO(i.data_inicio || i.data);
 
     return {
-      nome: i.nome_acao || '',
-      data: i.data || '',
-      data_iso,
+      id: i.id,
+      nome: i.titulo || i.nome_acao || i.nome || '',
+      data: i.data || dataISO || '',
+      data_iso: dataISO,
       horario: i.horario || '',
-      museu: i.equipamento || 'Externo',
-      sinopse: i.sinopse || '',
+      museu: i.museu || i.equipamento || 'Externo',
+      sinopse: i.sinopse || i.descricao || '',
       vagas: i.vagas || '',
-      inscricao: i.inscricao || '',
+      inscricao: i.link_inscricao || i.inscricao || '',
       link_imagens: i.link_imagens || '',
+      local: i.local || '',
       raw: i,
     };
   });
@@ -54,8 +67,8 @@ function buildAgendaFromItems(items = []) {
   items.forEach((item) => {
     if (!item?.data_iso) return;
 
-    const date = new Date(item.data_iso);
-    if (isNaN(date.getTime())) return;
+    const date = new Date(`${item.data_iso}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return;
 
     const mes = date.toLocaleDateString('pt-BR', {
       month: 'long',
@@ -82,16 +95,20 @@ function CalendarioAtividadesInner() {
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['agenda-programacao'],
     queryFn: async () => {
-      const sync = await base44.functions.invoke('syncBaseConhecimento');
+      let syncData = {};
 
-      // 🔥 fallback real na entity
-      const entity = await base44.entities.Programacao.list({
-        limit: 1000,
-      });
+      try {
+        const sync = await base44.functions.invoke('syncProgramacao');
+        syncData = sync?.data || {};
+      } catch (e) {
+        console.error('Falha no syncProgramacao:', e);
+      }
+
+      const entity = await base44.entities.Programacao.list('-data_inicio', 1000);
 
       return {
-        sync: sync?.data || {},
-        entity: entity || [],
+        sync: syncData,
+        entity: Array.isArray(entity) ? entity : [],
       };
     },
   });
@@ -99,7 +116,6 @@ function CalendarioAtividadesInner() {
   const agenda = useMemo(() => {
     const sync = data?.sync || {};
 
-    // prioridade 1
     if (sync?.agenda) return sync.agenda;
 
     if (sync?.grouped_by_museum_and_month) {
@@ -110,7 +126,6 @@ function CalendarioAtividadesInner() {
       return buildAgendaFromItems(sync.items);
     }
 
-    // 🔥 fallback final (resolve seu problema)
     if (data?.entity?.length) {
       const normalized = normalizeFromEntity(data.entity);
       return buildAgendaFromItems(normalized);
@@ -130,8 +145,19 @@ function CalendarioAtividadesInner() {
 
         return { mes, museus, total };
       })
-      .sort((a, b) => a.mes.localeCompare(b.mes));
+      .sort((a, b) => a.mes.localeCompare(b.mes, 'pt-BR'));
   }, [agenda]);
+
+  const totalFiltrado = useMemo(() => {
+    return meses.reduce((acc, { museus }) => {
+      return (
+        acc +
+        Object.entries(museus)
+          .filter(([m]) => filtroMuseu === 'Todos' || filtroMuseu === m)
+          .reduce((sum, [, items]) => sum + items.length, 0)
+      );
+    }, 0);
+  }, [meses, filtroMuseu]);
 
   const abrirNovo = () => {
     setForm({});
@@ -168,7 +194,6 @@ function CalendarioAtividadesInner() {
   return (
     <div className="w-full py-6">
       <div className="max-w-7xl mx-auto px-4">
-
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex items-center gap-3">
             <Calendar className="w-6 h-6" />
@@ -198,51 +223,57 @@ function CalendarioAtividadesInner() {
               Nova atividade
             </Button>
 
-            <Badge>
-              {meses.reduce((acc, m) => acc + m.total, 0)}
-            </Badge>
+            <Badge>{totalFiltrado}</Badge>
           </div>
         </div>
 
         {isLoading ? (
           <div>Carregando...</div>
-        ) : meses.length === 0 ? (
+        ) : totalFiltrado === 0 ? (
           <div className="border p-6 text-gray-500">
             Nenhuma atividade encontrada.
           </div>
         ) : (
           <div className="space-y-10">
+            {meses.map(({ mes, museus }) => {
+              const gruposFiltrados = Object.entries(museus).filter(
+                ([m]) => filtroMuseu === 'Todos' || filtroMuseu === m
+              );
 
-            {meses.map(({ mes, museus }) => (
-              <div key={mes} className="space-y-6">
+              if (gruposFiltrados.length === 0) return null;
 
-                <h2 className="text-2xl font-semibold capitalize">
-                  {mes}
-                </h2>
+              return (
+                <div key={mes} className="space-y-6">
+                  <h2 className="text-2xl font-semibold capitalize">{mes}</h2>
 
-                {Object.entries(museus)
-                  .filter(([m]) => filtroMuseu === 'Todos' || filtroMuseu === m)
-                  .map(([museu, items]) => (
+                  {gruposFiltrados.map(([museu, items]) => (
                     <div key={museu} className="space-y-3">
-
                       <div className="flex items-center gap-2">
-                        <div className={`w-2.5 h-2.5 rounded-full ${MUSEU_COLORS[museu]}`} />
+                        <div className={`w-2.5 h-2.5 rounded-full ${MUSEU_COLORS[museu] || 'bg-gray-500'}`} />
                         <h3 className="text-lg font-semibold">{museu}</h3>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-
                         {items.map((a, idx) => (
-                          <div key={idx} className="border rounded-lg p-4 bg-white shadow-sm">
-
+                          <div
+                            key={a.id || idx}
+                            className="border rounded-lg p-4 bg-white shadow-sm cursor-pointer"
+                            onClick={() => abrirEditar(a)}
+                          >
                             <div className="flex justify-between mb-2">
                               <div className="font-semibold">{a.nome}</div>
-                              <div className={`w-2 h-2 rounded-full ${MUSEU_COLORS[a.museu]}`} />
+                              <div className={`w-2 h-2 rounded-full ${MUSEU_COLORS[a.museu] || 'bg-gray-500'}`} />
                             </div>
 
                             <div className="text-xs text-gray-500">
                               {a.data} {a.horario ? `· ${a.horario}` : ''}
                             </div>
+
+                            {a.local && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                {a.local}
+                              </div>
+                            )}
 
                             <div className="text-sm mt-3 text-gray-700">
                               {a.sinopse}
@@ -252,18 +283,14 @@ function CalendarioAtividadesInner() {
                               {a.vagas && <div>Vagas: {a.vagas}</div>}
                               {a.inscricao && <div>{a.inscricao}</div>}
                             </div>
-
                           </div>
                         ))}
-
                       </div>
-
                     </div>
                   ))}
-
-              </div>
-            ))}
-
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -275,12 +302,26 @@ function CalendarioAtividadesInner() {
           </DialogHeader>
 
           <div className="space-y-2">
-
-            <Input placeholder="Nome" value={form.nome || ''} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
-            <Input placeholder="Data" value={form.data || ''} onChange={(e) => setForm({ ...form, data: e.target.value })} />
-            <Input placeholder="Museu" value={form.museu || ''} onChange={(e) => setForm({ ...form, museu: e.target.value })} />
-            <Input placeholder="Horário" value={form.horario || ''} onChange={(e) => setForm({ ...form, horario: e.target.value })} />
-
+            <Input
+              placeholder="Nome"
+              value={form.nome || form.titulo || form.nome_acao || ''}
+              onChange={(e) => setForm({ ...form, nome: e.target.value })}
+            />
+            <Input
+              placeholder="Data"
+              value={form.data || form.data_inicio || ''}
+              onChange={(e) => setForm({ ...form, data: e.target.value })}
+            />
+            <Input
+              placeholder="Museu"
+              value={form.museu || form.equipamento || ''}
+              onChange={(e) => setForm({ ...form, museu: e.target.value })}
+            />
+            <Input
+              placeholder="Horário"
+              value={form.horario || ''}
+              onChange={(e) => setForm({ ...form, horario: e.target.value })}
+            />
           </div>
 
           <DialogFooter>
