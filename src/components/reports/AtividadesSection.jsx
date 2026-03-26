@@ -131,4 +131,58 @@ export default function AtividadesSection({
     </div>
   );
 }
+{/* 🔒 BLOCO COMPLEMENTAR — NÃO ALTERA CAMPOS EXISTENTES */}
+
+{/* Campo existente no sistema — NÃO ALTERAR LÓGICA */}
+<div className="grid md:grid-cols-3 gap-4">
+  <div className="space-y-1.5">
+    <label className="text-sm text-gray-700">
+      Quantas vezes ocorreu?
+    </label>
+
+    {/* IMPORTANTE: mantém exatamente o binding original */}
+    <input
+      type="number"
+      min="1"
+      value={atividade?.quantas_vezes_ocorreu ?? 1}
+      onChange={(e) =>
+        updateAtividade(index, 'quantas_vezes_ocorreu', e.target.value)
+      }
+      disabled={!canEdit}
+      className="w-full rounded-md border px-3 py-2 text-sm"
+    />
+  </div>
+
+  <div className="space-y-1.5">
+    <label className="text-sm text-gray-700">
+      Total de atividades realizadas
+    </label>
+
+    <input
+      type="number"
+      value={atividade?.total_atividades ?? 0}
+      onChange={(e) =>
+        updateAtividade(index, 'total_atividades', e.target.value)
+      }
+      disabled={!canEdit}
+      className="w-full rounded-md border px-3 py-2 text-sm"
+    />
+  </div>
+
+  <div className="space-y-1.5">
+    <label className="text-sm text-gray-700">
+      Quantidade de produtos gerados
+    </label>
+
+    <input
+      type="number"
+      value={atividade?.quantidade_produtos ?? 0}
+      onChange={(e) =>
+        updateAtividade(index, 'quantidade_produtos', e.target.value)
+      }
+      disabled={!canEdit}
+      className="w-full rounded-md border px-3 py-2 text-sm"
+    />
+  </div>
+</div>
 
