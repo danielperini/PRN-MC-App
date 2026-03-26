@@ -3,10 +3,18 @@ import { Button } from '@/components/ui/button';
 import { Plus, Trash2 } from 'lucide-react';
 import AtividadeCamposBasicos from './AtividadeCamposBasicos';
 
-function ensureArray(val) {
-  if (Array.isArray(val)) return val;
-  if (!val) return [];
-  return [val];
+export function validateAtividade(atividade = {}) {
+  const errors = [];
+
+  if (!atividade || typeof atividade !== 'object') {
+    return ['Atividade inválida'];
+  }
+
+  if (!atividade.classificacao || !String(atividade.classificacao).trim()) {
+    errors.push('Classificação é obrigatória');
+  }
+
+  return errors;
 }
 
 export default function AtividadesSection({
@@ -30,9 +38,6 @@ export default function AtividadesSection({
         const list = Array.isArray(prev) ? [...prev] : [];
         const current = { ...(list[index] || {}) };
 
-        // 🔒 NÃO ALTERAR: campo Quantas vezes ocorreu?
-        // Mantém exatamente como está no sistema atual
-
         current[field] = value;
 
         list[index] = current;
@@ -50,7 +55,6 @@ export default function AtividadesSection({
         data_inicio: '',
         data_fim: '',
         publico_estimado: 0,
-        // 🔒 manter estrutura existente
         quantas_vezes_ocorreu: 1,
         museu: '',
         museu_lista: [],
@@ -102,16 +106,8 @@ export default function AtividadesSection({
             canEdit={canEdit}
             museus={museus}
             tiposAcao={tiposAcao}
-            onChange={(field, value) =>
-              updateAtividade(index, field, value)
-            }
+            onChange={(field, value) => updateAtividade(index, field, value)}
           />
-
-          {/* 🔒 IMPORTANTE:
-              NÃO alterado aqui:
-              campo "Quantas vezes ocorreu?"
-              permanece no local original do sistema
-          */}
         </div>
       ))}
 
@@ -131,58 +127,3 @@ export default function AtividadesSection({
     </div>
   );
 }
-{/* 🔒 BLOCO COMPLEMENTAR — NÃO ALTERA CAMPOS EXISTENTES */}
-
-{/* Campo existente no sistema — NÃO ALTERAR LÓGICA */}
-<div className="grid md:grid-cols-3 gap-4">
-  <div className="space-y-1.5">
-    <label className="text-sm text-gray-700">
-      Quantas vezes ocorreu?
-    </label>
-
-    {/* IMPORTANTE: mantém exatamente o binding original */}
-    <input
-      type="number"
-      min="1"
-      value={atividade?.quantas_vezes_ocorreu ?? 1}
-      onChange={(e) =>
-        updateAtividade(index, 'quantas_vezes_ocorreu', e.target.value)
-      }
-      disabled={!canEdit}
-      className="w-full rounded-md border px-3 py-2 text-sm"
-    />
-  </div>
-
-  <div className="space-y-1.5">
-    <label className="text-sm text-gray-700">
-      Total de atividades realizadas
-    </label>
-
-    <input
-      type="number"
-      value={atividade?.total_atividades ?? 0}
-      onChange={(e) =>
-        updateAtividade(index, 'total_atividades', e.target.value)
-      }
-      disabled={!canEdit}
-      className="w-full rounded-md border px-3 py-2 text-sm"
-    />
-  </div>
-
-  <div className="space-y-1.5">
-    <label className="text-sm text-gray-700">
-      Quantidade de produtos gerados
-    </label>
-
-    <input
-      type="number"
-      value={atividade?.quantidade_produtos ?? 0}
-      onChange={(e) =>
-        updateAtividade(index, 'quantidade_produtos', e.target.value)
-      }
-      disabled={!canEdit}
-      className="w-full rounded-md border px-3 py-2 text-sm"
-    />
-  </div>
-</div>
-
