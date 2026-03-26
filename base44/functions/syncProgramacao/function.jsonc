@@ -1,4 +1,4 @@
 {
-  "runtime": "deno",
-  "entrypoint": "entry.ts"
+  "name": "syncProgramacao",
+  "entry": "entry.ts"
 }
