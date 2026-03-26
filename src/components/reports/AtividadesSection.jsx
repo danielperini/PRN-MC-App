@@ -14,16 +14,21 @@ import ActivityClassificationAI from './ActivityClassificationAI';
 import ClippingAutomatico from './ClippingAutomatico';
 import BulkActivityEditor from './BulkActivityEditor';
 import { base44 } from '@/api/base44Client';
-import {
-  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction
-} from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 
 const MUSEUS_ATIV = ['MHAB', 'MIS', 'MUMO', 'Externo'];
 const EQUIPES = ['Comunicação', 'Administração', 'Educativo', 'Produção', 'Outra'];
 const TIPOS_ACAO = [
-  'Visita Mediada', 'Oficina', 'Exposição', 'Evento', 'Palestra',
-  'Reunião', 'Formação', 'Produção de Conteúdo', 'Manutenção', 'Outro'
+  'Visita Mediada',
+  'Oficina',
+  'Exposição',
+  'Evento',
+  'Palestra',
+  'Reunião',
+  'Formação',
+  'Produção de Conteúdo',
+  'Manutenção',
+  'Outro'
 ];
 
 const TIPOS_MOBILIZACAO = [
@@ -39,9 +44,19 @@ const TIPOS_MOBILIZACAO = [
 ];
 
 const PRODUTOS_OPCOES = [
-  'Catálogo', 'Folder', 'Vídeo', 'Cobertura de Vídeo', 'Cobertura Fotográfica',
-  'Texto', 'Design', 'Design de Catálogo', 'Identidade Visual', 'Logomarca',
-  'Release', 'Post', 'Outro'
+  'Catálogo',
+  'Folder',
+  'Vídeo',
+  'Cobertura de Vídeo',
+  'Cobertura Fotográfica',
+  'Texto',
+  'Design',
+  'Design de Catálogo',
+  'Identidade Visual',
+  'Logomarca',
+  'Release',
+  'Post',
+  'Outro'
 ];
 
 // Metas do 3º Termo Aditivo — Plano de Trabalho Real
@@ -75,10 +90,11 @@ function gerarAtividadeId() {
 }
 
 const EMPTY_ATIVIDADE = {
-  activity_id: gerarAtividadeId(), // ID único para a atividade
+  activity_id: gerarAtividadeId(),
   data_inicio: '',
   data_fim: '',
   museu: '',
+  museu_lista: [],
   tipo_acao: '',
   nome: '',
   publico_estimado: '',
@@ -91,8 +107,8 @@ const EMPTY_ATIVIDADE = {
   objetivo: '',
   descricao_executado: '',
   equipe_envolvida: '',
-  equipe_envolvida_lista: [], // Usuários envolvidos
-  co_responsavel_email: '', // Outro profissional responsável
+  equipe_envolvida_lista: [],
+  co_responsavel_email: '',
   resultados_impactos: '',
   problemas: '',
   solucoes: '',
@@ -117,16 +133,15 @@ const EMPTY_ATIVIDADE = {
 };
 
 export function validateAtividade(ativ) {
-  // Apenas a classificação é obrigatória; todos os demais campos são opcionais
   const errors = [];
   if (!ativ.classificacao) errors.push('Classificação é obrigatória');
   return errors;
 }
 
 const CLASSIF_BADGE = {
-  META:   'bg-blue-100 text-blue-800',
+  META: 'bg-blue-100 text-blue-800',
   ROTINA: 'bg-green-100 text-green-700',
-  EXTRA:  'bg-orange-100 text-orange-700',
+  EXTRA: 'bg-orange-100 text-orange-700',
 };
 
 function Field({ label, children }) {
@@ -210,6 +225,102 @@ function UserPicker({ value = [], onChange, disabled }) {
   );
 }
 
+function MultiSelect({ options, values, onChange, disabled, placeholder = 'Selecione...' }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const onDoc = (e) => {
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  const selected = Array.isArray(values) ? values : [];
+  const shown = options.filter((opt) => opt.toLowerCase().includes(q.trim().toLowerCase()));
+
+  const toggle = (opt) => {
+    if (disabled) return;
+    if (selected.includes(opt)) onChange(selected.filter((v) => v !== opt));
+    else onChange([...selected, opt]);
+  };
+
+  const label = selected.length ? selected.join(', ') : placeholder;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className={`w-full h-10 px-3 rounded-md border text-left text-sm flex items-center justify-between ${
+          disabled ? 'bg-gray-50 text-gray-400' : 'bg-white'
+        }`}
+      >
+        <span className={`truncate ${selected.length ? 'text-gray-900' : 'text-gray-400'}`}>{label}</span>
+        <span className="text-gray-400">{open ? '▴' : '▾'}</span>
+      </button>
+
+      {open && !disabled && (
+        <div className="absolute z-50 mt-2 w-full rounded-md border bg-white shadow-lg overflow-hidden">
+          <div className="p-2 border-b">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Filtrar..."
+              className="w-full h-9 px-2 text-sm border rounded-md outline-none"
+            />
+          </div>
+
+          <div className="max-h-56 overflow-auto">
+            {shown.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-gray-400">Nenhuma opção</div>
+            ) : (
+              shown.map((opt) => {
+                const checked = selected.includes(opt);
+                return (
+                  <label
+                    key={opt}
+                    className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggle(opt)}
+                      className="h-4 w-4"
+                    />
+                    <span className="flex-1">{opt}</span>
+                  </label>
+                );
+              })
+            )}
+          </div>
+
+          <div className="p-2 border-t flex justify-between">
+            <button
+              type="button"
+              className="text-xs text-gray-500 hover:text-gray-800"
+              onClick={() => onChange([])}
+            >
+              Limpar
+            </button>
+            <button
+              type="button"
+              className="text-xs text-blue-600 hover:text-blue-800"
+              onClick={() => setOpen(false)}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId, hasDupWarning, isSelected, onSelect, hasAttachments }) {
   const [expanded, setExpanded] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
@@ -217,7 +328,6 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId
   const [users, setUsers] = useState([]);
   const [coRespSearch, setCoRespSearch] = useState('');
 
-  // Keeps typing smooth even if parent state re-renders frequently.
   const [quantasLocal, setQuantasLocal] = useState(atividade.quantas_repeticoes ?? '');
 
   useEffect(() => {
@@ -241,7 +351,6 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId
     const n = parseInt(value, 10);
     return Number.isNaN(n) ? fallback : n;
   };
-
 
   const normalizeIntString = (value, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
     if (value === '' || value === null || value === undefined) return '';
@@ -317,6 +426,7 @@ Responda APENAS com JSON: {"meta_codigo": "META_XX", "justificativa": "Uma frase
         }
       }
     });
+
     if (result?.meta_codigo) {
       onChange('meta_codigo', result.meta_codigo);
       if (result.justificativa && !atividade.indicador_previsto) {
@@ -578,6 +688,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                 disabled={!canEdit}
               />
             </Field>
+
             <Field label="Equipe responsável">
               <Select value={atividade.equipe_responsavel || ''} onValueChange={v => onChange('equipe_responsavel', v)} disabled={!canEdit}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -586,6 +697,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                 </SelectContent>
               </Select>
             </Field>
+
             <Field label="Co-responsável (outro profissional)">
               <div className="space-y-2">
                 {coRespUser && (
@@ -620,20 +732,28 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                 )}
               </div>
             </Field>
+
             <Field label="Data de início">
               <Input type="date" value={atividade.data_inicio || ''} onChange={e => onChange('data_inicio', e.target.value)} disabled={!canEdit} />
             </Field>
+
             <Field label="Data de término (opcional)">
               <Input type="date" value={atividade.data_fim || ''} onChange={e => onChange('data_fim', e.target.value)} disabled={!canEdit} />
             </Field>
+
             <Field label="Museu / Local">
-              <Select value={atividade.museu || ''} onValueChange={v => onChange('museu', v)} disabled={!canEdit}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  {MUSEUS_ATIV.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <MultiSelect
+                options={MUSEUS_ATIV}
+                values={atividade.museu_lista?.length ? atividade.museu_lista : (atividade.museu ? [atividade.museu] : [])}
+                disabled={!canEdit}
+                placeholder="Selecione um ou mais"
+                onChange={(vals) => {
+                  onChange('museu_lista', vals);
+                  onChange('museu', vals.length === 1 ? vals[0] : (vals.length ? vals.join(', ') : ''));
+                }}
+              />
             </Field>
+
             <Field label="Tipo de ação">
               <Select value={atividade.tipo_acao || ''} onValueChange={v => onChange('tipo_acao', v)} disabled={!canEdit}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -642,6 +762,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                 </SelectContent>
               </Select>
             </Field>
+
             <Field label="É uma atividade de mobilização/divulgação?">
               <Select value={atividade.eh_mobilizacao ? 'sim' : 'nao'} onValueChange={v => onChange('eh_mobilizacao', v === 'sim')} disabled={!canEdit}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -651,6 +772,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                 </SelectContent>
               </Select>
             </Field>
+
             <Field label="Público estimado (por ocorrência)">
               <Input
                 type="number"
@@ -728,12 +850,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
             </Field>
 
             <Field label="Total de atividades realizadas">
-              <Input
-                type="number"
-                value={atividade.atividades_total ?? 0}
-                readOnly
-                disabled
-              />
+              <Input type="number" value={atividade.atividades_total ?? 0} readOnly disabled />
             </Field>
 
             <Field label="Produto realizado">
@@ -750,6 +867,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                 </SelectContent>
               </Select>
             </Field>
+
             <Field label="Quantidade de produtos gerados">
               <Input
                 type="number"
@@ -794,12 +912,7 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
             </Field>
 
             <Field label="Total de produtos gerados">
-              <Input
-                type="number"
-                value={atividade.produtos_total ?? 0}
-                readOnly
-                disabled
-              />
+              <Input type="number" value={atividade.produtos_total ?? 0} readOnly disabled />
             </Field>
           </div>
 
