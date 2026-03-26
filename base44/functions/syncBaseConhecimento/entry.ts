@@ -513,8 +513,82 @@ function dedupeItems(items: any[]) {
   return Array.from(seen.values());
 }
 
+function buildProgramacaoPayload(item: any) {
+  return {
+    nome: item.nome || '',
+    titulo: item.titulo || item.nome || '',
+    nome_acao: item.nome || '',
+    data: item.data || '',
+    data_inicio: item.data_iso || '',
+    data_iso: item.data_iso || '',
+    horario: item.horario || '',
+    museu: item.museu || 'Externo',
+    equipamento: item.equipamento || item.museu || 'Externo',
+    local: item.local || '',
+    endereco_completo: item.endereco_completo || '',
+    sinopse: item.sinopse || '',
+    descricao: item.descricao || '',
+    tipo: item.tipo || '',
+    tipo_atividade: item.tipo_atividade || item.tipo || '',
+    formato: item.formato || '',
+    vagas: item.vagas || '',
+    inscricao: item.inscricao || '',
+    link_inscricao: item.inscricao_acesso || item.inscricao || '',
+    material_divulgacao: item.material_de_divulgacao || '',
+    link_imagens: item.link_imagens || '',
+    minibios: item.minibios || '',
+    resumo_ia: item.resumo_ia || '',
+    publico_alvo: item.publico_alvo || '',
+    acessibilidade: item.acessibilidade || '',
+    classificacao_indicativa: item.classificacao_indicativa || '',
+    status: item.status || '',
+    briefing: item.briefing || '',
+    servico: item.servico || '',
+    valor: item.valor || '',
+    origem: 'syncBaseConhecimento',
+    sheet_name: item.sheet_name || '',
+    month_label: item.month_label || '',
+    row_index: item.row_index ?? null,
+    raw_values: item.raw_values || item.raw || {},
+  };
+}
+
+async function replaceProgramacao(base44: any, items: any[]) {
+  const existing = await base44.entities.Programacao.list('-created_date', 5000);
+  const existingList = Array.isArray(existing) ? existing : [];
+
+  for (const record of existingList) {
+    if (!record?.id) continue;
+    await base44.entities.Programacao.delete(record.id);
+  }
+
+  let created = 0;
+  const errors: any[] = [];
+
+  for (const item of items) {
+    try {
+      const payload = buildProgramacaoPayload(item);
+      await base44.entities.Programacao.create(payload);
+      created++;
+    } catch (error: any) {
+      errors.push({
+        nome: item?.nome || '',
+        data: item?.data || '',
+        museu: item?.museu || '',
+        error: error?.message || String(error),
+      });
+    }
+  }
+
+  return {
+    deleted_previous: existingList.length,
+    created,
+    errors,
+  };
+}
+
 Deno.serve(async (req) => {
-  createClientFromRequest(req);
+  const base44 = createClientFromRequest(req);
 
   try {
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
@@ -562,6 +636,27 @@ Deno.serve(async (req) => {
     const groupedByMuseumAndMonth = groupByMuseumAndMonth(allItems);
     const countsByMuseum = countByMuseum(allItems);
 
+    let programacaoSync = {
+      deleted_previous: 0,
+      created: 0,
+      errors: [] as any[],
+    };
+
+    try {
+      programacaoSync = await replaceProgramacao(base44, allItems);
+    } catch (error: any) {
+      programacaoSync = {
+        deleted_previous: 0,
+        created: 0,
+        errors: [
+          {
+            etapa: 'replaceProgramacao',
+            error: error?.message || String(error),
+          },
+        ],
+      };
+    }
+
     return new Response(
       JSON.stringify({
         ok: true,
@@ -582,6 +677,7 @@ Deno.serve(async (req) => {
         counts_by_museum: countsByMuseum,
         last_sync: nowIso,
         sync_mode: mode,
+        programacao_sync: programacaoSync,
       }),
       {
         status: 200,
