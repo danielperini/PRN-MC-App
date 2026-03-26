@@ -15,7 +15,9 @@ function Field({ label, children }) {
 
 function normalizeArray(value) {
   if (Array.isArray(value)) return value.filter(Boolean);
+
   if (!value) return [];
+
   return String(value)
     .split(',')
     .map((item) => item.trim())
@@ -34,10 +36,16 @@ export default function AtividadeCamposBasicos({
   museus = [],
   tiposAcao = [],
 }) {
-  const museuLista = normalizeArray(atividade?.museu_lista);
+  const museuLista = normalizeArray(
+    atividade?.museu_lista && atividade.museu_lista.length
+      ? atividade.museu_lista
+      : atividade?.museu
+  );
+
   const tipoAcaoLista = normalizeArray(
-    atividade?.tipo_acao_lista ||
-      (atividade?.tipo_acao ? [atividade.tipo_acao].filter(Boolean) : [])
+    atividade?.tipo_acao_lista && atividade.tipo_acao_lista.length
+      ? atividade.tipo_acao_lista
+      : atividade?.tipo_acao
   );
 
   function handleMuseusChange(nextValues) {
