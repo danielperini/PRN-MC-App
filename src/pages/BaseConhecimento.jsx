@@ -92,6 +92,14 @@ function getDocIcon(doc) {
   return <File className="w-4 h-4" />;
 }
 
+function extractFunctionItems(res) {
+  if (Array.isArray(res?.data?.items)) return res.data.items;
+  if (Array.isArray(res?.data?.documents)) return res.data.documents;
+  if (Array.isArray(res?.items)) return res.items;
+  if (Array.isArray(res?.documents)) return res.documents;
+  return [];
+}
+
 function BaseConhecimentoInner() {
   const queryClient = useQueryClient();
 
@@ -112,8 +120,13 @@ function BaseConhecimentoInner() {
   } = useQuery({
     queryKey: ['base-conhecimento'],
     queryFn: async () => {
-      const res = await base44.functions.invoke('syncBaseConhecimento');
-      return res?.data || {};
+      try {
+        const res = await base44.functions.invoke('syncBaseConhecimento');
+        return res?.data || {};
+      } catch (error) {
+        console.error('Erro em syncBaseConhecimento:', error);
+        return {};
+      }
     },
     refetchOnWindowFocus: true,
     staleTime: 1000 * 60 * 5,
@@ -123,13 +136,28 @@ function BaseConhecimentoInner() {
     data: docs = [],
     isLoading: loadingDocs,
     refetch: refetchDocs,
+    isFetching: isFetchingDocs,
   } = useQuery({
     queryKey: ['knowledge-docs'],
     queryFn: async () => {
-      const res = await base44.functions.invoke('listKnowledgeDocuments', {
-        limit: 200,
-      });
-      return res?.data?.items || [];
+      try {
+        const res = await base44.functions.invoke('listKnowledgeDocuments', {
+          limit: 200,
+        });
+
+        const functionItems = extractFunctionItems(res);
+        if (functionItems.length > 0) return functionItems;
+      } catch (error) {
+        console.error('Erro em listKnowledgeDocuments:', error);
+      }
+
+      try {
+        const entityDocs = await base44.entities.KnowledgeDocument.list('-created_date', 200);
+        return Array.isArray(entityDocs) ? entityDocs : [];
+      } catch (error) {
+        console.error('Erro ao listar KnowledgeDocument diretamente:', error);
+        return [];
+      }
     },
     staleTime: 1000 * 60 * 2,
   });
@@ -158,6 +186,15 @@ function BaseConhecimentoInner() {
     }
   };
 
+  const refreshAll = async () => {
+    await Promise.all([
+      refetchDocs(),
+      refetchMirror(),
+      queryClient.invalidateQueries({ queryKey: ['knowledge-docs'] }),
+      queryClient.invalidateQueries({ queryKey: ['base-conhecimento'] }),
+    ]);
+  };
+
   const handleUpload = async () => {
     if (!selectedFile) {
       toast.error('Selecione um arquivo.');
@@ -184,22 +221,15 @@ function BaseConhecimentoInner() {
         throw new Error(res?.data?.error || 'Falha no processamento do arquivo.');
       }
 
-      toast.success('Arquivo gravado na biblioteca com sucesso.');
-
       setSelectedFile(null);
       setShowUpload(false);
 
-      await Promise.all([
-        refetchDocs(),
-        refetchMirror(),
-        queryClient.invalidateQueries({ queryKey: ['knowledge-docs'] }),
-        queryClient.invalidateQueries({ queryKey: ['base-conhecimento'] }),
-      ]);
+      await refreshAll();
+
+      toast.success('Arquivo gravado na biblioteca com sucesso.');
 
       if (res?.data?.ia_processed) {
         toast.success('Análise por IA concluída.');
-      } else {
-        toast.success('Arquivo salvo. A análise será atualizada na biblioteca.');
       }
     } catch (error) {
       toast.error(error?.message || 'Erro ao gravar arquivo na biblioteca.');
@@ -214,12 +244,8 @@ function BaseConhecimentoInner() {
     try {
       setDeletingId(doc.id);
       await base44.entities.KnowledgeDocument.delete(doc.id);
+      await refreshAll();
       toast.success('Documento removido com sucesso.');
-
-      await Promise.all([
-        refetchDocs(),
-        queryClient.invalidateQueries({ queryKey: ['knowledge-docs'] }),
-      ]);
     } catch (error) {
       toast.error('Erro ao remover documento.');
     } finally {
@@ -246,6 +272,7 @@ function BaseConhecimentoInner() {
           item?.vagas,
           item?.inscricao,
           item?.inscricao_acesso,
+          item?.link_inscricao,
           item?.museu,
           item?.data,
           item?.local,
@@ -313,8 +340,8 @@ function BaseConhecimentoInner() {
             Atualizar base
           </Button>
 
-          <Button onClick={() => refetchDocs()} variant="outline">
-            <RefreshCw className="w-4 h-4 mr-2" />
+          <Button onClick={() => refetchDocs()} variant="outline" disabled={isFetchingDocs}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${isFetchingDocs ? 'animate-spin' : ''}`} />
             Atualizar arquivos
           </Button>
         </div>
