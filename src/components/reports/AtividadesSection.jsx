@@ -217,6 +217,13 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId
   const [users, setUsers] = useState([]);
   const [coRespSearch, setCoRespSearch] = useState('');
 
+  // Keeps typing smooth even if parent state re-renders frequently.
+  const [quantasLocal, setQuantasLocal] = useState(atividade.quantas_repeticoes ?? '');
+
+  useEffect(() => {
+    setQuantasLocal(atividade.quantas_repeticoes ?? '');
+  }, [atividade.quantas_repeticoes]);
+
   useEffect(() => {
     base44.entities.User.list().then(setUsers).catch(() => {});
   }, []);
@@ -253,7 +260,6 @@ function AtividadeCard({ atividade, index, canEdit, onChange, onRemove, reportId
   const normalizeMoneyString = (value) => {
     if (value === '' || value === null || value === undefined) return '';
     const n = Math.max(0, toFloat(value, 0));
-    // Keep it stable: up to 2 decimals, trim trailing zeros.
     const fixed = n.toFixed(2);
     return fixed.replace(/\.00$/, '').replace(/(\.[0-9])0$/, '$1');
   };
@@ -682,13 +688,16 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
 
             <Field label="Quantas vezes ocorreu?">
               <Input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="\d*"
                 placeholder="1"
-                value={atividade.quantas_repeticoes ?? ''}
+                value={quantasLocal}
                 onChange={e => {
                   const raw = e.target.value;
 
                   if (raw === '') {
+                    setQuantasLocal('');
                     onChange('quantas_repeticoes', '');
                     onChange('atividades_total', 0);
                     onChange('produtos_total', 0);
@@ -696,33 +705,25 @@ Escreva em português do Brasil, de forma técnica e concisa.`;
                   }
 
                   if (/^\d+$/.test(raw)) {
-                    onChange('quantas_repeticoes', raw);
+                    setQuantasLocal(raw);
                     updateCamposDerivados('quantas_repeticoes', raw);
                   }
                 }}
                 onBlur={() => {
-                  if (
-                    atividade.quantas_repeticoes === '' ||
-                    atividade.quantas_repeticoes === null ||
-                    atividade.quantas_repeticoes === undefined
-                  ) {
-                    return;
-                  }
+                  const raw = quantasLocal;
 
-                  const normalizadoStr = normalizeIntString(atividade.quantas_repeticoes, { min: 0, max: 99 });
+                  if (raw === '' || raw === null || raw === undefined) return;
 
+                  const normalizadoStr = normalizeIntString(raw, { min: 0, max: 99 });
                   const normalizado = toInt(normalizadoStr, 0);
+
+                  setQuantasLocal(normalizadoStr);
                   onChange('quantas_repeticoes', normalizadoStr);
                   onChange('atividades_total', normalizado);
-                  onChange(
-                    'produtos_total',
-                    normalizado * toInt(atividade.quantidade_produto, 0)
-                  );
+                  onChange('produtos_total', normalizado * toInt(atividade.quantidade_produto, 0));
                 }}
                 disabled={!canEdit}
-                min="0"
-                max="99"
-                inputMode="numeric"
+                aria-label="Quantas vezes ocorreu"
               />
             </Field>
 
