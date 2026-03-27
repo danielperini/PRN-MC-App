@@ -10,7 +10,6 @@ export default async function handler(context: any) {
   let debug_sheets: any[] = [];
 
   try {
-    // 1. Buscar documento mais recente
     const docs = await entities.KnowledgeDocument.list({
       filter: { categoria: "Programação" },
       sort: { created_at: -1 },
@@ -23,16 +22,13 @@ export default async function handler(context: any) {
 
     const doc = docs.data[0];
 
-    // 2. Baixar arquivo
     const response = await fetch(doc.file_url);
     const buffer = await response.arrayBuffer();
 
-    // 3. Ler XLSX
     const workbook = XLSX.read(buffer, { type: "array" });
 
     const allItems: any[] = [];
 
-    // 4. Percorrer abas
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
       const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
@@ -40,7 +36,6 @@ export default async function handler(context: any) {
       let headerIndex = -1;
       let headers: string[] = [];
 
-      // detectar header
       for (let i = 0; i < json.length; i++) {
         const row = json[i] as any[];
 
@@ -104,7 +99,6 @@ export default async function handler(context: any) {
       debug_sheets.push({ sheetName, rows: count });
     }
 
-    // 6. Deduplicar
     const map = new Map();
 
     for (const item of allItems) {
@@ -115,11 +109,9 @@ export default async function handler(context: any) {
     const uniqueItems = Array.from(map.values());
     total_items = uniqueItems.length;
 
-    // 7. Escolher entity
     const targetEntity =
       entities.Programacao || entities.Activity;
 
-    // 8. Deletar anteriores
     const existing = await targetEntity.list({ limit: 10000 });
 
     for (const item of existing.data) {
@@ -127,7 +119,6 @@ export default async function handler(context: any) {
       deleted_previous++;
     }
 
-    // 9. Inserir novos
     for (const item of uniqueItems) {
       await targetEntity.create(item);
       created++;
