@@ -1,5 +1,4 @@
 {
-  // base44/functions/syncProgramacao/function.jsonc
   "bindings": [
     {
       "authLevel": "function",
