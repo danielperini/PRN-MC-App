@@ -5,16 +5,17 @@
  * - mês atual sempre
  * - mês seguinte somente a partir do dia 23
  *
+ * Correção importante:
+ * - Se NÃO selecionar nenhuma aba pelo incremental (ex.: relógio do servidor não bate),
+ *   faz fallback e processa o(s) mês(es) mais recentes encontrados no XLSX.
+ *
+ * Opções:
+ * - ?mode=incremental (default)
+ * - ?mode=full        (processa todas as abas mês/ano)
+ *
  * Fonte:
  * - Preferencial: KnowledgeDocument mais recente com category = "Programação" (file_url)
  * - Fallback: req.query.source_url ou req.body.source_url (Google Sheets/Drive URL)
- *
- * Processamento:
- * - detecta cabeçalhos com tolerância
- * - interpreta datas (inclusive múltiplas datas na mesma célula com contexto da aba)
- * - deduplica
- * - grava em Programacao (preferencial) ou Activity (fallback)
- * - apaga somente registros do(s) mês(es) sincronizado(s)
  *
  * Retorno: JSON diagnóstico
  */
@@ -45,7 +46,6 @@ type ResultJson = {
   deleted_previous: number;
   errors: string[];
   debug_sheets: DebugSheet[];
-  // extra diagnóstico para este problema
   source_used: "knowledge_document" | "source_url";
   source_url_resolved: string | null;
   knowledge_document_id: string | null;
@@ -269,7 +269,7 @@ function scoreHeaderRow(row: any[]): { score: number; map: Partial<Record<CanonF
 function findBestHeader(matrix: any[][]): { headerRow: number; map: Partial<Record<CanonField, number>>; score: number } | null {
   let best: { headerRow: number; map: Partial<Record<CanonField, number>>; score: number } | null = null;
 
-  const scanLimit = Math.min(matrix.length, 50);
+  const scanLimit = Math.min(matrix.length, 60);
   for (let r = 0; r < scanLimit; r++) {
     const row = matrix[r] ?? [];
     if (isProbablyEmptyRow(row)) continue;
@@ -346,14 +346,18 @@ function extractSourceUrlFromReq(req: AnyObj): string | null {
   return raw ? String(raw) : null;
 }
 
+function extractModeFromReq(req: AnyObj): "incremental" | "full" {
+  const q = req?.query ?? {};
+  const b = req?.body ?? {};
+  const raw = q?.mode ?? b?.mode ?? null;
+  const m = raw ? String(raw).toLowerCase().trim() : "incremental";
+  return m === "full" ? "full" : "incremental";
+}
+
 function resolveGoogleSheetsToXlsx(url: string): string {
   const u = String(url).trim();
-
-  // Already export? Keep.
   if (/docs\.google\.com\/spreadsheets\/d\/.+\/export\?/i.test(u)) return u;
 
-  // Typical view/edit url:
-  // https://docs.google.com/spreadsheets/d/<ID>/edit?gid=<GID>#gid=<GID>
   const m = u.match(/docs\.google\.com\/spreadsheets\/d\/([^/]+)/i);
   if (!m) return u;
 
@@ -402,11 +406,7 @@ async function deleteByMonthRanges(opApi: AnyObj, ranges: { startIso: string; en
     let total = 0;
     for (const r of ranges) {
       try {
-        const out = await opApi.deleteMany({
-          where: {
-            data: { gte: r.startIso, lt: r.endIso },
-          },
-        });
+        const out = await opApi.deleteMany({ where: { data: { gte: r.startIso, lt: r.endIso } } });
         total += typeof out === "number" ? out : out?.count ?? 0;
       } catch {
         const start = new Date(r.startIso).getTime();
@@ -580,225 +580,4 @@ function parseRowsFromSheet(
       const parsed: AnyObj = {
         equipamento: asString(getCell(row, map.equipamento)) || null,
         nome: nome || null,
-        sinopse: asString(getCell(row, map.sinopse)) || null,
-        tipo: asString(getCell(row, map.tipo)) || null,
-        formato: asString(getCell(row, map.formato)) || null,
-        data: d.toISOString(),
-        horario: asString(getCell(row, map.horario)) || null,
-        publico: asString(getCell(row, map.publico)) || null,
-        acessibilidade: asString(getCell(row, map.acessibilidade)) || null,
-        vagas: toNullableNumber(getCell(row, map.vagas)),
-        inscricao: asString(getCell(row, map.inscricao)) || null,
-        contato: asString(getCell(row, map.contato)) || null,
-        valor: asString(getCell(row, map.valor)) || null,
-        requisicao: asString(getCell(row, map.requisicao)) || null,
-        local: asString(getCell(row, map.local)) || null,
-        source_sheet: sheetName,
-        source_row: r + 1,
-        sync_month: syncMonth,
-      };
-
-      parsed.external_key = buildDedupKey(parsed);
-      out.push(toOperationalRecord(entityName, parsed));
-    }
-  }
-
-  return out;
-}
-
-export default async function entry(context: AnyObj, req: AnyObj): Promise<any> {
-  const errors: string[] = [];
-  const debug_sheets: DebugSheet[] = [];
-
-  let source_used: ResultJson["source_used"] = "knowledge_document";
-  let source_url_resolved: string | null = null;
-  let knowledge_document_id: string | null = null;
-
-  try {
-    const operational = pickOperationalEntity(context);
-    if (!operational) throw new Error('Não encontrei entity "Programacao" nem "Activity" no projeto.');
-
-    const kdApi = pickKnowledgeDocumentApi(context);
-    const reqSourceUrl = extractSourceUrlFromReq(req);
-
-    let xlsxUrl: string | null = null;
-
-    if (kdApi) {
-      try {
-        const latest = await findLatestKnowledgeDoc(kdApi);
-        if (latest) {
-          knowledge_document_id = String(latest?.id ?? latest?._id ?? "") || null;
-          const fileUrl = latest?.file_url ?? latest?.fileUrl ?? latest?.file?.url ?? null;
-          if (fileUrl) {
-            xlsxUrl = String(fileUrl);
-            source_used = "knowledge_document";
-          }
-        }
-      } catch (e: any) {
-        errors.push(`Falha consultando KnowledgeDocument: ${String(e?.message ?? e)}`);
-      }
-    }
-
-    // Fallback obrigatório se não tiver file_url salvo
-    if (!xlsxUrl) {
-      if (!reqSourceUrl) {
-        throw new Error(
-          'Sem XLSX na biblioteca (KnowledgeDocument.file_url vazio/ausente) e sem fallback. Envie "source_url" (query ou body).'
-        );
-      }
-      source_used = "source_url";
-      xlsxUrl = resolveGoogleSheetsToXlsx(reqSourceUrl);
-      source_url_resolved = xlsxUrl;
-    } else {
-      source_url_resolved = xlsxUrl;
-    }
-
-    const bin = await fetchBinary(String(xlsxUrl));
-    const workbook = XLSX.read(bin, { type: "buffer", cellDates: true, cellText: false });
-
-    const now = new Date();
-    const targetMonthRanges: { startIso: string; endIso: string }[] = [];
-
-    const sheetsToProcess: { name: string; ym: string; year: number; month: number }[] = [];
-    for (const sheetName of workbook.SheetNames) {
-      const my = parseSheetMonthYear(sheetName);
-      if (!my) {
-        debug_sheets.push({ sheet: sheetName, used: false, notes: ["Nome da aba não reconhecido como mês/ano; ignorada."], errors: [] });
-        continue;
-      }
-      if (!shouldSyncMonth({ year: my.year, month: my.month, now })) {
-        debug_sheets.push({
-          sheet: sheetName,
-          used: false,
-          syncMonth: yyyymm(my.year, my.month),
-          notes: ["Fora da janela incremental (mês atual + próximo a partir do dia 23)."],
-          errors: [],
-        });
-        continue;
-      }
-      sheetsToProcess.push({ name: sheetName, ym: yyyymm(my.year, my.month), year: my.year, month: my.month });
-    }
-
-    const uniqYm = Array.from(new Set(sheetsToProcess.map((s) => s.ym)));
-    for (const ym of uniqYm) {
-      const [yy, mm] = ym.split("-").map((x) => parseInt(x, 10));
-      const start = startOfMonthUTC(yy, mm);
-      const end = startOfNextMonthUTC(yy, mm);
-      targetMonthRanges.push({ startIso: start.toISOString(), endIso: end.toISOString() });
-    }
-
-    const allItems: AnyObj[] = [];
-    const seen = new Set<string>();
-
-    for (const s of sheetsToProcess) {
-      const debug: DebugSheet = { sheet: s.name, used: false, errors: [], notes: [], syncMonth: s.ym };
-
-      try {
-        const ws = workbook.Sheets[s.name];
-        if (!ws) {
-          debug.errors?.push("Worksheet inexistente no workbook.");
-          debug_sheets.push(debug);
-          continue;
-        }
-
-        const matrix = sheetToMatrix(ws);
-        debug.rowsSeen = matrix.length;
-
-        const best = findBestHeader(matrix);
-        if (!best) {
-          debug.used = false;
-          debug.notes?.push("Cabeçalho não detectado com confiança suficiente; aba ignorada.");
-          debug_sheets.push(debug);
-          continue;
-        }
-
-        debug.used = true;
-        debug.headerRow = best.headerRow + 1;
-        debug.headerScore = best.score;
-        debug.mappedColumns = Object.fromEntries(Object.entries(best.map).map(([k, v]) => [k, (v as number) + 1]));
-
-        const parsed = parseRowsFromSheet(s.name, matrix, best.headerRow, best.map, operational.name, debug, s.ym);
-        debug.rowsParsed = parsed.length;
-
-        let keptHere = 0;
-        for (const it of parsed) {
-          const key = String(it.external_key ?? "");
-          if (!key) continue;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          allItems.push(it);
-          keptHere++;
-        }
-
-        debug.rowsKept = keptHere;
-        debug_sheets.push(debug);
-      } catch (e: any) {
-        debug.used = false;
-        debug.errors?.push(String(e?.message ?? e));
-        debug_sheets.push(debug);
-      }
-    }
-
-    let deleted_previous = 0;
-    try {
-      deleted_previous = await deleteByMonthRanges(operational.api, targetMonthRanges);
-    } catch (e: any) {
-      errors.push(`Falha ao apagar registros anteriores (por range): ${String(e?.message ?? e)}`);
-    }
-
-    let created = 0;
-    try {
-      created = await createManyOperational(operational.api, allItems);
-    } catch (e: any) {
-      errors.push(`Falha ao criar registros: ${String(e?.message ?? e)}`);
-    }
-
-    const payload: ResultJson = {
-      ok: errors.length === 0,
-      total_items: allItems.length,
-      created,
-      deleted_previous,
-      errors,
-      debug_sheets,
-      source_used,
-      source_url_resolved,
-      knowledge_document_id,
-    };
-
-    if (context?.res !== undefined) {
-      context.res = {
-        status: payload.ok ? 200 : 500,
-        headers: { "content-type": "application/json; charset=utf-8" },
-        body: payload,
-      };
-      return;
-    }
-
-    return payload;
-  } catch (e: any) {
-    errors.push(String(e?.message ?? e));
-
-    const payload: ResultJson = {
-      ok: false,
-      total_items: 0,
-      created: 0,
-      deleted_previous: 0,
-      errors,
-      debug_sheets,
-      source_used,
-      source_url_resolved,
-      knowledge_document_id,
-    };
-
-    if (context?.res !== undefined) {
-      context.res = {
-        status: 500,
-        headers: { "content-type": "application/json; charset=utf-8" },
-        body: payload,
-      };
-      return;
-    }
-
-    return payload;
-  }
-}
+        sinopse: asString(getCell(row
