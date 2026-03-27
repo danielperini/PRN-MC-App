@@ -1,4 +1,18 @@
 {
-  "name": "syncProgramacao",
-  "entry": "entry.ts"
+  // base44/functions/syncProgramacao/function.jsonc
+  "bindings": [
+    {
+      "authLevel": "function",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": ["post", "get"],
+      "route": "syncProgramacao"
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "res"
+    }
+  ]
 }
