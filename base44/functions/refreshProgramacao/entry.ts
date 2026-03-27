@@ -2,13 +2,13 @@
  * base44/functions/refreshProgramacao/entry.ts
  *
  * Sequência:
- *  1) upsertKnowledgeProgramacao
- *  2) syncProgramacao
+ *  1) upsertKnowledgeProgramacao (doc fixo por title)
+ *  2) syncProgramacao (DEFAULT mode=history: 2024-01..mês+1)
  *
  * Entrada:
  * - source_url (obrigatório)
- * - title (opcional)
- * - mode (opcional): incremental|full (repassado ao sync)
+ * - title (opcional; default "Programação espelhada")
+ * - mode (opcional): history|incremental|full (default history)
  */
 
 type AnyObj = Record<string, any>;
@@ -51,7 +51,7 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
   try {
     const sourceUrl = extractParam(req, "source_url") ?? extractParam(req, "sourceUrl");
     const title = extractParam(req, "title") ?? "Programação espelhada";
-    const mode = (extractParam(req, "mode") ?? "incremental").toLowerCase();
+    const mode = (extractParam(req, "mode") ?? "history").toLowerCase();
 
     if (!sourceUrl) throw new Error('Parâmetro obrigatório ausente: "source_url" (query ou body).');
 
