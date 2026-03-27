@@ -1,23 +1,14 @@
 /**
  * base44/functions/syncProgramacao/entry.ts
  *
- * COMPATÍVEL COM O ZIP E COM src/pages/ProgramacoesAgenda.jsx
- *
- * Fonte:
- * - Preferencial: KnowledgeDocument mais recente com category="Programação" (file_url)
- * - Fallback: req.query.source_url / req.body.source_url (Google Sheets)
+ * Diagnóstico forte:
+ * - Se total_items=0, adiciona erro explicando "por quê"
+ * - Suporta ?debug=1 para retornar previews de linhas das abas
  *
  * Modos:
- * - mode=history (DEFAULT): de 2024-01 até (mês atual + 1)
- * - mode=incremental: mês atual + próximo após dia 23
- * - mode=full: todas as abas mês/ano presentes no arquivo
- *
- * Salva em:
- * - Programacao (preferencial)
- * - Activity (somente se Programacao não existir)
- *
- * Retorno:
- * { ok, total_items, created, deleted_previous, errors, debug_sheets, source_used, source_url_resolved, knowledge_document_id }
+ * - mode=history (DEFAULT): 2024-01 .. (mês atual + 1)
+ * - mode=incremental
+ * - mode=full
  */
 
 import * as XLSX from "xlsx";
@@ -37,6 +28,10 @@ type DebugSheet = {
   syncMonth?: string;
   notes?: string[];
   errors?: string[];
+  preview?: {
+    firstNonEmptyRows?: any[][];
+    detectedHeaderRow?: any[];
+  };
 };
 
 type ResultJson = {
@@ -49,6 +44,13 @@ type ResultJson = {
   source_used: "knowledge_document" | "source_url";
   source_url_resolved: string | null;
   knowledge_document_id: string | null;
+  diagnostic: {
+    mode: "history" | "incremental" | "full";
+    debug: boolean;
+    sheets_detected_month_year: number;
+    sheets_selected: number;
+    history_range: { start_ym: string; end_ym_inclusive: string };
+  };
 };
 
 const CATEGORY = "Programação";
@@ -187,11 +189,7 @@ function parseExcelDateBasic(value: any): Date | null {
 
 function parseSheetMonthYear(sheetName: string): { year: number; month: number } | null {
   const raw = String(sheetName || "");
-  const n = raw
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  const n = raw.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
   const m = n.match(
     /(janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+(\d{2,4})/
@@ -279,6 +277,7 @@ function findBestHeader(matrix: any[][]): { headerRow: number; map: Partial<Reco
   for (let r = 0; r < scanLimit; r++) {
     const row = matrix[r] ?? [];
     if (isProbablyEmptyRow(row)) continue;
+
     const { score, map } = scoreHeaderRow(row);
     if (!best || score > best.score) best = { headerRow: r, map, score };
   }
@@ -286,6 +285,10 @@ function findBestHeader(matrix: any[][]): { headerRow: number; map: Partial<Reco
   if (!best) return null;
   if (best.score < 3) return null;
   return best;
+}
+
+function sheetToMatrix(ws: XLSX.WorkSheet): any[][] {
+  return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null }) as any[][];
 }
 
 function buildDedupKey(item: AnyObj): string {
@@ -299,10 +302,6 @@ function buildDedupKey(item: AnyObj): string {
   return sha1(parts.join("|"));
 }
 
-function sheetToMatrix(ws: XLSX.WorkSheet): any[][] {
-  return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null }) as any[][];
-}
-
 async function fetchBinary(url: string): Promise<Buffer> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Falha ao baixar XLSX: HTTP ${res.status}`);
@@ -314,7 +313,7 @@ function pickKnowledgeDocumentApi(ctx: AnyObj): AnyObj {
   return ctx?.entities?.KnowledgeDocument || ctx?.db?.KnowledgeDocument || ctx?.db?.entities?.KnowledgeDocument || ctx?.data?.KnowledgeDocument || null;
 }
 
-function pickOperationalEntity(ctx: AnyObj): { name: string; api: AnyObj } | null {
+function pickOperationalEntity(ctx: AnyObj): { name: "Programacao" | "Activity"; api: AnyObj } | null {
   const prog = ctx?.entities?.Programacao || ctx?.db?.Programacao || ctx?.db?.entities?.Programacao || ctx?.data?.Programacao || null;
   if (prog) return { name: "Programacao", api: prog };
 
@@ -360,6 +359,15 @@ function extractModeFromReq(req: AnyObj): "history" | "incremental" | "full" {
   if (m === "full") return "full";
   if (m === "incremental") return "incremental";
   return "history";
+}
+
+function extractDebugFromReq(req: AnyObj): boolean {
+  const q = req?.query ?? {};
+  const b = req?.body ?? {};
+  const raw = q?.debug ?? b?.debug ?? null;
+  if (raw == null) return false;
+  const v = String(raw).toLowerCase().trim();
+  return v === "1" || v === "true" || v === "yes";
 }
 
 function resolveGoogleSheetsToXlsx(url: string): string {
@@ -476,6 +484,61 @@ async function createManyOperational(opApi: AnyObj, rows: AnyObj[]): Promise<num
   return created;
 }
 
+function toProgramacaoRecord(parsed: AnyObj): AnyObj {
+  const museu = (parsed.equipamento || "").trim() || "Externo";
+  const titulo = parsed.nome || null;
+  const dataInicioIso = parsed.data || null;
+
+  const rec: AnyObj = {
+    origem: "Planilha Programação (KD)",
+    ativo: true,
+    nome_acao: parsed.nome ?? null,
+    titulo,
+    data: dataInicioIso ? String(dataInicioIso).slice(0, 10) : null,
+    data_inicio: dataInicioIso,
+    data_fim: dataInicioIso,
+    horario: parsed.horario ?? null,
+    museu,
+    equipamento: museu,
+    local: parsed.local ?? null,
+    descricao: parsed.sinopse ?? null,
+    sinopse: parsed.sinopse ?? null,
+    tipo: parsed.tipo ?? null,
+    tipo_atividade: parsed.tipo ?? null,
+    formato: parsed.formato ?? null,
+    publico: parsed.publico ?? null,
+    vagas: parsed.vagas != null ? String(parsed.vagas) : null,
+    acessibilidade: parsed.acessibilidade ?? null,
+    inscricao: parsed.inscricao ?? null,
+    link_inscricao: parsed.inscricao ?? null,
+    responsavel: parsed.contato ?? null,
+    status: "CONFIRMADA",
+    source_sheet: parsed.source_sheet ?? null,
+    source_row: parsed.source_row ?? null,
+    sync_month: parsed.sync_month ?? null,
+  };
+
+  rec.external_key = buildDedupKey(rec);
+  return rec;
+}
+
+function toActivityRecord(parsed: AnyObj): AnyObj {
+  const rec: AnyObj = {
+    title: parsed.nome ?? null,
+    description: parsed.sinopse ?? null,
+    data_realizacao: parsed.data ?? null,
+    horario: parsed.horario ?? null,
+    local: parsed.local ?? null,
+    equipamento: parsed.equipamento ?? null,
+    origem: "Planilha Programação (KD)",
+    source_sheet: parsed.source_sheet ?? null,
+    source_row: parsed.source_row ?? null,
+    sync_month: parsed.sync_month ?? null,
+  };
+  rec.external_key = buildDedupKey(rec);
+  return rec;
+}
+
 function expandDatesWithContext(sheetName: string, value: any, debugNotes: string[]): Date[] {
   const direct = parseExcelDateBasic(value);
   if (direct) return [direct];
@@ -484,12 +547,7 @@ function expandDatesWithContext(sheetName: string, value: any, debugNotes: strin
   const str = String(value ?? "").trim();
   if (!ctx || !str) return [];
 
-  const n = str
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  const n = str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
 
   const matches = [...n.matchAll(/(\d{1,2})\s*\/\s*(\d{1,2})/g)];
   if (matches.length) {
@@ -503,9 +561,7 @@ function expandDatesWithContext(sheetName: string, value: any, debugNotes: strin
     if (out.length) return out;
   }
 
-  const dayMatches = [...n.matchAll(/\b(\d{1,2})\b/g)]
-    .map((m) => parseInt(m[1], 10))
-    .filter((x) => x >= 1 && x <= 31);
+  const dayMatches = [...n.matchAll(/\b(\d{1,2})\b/g)].map((m) => parseInt(m[1], 10)).filter((x) => x >= 1 && x <= 31);
 
   if (dayMatches.length >= 1 && dayMatches.length <= 6) {
     const uniq = Array.from(new Set(dayMatches));
@@ -519,80 +575,12 @@ function expandDatesWithContext(sheetName: string, value: any, debugNotes: strin
   return [];
 }
 
-function toProgramacaoRecord(parsed: AnyObj): AnyObj {
-  const museu = (parsed.equipamento || "").trim() || "Externo";
-  const titulo = parsed.nome || null;
-  const dataInicioIso = parsed.data || null;
-
-  return {
-    external_key: parsed.external_key,
-    origem: "Planilha Programação (KD)",
-    ativo: true,
-
-    // identidade
-    nome_acao: parsed.nome ?? null,
-    titulo,
-
-    // datas
-    data: dataInicioIso ? String(dataInicioIso).slice(0, 10) : null,
-    data_inicio: dataInicioIso,
-    data_fim: dataInicioIso,
-    horario: parsed.horario ?? null,
-
-    // local / museu
-    museu,
-    equipamento: museu,
-    local: parsed.local ?? null,
-
-    // conteúdo
-    descricao: parsed.sinopse ?? null,
-    sinopse: parsed.sinopse ?? null,
-    tipo: parsed.tipo ?? null,
-    tipo_atividade: parsed.tipo ?? null,
-    formato: parsed.formato ?? null,
-    publico: parsed.publico ?? null,
-    vagas: parsed.vagas != null ? String(parsed.vagas) : null,
-    acessibilidade: parsed.acessibilidade ?? null,
-
-    // inscrição / links
-    inscricao: parsed.inscricao ?? null,
-    link_inscricao: parsed.inscricao ?? null,
-
-    // organização
-    responsavel: parsed.contato ?? null,
-
-    // status
-    status: "CONFIRMADA",
-
-    // rastreio
-    source_sheet: parsed.source_sheet ?? null,
-    source_row: parsed.source_row ?? null,
-    sync_month: parsed.sync_month ?? null,
-  };
-}
-
-function toActivityRecord(parsed: AnyObj): AnyObj {
-  return {
-    external_key: parsed.external_key,
-    title: parsed.nome ?? null,
-    description: parsed.sinopse ?? null,
-    data_realizacao: parsed.data ?? null,
-    horario: parsed.horario ?? null,
-    local: parsed.local ?? null,
-    equipamento: parsed.equipamento ?? null,
-    origem: "Planilha Programação (KD)",
-    source_sheet: parsed.source_sheet ?? null,
-    source_row: parsed.source_row ?? null,
-    sync_month: parsed.sync_month ?? null,
-  };
-}
-
 function parseRowsFromSheet(
   sheetName: string,
   matrix: any[][],
   headerRow: number,
   map: Partial<Record<CanonField, number>>,
-  entityName: string,
+  entityName: "Programacao" | "Activity",
   debug: DebugSheet,
   syncMonth: string
 ): AnyObj[] {
@@ -645,9 +633,7 @@ function parseRowsFromSheet(
         sync_month: syncMonth,
       };
 
-      const effective = entityName === "Programacao" ? toProgramacaoRecord(parsed) : toActivityRecord(parsed);
-      effective.external_key = buildDedupKey(effective);
-      out.push(effective);
+      out.push(entityName === "Programacao" ? toProgramacaoRecord(parsed) : toActivityRecord(parsed));
     }
   }
 
@@ -662,11 +648,12 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
   let source_url_resolved: string | null = null;
   let knowledge_document_id: string | null = null;
 
+  const mode = extractModeFromReq(req);
+  const debug = extractDebugFromReq(req);
+
   try {
     const operational = pickOperationalEntity(context);
     if (!operational) throw new Error('Não encontrei entity "Programacao" nem "Activity" no projeto.');
-
-    const mode = extractModeFromReq(req);
 
     const kdApi = pickKnowledgeDocumentApi(context);
     const reqSourceUrl = extractSourceUrlFromReq(req);
@@ -706,7 +693,6 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
     const workbook = XLSX.read(bin, { type: "buffer", cellDates: true, cellText: false });
 
     const now = new Date();
-    const nowYm = yyyymm(now.getUTCFullYear(), now.getUTCMonth() + 1);
     const nextYm = (() => {
       const y = now.getUTCFullYear();
       const m = now.getUTCMonth() + 1;
@@ -719,7 +705,12 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
     for (const sheetName of workbook.SheetNames) {
       const my = parseSheetMonthYear(sheetName);
       if (!my) {
-        debug_sheets.push({ sheet: sheetName, used: false, notes: ["Nome da aba não reconhecido como mês/ano; ignorada."], errors: [] });
+        debug_sheets.push({
+          sheet: sheetName,
+          used: false,
+          notes: ["Nome da aba não reconhecido como mês/ano; ignorada."],
+          errors: [],
+        });
         continue;
       }
       const ym = yyyymm(my.year, my.month);
@@ -737,13 +728,11 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
         }
       }
     } else {
-      // mode === history (DEFAULT)
       const startKey = ymToKey(HISTORY_START_YM);
       const endKey = ymToKey(nextYm);
       for (const s of monthSheets) {
         if (s.key >= startKey && s.key <= endKey) sheetsToProcess.push({ name: s.name, ym: s.ym, year: s.year, month: s.month });
       }
-
       if (!sheetsToProcess.length && monthSheets.length) {
         sheetsToProcess = monthSheets.map((s) => ({ name: s.name, ym: s.ym, year: s.year, month: s.month }));
         debug_sheets.push({ sheet: "__fallback__", used: true, notes: ["FALLBACK: history sem meses; usando full."], errors: [] });
@@ -763,34 +752,48 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
     const seen = new Set<string>();
 
     for (const s of sheetsToProcess) {
-      const debug: DebugSheet = { sheet: s.name, used: false, errors: [], notes: [], syncMonth: s.ym };
+      const debugSheet: DebugSheet = { sheet: s.name, used: false, errors: [], notes: [], syncMonth: s.ym };
 
       try {
         const ws = workbook.Sheets[s.name];
         if (!ws) {
-          debug.errors?.push("Worksheet inexistente no workbook.");
-          debug_sheets.push(debug);
+          debugSheet.errors?.push("Worksheet inexistente no workbook.");
+          debug_sheets.push(debugSheet);
           continue;
         }
 
         const matrix = sheetToMatrix(ws);
-        debug.rowsSeen = matrix.length;
+        debugSheet.rowsSeen = matrix.length;
+
+        if (debug) {
+          const firstNonEmpty: any[][] = [];
+          for (let i = 0; i < Math.min(matrix.length, 40); i++) {
+            if (!isProbablyEmptyRow(matrix[i] ?? [])) firstNonEmpty.push((matrix[i] ?? []).slice(0, 20));
+            if (firstNonEmpty.length >= 8) break;
+          }
+          debugSheet.preview = { firstNonEmptyRows: firstNonEmpty };
+        }
 
         const best = findBestHeader(matrix);
         if (!best) {
-          debug.used = false;
-          debug.notes?.push("Cabeçalho não detectado; aba ignorada.");
-          debug_sheets.push(debug);
+          debugSheet.used = false;
+          debugSheet.notes?.push("Cabeçalho não detectado (precisa pelo menos colunas tipo Nome/Atividade + Data).");
+          debug_sheets.push(debugSheet);
           continue;
         }
 
-        debug.used = true;
-        debug.headerRow = best.headerRow + 1;
-        debug.headerScore = best.score;
-        debug.mappedColumns = Object.fromEntries(Object.entries(best.map).map(([k, v]) => [k, (v as number) + 1]));
+        debugSheet.used = true;
+        debugSheet.headerRow = best.headerRow + 1;
+        debugSheet.headerScore = best.score;
+        debugSheet.mappedColumns = Object.fromEntries(Object.entries(best.map).map(([k, v]) => [k, (v as number) + 1]));
 
-        const parsed = parseRowsFromSheet(s.name, matrix, best.headerRow, best.map, operational.name, debug, s.ym);
-        debug.rowsParsed = parsed.length;
+        if (debug) {
+          debugSheet.preview = debugSheet.preview ?? {};
+          debugSheet.preview.detectedHeaderRow = (matrix[best.headerRow] ?? []).slice(0, 30);
+        }
+
+        const parsed = parseRowsFromSheet(s.name, matrix, best.headerRow, best.map, operational.name, debugSheet, s.ym);
+        debugSheet.rowsParsed = parsed.length;
 
         let keptHere = 0;
         for (const it of parsed) {
@@ -802,13 +805,28 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
           keptHere++;
         }
 
-        debug.rowsKept = keptHere;
-        debug_sheets.push(debug);
+        debugSheet.rowsKept = keptHere;
+        debug_sheets.push(debugSheet);
       } catch (e: any) {
-        debug.used = false;
-        debug.errors?.push(String(e?.message ?? e));
-        debug_sheets.push(debug);
+        debugSheet.used = false;
+        debugSheet.errors?.push(String(e?.message ?? e));
+        debug_sheets.push(debugSheet);
       }
+    }
+
+    // ERRO EXPLÍCITO QUANDO NÃO LÊ NADA
+    if (allItems.length === 0) {
+      errors.push(
+        [
+          "Nenhum registro lido do XLSX.",
+          "Causas comuns:",
+          "1) cabeçalho não detectado (colunas 'Nome/Atividade' e 'Data' diferentes do esperado),",
+          "2) datas em formato inesperado,",
+          "3) abas com nome não reconhecido como mês/ano (ex: 'Março 2026'),",
+          "4) aba certa não entrou no range do mode.",
+          "Use ?debug=1 para ver preview das primeiras linhas e o cabeçalho detectado (ou não).",
+        ].join(" ")
+      );
     }
 
     let deleted_previous = 0;
@@ -835,10 +853,21 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
       source_used,
       source_url_resolved,
       knowledge_document_id,
+      diagnostic: {
+        mode,
+        debug,
+        sheets_detected_month_year: monthSheets.length,
+        sheets_selected: sheetsToProcess.length,
+        history_range: { start_ym: HISTORY_START_YM, end_ym_inclusive: nextYm },
+      },
     };
 
     if (context?.res !== undefined) {
-      context.res = { status: payload.ok ? 200 : 500, headers: { "content-type": "application/json; charset=utf-8" }, body: payload };
+      context.res = {
+        status: payload.ok ? 200 : 500,
+        headers: { "content-type": "application/json; charset=utf-8" },
+        body: payload,
+      };
       return;
     }
     return payload;
@@ -855,10 +884,21 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
       source_used,
       source_url_resolved,
       knowledge_document_id,
+      diagnostic: {
+        mode,
+        debug,
+        sheets_detected_month_year: 0,
+        sheets_selected: 0,
+        history_range: { start_ym: HISTORY_START_YM, end_ym_inclusive: "unknown" },
+      },
     };
 
     if (context?.res !== undefined) {
-      context.res = { status: 500, headers: { "content-type": "application/json; charset=utf-8" }, body: payload };
+      context.res = {
+        status: 500,
+        headers: { "content-type": "application/json; charset=utf-8" },
+        body: payload,
+      };
       return;
     }
     return payload;
