@@ -6,8 +6,8 @@
  * - mês seguinte somente a partir do dia 23
  *
  * Fonte:
- * - KnowledgeDocument mais recente com category = "Programação"
- * - baixa XLSX via file_url
+ * - Preferencial: KnowledgeDocument mais recente com category = "Programação" (file_url)
+ * - Fallback: req.query.source_url ou req.body.source_url (Google Sheets/Drive URL)
  *
  * Processamento:
  * - detecta cabeçalhos com tolerância
@@ -45,6 +45,10 @@ type ResultJson = {
   deleted_previous: number;
   errors: string[];
   debug_sheets: DebugSheet[];
+  // extra diagnóstico para este problema
+  source_used: "knowledge_document" | "source_url";
+  source_url_resolved: string | null;
+  knowledge_document_id: string | null;
 };
 
 const CATEGORY = "Programação";
@@ -188,8 +192,9 @@ function parseSheetMonthYear(sheetName: string): { year: number; month: number }
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
-  // exemplos: "Março 2026", "Janeiro 26", "dezembro 24"
-  const m = n.match(/(janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+(\d{2,4})/);
+  const m = n.match(
+    /(janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+(\d{2,4})/
+  );
   if (!m) return null;
 
   const monthToken = m[1];
@@ -207,7 +212,9 @@ function startOfMonthUTC(year: number, month: number): Date {
 }
 
 function startOfNextMonthUTC(year: number, month: number): Date {
-  return month === 12 ? new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0, 0)) : new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+  return month === 12
+    ? new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0, 0))
+    : new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
 }
 
 function yyyymm(year: number, month: number): string {
@@ -221,10 +228,8 @@ function shouldSyncMonth(params: { year: number; month: number; now: Date }): bo
   const nowMonth = now.getUTCMonth() + 1;
   const nowDay = now.getUTCDate();
 
-  // atual
   if (year === nowYear && month === nowMonth) return true;
 
-  // próximo mês só a partir do dia 23
   const next = nowMonth === 12 ? { y: nowYear + 1, m: 1 } : { y: nowYear, m: nowMonth + 1 };
   if (year === next.y && month === next.m) return nowDay >= 23;
 
@@ -292,10 +297,6 @@ function sheetToMatrix(ws: XLSX.WorkSheet): any[][] {
   return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null }) as any[][];
 }
 
-function fetchNowUtc(): Date {
-  return new Date();
-}
-
 async function fetchBinary(url: string): Promise<Buffer> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Falha ao baixar XLSX: HTTP ${res.status}`);
@@ -338,6 +339,31 @@ async function findLatestKnowledgeDoc(kdApi: AnyObj): Promise<AnyObj | null> {
   throw new Error("API de KnowledgeDocument não reconhecida (sem findMany/list/query).");
 }
 
+function extractSourceUrlFromReq(req: AnyObj): string | null {
+  const q = req?.query ?? {};
+  const b = req?.body ?? {};
+  const raw = q?.source_url ?? q?.sourceUrl ?? b?.source_url ?? b?.sourceUrl ?? null;
+  return raw ? String(raw) : null;
+}
+
+function resolveGoogleSheetsToXlsx(url: string): string {
+  const u = String(url).trim();
+
+  // Already export? Keep.
+  if (/docs\.google\.com\/spreadsheets\/d\/.+\/export\?/i.test(u)) return u;
+
+  // Typical view/edit url:
+  // https://docs.google.com/spreadsheets/d/<ID>/edit?gid=<GID>#gid=<GID>
+  const m = u.match(/docs\.google\.com\/spreadsheets\/d\/([^/]+)/i);
+  if (!m) return u;
+
+  const id = m[1];
+  const gidMatch = u.match(/[?&#]gid=(\d+)/i);
+  const gid = gidMatch ? gidMatch[1] : "0";
+
+  return `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx&gid=${gid}`;
+}
+
 async function listOperational(opApi: AnyObj, limit = 100000): Promise<any[]> {
   if (typeof opApi?.findMany === "function") return (await opApi.findMany({ take: limit })) ?? [];
   if (typeof opApi?.list === "function") {
@@ -372,7 +398,6 @@ async function deleteWhereOperational(opApi: AnyObj, predicate: (it: AnyObj) => 
 }
 
 async function deleteByMonthRanges(opApi: AnyObj, ranges: { startIso: string; endIso: string }[]): Promise<number> {
-  // Se a API suportar deleteMany com where, tenta. Senão, cai no fallback.
   if (typeof opApi?.deleteMany === "function") {
     let total = 0;
     for (const r of ranges) {
@@ -384,7 +409,6 @@ async function deleteByMonthRanges(opApi: AnyObj, ranges: { startIso: string; en
         });
         total += typeof out === "number" ? out : out?.count ?? 0;
       } catch {
-        // fallback por range
         const start = new Date(r.startIso).getTime();
         const end = new Date(r.endIso).getTime();
         total += await deleteWhereOperational(opApi, (it) => {
@@ -399,7 +423,6 @@ async function deleteByMonthRanges(opApi: AnyObj, ranges: { startIso: string; en
     return total;
   }
 
-  // fallback geral
   let total = 0;
   for (const r of ranges) {
     const start = new Date(r.startIso).getTime();
@@ -489,7 +512,6 @@ function expandDatesWithContext(sheetName: string, value: any, debugNotes: strin
     .replace(/\s+/g, " ")
     .trim();
 
-  // captura dd/mm (múltiplos)
   const matches = [...n.matchAll(/(\d{1,2})\s*\/\s*(\d{1,2})/g)];
   if (matches.length) {
     const out: Date[] = [];
@@ -502,15 +524,15 @@ function expandDatesWithContext(sheetName: string, value: any, debugNotes: strin
     if (out.length) return out;
   }
 
-  // captura apenas dias "21 e 28" assumindo mês da aba
-  const dayMatches = [...n.matchAll(/\b(\d{1,2})\b/g)].map((m) => parseInt(m[1], 10)).filter((x) => x >= 1 && x <= 31);
+  const dayMatches = [...n.matchAll(/\b(\d{1,2})\b/g)]
+    .map((m) => parseInt(m[1], 10))
+    .filter((x) => x >= 1 && x <= 31);
+
   if (dayMatches.length >= 1 && dayMatches.length <= 6) {
     const uniq = Array.from(new Set(dayMatches));
-    const out = uniq
-      .map((dd) => new Date(ctx.year, ctx.month - 1, dd))
-      .filter((d) => !Number.isNaN(d.getTime()));
+    const out = uniq.map((dd) => new Date(ctx.year, ctx.month - 1, dd)).filter((d) => !Number.isNaN(d.getTime()));
     if (out.length) {
-      debugNotes.push(`Data textual interpretada por contexto da aba: "${str}" => ${out.map((d) => d.toISOString().slice(0, 10)).join(", ")}`);
+      debugNotes.push(`Data textual por contexto: "${str}" => ${out.map((d) => d.toISOString().slice(0, 10)).join(", ")}`);
       return out;
     }
   }
@@ -531,7 +553,6 @@ function parseRowsFromSheet(
   const notes: string[] = debug.notes ?? (debug.notes = []);
 
   const maxCols = Math.max(...matrix.map((r) => r.length), 0);
-
   const getCell = (row: any[], idx: number | undefined): any => {
     if (idx == null) return null;
     if (idx < 0 || idx >= maxCols) return null;
@@ -550,7 +571,6 @@ function parseRowsFromSheet(
 
     const nome = asString(getCell(row, map.nome));
     const dataRaw = getCell(row, map.data);
-
     if (!nome) continue;
 
     const dates = expandDatesWithContext(sheetName, dataRaw, notes);
@@ -590,26 +610,55 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
   const errors: string[] = [];
   const debug_sheets: DebugSheet[] = [];
 
-  try {
-    const kdApi = pickKnowledgeDocumentApi(context);
-    if (!kdApi) throw new Error("Não encontrei a entity KnowledgeDocument no contexto da função.");
+  let source_used: ResultJson["source_used"] = "knowledge_document";
+  let source_url_resolved: string | null = null;
+  let knowledge_document_id: string | null = null;
 
+  try {
     const operational = pickOperationalEntity(context);
     if (!operational) throw new Error('Não encontrei entity "Programacao" nem "Activity" no projeto.');
 
-    const latest = await findLatestKnowledgeDoc(kdApi);
-    if (!latest) throw new Error(`Nenhum KnowledgeDocument encontrado com category="${CATEGORY}".`);
+    const kdApi = pickKnowledgeDocumentApi(context);
+    const reqSourceUrl = extractSourceUrlFromReq(req);
 
-    const fileUrl = latest?.file_url ?? latest?.fileUrl ?? latest?.file?.url;
-    if (!fileUrl) throw new Error("KnowledgeDocument encontrado, mas sem file_url (ou equivalente).");
+    let xlsxUrl: string | null = null;
 
-    const bin = await fetchBinary(String(fileUrl));
+    if (kdApi) {
+      try {
+        const latest = await findLatestKnowledgeDoc(kdApi);
+        if (latest) {
+          knowledge_document_id = String(latest?.id ?? latest?._id ?? "") || null;
+          const fileUrl = latest?.file_url ?? latest?.fileUrl ?? latest?.file?.url ?? null;
+          if (fileUrl) {
+            xlsxUrl = String(fileUrl);
+            source_used = "knowledge_document";
+          }
+        }
+      } catch (e: any) {
+        errors.push(`Falha consultando KnowledgeDocument: ${String(e?.message ?? e)}`);
+      }
+    }
+
+    // Fallback obrigatório se não tiver file_url salvo
+    if (!xlsxUrl) {
+      if (!reqSourceUrl) {
+        throw new Error(
+          'Sem XLSX na biblioteca (KnowledgeDocument.file_url vazio/ausente) e sem fallback. Envie "source_url" (query ou body).'
+        );
+      }
+      source_used = "source_url";
+      xlsxUrl = resolveGoogleSheetsToXlsx(reqSourceUrl);
+      source_url_resolved = xlsxUrl;
+    } else {
+      source_url_resolved = xlsxUrl;
+    }
+
+    const bin = await fetchBinary(String(xlsxUrl));
     const workbook = XLSX.read(bin, { type: "buffer", cellDates: true, cellText: false });
 
-    const now = fetchNowUtc();
-    const targetMonthRanges: { startIso: string; endIso: string; label: string }[] = [];
+    const now = new Date();
+    const targetMonthRanges: { startIso: string; endIso: string }[] = [];
 
-    // Decide quais abas sincronizar (incremental)
     const sheetsToProcess: { name: string; ym: string; year: number; month: number }[] = [];
     for (const sheetName of workbook.SheetNames) {
       const my = parseSheetMonthYear(sheetName);
@@ -630,13 +679,12 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
       sheetsToProcess.push({ name: sheetName, ym: yyyymm(my.year, my.month), year: my.year, month: my.month });
     }
 
-    // ranges para delete
     const uniqYm = Array.from(new Set(sheetsToProcess.map((s) => s.ym)));
     for (const ym of uniqYm) {
       const [yy, mm] = ym.split("-").map((x) => parseInt(x, 10));
       const start = startOfMonthUTC(yy, mm);
       const end = startOfNextMonthUTC(yy, mm);
-      targetMonthRanges.push({ startIso: start.toISOString(), endIso: end.toISOString(), label: ym });
+      targetMonthRanges.push({ startIso: start.toISOString(), endIso: end.toISOString() });
     }
 
     const allItems: AnyObj[] = [];
@@ -691,7 +739,6 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
       }
     }
 
-    // Delete apenas os meses-alvo
     let deleted_previous = 0;
     try {
       deleted_previous = await deleteByMonthRanges(operational.api, targetMonthRanges);
@@ -699,7 +746,6 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
       errors.push(`Falha ao apagar registros anteriores (por range): ${String(e?.message ?? e)}`);
     }
 
-    // Create
     let created = 0;
     try {
       created = await createManyOperational(operational.api, allItems);
@@ -714,6 +760,9 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
       deleted_previous,
       errors,
       debug_sheets,
+      source_used,
+      source_url_resolved,
+      knowledge_document_id,
     };
 
     if (context?.res !== undefined) {
@@ -736,6 +785,9 @@ export default async function entry(context: AnyObj, req: AnyObj): Promise<any> 
       deleted_previous: 0,
       errors,
       debug_sheets,
+      source_used,
+      source_url_resolved,
+      knowledge_document_id,
     };
 
     if (context?.res !== undefined) {
