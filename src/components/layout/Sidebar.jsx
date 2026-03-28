@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
@@ -10,12 +10,12 @@ import {
   Settings,
   HelpCircle,
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
   CalendarDays,
   BookOpen,
   ShoppingCart,
   Newspaper,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   Images,
   ScrollText,
@@ -23,22 +23,37 @@ import {
 import { Button } from '@/components/ui/button';
 import SuggestionForm from '@/components/sidebar/SuggestionForm';
 import { HelpWrapper } from '@/components/help/withContextualHelp';
-import {
-  isCoordenador as checkCoordenador,
-  canManageUsers,
-} from '@/components/auth/permissions';
+import { isCoordenador as checkCoordenador, canManageUsers } from '@/components/auth/permissions';
 
 export default function Sidebar({ currentPageName, collapsed, onToggle, currentUser }) {
   const [customPerms, setCustomPerms] = useState(null);
   const [expandedSections, setExpandedSections] = useState({});
 
   useEffect(() => {
-    if (currentUser?.email) {
-      base44.entities.UserPermission
-        .filter({ user_email: currentUser.email })
-        .then((perms) => setCustomPerms(perms?.[0] || null))
-        .catch(() => setCustomPerms(null));
+    let active = true;
+
+    async function loadPermissions() {
+      if (!currentUser?.email) {
+        if (active) setCustomPerms(null);
+        return;
+      }
+
+      try {
+        const perms = await base44.entities.UserPermission.filter({
+          user_email: currentUser.email,
+        });
+        if (active) setCustomPerms(perms?.[0] || null);
+      } catch (error) {
+        console.error('Erro ao carregar permissões do usuário:', error);
+        if (active) setCustomPerms(null);
+      }
     }
+
+    loadPermissions();
+
+    return () => {
+      active = false;
+    };
   }, [currentUser?.email]);
 
   const coord = checkCoordenador(currentUser);
@@ -51,18 +66,45 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
     return customPerms[requiredPerm] !== false;
   };
 
+  const toggleSection = (sectionName) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [sectionName]: !prev[sectionName],
+    }));
+  };
+
   const navSections = [
     {
       items: [
-        { name: 'Dashboard', icon: BarChart3, label: 'Dashboard', show: true },
+        {
+          name: 'Dashboard',
+          icon: BarChart3,
+          label: 'Dashboard',
+          show: true,
+        },
       ],
     },
     {
       label: 'Trabalho',
       items: [
-        { name: 'Relatorios', icon: FileText, label: 'Relatórios', show: true },
-        { name: 'CalendarioAtividades', icon: CalendarDays, label: 'Agenda', show: true },
-        { name: 'Compras', icon: ShoppingCart, label: 'Compras e Pagamentos', show: true },
+        {
+          name: 'Relatorios',
+          icon: FileText,
+          label: 'Relatórios',
+          show: true,
+        },
+        {
+          name: 'CalendarioAtividades',
+          icon: CalendarDays,
+          label: 'Agenda',
+          show: true,
+        },
+        {
+          name: 'Compras',
+          icon: ShoppingCart,
+          label: 'Compras e Pagamentos',
+          show: true,
+        },
       ],
     },
     {
@@ -85,16 +127,36 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
     {
       label: 'Gestão',
       items: [
-        { name: 'MeusDados', icon: Users, label: 'Meus dados', show: true },
+        {
+          name: 'MeusDados',
+          icon: Users,
+          label: 'Meus dados',
+          show: true,
+        },
         {
           name: 'RubricasPorMuseu',
           icon: Building2,
           label: 'Rubricas por museu',
           show: true,
         },
-        { name: 'UserManagement', icon: Users, label: 'Usuários', show: canManageUsersFlag },
-        { name: 'GestorArquivos', icon: Paperclip, label: 'Arquivos', show: true },
-        { name: 'GaleriaFotos', icon: Images, label: 'Galeria', show: true },
+        {
+          name: 'UserManagement',
+          icon: Users,
+          label: 'Usuários',
+          show: canManageUsersFlag,
+        },
+        {
+          name: 'GestorArquivos',
+          icon: Paperclip,
+          label: 'Arquivos',
+          show: true,
+        },
+        {
+          name: 'GaleriaFotos',
+          icon: Images,
+          label: 'Galeria',
+          show: true,
+        },
         {
           name: 'PlataformaAdmin',
           icon: Settings,
@@ -117,8 +179,18 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           label: 'Assistente IA',
           show: true,
         },
-        { name: 'Manual', icon: BookOpen, label: 'Manual e Ajuda', show: true },
-        { name: 'LeitorNoticias', icon: Newspaper, label: 'Notícias', show: true },
+        {
+          name: 'Manual',
+          icon: BookOpen,
+          label: 'Manual e Ajuda',
+          show: true,
+        },
+        {
+          name: 'LeitorNoticias',
+          icon: Newspaper,
+          label: 'Notícias',
+          show: true,
+        },
       ],
     },
   ]
@@ -130,7 +202,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
 
   return (
     <aside
-      className={`h-screen bg-[#111111] text-white flex flex-col border-r border-white/10 transition-all duration-300 ${
+      className={`hidden lg:flex h-screen bg-[#111111] text-white flex-col border-r border-white/10 transition-all duration-300 ${
         collapsed ? 'w-[76px]' : 'w-[290px]'
       }`}
     >
@@ -173,70 +245,65 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
                 const isExpanded = expandedSections[item.name];
                 const hasSubmenu = Array.isArray(item.submenu) && item.submenu.length > 0;
 
-                return (
-                  <div key={item.name}>
-                    {hasSubmenu ? (
-                      <>
-                        <Button
-                          variant="ghost"
-                          onClick={() =>
-                            setExpandedSections((prev) => ({
-                              ...prev,
-                              [item.name]: !prev[item.name],
-                            }))
-                          }
-                          className={`w-full justify-start gap-2 rounded-xl px-3 h-11 ${
-                            isActive
-                              ? 'bg-white text-black'
-                              : 'text-white/70 hover:text-white hover:bg-white/10'
-                          }`}
-                        >
-                          <Icon className="w-4 h-4 shrink-0" />
-                          {!collapsed && <span className="truncate">{item.label}</span>}
-                          {!collapsed && (
-                            <ChevronDown
-                              className={`w-4 h-4 ml-auto transition-transform ${
-                                isExpanded ? 'rotate-180' : ''
-                              }`}
-                            />
-                          )}
-                        </Button>
-
-                        {hasSubmenu && isExpanded && !collapsed && (
-                          <div className="ml-4 mt-1 space-y-1 border-l border-white/10 pl-3">
-                            {item.submenu.map((sub) => (
-                              <Link key={sub.name} to={createPageUrl(sub.name)}>
-                                <Button
-                                  variant="ghost"
-                                  className={`w-full justify-start rounded-lg px-3 h-9 ${
-                                    currentPageName === sub.name
-                                      ? 'bg-white text-black'
-                                      : 'text-white/70 hover:text-white hover:bg-white/10'
-                                  }`}
-                                >
-                                  {sub.label}
-                                </Button>
-                              </Link>
-                            ))}
-                          </div>
+                if (hasSubmenu) {
+                  return (
+                    <div key={item.name}>
+                      <Button
+                        variant="ghost"
+                        onClick={() => toggleSection(item.name)}
+                        className={`w-full justify-start gap-2 rounded-xl px-3 h-11 ${
+                          isActive
+                            ? 'bg-white text-black'
+                            : 'text-white/70 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4 shrink-0" />
+                        {!collapsed && <span className="truncate">{item.label}</span>}
+                        {!collapsed && (
+                          <ChevronDown
+                            className={`w-4 h-4 ml-auto transition-transform ${
+                              isExpanded ? 'rotate-180' : ''
+                            }`}
+                          />
                         )}
-                      </>
-                    ) : (
-                      <Link to={createPageUrl(item.name)}>
-                        <Button
-                          variant="ghost"
-                          className={`w-full justify-start gap-2 rounded-xl px-3 h-11 ${
-                            isActive
-                              ? 'bg-white text-black'
-                              : 'text-white/70 hover:text-white hover:bg-white/10'
-                          }`}
-                        >
-                          <Icon className="w-4 h-4 shrink-0" />
-                          {!collapsed && <span className="truncate">{item.label}</span>}
-                        </Button>
-                      </Link>
-                    )}
-                  </div>
+                      </Button>
+
+                      {isExpanded && !collapsed && (
+                        <div className="ml-4 mt-1 space-y-1 border-l border-white/10 pl-3">
+                          {item.submenu.map((sub) => (
+                            <Link key={sub.name} to={createPageUrl(sub.name)}>
+                              <Button
+                                variant="ghost"
+                                className={`w-full justify-start rounded-lg px-3 h-9 ${
+                                  currentPageName === sub.name
+                                    ? 'bg-white text-black'
+                                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                                }`}
+                              >
+                                {sub.label}
+                              </Button>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <Link key={item.name} to={createPageUrl(item.name)}>
+                    <Button
+                      variant="ghost"
+                      className={`w-full justify-start gap-2 rounded-xl px-3 h-11 ${
+                        isActive
+                          ? 'bg-white text-black'
+                          : 'text-white/70 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4 shrink-0" />
+                      {!collapsed && <span className="truncate">{item.label}</span>}
+                    </Button>
+                  </Link>
                 );
               })}
             </div>
