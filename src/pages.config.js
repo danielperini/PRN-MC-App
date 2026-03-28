@@ -1,4 +1,4 @@
-/**
+/** 
  * pages.config.js - Page routing configuration
  */
 
@@ -10,6 +10,7 @@ import AuditLog from './pages/AuditLog';
 import BaseConhecimento from './pages/BaseConhecimento';
 import Cadastro from './pages/Cadastro';
 import CalendarioAtividades from './pages/CalendarioAtividades';
+import ChecklistProducao from './pages/ChecklistProducao';
 import Compras from './pages/Compras';
 import ConsolidacaoFinanceira from './pages/ConsolidacaoFinanceira';
 import CoordReview from './pages/CoordReview';
@@ -43,58 +44,62 @@ import RelatorioMeta from './pages/RelatorioMeta';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import Rubricas from './pages/Rubricas';
+import RubricasPorMuseu from './pages/RubricasPorMuseu';
 import UserManagement from './pages/UserManagement';
 import ViadutoMap from './pages/ViadutoMap';
+
 import __Layout from './Layout.jsx';
 
 export const PAGES = {
-    "ActivityLog": ActivityLog,
-    "AdminUsers": AdminUsers,
-    "ApprovalsMobile": ApprovalsMobile,
-    "AssistentePlanejamento": AssistentePlanejamento,
-    "AuditLog": AuditLog,
-    "BaseConhecimento": BaseConhecimento,
-    "Cadastro": Cadastro,
-    "CalendarioAtividades": CalendarioAtividades,
-    "Compras": Compras,
-    "ConsolidacaoFinanceira": ConsolidacaoFinanceira,
-    "CoordReview": CoordReview,
-    "Dashboard": Dashboard,
-    "DashboardFinanceiro": DashboardFinanceiro,
-    "DashboardProfissional": DashboardProfissional,
-    "Fornecedores": Fornecedores,
-    "GaleriaFotos": GaleriaFotos,
-    "GeradorListaPresenca": GeradorListaPresenca,
-    "GeradorTermoCompromisso": GeradorTermoCompromisso,
-    "GestaoDocumental": GestaoDocumental,
-    "GestaoPagamentos": GestaoPagamentos,
-    "GestorArquivos": GestorArquivos,
-    "HelpManagement": HelpManagement,
-    "Home": Home,
-    "LeitorNoticias": LeitorNoticias,
-    "Manual": Manual,
-    "MeusDados": MeusDados,
-    "MhaabMap": MhaabMap,
-    "MisMap": MisMap,
-    "MonitoringPanel": MonitoringPanel,
-    "MumoMap": MumoMap,
-    "MuseusNoMapa": MuseusNoMapa,
-    "NovaAtividade": NovaAtividade,
-    "Perfil": Perfil,
-    "PlataformaAdmin": PlataformaAdmin,
-    "PlataformaConfig": PlataformaConfig,
-    "PrestacaoDeContas": PrestacaoDeContas,
-    "ProgramacoesAgenda": ProgramacoesAgenda,
-    "RelatorioMeta": RelatorioMeta,
-    "Relatorios": Relatorios,
-    "ReportEditor": ReportEditor,
-    "Rubricas": Rubricas,
-    "UserManagement": UserManagement,
-    "ViadutoMap": ViadutoMap,
+  ActivityLog,
+  AdminUsers,
+  ApprovalsMobile,
+  AssistentePlanejamento,
+  AuditLog,
+  BaseConhecimento,
+  Cadastro,
+  CalendarioAtividades,
+  ChecklistProducao,
+  Compras,
+  ConsolidacaoFinanceira,
+  CoordReview,
+  Dashboard,
+  DashboardFinanceiro,
+  DashboardProfissional,
+  Fornecedores,
+  GaleriaFotos,
+  GeradorListaPresenca,
+  GeradorTermoCompromisso,
+  GestaoDocumental,
+  GestaoPagamentos,
+  GestorArquivos,
+  HelpManagement,
+  Home,
+  LeitorNoticias,
+  Manual,
+  MeusDados,
+  MhaabMap,
+  MisMap,
+  MonitoringPanel,
+  MumoMap,
+  MuseusNoMapa,
+  NovaAtividade,
+  Perfil,
+  PlataformaAdmin,
+  PlataformaConfig,
+  PrestacaoDeContas,
+  ProgramacoesAgenda,
+  RelatorioMeta,
+  Relatorios,
+  ReportEditor,
+  Rubricas,
+  RubricasPorMuseu,
+  UserManagement,
+  ViadutoMap,
 };
 
 export const pagesConfig = {
-    mainPage: "Dashboard",
-    Pages: PAGES,
-    Layout: __Layout,
+  mainPage: 'Dashboard',
+  Pages: PAGES,
+  Layout: __Layout,
 };
