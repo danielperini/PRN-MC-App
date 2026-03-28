@@ -1,165 +1,142 @@
-import { base44 } from "base44";
 import * as XLSX from "xlsx";
 
-function normalize(str: any) {
-  return String(str || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
+export default async function handler(context: any) {
+  const { entities } = context;
 
-function parseExcelDate(value: any): string | null {
-  if (!value) return null;
-
-  // Excel serial
-  if (typeof value === "number") {
-    const date = XLSX.SSF.parse_date_code(value);
-    if (!date) return null;
-
-    const d = new Date(date.y, date.m - 1, date.d);
-    return d.toISOString();
-  }
-
-  // DD/MM/YYYY
-  if (typeof value === "string") {
-    const parts = value.split("/");
-    if (parts.length === 3) {
-      const [d, m, y] = parts.map(Number);
-      const date = new Date(y, m - 1, d);
-      if (!isNaN(date.getTime())) {
-        return date.toISOString();
-      }
-    }
-
-    // fallback ISO
-    const date = new Date(value);
-    if (!isNaN(date.getTime())) {
-      return date.toISOString();
-    }
-  }
-
-  return null;
-}
-
-function mapHeaders(headers: string[]) {
-  const map: Record<string, number> = {};
-
-  headers.forEach((h, i) => {
-    const n = normalize(h);
-
-    if (["data", "data inicio", "data_inicial"].includes(n)) map.data = i;
-    if (["titulo", "nome", "atividade"].includes(n)) map.titulo = i;
-    if (["museu"].includes(n)) map.museu = i;
-    if (["horario", "hora"].includes(n)) map.horario = i;
-    if (["local"].includes(n)) map.local = i;
-    if (["sinopse", "descricao"].includes(n)) map.sinopse = i;
-  });
-
-  return map;
-}
-
-export default async function handler(req: any, res: any) {
-  const debug_sheets: any[] = [];
-  const errors: any[] = [];
+  let total_items = 0;
+  let created = 0;
+  let deleted_previous = 0;
+  let errors: any[] = [];
+  let debug_sheets: any[] = [];
 
   try {
-    const url = process.env.PROGRAMACAO_SHEET_URL;
-
-    if (!url) {
-      throw new Error("PROGRAMACAO_SHEET_URL não configurada");
-    }
-
-    const response = await fetch(url);
-    const buffer = await response.arrayBuffer();
-
-    const workbook = XLSX.read(buffer, { type: "buffer" });
-
-    let total_items = 0;
-    let created = 0;
-    let deleted_previous = 0;
-
-    // 🔥 delete seguro: só origem desta função
-    const antigos = await base44.entities.Programacao.filter({
-      origem: "syncProgramacao",
+    const docs = await entities.KnowledgeDocument.list({
+      filter: { categoria: "Programação" },
+      sort: { created_at: -1 },
+      limit: 1,
     });
 
-    const antigosList = Array.isArray(antigos)
-      ? antigos
-      : antigos?.items || [];
-
-    for (const item of antigosList) {
-      await base44.entities.Programacao.delete(item.id);
-      deleted_previous++;
+    if (!docs.data.length) {
+      return { ok: false, error: "Nenhum documento encontrado" };
     }
+
+    const doc = docs.data[0];
+
+    const response = await fetch(doc.file_url);
+    const buffer = await response.arrayBuffer();
+
+    const workbook = XLSX.read(buffer, { type: "array" });
+
+    const allItems: any[] = [];
 
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
-      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      if (!rows.length) continue;
+      let headerIndex = -1;
+      let headers: string[] = [];
 
-      const headers = rows[0];
-      const map = mapHeaders(headers);
+      for (let i = 0; i < json.length; i++) {
+        const row = json[i] as any[];
 
-      debug_sheets.push({
-        sheet: sheetName,
-        headers,
-        mapped: map,
-      });
+        const normalized = row.map((c) =>
+          String(c || "").toLowerCase()
+        );
 
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.length === 0) continue;
-
-        try {
-          const titulo = row[map.titulo] || "Sem título";
-          const dataRaw = row[map.data];
-          const data_inicio = parseExcelDate(dataRaw);
-
-          if (!data_inicio) continue;
-
-          const item = {
-            titulo,
-            nome: titulo,
-            data_inicio,
-            data: dataRaw,
-            museu: row[map.museu] || "",
-            horario: row[map.horario] || "",
-            local: row[map.local] || "",
-            sinopse: row[map.sinopse] || "",
-            origem: "syncProgramacao",
-          };
-
-          await base44.entities.Programacao.create(item);
-
-          created++;
-          total_items++;
-        } catch (e: any) {
-          errors.push({
-            row: i,
-            error: e?.message,
-          });
+        if (
+          normalized.some((c) => c.includes("data")) &&
+          normalized.some((c) => c.includes("atividade") || c.includes("evento"))
+        ) {
+          headerIndex = i;
+          headers = normalized;
+          break;
         }
       }
+
+      if (headerIndex === -1) {
+        debug_sheets.push({ sheetName, status: "no_header" });
+        continue;
+      }
+
+      let count = 0;
+
+      for (let i = headerIndex + 1; i < json.length; i++) {
+        const row = json[i] as any[];
+
+        if (!row || row.length === 0) continue;
+
+        const obj: any = {};
+
+        headers.forEach((h, idx) => {
+          obj[h] = row[idx];
+        });
+
+        const rawDate = obj["data"] || obj["dia"];
+        const titulo = obj["atividade"] || obj["evento"];
+
+        if (!rawDate || !titulo) continue;
+
+        let date: Date;
+
+        try {
+          date = new Date(rawDate);
+          if (isNaN(date.getTime())) throw new Error();
+        } catch {
+          errors.push({ row, error: "invalid_date" });
+          continue;
+        }
+
+        allItems.push({
+          data: date.toISOString(),
+          titulo: String(titulo),
+          descricao: String(obj["descricao"] || ""),
+          local: String(obj["local"] || ""),
+        });
+
+        count++;
+      }
+
+      debug_sheets.push({ sheetName, rows: count });
     }
 
-    return res.status(200).json({
+    const map = new Map();
+
+    for (const item of allItems) {
+      const key = `${item.data}-${item.titulo}`;
+      map.set(key, item);
+    }
+
+    const uniqueItems = Array.from(map.values());
+    total_items = uniqueItems.length;
+
+    const targetEntity =
+      entities.Programacao || entities.Activity;
+
+    const existing = await targetEntity.list({ limit: 10000 });
+
+    for (const item of existing.data) {
+      await targetEntity.delete(item.id);
+      deleted_previous++;
+    }
+
+    for (const item of uniqueItems) {
+      await targetEntity.create(item);
+      created++;
+    }
+
+    return {
       ok: true,
       total_items,
       created,
       deleted_previous,
       errors,
       debug_sheets,
-    });
+    };
   } catch (error: any) {
-    console.error("Erro syncProgramacao:", error);
-
-    return res.status(500).json({
+    return {
       ok: false,
-      error: error?.message,
-      debug_sheets,
+      error: error.message,
       errors,
-    });
+    };
   }
 }
