@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import Sidebar from '@/components/layout/Sidebar';
 import TopNav from '@/components/layout/TopNav';
@@ -30,6 +30,9 @@ const PAGE_TITLES = {
   BaseConhecimento: 'Conhecimento',
   LeitorNoticias: 'Notícias',
   Manual: 'Manual e Ajuda',
+  GeradorListaPresenca: 'Gerador de Lista de Presença',
+  GeradorTermoCompromisso: 'Gerador de Termo de Compromisso',
+  MeusDados: 'Meus Dados',
 };
 
 export default function Layout({ children, currentPageName }) {
@@ -37,55 +40,71 @@ export default function Layout({ children, currentPageName }) {
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    base44.auth.isAuthenticated().then((isAuth) => {
-      if (isAuth) base44.auth.me().then(setCurrentUser);
-    });
+    let active = true;
+
+    async function loadUser() {
+      try {
+        const isAuth = await base44.auth.isAuthenticated();
+        if (!isAuth) {
+          if (active) setCurrentUser(null);
+          return;
+        }
+
+        const user = await base44.auth.me();
+        if (active) setCurrentUser(user || null);
+      } catch (error) {
+        console.error('Erro ao carregar usuário no layout:', error);
+        if (active) setCurrentUser(null);
+      }
+    }
+
+    loadUser();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
+  const pageTitle = PAGE_TITLES[currentPageName] || 'Museus Centro';
+
   return (
-    <HelpContextProvider>
-      <div className="min-h-screen bg-white font-sans">
-        {/* Desktop Sidebar */}
-        <div className="hidden md:block border-r border-black/10">
+    <HelpContextProvider pageName={currentPageName}>
+      <div className="min-h-screen bg-slate-50 text-slate-900">
+        <div className="hidden lg:flex min-h-screen">
           <Sidebar
             currentPageName={currentPageName}
             collapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+            onToggle={() => setSidebarCollapsed((prev) => !prev)}
             currentUser={currentUser}
           />
-        </div>
 
-        {/* Main Content */}
-        <div
-          className={`hidden md:flex md:flex-col ${
-            sidebarCollapsed ? 'ml-20' : 'ml-64'
-          } min-h-screen transition-all duration-300`}
-        >
-          {/* Top Nav */}
-          <div className="border-b border-black/10">
-            <TopNav currentUser={currentUser} />
-          </div>
-
-          {/* Content */}
-          <main className="flex-1 overflow-auto bg-white px-4 md:px-6 py-6">
-            {children}
-          </main>
-        </div>
-
-        {/* Mobile Layout */}
-        <div className="md:hidden flex flex-col min-h-screen bg-white font-sans">
-          <div className="border-b border-black/10">
-            <MobileHeader
-              title={PAGE_TITLES[currentPageName] || 'Museus Centro'}
+          <div className="flex-1 min-w-0 flex flex-col">
+            <TopNav
+              title={pageTitle}
+              currentPageName={currentPageName}
+              currentUser={currentUser}
             />
+
+            <main className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-6">
+              {children}
+            </main>
           </div>
-          <main className="flex-1 overflow-auto bg-white pt-14 pb-16 px-4 animate-slide-in">
+        </div>
+
+        <div className="lg:hidden min-h-screen flex flex-col pb-20">
+          <MobileHeader
+            title={pageTitle}
+            currentPageName={currentPageName}
+            currentUser={currentUser}
+          />
+
+          <main className="flex-1 min-w-0 overflow-x-hidden p-4">
             {children}
           </main>
+
           <MobileBottomTab currentPageName={currentPageName} />
         </div>
 
-        {/* Assistant Chat */}
         <AssistantChat />
       </div>
     </HelpContextProvider>
