@@ -1,4 +1,4 @@
-/** 
+/**
  * pages.config.js - Page routing configuration
  */
 
@@ -10,7 +10,6 @@ import AuditLog from './pages/AuditLog';
 import BaseConhecimento from './pages/BaseConhecimento';
 import Cadastro from './pages/Cadastro';
 import CalendarioAtividades from './pages/CalendarioAtividades';
-import ChecklistProducao from './pages/ChecklistProducao';
 import Compras from './pages/Compras';
 import ConsolidacaoFinanceira from './pages/ConsolidacaoFinanceira';
 import CoordReview from './pages/CoordReview';
@@ -59,7 +58,6 @@ export const PAGES = {
   BaseConhecimento,
   Cadastro,
   CalendarioAtividades,
-  ChecklistProducao,
   Compras,
   ConsolidacaoFinanceira,
   CoordReview,
