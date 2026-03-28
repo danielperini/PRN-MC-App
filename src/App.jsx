@@ -1,26 +1,35 @@
 import React from 'react';
-import { Toaster } from "@/components/ui/toaster";
-import { QueryClientProvider } from '@tanstack/react-query';
-import { queryClientInstance } from '@/lib/query-client';
-import { pagesConfig } from './pages.config';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import PageNotFound from './lib/PageNotFound';
+import { QueryClientProvider } from '@tanstack/react-query';
+
+import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import { queryClientInstance } from '@/lib/query-client';
+
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import ChecklistProducao from './pages/ChecklistProducao';
-import RubricasPorMuseu from './pages/RubricasPorMuseu';
-import BaseConhecimento from './pages/BaseConhecimento';
+import PageNotFound from './lib/PageNotFound';
+import { pagesConfig } from './pages.config';
 
 const { Pages, Layout, mainPage } = pagesConfig;
+
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : null;
 
-const LayoutWrapper = ({ children, currentPageName }) =>
-  Layout ? (
-    <Layout currentPageName={currentPageName}>{children}</Layout>
-  ) : (
-    <>{children}</>
+function LayoutWrapper({ children, currentPageName }) {
+  if (!Layout) {
+    return <>{children}</>;
+  }
+
+  return <Layout currentPageName={currentPageName}>{children}</Layout>;
+}
+
+function LoadingScreen() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+    </div>
   );
+}
 
 function AuthenticatedApp() {
   const {
@@ -31,11 +40,7 @@ function AuthenticatedApp() {
   } = useAuth();
 
   if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (authError) {
@@ -60,51 +65,24 @@ function AuthenticatedApp() {
         }
       />
 
-      {Object.entries(Pages).map(([path, Page]) => (
+      {Object.entries(Pages).map(([path, PageComponent]) => (
         <Route
           key={path}
           path={`/${path}`}
           element={
             <LayoutWrapper currentPageName={path}>
-              <Page />
+              <PageComponent />
             </LayoutWrapper>
           }
         />
       ))}
-
-      <Route
-        path="/ChecklistProducao"
-        element={
-          <LayoutWrapper currentPageName="ChecklistProducao">
-            <ChecklistProducao />
-          </LayoutWrapper>
-        }
-      />
-
-      <Route
-        path="/RubricasPorMuseu"
-        element={
-          <LayoutWrapper currentPageName="RubricasPorMuseu">
-            <RubricasPorMuseu />
-          </LayoutWrapper>
-        }
-      />
-
-      <Route
-        path="/BaseConhecimento"
-        element={
-          <LayoutWrapper currentPageName="BaseConhecimento">
-            <BaseConhecimento />
-          </LayoutWrapper>
-        }
-      />
 
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
 }
 
-function App() {
+export default function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
@@ -116,5 +94,3 @@ function App() {
     </AuthProvider>
   );
 }
-
-export default App;
