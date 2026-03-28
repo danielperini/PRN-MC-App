@@ -1,148 +1,60 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { base44 } from "base44";
 
-function toArray(result: any) {
-  if (Array.isArray(result)) return result;
-  if (Array.isArray(result?.items)) return result.items;
-  return [];
-}
-
-function getDocDate(doc: any) {
-  return (
-    doc?.created_date ||
-    doc?.created_at ||
-    doc?.updated_date ||
-    doc?.updated_at ||
-    ''
-  );
-}
-
-function normalizeDoc(doc: any) {
-  return {
-    id: doc?.id || '',
-    title: doc?.title || doc?.name || doc?.file_name || '',
-    name: doc?.name || doc?.title || '',
-    file_name: doc?.file_name || doc?.filename || '',
-    file_url: doc?.file_url || doc?.url || doc?.document_url || '',
-    mime_type: doc?.mime_type || '',
-    categoria: doc?.categoria || doc?.category || '',
-    descricao: doc?.descricao || doc?.description || '',
-    summary: doc?.summary || '',
-    status: doc?.status || '',
-    processing_status: doc?.processing_status || '',
-    created_date: doc?.created_date || doc?.created_at || '',
-    updated_date: doc?.updated_date || doc?.updated_at || '',
-    uploaded_by_email: doc?.uploaded_by_email || '',
-    created_by_email: doc?.created_by_email || '',
-    uploaded_by: doc?.uploaded_by || '',
-    created_by: doc?.created_by || '',
-    uploaded_by_id: doc?.uploaded_by_id || '',
-    created_by_id: doc?.created_by_id || '',
-    tags: Array.isArray(doc?.tags) ? doc.tags : [],
-  };
-}
-
-function isCoordinator(user: any) {
-  return (
-    user?.role === 'admin' ||
-    user?.role === 'ADMIN' ||
-    user?.role === 'COORDENADOR' ||
-    user?.can_manage_users === true ||
-    user?.email === 'daniel@periniprojetos.com.br' ||
-    user?.email === 'danielperini.mc@vidadutodasartes.org.br'
-  );
-}
-
-function isOwner(doc: any, user: any) {
-  const userEmail = String(user?.email || '').trim().toLowerCase();
-  const userId = String(user?.id || '').trim();
-
-  const candidateEmails = [
-    doc?.uploaded_by_email,
-    doc?.created_by_email,
-  ]
-    .map((v: any) => String(v || '').trim().toLowerCase())
-    .filter(Boolean);
-
-  const candidateIds = [
-    doc?.uploaded_by_id,
-    doc?.created_by_id,
-    doc?.uploaded_by,
-    doc?.created_by,
-  ]
-    .map((v: any) => String(v || '').trim())
-    .filter(Boolean);
-
-  if (userEmail && candidateEmails.includes(userEmail)) return true;
-  if (userId && candidateIds.includes(userId)) return true;
-
-  return false;
-}
-
-Deno.serve(async (req) => {
+export default async function handler(req: any, res: any) {
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
+    const startedAt = new Date();
 
-    if (!user) {
-      return Response.json(
-        { ok: false, error: 'Não autenticado' },
-        { status: 401 }
-      );
-    }
-
-    let body: any = {};
-    if (req.method !== 'GET') {
-      body = await req.json().catch(() => ({}));
-    }
-
-    const limit = Number(body?.limit || body?.args?.limit || 200);
-
-    const result = await base44.asServiceRole.entities.KnowledgeDocument.list(
-      '-created_date',
-      limit
+    // busca documentos ordenados por data de criação
+    const raw = await base44.entities.KnowledgeDocument.list(
+      "-created_date",
+      500
     );
 
-    const docs = toArray(result).map(normalizeDoc);
-    const coord = isCoordinator(user);
+    const items = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw?.items)
+      ? raw.items
+      : [];
 
-    const filtered = docs
-      .filter((doc: any) => {
-        if (coord) return true;
+    const normalized = items.map((doc: any) => ({
+      id: doc.id,
+      title: doc.title || doc.titulo || doc.name || doc.file_name || "Sem título",
+      file_name: doc.file_name || doc.filename || "",
+      mime_type: doc.mime_type || "",
+      categoria: doc.categoria || "Sem categoria",
+      ativo: doc.ativo ?? doc.active ?? true,
+      created_date: doc.created_date,
+      updated_date: doc.updated_date,
+      extracted_text:
+        doc.extracted_text ||
+        doc.conteudo_extraido ||
+        doc.description ||
+        "",
+    }));
 
-        const hasOwnershipMetadata =
-          !!doc?.uploaded_by_email ||
-          !!doc?.created_by_email ||
-          !!doc?.uploaded_by ||
-          !!doc?.created_by ||
-          !!doc?.uploaded_by_id ||
-          !!doc?.created_by_id;
+    const active_count = normalized.filter((d) => d.ativo).length;
 
-        if (!hasOwnershipMetadata) {
-          return true;
-        }
-
-        return isOwner(doc, user);
-      })
-      .sort((a: any, b: any) => {
-        const da = new Date(getDocDate(a)).getTime() || 0;
-        const db = new Date(getDocDate(b)).getTime() || 0;
-        return db - da;
-      });
-
-    return Response.json({
+    return res.status(200).json({
       ok: true,
-      items: filtered,
-      total: filtered.length,
+      total: normalized.length,
+      active_count,
+      items: normalized,
+      debug: {
+        source: "KnowledgeDocument",
+        fetched: items.length,
+        returned: normalized.length,
+        started_at: startedAt.toISOString(),
+        finished_at: new Date().toISOString(),
+      },
     });
   } catch (error: any) {
-    console.error('Erro em listKnowledgeDocuments:', error);
+    console.error("Erro em listKnowledgeDocuments:", error);
 
-    return Response.json(
-      {
-        ok: false,
-        error: error?.message || 'Erro ao listar documentos.',
-      },
-      { status: 500 }
-    );
+    return res.status(500).json({
+      ok: false,
+      error: error?.message || "Erro ao listar documentos.",
+    });
   }
-});
+}
