@@ -49,8 +49,7 @@ function detectHeaderRow(rows: any[][]) {
 
     const hasNome =
       row.includes('nome da acao') ||
-      row.includes('nome da ação') ||
-      row.includes('nome');
+      row.includes('nome da ação');
 
     const hasData = row.includes('data');
 
@@ -146,46 +145,42 @@ export default async function handler(context: any) {
           obj[header] = row[idx];
         });
 
-        const titulo = s(getCell(obj, ['nome da acao', 'nome da ação', 'nome']));
+        const atividade = s(getCell(obj, ['nome da acao', 'nome da ação']));
+        const resumo = s(getCell(obj, ['sinopse']));
         const dataRaw = getCell(obj, ['data']);
         const data_inicio = excelDateToISO(dataRaw);
-        const museu = s(getCell(obj, ['equipamento programacao', 'equipamento', 'museu']));
         const horario = s(getCell(obj, ['horario']));
-        const local = s(getCell(obj, ['local']));
-        const sinopse = s(getCell(obj, ['sinopse']));
-        const tipo_atividade = s(getCell(obj, ['tipo de atividade']));
-        const formato = s(getCell(obj, ['formato']));
-        const publico = s(getCell(obj, ['publico-alvo', 'publico alvo']));
+        const publico_alvo = s(getCell(obj, ['publico-alvo', 'publico alvo']));
         const vagas = s(getCell(obj, ['vagas']));
-        const inscricao = s(getCell(obj, ['inscricao/acesso', 'inscricao / acesso']));
-        const material_divulgacao_aprovado = s(
-          getCell(obj, ['material de divulgacao aprovado', 'material de divulgação aprovado'])
-        );
+        const inscricao_acesso = s(getCell(obj, ['inscricao/acesso', 'inscricao / acesso']));
+        const museu = s(getCell(obj, ['equipamento programacao', 'equipamento', 'museu']));
+        const local = s(getCell(obj, ['local']));
+        const tipo_atividade = s(getCell(obj, ['tipo de atividade']));
 
-        if (!titulo || !data_inicio) {
-          if (titulo || s(dataRaw)) {
-            errors.push({ sheetName, row: i + 1, error: 'missing_titulo_or_data' });
+        if (!atividade || !data_inicio) {
+          if (atividade || s(dataRaw)) {
+            errors.push({ sheetName, row: i + 1, error: 'missing_atividade_or_data' });
           }
           continue;
         }
 
         allItems.push({
-          titulo,
-          nome: titulo,
+          titulo: atividade,
+          nome: atividade,
+          atividade,
+          resumo,
+          sinopse: resumo,
+          descricao: resumo,
           data: data_inicio,
           data_inicio,
           horario,
+          publico_alvo,
+          vagas,
+          inscricao_acesso,
+          link: inscricao_acesso,
           museu,
           local,
-          sinopse,
-          descricao: sinopse,
           tipo_atividade,
-          formato,
-          publico,
-          vagas,
-          inscricao,
-          link: inscricao,
-          material_divulgacao_aprovado,
           origem: 'syncProgramacao',
           knowledge_document_id: doc.id,
           storage_file_url: doc.file_url,
@@ -201,10 +196,10 @@ export default async function handler(context: any) {
 
     for (const item of allItems) {
       const key = [
-        s(item.titulo).toLowerCase(),
+        s(item.atividade).toLowerCase(),
         s(item.data_inicio),
-        s(item.museu).toLowerCase(),
         s(item.horario).toLowerCase(),
+        s(item.museu).toLowerCase(),
       ].join('|');
 
       if (!dedup.has(key)) {
