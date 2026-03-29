@@ -27,7 +27,9 @@ import { isCoordenador as checkCoordenador, canManageUsers } from '@/components/
 
 export default function Sidebar({ currentPageName, collapsed, onToggle, currentUser }) {
   const [customPerms, setCustomPerms] = useState(null);
-  const [expandedSections, setExpandedSections] = useState({});
+  const [expandedSections, setExpandedSections] = useState({
+    PlataformaAdmin: false,
+  });
 
   useEffect(() => {
     let active = true;
@@ -102,30 +104,12 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       ],
     },
     {
-      label: 'Gestão',
+      label: 'Museu Centro',
       items: [
         {
-          name: 'MeusDados',
-          icon: Users,
-          label: 'Meus dados',
-          show: true,
-        },
-        {
-          name: 'RubricasPorMuseu',
-          icon: Building2,
-          label: 'Rubricas por museu',
-          show: true,
-        },
-        {
-          name: 'UserManagement',
-          icon: Users,
-          label: 'Usuários',
-          show: canManageUsersFlag,
-        },
-        {
-          name: 'GestorArquivos',
-          icon: Paperclip,
-          label: 'Arquivos',
+          name: 'Agenda',
+          icon: CalendarDays,
+          label: 'Agenda MC',
           show: true,
         },
         {
@@ -135,16 +119,35 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           show: true,
         },
         {
-          name: 'ProgramacaoEspelho',
-          icon: CalendarDays,
-          label: 'Programação',
+          name: 'RubricasPorMuseu',
+          icon: Building2,
+          label: 'Rubricas por museu',
           show: true,
         },
         {
-          name: 'Agenda',
-          icon: CalendarDays,
-          label: 'Agenda',
+          name: 'GestorArquivos',
+          icon: Paperclip,
+          label: 'Arquivos',
           show: true,
+        },
+        {
+          name: 'ProgramacaoEspelho',
+          icon: CalendarDays,
+          label: 'Dados Completos',
+          description: 'Link de imagens • Minibios • Material de divulgação aprovado',
+          show: true,
+        },
+        {
+          name: 'MeusDados',
+          icon: Users,
+          label: 'Meus dados',
+          show: true,
+        },
+        {
+          name: 'UserManagement',
+          icon: Users,
+          label: 'Usuários',
+          show: canManageUsersFlag,
         },
         {
           name: 'PlataformaAdmin',
@@ -300,14 +303,27 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
                   <Link key={item.name} to={createPageUrl(item.name)}>
                     <Button
                       variant="ghost"
-                      className={`w-full justify-start gap-2 rounded-xl px-3 h-11 ${
+                      className={`w-full justify-start gap-2 rounded-xl px-3 h-auto min-h-[44px] py-2 ${
                         isActive
                           ? 'bg-white text-black'
                           : 'text-white/70 hover:text-white hover:bg-white/10'
                       }`}
                     >
-                      <Icon className="w-4 h-4 shrink-0" />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
+                      <Icon className="w-4 h-4 shrink-0 mt-0.5" />
+                      {!collapsed && (
+                        <div className="min-w-0 text-left">
+                          <div className="truncate">{item.label}</div>
+                          {item.description ? (
+                            <div
+                              className={`text-[10px] leading-tight mt-0.5 whitespace-normal ${
+                                isActive ? 'text-black/70' : 'text-white/45'
+                              }`}
+                            >
+                              {item.description}
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
                     </Button>
                   </Link>
                 );
