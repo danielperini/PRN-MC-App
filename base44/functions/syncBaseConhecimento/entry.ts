@@ -553,6 +553,10 @@ function buildProgramacaoPayload(item: any) {
   };
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function stableKey(item: any) {
   return [
     normalizeText(item.nome || item.titulo || ''),
@@ -574,13 +578,14 @@ async function upsertProgramacao(base44: any, items: any[]) {
 
   const newKeys = new Set(items.map(stableKey));
 
-  // Deletar registros que foram removidos da planilha
+  // Deletar registros que foram removidos da planilha (com throttle)
   let deleted = 0;
   for (const [k, rec] of existingMap.entries()) {
     if (!newKeys.has(k) && rec?.id) {
       try {
         await base44.entities.Programacao.delete(rec.id);
         deleted++;
+        await sleep(120);
       } catch (_) {}
     }
   }
@@ -600,13 +605,27 @@ async function upsertProgramacao(base44: any, items: any[]) {
         await base44.entities.Programacao.create(payload);
         created++;
       }
+      await sleep(120);
     } catch (error: any) {
-      errors.push({
-        nome: item?.nome || '',
-        data: item?.data || '',
-        museu: item?.museu || '',
-        error: error?.message || String(error),
-      });
+      // Se rate limit, espera mais e tenta novamente uma vez
+      if (String(error?.message || '').includes('429') || String(error?.message || '').includes('Rate limit')) {
+        await sleep(2000);
+        try {
+          const payload = buildProgramacaoPayload(item);
+          const k = stableKey(item);
+          if (existingMap.has(k)) {
+            await base44.entities.Programacao.update(existingMap.get(k).id, payload);
+            updated++;
+          } else {
+            await base44.entities.Programacao.create(payload);
+            created++;
+          }
+        } catch (retryErr: any) {
+          errors.push({ nome: item?.nome || '', data: item?.data || '', museu: item?.museu || '', error: retryErr?.message || String(retryErr) });
+        }
+      } else {
+        errors.push({ nome: item?.nome || '', data: item?.data || '', museu: item?.museu || '', error: error?.message || String(error) });
+      }
     }
   }
 
