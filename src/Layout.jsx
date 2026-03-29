@@ -33,6 +33,8 @@ const PAGE_TITLES = {
   GeradorListaPresenca: 'Gerador de Lista de Presença',
   GeradorTermoCompromisso: 'Gerador de Termo de Compromisso',
   MeusDados: 'Meus Dados',
+  ProgramacaoEspelho: 'Programação — Espelho da Planilha',
+  Agenda: 'Agenda Cultural',
 };
 
 export default function Layout({ children, currentPageName }) {

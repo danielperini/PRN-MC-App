@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ChecklistProducao from './pages/ChecklistProducao';
 import ProgramacaoEspelho from './pages/ProgramacaoEspelho';
+import Agenda from './pages/Agenda';
 import RubricasPorMuseu from './pages/RubricasPorMuseu';
 import BaseConhecimento from './pages/BaseConhecimento';
 
@@ -105,6 +106,15 @@ function AuthenticatedApp() {
         element={
           <LayoutWrapper currentPageName="ProgramacaoEspelho">
             <ProgramacaoEspelho />
+          </LayoutWrapper>
+        }
+      />
+
+      <Route
+        path="/Agenda"
+        element={
+          <LayoutWrapper currentPageName="Agenda">
+            <Agenda />
           </LayoutWrapper>
         }
       />
