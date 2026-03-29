@@ -1,37 +1,111 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import React, { useEffect, useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import Sidebar from '@/components/layout/Sidebar';
+import TopNav from '@/components/layout/TopNav';
+import AssistantChat from '@/components/chat/AssistantChat';
+import MobileBottomTab from '@/components/mobile/MobileBottomTab';
+import MobileHeader from '@/components/mobile/MobileHeader';
+import { HelpContextProvider } from '@/components/help/HelpContextProvider';
 
-Deno.serve(async (req) => {
-  try {
-    const base44 = createClientFromRequest(req);
-    const { user_email, user_name, mes, ano } = await req.json();
+const PAGE_TITLES = {
+  Dashboard: 'Painel',
+  DashboardProfissional: 'Meu Painel',
+  DashboardFinanceiro: 'Dashboard Financeiro',
+  RubricasPorMuseu: 'Rubricas por Museu',
+  Relatorios: 'Relatórios',
+  ReportEditor: 'Relatório',
+  NovaAtividade: 'Atividades',
+  Compras: 'Compras e Pagamentos',
+  GestaoPagamentos: 'Pagamentos',
+  RelatorioMeta: 'Rel. por Meta',
+  CoordReview: 'Revisão',
+  UserManagement: 'Usuários',
+  GestorArquivos: 'Arquivos',
+  GaleriaFotos: 'Galeria de Fotos',
+  ActivityLog: 'Auditoria',
+  PlataformaAdmin: 'Plataforma',
+  AssistentePlanejamento: 'Assistente de IA do MC',
+  Perfil: 'Perfil',
+  BaseConhecimento: 'Conhecimento',
+  LeitorNoticias: 'Notícias',
+  Manual: 'Manual e Ajuda',
+  GeradorListaPresenca: 'Gerador de Lista de Presença',
+  GeradorTermoCompromisso: 'Gerador de Termo de Compromisso',
+  MeusDados: 'Meus Dados',
+};
 
-    const emailBody = `
-Olá ${user_name},
+export default function Layout({ children, currentPageName }) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
-Este é um lembrete de que você deve enviar seu relatório mensal referente a ${mes} de ${ano}.
+  useEffect(() => {
+    let active = true;
 
-Este é o último dia do mês. Relatórios enviados hoje ainda serão aceitos.
+    async function loadUser() {
+      try {
+        const isAuth = await base44.auth.isAuthenticated();
+        if (!isAuth) {
+          if (active) setCurrentUser(null);
+          return;
+        }
 
-Depois de enviado, seu relatório será:
-1. Exportado em PDF automático
-2. Encaminhado para aprovação da coordenação
-3. Revisado e assinado digitalmente
+        const user = await base44.auth.me();
+        if (active) setCurrentUser(user || null);
+      } catch (error) {
+        console.error('Erro ao carregar usuário no layout:', error);
+        if (active) setCurrentUser(null);
+      }
+    }
 
-Para acessar a plataforma e enviar seu relatório:
-https://museus-centro-bh.com.br/app/ReportEditor
+    loadUser();
 
-Obrigado!
-`;
+    return () => {
+      active = false;
+    };
+  }, []);
 
-    await base44.integrations.Core.SendEmail({
-      to: user_email,
-      subject: `[IMPORTANTE] Relatório Mensal - ${mes}/${ano}`,
-      body: emailBody,
-      from_name: 'Sistema de Relatórios'
-    });
+  const pageTitle = PAGE_TITLES[currentPageName] || 'Museus Centro';
 
-    return Response.json({ success: true, email_sent_to: user_email });
-  } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
-  }
-});
+  return (
+    <HelpContextProvider pageName={currentPageName}>
+      <div className="min-h-screen bg-slate-50 text-slate-900">
+        <div className="hidden lg:flex min-h-screen">
+          <Sidebar
+            currentPageName={currentPageName}
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed((prev) => !prev)}
+            currentUser={currentUser}
+          />
+
+          <div className="flex-1 min-w-0 flex flex-col">
+            <TopNav
+              title={pageTitle}
+              currentPageName={currentPageName}
+              currentUser={currentUser}
+            />
+
+            <main className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-6">
+              {children}
+            </main>
+          </div>
+        </div>
+
+        <div className="lg:hidden min-h-screen flex flex-col pb-20">
+          <MobileHeader
+            title={pageTitle}
+            currentPageName={currentPageName}
+            currentUser={currentUser}
+          />
+
+          <main className="flex-1 min-w-0 overflow-x-hidden p-4">
+            {children}
+          </main>
+
+          <MobileBottomTab currentPageName={currentPageName} />
+        </div>
+
+        <AssistantChat />
+      </div>
+    </HelpContextProvider>
+  );
+}});
