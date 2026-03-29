@@ -34,6 +34,33 @@ function buildTitulo(fileName: string, providedTitle?: string): string {
   return cleanFileName.replace(/\.[^/.]+$/, '') || 'Documento sem título';
 }
 
+function base64ToUint8Array(base64: string): Uint8Array {
+  const normalized = base64.includes(',') ? base64.split(',')[1] : base64;
+  const binary = atob(normalized);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return bytes;
+}
+
+function inferMimeType(fileName: string): string {
+  const lower = safeString(fileName).toLowerCase();
+
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (lower.endsWith('.doc')) return 'application/msword';
+  if (lower.endsWith('.xlsx')) return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if (lower.endsWith('.xls')) return 'application/vnd.ms-excel';
+  if (lower.endsWith('.csv')) return 'text/csv';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+
+  return 'application/octet-stream';
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -75,67 +102,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    const uploaded = await base44.storage.upload({
-      file_name: fileName,
-      content_base64: contentBase64,
+    const bytes = base64ToUint8Array(contentBase64);
+    const mimeType = inferMimeType(fileName);
+
+    const uploadResponse = await base44.asServiceRole.integrations.Core.UploadFile({
+      file: new Blob([bytes], { type: mimeType }),
     });
 
-    const fileUrl = safeString(uploaded?.file_url);
-
-    if (!fileUrl) {
-      return Response.json(
-        { ok: false, saved: false, error: 'Falha ao gravar arquivo no storage.' },
-        { status: 500 }
-      );
-    }
-
-    const created = await base44.entities.KnowledgeDocument.create({
-      titulo,
-      descricao,
-      categoria,
-      conteudo_extraido: '',
-      file_url: fileUrl,
-      file_name: fileName,
-      ativo: true,
-      versao,
-    });
-
-    return Response.json({
-      ok: true,
-      saved: true,
-      item: created,
-    });
-  } catch (error) {
-    console.error('Erro em processDocumentUpload:', error);
-
-    return Response.json(
-      {
-        ok: false,
-        saved: false,
-        error: error instanceof Error ? error.message : 'Erro inesperado.',
-      },
-      { status: 500 }
-    );
-  }
-});      return Response.json(
-        { ok: false, saved: false, error: 'file_name é obrigatório.' },
-        { status: 400 }
-      );
-    }
-
-    if (!contentBase64) {
-      return Response.json(
-        { ok: false, saved: false, error: 'content_base64 é obrigatório.' },
-        { status: 400 }
-      );
-    }
-
-    const uploaded = await base44.storage.upload({
-      file_name: fileName,
-      content_base64: contentBase64,
-    });
-
-    const fileUrl = s(uploaded?.file_url || uploaded?.url);
+    const fileUrl = safeString(uploadResponse?.file_url);
 
     if (!fileUrl) {
       return Response.json(
@@ -153,18 +127,8 @@ Deno.serve(async (req) => {
       file_name: fileName,
       ativo: true,
       versao,
+      created_by_email: user.email,
     });
-
-    if (!created?.id) {
-      return Response.json(
-        {
-          ok: false,
-          saved: false,
-          error: 'Falha ao criar registro em KnowledgeDocument.',
-        },
-        { status: 500 }
-      );
-    }
 
     return Response.json({
       ok: true,
