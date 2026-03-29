@@ -1,69 +1,25 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-function safeString(value: any) {
-  return String(value || '').trim();
+function safeString(value: unknown): string {
+  return String(value ?? '').trim();
 }
 
-function uniqueStrings(values: any[]) {
-  return Array.from(
-    new Set(
-      (values || [])
-        .map((v) => safeString(v))
-        .filter(Boolean)
-    )
-  );
+function inferCategoria(fileName: string): string {
+  const lower = safeString(fileName).toLowerCase();
+
+  if (lower.endsWith('.pdf')) return 'Relatório';
+  if (lower.endsWith('.doc') || lower.endsWith('.docx')) return 'Manual';
+  if (lower.endsWith('.xls') || lower.endsWith('.xlsx') || lower.endsWith('.csv')) return 'Outro';
+
+  return 'Outro';
 }
 
-function inferCategoria(fileName: string, mimeType: string) {
-  const lowerName = safeString(fileName).toLowerCase();
-  const lowerMime = safeString(mimeType).toLowerCase();
+function buildTitulo(fileName: string, providedTitle?: string): string {
+  const cleanProvided = safeString(providedTitle);
+  if (cleanProvided) return cleanProvided;
 
-  if (
-    lowerName.endsWith('.xlsx') ||
-    lowerName.endsWith('.xls') ||
-    lowerName.endsWith('.csv') ||
-    lowerMime.includes('spreadsheet') ||
-    lowerMime.includes('excel') ||
-    lowerMime.includes('csv')
-  ) {
-    return 'Programação';
-  }
-
-  if (lowerMime.includes('pdf')) return 'Documento';
-  if (lowerMime.includes('image')) return 'Imagem';
-
-  return 'Biblioteca do Conhecimento';
-}
-
-async function tryAutoAnalysis(base44: any, payload: any) {
-  const functionCandidates = [
-    'analyzeKnowledgeDocument',
-    'analyzeUploadedDocument',
-    'extractKnowledgeFromDocument',
-    'extractDocumentData',
-    'processKnowledgeDocument',
-  ];
-
-  for (const fnName of functionCandidates) {
-    try {
-      const result = await base44.functions.invoke(fnName, payload);
-      return {
-        processed: true,
-        result: result?.data || result || null,
-        error: '',
-        function_name: fnName,
-      };
-    } catch (_) {
-      // tenta a próxima
-    }
-  }
-
-  return {
-    processed: false,
-    result: null,
-    error: 'Nenhuma function de análise automática disponível ou bem-sucedida.',
-    function_name: '',
-  };
+  const cleanFileName = safeString(fileName);
+  return cleanFileName.replace(/\.[^/.]+$/, '') || 'Documento sem título';
 }
 
 Deno.serve(async (req) => {
@@ -89,14 +45,12 @@ Deno.serve(async (req) => {
 
     const args = body?.args || body || {};
 
-    const fileName = safeString(args?.file_name);
-    const mimeType = safeString(args?.mime_type);
-    const contentBase64 = safeString(args?.content_base64);
-    const titulo = safeString(args?.titulo) || fileName.replace(/\.[^/.]+$/, '');
-    const categoria = safeString(args?.categoria) || inferCategoria(fileName, mimeType);
-    const descricao = safeString(args?.descricao);
-    const tags = uniqueStrings(args?.tags || []);
-    const sizeBytes = Number(args?.size_bytes || 0);
+    const fileName = safeString(args.file_name);
+    const contentBase64 = safeString(args.content_base64);
+    const titulo = buildTitulo(fileName, args.titulo);
+    const descricao = safeString(args.descricao);
+    const categoriaInformada = safeString(args.categoria);
+    const versao = safeString(args.versao);
 
     if (!fileName) {
       return Response.json(
@@ -120,12 +74,14 @@ Deno.serve(async (req) => {
       );
     }
 
+    const categoria = categoriaInformada || inferCategoria(fileName);
+
     const uploaded = await base44.storage.upload({
       file_name: fileName,
       content_base64: contentBase64,
     });
 
-    const fileUrl = uploaded?.file_url || uploaded?.url || '';
+    const fileUrl = safeString(uploaded?.file_url || uploaded?.url);
 
     if (!fileUrl) {
       return Response.json(
@@ -138,104 +94,51 @@ Deno.serve(async (req) => {
       );
     }
 
-    const knowledgePayload = {
-      title: titulo,
-      name: titulo,
-      file_name: fileName,
-      file_url: fileUrl,
-      mime_type: mimeType,
-      categoria,
+    const payload = {
+      titulo,
       descricao,
-      tags,
-      size_bytes: sizeBytes,
-
-      uploaded_by_email: safeString(user?.email),
-      created_by_email: safeString(user?.email),
-      uploaded_by_id: safeString(user?.id),
-      created_by_id: safeString(user?.id),
-
-      status: 'gravado',
-      processing_status: 'gravado',
-      summary: '',
-      extracted_text: '',
-      analysis: '',
+      categoria,
+      conteudo_extraido: '',
+      file_url: fileUrl,
+      file_name: fileName,
+      ativo: true,
+      versao,
     };
 
-    const knowledgeDoc = await base44.asServiceRole.entities.KnowledgeDocument.create(
-      knowledgePayload
-    );
+    const created = await base44.asServiceRole.entities.KnowledgeDocument.create(payload);
 
-    if (!knowledgeDoc?.id) {
+    if (!created?.id) {
       return Response.json(
         {
           ok: false,
           saved: false,
-          error: 'Arquivo gravado no storage, mas falhou ao criar KnowledgeDocument.',
+          error: 'Arquivo enviado ao storage, mas falhou ao gravar registro no banco.',
           storage_file_url: fileUrl,
         },
         { status: 500 }
       );
     }
 
-    const persisted = await base44.asServiceRole.entities.KnowledgeDocument.get(
-      knowledgeDoc.id
-    );
+    const persisted = await base44.asServiceRole.entities.KnowledgeDocument.get(created.id);
 
     if (!persisted?.id) {
       return Response.json(
         {
           ok: false,
           saved: false,
-          error: 'KnowledgeDocument não pôde ser confirmado após a gravação.',
+          error: 'Registro não pôde ser confirmado após a gravação no banco.',
           storage_file_url: fileUrl,
         },
         { status: 500 }
       );
     }
 
-    const analysisPayload = {
-      document_id: knowledgeDoc.id,
-      knowledge_document_id: knowledgeDoc.id,
-      file_url: fileUrl,
-      file_name: fileName,
-      mime_type: mimeType,
-      categoria,
-    };
-
-    const ia = await tryAutoAnalysis(base44, analysisPayload);
-
-    const finalStatus = ia.processed ? 'processado' : 'gravado';
-    const finalSummary = ia.processed
-      ? 'Documento gravado e analisado automaticamente por IA.'
-      : 'Documento gravado com sucesso. A análise automática não foi concluída.';
-
-    await base44.asServiceRole.entities.KnowledgeDocument.update(knowledgeDoc.id, {
-      processing_status: finalStatus,
-      status: finalStatus,
-      analysis: ia.result ? JSON.stringify(ia.result) : '',
-      summary: finalSummary,
-    });
-
     return Response.json({
       ok: true,
       saved: true,
       success: true,
-      message: ia.processed
-        ? 'Arquivo gravado com sucesso e análise automática concluída.'
-        : 'Arquivo gravado com sucesso.',
-      knowledge_document_id: knowledgeDoc.id,
-      storage_file_url: fileUrl,
-      ia_processed: ia.processed,
-      ia_error: ia.processed ? '' : ia.error,
-      analysis_function: ia.function_name,
-      item: {
-        id: knowledgeDoc.id,
-        title: titulo,
-        file_name: fileName,
-        file_url: fileUrl,
-        categoria,
-        processing_status: finalStatus,
-      },
+      message: 'Arquivo gravado com sucesso no storage e no banco de dados.',
+      item: persisted,
     });
   } catch (error) {
     console.error('Erro em processDocumentUpload:', error);
