@@ -1,12 +1,12 @@
 import React from 'react';
-import { BarChart3, FileText, User, ShoppingCart, Layers } from 'lucide-react';
+import { BarChart3, FileText, User, ShoppingCart, CalendarDays } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
 const ROUTES = [
   { name: 'Dashboard', icon: BarChart3, path: 'Dashboard', label: 'Painel' },
   { name: 'Relatórios', icon: FileText, path: 'Relatorios', label: 'Relatórios' },
-  { name: 'Atividades', icon: Layers, path: 'NovaAtividade', label: 'Atividades' },
+  { name: 'Programação', icon: CalendarDays, path: 'ProgramacaoEspelho', label: 'Agenda' },
   { name: 'Compras', icon: ShoppingCart, path: 'Compras', label: 'Compras' },
   { name: 'Perfil', icon: User, path: 'Perfil', label: 'Perfil' },
 ];
