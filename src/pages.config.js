@@ -9,7 +9,7 @@ import AssistentePlanejamento from './pages/AssistentePlanejamento';
 import AuditLog from './pages/AuditLog';
 import BaseConhecimento from './pages/BaseConhecimento';
 import Cadastro from './pages/Cadastro';
-import CalendarioAtividades from './pages/CalendarioAtividades';
+
 import Compras from './pages/Compras';
 import ConsolidacaoFinanceira from './pages/ConsolidacaoFinanceira';
 import CoordReview from './pages/CoordReview';
@@ -56,7 +56,6 @@ export const PAGES = {
   AuditLog,
   BaseConhecimento,
   Cadastro,
-  CalendarioAtividades,
   Compras,
   ConsolidacaoFinanceira,
   CoordReview,
