@@ -1,20 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+function inferCategoria(file) {
+  const name = String(file?.name || '').toLowerCase();
 
-    reader.onload = () => {
-      const result = String(reader.result || '');
-      const base64 = result.includes(',') ? result.split(',')[1] : result;
-      resolve(base64);
-    };
+  if (name.endsWith('.pdf')) return 'Relatório';
+  if (name.endsWith('.doc') || name.endsWith('.docx')) return 'Manual';
+  if (name.endsWith('.xls') || name.endsWith('.xlsx') || name.endsWith('.csv')) return 'Outro';
 
-    reader.onerror = reject;
-    reader.abort();
-    reader.readAsDataURL(file);
-  });
+  return 'Outro';
 }
 
 export default function BaseConhecimento() {
@@ -53,20 +47,25 @@ export default function BaseConhecimento() {
       setMessage('');
       setError('');
 
-      const contentBase64 = await fileToBase64(file);
+      const uploadedFile = await base44.integrations.Core.UploadFile({ file });
 
-      const response = await base44.functions.invoke('processDocumentUpload', {
-        file_name: file.name,
-        content_base64: contentBase64,
+      if (!uploadedFile?.file_url) {
+        throw new Error('Falha ao enviar arquivo para o storage.');
+      }
+
+      const created = await base44.asServiceRole.entities.KnowledgeDocument.create({
         titulo: file.name.replace(/\.[^/.]+$/, ''),
-        descricao: '',
-        versao: '',
+        categoria: inferCategoria(file),
+        versao: new Date().toLocaleDateString('pt-BR'),
+        descricao: `Arquivo adicionado em ${new Date().toLocaleDateString('pt-BR')}`,
+        file_url: uploadedFile.file_url,
+        file_name: file.name,
+        conteudo_extraido: `Arquivo: ${file.name}`,
+        ativo: true,
       });
 
-      const data = response?.data || response || {};
-
-      if (!data?.ok || !data?.saved) {
-        throw new Error(data?.error || 'Falha ao gravar arquivo.');
+      if (!created?.id) {
+        throw new Error('Falha ao gravar registro no banco.');
       }
 
       setMessage(`Arquivo gravado com sucesso: ${file.name}`);
