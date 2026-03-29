@@ -56,9 +56,10 @@ export default function BaseConhecimento() {
 
       const response = await base44.functions.invoke('processDocumentUpload', {
         file_name: file.name,
-        mime_type: file.type || '',
-        size_bytes: file.size || 0,
         content_base64: contentBase64,
+        titulo: file.name.replace(/\.[^/.]+$/, ''),
+        descricao: '',
+        versao: '',
       });
 
       const data = response?.data || response || {};
@@ -146,11 +147,16 @@ export default function BaseConhecimento() {
             >
               <div className="min-w-0">
                 <div className="font-medium break-all">
-                  {f.file_name || f.title || f.name || 'Arquivo sem nome'}
+                  {f.file_name || f.titulo || 'Arquivo sem nome'}
                 </div>
                 <div className="text-sm text-gray-600">
                   {f.categoria || 'Sem categoria'}
                 </div>
+                {f.descricao ? (
+                  <div className="text-sm text-gray-500 mt-1">
+                    {f.descricao}
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
