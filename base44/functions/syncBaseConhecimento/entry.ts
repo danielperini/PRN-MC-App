@@ -12,7 +12,10 @@ const MIRROR_SLUG = 'base-conhecimento-ia-google-sheet';
 const MIRROR_TITLE = 'Biblioteca de Conhecimento IA';
 const MIRROR_FOLDER = 'Biblioteca do Conhecimento';
 
-function normalizeText(value: any) {
+const MIRROR_DOC_TITLE = 'Programação Agenda Completa';
+const MIRROR_TABLE_DOC_TITLE = 'Programação Espelho Estruturada';
+
+function normalizeText(value) {
   return String(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -20,7 +23,7 @@ function normalizeText(value: any) {
     .toLowerCase();
 }
 
-function cleanValue(value: any) {
+function cleanValue(value) {
   if (value === null || value === undefined) return '';
 
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -33,15 +36,25 @@ function cleanValue(value: any) {
   return String(value).trim();
 }
 
-function normalizeHeader(value: any, index: number) {
+function normalizeHeader(value, index) {
   const clean = cleanValue(value);
   return clean || `coluna_${index + 1}`;
+}
+
+function formatDateBR(date) {
+  if (!date || Number.isNaN(date.getTime())) return '';
+  return format(date, 'dd/MM/yyyy');
+}
+
+function safeIso(date) {
+  if (!date || Number.isNaN(date.getTime())) return '';
+  return date.toISOString();
 }
 
 function extractSheetMonthYear(sheetName = '') {
   const sheetText = normalizeText(sheetName);
 
-  const monthMap: Record<string, number> = {
+  const monthMap = {
     janeiro: 1,
     fevereiro: 2,
     marco: 3,
@@ -56,8 +69,8 @@ function extractSheetMonthYear(sheetName = '') {
     dezembro: 12,
   };
 
-  let inferredMonth: number | null = null;
-  let inferredYear: number | null = null;
+  let inferredMonth = null;
+  let inferredYear = null;
 
   for (const [name, num] of Object.entries(monthMap)) {
     if (sheetText.includes(name)) {
@@ -75,13 +88,10 @@ function extractSheetMonthYear(sheetName = '') {
   return { inferredMonth, inferredYear, monthMap };
 }
 
-function parseDateWithSheetContext(value: any, sheetName = '') {
+function parseDateWithSheetContext(value, sheetName = '') {
   if (!value && value !== 0) return null;
 
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
-
-  const text = String(value).trim();
-  if (!text) return null;
 
   if (typeof value === 'number' && Number.isFinite(value) && value > 20000 && value < 80000) {
     try {
@@ -89,10 +99,11 @@ function parseDateWithSheetContext(value: any, sheetName = '') {
       if (parsed?.y && parsed?.m && parsed?.d) {
         return new Date(parsed.y, parsed.m - 1, parsed.d);
       }
-    } catch (_) {
-      // ignora
-    }
+    } catch (_) {}
   }
+
+  const text = String(value).trim();
+  if (!text) return null;
 
   const direct = new Date(text);
   if (!Number.isNaN(direct.getTime()) && /\d{4}/.test(text)) return direct;
@@ -140,7 +151,13 @@ function parseDateWithSheetContext(value: any, sheetName = '') {
   return null;
 }
 
-function detectMuseum(equipamento: string, values: Record<string, any>) {
+function fallbackDateFromSheetName(sheetName = '') {
+  const { inferredMonth, inferredYear } = extractSheetMonthYear(sheetName);
+  if (!inferredMonth || !inferredYear) return null;
+  return new Date(inferredYear, inferredMonth - 1, 1);
+}
+
+function detectMuseum(equipamento, values) {
   const sourceText = `${equipamento} ${values?.local || ''} ${values?.endereco_completo || ''}`;
   const text = normalizeText(sourceText);
 
@@ -150,7 +167,7 @@ function detectMuseum(equipamento: string, values: Record<string, any>) {
   return 'Externo';
 }
 
-function summarizeActivity(values: Record<string, any>) {
+function summarizeActivity(values) {
   const nome = values.nome_divulgacao || values.nome || '';
   const sinopse = values.sinopse || '';
   const tipo = values.tipo_de_atividade || '';
@@ -205,7 +222,7 @@ function summarizeActivity(values: Record<string, any>) {
     .join(' ');
 }
 
-function mapHeaderKey(header: string) {
+function mapHeaderKey(header) {
   const h = normalizeText(header);
 
   if (h === 'equipamento') return 'equipamento';
@@ -251,22 +268,12 @@ function mapHeaderKey(header: string) {
     .slice(0, 80);
 }
 
-function scoreHeaderRow(row: any[]) {
+function scoreHeaderRow(row) {
   const normalized = row.map((cell) => normalizeText(cell)).join(' | ');
 
   const keywords = [
-    'nome',
-    'programacao',
-    'programação',
-    'data',
-    'horario',
-    'horário',
-    'equipamento',
-    'sinopse',
-    'vagas',
-    'inscricao',
-    'inscrição',
-    'local',
+    'nome', 'programacao', 'programação', 'data', 'horario', 'horário',
+    'equipamento', 'sinopse', 'vagas', 'inscricao', 'inscrição', 'local',
   ];
 
   return keywords.reduce((score, keyword) => {
@@ -274,7 +281,7 @@ function scoreHeaderRow(row: any[]) {
   }, 0);
 }
 
-function findHeaderRowIndex(matrix: any[][]) {
+function findHeaderRowIndex(matrix) {
   const maxRows = Math.min(matrix.length, 8);
   let bestIndex = -1;
   let bestScore = 0;
@@ -290,13 +297,12 @@ function findHeaderRowIndex(matrix: any[][]) {
   return bestScore >= 2 ? bestIndex : -1;
 }
 
-function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
+function normalizeSheet(sheetName, matrix, rowOffset = 0) {
   if (!Array.isArray(matrix) || !matrix.length) return [];
 
-  const items: any[] = [];
-
+  const items = [];
   let headerRowIndex = -1;
-  let fieldHeaders: string[] = [];
+  let fieldHeaders = [];
 
   if (matrix.length >= 3) {
     const row2 = (matrix[1] || []).map(cleanValue);
@@ -304,10 +310,7 @@ function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
 
     const isMainHeader =
       normalizeText(row2[0]) === 'equipamento' &&
-      (
-        normalizeText(row2[1]) === 'programacao' ||
-        normalizeText(row2[1]) === 'programação'
-      );
+      (normalizeText(row2[1]) === 'programacao' || normalizeText(row2[1]) === 'programação');
 
     if (isMainHeader) {
       headerRowIndex = 2;
@@ -325,13 +328,16 @@ function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
     );
   }
 
+  let lastValidDate = null;
+  const sheetFallbackDate = fallbackDateFromSheetName(sheetName);
+
   for (let i = headerRowIndex + 1; i < matrix.length; i++) {
     const row = Array.isArray(matrix[i]) ? matrix[i] : [];
     const cleanedRow = row.map(cleanValue);
     const hasAnyValue = cleanedRow.some((v) => String(v || '').trim() !== '');
     if (!hasAnyValue) continue;
 
-    const values: Record<string, any> = {};
+    const values = {};
 
     for (let c = 0; c < fieldHeaders.length; c++) {
       const key = fieldHeaders[c];
@@ -340,22 +346,30 @@ function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
     }
 
     const equipamento = cleanValue(values.equipamento || cleanedRow[0] || '');
-    const nome =
-      cleanValue(values.nome_divulgacao) ||
-      cleanValue(values.nome) ||
-      '';
+    const nome = cleanValue(values.nome_divulgacao) || cleanValue(values.nome) || '';
 
     if (!nome) continue;
 
     const parsedDate = parseDateWithSheetContext(values.data, sheetName);
-    const date = parsedDate || new Date();
+    const effectiveDate = parsedDate || lastValidDate || sheetFallbackDate;
     const museu = detectMuseum(equipamento, values);
+
+    if (parsedDate) {
+      lastValidDate = parsedDate;
+    }
+
+    const dataTextoOriginal = cleanValue(values.data || '');
+    const dataTexto = dataTextoOriginal || formatDateBR(effectiveDate);
+    const dataIso = safeIso(effectiveDate);
+    const monthLabel = effectiveDate
+      ? format(effectiveDate, 'MMMM yyyy', { locale: ptBR })
+      : 'sem data';
 
     const item = {
       id: `${sheetName}-${i + rowOffset}-${nome}`,
       row_index: i + rowOffset,
       sheet_name: sheetName,
-      month_label: format(date, 'MMMM yyyy', { locale: ptBR }),
+      month_label: monthLabel,
       museu,
       equipamento,
       nome,
@@ -365,8 +379,10 @@ function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
       tipo: values.tipo_de_atividade || '',
       tipo_atividade: values.tipo_de_atividade || '',
       formato: values.formato || '',
-      data: values.data || '',
-      data_iso: date.toISOString(),
+      data: dataTexto,
+      data_original: dataTextoOriginal,
+      data_inferida: !dataTextoOriginal && !!effectiveDate,
+      data_iso: dataIso,
       horario: values.horario || '',
       publico_alvo: values.publico_alvo || '',
       acessibilidade: values.acessibilidade || '',
@@ -393,7 +409,7 @@ function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
       material_de_divulgacao: values.material_de_divulgacao || '',
       servico: values.servico || '',
       briefing: values.briefing || '',
-      resumo_ia: summarizeActivity(values),
+      resumo_ia: summarizeActivity({ ...values, data: dataTexto }),
       raw: values,
       raw_values: values,
     };
@@ -404,19 +420,17 @@ function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
   return items;
 }
 
-function getMonthKey(date: Date) {
+function getMonthKey(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
 }
 
-function extractMonthKeyFromValue(value: any) {
+function extractMonthKeyFromValue(value) {
   const text = String(value || '').trim();
 
   const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) {
-    return `${iso[1]}-${iso[2]}`;
-  }
+  if (iso) return `${iso[1]}-${iso[2]}`;
 
   const br = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
   if (br) {
@@ -428,12 +442,11 @@ function extractMonthKeyFromValue(value: any) {
   return '';
 }
 
-function buildAgenda(items: any[]) {
-  const agenda: Record<string, Record<string, any[]>> = {};
+function buildAgenda(items) {
+  const agenda = {};
 
   items.forEach((item) => {
     if (!item?.data_iso) return;
-
     const date = new Date(item.data_iso);
     if (Number.isNaN(date.getTime())) return;
 
@@ -442,7 +455,6 @@ function buildAgenda(items: any[]) {
 
     if (!agenda[monthLabel]) agenda[monthLabel] = {};
     if (!agenda[monthLabel][museu]) agenda[monthLabel][museu] = [];
-
     agenda[monthLabel][museu].push(item);
   });
 
@@ -455,14 +467,8 @@ function buildAgenda(items: any[]) {
   return agenda;
 }
 
-function groupByMuseumAndMonth(items: any[]) {
-  const map: Record<string, Record<string, any[]>> = {
-    MIS: {},
-    MHAB: {},
-    MUMO: {},
-    Externo: {},
-    Todos: {},
-  };
+function groupByMuseumAndMonth(items) {
+  const map = { MIS: {}, MHAB: {}, MUMO: {}, Externo: {}, Todos: {} };
 
   items.forEach((item) => {
     if (!item.data_iso) return;
@@ -483,29 +489,22 @@ function groupByMuseumAndMonth(items: any[]) {
   return map;
 }
 
-function countByMuseum(items: any[]) {
-  const map: Record<string, number> = {
-    MIS: 0,
-    MHAB: 0,
-    MUMO: 0,
-    Externo: 0,
-  };
-
+function countByMuseum(items) {
+  const map = { MIS: 0, MHAB: 0, MUMO: 0, Externo: 0 };
   items.forEach((item) => {
     const key = item.museu || 'Externo';
     map[key] = (map[key] || 0) + 1;
   });
-
   return map;
 }
 
-function dedupeItems(items: any[]) {
-  const seen = new Map<string, any>();
+function dedupeItems(items) {
+  const seen = new Map();
 
   for (const item of items || []) {
     const key = [
       normalizeText(item?.nome),
-      normalizeText(item?.data),
+      normalizeText(item?.data || item?.data_iso),
       normalizeText(item?.horario),
       normalizeText(item?.museu),
       normalizeText(item?.local),
@@ -527,20 +526,25 @@ function dedupeItems(items: any[]) {
       link_imagens: item.link_imagens || prev.link_imagens || '',
       minibios: item.minibios || prev.minibios || '',
       material_de_divulgacao: item.material_de_divulgacao || prev.material_de_divulgacao || '',
+      data: item.data || prev.data || '',
+      data_iso: item.data_iso || prev.data_iso || '',
     });
   }
 
   return Array.from(seen.values());
 }
 
-function sanitizeProgramacaoString(value: any) {
+function sanitizeProgramacaoString(value) {
   return String(value || '').trim();
 }
 
-function buildProgramacaoPayload(item: any) {
+function buildProgramacaoPayload(item) {
   const nome = sanitizeProgramacaoString(item.nome || item.titulo || '');
-  const data = sanitizeProgramacaoString(item.data || '');
-  const dataInicio = sanitizeProgramacaoString(item.data_iso || item.data || '');
+  const dataInicio = sanitizeProgramacaoString(item.data_iso || '');
+  const data =
+    sanitizeProgramacaoString(item.data || '') ||
+    (dataInicio ? formatDateBR(new Date(dataInicio)) : '');
+
   const museu = sanitizeProgramacaoString(item.museu || item.equipamento || 'Externo') || 'Externo';
   const horario = sanitizeProgramacaoString(item.horario || '');
   const vagas = sanitizeProgramacaoString(item.vagas || '');
@@ -553,7 +557,7 @@ function buildProgramacaoPayload(item: any) {
   const monthKey =
     extractMonthKeyFromValue(data) ||
     extractMonthKeyFromValue(dataInicio) ||
-    (item.data_iso ? getMonthKey(new Date(item.data_iso)) : '');
+    (dataInicio ? getMonthKey(new Date(dataInicio)) : '');
 
   return {
     nome_acao: nome,
@@ -581,25 +585,25 @@ function buildProgramacaoPayload(item: any) {
   };
 }
 
-function sleep(ms: number) {
+function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function stableKey(item: any) {
+function stableKey(item) {
   return [
     normalizeText(item.nome || item.titulo || item.nome_acao || ''),
-    normalizeText(item.data || item.data_inicio || ''),
+    normalizeText(item.data || item.data_inicio || item.data_iso || ''),
     normalizeText(item.museu || item.equipamento || ''),
     normalizeText(item.horario || ''),
     normalizeText(item.local || ''),
   ].join('|');
 }
 
-async function upsertProgramacao(base44: any, items: any[]) {
+async function upsertProgramacao(base44, items) {
   const existing = await base44.entities.Programacao.list('-created_date', 5000);
   const existingList = Array.isArray(existing) ? existing : [];
 
-  const existingMap = new Map<string, any>();
+  const existingMap = new Map();
   for (const rec of existingList) {
     const k = stableKey(rec);
     existingMap.set(k, rec);
@@ -607,26 +611,36 @@ async function upsertProgramacao(base44: any, items: any[]) {
 
   const newKeys = new Set(items.map(stableKey));
 
-  // Deletar removidos (em batches)
   const toDelete = [];
   for (const [k, rec] of existingMap.entries()) {
     if (!newKeys.has(k) && rec?.id) toDelete.push(rec.id);
   }
+
   let deleted = 0;
   for (const id of toDelete) {
-    try { await base44.entities.Programacao.delete(id); deleted++; await sleep(200); } catch (_) {}
+    try {
+      await base44.entities.Programacao.delete(id);
+      deleted++;
+      await sleep(150);
+    } catch (_) {}
   }
 
-  const toCreate: any[] = [];
-  const toUpdate: Array<{ id: string; payload: any }> = [];
-  const errors: any[] = [];
+  const toCreate = [];
+  const toUpdate = [];
+  const errors = [];
 
   for (const item of items) {
     const payload = buildProgramacaoPayload(item);
     if (!payload.titulo || !payload.data) {
-      errors.push({ nome: item?.nome || '', data: item?.data || '', museu: item?.museu || '', error: 'Registro ignorado por falta de título ou data.' });
+      errors.push({
+        nome: item?.nome || '',
+        data: item?.data || '',
+        museu: item?.museu || '',
+        error: 'Registro ignorado por falta de título ou data.',
+      });
       continue;
     }
+
     const k = stableKey(item);
     if (existingMap.has(k)) {
       toUpdate.push({ id: existingMap.get(k).id, payload });
@@ -635,22 +649,22 @@ async function upsertProgramacao(base44: any, items: any[]) {
     }
   }
 
-  // BulkCreate em lotes de 50
   let created = 0;
   const BATCH = 50;
+
   for (let i = 0; i < toCreate.length; i += BATCH) {
     const batch = toCreate.slice(i, i + BATCH);
     try {
       await base44.entities.Programacao.bulkCreate(batch);
       created += batch.length;
-      await sleep(500);
-    } catch (err: any) {
+      await sleep(400);
+    } catch (err) {
       if (String(err?.message || '').includes('429') || String(err?.message || '').includes('Rate limit')) {
         await sleep(3000);
         try {
           await base44.entities.Programacao.bulkCreate(batch);
           created += batch.length;
-        } catch (retryErr: any) {
+        } catch (retryErr) {
           errors.push({ etapa: `bulkCreate lote ${i}-${i + BATCH}`, error: retryErr?.message || String(retryErr) });
         }
       } else {
@@ -659,17 +673,19 @@ async function upsertProgramacao(base44: any, items: any[]) {
     }
   }
 
-  // Updates individuais com throttle
   let updated = 0;
   for (const { id, payload } of toUpdate) {
     try {
       await base44.entities.Programacao.update(id, payload);
       updated++;
-      await sleep(200);
-    } catch (err: any) {
+      await sleep(150);
+    } catch (err) {
       if (String(err?.message || '').includes('429') || String(err?.message || '').includes('Rate limit')) {
         await sleep(3000);
-        try { await base44.entities.Programacao.update(id, payload); updated++; } catch (retryErr: any) {
+        try {
+          await base44.entities.Programacao.update(id, payload);
+          updated++;
+        } catch (retryErr) {
           errors.push({ error: retryErr?.message || String(retryErr) });
         }
       } else {
@@ -681,8 +697,19 @@ async function upsertProgramacao(base44: any, items: any[]) {
   return { deleted, created, updated, errors, total_existing: existingList.length };
 }
 
-async function saveAgendaToKnowledge(base44: any, items: any[], nowIso: string) {
-  const byMonth: Record<string, any[]> = {};
+async function upsertKnowledgeDocument(base44, titulo, docData) {
+  const existing = await base44.entities.KnowledgeDocument.filter({ titulo });
+  const doc = Array.isArray(existing) ? existing[0] : null;
+
+  if (doc?.id) {
+    await base44.entities.KnowledgeDocument.update(doc.id, docData);
+  } else {
+    await base44.entities.KnowledgeDocument.create(docData);
+  }
+}
+
+async function saveAgendaToKnowledge(base44, items, nowIso) {
+  const byMonth = {};
 
   for (const item of items) {
     const label = item.month_label || 'sem data';
@@ -690,7 +717,7 @@ async function saveAgendaToKnowledge(base44: any, items: any[], nowIso: string) 
     byMonth[label].push(item);
   }
 
-  const sections: string[] = [];
+  const sections = [];
   for (const [month, monthItems] of Object.entries(byMonth)) {
     sections.push(`=== ${month.toUpperCase()} ===`);
     for (const item of monthItems) {
@@ -703,7 +730,7 @@ async function saveAgendaToKnowledge(base44: any, items: any[], nowIso: string) 
     sections.join('\n---\n');
 
   const docData = {
-    titulo: 'Programação Agenda Completa',
+    titulo: MIRROR_DOC_TITLE,
     categoria: 'Programação',
     versao: nowIso,
     descricao: `Agenda completa sincronizada da planilha de programação. ${items.length} atividades cadastradas (passadas, atuais e futuras).`,
@@ -712,18 +739,75 @@ async function saveAgendaToKnowledge(base44: any, items: any[], nowIso: string) 
     ativo: true,
   };
 
-  try {
-    const existing = await base44.entities.KnowledgeDocument.filter({ titulo: 'Programação Agenda Completa' });
-    const doc = Array.isArray(existing) ? existing[0] : null;
+  await upsertKnowledgeDocument(base44, MIRROR_DOC_TITLE, docData);
+}
 
-    if (doc?.id) {
-      await base44.entities.KnowledgeDocument.update(doc.id, docData);
-    } else {
-      await base44.entities.KnowledgeDocument.create(docData);
-    }
-  } catch (_) {
-    // ignora falha de espelhamento na base de conhecimento
+function buildMirrorTableContent(items, nowIso) {
+  const lines = [];
+
+  lines.push(`# Programação Espelho Estruturada`);
+  lines.push(`Atualizado em: ${nowIso}`);
+  lines.push(`Total de atividades: ${items.length}`);
+  lines.push('');
+  lines.push('| Museu | Data | Horário | Nome | Público-alvo | Vagas | Inscrição |');
+  lines.push('|---|---|---|---|---|---|---|');
+
+  for (const item of items) {
+    const row = [
+      item.museu || '',
+      item.data || '',
+      item.horario || '',
+      String(item.nome || '').replace(/\|/g, '/'),
+      String(item.publico_alvo || '').replace(/\|/g, '/'),
+      String(item.vagas || '').replace(/\|/g, '/'),
+      String(item.inscricao_acesso || item.inscricao || '').replace(/\|/g, '/'),
+    ];
+    lines.push(`| ${row.join(' | ')} |`);
   }
+
+  lines.push('');
+  lines.push('## JSON espelho');
+  lines.push('```json');
+  lines.push(JSON.stringify(
+    items.map((item) => ({
+      museu: item.museu || '',
+      data: item.data || '',
+      data_iso: item.data_iso || '',
+      horario: item.horario || '',
+      nome: item.nome || '',
+      sinopse: item.sinopse || '',
+      publico_alvo: item.publico_alvo || '',
+      vagas: item.vagas || '',
+      inscricao_acesso: item.inscricao_acesso || item.inscricao || '',
+      local: item.local || '',
+      tipo_atividade: item.tipo_atividade || item.tipo || '',
+      link_imagens: item.link_imagens || item.link || '',
+      data_inferida: !!item.data_inferida,
+      sheet_name: item.sheet_name || '',
+      row_index: item.row_index ?? null,
+    })),
+    null,
+    2
+  ));
+  lines.push('```');
+
+  return lines.join('\n');
+}
+
+async function saveMirrorTableToKnowledge(base44, items, nowIso) {
+  const content = buildMirrorTableContent(items, nowIso);
+
+  const docData = {
+    titulo: MIRROR_TABLE_DOC_TITLE,
+    categoria: 'Programação',
+    versao: nowIso,
+    descricao: `Tabela espelho estruturada da programação com ${items.length} registros. Campos: museu, data, horário, nome da ação, sinopse, público-alvo, vagas, inscrição.`,
+    conteudo_extraido: content,
+    file_name: 'programacao-espelho-estruturada.md',
+    ativo: true,
+  };
+
+  await upsertKnowledgeDocument(base44, MIRROR_TABLE_DOC_TITLE, docData);
 }
 
 Deno.serve(async (req) => {
@@ -743,27 +827,19 @@ Deno.serve(async (req) => {
           error: `Falha ao ler planilha. HTTP ${response.status}`,
           source_url: SOURCE_URL,
         }),
-        {
-          status: 500,
-          headers: { 'content-type': 'application/json' },
-        }
+        { status: 500, headers: { 'content-type': 'application/json' } }
       );
     }
 
     const arrayBuffer = await response.arrayBuffer();
     const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
 
-    let allItems: any[] = [];
+    let allItems = [];
     let runningOffset = 0;
 
     workbook.SheetNames.forEach((sheetName) => {
       const ws = workbook.Sheets[sheetName];
-      const matrix = XLSX.utils.sheet_to_json(ws, {
-        header: 1,
-        raw: false,
-        defval: '',
-      }) as any[][];
-
+      const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
       const items = normalizeSheet(sheetName, matrix, runningOffset);
       allItems = allItems.concat(items);
       runningOffset += items.length + 10;
@@ -775,16 +851,11 @@ Deno.serve(async (req) => {
     const groupedByMuseumAndMonth = groupByMuseumAndMonth(allItems);
     const countsByMuseum = countByMuseum(allItems);
 
-    let programacaoSync: any = {
-      deleted: 0,
-      created: 0,
-      updated: 0,
-      errors: [] as any[],
-    };
+    let programacaoSync = { deleted: 0, created: 0, updated: 0, errors: [] };
 
     try {
       programacaoSync = await upsertProgramacao(base44, allItems);
-    } catch (error: any) {
+    } catch (error) {
       programacaoSync = {
         deleted: 0,
         created: 0,
@@ -795,9 +866,11 @@ Deno.serve(async (req) => {
 
     try {
       await saveAgendaToKnowledge(base44, allItems, nowIso);
-    } catch (_) {
-      // ignora falha da base de conhecimento
-    }
+    } catch (_) {}
+
+    try {
+      await saveMirrorTableToKnowledge(base44, allItems, nowIso);
+    } catch (_) {}
 
     return new Response(
       JSON.stringify({
@@ -820,6 +893,7 @@ Deno.serve(async (req) => {
         last_sync: nowIso,
         sync_mode: mode,
         programacao_sync: programacaoSync,
+        mirror_documents: [MIRROR_DOC_TITLE, MIRROR_TABLE_DOC_TITLE],
         changes_summary: {
           criados: programacaoSync.created || 0,
           atualizados: programacaoSync.updated || 0,
@@ -827,10 +901,7 @@ Deno.serve(async (req) => {
           erros: (programacaoSync.errors || []).length,
         },
       }),
-      {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }
+      { status: 200, headers: { 'content-type': 'application/json' } }
     );
   } catch (error) {
     return new Response(
@@ -838,10 +909,7 @@ Deno.serve(async (req) => {
         ok: false,
         error: error instanceof Error ? error.message : 'Erro inesperado na sincronização.',
       }),
-      {
-        status: 500,
-        headers: { 'content-type': 'application/json' },
-      }
+      { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }
 });

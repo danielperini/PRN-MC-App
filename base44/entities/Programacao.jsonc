@@ -1,0 +1,134 @@
+{
+  "name": "Programacao",
+  "type": "object",
+  "properties": {
+    "activity_id": {
+      "type": "string",
+      "description": "ID da atividade vinculada (FK \u2192 Activity, opcional)"
+    },
+    "report_id": {
+      "type": "string",
+      "description": "ID do relat\u00f3rio pai (FK \u2192 Report, opcional)"
+    },
+    "titulo": {
+      "type": "string",
+      "description": "T\u00edtulo da programa\u00e7\u00e3o / nome da a\u00e7\u00e3o"
+    },
+    "nome_acao": {
+      "type": "string",
+      "description": "Nome da a\u00e7\u00e3o (campo espelho de titulo)"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o detalhada / sinopse"
+    },
+    "sinopse": {
+      "type": "string",
+      "description": "Sinopse exibida no card da agenda"
+    },
+    "data": {
+      "type": "string",
+      "description": "Data em texto livre (ex: 02, 09, 16 de maio)"
+    },
+    "data_inicio": {
+      "type": "string",
+      "description": "Data de in\u00edcio ISO ou texto"
+    },
+    "data_fim": {
+      "type": "string",
+      "description": "Data e hora de t\u00e9rmino"
+    },
+    "horario": {
+      "type": "string",
+      "description": "Hor\u00e1rio da atividade"
+    },
+    "local": {
+      "type": "string",
+      "description": "Local de realiza\u00e7\u00e3o"
+    },
+    "endereco": {
+      "type": "string",
+      "description": "Endere\u00e7o completo"
+    },
+    "museu": {
+      "type": "string",
+      "description": "Museu respons\u00e1vel (MIS, MHAB, MUMO, Externo)"
+    },
+    "equipamento": {
+      "type": "string",
+      "description": "Equipamento cultural"
+    },
+    "publico_alvo": {
+      "type": "string",
+      "description": "P\u00fablico-alvo da atividade"
+    },
+    "vagas": {
+      "type": "string",
+      "description": "N\u00famero de vagas dispon\u00edveis"
+    },
+    "inscricao": {
+      "type": "string",
+      "description": "Forma de inscri\u00e7\u00e3o ou acesso"
+    },
+    "link_inscricao": {
+      "type": "string",
+      "description": "Link para inscri\u00e7\u00e3o"
+    },
+    "tipo": {
+      "type": "string",
+      "description": "Tipo de atividade"
+    },
+    "tipo_atividade": {
+      "type": "string",
+      "description": "Tipo de atividade (campo espelho)"
+    },
+    "acessibilidade": {
+      "type": "string",
+      "description": "N\u00edvel de acessibilidade"
+    },
+    "classificacao": {
+      "type": "string",
+      "description": "Classifica\u00e7\u00e3o (META, ROTINA, EXTRA)"
+    },
+    "link_imagens": {
+      "type": "string",
+      "description": "Link para imagens de divulga\u00e7\u00e3o"
+    },
+    "month_key": {
+      "type": "string",
+      "description": "Chave do m\u00eas no formato YYYY-MM"
+    },
+    "origem": {
+      "type": "string",
+      "description": "Origem do registro (ex: syncBaseConhecimento)"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se est\u00e1 ativo"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "PLANEJADA",
+        "CONFIRMADA",
+        "EM_ANDAMENTO",
+        "REALIZADA",
+        "CANCELADA"
+      ],
+      "default": "CONFIRMADA",
+      "description": "Status da programa\u00e7\u00e3o"
+    },
+    "updated_at": {
+      "type": "string",
+      "description": "Data da \u00faltima atualiza\u00e7\u00e3o via sync"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es adicionais"
+    }
+  },
+  "required": [
+    "titulo"
+  ]
+}
