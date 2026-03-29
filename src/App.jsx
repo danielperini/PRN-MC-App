@@ -8,6 +8,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ChecklistProducao from './pages/ChecklistProducao';
+import ProgramacaoEspelho from './pages/ProgramacaoEspelho';
 import RubricasPorMuseu from './pages/RubricasPorMuseu';
 import BaseConhecimento from './pages/BaseConhecimento';
 
@@ -95,6 +96,15 @@ function AuthenticatedApp() {
         element={
           <LayoutWrapper currentPageName="BaseConhecimento">
             <BaseConhecimento />
+          </LayoutWrapper>
+        }
+      />
+
+      <Route
+        path="/ProgramacaoEspelho"
+        element={
+          <LayoutWrapper currentPageName="ProgramacaoEspelho">
+            <ProgramacaoEspelho />
           </LayoutWrapper>
         }
       />

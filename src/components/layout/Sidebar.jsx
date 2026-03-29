@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Images,
   ScrollText,
+  CalendarDays,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SuggestionForm from '@/components/sidebar/SuggestionForm';
@@ -148,6 +149,12 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           name: 'GaleriaFotos',
           icon: Images,
           label: 'Galeria',
+          show: true,
+        },
+        {
+          name: 'ProgramacaoEspelho',
+          icon: CalendarDays,
+          label: 'Programação',
           show: true,
         },
         {
