@@ -12,7 +12,6 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
-  CalendarDays,
   BookOpen,
   ShoppingCart,
   Newspaper,
@@ -91,12 +90,6 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           name: 'Relatorios',
           icon: FileText,
           label: 'Relatórios',
-          show: true,
-        },
-        {
-          name: 'CalendarioAtividades',
-          icon: CalendarDays,
-          label: 'Agenda',
           show: true,
         },
         {
