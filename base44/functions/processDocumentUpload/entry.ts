@@ -1,11 +1,11 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-function s(value: unknown): string {
+function safeString(value: unknown): string {
   return String(value ?? '').trim();
 }
 
-function categoriaValida(input: string): string {
-  const permitidas = [
+function normalizeCategoria(input: string): string {
+  const allowed = [
     'Contrato',
     'Plano de Trabalho',
     'Manual',
@@ -14,29 +14,29 @@ function categoriaValida(input: string): string {
     'Outro',
   ];
 
-  return permitidas.includes(input) ? input : 'Outro';
+  const value = safeString(input);
+  return allowed.includes(value) ? value : 'Outro';
 }
 
-function inferirCategoria(fileName: string): string {
-  const nome = s(fileName).toLowerCase();
+function inferCategoria(fileName: string): string {
+  const lower = safeString(fileName).toLowerCase();
 
-  if (nome.endsWith('.pdf')) return 'Relatório';
-  if (nome.endsWith('.doc') || nome.endsWith('.docx')) return 'Manual';
+  if (lower.endsWith('.pdf')) return 'Relatório';
+  if (lower.endsWith('.doc') || lower.endsWith('.docx')) return 'Manual';
   return 'Outro';
 }
 
-function montarTitulo(fileName: string, tituloInformado?: string): string {
-  const titulo = s(tituloInformado);
-  if (titulo) return titulo;
+function buildTitulo(fileName: string, providedTitle?: string): string {
+  const cleanProvided = safeString(providedTitle);
+  if (cleanProvided) return cleanProvided;
 
-  const nome = s(fileName);
-  return nome.replace(/\.[^/.]+$/, '') || 'Documento sem título';
+  const cleanFileName = safeString(fileName);
+  return cleanFileName.replace(/\.[^/.]+$/, '') || 'Documento sem título';
 }
 
 Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
-
   try {
+    const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
 
     if (!user) {
@@ -52,15 +52,72 @@ Deno.serve(async (req) => {
 
     const args = body?.args || body || {};
 
-    const fileName = s(args.file_name);
-    const contentBase64 = s(args.content_base64);
-    const titulo = montarTitulo(fileName, args.titulo);
-    const descricao = s(args.descricao);
-    const versao = s(args.versao);
-    const categoria = categoriaValida(s(args.categoria) || inferirCategoria(fileName));
+    const fileName = safeString(args.file_name);
+    const contentBase64 = safeString(args.content_base64);
+    const titulo = buildTitulo(fileName, args.titulo);
+    const descricao = safeString(args.descricao);
+    const versao = safeString(args.versao);
+    const categoria = normalizeCategoria(
+      safeString(args.categoria) || inferCategoria(fileName)
+    );
 
     if (!fileName) {
       return Response.json(
+        { ok: false, saved: false, error: 'file_name é obrigatório.' },
+        { status: 400 }
+      );
+    }
+
+    if (!contentBase64) {
+      return Response.json(
+        { ok: false, saved: false, error: 'content_base64 é obrigatório.' },
+        { status: 400 }
+      );
+    }
+
+    const uploaded = await base44.storage.upload({
+      file_name: fileName,
+      content_base64: contentBase64,
+    });
+
+    const fileUrl = safeString(uploaded?.file_url);
+
+    if (!fileUrl) {
+      return Response.json(
+        { ok: false, saved: false, error: 'Falha ao gravar arquivo no storage.' },
+        { status: 500 }
+      );
+    }
+
+    const created = await base44.entities.KnowledgeDocument.create({
+      titulo,
+      descricao,
+      categoria,
+      conteudo_extraido: '',
+      file_url: fileUrl,
+      file_name: fileName,
+      ativo: true,
+      versao,
+    });
+
+    return Response.json({
+      ok: true,
+      saved: true,
+      item: created,
+    });
+  } catch (error) {
+    console.error('Erro em processDocumentUpload:', error);
+
+    return Response.json(
+      {
+        ok: false,
+        saved: false,
+        error: error instanceof Error ? error.message : 'Erro inesperado.',
+      },
+      { status: 500 }
+    );
+  }
+});      return Response.json(
         { ok: false, saved: false, error: 'file_name é obrigatório.' },
         { status: 400 }
       );
