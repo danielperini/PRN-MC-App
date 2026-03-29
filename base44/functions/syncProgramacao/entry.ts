@@ -17,10 +17,19 @@ function normalizeHeader(value: unknown): string {
 
 function excelDateToISO(value: unknown): string {
   if (typeof value === 'number') {
-    const parsed = XLSX.SSF.parse_date_code(value);
-    if (!parsed) return '';
-    const date = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
-    return date.toISOString();
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const ms = value * 24 * 60 * 60 * 1000;
+    const date = new Date(excelEpoch.getTime() + ms);
+
+    if (!Number.isNaN(date.getTime())) {
+      return new Date(Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate()
+      )).toISOString();
+    }
+
+    return '';
   }
 
   const text = s(value);
@@ -42,7 +51,6 @@ function excelDateToISO(value: unknown): string {
 
   return '';
 }
-
 function detectHeaderRow(rows: any[][]) {
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i].map(normalizeHeader);
