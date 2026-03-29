@@ -13,6 +13,12 @@ function inferCategoria(file) {
   return 'Outro';
 }
 
+function getListItems(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
 export default function BaseConhecimento() {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,8 +35,12 @@ export default function BaseConhecimento() {
       setLoading(true);
       setError('');
 
-      const data = await base44.entities.KnowledgeDocument.list('-created_date', 200);
-      setFiles(Array.isArray(data) ? data : []);
+      const data = await base44.entities.KnowledgeDocument.list({
+        sort: { created_date: 'desc' },
+        limit: 200,
+      });
+
+      setFiles(getListItems(data));
     } catch (err) {
       console.error('Erro ao carregar documentos:', err);
       setFiles([]);
