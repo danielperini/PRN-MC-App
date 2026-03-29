@@ -1,6 +1,7 @@
 {
-  "name": "processDocumentUpload",
-  "runtime": "deno",
-  "entrypoint": "entry.ts",
-  "methods": ["POST"]
+  "file_name": "teste.txt",
+  "content_base64": "dGVzdGU=",
+  "titulo": "teste",
+  "descricao": "",
+  "versao": ""
 }
