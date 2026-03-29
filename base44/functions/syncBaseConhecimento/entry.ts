@@ -553,23 +553,53 @@ function buildProgramacaoPayload(item: any) {
   };
 }
 
-async function replaceProgramacao(base44: any, items: any[]) {
+function stableKey(item: any) {
+  return [
+    normalizeText(item.nome || item.titulo || ''),
+    normalizeText(item.data || ''),
+    normalizeText(item.museu || ''),
+    normalizeText(item.horario || ''),
+  ].join('|');
+}
+
+async function upsertProgramacao(base44: any, items: any[]) {
   const existing = await base44.entities.Programacao.list('-created_date', 5000);
   const existingList = Array.isArray(existing) ? existing : [];
 
-  for (const record of existingList) {
-    if (!record?.id) continue;
-    await base44.entities.Programacao.delete(record.id);
+  const existingMap = new Map<string, any>();
+  for (const rec of existingList) {
+    const k = stableKey(rec);
+    existingMap.set(k, rec);
+  }
+
+  const newKeys = new Set(items.map(stableKey));
+
+  // Deletar registros que foram removidos da planilha
+  let deleted = 0;
+  for (const [k, rec] of existingMap.entries()) {
+    if (!newKeys.has(k) && rec?.id) {
+      try {
+        await base44.entities.Programacao.delete(rec.id);
+        deleted++;
+      } catch (_) {}
+    }
   }
 
   let created = 0;
+  let updated = 0;
   const errors: any[] = [];
 
   for (const item of items) {
     try {
       const payload = buildProgramacaoPayload(item);
-      await base44.entities.Programacao.create(payload);
-      created++;
+      const k = stableKey(item);
+      if (existingMap.has(k)) {
+        await base44.entities.Programacao.update(existingMap.get(k).id, payload);
+        updated++;
+      } else {
+        await base44.entities.Programacao.create(payload);
+        created++;
+      }
     } catch (error: any) {
       errors.push({
         nome: item?.nome || '',
@@ -580,11 +610,47 @@ async function replaceProgramacao(base44: any, items: any[]) {
     }
   }
 
-  return {
-    deleted_previous: existingList.length,
-    created,
-    errors,
+  return { deleted, created, updated, errors, total_existing: existingList.length };
+}
+
+async function saveAgendaToKnowledge(base44: any, items: any[], nowIso: string) {
+  // Agrupa por mês e museu para texto estruturado
+  const byMonth: Record<string, any[]> = {};
+  for (const item of items) {
+    const label = item.month_label || 'sem data';
+    if (!byMonth[label]) byMonth[label] = [];
+    byMonth[label].push(item);
+  }
+
+  const sections: string[] = [];
+  for (const [month, monthItems] of Object.entries(byMonth)) {
+    sections.push(`=== ${month.toUpperCase()} ===`);
+    for (const item of monthItems) {
+      sections.push(item.resumo_ia || item.nome || '');
+    }
+  }
+
+  const conteudo = `PROGRAMAÇÃO COMPLETA DOS MUSEUS\nAtualizado em: ${nowIso}\nTotal de atividades: ${items.length}\n\n` + sections.join('\n---\n');
+
+  const docData = {
+    titulo: 'Programação Agenda Completa',
+    categoria: 'Programação',
+    versao: nowIso,
+    descricao: `Agenda completa sincronizada da planilha de programação. ${items.length} atividades cadastradas (passadas, atuais e futuras).`,
+    conteudo_extraido: conteudo,
+    file_name: 'programacao-agenda.txt',
+    ativo: true,
   };
+
+  try {
+    const existing = await base44.entities.KnowledgeDocument.filter({ titulo: 'Programação Agenda Completa' });
+    const doc = Array.isArray(existing) ? existing[0] : null;
+    if (doc?.id) {
+      await base44.entities.KnowledgeDocument.update(doc.id, docData);
+    } else {
+      await base44.entities.KnowledgeDocument.create(docData);
+    }
+  } catch (_) {}
 }
 
 Deno.serve(async (req) => {
@@ -636,26 +702,28 @@ Deno.serve(async (req) => {
     const groupedByMuseumAndMonth = groupByMuseumAndMonth(allItems);
     const countsByMuseum = countByMuseum(allItems);
 
-    let programacaoSync = {
-      deleted_previous: 0,
+    let programacaoSync: any = {
+      deleted: 0,
       created: 0,
+      updated: 0,
       errors: [] as any[],
     };
 
     try {
-      programacaoSync = await replaceProgramacao(base44, allItems);
+      programacaoSync = await upsertProgramacao(base44, allItems);
     } catch (error: any) {
       programacaoSync = {
-        deleted_previous: 0,
+        deleted: 0,
         created: 0,
-        errors: [
-          {
-            etapa: 'replaceProgramacao',
-            error: error?.message || String(error),
-          },
-        ],
+        updated: 0,
+        errors: [{ etapa: 'upsertProgramacao', error: error?.message || String(error) }],
       };
     }
+
+    // Salva resumo no KnowledgeDocument para o assistente de IA poder responder sobre programação
+    try {
+      await saveAgendaToKnowledge(base44, allItems, nowIso);
+    } catch (_) {}
 
     return new Response(
       JSON.stringify({
@@ -678,6 +746,12 @@ Deno.serve(async (req) => {
         last_sync: nowIso,
         sync_mode: mode,
         programacao_sync: programacaoSync,
+        changes_summary: {
+          criados: programacaoSync.created || 0,
+          atualizados: programacaoSync.updated || 0,
+          deletados: programacaoSync.deleted || 0,
+          erros: (programacaoSync.errors || []).length,
+        },
       }),
       {
         status: 200,

@@ -213,16 +213,18 @@ export default function BaseConhecimento() {
                     ) : null}
                     {syncResult && (
                       <div className="mt-1 space-y-0.5">
-                        <div className="text-green-700">✅ {syncResult.total_items || 0} itens carregados da planilha</div>
+                        <div className="text-green-700">✅ {syncResult.total_items || 0} itens lidos da planilha ({syncResult.sheet_names?.length || 0} abas)</div>
                         {syncResult.programacao_sync && (
                           <>
-                            <div className="text-blue-700">📥 {syncResult.programacao_sync.created || 0} registros criados no banco</div>
-                            <div className="text-orange-600">🗑️ {syncResult.programacao_sync.deleted_previous || 0} registros anteriores removidos</div>
+                            <div className="text-blue-700">📥 {syncResult.programacao_sync.created || 0} novos registros criados</div>
+                            <div className="text-indigo-600">✏️ {syncResult.programacao_sync.updated || 0} registros atualizados</div>
+                            <div className="text-orange-600">🗑️ {syncResult.programacao_sync.deleted || 0} registros removidos (não estavam mais na planilha)</div>
                             {syncResult.programacao_sync.errors?.length > 0 && (
                               <div className="text-red-600">⚠️ {syncResult.programacao_sync.errors.length} erro(s) durante a sincronização</div>
                             )}
                           </>
                         )}
+                        <div className="text-purple-700 text-xs">🤖 Agenda salva na base de conhecimento do assistente IA</div>
                       </div>
                     )}
                   </div>
