@@ -23,11 +23,25 @@ function excelDateToISO(value: unknown): string {
 
     if (!Number.isNaN(date.getTime())) {
       return new Date(
-        Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+        Date.UTC(
+          date.getUTCFullYear(),
+          date.getUTCMonth(),
+          date.getUTCDate()
+        )
       ).toISOString();
     }
 
     return '';
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Date(
+      Date.UTC(
+        value.getFullYear(),
+        value.getMonth(),
+        value.getDate()
+      )
+    ).toISOString();
   }
 
   const text = s(value);
@@ -47,9 +61,27 @@ function excelDateToISO(value: unknown): string {
     }
   }
 
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    const yyyy = Number(iso[1]);
+    const mm = Number(iso[2]) - 1;
+    const dd = Number(iso[3]);
+
+    const date = new Date(Date.UTC(yyyy, mm, dd));
+    if (!Number.isNaN(date.getTime())) {
+      return date.toISOString();
+    }
+  }
+
   const native = new Date(text);
   if (!Number.isNaN(native.getTime())) {
-    return native.toISOString();
+    return new Date(
+      Date.UTC(
+        native.getFullYear(),
+        native.getMonth(),
+        native.getDate()
+      )
+    ).toISOString();
   }
 
   return '';
@@ -57,10 +89,358 @@ function excelDateToISO(value: unknown): string {
 
 function buildExportUrl(sourceUrl: string): string {
   const match = sourceUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+
   if (!match) {
     throw new Error('SOURCE_URL inválida.');
   }
 
+  return `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`;
+}
+
+function detectHeaderRow(rows: unknown[][]): { index: number; headers: string[] } {
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = Array.isArray(rows[i]) ? rows[i].map(normalizeHeader) : [];
+
+    const hasNome =
+      row.includes('nome da acao') ||
+      row.includes('nome da ação') ||
+      row.includes('nome') ||
+      row.includes('nome da programacao') ||
+      row.includes('nome da programação');
+
+    const hasData = row.includes('data');
+
+    if (hasNome && hasData) {
+      return { index: i, headers: row };
+    }
+  }
+
+  return { index: -1, headers: [] };
+}
+
+function getCell(obj: Record<string, unknown>, names: string[]): unknown {
+  for (const name of names) {
+    if (obj[name] != null && s(obj[name])) {
+      return obj[name];
+    }
+  }
+
+  return '';
+}
+
+function getListItems(data: any): any[] {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
+async function loadWorkbookFromKnowledgeDocument(
+  entities: any,
+  knowledgeDocumentId: string,
+  requestedFileName: string
+): Promise<{
+  workbook: XLSX.WorkBook | null;
+  sourceReference: string;
+  error: string;
+}> {
+  let doc: any = null;
+
+  if (knowledgeDocumentId) {
+    doc = await entities.KnowledgeDocument.get(knowledgeDocumentId);
+  }
+
+  if (!doc?.id) {
+    const docs = await entities.KnowledgeDocument.list({
+      sort: { created_date: 'desc' },
+      limit: 50,
+    });
+
+    const docsArray = getListItems(docs);
+    doc = docsArray.find((item: any) => s(item?.file_name) === requestedFileName) || null;
+  }
+
+  if (!doc?.file_url) {
+    return {
+      workbook: null,
+      sourceReference: '',
+      error: `Nenhum arquivo encontrado para sincronizar: ${requestedFileName}`,
+    };
+  }
+
+  const response = await fetch(String(doc.file_url));
+
+  if (!response.ok) {
+    throw new Error(`Falha ao baixar arquivo salvo: ${response.status}`);
+  }
+
+  const buffer = await response.arrayBuffer();
+
+  return {
+    workbook: XLSX.read(buffer, {
+      type: 'array',
+      cellDates: true,
+    }),
+    sourceReference: String(doc.file_url),
+    error: '',
+  };
+}
+
+async function loadWorkbookFromSourceUrl(
+  sourceUrl: string
+): Promise<{
+  workbook: XLSX.WorkBook;
+  sourceReference: string;
+}> {
+  const exportUrl = buildExportUrl(sourceUrl);
+  const response = await fetch(exportUrl);
+
+  if (!response.ok) {
+    throw new Error(`Falha ao baixar planilha: ${response.status}`);
+  }
+
+  const buffer = await response.arrayBuffer();
+
+  return {
+    workbook: XLSX.read(buffer, {
+      type: 'array',
+      cellDates: true,
+    }),
+    sourceReference: sourceUrl,
+  };
+}
+
+export default async function handler(context: any) {
+  const entities = context?.entities;
+  const request = context?.request;
+
+  let total_items = 0;
+  let created = 0;
+  let deleted_previous = 0;
+  const errors: Array<Record<string, unknown>> = [];
+  const debug_sheets: Array<Record<string, unknown>> = [];
+
+  try {
+    const body = request?.body ?? {};
+    const knowledgeDocumentId = s(body?.knowledge_document_id);
+    const requestedFileName = s(body?.file_name) || PROGRAMACAO_FILE_NAME;
+    const sourceUrl = s(body?.source_url);
+
+    let workbook: XLSX.WorkBook | null = null;
+    let sourceReference = '';
+
+    const fileLoad = await loadWorkbookFromKnowledgeDocument(
+      entities,
+      knowledgeDocumentId,
+      requestedFileName
+    );
+
+    if (fileLoad.workbook) {
+      workbook = fileLoad.workbook;
+      sourceReference = fileLoad.sourceReference;
+    } else if (sourceUrl) {
+      const sourceLoad = await loadWorkbookFromSourceUrl(sourceUrl);
+      workbook = sourceLoad.workbook;
+      sourceReference = sourceLoad.sourceReference;
+    } else {
+      return {
+        ok: false,
+        error: fileLoad.error || `Nenhum arquivo encontrado para sincronizar: ${requestedFileName}`,
+        total_items: 0,
+        created: 0,
+        deleted_previous: 0,
+        errors,
+        debug_sheets,
+      };
+    }
+
+    if (!workbook) {
+      throw new Error('Não foi possível carregar a planilha.');
+    }
+
+    const allItems: Array<Record<string, unknown>> = [];
+
+    for (const sheetName of workbook.SheetNames) {
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        raw: true,
+        defval: '',
+      }) as unknown[][];
+
+      const { index: headerIndex, headers } = detectHeaderRow(rows);
+
+      if (headerIndex < 0) {
+        debug_sheets.push({ sheetName, status: 'no_header' });
+        continue;
+      }
+
+      let rowsParsed = 0;
+
+      for (let i = headerIndex + 1; i < rows.length; i += 1) {
+        const row = rows[i];
+
+        if (!Array.isArray(row) || row.length === 0) continue;
+        if (!row.some((cell) => s(cell) !== '')) continue;
+
+        const obj: Record<string, unknown> = {};
+
+        headers.forEach((header, idx) => {
+          obj[header] = row[idx];
+        });
+
+        const atividade = s(
+          getCell(obj, [
+            'nome da acao',
+            'nome da ação',
+            'nome',
+            'nome da programacao',
+            'nome da programação',
+          ])
+        );
+
+        const resumo = s(getCell(obj, ['sinopse']));
+        const dataRaw = getCell(obj, ['data']);
+        const data_inicio = excelDateToISO(dataRaw);
+        const horario = s(getCell(obj, ['horario', 'horário']));
+        const publico_alvo = s(
+          getCell(obj, [
+            'publico-alvo',
+            'publico alvo',
+            'público-alvo',
+            'público alvo',
+          ])
+        );
+        const vagas = s(getCell(obj, ['vagas']));
+        const inscricao_acesso = s(
+          getCell(obj, [
+            'inscricao/acesso',
+            'inscricao / acesso',
+            'inscrição/acesso',
+            'inscrição / acesso',
+            'inscricao',
+            'inscrição',
+          ])
+        );
+        const museu = s(
+          getCell(obj, [
+            'equipamento programacao',
+            'equipamento programação',
+            'equipamento',
+            'museu',
+          ])
+        );
+        const local = s(getCell(obj, ['local']));
+        const tipo_atividade = s(
+          getCell(obj, ['tipo de atividade', 'tipo atividade'])
+        );
+
+        if (!atividade || !data_inicio) {
+          if (atividade || s(dataRaw)) {
+            errors.push({
+              sheetName,
+              row: i + 1,
+              error: 'missing_atividade_or_data',
+              atividade,
+              dataRaw: s(dataRaw),
+            });
+          }
+          continue;
+        }
+
+        allItems.push({
+          titulo: atividade,
+          nome: atividade,
+          nome_acao: atividade,
+          atividade,
+          resumo,
+          sinopse: resumo,
+          descricao: resumo,
+          data: data_inicio,
+          data_inicio,
+          data_iso: data_inicio,
+          horario,
+          publico_alvo,
+          vagas,
+          inscricao: inscricao_acesso,
+          inscricao_acesso,
+          link: inscricao_acesso,
+          museu,
+          equipamento: museu,
+          local,
+          tipo: tipo_atividade,
+          tipo_atividade,
+          origem: 'syncProgramacao',
+          source_reference: sourceReference,
+          source_sheet: sheetName,
+        });
+
+        rowsParsed += 1;
+      }
+
+      debug_sheets.push({ sheetName, rows: rowsParsed });
+    }
+
+    const dedup = new Map<string, Record<string, unknown>>();
+
+    for (const item of allItems) {
+      const key = [
+        s(item.atividade).toLowerCase(),
+        s(item.data_inicio),
+        s(item.horario).toLowerCase(),
+        s(item.museu).toLowerCase(),
+        s(item.local).toLowerCase(),
+      ].join('|');
+
+      if (!dedup.has(key)) {
+        dedup.set(key, item);
+      }
+    }
+
+    const uniqueItems = Array.from(dedup.values());
+    total_items = uniqueItems.length;
+
+    const targetEntity = entities?.Programacao || entities?.Activity;
+
+    if (!targetEntity) {
+      throw new Error('Entity Programacao não encontrada.');
+    }
+
+    const existing = await targetEntity.list({ limit: 10000 });
+    const existingItems = getListItems(existing);
+
+    for (const item of existingItems) {
+      if (item?.origem === 'syncProgramacao' && item?.id) {
+        await targetEntity.delete(item.id);
+        deleted_previous += 1;
+      }
+    }
+
+    for (const item of uniqueItems) {
+      await targetEntity.create(item);
+      created += 1;
+    }
+
+    return {
+      ok: true,
+      total_items,
+      created,
+      deleted_previous,
+      errors,
+      debug_sheets,
+      source_reference: sourceReference,
+    };
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Erro ao sincronizar programação.',
+      total_items,
+      created,
+      deleted_previous,
+      errors,
+      debug_sheets,
+    };
+  }
+}
   const id = match[1];
   return `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`;
 }
