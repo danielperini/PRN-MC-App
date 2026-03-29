@@ -245,15 +245,17 @@ function mapHeaderKey(header: string) {
   if (h === 'servico' || h === 'serviço') return 'servico';
   if (h.includes('briefing')) return 'briefing';
 
-  return h.replace(/[^\w]+/g, '_');
+  return h
+    .replace(/[^\w]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80);
 }
 
 function scoreHeaderRow(row: any[]) {
-  const normalized = (row || []).map((cell) => normalizeText(cell)).join(' ');
+  const normalized = row.map((cell) => normalizeText(cell)).join(' | ');
 
   const keywords = [
     'nome',
-    'atividade',
     'programacao',
     'programação',
     'data',
@@ -408,6 +410,24 @@ function getMonthKey(date: Date) {
   return `${y}-${m}`;
 }
 
+function extractMonthKeyFromValue(value: any) {
+  const text = String(value || '').trim();
+
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    return `${iso[1]}-${iso[2]}`;
+  }
+
+  const br = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (br) {
+    let year = Number(br[3]);
+    if (year < 100) year += 2000;
+    return `${year}-${String(Number(br[2])).padStart(2, '0')}`;
+  }
+
+  return '';
+}
+
 function buildAgenda(items: any[]) {
   const agenda: Record<string, Record<string, any[]>> = {};
 
@@ -513,43 +533,51 @@ function dedupeItems(items: any[]) {
   return Array.from(seen.values());
 }
 
+function sanitizeProgramacaoString(value: any) {
+  return String(value || '').trim();
+}
+
 function buildProgramacaoPayload(item: any) {
+  const nome = sanitizeProgramacaoString(item.nome || item.titulo || '');
+  const data = sanitizeProgramacaoString(item.data || '');
+  const dataInicio = sanitizeProgramacaoString(item.data_iso || item.data || '');
+  const museu = sanitizeProgramacaoString(item.museu || item.equipamento || 'Externo') || 'Externo';
+  const horario = sanitizeProgramacaoString(item.horario || '');
+  const vagas = sanitizeProgramacaoString(item.vagas || '');
+  const inscricao = sanitizeProgramacaoString(item.inscricao_acesso || item.inscricao || '');
+  const descricao = sanitizeProgramacaoString(item.sinopse || item.descricao || '');
+  const linkImagens = sanitizeProgramacaoString(item.link_imagens || item.link || '');
+  const tipo = sanitizeProgramacaoString(item.tipo_atividade || item.tipo || '');
+  const local = sanitizeProgramacaoString(item.local || '');
+  const endereco = sanitizeProgramacaoString(item.endereco_completo || item.endereco || '');
+  const monthKey =
+    extractMonthKeyFromValue(data) ||
+    extractMonthKeyFromValue(dataInicio) ||
+    (item.data_iso ? getMonthKey(new Date(item.data_iso)) : '');
+
   return {
-    nome: item.nome || '',
-    titulo: item.titulo || item.nome || '',
-    nome_acao: item.nome || '',
-    data: item.data || '',
-    data_inicio: item.data_iso || '',
-    data_iso: item.data_iso || '',
-    horario: item.horario || '',
-    museu: item.museu || 'Externo',
-    equipamento: item.equipamento || item.museu || 'Externo',
-    local: item.local || '',
-    endereco_completo: item.endereco_completo || '',
-    sinopse: item.sinopse || '',
-    descricao: item.descricao || '',
-    tipo: item.tipo || '',
-    tipo_atividade: item.tipo_atividade || item.tipo || '',
-    formato: item.formato || '',
-    vagas: item.vagas || '',
-    inscricao: item.inscricao || '',
-    link_inscricao: item.inscricao_acesso || item.inscricao || '',
-    material_divulgacao: item.material_de_divulgacao || '',
-    link_imagens: item.link_imagens || '',
-    minibios: item.minibios || '',
-    resumo_ia: item.resumo_ia || '',
-    publico_alvo: item.publico_alvo || '',
-    acessibilidade: item.acessibilidade || '',
-    classificacao_indicativa: item.classificacao_indicativa || '',
-    status: item.status || '',
-    briefing: item.briefing || '',
-    servico: item.servico || '',
-    valor: item.valor || '',
+    nome_acao: nome,
+    titulo: nome,
+    data,
+    data_inicio: dataInicio || null,
+    horario,
+    museu,
+    equipamento: museu,
+    vagas,
+    inscricao,
+    link_inscricao: inscricao,
+    descricao,
+    sinopse: descricao,
+    link_imagens: linkImagens,
+    tipo,
+    tipo_atividade: tipo,
+    local,
+    endereco,
     origem: 'syncBaseConhecimento',
-    sheet_name: item.sheet_name || '',
-    month_label: item.month_label || '',
-    row_index: item.row_index ?? null,
-    raw_values: item.raw_values || item.raw || {},
+    ativo: true,
+    status: 'CONFIRMADA',
+    month_key: monthKey,
+    updated_at: new Date().toISOString(),
   };
 }
 
@@ -559,10 +587,11 @@ function sleep(ms: number) {
 
 function stableKey(item: any) {
   return [
-    normalizeText(item.nome || item.titulo || ''),
-    normalizeText(item.data || ''),
-    normalizeText(item.museu || ''),
+    normalizeText(item.nome || item.titulo || item.nome_acao || ''),
+    normalizeText(item.data || item.data_inicio || ''),
+    normalizeText(item.museu || item.equipamento || ''),
     normalizeText(item.horario || ''),
+    normalizeText(item.local || ''),
   ].join('|');
 }
 
@@ -578,7 +607,6 @@ async function upsertProgramacao(base44: any, items: any[]) {
 
   const newKeys = new Set(items.map(stableKey));
 
-  // Deletar registros que foram removidos da planilha (com throttle)
   let deleted = 0;
   for (const [k, rec] of existingMap.entries()) {
     if (!newKeys.has(k) && rec?.id) {
@@ -586,7 +614,9 @@ async function upsertProgramacao(base44: any, items: any[]) {
         await base44.entities.Programacao.delete(rec.id);
         deleted++;
         await sleep(120);
-      } catch (_) {}
+      } catch (_) {
+        // ignora remoção individual
+      }
     }
   }
 
@@ -598,6 +628,17 @@ async function upsertProgramacao(base44: any, items: any[]) {
     try {
       const payload = buildProgramacaoPayload(item);
       const k = stableKey(item);
+
+      if (!payload.titulo || !payload.data) {
+        errors.push({
+          nome: item?.nome || '',
+          data: item?.data || '',
+          museu: item?.museu || '',
+          error: 'Registro ignorado por falta de título ou data.',
+        });
+        continue;
+      }
+
       if (existingMap.has(k)) {
         await base44.entities.Programacao.update(existingMap.get(k).id, payload);
         updated++;
@@ -605,14 +646,16 @@ async function upsertProgramacao(base44: any, items: any[]) {
         await base44.entities.Programacao.create(payload);
         created++;
       }
+
       await sleep(120);
     } catch (error: any) {
-      // Se rate limit, espera mais e tenta novamente uma vez
       if (String(error?.message || '').includes('429') || String(error?.message || '').includes('Rate limit')) {
         await sleep(2000);
+
         try {
           const payload = buildProgramacaoPayload(item);
           const k = stableKey(item);
+
           if (existingMap.has(k)) {
             await base44.entities.Programacao.update(existingMap.get(k).id, payload);
             updated++;
@@ -621,10 +664,20 @@ async function upsertProgramacao(base44: any, items: any[]) {
             created++;
           }
         } catch (retryErr: any) {
-          errors.push({ nome: item?.nome || '', data: item?.data || '', museu: item?.museu || '', error: retryErr?.message || String(retryErr) });
+          errors.push({
+            nome: item?.nome || '',
+            data: item?.data || '',
+            museu: item?.museu || '',
+            error: retryErr?.message || String(retryErr),
+          });
         }
       } else {
-        errors.push({ nome: item?.nome || '', data: item?.data || '', museu: item?.museu || '', error: error?.message || String(error) });
+        errors.push({
+          nome: item?.nome || '',
+          data: item?.data || '',
+          museu: item?.museu || '',
+          error: error?.message || String(error),
+        });
       }
     }
   }
@@ -633,8 +686,8 @@ async function upsertProgramacao(base44: any, items: any[]) {
 }
 
 async function saveAgendaToKnowledge(base44: any, items: any[], nowIso: string) {
-  // Agrupa por mês e museu para texto estruturado
   const byMonth: Record<string, any[]> = {};
+
   for (const item of items) {
     const label = item.month_label || 'sem data';
     if (!byMonth[label]) byMonth[label] = [];
@@ -649,7 +702,9 @@ async function saveAgendaToKnowledge(base44: any, items: any[], nowIso: string) 
     }
   }
 
-  const conteudo = `PROGRAMAÇÃO COMPLETA DOS MUSEUS\nAtualizado em: ${nowIso}\nTotal de atividades: ${items.length}\n\n` + sections.join('\n---\n');
+  const conteudo =
+    `PROGRAMAÇÃO COMPLETA DOS MUSEUS\nAtualizado em: ${nowIso}\nTotal de atividades: ${items.length}\n\n` +
+    sections.join('\n---\n');
 
   const docData = {
     titulo: 'Programação Agenda Completa',
@@ -664,12 +719,15 @@ async function saveAgendaToKnowledge(base44: any, items: any[], nowIso: string) 
   try {
     const existing = await base44.entities.KnowledgeDocument.filter({ titulo: 'Programação Agenda Completa' });
     const doc = Array.isArray(existing) ? existing[0] : null;
+
     if (doc?.id) {
       await base44.entities.KnowledgeDocument.update(doc.id, docData);
     } else {
       await base44.entities.KnowledgeDocument.create(docData);
     }
-  } catch (_) {}
+  } catch (_) {
+    // ignora falha de espelhamento na base de conhecimento
+  }
 }
 
 Deno.serve(async (req) => {
@@ -739,10 +797,11 @@ Deno.serve(async (req) => {
       };
     }
 
-    // Salva resumo no KnowledgeDocument para o assistente de IA poder responder sobre programação
     try {
       await saveAgendaToKnowledge(base44, allItems, nowIso);
-    } catch (_) {}
+    } catch (_) {
+      // ignora falha da base de conhecimento
+    }
 
     return new Response(
       JSON.stringify({
