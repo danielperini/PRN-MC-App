@@ -12,6 +12,7 @@ function fileToBase64(file) {
     };
 
     reader.onerror = reject;
+    reader.abort();
     reader.readAsDataURL(file);
   });
 }
