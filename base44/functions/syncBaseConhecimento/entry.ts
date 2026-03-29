@@ -607,77 +607,73 @@ async function upsertProgramacao(base44: any, items: any[]) {
 
   const newKeys = new Set(items.map(stableKey));
 
-  let deleted = 0;
+  // Deletar removidos (em batches)
+  const toDelete = [];
   for (const [k, rec] of existingMap.entries()) {
-    if (!newKeys.has(k) && rec?.id) {
-      try {
-        await base44.entities.Programacao.delete(rec.id);
-        deleted++;
-        await sleep(120);
-      } catch (_) {
-        // ignora remoção individual
+    if (!newKeys.has(k) && rec?.id) toDelete.push(rec.id);
+  }
+  let deleted = 0;
+  for (const id of toDelete) {
+    try { await base44.entities.Programacao.delete(id); deleted++; await sleep(200); } catch (_) {}
+  }
+
+  const toCreate: any[] = [];
+  const toUpdate: Array<{ id: string; payload: any }> = [];
+  const errors: any[] = [];
+
+  for (const item of items) {
+    const payload = buildProgramacaoPayload(item);
+    if (!payload.titulo || !payload.data) {
+      errors.push({ nome: item?.nome || '', data: item?.data || '', museu: item?.museu || '', error: 'Registro ignorado por falta de título ou data.' });
+      continue;
+    }
+    const k = stableKey(item);
+    if (existingMap.has(k)) {
+      toUpdate.push({ id: existingMap.get(k).id, payload });
+    } else {
+      toCreate.push(payload);
+    }
+  }
+
+  // BulkCreate em lotes de 50
+  let created = 0;
+  const BATCH = 50;
+  for (let i = 0; i < toCreate.length; i += BATCH) {
+    const batch = toCreate.slice(i, i + BATCH);
+    try {
+      await base44.entities.Programacao.bulkCreate(batch);
+      created += batch.length;
+      await sleep(500);
+    } catch (err: any) {
+      if (String(err?.message || '').includes('429') || String(err?.message || '').includes('Rate limit')) {
+        await sleep(3000);
+        try {
+          await base44.entities.Programacao.bulkCreate(batch);
+          created += batch.length;
+        } catch (retryErr: any) {
+          errors.push({ etapa: `bulkCreate lote ${i}-${i + BATCH}`, error: retryErr?.message || String(retryErr) });
+        }
+      } else {
+        errors.push({ etapa: `bulkCreate lote ${i}-${i + BATCH}`, error: err?.message || String(err) });
       }
     }
   }
 
-  let created = 0;
+  // Updates individuais com throttle
   let updated = 0;
-  const errors: any[] = [];
-
-  for (const item of items) {
+  for (const { id, payload } of toUpdate) {
     try {
-      const payload = buildProgramacaoPayload(item);
-      const k = stableKey(item);
-
-      if (!payload.titulo || !payload.data) {
-        errors.push({
-          nome: item?.nome || '',
-          data: item?.data || '',
-          museu: item?.museu || '',
-          error: 'Registro ignorado por falta de título ou data.',
-        });
-        continue;
-      }
-
-      if (existingMap.has(k)) {
-        await base44.entities.Programacao.update(existingMap.get(k).id, payload);
-        updated++;
-      } else {
-        await base44.entities.Programacao.create(payload);
-        created++;
-      }
-
-      await sleep(120);
-    } catch (error: any) {
-      if (String(error?.message || '').includes('429') || String(error?.message || '').includes('Rate limit')) {
-        await sleep(2000);
-
-        try {
-          const payload = buildProgramacaoPayload(item);
-          const k = stableKey(item);
-
-          if (existingMap.has(k)) {
-            await base44.entities.Programacao.update(existingMap.get(k).id, payload);
-            updated++;
-          } else {
-            await base44.entities.Programacao.create(payload);
-            created++;
-          }
-        } catch (retryErr: any) {
-          errors.push({
-            nome: item?.nome || '',
-            data: item?.data || '',
-            museu: item?.museu || '',
-            error: retryErr?.message || String(retryErr),
-          });
+      await base44.entities.Programacao.update(id, payload);
+      updated++;
+      await sleep(200);
+    } catch (err: any) {
+      if (String(err?.message || '').includes('429') || String(err?.message || '').includes('Rate limit')) {
+        await sleep(3000);
+        try { await base44.entities.Programacao.update(id, payload); updated++; } catch (retryErr: any) {
+          errors.push({ error: retryErr?.message || String(retryErr) });
         }
       } else {
-        errors.push({
-          nome: item?.nome || '',
-          data: item?.data || '',
-          museu: item?.museu || '',
-          error: error?.message || String(error),
-        });
+        errors.push({ error: err?.message || String(err) });
       }
     }
   }
