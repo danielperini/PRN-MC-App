@@ -1,7 +1,7 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 import * as XLSX from 'npm:xlsx@0.18.5';
-import { format } from 'npm:date-fns@2.30.0';
-import { ptBR } from 'npm:date-fns@2.30.0/locale';
+import { format } from 'npm:date-fns@3.6.0';
+import { ptBR } from 'npm:date-fns@3.6.0/locale/pt-BR';
 
 const SHEET_ID = '1I8Tbj5URR7gEX_zZEAFVIkAAfBCs58LC';
 const GID = '580065331';
