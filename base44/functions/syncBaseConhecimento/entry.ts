@@ -678,13 +678,15 @@ async function upsertProgramacao(base44, items) {
     try {
       await base44.entities.Programacao.update(id, payload);
       updated++;
-      await sleep(150);
+      await sleep(400);
     } catch (err) {
-      if (String(err?.message || '').includes('429') || String(err?.message || '').includes('Rate limit')) {
-        await sleep(3000);
+      const msg = String(err?.message || '');
+      if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
+        await sleep(5000);
         try {
           await base44.entities.Programacao.update(id, payload);
           updated++;
+          await sleep(400);
         } catch (retryErr) {
           errors.push({ error: retryErr?.message || String(retryErr) });
         }
