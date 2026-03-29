@@ -4,6 +4,22 @@ function safeString(value: unknown): string {
   return String(value ?? '').trim();
 }
 
+function normalizeCategoria(input: string): string {
+  const value = safeString(input);
+
+  const allowed = [
+    'Contrato',
+    'Plano de Trabalho',
+    'Manual',
+    'Meta',
+    'Relatório',
+    'Outro',
+  ];
+
+  if (allowed.includes(value)) return value;
+  return 'Outro';
+}
+
 function inferCategoria(fileName: string): string {
   const lower = safeString(fileName).toLowerCase();
 
@@ -49,8 +65,10 @@ Deno.serve(async (req) => {
     const contentBase64 = safeString(args.content_base64);
     const titulo = buildTitulo(fileName, args.titulo);
     const descricao = safeString(args.descricao);
-    const categoriaInformada = safeString(args.categoria);
     const versao = safeString(args.versao);
+    const categoria = normalizeCategoria(
+      safeString(args.categoria) || inferCategoria(fileName)
+    );
 
     if (!fileName) {
       return Response.json(
@@ -73,8 +91,6 @@ Deno.serve(async (req) => {
         { status: 400 }
       );
     }
-
-    const categoria = categoriaInformada || inferCategoria(fileName);
 
     const uploaded = await base44.storage.upload({
       file_name: fileName,
