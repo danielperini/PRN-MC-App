@@ -53,7 +53,7 @@ export default function BaseConhecimento() {
         throw new Error('Falha ao enviar arquivo para o storage.');
       }
 
-      const created = await base44.asServiceRole.entities.KnowledgeDocument.create({
+      const created = await base44.entities.KnowledgeDocument.create({
         titulo: file.name.replace(/\.[^/.]+$/, ''),
         categoria: inferCategoria(file),
         versao: new Date().toLocaleDateString('pt-BR'),
