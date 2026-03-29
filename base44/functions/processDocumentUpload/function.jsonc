@@ -1,7 +1,4 @@
 {
-  "file_name": "teste.txt",
-  "content_base64": "dGVzdGU=",
-  "titulo": "teste",
-  "descricao": "",
-  "versao": ""
+  "name": "processDocumentUpload",
+  "entrypoint": "entry.ts"
 }
