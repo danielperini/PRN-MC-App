@@ -12,7 +12,7 @@ const MIRROR_SLUG = 'base-conhecimento-ia-google-sheet';
 const MIRROR_TITLE = 'Biblioteca de Conhecimento IA';
 const MIRROR_FOLDER = 'Biblioteca do Conhecimento';
 
-function normalizeText(value: any) {
+function normalizeText(value) {
   return String(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -20,7 +20,7 @@ function normalizeText(value: any) {
     .toLowerCase();
 }
 
-function cleanValue(value: any) {
+function cleanValue(value) {
   if (value === null || value === undefined) return '';
 
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -33,7 +33,7 @@ function cleanValue(value: any) {
   return String(value).trim();
 }
 
-function normalizeHeader(value: any, index: number) {
+function normalizeHeader(value, index) {
   const clean = cleanValue(value);
   return clean || `coluna_${index + 1}`;
 }
@@ -41,7 +41,7 @@ function normalizeHeader(value: any, index: number) {
 function extractSheetMonthYear(sheetName = '') {
   const sheetText = normalizeText(sheetName);
 
-  const monthMap: Record<string, number> = {
+  const monthMap = {
     janeiro: 1,
     fevereiro: 2,
     marco: 3,
@@ -56,8 +56,8 @@ function extractSheetMonthYear(sheetName = '') {
     dezembro: 12,
   };
 
-  let inferredMonth: number | null = null;
-  let inferredYear: number | null = null;
+  let inferredMonth = null;
+  let inferredYear = null;
 
   for (const [name, num] of Object.entries(monthMap)) {
     if (sheetText.includes(name)) {
@@ -75,7 +75,7 @@ function extractSheetMonthYear(sheetName = '') {
   return { inferredMonth, inferredYear, monthMap };
 }
 
-function parseDateWithSheetContext(value: any, sheetName = '') {
+function parseDateWithSheetContext(value, sheetName = '') {
   if (!value && value !== 0) return null;
 
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
@@ -117,7 +117,10 @@ function parseDateWithSheetContext(value: any, sheetName = '') {
   const direct = new Date(text);
   if (!Number.isNaN(direct.getTime()) && /\d{4}/.test(text)) return direct;
 
-  const { inferredMonth, inferredYear, monthMap } = extractSheetMonthYear(sheetName);
+  const extracted = extractSheetMonthYear(sheetName);
+  const inferredMonth = extracted.inferredMonth;
+  const inferredYear = extracted.inferredYear;
+  const monthMap = extracted.monthMap;
 
   const partialBr = text.match(/^(\d{1,2})[\/.-](\d{1,2})$/);
   if (partialBr && inferredYear) {
@@ -153,7 +156,7 @@ function parseDateWithSheetContext(value: any, sheetName = '') {
   return null;
 }
 
-function detectMuseum(equipamento: string, values: Record<string, any>) {
+function detectMuseum(equipamento, values) {
   const sourceText = `${equipamento} ${values?.local || ''} ${values?.endereco_completo || ''}`;
   const text = normalizeText(sourceText);
 
@@ -163,7 +166,7 @@ function detectMuseum(equipamento: string, values: Record<string, any>) {
   return 'Externo';
 }
 
-function summarizeActivity(values: Record<string, any>) {
+function summarizeActivity(values) {
   const nome = values.nome_divulgacao || values.nome || '';
   const sinopse = values.sinopse || '';
   const tipo = values.tipo_de_atividade || '';
@@ -218,7 +221,7 @@ function summarizeActivity(values: Record<string, any>) {
     .join(' ');
 }
 
-function mapHeaderKey(header: string) {
+function mapHeaderKey(header) {
   const h = normalizeText(header);
 
   if (h === 'equipamento') return 'equipamento';
@@ -261,7 +264,7 @@ function mapHeaderKey(header: string) {
   return h.replace(/[^\w]+/g, '_');
 }
 
-function scoreHeaderRow(row: any[]) {
+function scoreHeaderRow(row) {
   const normalized = (row || []).map((cell) => normalizeText(cell)).join(' ');
 
   const keywords = [
@@ -285,7 +288,7 @@ function scoreHeaderRow(row: any[]) {
   }, 0);
 }
 
-function findHeaderRowIndex(matrix: any[][]) {
+function findHeaderRowIndex(matrix) {
   const maxRows = Math.min(matrix.length, 8);
   let bestIndex = -1;
   let bestScore = 0;
@@ -301,13 +304,13 @@ function findHeaderRowIndex(matrix: any[][]) {
   return bestScore >= 2 ? bestIndex : -1;
 }
 
-function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
+function normalizeSheet(sheetName, matrix, rowOffset = 0) {
   if (!Array.isArray(matrix) || !matrix.length) return [];
 
-  const items: any[] = [];
+  const items = [];
 
   let headerRowIndex = -1;
-  let fieldHeaders: string[] = [];
+  let fieldHeaders = [];
 
   if (matrix.length >= 3) {
     const row2 = (matrix[1] || []).map(cleanValue);
@@ -342,7 +345,7 @@ function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
     const hasAnyValue = cleanedRow.some((v) => String(v || '').trim() !== '');
     if (!hasAnyValue) continue;
 
-    const values: Record<string, any> = {};
+    const values = {};
 
     for (let c = 0; c < fieldHeaders.length; c++) {
       const key = fieldHeaders[c];
@@ -415,14 +418,14 @@ function normalizeSheet(sheetName: string, matrix: any[][], rowOffset = 0) {
   return items;
 }
 
-function getMonthKey(date: Date) {
+function getMonthKey(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
 }
 
-function buildAgenda(items: any[]) {
-  const agenda: Record<string, Record<string, any[]>> = {};
+function buildAgenda(items) {
+  const agenda = {};
 
   items.forEach((item) => {
     if (!item?.data_iso) return;
@@ -448,8 +451,8 @@ function buildAgenda(items: any[]) {
   return agenda;
 }
 
-function groupByMuseumAndMonth(items: any[]) {
-  const map: Record<string, Record<string, any[]>> = {
+function groupByMuseumAndMonth(items) {
+  const map = {
     MIS: {},
     MHAB: {},
     MUMO: {},
@@ -476,8 +479,8 @@ function groupByMuseumAndMonth(items: any[]) {
   return map;
 }
 
-function countByMuseum(items: any[]) {
-  const map: Record<string, number> = {
+function countByMuseum(items) {
+  const map = {
     MIS: 0,
     MHAB: 0,
     MUMO: 0,
@@ -492,8 +495,8 @@ function countByMuseum(items: any[]) {
   return map;
 }
 
-function dedupeItems(items: any[]) {
-  const seen = new Map<string, any>();
+function dedupeItems(items) {
+  const seen = new Map();
 
   for (const item of items || []) {
     const key = [
@@ -526,7 +529,7 @@ function dedupeItems(items: any[]) {
   return Array.from(seen.values());
 }
 
-function buildProgramacaoPayload(item: any) {
+function buildProgramacaoPayload(item) {
   return {
     nome: item.nome || '',
     titulo: item.titulo || item.nome || '',
@@ -566,7 +569,7 @@ function buildProgramacaoPayload(item: any) {
   };
 }
 
-async function replaceProgramacao(base44: any, items: any[]) {
+async function replaceProgramacao(base44, items) {
   const existing = await base44.entities.Programacao.list('-created_date', 5000);
   const existingList = Array.isArray(existing) ? existing : [];
 
@@ -576,14 +579,14 @@ async function replaceProgramacao(base44: any, items: any[]) {
   }
 
   let created = 0;
-  const errors: any[] = [];
+  const errors = [];
 
   for (const item of items) {
     try {
       const payload = buildProgramacaoPayload(item);
       await base44.entities.Programacao.create(payload);
       created++;
-    } catch (error: any) {
+    } catch (error) {
       errors.push({
         nome: item?.nome || '',
         data: item?.data || '',
@@ -627,7 +630,7 @@ Deno.serve(async (req) => {
     const arrayBuffer = await response.arrayBuffer();
     const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
 
-    let allItems: any[] = [];
+    let allItems = [];
     let runningOffset = 0;
 
     workbook.SheetNames.forEach((sheetName) => {
@@ -636,7 +639,7 @@ Deno.serve(async (req) => {
         header: 1,
         raw: false,
         defval: '',
-      }) as any[][];
+      });
 
       const items = normalizeSheet(sheetName, matrix, runningOffset);
       allItems = allItems.concat(items);
@@ -652,12 +655,12 @@ Deno.serve(async (req) => {
     let programacaoSync = {
       deleted_previous: 0,
       created: 0,
-      errors: [] as any[],
+      errors: [],
     };
 
     try {
       programacaoSync = await replaceProgramacao(base44, allItems);
-    } catch (error: any) {
+    } catch (error) {
       programacaoSync = {
         deleted_previous: 0,
         created: 0,
