@@ -1,0 +1,6 @@
+{
+  "name": "syncProgramacao",
+  "description": "Sincroniza programação a partir de XLSX da BaseConhecimento",
+  "method": "POST",
+  "public": false
+}
