@@ -24,6 +24,12 @@ function getResumo(item) {
   return item?.resumo || item?.sinopse || item?.descricao || '';
 }
 
+function getItemsFromResponse(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
 export default function CalendarioAtividades() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,10 +42,13 @@ export default function CalendarioAtividades() {
   async function carregar() {
     try {
       setLoading(true);
+
       const data = await base44.entities.Programacao.list({
         sort: { data_inicio: 'asc' },
+        limit: 1000,
       });
-      setItems(Array.isArray(data) ? data : []);
+
+      setItems(getItemsFromResponse(data));
     } catch (err) {
       console.error('Erro ao carregar programação:', err);
       setItems([]);
@@ -50,8 +59,12 @@ export default function CalendarioAtividades() {
 
   const museus = useMemo(() => {
     return Array.from(
-      new Set(items.map((item) => item?.museu).filter(Boolean))
-    );
+      new Set(
+        items
+          .map((item) => String(item?.museu || '').trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [items]);
 
   const filtrados = useMemo(() => {
@@ -62,7 +75,10 @@ export default function CalendarioAtividades() {
     });
 
     if (museuFiltro === 'todos') return base;
-    return base.filter((item) => item?.museu === museuFiltro);
+
+    return base.filter(
+      (item) => String(item?.museu || '').trim() === museuFiltro
+    );
   }, [items, museuFiltro]);
 
   return (
@@ -78,7 +94,9 @@ export default function CalendarioAtividades() {
         <button
           type="button"
           onClick={() => setMuseuFiltro('todos')}
-          className={`px-4 py-2 rounded-lg border ${museuFiltro === 'todos' ? 'bg-black text-white' : 'bg-white'}`}
+          className={`px-4 py-2 rounded-lg border ${
+            museuFiltro === 'todos' ? 'bg-black text-white' : 'bg-white'
+          }`}
         >
           Todos
         </button>
@@ -88,7 +106,9 @@ export default function CalendarioAtividades() {
             key={museu}
             type="button"
             onClick={() => setMuseuFiltro(museu)}
-            className={`px-4 py-2 rounded-lg border ${museuFiltro === museu ? 'bg-black text-white' : 'bg-white'}`}
+            className={`px-4 py-2 rounded-lg border ${
+              museuFiltro === museu ? 'bg-black text-white' : 'bg-white'
+            }`}
           >
             {museu}
           </button>
@@ -98,8 +118,9 @@ export default function CalendarioAtividades() {
           type="button"
           onClick={carregar}
           className="px-4 py-2 rounded-lg border bg-white"
+          disabled={loading}
         >
-          Atualizar
+          {loading ? 'Atualizando...' : 'Atualizar'}
         </button>
       </div>
 
@@ -112,7 +133,10 @@ export default function CalendarioAtividades() {
       {!loading && filtrados.length > 0 && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtrados.map((item) => (
-            <div key={item.id} className="border p-5 rounded-2xl bg-white shadow-sm">
+            <div
+              key={item.id}
+              className="border p-5 rounded-2xl bg-white shadow-sm"
+            >
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
                   {item?.museu || 'Museu não informado'}
