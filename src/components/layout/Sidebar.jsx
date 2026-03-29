@@ -158,6 +158,12 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           show: true,
         },
         {
+          name: 'Agenda',
+          icon: CalendarDays,
+          label: 'Agenda Cultural',
+          show: true,
+        },
+        {
           name: 'PlataformaAdmin',
           icon: Settings,
           label: 'Plataforma',
