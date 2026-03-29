@@ -80,31 +80,44 @@ function parseDateWithSheetContext(value: any, sheetName = '') {
 
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
 
+  if (typeof value === 'number' && Number.isFinite(value) && value > 20000 && value < 80000) {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const ms = value * 24 * 60 * 60 * 1000;
+    const date = new Date(excelEpoch.getTime() + ms);
+
+    if (!Number.isNaN(date.getTime())) {
+      return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+    }
+  }
+
   const text = String(value).trim();
   if (!text) return null;
 
-  if (typeof value === 'number' && Number.isFinite(value) && value > 20000 && value < 80000) {
-    try {
-      const parsed = XLSX.SSF.parse_date_code(value);
-      if (parsed?.y && parsed?.m && parsed?.d) {
-        return new Date(parsed.y, parsed.m - 1, parsed.d);
-      }
-    } catch (_) {
-      // ignora
-    }
+  const br = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (br) {
+    const dd = Number(br[1]);
+    const mm = Number(br[2]) - 1;
+    let yyyy = Number(br[3]);
+    if (yyyy < 100) yyyy += 2000;
+
+    const date = new Date(yyyy, mm, dd);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    const yyyy = Number(iso[1]);
+    const mm = Number(iso[2]) - 1;
+    const dd = Number(iso[3]);
+
+    const date = new Date(yyyy, mm, dd);
+    if (!Number.isNaN(date.getTime())) return date;
   }
 
   const direct = new Date(text);
   if (!Number.isNaN(direct.getTime()) && /\d{4}/.test(text)) return direct;
 
   const { inferredMonth, inferredYear, monthMap } = extractSheetMonthYear(sheetName);
-
-  const fullBr = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
-  if (fullBr) {
-    let year = Number(fullBr[3]);
-    if (year < 100) year += 2000;
-    return new Date(year, Number(fullBr[2]) - 1, Number(fullBr[1]));
-  }
 
   const partialBr = text.match(/^(\d{1,2})[\/.-](\d{1,2})$/);
   if (partialBr && inferredYear) {
