@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import * as XLSX from 'npm:xlsx@0.18.5';
 
 const PROGRAMACAO_FILE_NAME = 'Planilha_de_programação_MC-VAR (1).xlsx';
 
