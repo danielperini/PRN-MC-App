@@ -51,6 +51,16 @@ function excelDateToISO(value: unknown): string {
 
   return '';
 }
+
+function buildExportUrl(sourceUrl: string): string {
+  const match = sourceUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (!match) {
+    throw new Error('SOURCE_URL inválida.');
+  }
+  const id = match[1];
+  return `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`;
+}
+
 function detectHeaderRow(rows: any[][]) {
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i].map(normalizeHeader);
@@ -91,43 +101,70 @@ export default async function handler(context: any) {
     const body = request?.body || {};
     const knowledgeDocumentId = s(body?.knowledge_document_id);
     const requestedFileName = s(body?.file_name) || PROGRAMACAO_FILE_NAME;
+    const sourceUrl = s(body?.source_url);
 
-    let doc: any = null;
+    let workbook: XLSX.WorkBook | null = null;
+    let sourceReference = '';
 
-    if (knowledgeDocumentId) {
-      doc = await entities.KnowledgeDocument.get(knowledgeDocumentId);
+    if (sourceUrl) {
+      const exportUrl = buildExportUrl(sourceUrl);
+      const response = await fetch(exportUrl);
+
+      if (!response.ok) {
+        throw new Error(`Falha ao baixar planilha: ${response.status}`);
+      }
+
+      const buffer = await response.arrayBuffer();
+      workbook = XLSX.read(buffer, { type: 'array' });
+      sourceReference = sourceUrl;
+    } else {
+      let doc: any = null;
+
+      if (knowledgeDocumentId) {
+        doc = await entities.KnowledgeDocument.get(knowledgeDocumentId);
+      }
+
+      if (!doc?.id) {
+        const docs = await entities.KnowledgeDocument.list({
+          sort: { created_date: 'desc' },
+          limit: 50,
+        });
+
+        const docsArray = Array.isArray(docs?.data)
+          ? docs.data
+          : Array.isArray(docs)
+            ? docs
+            : [];
+
+        doc = docsArray.find((item: any) => s(item?.file_name) === requestedFileName) || null;
+      }
+
+      if (!doc?.file_url) {
+        return {
+          ok: false,
+          error: `Nenhum arquivo encontrado para sincronizar: ${requestedFileName}`,
+          total_items: 0,
+          created: 0,
+          deleted_previous: 0,
+          errors,
+          debug_sheets,
+        };
+      }
+
+      const response = await fetch(doc.file_url);
+
+      if (!response.ok) {
+        throw new Error(`Falha ao baixar arquivo salvo: ${response.status}`);
+      }
+
+      const buffer = await response.arrayBuffer();
+      workbook = XLSX.read(buffer, { type: 'array' });
+      sourceReference = doc.file_url;
     }
 
-    if (!doc?.id) {
-      const docs = await entities.KnowledgeDocument.list({
-        sort: { created_date: 'desc' },
-        limit: 50,
-      });
-
-      const docsArray = Array.isArray(docs?.data) ? docs.data : Array.isArray(docs) ? docs : [];
-      doc = docsArray.find((item: any) => s(item?.file_name) === requestedFileName) || null;
+    if (!workbook) {
+      throw new Error('Não foi possível carregar a planilha.');
     }
-
-    if (!doc?.file_url) {
-      return {
-        ok: false,
-        error: `Nenhum arquivo encontrado para sincronizar: ${requestedFileName}`,
-        total_items: 0,
-        created: 0,
-        deleted_previous: 0,
-        errors,
-        debug_sheets,
-      };
-    }
-
-    const response = await fetch(doc.file_url);
-
-    if (!response.ok) {
-      throw new Error(`Falha ao baixar arquivo salvo: ${response.status}`);
-    }
-
-    const buffer = await response.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
 
     const allItems: any[] = [];
 
@@ -190,8 +227,8 @@ export default async function handler(context: any) {
           local,
           tipo_atividade,
           origem: 'syncProgramacao',
-          knowledge_document_id: doc.id,
-          storage_file_url: doc.file_url,
+          source_reference: sourceReference,
+          source_sheet: sheetName,
         });
 
         rowsParsed += 1;
@@ -220,7 +257,11 @@ export default async function handler(context: any) {
 
     const targetEntity = entities.Programacao || entities.Activity;
     const existing = await targetEntity.list({ limit: 10000 });
-    const existingItems = Array.isArray(existing?.data) ? existing.data : Array.isArray(existing) ? existing : [];
+    const existingItems = Array.isArray(existing?.data)
+      ? existing.data
+      : Array.isArray(existing)
+        ? existing
+        : [];
 
     for (const item of existingItems) {
       if (item?.origem === 'syncProgramacao') {
