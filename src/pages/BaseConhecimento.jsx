@@ -212,7 +212,18 @@ export default function BaseConhecimento() {
                       <div>Última atualização: {new Date(f.updated_date).toLocaleString('pt-BR')}</div>
                     ) : null}
                     {syncResult && (
-                      <div className="text-green-700">{syncResult.total_items} itens carregados</div>
+                      <div className="mt-1 space-y-0.5">
+                        <div className="text-green-700">✅ {syncResult.total_items || 0} itens carregados da planilha</div>
+                        {syncResult.programacao_sync && (
+                          <>
+                            <div className="text-blue-700">📥 {syncResult.programacao_sync.created || 0} registros criados no banco</div>
+                            <div className="text-orange-600">🗑️ {syncResult.programacao_sync.deleted_previous || 0} registros anteriores removidos</div>
+                            {syncResult.programacao_sync.errors?.length > 0 && (
+                              <div className="text-red-600">⚠️ {syncResult.programacao_sync.errors.length} erro(s) durante a sincronização</div>
+                            )}
+                          </>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
