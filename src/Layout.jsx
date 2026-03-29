@@ -70,7 +70,7 @@ export default function Layout({ children, currentPageName }) {
   return (
     <HelpContextProvider pageName={currentPageName}>
       <div className="min-h-screen bg-slate-50 text-slate-900">
-        <div className="hidden lg:flex min-h-screen">
+        <div className="hidden lg:flex min-h-screen items-stretch">
           <Sidebar
             currentPageName={currentPageName}
             collapsed={sidebarCollapsed}

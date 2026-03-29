@@ -195,7 +195,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
 
   return (
     <aside
-      className={`hidden lg:flex h-screen bg-[#111111] text-white flex-col border-r border-white/10 transition-all duration-300 ${
+      className={`hidden lg:flex min-h-full self-stretch bg-[#111111] text-white flex-col border-r border-white/10 transition-all duration-300 ${
         collapsed ? 'w-[76px]' : 'w-[290px]'
       }`}
     >
