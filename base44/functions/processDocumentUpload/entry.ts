@@ -83,23 +83,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    const body =
-      req.method === 'POST'
-        ? await req.json().catch(() => ({}))
-        : {};
+    const body = req.method === 'POST'
+      ? await req.json().catch(() => ({}))
+      : {};
 
     const args = body?.args || body || {};
 
     const fileName = safeString(args?.file_name);
     const mimeType = safeString(args?.mime_type);
     const contentBase64 = safeString(args?.content_base64);
-    const titulo =
-      safeString(args?.titulo) ||
-      fileName.replace(/\.[^/.]+$/, '');
-    const categoria =
-      safeString(args?.categoria) ||
-      inferCategoria(fileName, mimeType);
-
+    const titulo = safeString(args?.titulo) || fileName.replace(/\.[^/.]+$/, '');
+    const categoria = safeString(args?.categoria) || inferCategoria(fileName, mimeType);
     const descricao = safeString(args?.descricao);
     const tags = uniqueStrings(args?.tags || []);
     const sizeBytes = Number(args?.size_bytes || 0);
@@ -131,10 +125,7 @@ Deno.serve(async (req) => {
       content_base64: contentBase64,
     });
 
-    const fileUrl =
-      uploaded?.file_url ||
-      uploaded?.url ||
-      '';
+    const fileUrl = uploaded?.file_url || uploaded?.url || '';
 
     if (!fileUrl) {
       return Response.json(
@@ -157,10 +148,12 @@ Deno.serve(async (req) => {
       descricao,
       tags,
       size_bytes: sizeBytes,
+
       uploaded_by_email: safeString(user?.email),
       created_by_email: safeString(user?.email),
       uploaded_by_id: safeString(user?.id),
       created_by_id: safeString(user?.id),
+
       status: 'gravado',
       processing_status: 'gravado',
       summary: '',
@@ -168,8 +161,9 @@ Deno.serve(async (req) => {
       analysis: '',
     };
 
-    const knowledgeDoc =
-      await base44.asServiceRole.entities.KnowledgeDocument.create(knowledgePayload);
+    const knowledgeDoc = await base44.asServiceRole.entities.KnowledgeDocument.create(
+      knowledgePayload
+    );
 
     if (!knowledgeDoc?.id) {
       return Response.json(
@@ -183,7 +177,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const persisted = await base44.asServiceRole.entities.KnowledgeDocument.get(knowledgeDoc.id);
+    const persisted = await base44.asServiceRole.entities.KnowledgeDocument.get(
+      knowledgeDoc.id
+    );
 
     if (!persisted?.id) {
       return Response.json(
@@ -248,10 +244,9 @@ Deno.serve(async (req) => {
       {
         ok: false,
         saved: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Erro inesperado ao gravar documento.',
+        error: error instanceof Error
+          ? error.message
+          : 'Erro inesperado ao gravar documento.',
       },
       { status: 500 }
     );
