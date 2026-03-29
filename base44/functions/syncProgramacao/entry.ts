@@ -50,8 +50,6 @@ function detectHeaderRow(rows: any[][]) {
     const hasNome =
       row.includes('nome da acao') ||
       row.includes('nome da ação') ||
-      row.includes('atividade') ||
-      row.includes('evento') ||
       row.includes('nome');
 
     const hasData = row.includes('data');
@@ -148,21 +146,21 @@ export default async function handler(context: any) {
           obj[header] = row[idx];
         });
 
-        const titulo = s(getCell(obj, ['nome da acao', 'nome da ação', 'atividade', 'evento', 'nome']));
+        const titulo = s(getCell(obj, ['nome da acao', 'nome da ação', 'nome']));
         const dataRaw = getCell(obj, ['data']);
         const data_inicio = excelDateToISO(dataRaw);
         const museu = s(getCell(obj, ['equipamento programacao', 'equipamento', 'museu']));
         const horario = s(getCell(obj, ['horario']));
         const local = s(getCell(obj, ['local']));
         const sinopse = s(getCell(obj, ['sinopse']));
-        const descricao = s(getCell(obj, ['descricao', 'sinopse']));
         const tipo_atividade = s(getCell(obj, ['tipo de atividade']));
         const formato = s(getCell(obj, ['formato']));
         const publico = s(getCell(obj, ['publico-alvo', 'publico alvo']));
         const vagas = s(getCell(obj, ['vagas']));
         const inscricao = s(getCell(obj, ['inscricao/acesso', 'inscricao / acesso']));
-        const link_inscricao = inscricao;
-        const material_divulgacao_aprovado = s(getCell(obj, ['material de divulgacao aprovado', 'material de divulgação aprovado']));
+        const material_divulgacao_aprovado = s(
+          getCell(obj, ['material de divulgacao aprovado', 'material de divulgação aprovado'])
+        );
 
         if (!titulo || !data_inicio) {
           if (titulo || s(dataRaw)) {
@@ -173,24 +171,22 @@ export default async function handler(context: any) {
 
         allItems.push({
           titulo,
-          nome_acao: titulo,
+          nome: titulo,
           data: data_inicio,
           data_inicio,
           horario,
           museu,
-          equipamento: museu,
           local,
-          descricao,
           sinopse,
+          descricao: sinopse,
           tipo_atividade,
           formato,
           publico,
           vagas,
           inscricao,
-          link_inscricao,
+          link: inscricao,
           material_divulgacao_aprovado,
           origem: 'syncProgramacao',
-          ativo: true,
           knowledge_document_id: doc.id,
           storage_file_url: doc.file_url,
         });
