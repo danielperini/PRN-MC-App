@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { RefreshCw } from 'lucide-react';
 
 const PROGRAMACAO_FILE_NAME = 'Planilha_de_programação_MC-VAR (1).xlsx';
 
@@ -19,6 +20,9 @@ export default function BaseConhecimento() {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState(null);
+  const [syncResult, setSyncResult] = useState(null);
 
   useEffect(() => {
     carregar();
@@ -99,6 +103,31 @@ export default function BaseConhecimento() {
     }
   }
 
+  async function sincronizarPlanilha() {
+    try {
+      setSyncing(true);
+      setMessage('');
+      setError('');
+      setSyncResult(null);
+
+      const res = await base44.functions.invoke('syncBaseConhecimento');
+      const data = res?.data || res;
+
+      if (!data?.ok) {
+        setError(data?.error || 'Erro na sincronização da planilha.');
+      } else {
+        const agora = new Date();
+        setLastSync(agora);
+        setSyncResult(data);
+        setMessage(`Planilha sincronizada com sucesso! ${data.total_items || 0} itens carregados.`);
+      }
+    } catch (err) {
+      setError(err?.message || 'Erro ao sincronizar planilha.');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   async function remover(id) {
     try {
       setError('');
@@ -160,19 +189,34 @@ export default function BaseConhecimento() {
         <div>Nenhum arquivo enviado.</div>
       ) : (
         <div className="space-y-2">
-          {files.map((f) => (
+          {files.map((f) => {
+            const isPlanilha = f.file_name === PROGRAMACAO_FILE_NAME;
+            return (
             <div
               key={f.id}
-              className="flex items-center justify-between gap-4 p-3 rounded-lg border"
+              className={`flex items-center justify-between gap-4 p-3 rounded-lg border ${isPlanilha ? 'border-blue-200 bg-blue-50' : ''}`}
             >
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="font-medium break-all">
                   {f.file_name || f.titulo || 'Arquivo sem nome'}
                 </div>
                 <div className="text-sm text-gray-600">
                   {f.categoria || 'Sem categoria'}
                 </div>
-                {f.descricao ? (
+                {isPlanilha && (
+                  <div className="text-xs text-blue-600 mt-1 space-y-0.5">
+                    <div>🔄 Sincronização automática: 8h e 20h</div>
+                    {lastSync ? (
+                      <div>Última atualização manual: {lastSync.toLocaleString('pt-BR')}</div>
+                    ) : f.updated_date ? (
+                      <div>Última atualização: {new Date(f.updated_date).toLocaleString('pt-BR')}</div>
+                    ) : null}
+                    {syncResult && (
+                      <div className="text-green-700">{syncResult.total_items} itens carregados</div>
+                    )}
+                  </div>
+                )}
+                {!isPlanilha && f.descricao ? (
                   <div className="text-sm text-gray-500 mt-1">
                     {f.descricao}
                   </div>
@@ -180,6 +224,18 @@ export default function BaseConhecimento() {
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
+                {isPlanilha && (
+                  <button
+                    type="button"
+                    onClick={sincronizarPlanilha}
+                    disabled={syncing}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-blue-300 bg-white text-blue-700 text-sm hover:bg-blue-50 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+                    {syncing ? 'Sincronizando...' : 'Atualizar'}
+                  </button>
+                )}
+
                 {f.file_url ? (
                   <a
                     href={f.file_url}
@@ -200,7 +256,8 @@ export default function BaseConhecimento() {
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
