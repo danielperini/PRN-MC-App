@@ -2,11 +2,11 @@ import * as XLSX from "xlsx";
 
 const PROGRAMACAO_FILE_NAME = 'Planilha_de_programação_MC-VAR (1).xlsx';
 
-function s(value: unknown): string {
+function s(value) {
   return String(value ?? '').trim();
 }
 
-function normalizeHeader(value: unknown): string {
+function normalizeHeader(value) {
   return s(value)
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -15,7 +15,7 @@ function normalizeHeader(value: unknown): string {
     .trim();
 }
 
-function excelDateToISO(value: unknown): string {
+function excelDateToISO(value) {
   if (typeof value === 'number') {
     const excelEpoch = new Date(Date.UTC(1899, 11, 30));
     const ms = value * 24 * 60 * 60 * 1000;
@@ -52,7 +52,7 @@ function excelDateToISO(value: unknown): string {
   return '';
 }
 
-function buildExportUrl(sourceUrl: string): string {
+function buildExportUrl(sourceUrl) {
   const match = sourceUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
   if (!match) {
     throw new Error('SOURCE_URL inválida.');
@@ -61,7 +61,7 @@ function buildExportUrl(sourceUrl: string): string {
   return `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`;
 }
 
-function detectHeaderRow(rows: any[][]) {
+function detectHeaderRow(rows) {
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i].map(normalizeHeader);
 
@@ -76,10 +76,10 @@ function detectHeaderRow(rows: any[][]) {
     }
   }
 
-  return { index: -1, headers: [] as string[] };
+  return { index: -1, headers: [] };
 }
 
-function getCell(obj: Record<string, any>, names: string[]) {
+function getCell(obj, names) {
   for (const name of names) {
     if (obj[name] != null && s(obj[name])) {
       return obj[name];
@@ -88,14 +88,14 @@ function getCell(obj: Record<string, any>, names: string[]) {
   return '';
 }
 
-export default async function handler(context: any) {
+export default async function handler(context) {
   const { entities, request } = context;
 
   let total_items = 0;
   let created = 0;
   let deleted_previous = 0;
-  const errors: any[] = [];
-  const debug_sheets: any[] = [];
+  const errors = [];
+  const debug_sheets = [];
 
   try {
     const body = request?.body || {};
@@ -103,7 +103,7 @@ export default async function handler(context: any) {
     const requestedFileName = s(body?.file_name) || PROGRAMACAO_FILE_NAME;
     const sourceUrl = s(body?.source_url);
 
-    let workbook: XLSX.WorkBook | null = null;
+    let workbook = null;
     let sourceReference = '';
 
     if (sourceUrl) {
@@ -118,7 +118,7 @@ export default async function handler(context: any) {
       workbook = XLSX.read(buffer, { type: 'array' });
       sourceReference = sourceUrl;
     } else {
-      let doc: any = null;
+      let doc = null;
 
       if (knowledgeDocumentId) {
         doc = await entities.KnowledgeDocument.get(knowledgeDocumentId);
@@ -136,7 +136,7 @@ export default async function handler(context: any) {
             ? docs
             : [];
 
-        doc = docsArray.find((item: any) => s(item?.file_name) === requestedFileName) || null;
+        doc = docsArray.find((item) => s(item?.file_name) === requestedFileName) || null;
       }
 
       if (!doc?.file_url) {
@@ -166,11 +166,11 @@ export default async function handler(context: any) {
       throw new Error('Não foi possível carregar a planilha.');
     }
 
-    const allItems: any[] = [];
+    const allItems = [];
 
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true }) as any[][];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true });
 
       const { index: headerIndex, headers } = detectHeaderRow(rows);
 
@@ -185,7 +185,7 @@ export default async function handler(context: any) {
         const row = rows[i];
         if (!row || !row.length) continue;
 
-        const obj: Record<string, any> = {};
+        const obj = {};
         headers.forEach((header, idx) => {
           obj[header] = row[idx];
         });
@@ -237,7 +237,7 @@ export default async function handler(context: any) {
       debug_sheets.push({ sheetName, rows: rowsParsed });
     }
 
-    const dedup = new Map<string, any>();
+    const dedup = new Map();
 
     for (const item of allItems) {
       const key = [
@@ -283,7 +283,7 @@ export default async function handler(context: any) {
       errors,
       debug_sheets,
     };
-  } catch (error: any) {
+  } catch (error) {
     return {
       ok: false,
       error: error?.message || 'Erro ao sincronizar programação.',
