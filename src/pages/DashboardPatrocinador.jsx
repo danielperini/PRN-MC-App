@@ -10,8 +10,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  SelectValue } from
+'@/components/ui/select';
 
 export default function DashboardPatrocinador() {
   const [loading, setLoading] = useState(true);
@@ -29,7 +29,7 @@ export default function DashboardPatrocinador() {
     atividades: [],
     rubricas: [],
     dadosMensais: [],
-    dadosClassificacao: [],
+    dadosClassificacao: []
   });
 
   useEffect(() => {
@@ -41,10 +41,10 @@ export default function DashboardPatrocinador() {
       setLoading(true);
 
       const [activitiesRaw, rubricasRaw, reportsRaw] = await Promise.all([
-        base44.entities.Activity.list('-data_realizacao', 200),
-        base44.entities.Rubrica.list('grupo', 100),
-        base44.entities.Report.filter({ status: 'APPROVED' }),
-      ]);
+      base44.entities.Activity.list('-data_realizacao', 200),
+      base44.entities.Rubrica.list('grupo', 100),
+      base44.entities.Report.filter({ status: 'APPROVED' })]
+      );
 
       const now = new Date();
       const mesAtual = now.getMonth() + 1;
@@ -52,7 +52,7 @@ export default function DashboardPatrocinador() {
 
       // Atividades por mês
       const atividadesPorMes = {};
-      (activitiesRaw || []).forEach(a => {
+      (activitiesRaw || []).forEach((a) => {
         if (!a?.data_realizacao) return;
         const data = new Date(a.data_realizacao);
         const mes = String(data.getMonth() + 1).padStart(2, '0');
@@ -65,12 +65,12 @@ export default function DashboardPatrocinador() {
         atividadesPorMes[chave].publico += Number(a?.publico_total) || 0;
       });
 
-      const dadosMensais = Object.values(atividadesPorMes)
-        .sort((a, b) => a.mes.localeCompare(b.mes))
-        .slice(-12);
+      const dadosMensais = Object.values(atividadesPorMes).
+      sort((a, b) => a.mes.localeCompare(b.mes)).
+      slice(-12);
 
       // Atividades do mês atual
-      const atividadesMes = (activitiesRaw || []).filter(a => {
+      const atividadesMes = (activitiesRaw || []).filter((a) => {
         if (!a?.data_realizacao) return false;
         const data = new Date(a.data_realizacao);
         return data.getMonth() + 1 === mesAtual && data.getFullYear() === anoAtual;
@@ -78,7 +78,7 @@ export default function DashboardPatrocinador() {
 
       // Atividades por classificação
       const atividadesClassificacao = {};
-      atividadesMes.forEach(a => {
+      atividadesMes.forEach((a) => {
         const classificacao = a?.classificacao || 'Outro';
         atividadesClassificacao[classificacao] = (atividadesClassificacao[classificacao] || 0) + 1;
       });
@@ -86,7 +86,7 @@ export default function DashboardPatrocinador() {
       const dadosClassificacao = Object.entries(atividadesClassificacao).map(([nome, quantidade]) => ({
         nome,
         quantidade,
-        display: nome === 'META' ? 'Metas' : nome === 'ROTINA' ? 'Rotina' : nome === 'EXTRA' ? 'Extra' : nome,
+        display: nome === 'META' ? 'Metas' : nome === 'ROTINA' ? 'Rotina' : nome === 'EXTRA' ? 'Extra' : nome
       }));
 
       // Total público
@@ -96,14 +96,14 @@ export default function DashboardPatrocinador() {
 
       // Rubricas - agrupar por macro (Equipe, Manutenção, Consultorias, etc)
       const rubricasAgrupadas = {};
-      (rubricasRaw || []).forEach(r => {
+      (rubricasRaw || []).forEach((r) => {
         const grupo = r?.grupo || 'Outros';
         if (!rubricasAgrupadas[grupo]) {
           rubricasAgrupadas[grupo] = {
             nome: grupo,
             previsto: 0,
             utilizado: 0,
-            saldo: 0,
+            saldo: 0
           };
         }
         rubricasAgrupadas[grupo].previsto += Number(r?.valor_rubrica) || 0;
@@ -111,28 +111,28 @@ export default function DashboardPatrocinador() {
         rubricasAgrupadas[grupo].saldo += Number(r?.saldo) || 0;
       });
 
-      const rubricasData = Object.values(rubricasAgrupadas).map(r => ({
+      const rubricasData = Object.values(rubricasAgrupadas).map((r) => ({
         ...r,
         previsto: Number(r.previsto.toFixed(2)),
         utilizado: Number(r.utilizado.toFixed(2)),
-        saldo: Number(r.saldo.toFixed(2)),
+        saldo: Number(r.saldo.toFixed(2))
       }));
 
       // Atividades por tipo (amostra últimas 10)
       const atividadesPorTipo = {};
-      atividadesMes.slice(0, 10).forEach(a => {
+      atividadesMes.slice(0, 10).forEach((a) => {
         const tipo = a?.tipo_atividade || 'Outro';
         atividadesPorTipo[tipo] = (atividadesPorTipo[tipo] || 0) + 1;
       });
 
       const atividades = Object.entries(atividadesPorTipo).map(([tipo, count]) => ({
         tipo,
-        quantidade: count,
+        quantidade: count
       }));
 
       const totalOrcado = rubricasData.reduce((sum, r) => sum + r.previsto, 0);
       const totalUtilizado = rubricasData.reduce((sum, r) => sum + r.utilizado, 0);
-      const percentualExecucao = totalOrcado > 0 ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(1)) : 0;
+      const percentualExecucao = totalOrcado > 0 ? Number((totalUtilizado / totalOrcado * 100).toFixed(1)) : 0;
 
       const statusProjeto = reportsRaw?.length > 0 ? 'Relatórios aprovados' : 'Em andamento';
 
@@ -151,7 +151,7 @@ export default function DashboardPatrocinador() {
         relatoriosAprovados: reportsRaw?.length || 0,
         dadosMensais,
         dadosClassificacao,
-        allActivitiesRaw: activitiesRaw || [],
+        allActivitiesRaw: activitiesRaw || []
       });
       setLastUpdate(new Date());
     } catch (error) {
@@ -168,8 +168,8 @@ export default function DashboardPatrocinador() {
           <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin mx-auto" />
           <p className="text-slate-600">Carregando dashboard...</p>
         </div>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -178,10 +178,10 @@ export default function DashboardPatrocinador() {
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-lg p-6">
         <h1 className="text-3xl font-bold mb-2">Painel Executivo do Projeto</h1>
         <p className="text-slate-300">Período: {data.periodo} | Museus: {data.museus.join(', ')}</p>
-        <div className="flex items-center gap-2 mt-3 text-sm bg-slate-700/50 w-fit px-3 py-1 rounded-full">
-          <span className="w-2 h-2 bg-green-400 rounded-full" />
-          {data.statusProjeto}
-        </div>
+        
+
+
+        
       </div>
 
       {/* Filtros */}
@@ -194,9 +194,9 @@ export default function DashboardPatrocinador() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos os meses</SelectItem>
-              {data.dadosMensais?.map(m => (
-                <SelectItem key={m.mes} value={m.mes}>{m.mes}</SelectItem>
-              ))}
+              {data.dadosMensais?.map((m) =>
+              <SelectItem key={m.mes} value={m.mes}>{m.mes}</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -300,31 +300,31 @@ export default function DashboardPatrocinador() {
                   size="sm"
                   variant={chartTypeOrcamento === 'bar' ? 'default' : 'ghost'}
                   onClick={() => setChartTypeOrcamento('bar')}
-                  className={`text-xs ${chartTypeOrcamento === 'bar' ? 'bg-black text-white' : 'text-black hover:bg-gray-100'}`}
-                >
+                  className={`text-xs ${chartTypeOrcamento === 'bar' ? 'bg-black text-white' : 'text-black hover:bg-gray-100'}`}>
+                  
                   Colunas
                 </Button>
                 <Button
                   size="sm"
                   variant={chartTypeOrcamento === 'pie' ? 'default' : 'ghost'}
                   onClick={() => setChartTypeOrcamento('pie')}
-                  className={`text-xs ${chartTypeOrcamento === 'pie' ? 'bg-black text-white' : 'text-black hover:bg-gray-100'}`}
-                >
+                  className={`text-xs ${chartTypeOrcamento === 'pie' ? 'bg-black text-white' : 'text-black hover:bg-gray-100'}`}>
+                  
                   Pizza
                 </Button>
               </div>
-              {lastUpdate && (
-                <span className="text-xs text-slate-500">
+              {lastUpdate &&
+              <span className="text-xs text-slate-500">
                   Atualizado: {lastUpdate.toLocaleString('pt-BR')}
                 </span>
-              )}
+              }
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={loadDashboardData}
                 disabled={loading}
-                className="gap-1.5"
-              >
+                className="gap-1.5">
+                
                 <RotateCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
             </div>
@@ -352,75 +352,75 @@ export default function DashboardPatrocinador() {
             </div>
           </div>
 
-          {data.rubricas.length > 0 && (
-            <div className="h-96 border-2 border-black rounded-lg p-4 bg-white">
+          {data.rubricas.length > 0 &&
+          <div className="h-96 border-2 border-black rounded-lg p-4 bg-white">
               <ResponsiveContainer width="100%" height="100%">
-                {chartTypeOrcamento === 'bar' ? (
-                  <BarChart data={data.rubricas} margin={{ top: 20, right: 30, left: 0, bottom: 80 }}>
+                {chartTypeOrcamento === 'bar' ?
+              <BarChart data={data.rubricas} margin={{ top: 20, right: 30, left: 0, bottom: 80 }}>
                     <CartesianGrid strokeDasharray="0" stroke="#000000" strokeWidth={1.5} />
-                    <XAxis 
-                      dataKey="nome" 
-                      angle={-45} 
-                      textAnchor="end" 
-                      height={120}
-                      tick={{fontSize: 9, fill: '#000000'}}
-                      stroke="#000000"
-                      strokeWidth={2}
-                    />
-                    <YAxis 
-                      stroke="#000000" 
-                      strokeWidth={2}
-                      tick={{fontSize: 9, fill: '#000000'}}
-                    />
-                    <Tooltip 
-                      formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
-                      contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}}
-                    />
-                    <Legend wrapperStyle={{fontSize: '12px'}} />
+                    <XAxis
+                  dataKey="nome"
+                  angle={-45}
+                  textAnchor="end"
+                  height={120}
+                  tick={{ fontSize: 9, fill: '#000000' }}
+                  stroke="#000000"
+                  strokeWidth={2} />
+                
+                    <YAxis
+                  stroke="#000000"
+                  strokeWidth={2}
+                  tick={{ fontSize: 9, fill: '#000000' }} />
+                
+                    <Tooltip
+                  formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
+                  contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px' }} />
+                
+                    <Legend wrapperStyle={{ fontSize: '12px' }} />
                     <Bar dataKey="previsto" fill="#ffffff" stroke="#000000" strokeWidth={2} name="Previsto" />
                     <Bar dataKey="utilizado" fill="#000000" stroke="#000000" strokeWidth={2} name="Utilizado" />
-                  </BarChart>
-                ) : (
-                   <PieChart>
+                  </BarChart> :
+
+              <PieChart>
                      <Pie
-                       data={data.rubricas}
-                       cx="50%"
-                       cy="50%"
-                       labelLine={false}
-                       label={false}
-                       outerRadius={100}
-                       fill="#000000"
-                       dataKey="previsto"
-                       nameKey="nome"
-                     >
+                  data={data.rubricas}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={false}
+                  outerRadius={100}
+                  fill="#000000"
+                  dataKey="previsto"
+                  nameKey="nome">
+                  
                        {data.rubricas.map((entry, index) => {
-                         const colors = ['#FFD700', '#FF6B6B', '#4169E1', '#32CD32', '#FF8C00', '#DC143C', '#00CED1', '#9370DB', '#FF1493', '#20B2AA'];
-                         return (
-                           <Cell
-                             key={`cell-${index}`}
-                             fill={colors[index % colors.length]}
-                             stroke="#000000"
-                             strokeWidth={2}
-                           />
-                         );
-                       })}
+                    const colors = ['#FFD700', '#FF6B6B', '#4169E1', '#32CD32', '#FF8C00', '#DC143C', '#00CED1', '#9370DB', '#FF1493', '#20B2AA'];
+                    return (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={colors[index % colors.length]}
+                        stroke="#000000"
+                        strokeWidth={2} />);
+
+
+                  })}
                      </Pie>
-                     <Legend wrapperStyle={{fontSize: '11px'}} />
-                     <Tooltip 
-                       formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
-                       contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}}
-                     />
+                     <Legend wrapperStyle={{ fontSize: '11px' }} />
+                     <Tooltip
+                  formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
+                  contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px' }} />
+                
                    </PieChart>
-                 )}
+              }
               </ResponsiveContainer>
             </div>
-          )}
+          }
         </CardContent>
       </Card>
 
       {/* Atividades por Classificação */}
-      {data.dadosClassificacao && data.dadosClassificacao.length > 0 && (
-        <Card className="border-2 border-black">
+      {data.dadosClassificacao && data.dadosClassificacao.length > 0 &&
+      <Card className="border-2 border-black">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Filter className="w-5 h-5" />
@@ -432,29 +432,29 @@ export default function DashboardPatrocinador() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.dadosClassificacao} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
                   <CartesianGrid strokeDasharray="0" stroke="#000000" strokeWidth={1.5} />
-                  <XAxis 
-                    dataKey="display" 
-                    stroke="#000000" 
-                    strokeWidth={2}
-                    tick={{fontSize: 9, fill: '#000000'}}
-                  />
-                  <YAxis 
-                    stroke="#000000" 
-                    strokeWidth={2}
-                    tick={{fontSize: 9, fill: '#000000'}}
-                  />
-                  <Tooltip contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}} />
+                  <XAxis
+                  dataKey="display"
+                  stroke="#000000"
+                  strokeWidth={2}
+                  tick={{ fontSize: 9, fill: '#000000' }} />
+                
+                  <YAxis
+                  stroke="#000000"
+                  strokeWidth={2}
+                  tick={{ fontSize: 9, fill: '#000000' }} />
+                
+                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px' }} />
                   <Bar dataKey="quantidade" fill="#000000" stroke="#000000" strokeWidth={2} name="Quantidade" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
-      )}
+      }
 
       {/* Atividades por Mês */}
-      {data.dadosMensais && data.dadosMensais.length > 0 && (
-        <Card className="border-2 border-black">
+      {data.dadosMensais && data.dadosMensais.length > 0 &&
+      <Card className="border-2 border-black">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="w-5 h-5" />
@@ -466,29 +466,29 @@ export default function DashboardPatrocinador() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data.dadosMensais} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
                   <CartesianGrid strokeDasharray="0" stroke="#000000" strokeWidth={1.5} />
-                  <XAxis 
-                    dataKey="mes" 
-                    stroke="#000000" 
-                    strokeWidth={2}
-                    tick={{fontSize: 9, fill: '#000000'}}
-                  />
-                  <YAxis 
-                    yAxisId="left" 
-                    stroke="#000000" 
-                    strokeWidth={2}
-                    tick={{fontSize: 9, fill: '#000000'}}
-                    label={{ value: 'Atividades', angle: -90, position: 'insideLeft', fill: '#000000', fontSize: 11 }} 
-                  />
-                  <YAxis 
-                    yAxisId="right" 
-                    orientation="right" 
-                    stroke="#000000" 
-                    strokeWidth={2}
-                    tick={{fontSize: 9, fill: '#000000'}}
-                    label={{ value: 'Público', angle: 90, position: 'insideRight', fill: '#000000', fontSize: 11 }} 
-                  />
-                  <Tooltip contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}} />
-                  <Legend wrapperStyle={{fontSize: '12px'}} />
+                  <XAxis
+                  dataKey="mes"
+                  stroke="#000000"
+                  strokeWidth={2}
+                  tick={{ fontSize: 9, fill: '#000000' }} />
+                
+                  <YAxis
+                  yAxisId="left"
+                  stroke="#000000"
+                  strokeWidth={2}
+                  tick={{ fontSize: 9, fill: '#000000' }}
+                  label={{ value: 'Atividades', angle: -90, position: 'insideLeft', fill: '#000000', fontSize: 11 }} />
+                
+                  <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  stroke="#000000"
+                  strokeWidth={2}
+                  tick={{ fontSize: 9, fill: '#000000' }}
+                  label={{ value: 'Público', angle: 90, position: 'insideRight', fill: '#000000', fontSize: 11 }} />
+                
+                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px' }} />
+                  <Legend wrapperStyle={{ fontSize: '12px' }} />
                   <Line yAxisId="left" type="monotone" dataKey="atividades" stroke="#000000" strokeWidth={2.5} name="Atividades" />
                   <Line yAxisId="right" type="monotone" dataKey="publico" stroke="#666666" strokeWidth={2.5} name="Público" />
                 </LineChart>
@@ -496,11 +496,11 @@ export default function DashboardPatrocinador() {
             </div>
           </CardContent>
         </Card>
-      )}
+      }
 
       {/* Atividades por Tipo */}
-      {data.atividades.length > 0 && (
-        <Card className="border-2 border-black">
+      {data.atividades.length > 0 &&
+      <Card className="border-2 border-black">
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-3">
               <CardTitle className="flex items-center gap-2">
@@ -514,9 +514,9 @@ export default function DashboardPatrocinador() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todas">Todos os tipos</SelectItem>
-                    {data.atividades.map(item => (
-                      <SelectItem key={item.tipo} value={item.tipo}>{item.tipo}</SelectItem>
-                    ))}
+                    {data.atividades.map((item) =>
+                  <SelectItem key={item.tipo} value={item.tipo}>{item.tipo}</SelectItem>
+                  )}
                   </SelectContent>
                 </Select>
               </div>
@@ -527,36 +527,36 @@ export default function DashboardPatrocinador() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter(a => a.tipo === filterTipoAtividade)}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={false}
-                    outerRadius={80}
-                    fill="#000000"
-                    dataKey="quantidade"
-                    nameKey="tipo"
-                  >
-                    {(filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter(a => a.tipo === filterTipoAtividade)).map((entry, index) => {
-                      const colors = ['#FFD700', '#FF6B6B', '#4169E1', '#32CD32', '#FF8C00', '#DC143C', '#00CED1', '#9370DB', '#FF1493', '#20B2AA'];
-                      return (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={colors[index % colors.length]}
-                          stroke="#000000" 
-                          strokeWidth={2}
-                        />
-                      );
-                    })}
+                  data={filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter((a) => a.tipo === filterTipoAtividade)}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={false}
+                  outerRadius={80}
+                  fill="#000000"
+                  dataKey="quantidade"
+                  nameKey="tipo">
+                  
+                    {(filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter((a) => a.tipo === filterTipoAtividade)).map((entry, index) => {
+                    const colors = ['#FFD700', '#FF6B6B', '#4169E1', '#32CD32', '#FF8C00', '#DC143C', '#00CED1', '#9370DB', '#FF1493', '#20B2AA'];
+                    return (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={colors[index % colors.length]}
+                        stroke="#000000"
+                        strokeWidth={2} />);
+
+
+                  })}
                   </Pie>
-                  <Legend wrapperStyle={{fontSize: '11px'}} />
-                  <Tooltip contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}} />
+                  <Legend wrapperStyle={{ fontSize: '11px' }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px' }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
-      )}
+      }
 
       {/* Painel de Notícias */}
       <NewsCarousel />
@@ -570,6 +570,6 @@ export default function DashboardPatrocinador() {
           seções da plataforma.
         </p>
       </div>
-    </div>
-  );
+    </div>);
+
 }
