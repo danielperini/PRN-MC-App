@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -27,6 +27,8 @@ export default function TeamMemberForm({
   const [selectedUser, setSelectedUser] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const queryClient = useQueryClient();
+
   useEffect(() => {
     if (!isOpen) {
       setSelectedUser('');
@@ -44,7 +46,7 @@ export default function TeamMemberForm({
   });
 
   const { data: teamMembers = [], isLoading: loadingTeam } = useQuery({
-    queryKey: ['team-members-all'],
+    queryKey: ['team-members'],
     queryFn: async () => {
       const res = await base44.entities.TeamMember.list();
       return Array.isArray(res) ? res : [];
@@ -94,14 +96,15 @@ export default function TeamMemberForm({
 
       const created = await base44.entities.TeamMember.create(payload);
 
-      // 🔴 GARANTIA REAL DE SUCESSO
       if (!created || !created.id) {
         throw new Error('Falha ao confirmar gravação do membro.');
       }
 
-      toast.success(`✅ Membro adicionado: ${payload.user_name}`);
+      await queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      await queryClient.refetchQueries({ queryKey: ['team-members'] });
 
-      // 🔥 garante atualização externa
+      toast.success(`Membro adicionado: ${payload.user_name}`);
+
       if (typeof onSuccess === 'function') {
         await onSuccess(created);
       }
