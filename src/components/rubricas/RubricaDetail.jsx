@@ -29,16 +29,20 @@ function formatMoney(value) {
   });
 }
 
+function todayIso() {
+  return new Date().toISOString().split('T')[0];
+}
+
 export default function RubricaDetail({ rubrica, onClose }) {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [formData, setFormData] = useState({
     valor: '',
-    data_lancamento: new Date().toISOString().split('T')[0],
+    data_lancamento: todayIso(),
     descricao: '',
     observacao: '',
-    justificativa_ajuste: '',
+    justificativa_ajuste: 'Ajuste manual excepcional do mês com base no controle real.',
   });
 
   const queryClient = useQueryClient();
@@ -79,13 +83,16 @@ export default function RubricaDetail({ rubrica, onClose }) {
       }),
       queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
       queryClient.invalidateQueries({ queryKey: ['rubricas-consolidadas'] }),
+      queryClient.invalidateQueries({ queryKey: ['rubricas-total-utilizado'] }),
       queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
       queryClient.invalidateQueries({ queryKey: ['budget'] }),
       queryClient.invalidateQueries({ queryKey: ['purchases'] }),
       queryClient.invalidateQueries({ queryKey: ['purchase'] }),
       queryClient.invalidateQueries({ queryKey: ['compra'] }),
       queryClient.invalidateQueries({ queryKey: ['museu'] }),
-      queryClient.invalidateQueries({ queryKey: ['purchases-by-rubrica-detail', rubricaId] }),
+      queryClient.invalidateQueries({
+        queryKey: ['purchases-by-rubrica-detail', rubricaId],
+      }),
     ]);
   };
 
@@ -119,6 +126,18 @@ export default function RubricaDetail({ rubrica, onClose }) {
     [purchases]
   );
 
+  async function applyManualOverride(valor, descricao, observacao, justificativa) {
+    const saldoNovo = toNumber(rubrica?.valor_rubrica) - valor;
+
+    await base44.entities.Rubrica.update(rubricaId, {
+      valor_utilizado: valor,
+      saldo: saldoNovo,
+      observacao_uso: observacao || rubrica?.observacao_uso || null,
+      observacao_ajuste_manual_mes: justificativa || null,
+      data_ajuste_manual_mes: new Date().toISOString(),
+    });
+  }
+
   const handleAddLancamento = async () => {
     if (!formData.valor) {
       toast.error('Valor é obrigatório');
@@ -146,48 +165,53 @@ export default function RubricaDetail({ rubrica, onClose }) {
         rubrica_id: rubricaId,
         data_lancamento: formData.data_lancamento,
         origem_lancamento: 'manual_usuario',
-        descricao: formData.descricao || 'Lançamento manual',
+        descricao: formData.descricao || 'Lançamento manual excepcional',
         valor,
         observacao: formData.observacao,
-        justificativa_ajuste: formData.justificativa_ajuste,
+        justificativa_ajuste:
+          formData.justificativa_ajuste ||
+          'Ajuste manual excepcional do mês com base no controle real.',
         criado_por: user?.email,
       });
+
+      await applyManualOverride(
+        valor,
+        formData.descricao,
+        formData.observacao,
+        formData.justificativa_ajuste
+      );
 
       try {
         await base44.functions.invoke('recalculateRubrica', {
           rubricaId,
-        });
-      } catch (_e) {}
-
-      try {
-        await base44.functions.invoke('recalculateAllRubricas', {
-          trigger: 'manual_rubrica_update',
-          rubricaId,
+          preserveManualOverride: true,
         });
       } catch (_e) {}
 
       await invalidateRubricaQueries();
 
-      toast.success('Lançamento adicionado com sucesso');
+      toast.success('Lançamento manual do mês salvo com sucesso');
 
       setFormData({
         valor: '',
-        data_lancamento: new Date().toISOString().split('T')[0],
+        data_lancamento: todayIso(),
         descricao: '',
         observacao: '',
-        justificativa_ajuste: '',
+        justificativa_ajuste: 'Ajuste manual excepcional do mês com base no controle real.',
       });
 
       setShowForm(false);
     } catch (e) {
-      toast.error('Erro: ' + e.message);
+      toast.error('Erro: ' + (e?.message || e));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteLancamento = async (lancamentoId) => {
-    const ok = window.confirm('Tem certeza que deseja remover este lançamento?');
+    const ok = window.confirm(
+      'Tem certeza que deseja remover este lançamento manual excepcional?'
+    );
     if (!ok) return;
 
     setDeletingId(lancamentoId);
@@ -195,16 +219,22 @@ export default function RubricaDetail({ rubrica, onClose }) {
     try {
       await base44.entities.LancamentoRubrica.delete(lancamentoId);
 
+      const lancamentosAtualizados = lancamentos.filter((l) => l.id !== lancamentoId);
+      const somaRestante = lancamentosAtualizados.reduce(
+        (acc, item) => acc + toNumber(item.valor),
+        0
+      );
+      const saldoNovo = toNumber(rubrica?.valor_rubrica) - somaRestante;
+
+      await base44.entities.Rubrica.update(rubricaId, {
+        valor_utilizado: somaRestante,
+        saldo: saldoNovo,
+      });
+
       try {
         await base44.functions.invoke('recalculateRubrica', {
           rubricaId,
-        });
-      } catch (_e) {}
-
-      try {
-        await base44.functions.invoke('recalculateAllRubricas', {
-          trigger: 'manual_rubrica_delete',
-          rubricaId,
+          preserveManualOverride: true,
         });
       } catch (_e) {}
 
@@ -212,7 +242,7 @@ export default function RubricaDetail({ rubrica, onClose }) {
 
       toast.success('Lançamento removido com sucesso');
     } catch (e) {
-      toast.error('Erro: ' + e.message);
+      toast.error('Erro: ' + (e?.message || e));
     } finally {
       setDeletingId(null);
     }
@@ -310,6 +340,10 @@ export default function RubricaDetail({ rubrica, onClose }) {
         )}
       </div>
 
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        Este lançamento é apenas para ajuste manual excepcional deste mês. Depois, o fluxo normal volta a valer.
+      </div>
+
       <div className="flex gap-2">
         <Button
           onClick={() => setShowForm(!showForm)}
@@ -343,7 +377,7 @@ export default function RubricaDetail({ rubrica, onClose }) {
 
           <div>
             <label className="text-sm font-semibold text-black block mb-2">
-              Valor (R$) *
+              Valor utilizado do mês (R$) *
             </label>
             <Input
               type="number"
@@ -354,11 +388,9 @@ export default function RubricaDetail({ rubrica, onClose }) {
                 setFormData((f) => ({ ...f, valor: e.target.value }))
               }
             />
-            {formData.valor && parseFloat(formData.valor) < 0 && (
-              <p className="text-xs text-orange-600 mt-1">
-                Valor negativo: justificativa obrigatória
-              </p>
-            )}
+            <p className="text-xs text-gray-500 mt-1">
+              Informe o valor real utilizado nesta rubrica para este mês.
+            </p>
           </div>
 
           <div>
@@ -366,7 +398,7 @@ export default function RubricaDetail({ rubrica, onClose }) {
               Descrição
             </label>
             <Input
-              placeholder="Ex: Pagamento de consultor"
+              placeholder="Ex.: Ajuste manual excepcional de março"
               value={formData.descricao}
               onChange={(e) =>
                 setFormData((f) => ({ ...f, descricao: e.target.value }))
@@ -379,7 +411,7 @@ export default function RubricaDetail({ rubrica, onClose }) {
               Observação
             </label>
             <Textarea
-              placeholder="Anotações..."
+              placeholder="Ex.: Valor lançado conforme controle real do mês."
               rows={2}
               value={formData.observacao}
               onChange={(e) =>
@@ -388,24 +420,22 @@ export default function RubricaDetail({ rubrica, onClose }) {
             />
           </div>
 
-          {formData.valor && parseFloat(formData.valor) < 0 && (
-            <div>
-              <label className="text-sm font-semibold text-black block mb-2">
-                Justificativa (obrigatória) *
-              </label>
-              <Textarea
-                placeholder="Motivo do ajuste negativo..."
-                rows={2}
-                value={formData.justificativa_ajuste}
-                onChange={(e) =>
-                  setFormData((f) => ({
-                    ...f,
-                    justificativa_ajuste: e.target.value,
-                  }))
-                }
-              />
-            </div>
-          )}
+          <div>
+            <label className="text-sm font-semibold text-black block mb-2">
+              Justificativa *
+            </label>
+            <Textarea
+              placeholder="Motivo do ajuste manual excepcional..."
+              rows={2}
+              value={formData.justificativa_ajuste}
+              onChange={(e) =>
+                setFormData((f) => ({
+                  ...f,
+                  justificativa_ajuste: e.target.value,
+                }))
+              }
+            />
+          </div>
 
           <div className="flex gap-2 justify-end pt-2 border-t">
             <Button variant="outline" onClick={() => setShowForm(false)} disabled={saving}>
@@ -418,7 +448,7 @@ export default function RubricaDetail({ rubrica, onClose }) {
               disabled={saving}
             >
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              Adicionar
+              Salvar lançamento
             </Button>
           </div>
         </div>
@@ -458,9 +488,7 @@ export default function RubricaDetail({ rubrica, onClose }) {
                     </p>
 
                     <div className="flex gap-4 mt-2 text-xs text-gray-600 flex-wrap">
-                      {p.fornecedor_nome && (
-                        <span>{p.fornecedor_nome}</span>
-                      )}
+                      {p.fornecedor_nome && <span>{p.fornecedor_nome}</span>}
                       {p.data_pagamento && (
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
@@ -478,7 +506,12 @@ export default function RubricaDetail({ rubrica, onClose }) {
 
                   <div className="text-right">
                     <p className="text-lg font-bold text-blue-600">
-                      R$ {formatMoney(p.valor_pago || p.valor_aprovado_admin || p.valor_aprovado || p.valor_solicitado)}
+                      R$ {formatMoney(
+                        p.valor_pago ||
+                          p.valor_aprovado_admin ||
+                          p.valor_aprovado ||
+                          p.valor_solicitado
+                      )}
                     </p>
                   </div>
                 </div>
