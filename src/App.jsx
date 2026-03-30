@@ -12,6 +12,7 @@ import ProgramacaoEspelho from './pages/ProgramacaoEspelho';
 import Agenda from './pages/Agenda';
 import RubricasPorMuseu from './pages/RubricasPorMuseu';
 import BaseConhecimento from './pages/BaseConhecimento';
+import DashboardPatrocinador from './pages/DashboardPatrocinador';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -115,6 +116,15 @@ function AuthenticatedApp() {
         element={
           <LayoutWrapper currentPageName="Agenda">
             <Agenda />
+          </LayoutWrapper>
+        }
+      />
+
+      <Route
+        path="/DashboardPatrocinador"
+        element={
+          <LayoutWrapper currentPageName="DashboardPatrocinador">
+            <DashboardPatrocinador />
           </LayoutWrapper>
         }
       />

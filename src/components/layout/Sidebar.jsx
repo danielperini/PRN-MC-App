@@ -25,7 +25,7 @@ import {
 import { Button } from '@/components/ui/button';
 import SuggestionForm from '@/components/sidebar/SuggestionForm';
 import { HelpWrapper } from '@/components/help/withContextualHelp';
-import { isCoordenador as checkCoordenador, canManageUsers } from '@/components/auth/permissions';
+import { isCoordenador as checkCoordenador, canManageUsers, isPatrocinador } from '@/components/auth/permissions';
 
 export default function Sidebar({ currentPageName, collapsed, onToggle, currentUser }) {
   const [customPerms, setCustomPerms] = useState(null);
@@ -61,6 +61,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
   }, [currentUser?.email]);
 
   const coord = checkCoordenador(currentUser);
+  const isSponsor = isPatrocinador(currentUser);
   const canManageUsersFlag =
     canManageUsers(currentUser) || customPerms?.can_manage_users === true;
 
@@ -77,7 +78,51 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
     }));
   };
 
-  const navSections = [
+  // Menu diferente para patrocinadores
+  const navSections = isSponsor ? [
+    {
+      items: [
+        {
+          name: 'DashboardPatrocinador',
+          icon: BarChart3,
+          label: 'Dashboard',
+          tooltip: 'Painel executivo com KPIs, orçamento consolidado e indicadores do projeto.',
+          show: true,
+        },
+      ],
+    },
+    {
+      label: 'Museu Centro',
+      items: [
+        {
+          name: 'Agenda',
+          icon: CalendarDays,
+          label: 'Agenda',
+          tooltip: 'Programação cultural dos museus MIS, MHAB e MUMO.',
+          show: true,
+        },
+        {
+          name: 'GaleriaFotos',
+          icon: Images,
+          label: 'Galeria',
+          tooltip: 'Fotos e mídias aprovadas das atividades realizadas.',
+          show: true,
+        },
+      ],
+    },
+    {
+      label: 'Informações',
+      items: [
+        {
+          name: 'Manual',
+          icon: BookOpen,
+          label: 'Manual',
+          tooltip: 'Informações sobre o projeto e documentação institucional.',
+          show: true,
+        },
+      ],
+    },
+  ] : [
     {
       items: [
         {
@@ -237,11 +282,15 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         {!collapsed && (
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white font-semibold">
-              MC
+              {isSponsor ? 'SP' : 'MC'}
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-semibold leading-tight truncate">Museus Centro</div>
-              <div className="text-[11px] text-white/60 truncate">Relatório Mensal</div>
+              <div className="text-sm font-semibold leading-tight truncate">
+                {isSponsor ? 'Patrocinador' : 'Museus Centro'}
+              </div>
+              <div className="text-[11px] text-white/60 truncate">
+                {isSponsor ? 'Visão Executiva' : 'Relatório Mensal'}
+              </div>
             </div>
           </div>
         )}
@@ -362,7 +411,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         ))}
       </div>
 
-      {!collapsed && (
+      {!collapsed && !isSponsor && (
         <div className="border-t border-white/10 p-3 space-y-3">
           <HelpWrapper>
             <SuggestionForm />

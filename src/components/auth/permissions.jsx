@@ -8,6 +8,7 @@ export const COORD_GERAL_EMAIL = 'daniel@periniprojetos.com.br';
 export const AUTO_APPROVED_DOMAINS = [
   '@viadutodasartes.org.br',
   '@periniprojetos.com.br',
+  '@pbh.gov.br',
 ];
 
 /**
@@ -120,4 +121,38 @@ export function canViewTeamProfile(user, targetEmail) {
   if (isCoordenador(user)) return true;
   if (!targetEmail) return false;
   return String(user.email || '').toLowerCase() === String(targetEmail || '').toLowerCase();
+}
+
+/**
+ * Verifica se o usuário é um PATROCINADOR (leitura apenas, dados aprovados)
+ */
+export function isPatrocinador(user) {
+  if (!user) return false;
+  return user.role === 'PATROCINADOR' || user.base_role === 'PATROCINADOR';
+}
+
+/**
+ * Permissões específicas do PATROCINADOR
+ */
+export const PATROCINADOR_PERMISSIONS = {
+  can_view_sponsor_dashboard: true,
+  can_view_approved_reports: true,
+  can_view_approved_programacao: true,
+  can_view_public_gallery: true,
+  can_view_budget_summary: true,
+  can_view_project_kpis: true,
+  can_manage_users: false,
+  can_manage_platform: false,
+  can_manage_files: false,
+  can_manage_equipes: false,
+  can_review_reports: false,
+  gestao_compras: false,
+  can_view_audit_log: false,
+};
+
+/**
+ * Verifica se um usuário PATROCINADOR pode acessar uma permissão específica
+ */
+export function canSponsorAccess(permission) {
+  return PATROCINADOR_PERMISSIONS[permission] === true;
 }
