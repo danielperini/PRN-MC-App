@@ -828,7 +828,6 @@ function ComprasInner() {
             ) : (
               <RubricasGrid
                 rubricas={rubricas}
-                purchases={purchases}
                 onSelectRubrica={setSelectedRubrica}
                 onRefresh={refreshFinanceiroCompleto}
                 isCoordenador={isCoordenador}

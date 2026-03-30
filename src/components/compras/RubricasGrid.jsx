@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { RefreshCw } from 'lucide-react';
 
 function toNumber(value) {
   const n = Number(value ?? 0);
@@ -12,46 +14,32 @@ function moeda(value) {
   });
 }
 
-function getValorCompra(c) {
-  return (
-    toNumber(c?.valor_pago) ||
-    toNumber(c?.valor_aprovado_admin) ||
-    toNumber(c?.valor_aprovado) ||
-    toNumber(c?.valor_final) ||
-    toNumber(c?.valor_solicitado) ||
-    0
-  );
-}
-
 export default function RubricasGrid({
   rubricas = [],
-  purchases = [],
+  onRefresh,
 }) {
   const [search, setSearch] = useState('');
+  const [recalcLoading, setRecalcLoading] = useState(false);
+  const [recalcMsg, setRecalcMsg] = useState('');
 
-  // 🔹 mapa de utilizado por rubrica
-  const utilizadoPorRubrica = useMemo(() => {
-    const mapa = {};
-
-    for (const compra of purchases) {
-      const status = String(compra?.status || '').toUpperCase();
-
-      if (
-        status !== 'APROVADO_COORD' &&
-        status !== 'APROVADO_ADMIN' &&
-        status !== 'PAGO'
-      ) continue;
-
-      const rubricaId = compra?.rubrica_id;
-      if (!rubricaId) continue;
-
-      const valor = getValorCompra(compra);
-
-      mapa[rubricaId] = (mapa[rubricaId] || 0) + valor;
+  async function handleRecalcular() {
+    setRecalcLoading(true);
+    setRecalcMsg('');
+    try {
+      const res = await base44.functions.invoke('recalculateAllRubricas', {});
+      const s = res?.data?.sumario;
+      setRecalcMsg(
+        s
+          ? `Atualizado: ${s.total_rubricas_unicas} rubricas | Utilizado: R$ ${moeda(s.valor_total_utilizado)}`
+          : 'Recálculo concluído.'
+      );
+      if (onRefresh) onRefresh();
+    } catch (e) {
+      setRecalcMsg('Erro ao recalcular: ' + (e?.message || e));
+    } finally {
+      setRecalcLoading(false);
     }
-
-    return mapa;
-  }, [purchases]);
+  }
 
   const filtradas = useMemo(() => {
     return rubricas.filter(r => {
@@ -65,11 +53,8 @@ export default function RubricasGrid({
     let utilizado = 0;
 
     for (const r of filtradas) {
-      const val = toNumber(r?.valor_rubrica);
-      const util = utilizadoPorRubrica[r.id] || 0;
-
-      previsto += val;
-      utilizado += util;
+      previsto += toNumber(r?.valor_rubrica);
+      utilizado += toNumber(r?.valor_utilizado);
     }
 
     return {
@@ -77,18 +62,34 @@ export default function RubricasGrid({
       utilizado,
       saldo: previsto - utilizado,
     };
-  }, [filtradas, utilizadoPorRubrica]);
+  }, [filtradas]);
 
   return (
     <div className="space-y-4">
 
-      {/* BUSCA */}
-      <input
-        placeholder="Buscar rubrica..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full border rounded p-2"
-      />
+      {/* BARRA SUPERIOR */}
+      <div className="flex items-center gap-2">
+        <input
+          placeholder="Buscar rubrica..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1 border rounded p-2 text-sm"
+        />
+        <button
+          onClick={handleRecalcular}
+          disabled={recalcLoading}
+          className="flex items-center gap-1.5 px-3 py-2 text-sm bg-slate-800 text-white rounded hover:bg-slate-700 disabled:opacity-50 whitespace-nowrap"
+        >
+          <RefreshCw className={`w-4 h-4 ${recalcLoading ? 'animate-spin' : ''}`} />
+          {recalcLoading ? 'Recalculando...' : 'Recalcular'}
+        </button>
+      </div>
+
+      {recalcMsg && (
+        <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+          {recalcMsg}
+        </div>
+      )}
 
       {/* TABELA */}
       <div className="overflow-auto border rounded">
@@ -108,8 +109,8 @@ export default function RubricasGrid({
           <tbody>
             {filtradas.map((r) => {
               const valor = toNumber(r?.valor_rubrica);
-              const utilizado = utilizadoPorRubrica[r.id] || 0;
-              const saldo = valor - utilizado;
+              const utilizado = toNumber(r?.valor_utilizado);
+              const saldo = toNumber(r?.saldo ?? (valor - utilizado));
               const perc = valor > 0 ? (utilizado / valor) * 100 : 0;
 
               return (
@@ -120,7 +121,7 @@ export default function RubricasGrid({
                   <td className="p-2 text-blue-700">
                     R$ {moeda(utilizado)}
                   </td>
-                  <td className="p-2 text-green-700">
+                  <td className={`p-2 font-medium ${saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
                     R$ {moeda(saldo)}
                   </td>
                   <td className="p-2">
