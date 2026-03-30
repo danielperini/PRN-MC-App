@@ -403,7 +403,7 @@ function MeusDadosInner() {
             <Button
               type="submit"
               className="bg-black hover:bg-gray-800 text-white"
-              disabled={saveMutation.isPending || !isComplete}
+              disabled={saveMutation.isPending}
             >
               {saveMutation.isPending ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</>
