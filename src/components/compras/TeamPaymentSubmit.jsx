@@ -70,12 +70,12 @@ function getValorParcela(member) {
   return total && parcelas ? total / parcelas : 0;
 }
 
-function buildFileName({ numeroNF, member, valor, extension }) {
-  const nf = sanitize(numeroNF || 'NF');
+function buildFileName({ numeroParcela, member, valor, extension }) {
+  const nParcela = String(numeroParcela || 1).padStart(2, '0');
   const cargo = sanitize(member?.funcao || 'FUNCAO');
   const nome = sanitize(member?.user_name || member?.nome || 'SEM NOME');
   const valorStr = sanitize(formatBRL(valor));
-  return `${nf} ${cargo} - ${nome} - MUSEUS CENTRO - ${valorStr}.${extension}`;
+  return `NF ${nParcela} ${cargo} - ${nome} - MUSEUS CENTRO - ${valorStr}.${extension}`;
 }
 
 function getMemberDataStatus(member) {
@@ -186,8 +186,9 @@ export default function TeamPaymentSubmit({ userEmail }) {
     if (!file) return;
     if (!selectedComp) { toast.error('Selecione primeiro o mês.'); return; }
     setUploadingNF(true);
+    const numeroParcela = (toNumber(member?.parcelas_pagas) || 0) + 1;
     try {
-      const renamed = await renameFile(file, buildFileName({ numeroNF: form.numero_nf || 'NF', member, valor: form.valor_nf || valorParcela, extension: 'pdf' }));
+      const renamed = await renameFile(file, buildFileName({ numeroParcela, member, valor: form.valor_nf || valorParcela, extension: 'pdf' }));
       const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
       setForm(prev => ({ ...prev, nota_fiscal_url: file_url, nota_fiscal_file_name: renamed.name }));
       toast.success('Nota fiscal enviada e renomeada.');
@@ -202,8 +203,9 @@ export default function TeamPaymentSubmit({ userEmail }) {
     if (!file) return;
     if (!selectedComp) { toast.error('Selecione primeiro o mês.'); return; }
     setUploadingXML(true);
+    const numeroParcela = (toNumber(member?.parcelas_pagas) || 0) + 1;
     try {
-      const renamed = await renameFile(file, buildFileName({ numeroNF: form.numero_nf || 'NF', member, valor: form.valor_nf || valorParcela, extension: 'xml' }));
+      const renamed = await renameFile(file, buildFileName({ numeroParcela, member, valor: form.valor_nf || valorParcela, extension: 'xml' }));
       const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
       setForm(prev => ({ ...prev, xml_url: file_url, xml_file_name: renamed.name }));
       toast.success('XML enviado e renomeado.');
@@ -445,6 +447,13 @@ export default function TeamPaymentSubmit({ userEmail }) {
               </div>
             </div>
 
+
+            {/* Padrão de nome dos arquivos */}
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
+              <span className="font-medium text-gray-800">Padrão de nome dos arquivos: </span>
+              NF 01 (01 = parcela 01) CARGO - SEU NOME - MUSEUS CENTRO - R$ VALOR DA NOTA
+              <span className="block text-gray-400 mt-0.5">Os arquivos são renomeados automaticamente nesse padrão ao fazer upload.</span>
+            </div>
 
             {/* Análise IA */}
             {submitting && analysisStep && (

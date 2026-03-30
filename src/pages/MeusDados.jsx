@@ -279,7 +279,7 @@ function MeusDadosInner() {
             <>
               <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-green-900">Dados Completos</p>
+                <p className="text-sm font-semibold text-green-900">Informações Completas</p>
                 <p className="text-xs text-green-700 mt-0.5">Todas as informações foram preenchidas</p>
               </div>
             </>
@@ -287,7 +287,7 @@ function MeusDadosInner() {
             <>
               <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-amber-900">Dados Incompletos</p>
+                <p className="text-sm font-semibold text-amber-900">Informações Incompletas</p>
                 <p className="text-xs text-amber-700 mt-0.5">Preencha todos os campos obrigatórios</p>
               </div>
             </>
