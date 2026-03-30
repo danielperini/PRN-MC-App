@@ -94,6 +94,14 @@
       "type": "string",
       "description": "Link para imagens de divulga\u00e7\u00e3o"
     },
+    "minibios": {
+      "type": "string",
+      "description": "Minibios dos artistas/educadores envolvidos na a\u00e7\u00e3o"
+    },
+    "material_divulgacao_aprovado": {
+      "type": "string",
+      "description": "Link ou descri\u00e7\u00e3o do material de divulga\u00e7\u00e3o aprovado"
+    },
     "month_key": {
       "type": "string",
       "description": "Chave do m\u00eas no formato YYYY-MM"

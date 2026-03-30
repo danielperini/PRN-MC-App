@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { ChevronLeft, ChevronRight, Calendar, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Search, ExternalLink, Image, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -173,6 +173,9 @@ export default function ProgramacaoEspelho() {
                 <th className="text-left px-4 py-3 font-medium text-slate-600 whitespace-nowrap">Vagas</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-600 whitespace-nowrap">Inscrição</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-600 whitespace-nowrap">Local</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-600 whitespace-nowrap">Link Imagens</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-600 whitespace-nowrap">Minibios</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-600 whitespace-nowrap">Mat. Divulgação</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -195,7 +198,32 @@ export default function ProgramacaoEspelho() {
                   <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{item.vagas || '—'}</td>
                   <td className="px-4 py-3 text-slate-600 max-w-[160px]">{item.inscricao || '—'}</td>
                   <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{item.local || '—'}</td>
-                </tr>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                   {item.link_imagens ? (
+                     <a href={item.link_imagens} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs">
+                       <Image className="w-3.5 h-3.5" />
+                       <span>Ver</span>
+                       <ExternalLink className="w-3 h-3" />
+                     </a>
+                   ) : <span className="text-slate-400">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 max-w-[180px]">
+                   <span className="line-clamp-3 text-xs">{item.minibios || '—'}</span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                   {item.material_divulgacao_aprovado ? (
+                     item.material_divulgacao_aprovado.startsWith('http') ? (
+                       <a href={item.material_divulgacao_aprovado} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-green-600 hover:text-green-800 text-xs">
+                         <FileText className="w-3.5 h-3.5" />
+                         <span>Ver</span>
+                         <ExternalLink className="w-3 h-3" />
+                       </a>
+                     ) : (
+                       <span className="text-xs text-slate-600">{item.material_divulgacao_aprovado}</span>
+                     )
+                   ) : <span className="text-slate-400">—</span>}
+                  </td>
+                  </tr>
               ))}
             </tbody>
           </table>
