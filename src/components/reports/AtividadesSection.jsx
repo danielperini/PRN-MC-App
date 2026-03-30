@@ -1,24 +1,27 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, CalendarDays } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AtividadeCamposBasicos from './AtividadeCamposBasicos';
 
-export function validateAtividade(atividade = {}) {
-  const errors = [];
+const MESES_NUM = [
+  'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'
+];
 
-  if (!atividade || typeof atividade !== 'object') {
-    return ['Atividade inválida'];
-  }
+function toMonthKey(mes, ano) {
+  const idx = MESES_NUM.indexOf(mes);
+  if (idx === -1 || !ano) return null;
+  return `${ano}-${String(idx + 1).padStart(2, '0')}`;
+}
 
-  if (!atividade.classificacao || !String(atividade.classificacao).trim()) {
-    errors.push('Classificação é obrigatória');
-  }
-
-  if (!atividade.nome || !String(atividade.nome).trim()) {
-    errors.push('Nome da atividade é obrigatório');
-  }
-
-  return errors;
+function prevMonthKey(mes, ano) {
+  const idx = MESES_NUM.indexOf(mes);
+  if (idx === -1 || !ano) return null;
+  if (idx === 0) return `${Number(ano) - 1}-12`;
+  return `${ano}-${String(idx).padStart(2, '0')}`;
 }
 
 export default function AtividadesSection({
@@ -27,14 +30,28 @@ export default function AtividadesSection({
   canEdit = true,
   museusOptions = [],
   tiposAcaoOptions = [],
+  mesReferencia = '',
+  ano = 2026,
 }) {
-  const museus = useMemo(() => {
-    return Array.from(new Set((museusOptions || []).filter(Boolean)));
-  }, [museusOptions]);
+  const museus = useMemo(() => Array.from(new Set((museusOptions || []).filter(Boolean))), [museusOptions]);
+  const tiposAcao = useMemo(() => Array.from(new Set((tiposAcaoOptions || []).filter(Boolean))), [tiposAcaoOptions]);
 
-  const tiposAcao = useMemo(() => {
-    return Array.from(new Set((tiposAcaoOptions || []).filter(Boolean)));
-  }, [tiposAcaoOptions]);
+  const currentKey = toMonthKey(mesReferencia, ano);
+  const prevKey = prevMonthKey(mesReferencia, ano);
+
+  const { data: programacaoItems = [] } = useQuery({
+    queryKey: ['programacao-cronograma', currentKey, prevKey],
+    queryFn: async () => {
+      if (!currentKey && !prevKey) return [];
+      const all = await base44.entities.Programacao.list('-data_inicio', 1000);
+      return (all || []).filter(item => {
+        const k = item.month_key || '';
+        return k === currentKey || k === prevKey;
+      });
+    },
+    enabled: !!currentKey || !!prevKey,
+    staleTime: 60000,
+  });
 
   const updateAtividade = useCallback(
     (index, field, value) => {
@@ -51,13 +68,14 @@ export default function AtividadesSection({
     [setAtividades]
   );
 
-  const addAtividade = useCallback(() => {
+  const addAtividade = useCallback((base = {}) => {
     setAtividades((prev) => {
       const list = Array.isArray(prev) ? [...prev] : [];
       list.push({
         classificacao: '',
         justificativa_tecnica: '',
         nome: '',
+        descricao: '',
         data_inicio: '',
         data_fim: '',
         publico_estimado: 0,
@@ -70,10 +88,25 @@ export default function AtividadesSection({
         produto_realizado: '',
         quantidade_produtos: 0,
         total_produtos_gerados: 0,
+        ...base,
       });
       return list;
     });
   }, [setAtividades]);
+
+  function importFromCronograma(value) {
+    if (!value) return;
+    const item = programacaoItems.find(p => p.id === value);
+    if (!item) return;
+    addAtividade({
+      nome: item.titulo || item.nome_acao || '',
+      descricao: item.sinopse || item.descricao || '',
+      museu: item.museu || '',
+      tipo_acao: item.tipo || item.tipo_atividade || '',
+      data_inicio: item.data_inicio || '',
+      programacao_id: item.id,
+    });
+  }
 
   const removeAtividade = useCallback(
     (index) => {
@@ -88,6 +121,30 @@ export default function AtividadesSection({
 
   return (
     <div className="space-y-6">
+      {canEdit && programacaoItems.length > 0 && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-blue-900">
+            <CalendarDays className="w-4 h-4" />
+            Importar atividade da Programação (mês atual + anterior)
+          </div>
+          <Select onValueChange={importFromCronograma}>
+            <SelectTrigger className="bg-white">
+              <SelectValue placeholder="Selecione uma atividade do cronograma..." />
+            </SelectTrigger>
+            <SelectContent>
+              {programacaoItems.map(item => (
+                <SelectItem key={item.id} value={item.id}>
+                  <span className="font-medium">{item.museu ? `[${item.museu}] ` : ''}</span>
+                  {item.titulo || item.nome_acao || item.id}
+                  {item.data || item.data_inicio ? ` — ${item.data || item.data_inicio}` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-blue-700">Ao selecionar, uma nova atividade será criada com nome e sinopse preenchidos automaticamente.</p>
+        </div>
+      )}
+
       {atividades.map((atividade, index) => (
         <div
           key={index}

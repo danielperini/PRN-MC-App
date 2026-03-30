@@ -558,6 +558,8 @@ function ReportEditorInner() {
             <div className="space-y-6">
               <AtividadesSection
                 atividades={formData.atividades || []}
+                mesReferencia={formData.mes_referencia || ''}
+                ano={formData.ano || 2026}
                 setAtividades={(updater) => {
                   if (typeof updater === 'function') {
                     set('atividades', updater(formData.atividades || []));
