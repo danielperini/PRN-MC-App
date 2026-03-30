@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { toastMessages } from '@/lib/toastMessages';
 import {
   CheckCircle,
   XCircle,
@@ -17,7 +18,6 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import ConformidadeBadge from '@/components/compras/ConformidadeBadge';
-import { toast } from 'sonner';
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -136,10 +136,10 @@ export default function AprovacoesFila({
         team_payment_id: tp.id,
         purchase_id: purchase.id,
       });
-      toast.success('Análise de conformidade concluída!');
+      toastMessages.info('Análise de conformidade concluída!');
       await onRefresh?.();
     } catch (e) {
-      toast.error('Erro ao analisar NF: ' + (e?.message || e));
+      toastMessages.warning('Erro ao analisar nota fiscal: ' + (e?.message || e));
     } finally {
       setAnalisando(a => ({ ...a, [purchase.id]: false }));
     }
@@ -148,7 +148,7 @@ export default function AprovacoesFila({
   const handleAction = async (purchase, action) => {
 
     if (!podeAprovar) {
-      toast.error('Sem permissão para realizar esta ação.');
+      toastMessages.permissionDenied();
       return;
     }
 
@@ -159,19 +159,19 @@ export default function AprovacoesFila({
     if (action === 'approve_coord') {
 
       if (!hasOrcamentoVinculado(purchase)) {
-        toast.error('Vincule uma rubrica antes de aprovar.');
+        toastMessages.validationError('Vincule uma rubrica antes de aprovar.');
         return;
       }
 
       if (validation?.status === 'divergente') {
-        toast.error('Nota fiscal com divergência detectada. Corrija antes de aprovar.');
+        toastMessages.warning('Nota fiscal com divergência detectada. Corrija antes de aprovar.');
         return;
       }
 
       const tp2 = teamPayments[purchase.id];
       const duvidasTP = parseJSON(tp2?.conformidade_duvidas, []);
       if (duvidasTP.length > 0 && !cientesDuvidas[purchase.id]) {
-        toast.error('Há dúvidas na NF apontadas pela IA. Marque "Estou ciente" para prosseguir.');
+        toastMessages.warning('Há dúvidas na NF apontadas pela IA. Marque "Estou ciente" para prosseguir.');
         return;
       }
     }
@@ -190,14 +190,23 @@ export default function AprovacoesFila({
         comentario,
       });
 
-      const msg = action === 'approve_coord' ? 'Solicitação aprovada com sucesso!' :
-                  action === 'return_to_user' ? 'Solicitação devolvida ao usuário.' :
-                  'Solicitação recusada.';
-      toast.success(msg);
+      if (action === 'approve_coord') {
+        toastMessages.approveSuccess();
+      } else if (action === 'return_to_user') {
+        toastMessages.info('Solicitação devolvida ao usuário.');
+      } else {
+        toastMessages.rejectSuccess();
+      }
       await onRefresh?.();
 
     } catch (e) {
-      toast.error('Erro: ' + (e?.message || e));
+      if (action === 'approve_coord') {
+        toastMessages.approveFailed(e?.message);
+      } else if (action === 'return_to_user') {
+        toastMessages.warning('Erro ao devolver: ' + (e?.message || e));
+      } else {
+        toastMessages.rejectFailed(e?.message);
+      }
     }
 
     setLoading((l) => ({ ...l, [purchase.id]: false }));

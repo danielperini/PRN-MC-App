@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { FileDown, Loader, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { toastMessages } from '@/lib/toastMessages';
 import PhotoSelectorModal from './PhotoSelectorModal';
 
 export default function PDFExportButton({ reportId, reportProtocolo, disabled = false }) {
@@ -30,12 +30,12 @@ export default function PDFExportButton({ reportId, reportProtocolo, disabled = 
         window.URL.revokeObjectURL(url);
         document.body.removeChild(link);
 
-        toast.success('Relatório exportado com sucesso');
+        toastMessages.pdfGenerateSuccess();
         setSelectedPhotoIds([]);
       }
     } catch (error) {
       console.error('Erro ao exportar PDF:', error);
-      toast.error('Erro ao exportar relatório');
+      toastMessages.pdfGenerateFailed(error?.message);
     } finally {
       setIsExporting(false);
     }
@@ -50,30 +50,27 @@ export default function PDFExportButton({ reportId, reportProtocolo, disabled = 
           variant="outline"
           className="gap-2"
           title="Adicionar fotos ao cabeçalho">
-          
           <Image className="w-4 h-4" />
           {selectedPhotoIds.length > 0 ? `${selectedPhotoIds.length} foto(s)` : 'Adicionar Fotos'}
         </Button>
 
-        
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
+        <Button
+          onClick={handleExport}
+          disabled={disabled || isExporting}
+          className="gap-2"
+        >
+          {isExporting ? (
+            <>
+              <Loader className="w-4 h-4 animate-spin" />
+              Gerando PDF...
+            </>
+          ) : (
+            <>
+              <FileDown className="w-4 h-4" />
+              Exportar PDF
+            </>
+          )}
+        </Button>
       </div>
 
       <PhotoSelectorModal
@@ -83,6 +80,6 @@ export default function PDFExportButton({ reportId, reportProtocolo, disabled = 
         selectedPhotoIds={selectedPhotoIds}
         onSelect={setSelectedPhotoIds} />
       
-    </>);
-
+    </>
+  );
 }

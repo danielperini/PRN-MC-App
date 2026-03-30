@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { toastMessages } from '@/lib/toastMessages';
 import {
   Select,
   SelectContent,
@@ -11,7 +12,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2, X } from 'lucide-react';
-import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 
 const CENTROS = ['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Publicações', 'Geral'];
@@ -115,7 +115,7 @@ export default function PurchaseFormDialog({
   const handleSave = async () => {
     const erro = validateFinanceiro();
     if (erro) {
-      toast.error(erro);
+      toastMessages.validationError(erro);
       return;
     }
 
@@ -134,11 +134,11 @@ export default function PurchaseFormDialog({
         await base44.entities.PurchaseRequest.create(payload);
       }
 
-      toast.success('Compra salva com sucesso');
+      toastMessages.saveSuccess();
       onSuccess();
 
     } catch (e) {
-      toast.error(e.message);
+      toastMessages.saveFailed(e?.message);
     }
 
     setSaving(false);
