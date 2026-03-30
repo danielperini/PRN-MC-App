@@ -363,6 +363,18 @@ function ComprasInner() {
     staleTime: 0,
   });
 
+  const { data: rubricasForTotalUtilizado = [] } = useQuery({
+    queryKey: ['rubricas-total-utilizado'],
+    queryFn: async () => {
+      try {
+        return await base44.entities.Rubrica.list('rubrica', 200);
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!currentUser,
+  });
+
   const purchasesWithFlags = useMemo(() => {
     return (purchases || []).map((p) => {
       const hasBudgetline = !!getPurchaseBudgetlineId(p);
@@ -452,12 +464,9 @@ function ComprasInner() {
   ).length;
 
   const totalUtilizado = useMemo(() => {
-    return (purchases || [])
-      .filter((p) =>
-        ['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO'].includes(p.status)
-      )
-      .reduce((s, p) => s + getPurchaseValue(p), 0);
-  }, [purchases]);
+    return (rubricasForTotalUtilizado || [])
+      .reduce((s, r) => s + (r.valor_utilizado || 0), 0);
+  }, [rubricasForTotalUtilizado]);
 
   const TOTAL_PREVISTO = 1320000;
 
