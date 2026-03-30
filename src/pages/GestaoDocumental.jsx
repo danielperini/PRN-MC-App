@@ -21,7 +21,6 @@ import {
   Filter,
   Trash2,
 } from 'lucide-react';
-import { useState } from 'react';
 import { toast } from 'sonner';
 import RequireAuth from '@/components/auth/RequireAuth';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
@@ -297,5 +296,7 @@ export default function GestaoDocumental() {
           </div>
           </div>
           </RequireAuth>
+          );
+          }
   );
 }
