@@ -41,7 +41,7 @@ export default function RubricasSummary() {
             <div>
               <p className="text-xs text-gray-600 mb-1">Total Orçado</p>
               <p className="text-2xl font-bold text-black">
-                R$ {(summary.totalOrcado / 1000).toFixed(1)}k
+                R$ {summary.totalOrcado.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
               </p>
             </div>
             <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
@@ -55,7 +55,7 @@ export default function RubricasSummary() {
             <div>
               <p className="text-xs text-gray-600 mb-1">Total Utilizado</p>
               <p className="text-2xl font-bold text-amber-700">
-                R$ {(summary.totalUtilizado / 1000).toFixed(1)}k
+                R$ {summary.totalUtilizado.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
               </p>
               <p className="text-xs text-amber-600 mt-1">{summary.percentualExecucao.toFixed(1)}% execução</p>
             </div>
@@ -70,7 +70,7 @@ export default function RubricasSummary() {
             <div>
               <p className="text-xs text-gray-600 mb-1">Saldo Disponível</p>
               <p className="text-2xl font-bold text-green-700">
-                R$ {(summary.totalSaldo / 1000).toFixed(1)}k
+                R$ {summary.totalSaldo.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
               </p>
               <p className="text-xs text-green-600 mt-1">{(100 - summary.percentualExecucao).toFixed(1)}% livre</p>
             </div>
