@@ -353,11 +353,8 @@ export default function DashboardPatrocinador() {
           </div>
 
           {data.rubricas.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Gráfico Previsto */}
-              <div className="h-96 border-2 border-black rounded-lg p-4 bg-white">
-                <h3 className="text-sm font-semibold text-black mb-3">Orçamento Previsto</h3>
-              <ResponsiveContainer width="100%" height="calc(100% - 32px)">
+            <div className="h-96 border-2 border-black rounded-lg p-4 bg-white">
+              <ResponsiveContainer width="100%" height="100%">
                 {chartTypeOrcamento === 'bar' ? (
                   <BarChart data={data.rubricas} margin={{ top: 20, right: 30, left: 0, bottom: 80 }}>
                     <CartesianGrid strokeDasharray="0" stroke="#000000" strokeWidth={1.5} />
@@ -384,8 +381,7 @@ export default function DashboardPatrocinador() {
                     <Bar dataKey="utilizado" fill="#000000" stroke="#000000" strokeWidth={2} name="Utilizado" />
                   </BarChart>
                 ) : (
-                  // Gráfico de pizza previsto
-                  <PieChart>
+                   <PieChart>
                      <Pie
                        data={data.rubricas}
                        cx="50%"
@@ -414,54 +410,11 @@ export default function DashboardPatrocinador() {
                        formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
                        contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}}
                      />
-                     </PieChart>
-                     )}
-                     </ResponsiveContainer>
-                     </div>
-
-                     {/* Gráfico Saldo */}
-                     {chartTypeOrcamento === 'pie' && (
-                     <div className="h-96 border-2 border-black rounded-lg p-4 bg-white">
-                     <h3 className="text-sm font-semibold text-black mb-3">Saldo Disponível</h3>
-                     <ResponsiveContainer width="100%" height="calc(100% - 32px)">
-                     <PieChart>
-                       <Pie
-                         data={data.rubricas.map(r => ({
-                           ...r,
-                           saldo: r.previsto - r.utilizado
-                         }))}
-                         cx="50%"
-                         cy="50%"
-                         labelLine={false}
-                         label={false}
-                         outerRadius={100}
-                         fill="#000000"
-                         dataKey="saldo"
-                         nameKey="nome"
-                       >
-                         {data.rubricas.map((entry, index) => {
-                           const colors = ['#FFD700', '#FF6B6B', '#4169E1', '#32CD32', '#FF8C00', '#DC143C', '#00CED1', '#9370DB', '#FF1493', '#20B2AA'];
-                           return (
-                             <Cell
-                               key={`cell-${index}`}
-                               fill={colors[index % colors.length]}
-                               stroke="#000000"
-                               strokeWidth={2}
-                             />
-                           );
-                         })}
-                       </Pie>
-                       <Legend wrapperStyle={{fontSize: '11px'}} />
-                       <Tooltip 
-                         formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
-                         contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}}
-                       />
-                     </PieChart>
-                     </ResponsiveContainer>
-                     </div>
-                     )}
-                     </div>
-                     )}
+                   </PieChart>
+                 )}
+              </ResponsiveContainer>
+            </div>
+          )}
         </CardContent>
       </Card>
 
