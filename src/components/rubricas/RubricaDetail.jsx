@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import LancarValorDialog from './LancarValorDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -37,6 +38,8 @@ export default function RubricaDetail({ rubrica, onClose }) {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [showLancarValor, setShowLancarValor] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const [formData, setFormData] = useState({
     valor: '',
     data_lancamento: todayIso(),
@@ -46,6 +49,10 @@ export default function RubricaDetail({ rubrica, onClose }) {
   });
 
   const queryClient = useQueryClient();
+
+  React.useEffect(() => {
+    base44.auth.me().then(setCurrentUser).catch(() => setCurrentUser(null));
+  }, []);
 
   const rubricaId = rubrica?.id;
   const nomeRubrica = rubrica?.rubrica || 'Rubrica';
@@ -344,7 +351,7 @@ export default function RubricaDetail({ rubrica, onClose }) {
         Este lançamento é apenas para ajuste manual excepcional deste mês. Depois, o fluxo normal volta a valer.
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <Button
           onClick={() => setShowForm(!showForm)}
           className="bg-black hover:bg-gray-800 text-white gap-2"
@@ -352,6 +359,15 @@ export default function RubricaDetail({ rubrica, onClose }) {
           <Plus className="w-4 h-4" />
           {showForm ? 'Fechar' : 'Adicionar Lançamento'}
         </Button>
+
+        {currentUser?.role === 'COORDENADOR' && (
+          <Button
+            onClick={() => setShowLancarValor(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+          >
+            Lançar Valor
+          </Button>
+        )}
 
         {onClose && (
           <Button variant="outline" onClick={onClose}>
@@ -520,6 +536,15 @@ export default function RubricaDetail({ rubrica, onClose }) {
           </div>
         )}
       </div>
+
+      <LancarValorDialog
+        rubrica={rubrica}
+        isOpen={showLancarValor}
+        onClose={() => setShowLancarValor(false)}
+        onSuccess={async () => {
+          await invalidateRubricaQueries();
+        }}
+      />
 
       <div>
         <h3 className="text-lg font-semibold text-black mb-4">
