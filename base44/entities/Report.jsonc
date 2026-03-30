@@ -1,0 +1,161 @@
+{
+  "name": "Report",
+  "type": "object",
+  "properties": {
+    "numero_protocolo": {
+      "type": "string",
+      "description": "N\u00famero de protocolo \u00fanico do relat\u00f3rio no formato MC-MESANO-XXXXX"
+    },
+    "author_name": {
+      "type": "string",
+      "description": "Nome do profissional"
+    },
+    "author_role": {
+      "type": "string",
+      "enum": [
+        "COORDENADOR",
+        "PROFISSIONAL",
+        "ADMIN"
+      ],
+      "description": "Papel do autor"
+    },
+    "funcao": {
+      "type": "string",
+      "description": "Fun\u00e7\u00e3o do profissional"
+    },
+    "museu": {
+      "type": "string",
+      "description": "Museu principal"
+    },
+    "museu_secundario": {
+      "type": "string",
+      "description": "Museu secund\u00e1rio (opcional)"
+    },
+    "equipe": {
+      "type": "string",
+      "description": "Equipe do profissional"
+    },
+    "mes_referencia": {
+      "type": "string",
+      "enum": [
+        "Janeiro",
+        "Fevereiro",
+        "Mar\u00e7o",
+        "Abril",
+        "Maio",
+        "Junho",
+        "Julho",
+        "Agosto",
+        "Setembro",
+        "Outubro",
+        "Novembro",
+        "Dezembro"
+      ],
+      "description": "M\u00eas de refer\u00eancia"
+    },
+    "ano": {
+      "type": "number",
+      "default": 2026,
+      "description": "Ano de refer\u00eancia"
+    },
+    "resumo_executivo": {
+      "type": "string",
+      "description": "Resumo executivo do m\u00eas"
+    },
+    "avaliacao_pontos_positivos": {
+      "type": "string",
+      "description": "Pontos positivos do m\u00eas"
+    },
+    "avaliacao_desafios": {
+      "type": "string",
+      "description": "Desafios enfrentados"
+    },
+    "avaliacao_sugestoes": {
+      "type": "string",
+      "description": "Sugest\u00f5es de melhoria"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "SUBMITTED",
+        "IN_REVIEW",
+        "RETURNED",
+        "APPROVED",
+        "ARCHIVED"
+      ],
+      "default": "DRAFT",
+      "description": "Status do relat\u00f3rio no workflow"
+    },
+    "review_status": {
+      "type": "string",
+      "enum": [
+        "aguardando_revisao",
+        "revisao_concluida",
+        "aguardando_aprovacao_final"
+      ],
+      "default": "aguardando_revisao",
+      "description": "Status granular da revis\u00e3o"
+    },
+    "return_comment": {
+      "type": "string",
+      "description": "Coment\u00e1rio de devolu\u00e7\u00e3o pelo coordenador"
+    },
+    "reviewer_email": {
+      "type": "string",
+      "description": "Email do coordenador respons\u00e1vel pela revis\u00e3o"
+    },
+    "reviewer_name": {
+      "type": "string",
+      "description": "Nome do coordenador respons\u00e1vel pela revis\u00e3o"
+    },
+    "delegated_to_email": {
+      "type": "string",
+      "description": "Email do coordenador para o qual a revis\u00e3o foi delegada"
+    },
+    "delegated_to_name": {
+      "type": "string",
+      "description": "Nome do coordenador para o qual a revis\u00e3o foi delegada"
+    },
+    "atividades": {
+      "type": "array",
+      "description": "Lista de atividades executadas no m\u00eas",
+      "items": {
+        "type": "object"
+      }
+    },
+    "oportunidades": {
+      "type": "array",
+      "description": "Oportunidades identificadas no m\u00eas",
+      "items": {
+        "type": "object"
+      }
+    },
+    "depoimentos": {
+      "type": "array",
+      "description": "Depoimentos ou fatos marcantes do m\u00eas (m\u00e1x 5)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "texto": {
+            "type": "string"
+          },
+          "autor": {
+            "type": "string"
+          },
+          "data_criacao": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "author_name",
+    "museu",
+    "mes_referencia",
+    "ano",
+    "status"
+  ],
+  "rls": {}
+}

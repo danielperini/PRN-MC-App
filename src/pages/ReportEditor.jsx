@@ -32,6 +32,7 @@ import SaveTemplateDialog from '../components/templates/SaveTemplateDialog';
 import LoadFromTemplateDialog from '../components/templates/LoadFromTemplateDialog';
 import AttachmentsSection from '../components/reports/AttachmentsSection';
 import ConsolidatedExportDialog from '../components/reports/ConsolidatedExportDialog';
+import DepoimentosSection from '../components/reports/DepoimentosSection';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -52,6 +53,7 @@ const EMPTY_FORM = {
   atividades: [],
   oportunidades: [],
   momentos: [],
+  depoimentos: [],
   avaliacao_pontos_positivos: '',
   avaliacao_desafios: '',
   avaliacao_sugestoes: '',
@@ -118,6 +120,10 @@ function ReportEditorInner() {
         next.momentos = value.map((item) => ({ ...item }));
       }
 
+      if (key === 'depoimentos' && Array.isArray(value)) {
+        next.depoimentos = value.map((item) => ({ ...item }));
+      }
+
       return next;
     });
   };
@@ -168,6 +174,9 @@ function ReportEditorInner() {
         : [],
       momentos: Array.isArray(reportData.momentos)
         ? reportData.momentos.map((item) => ({ ...item }))
+        : [],
+      depoimentos: Array.isArray(reportData.depoimentos)
+        ? reportData.depoimentos.map((item) => ({ ...item }))
         : []
     });
 
@@ -492,6 +501,7 @@ function ReportEditorInner() {
             <TabsTrigger value="identificacao">Identificação</TabsTrigger>
             <TabsTrigger value="atividades">Atividades</TabsTrigger>
             <TabsTrigger value="oportunidades">Oportunidades</TabsTrigger>
+            <TabsTrigger value="depoimentos">Depoimentos</TabsTrigger>
             <TabsTrigger value="avaliacao">Avaliação</TabsTrigger>
             <TabsTrigger value="anexos">Anexos</TabsTrigger>
             <TabsTrigger value="comentarios">Comentários</TabsTrigger>
@@ -650,9 +660,18 @@ function ReportEditorInner() {
             </section>
           </TabsContent>
 
+          <TabsContent value="depoimentos">
+           <DepoimentosSection
+             depoimentos={formData.depoimentos || []}
+             onChange={(updatedDepoimentos) => set('depoimentos', updatedDepoimentos)}
+             canEdit={canEdit}
+             museu={formData.museu}
+           />
+          </TabsContent>
+
           <TabsContent value="avaliacao">
-            <section className="space-y-6">
-              <SectionTitle>Avaliação do Mês</SectionTitle>
+           <section className="space-y-6">
+             <SectionTitle>Avaliação do Mês</SectionTitle>
 
               <div className="space-y-4">
                 <div className="space-y-1.5">
