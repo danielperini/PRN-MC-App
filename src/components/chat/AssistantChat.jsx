@@ -149,10 +149,10 @@ export default function AssistantChat() {
 
   async function buscarContexto(pergunta) {
     try {
-      const [docs, chunks] = await withTimeout(
+      const [docs, programacoes] = await withTimeout(
         Promise.all([
           base44.entities.KnowledgeDocument.list('-created_date', 120),
-          base44.entities.KnowledgeChunk.list('-created_date', 700),
+          base44.entities.Programacao.list('-data_inicio', 500),
         ]),
         15000,
         'Busca da base de conhecimento'
@@ -164,89 +164,97 @@ export default function AssistantChat() {
         return acc;
       }, {});
 
-      const chunksAtivos = (chunks || []).filter((chunk) => {
-        const chunkAtivo = chunk?.ativo !== false;
-        const docAtivo =
-          !chunk?.knowledge_document_id || !!docsById[chunk.knowledge_document_id];
-        return chunkAtivo && docAtivo;
-      });
-
-      const rankedChunks = chunksAtivos
-        .map((chunk) => ({
-          ...chunk,
-          _score: scoreChunk(chunk, pergunta),
+      // Buscar contexto em documentos
+      const rankedDocs = docsAtivos
+        .map((doc) => ({
+          ...doc,
+          _score: scoreText(
+            [doc?.titulo, doc?.categoria, doc?.tags, doc?.resumo_ia, doc?.conteudo_extraido]
+              .filter(Boolean)
+              .join(' '),
+            pergunta
+          ) + (isManualLike(doc) ? 15 : 0),
         }))
-        .filter((chunk) => chunk._score > 0)
+        .filter((doc) => doc._score > 0)
         .sort((a, b) => b._score - a._score);
 
-      const manualChunks = rankedChunks.filter((chunk) => isManualLike(chunk)).slice(0, 3);
-      const topChunks = rankedChunks.slice(0, 6);
+      // Buscar contexto em programações
+      const rankedProgramacoes = (programacoes || [])
+        .map((prog) => ({
+          ...prog,
+          _score: scoreText(
+            [prog?.titulo, prog?.nome_acao, prog?.sinopse, prog?.descricao, prog?.data, prog?.horario, prog?.local]
+              .filter(Boolean)
+              .join(' '),
+            pergunta
+          ),
+          _type: 'programacao',
+        }))
+        .filter((prog) => prog._score > 0)
+        .sort((a, b) => b._score - a._score)
+        .slice(0, 5);
 
-      const selectedChunks = dedupe(
-        [...manualChunks, ...topChunks],
-        (item) =>
-          `${item?.knowledge_document_id || 'x'}-${item?.chunk_index || item?.texto_chunk?.slice(0, 80) || ''}`
-      ).slice(0, 7);
+      const topDocs = rankedDocs.slice(0, 3);
+      const selectedItems = [...topDocs, ...rankedProgramacoes].slice(0, 7);
 
-      if (selectedChunks.length > 0) {
-        return selectedChunks
-          .map((chunk, index) => {
-            const doc =
-              docsById[chunk?.knowledge_document_id] ||
-              docsById[chunk?.document_id] ||
-              null;
-
-            const title =
-              doc?.titulo ||
-              chunk?.document_title ||
-              chunk?.titulo ||
-              'Documento sem título';
-
-            const category = doc?.categoria || chunk?.categoria || 'Sem categoria';
-            const tags = chunk?.tags || doc?.tags || '';
-            const resumo = doc?.resumo_ia || '';
-
+      if (selectedItems.length > 0) {
+        return selectedItems
+          .map((item, index) => {
+            if (item._type === 'programacao') {
+              return `
+[Programação ${index + 1}]
+Ação: ${item?.titulo || item?.nome_acao || 'Sem título'}
+Data: ${item?.data || 'Data não especificada'}
+Horário: ${item?.horario || 'Horário não especificado'}
+Local: ${item?.local || 'Local não especificado'}
+Museu: ${item?.museu || 'Não especificado'}
+Sinopse: ${item?.sinopse || item?.descricao || ''}
+`.trim();
+            }
             return `
-[Contexto ${index + 1}]
-Documento: ${title}
-Categoria: ${category}
-${tags ? `Tags: ${tags}` : ''}
-${resumo ? `Resumo: ${resumo}` : ''}
-Trecho:
-${chunk?.texto_chunk || ''}
+[Documento ${index + 1}]
+Título: ${item?.titulo || 'Documento sem título'}
+Categoria: ${item?.categoria || 'Sem categoria'}
+${item?.tags ? `Tags: ${item.tags}` : ''}
+${item?.resumo_ia ? `Resumo: ${item.resumo_ia}` : ''}
+Conteúdo:
+${(item?.conteudo_extraido || '').slice(0, 2000)}
 `.trim();
           })
           .join('\n\n');
       }
 
-      const fallbackDocs = docsAtivos
-        .map((doc) => ({
-          ...doc,
-          _score:
-            scoreText(
-              [doc?.titulo, doc?.categoria, doc?.tags, doc?.resumo_ia, doc?.conteudo_extraido]
-                .filter(Boolean)
-                .join(' '),
-              pergunta
-            ) + (isManualLike(doc) ? 15 : 0),
-        }))
-        .sort((a, b) => b._score - a._score)
-        .slice(0, 4);
+      // Fallback: documentos + programações gerais
+      const fallbackDocs = rankedDocs.slice(0, 3);
+      const fallbackProgramacoes = rankedProgramacoes.slice(0, 2);
 
-      if (fallbackDocs.length === 0) return '';
+      if (fallbackDocs.length === 0 && fallbackProgramacoes.length === 0) return '';
 
-      return fallbackDocs
-        .map(
+      return [
+        ...fallbackDocs.map(
           (doc, index) => `
 [Documento ${index + 1}]
 Título: ${doc?.titulo || 'Documento sem título'}
 Categoria: ${doc?.categoria || 'Sem categoria'}
 ${doc?.tags ? `Tags: ${doc.tags}` : ''}
 ${doc?.resumo_ia ? `Resumo: ${doc.resumo_ia}` : ''}
-Trecho:
-${(doc?.conteudo_extraido || '').slice(0, 3500)}
+Conteúdo:
+${(doc?.conteudo_extraido || '').slice(0, 2000)}
 `.trim()
-        )
+        ),
+        ...fallbackProgramacoes.map(
+          (prog, index) => `
+[Programação ${index + 1}]
+Ação: ${prog?.titulo || prog?.nome_acao || 'Sem título'}
+Data: ${prog?.data || 'Data não especificada'}
+Horário: ${prog?.horario || 'Horário não especificado'}
+Local: ${prog?.local || 'Local não especificado'}
+Museu: ${prog?.museu || 'Não especificado'}
+Descrição: ${(prog?.sinopse || prog?.descricao || '').slice(0, 1000)}
+`.trim()
+        ),
+      ]
+        .filter(Boolean)
         .join('\n\n');
     } catch (error) {
       console.error('Erro ao buscar contexto:', error);
