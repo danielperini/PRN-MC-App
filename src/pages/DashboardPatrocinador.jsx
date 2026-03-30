@@ -17,6 +17,8 @@ export default function DashboardPatrocinador() {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [filterTipoAtividade, setFilterTipoAtividade] = useState('todas');
+  const [chartTypeOrcamento, setChartTypeOrcamento] = useState('bar');
+  const [filterCategoriaAtividade, setFilterCategoriaAtividade] = useState('todas');
   const [data, setData] = useState({
     periodo: '',
     museus: ['MIS', 'MHAB', 'MUMO'],
@@ -84,6 +86,7 @@ export default function DashboardPatrocinador() {
       const dadosClassificacao = Object.entries(atividadesClassificacao).map(([nome, quantidade]) => ({
         nome,
         quantidade,
+        display: nome === 'META' ? 'Metas' : nome === 'ROTINA' ? 'Rotina' : nome === 'EXTRA' ? 'Extra' : nome,
       }));
 
       // Total público
@@ -148,6 +151,7 @@ export default function DashboardPatrocinador() {
         relatoriosAprovados: reportsRaw?.length || 0,
         dadosMensais,
         dadosClassificacao,
+        allActivitiesRaw: activitiesRaw || [],
       });
       setLastUpdate(new Date());
     } catch (error) {
@@ -181,8 +185,8 @@ export default function DashboardPatrocinador() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="flex-1">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
           <label className="text-sm font-medium text-slate-700 mb-2 block">Período</label>
           <Select defaultValue="todos">
             <SelectTrigger>
@@ -196,8 +200,8 @@ export default function DashboardPatrocinador() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex-1">
-          <label className="text-sm font-medium text-slate-700 mb-2 block">Tipo de Análise</label>
+        <div>
+          <label className="text-sm font-medium text-slate-700 mb-2 block">Classificação</label>
           <Select defaultValue="todas">
             <SelectTrigger>
               <SelectValue placeholder="Selecionar análise" />
@@ -207,6 +211,21 @@ export default function DashboardPatrocinador() {
               <SelectItem value="META">Apenas Metas</SelectItem>
               <SelectItem value="ROTINA">Apenas Rotina</SelectItem>
               <SelectItem value="EXTRA">Apenas Extra</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-slate-700 mb-2 block">Tipo de Atividade</label>
+          <Select value={filterCategoriaAtividade} onValueChange={setFilterCategoriaAtividade}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecionar tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas</SelectItem>
+              <SelectItem value="Atividades Educativas">Educativas</SelectItem>
+              <SelectItem value="Consultorias">Consultorias</SelectItem>
+              <SelectItem value="Museus">Museus</SelectItem>
+              <SelectItem value="Variados">Variados</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -268,14 +287,32 @@ export default function DashboardPatrocinador() {
       </div>
 
       {/* Orçamento Executivo */}
-      <Card>
+      <Card className="border-2 border-black">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-3">
             <CardTitle className="flex items-center gap-2">
               <Target className="w-5 h-5" />
               Orçamento Executivo
             </CardTitle>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex gap-1 bg-white rounded border-2 border-black p-1">
+                <Button
+                  size="sm"
+                  variant={chartTypeOrcamento === 'bar' ? 'default' : 'ghost'}
+                  onClick={() => setChartTypeOrcamento('bar')}
+                  className={`text-xs ${chartTypeOrcamento === 'bar' ? 'bg-black text-white' : 'text-black hover:bg-gray-100'}`}
+                >
+                  Colunas
+                </Button>
+                <Button
+                  size="sm"
+                  variant={chartTypeOrcamento === 'pie' ? 'default' : 'ghost'}
+                  onClick={() => setChartTypeOrcamento('pie')}
+                  className={`text-xs ${chartTypeOrcamento === 'pie' ? 'bg-black text-white' : 'text-black hover:bg-gray-100'}`}
+                >
+                  Pizza
+                </Button>
+              </div>
               {lastUpdate && (
                 <span className="text-xs text-slate-500">
                   Atualizado: {lastUpdate.toLocaleString('pt-BR')}
@@ -295,38 +332,81 @@ export default function DashboardPatrocinador() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-slate-50 rounded-lg p-4">
-              <p className="text-sm text-slate-600 mb-1">Previsto</p>
-              <p className="text-xl font-bold text-slate-900">
+            <div className="bg-white rounded-lg p-4 border-2 border-black">
+              <p className="text-sm font-medium text-black mb-1">Previsto</p>
+              <p className="text-xl font-bold text-black">
                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.totalOrcado)}
               </p>
             </div>
-            <div className="bg-blue-50 rounded-lg p-4">
-              <p className="text-sm text-slate-600 mb-1">Utilizado</p>
-              <p className="text-xl font-bold text-blue-900">
+            <div className="bg-white rounded-lg p-4 border-2 border-black">
+              <p className="text-sm font-medium text-black mb-1">Utilizado</p>
+              <p className="text-xl font-bold text-black">
                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.totalUtilizado)}
               </p>
             </div>
-            <div className="bg-green-50 rounded-lg p-4">
-              <p className="text-sm text-slate-600 mb-1">Saldo</p>
-              <p className="text-xl font-bold text-green-900">
+            <div className="bg-white rounded-lg p-4 border-2 border-black">
+              <p className="text-sm font-medium text-black mb-1">Saldo</p>
+              <p className="text-xl font-bold text-black">
                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.totalOrcado - data.totalUtilizado)}
               </p>
             </div>
           </div>
 
           {data.rubricas.length > 0 && (
-            <div className="h-80">
+            <div className="h-96 border-2 border-black rounded-lg p-4 bg-white">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.rubricas}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="nome" angle={-45} textAnchor="end" height={100} />
-                  <YAxis />
-                  <Tooltip formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)} />
-                  <Legend />
-                  <Bar dataKey="previsto" fill="#94a3b8" name="Previsto" />
-                  <Bar dataKey="utilizado" fill="#3b82f6" name="Utilizado" />
-                </BarChart>
+                {chartTypeOrcamento === 'bar' ? (
+                  <BarChart data={data.rubricas} margin={{ top: 20, right: 30, left: 0, bottom: 80 }}>
+                    <CartesianGrid strokeDasharray="0" stroke="#000000" strokeWidth={1.5} />
+                    <XAxis 
+                      dataKey="nome" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={120}
+                      tick={{fontSize: 11, fill: '#000000'}}
+                      stroke="#000000"
+                      strokeWidth={2}
+                    />
+                    <YAxis 
+                      stroke="#000000" 
+                      strokeWidth={2}
+                      tick={{fill: '#000000'}}
+                    />
+                    <Tooltip 
+                      formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
+                      contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000'}}
+                    />
+                    <Legend />
+                    <Bar dataKey="previsto" fill="#ffffff" stroke="#000000" strokeWidth={2} name="Previsto" />
+                    <Bar dataKey="utilizado" fill="#000000" stroke="#000000" strokeWidth={2} name="Utilizado" />
+                  </BarChart>
+                ) : (
+                  <PieChart>
+                    <Pie
+                      data={data.rubricas}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={true}
+                      label={({ nome, previsto }) => `${nome}: ${(previsto / 1000).toFixed(1)}K`}
+                      outerRadius={100}
+                      fill="#000000"
+                      dataKey="previsto"
+                    >
+                      {data.rubricas.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={index % 2 === 0 ? '#000000' : '#ffffff'}
+                          stroke="#000000"
+                          strokeWidth={2}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
+                      contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000'}}
+                    />
+                  </PieChart>
+                )}
               </ResponsiveContainer>
             </div>
           )}
@@ -335,7 +415,7 @@ export default function DashboardPatrocinador() {
 
       {/* Atividades por Classificação */}
       {data.dadosClassificacao && data.dadosClassificacao.length > 0 && (
-        <Card>
+        <Card className="border-2 border-black">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Filter className="w-5 h-5" />
@@ -343,14 +423,23 @@ export default function DashboardPatrocinador() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
+            <div className="h-80 border-2 border-black rounded-lg p-4 bg-white">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.dadosClassificacao}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="nome" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="quantidade" fill="#8b5cf6" name="Quantidade" />
+                <BarChart data={data.dadosClassificacao} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="0" stroke="#000000" strokeWidth={1.5} />
+                  <XAxis 
+                    dataKey="display" 
+                    stroke="#000000" 
+                    strokeWidth={2}
+                    tick={{fill: '#000000'}}
+                  />
+                  <YAxis 
+                    stroke="#000000" 
+                    strokeWidth={2}
+                    tick={{fill: '#000000'}}
+                  />
+                  <Tooltip contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000'}} />
+                  <Bar dataKey="quantidade" fill="#000000" stroke="#000000" strokeWidth={2} name="Quantidade" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -360,7 +449,7 @@ export default function DashboardPatrocinador() {
 
       {/* Atividades por Mês */}
       {data.dadosMensais && data.dadosMensais.length > 0 && (
-        <Card>
+        <Card className="border-2 border-black">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="w-5 h-5" />
@@ -368,17 +457,35 @@ export default function DashboardPatrocinador() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
+            <div className="h-80 border-2 border-black rounded-lg p-4 bg-white">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data.dadosMensais}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="mes" />
-                  <YAxis yAxisId="left" label={{ value: 'Atividades', angle: -90, position: 'insideLeft' }} />
-                  <YAxis yAxisId="right" orientation="right" label={{ value: 'Público', angle: 90, position: 'insideRight' }} />
-                  <Tooltip />
+                <LineChart data={data.dadosMensais} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="0" stroke="#000000" strokeWidth={1.5} />
+                  <XAxis 
+                    dataKey="mes" 
+                    stroke="#000000" 
+                    strokeWidth={2}
+                    tick={{fill: '#000000'}}
+                  />
+                  <YAxis 
+                    yAxisId="left" 
+                    stroke="#000000" 
+                    strokeWidth={2}
+                    tick={{fill: '#000000'}}
+                    label={{ value: 'Atividades', angle: -90, position: 'insideLeft', fill: '#000000' }} 
+                  />
+                  <YAxis 
+                    yAxisId="right" 
+                    orientation="right" 
+                    stroke="#000000" 
+                    strokeWidth={2}
+                    tick={{fill: '#000000'}}
+                    label={{ value: 'Público', angle: 90, position: 'insideRight', fill: '#000000' }} 
+                  />
+                  <Tooltip contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000'}} />
                   <Legend />
-                  <Line yAxisId="left" type="monotone" dataKey="atividades" stroke="#3b82f6" name="Atividades" />
-                  <Line yAxisId="right" type="monotone" dataKey="publico" stroke="#10b981" name="Público" />
+                  <Line yAxisId="left" type="monotone" dataKey="atividades" stroke="#000000" strokeWidth={2.5} name="Atividades" />
+                  <Line yAxisId="right" type="monotone" dataKey="publico" stroke="#666666" strokeWidth={2.5} name="Público" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -388,9 +495,9 @@ export default function DashboardPatrocinador() {
 
       {/* Atividades por Tipo */}
       {data.atividades.length > 0 && (
-        <Card>
+        <Card className="border-2 border-black">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <CardTitle className="flex items-center gap-2">
                 <Award className="w-5 h-5" />
                 Atividades por Tipo
@@ -411,7 +518,7 @@ export default function DashboardPatrocinador() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
+            <div className="h-80 border-2 border-black rounded-lg p-4 bg-white">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -421,14 +528,19 @@ export default function DashboardPatrocinador() {
                     labelLine={false}
                     label={({ tipo, quantidade }) => `${tipo}: ${quantidade}`}
                     outerRadius={80}
-                    fill="#3b82f6"
+                    fill="#000000"
                     dataKey="quantidade"
                   >
                     {(filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter(a => a.tipo === filterTipoAtividade)).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][index % 5]} />
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={index % 2 === 0 ? '#000000' : '#cccccc'} 
+                        stroke="#000000" 
+                        strokeWidth={2}
+                      />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000'}} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -440,7 +552,7 @@ export default function DashboardPatrocinador() {
       <NewsCarousel />
 
       {/* Info Rodapé */}
-      <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 text-sm text-slate-600">
+      <div className="bg-white rounded-lg p-4 border-2 border-black text-sm text-black">
         <p className="font-medium mb-2">Sobre este painel</p>
         <p>
           Esse dashboard apresenta uma visão executiva e institucional do projeto Museus Centro. Os dados mostrados são filtrados
