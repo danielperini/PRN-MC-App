@@ -19,14 +19,20 @@ import {
   Clock,
   Search,
   Filter,
+  Trash2,
 } from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import RequireAuth from '@/components/auth/RequireAuth';
+import { useCurrentUser } from '@/components/auth/useCurrentUser';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 export default function GestaoDocumental() {
   const [search, setSearch] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('all');
   const [filtroStatus, setFiltroStatus] = useState('all');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const { user: currentUser } = useCurrentUser();
   const queryClient = useQueryClient();
 
   const { data: documents = [], isLoading } = useQuery({
@@ -240,6 +246,15 @@ export default function GestaoDocumental() {
                             >
                               <Download className="w-4 h-4 text-gray-600" />
                             </a>
+                            {currentUser?.role === 'COORDENADOR_GERAL' && (
+                              <button
+                                onClick={() => setDeleteTarget(doc)}
+                                className="p-2 hover:bg-red-50 rounded transition"
+                                title="Deletar"
+                              >
+                                <Trash2 className="w-4 h-4 text-red-600" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -249,8 +264,38 @@ export default function GestaoDocumental() {
               </table>
             </div>
           )}
-        </div>
-      </div>
-    </RequireAuth>
+
+          {/* Delete Dialog */}
+          <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Deletar documento?</AlertDialogTitle>
+              </AlertDialogHeader>
+              <p className="text-sm text-gray-600">
+                Tem certeza que deseja deletar <strong>{deleteTarget?.nome_arquivo}</strong>? Esta ação não pode ser desfeita.
+              </p>
+              <div className="flex gap-3 justify-end mt-6">
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  onClick={async () => {
+                    try {
+                      await base44.entities.PurchaseDocument.delete(deleteTarget.id);
+                      toast.success('Documento deletado.');
+                      queryClient.invalidateQueries();
+                      setDeleteTarget(null);
+                    } catch (e) {
+                      toast.error(e?.message || 'Erro ao deletar.');
+                    }
+                  }}
+                >
+                  Deletar
+                </AlertDialogAction>
+              </div>
+            </AlertDialogContent>
+          </AlertDialog>
+          </div>
+          </div>
+          </RequireAuth>
   );
 }
