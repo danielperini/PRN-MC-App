@@ -202,19 +202,19 @@ export default function DashboardPatrocinador() {
             <div className="bg-slate-50 rounded-lg p-4">
               <p className="text-sm text-slate-600 mb-1">Previsto</p>
               <p className="text-xl font-bold text-slate-900">
-                R$ {(data.totalOrcado / 1000).toFixed(1)}K
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.totalOrcado)}
               </p>
             </div>
             <div className="bg-blue-50 rounded-lg p-4">
               <p className="text-sm text-slate-600 mb-1">Utilizado</p>
               <p className="text-xl font-bold text-blue-900">
-                R$ {(data.totalUtilizado / 1000).toFixed(1)}K
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.totalUtilizado)}
               </p>
             </div>
             <div className="bg-green-50 rounded-lg p-4">
               <p className="text-sm text-slate-600 mb-1">Saldo</p>
               <p className="text-xl font-bold text-green-900">
-                R$ {((data.totalOrcado - data.totalUtilizado) / 1000).toFixed(1)}K
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.totalOrcado - data.totalUtilizado)}
               </p>
             </div>
           </div>
@@ -226,7 +226,7 @@ export default function DashboardPatrocinador() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="nome" angle={-45} textAnchor="end" height={100} />
                   <YAxis />
-                  <Tooltip formatter={(value) => `R$ ${(value / 1000).toFixed(1)}K`} />
+                  <Tooltip formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)} />
                   <Legend />
                   <Bar dataKey="previsto" fill="#94a3b8" name="Previsto" />
                   <Bar dataKey="utilizado" fill="#3b82f6" name="Utilizado" />
