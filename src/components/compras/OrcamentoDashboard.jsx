@@ -353,7 +353,7 @@ export default function OrcamentoDashboard({
             <span className="text-xs text-purple-700">Equipe</span>
           </div>
           <p className="text-xl font-bold text-purple-800">{fmt(totalEquipe)}</p>
-          <p className="text-xs text-purple-600">{pctEquipe.toFixed(1)}% do total</p>
+          <p className="text-xs text-purple-600">{pctEquipe.toFixed(1)}% Restantes</p>
         </div>
 
         <div className="p-5 border rounded-xl bg-red-50">
