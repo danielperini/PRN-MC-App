@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
 import LancarValorDialog from './LancarValorDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +40,7 @@ export default function RubricaDetail({ rubrica, onClose }) {
   const [deletingId, setDeletingId] = useState(null);
   const [showLancarValor, setShowLancarValor] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+
   const [formData, setFormData] = useState({
     valor: '',
     data_lancamento: todayIso(),
