@@ -391,6 +391,7 @@ export default function DashboardPatrocinador() {
                        outerRadius={100}
                        fill="#000000"
                        dataKey="previsto"
+                       nameKey="nome"
                      >
                        {data.rubricas.map((entry, index) => {
                          const colors = ['#FFD700', '#FF6B6B', '#4169E1', '#32CD32', '#FF8C00', '#DC143C', '#00CED1', '#9370DB', '#FF1493', '#20B2AA'];
@@ -534,6 +535,7 @@ export default function DashboardPatrocinador() {
                     outerRadius={80}
                     fill="#000000"
                     dataKey="quantidade"
+                    nameKey="tipo"
                   >
                     {(filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter(a => a.tipo === filterTipoAtividade)).map((entry, index) => {
                       const colors = ['#FFD700', '#FF6B6B', '#4169E1', '#32CD32', '#FF8C00', '#DC143C', '#00CED1', '#9370DB', '#FF1493', '#20B2AA'];
