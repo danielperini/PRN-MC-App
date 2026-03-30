@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Trash2, CalendarDays } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AtividadeCamposBasicos from './AtividadeCamposBasicos';
+import ActivityPhotoLinker from './ActivityPhotoLinker';
 
 const MESES_NUM = [
   'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -182,6 +183,16 @@ export default function AtividadesSection({
             tiposAcao={tiposAcao}
             onChange={(field, value) => updateAtividade(index, field, value)}
           />
+
+          {atividade.id && (
+            <div className="border-t pt-4 mt-4">
+              <ActivityPhotoLinker
+                activityId={atividade.id}
+                onPhotosChange={(fotos) => updateAtividade(index, 'fotos', fotos)}
+                disabled={!canEdit}
+              />
+            </div>
+          )}
         </div>
       ))}
 
