@@ -47,12 +47,14 @@ export const toastMessages = {
     toast.error(`Não foi possível vincular.${error ? ` Erro: ${error}` : ''}`),
   publishFailed: (error) => 
     toast.error(`Não foi possível publicar.${error ? ` Erro: ${error}` : ''}`),
+  createFailed: (error) => 
+   toast.error(`Erro ao processar.${error ? ` ${error}` : ''}`),
   permissionDenied: () => 
-    toast.error('Você não tem permissão para realizar esta ação.'),
+   toast.error('Você não tem permissão para realizar esta ação.'),
   validationError: (message) => 
     toast.error(message || 'Por favor, verifique os dados informados.'),
 
   // ⚠️ AVISOS
-  warning: (message) => toast.error(message),
+  warning: (message) => toast.warning(message),
   info: (message) => toast.info(message),
 };

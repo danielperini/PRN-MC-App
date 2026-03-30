@@ -3,7 +3,6 @@ import { base44 } from '@/api/base44Client';
 import { LogOut, UserCircle, Home, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { usePatrocinadorView } from '@/context/PatrocinadorViewContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
 import PendingActionsAlert from '@/components/notifications/PendingActionsAlert';
@@ -25,12 +24,12 @@ export default function TopNav({ currentUser }) {
 
       {/* Right side */}
       <div className="flex items-center gap-4 ml-auto">
-        <Link to={createPageUrl('Dashboard')}>
-          <Button variant="ghost" className="text-black hover:bg-black hover:text-white h-9 px-3 gap-1.5 text-xs font-medium" title="Voltar ao Dashboard">
-            <Home className="w-4 h-4" />
-            <span className="hidden sm:inline">Dashboard</span>
-          </Button>
-        </Link>
+        <Link to="/">
+           <Button variant="ghost" className="text-black hover:bg-black hover:text-white h-9 px-3 gap-1.5 text-xs font-medium" title="Voltar ao Dashboard">
+             <Home className="w-4 h-4" />
+             <span className="hidden sm:inline">Dashboard</span>
+           </Button>
+         </Link>
         {currentUser?.email && <PendingActionsAlert />}
         {currentUser?.email && <NotificationCenter />}
         {currentUser?.email && <PurchaseNotificationBell currentUser={currentUser} />}
@@ -47,7 +46,7 @@ export default function TopNav({ currentUser }) {
           </Button>
         )}
         
-        <Link to={createPageUrl('Perfil')}>
+        <Link to="/Perfil">
            <Button variant="ghost" size="icon" className="text-black hover:bg-black hover:text-white h-11 w-11">
              <UserCircle className="w-5 h-5" />
            </Button>
