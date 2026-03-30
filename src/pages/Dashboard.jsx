@@ -158,10 +158,12 @@ function DashboardInner() {
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-semibold text-black tracking-tight">
-              {showCoordView ? 'Painel da Coordenação' : 'Meu Painel'}
+              {showSponsorView ? 'Painel do Patrocinador Parceiro' : showCoordView ? 'Painel da Coordenação' : 'Meu Painel'}
             </h1>
             <p className="text-gray-500 mt-1 text-sm">
-              {showCoordView
+              {showSponsorView
+                ? 'Visão executiva do projeto com indicadores consolidados'
+                : showCoordView
                 ? 'Visão consolidada de todos os relatórios e atividades'
                 : `Olá, ${currentUser?.full_name || ''}! Gerencie seus relatórios mensais.`}
             </p>
@@ -217,7 +219,7 @@ function DashboardInner() {
         </div>
 
         {/* Aviso fixo - Atualizar Dados */}
-        {!dadosCompletos && (
+        {!dadosCompletos && !showSponsorView && (
           <div className="mb-4 p-4 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
