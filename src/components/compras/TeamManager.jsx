@@ -449,14 +449,23 @@ export default function TeamManager({ budgetLines = [] }) {
   }, [ownResumo]);
 
   const refreshAll = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['team-members'] }),
-      queryClient.invalidateQueries({ queryKey: ['team-payments-manager-all'] }),
-      queryClient.invalidateQueries({ queryKey: ['team-payments-pending'] }),
-      queryClient.invalidateQueries({ queryKey: ['team-payments'] }),
-      queryClient.invalidateQueries({ queryKey: ['team-payments-pending-review'] }),
-      queryClient.invalidateQueries({ queryKey: ['team-payments-member', ownMember?.id] }),
-    ]);
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['team-members'] }),
+        queryClient.invalidateQueries({ queryKey: ['team-payments-manager-all'] }),
+        queryClient.invalidateQueries({ queryKey: ['team-payments-pending'] }),
+        queryClient.invalidateQueries({ queryKey: ['team-payments'] }),
+        queryClient.invalidateQueries({ queryKey: ['team-payments-pending-review'] }),
+        queryClient.invalidateQueries({ queryKey: ['team-payments-member', ownMember?.id] }),
+      ]);
+
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['team-members'] }),
+        queryClient.refetchQueries({ queryKey: ['team-payments-manager-all'] }),
+      ]);
+    } catch (e) {
+      console.error('Erro ao atualizar dados:', e);
+    }
   };
 
   const handleDelete = async () => {
@@ -683,6 +692,7 @@ export default function TeamManager({ budgetLines = [] }) {
           setEditingMember(null);
         }}
         onSuccess={async () => {
+          toast.success('Membro adicionado e atualizado na lista');
           await refreshAll();
           setShowForm(false);
           setEditingMember(null);
