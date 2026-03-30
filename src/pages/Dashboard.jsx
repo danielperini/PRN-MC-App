@@ -206,11 +206,13 @@ function DashboardInner() {
             >
               <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
-            <Link to={createPageUrl('ReportEditor')}>
-              <Button className="bg-black hover:bg-gray-800 text-white gap-2">
-                <Plus className="w-4 h-4" />Novo Relatório
-              </Button>
-            </Link>
+            {!showSponsorView && (
+              <Link to={createPageUrl('ReportEditor')}>
+                <Button className="bg-black hover:bg-gray-800 text-white gap-2">
+                  <Plus className="w-4 h-4" />Novo Relatório
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
 
