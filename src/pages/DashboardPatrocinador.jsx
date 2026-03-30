@@ -363,20 +363,20 @@ export default function DashboardPatrocinador() {
                       angle={-45} 
                       textAnchor="end" 
                       height={120}
-                      tick={{fontSize: 11, fill: '#000000'}}
+                      tick={{fontSize: 9, fill: '#000000'}}
                       stroke="#000000"
                       strokeWidth={2}
                     />
                     <YAxis 
                       stroke="#000000" 
                       strokeWidth={2}
-                      tick={{fill: '#000000'}}
+                      tick={{fontSize: 9, fill: '#000000'}}
                     />
                     <Tooltip 
                       formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
-                      contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000'}}
+                      contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}}
                     />
-                    <Legend />
+                    <Legend wrapperStyle={{fontSize: '12px'}} />
                     <Bar dataKey="previsto" fill="#ffffff" stroke="#000000" strokeWidth={2} name="Previsto" />
                     <Bar dataKey="utilizado" fill="#000000" stroke="#000000" strokeWidth={2} name="Utilizado" />
                   </BarChart>
@@ -392,18 +392,21 @@ export default function DashboardPatrocinador() {
                       fill="#000000"
                       dataKey="previsto"
                     >
-                      {data.rubricas.map((entry, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={index % 2 === 0 ? '#000000' : '#ffffff'}
-                          stroke="#000000"
-                          strokeWidth={2}
-                        />
-                      ))}
+                      {data.rubricas.map((entry, index) => {
+                        const colors = ['#000000', '#333333', '#666666', '#999999', '#cccccc', '#1a1a1a', '#404040', '#595959'];
+                        return (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={colors[index % colors.length]}
+                            stroke="#000000"
+                            strokeWidth={2}
+                          />
+                        );
+                      })}
                     </Pie>
                     <Tooltip 
                       formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
-                      contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000'}}
+                      contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}}
                     />
                   </PieChart>
                 )}
@@ -431,14 +434,14 @@ export default function DashboardPatrocinador() {
                     dataKey="display" 
                     stroke="#000000" 
                     strokeWidth={2}
-                    tick={{fill: '#000000'}}
+                    tick={{fontSize: 9, fill: '#000000'}}
                   />
                   <YAxis 
                     stroke="#000000" 
                     strokeWidth={2}
-                    tick={{fill: '#000000'}}
+                    tick={{fontSize: 9, fill: '#000000'}}
                   />
-                  <Tooltip contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000'}} />
+                  <Tooltip contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}} />
                   <Bar dataKey="quantidade" fill="#000000" stroke="#000000" strokeWidth={2} name="Quantidade" />
                 </BarChart>
               </ResponsiveContainer>
@@ -465,25 +468,25 @@ export default function DashboardPatrocinador() {
                     dataKey="mes" 
                     stroke="#000000" 
                     strokeWidth={2}
-                    tick={{fill: '#000000'}}
+                    tick={{fontSize: 9, fill: '#000000'}}
                   />
                   <YAxis 
                     yAxisId="left" 
                     stroke="#000000" 
                     strokeWidth={2}
-                    tick={{fill: '#000000'}}
-                    label={{ value: 'Atividades', angle: -90, position: 'insideLeft', fill: '#000000' }} 
+                    tick={{fontSize: 9, fill: '#000000'}}
+                    label={{ value: 'Atividades', angle: -90, position: 'insideLeft', fill: '#000000', fontSize: 11 }} 
                   />
                   <YAxis 
                     yAxisId="right" 
                     orientation="right" 
                     stroke="#000000" 
                     strokeWidth={2}
-                    tick={{fill: '#000000'}}
-                    label={{ value: 'Público', angle: 90, position: 'insideRight', fill: '#000000' }} 
+                    tick={{fontSize: 9, fill: '#000000'}}
+                    label={{ value: 'Público', angle: 90, position: 'insideRight', fill: '#000000', fontSize: 11 }} 
                   />
-                  <Tooltip contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000'}} />
-                  <Legend />
+                  <Tooltip contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}} />
+                  <Legend wrapperStyle={{fontSize: '12px'}} />
                   <Line yAxisId="left" type="monotone" dataKey="atividades" stroke="#000000" strokeWidth={2.5} name="Atividades" />
                   <Line yAxisId="right" type="monotone" dataKey="publico" stroke="#666666" strokeWidth={2.5} name="Público" />
                 </LineChart>
@@ -531,16 +534,19 @@ export default function DashboardPatrocinador() {
                     fill="#000000"
                     dataKey="quantidade"
                   >
-                    {(filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter(a => a.tipo === filterTipoAtividade)).map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={index % 2 === 0 ? '#000000' : '#cccccc'} 
-                        stroke="#000000" 
-                        strokeWidth={2}
-                      />
-                    ))}
+                    {(filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter(a => a.tipo === filterTipoAtividade)).map((entry, index) => {
+                      const colors = ['#000000', '#1a1a1a', '#333333', '#4d4d4d', '#666666', '#808080', '#999999', '#b3b3b3', '#cccccc', '#e6e6e6'];
+                      return (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={colors[index % colors.length]}
+                          stroke="#000000" 
+                          strokeWidth={2}
+                        />
+                      );
+                    })}
                   </Pie>
-                  <Tooltip contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000'}} />
+                  <Tooltip contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
