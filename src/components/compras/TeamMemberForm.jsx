@@ -3,7 +3,6 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -17,8 +16,48 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+
+const CARGOS_FUNCOES = [
+  'Educador(a)',
+  'Produtor(a)',
+  'Assistente de Produção',
+  'Coordenador(a)',
+  'Coordenador(a) de Produção',
+  'Coordenador(a) Administrativo(a)',
+  'Coordenador(a) de Comunicação',
+  'Comunicador(a)',
+  'Designer',
+  'Fotógrafo(a)',
+  'Videomaker',
+  'Arte-educador(a)',
+  'Mediador(a)',
+  'Oficineiro(a)',
+  'Curador(a)',
+  'Pesquisador(a)',
+  'Assistente',
+  'Auxiliar',
+  'Prestador(a) de Serviço',
+  'Outro',
+];
+
+function normalizeBudgetLineId(value) {
+  return String(value || '').trim();
+}
+
+function getBudgetLineLabel(budgetLine) {
+  if (!budgetLine) return 'Rubrica';
+
+  const codigo = String(budgetLine.codigo || '').trim();
+  const descricao = String(
+    budgetLine.descricao || budgetLine.nome || budgetLine.name || ''
+  ).trim();
+
+  if (codigo && descricao) return `${codigo} — ${descricao}`;
+  return codigo || descricao || 'Rubrica';
+}
 
 export default function TeamMemberForm({
   isOpen,
@@ -27,20 +66,23 @@ export default function TeamMemberForm({
   editingMember = null,
   budgetLines = [],
 }) {
-  const [mode, setMode] = useState('select'); // select | form
+  const queryClient = useQueryClient();
+
+  const [mode, setMode] = useState('select');
   const [selectedUser, setSelectedUser] = useState('');
   const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
     user_email: '',
     user_name: '',
+    funcao: '',
     role: '',
     budgetline_id: '',
     parcelas: '',
     valor_parcela: '',
+    valor_total: '',
+    telefone: '',
   });
-
-  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!isOpen) {
@@ -49,18 +91,33 @@ export default function TeamMemberForm({
       setForm({
         user_email: '',
         user_name: '',
+        funcao: '',
         role: '',
         budgetline_id: '',
         parcelas: '',
         valor_parcela: '',
+        valor_total: '',
+        telefone: '',
       });
       setSaving(false);
+      return;
     }
 
-    if (editingMember && isOpen) {
+    if (editingMember) {
       setMode('form');
       setForm({
-        ...editingMember,
+        user_email: editingMember?.user_email || '',
+        user_name: editingMember?.user_name || editingMember?.nome || '',
+        funcao: editingMember?.funcao || editingMember?.role || '',
+        role: editingMember?.role || editingMember?.funcao || '',
+        budgetline_id:
+          editingMember?.budgetline_id ||
+          editingMember?.budget_line_id ||
+          '',
+        parcelas: editingMember?.parcelas || editingMember?.numero_parcelas || '',
+        valor_parcela: editingMember?.valor_parcela || '',
+        valor_total: editingMember?.valor_total || '',
+        telefone: editingMember?.telefone || '',
       });
     }
   }, [isOpen, editingMember]);
@@ -74,13 +131,22 @@ export default function TeamMemberForm({
     enabled: isOpen,
   });
 
-  const { data: teamMembers = [], isLoading: loadingTeam } = useQuery({
+  const { data: teamMembers = [], isLoading: loadingTeamMembers } = useQuery({
     queryKey: ['team-members'],
     queryFn: async () => {
       const res = await base44.entities.TeamMember.list();
       return Array.isArray(res) ? res : [];
     },
     enabled: isOpen,
+  });
+
+  const { data: budgetLinesFromDB = [], isLoading: loadingBudgetLines } = useQuery({
+    queryKey: ['team-member-form-budget-lines'],
+    queryFn: async () => {
+      const res = await base44.entities.BudgetLine.list();
+      return Array.isArray(res) ? res : [];
+    },
+    enabled: isOpen && (!Array.isArray(budgetLines) || budgetLines.length === 0),
   });
 
   const availableUsers = useMemo(() => {
@@ -94,19 +160,39 @@ export default function TeamMemberForm({
       const email = String(u?.email || '').trim().toLowerCase();
       return email && !existingEmails.has(email);
     });
-  }, [users, teamMembers, editingMember]);
+  }, [users, teamMembers]);
+
+  const finalBudgetLines = useMemo(() => {
+    if (Array.isArray(budgetLines) && budgetLines.length > 0) {
+      return budgetLines;
+    }
+    return Array.isArray(budgetLinesFromDB) ? budgetLinesFromDB : [];
+  }, [budgetLines, budgetLinesFromDB]);
+
+  const loadingSelectData = loadingUsers || loadingTeamMembers;
 
   const handleSelectUser = () => {
-    const user = users.find((u) => u.email === selectedUser);
-    if (!user) return;
+    const user = availableUsers.find(
+      (u) =>
+        String(u?.email || '').trim().toLowerCase() ===
+        String(selectedUser || '').trim().toLowerCase()
+    );
+
+    if (!user) {
+      toast.error('Selecione um usuário válido.');
+      return;
+    }
 
     setForm({
-      user_email: user.email,
-      user_name: user.name || user.full_name || user.email,
+      user_email: user.email || '',
+      user_name: user.name || user.full_name || user.email || '',
+      funcao: '',
       role: '',
       budgetline_id: '',
       parcelas: '',
       valor_parcela: '',
+      valor_total: '',
+      telefone: user.phone || user.telefone || '',
     });
 
     setMode('form');
@@ -116,45 +202,79 @@ export default function TeamMemberForm({
     if (saving) return;
 
     if (!form.user_email) {
-      toast.error('Usuário inválido');
+      toast.error('Usuário inválido.');
+      return;
+    }
+
+    if (!String(form.user_name || '').trim()) {
+      toast.error('Preencha o nome.');
+      return;
+    }
+
+    if (!String(form.funcao || form.role || '').trim()) {
+      toast.error('Selecione o cargo / função.');
+      return;
+    }
+
+    if (!normalizeBudgetLineId(form.budgetline_id)) {
+      toast.error('Selecione a rubrica.');
       return;
     }
 
     setSaving(true);
 
     try {
+      const payload = {
+        ...form,
+        funcao: String(form.funcao || form.role || '').trim(),
+        role: String(form.funcao || form.role || '').trim(),
+        budgetline_id: normalizeBudgetLineId(form.budgetline_id),
+        budget_line_id: normalizeBudgetLineId(form.budgetline_id),
+      };
+
       let result;
 
-      if (editingMember) {
-        result = await base44.entities.TeamMember.update(
-          editingMember.id,
-          form
-        );
+      if (editingMember?.id) {
+        result = await base44.entities.TeamMember.update(editingMember.id, payload);
       } else {
-        result = await base44.entities.TeamMember.create(form);
+        result = await base44.entities.TeamMember.create(payload);
       }
 
       if (!result || !result.id) {
-        throw new Error('Erro ao salvar membro');
+        throw new Error('Erro ao salvar membro.');
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['team-members'] });
-      await queryClient.refetchQueries({ queryKey: ['team-members'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['team-members'] }),
+        queryClient.invalidateQueries({ queryKey: ['team-members-all'] }),
+        queryClient.invalidateQueries({ queryKey: ['users-all'] }),
+      ]);
 
-      if (onSuccess) await onSuccess(result);
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['team-members'] }),
+        queryClient.refetchQueries({ queryKey: ['users-all'] }),
+      ]);
+
+      if (typeof onSuccess === 'function') {
+        await onSuccess(result);
+      }
 
       onClose?.();
-
-    } catch (e) {
-      console.error(e);
-      toast.error('Erro ao salvar');
+    } catch (error) {
+      console.error('Erro ao salvar TeamMember:', error);
+      toast.error(error?.message || 'Erro ao salvar.');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(o) => !o && onClose?.()}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !saving) onClose?.();
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
@@ -162,107 +282,216 @@ export default function TeamMemberForm({
           </DialogTitle>
         </DialogHeader>
 
-        {/* MODO SELECT */}
         {mode === 'select' && !editingMember && (
           <div className="space-y-4">
-            <Label>Selecionar usuário</Label>
+            <div className="space-y-2">
+              <Label>Selecionar usuário</Label>
+              <Select
+                value={selectedUser}
+                onValueChange={setSelectedUser}
+                disabled={loadingSelectData || saving}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      loadingSelectData
+                        ? 'Carregando usuários...'
+                        : availableUsers.length === 0
+                          ? 'Nenhum usuário disponível'
+                          : 'Selecione um usuário'
+                    }
+                  />
+                </SelectTrigger>
 
-            <Select
-              value={selectedUser}
-              onValueChange={setSelectedUser}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um usuário" />
-              </SelectTrigger>
+                <SelectContent>
+                  {availableUsers.length > 0 ? (
+                    availableUsers.map((user) => (
+                      <SelectItem
+                        key={user.id || user.email}
+                        value={user.email}
+                      >
+                        {(user.name || user.full_name || user.email)} — Transformar em membro
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="__empty__" disabled>
+                      Nenhum usuário disponível para inclusão
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
 
-              <SelectContent>
-                {availableUsers.map((user) => (
-                  <SelectItem key={user.email} value={user.email}>
-                    {user.name || user.full_name || user.email}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onClose?.()}
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
 
-            <Button onClick={handleSelectUser} disabled={!selectedUser}>
-              Continuar
-            </Button>
+              <Button
+                type="button"
+                onClick={handleSelectUser}
+                disabled={!selectedUser || selectedUser === '__empty__' || saving}
+              >
+                Continuar
+              </Button>
+            </div>
           </div>
         )}
 
-        {/* MODO FORM */}
         {mode === 'form' && (
-          <div className="space-y-3">
-            <div>
+          <div className="space-y-4">
+            <div className="space-y-2">
               <Label>Nome</Label>
               <Input
                 value={form.user_name}
                 onChange={(e) =>
-                  setForm({ ...form, user_name: e.target.value })
+                  setForm((prev) => ({ ...prev, user_name: e.target.value }))
                 }
+                disabled={saving}
               />
             </div>
 
-            <div>
+            <div className="space-y-2">
               <Label>Cargo / Função</Label>
-              <Input
-                value={form.role}
-                onChange={(e) =>
-                  setForm({ ...form, role: e.target.value })
-                }
-              />
-            </div>
-
-            <div>
-              <Label>Rubrica</Label>
               <Select
-                value={form.budgetline_id}
-                onValueChange={(v) =>
-                  setForm({ ...form, budgetline_id: v })
+                value={String(form.funcao || form.role || '')}
+                onValueChange={(value) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    funcao: value,
+                    role: value,
+                  }))
                 }
+                disabled={saving}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecionar rubrica" />
+                  <SelectValue placeholder="Selecione o cargo / função" />
                 </SelectTrigger>
 
                 <SelectContent>
-                  {budgetLines.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.nome || b.name}
+                  {CARGOS_FUNCOES.map((cargo) => (
+                    <SelectItem key={cargo} value={cargo}>
+                      {cargo}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <div>
-              <Label>Número de parcelas</Label>
-              <Input
-                type="number"
-                value={form.parcelas}
-                onChange={(e) =>
-                  setForm({ ...form, parcelas: e.target.value })
+            <div className="space-y-2">
+              <Label>Rubrica</Label>
+              <Select
+                value={normalizeBudgetLineId(form.budgetline_id)}
+                onValueChange={(value) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    budgetline_id: value,
+                  }))
                 }
+                disabled={saving || loadingBudgetLines}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      loadingBudgetLines
+                        ? 'Carregando rubricas...'
+                        : 'Selecione a rubrica'
+                    }
+                  />
+                </SelectTrigger>
+
+                <SelectContent>
+                  {finalBudgetLines.length > 0 ? (
+                    finalBudgetLines.map((budgetLine) => (
+                      <SelectItem
+                        key={budgetLine.id}
+                        value={String(budgetLine.id)}
+                      >
+                        {getBudgetLineLabel(budgetLine)}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="__sem_rubrica__" disabled>
+                      Nenhuma rubrica disponível
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Telefone</Label>
+              <Input
+                value={form.telefone || ''}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, telefone: e.target.value }))
+                }
+                disabled={saving}
               />
             </div>
 
-            <div>
+            <div className="space-y-2">
+              <Label>Número de parcelas</Label>
+              <Input
+                type="number"
+                value={form.parcelas || ''}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, parcelas: e.target.value }))
+                }
+                disabled={saving}
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label>Valor da parcela</Label>
               <Input
                 type="number"
-                value={form.valor_parcela}
+                value={form.valor_parcela || ''}
                 onChange={(e) =>
-                  setForm({ ...form, valor_parcela: e.target.value })
+                  setForm((prev) => ({ ...prev, valor_parcela: e.target.value }))
                 }
+                disabled={saving}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Valor total</Label>
+              <Input
+                type="number"
+                value={form.valor_total || ''}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, valor_total: e.target.value }))
+                }
+                disabled={saving}
               />
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={onClose}>
-                Cancelar
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (!editingMember) {
+                    setMode('select');
+                  } else {
+                    onClose?.();
+                  }
+                }}
+                disabled={saving}
+              >
+                {editingMember ? 'Cancelar' : 'Voltar'}
               </Button>
 
-              <Button onClick={handleSave} disabled={saving}>
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+              >
                 {saving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
