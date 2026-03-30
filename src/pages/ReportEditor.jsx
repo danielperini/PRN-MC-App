@@ -5,7 +5,7 @@ import { useCurrentUser } from '../components/auth/useCurrentUser';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { ArrowLeft, Save, Send, Plus, Trash2, CheckCircle, AlertCircle, RotateCcw, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Save, Send, Plus, Trash2, CheckCircle, AlertCircle, RotateCcw, ShieldCheck, FileDown } from 'lucide-react';
 import ReportTabsNavigation from '../components/reports/ReportTabsNavigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +31,7 @@ import { Sparkles } from 'lucide-react';
 import SaveTemplateDialog from '../components/templates/SaveTemplateDialog';
 import LoadFromTemplateDialog from '../components/templates/LoadFromTemplateDialog';
 import AttachmentsSection from '../components/reports/AttachmentsSection';
+import ConsolidatedExportDialog from '../components/reports/ConsolidatedExportDialog';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -91,6 +92,7 @@ function ReportEditorInner() {
   const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
   const [showLoadTemplateDialog, setShowLoadTemplateDialog] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [showConsolidatedExport, setShowConsolidatedExport] = useState(false);
 
   const initializedReportRef = useRef(false);
   const loadedReportIdRef = useRef(null);
@@ -444,8 +446,8 @@ function ReportEditorInner() {
     <div className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-10 flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <Link to={createPageUrl('Dashboard')}>
+        <div className="flex items-center gap-3">
+          <Link to={createPageUrl('Dashboard')}>
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
@@ -467,7 +469,21 @@ function ReportEditorInner() {
               </div>
             </div>
           </div>
+          {reportId && (
+            <Button variant="outline" size="sm" onClick={() => setShowConsolidatedExport(true)}>
+              <FileDown className="w-4 h-4 mr-2" />
+              Exportar consolidado do mês
+            </Button>
+          )}
         </div>
+
+        <ConsolidatedExportDialog
+          open={showConsolidatedExport}
+          onClose={() => setShowConsolidatedExport(false)}
+          currentReport={formData}
+          currentReportId={reportId}
+          currentUser={currentUser}
+        />
 
         <ReportTabsNavigation currentTab={currentTab} formData={formData} onTabChange={handleTabChange} />
 
