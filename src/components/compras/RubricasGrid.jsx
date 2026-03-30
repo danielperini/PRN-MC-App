@@ -19,6 +19,42 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
   const [search, setSearch] = useState('');
   const [recalcLoading, setRecalcLoading] = useState(false);
   const [recalcMsg, setRecalcMsg] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editField, setEditField] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const [savingId, setSavingId] = useState(null);
+
+  async function handleEditCell(rubricaId, field, currentValue) {
+    setEditingId(rubricaId);
+    setEditField(field);
+    setEditValue(String(currentValue));
+  }
+
+  async function handleSaveEdit(rubricaId, field) {
+    setSavingId(rubricaId);
+    try {
+      const newValue = parseFloat(editValue);
+      if (!Number.isFinite(newValue) || newValue < 0) {
+        toastMessages.error('Informe um valor válido');
+        setSavingId(null);
+        return;
+      }
+
+      const updateData = field === 'valor_rubrica' 
+        ? { valor_rubrica: newValue }
+        : { valor_utilizado: newValue };
+
+      await base44.entities.Rubrica.update(rubricaId, updateData);
+      toastMessages.success(`${field === 'valor_rubrica' ? 'Valor' : 'Valor utilizado'} atualizado!`);
+      setEditingId(null);
+      setEditField(null);
+      if (onRefresh) onRefresh();
+    } catch (e) {
+      toastMessages.error('Erro ao salvar: ' + (e?.message || e));
+    } finally {
+      setSavingId(null);
+    }
+  }
 
   async function handleRecalcular() {
     setRecalcLoading(true);
@@ -107,11 +143,55 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
               const perc = valor > 0 ? (utilizado / valor) * 100 : 0;
 
               return (
-                <tr key={r.id} className="border-t">
+                <tr key={r.id} className="border-t hover:bg-blue-50">
                   <td className="p-2">{r?.grupo}</td>
                   <td className="p-2">{r?.rubrica}</td>
-                  <td className="p-2">R$ {moeda(valor)}</td>
-                  <td className="p-2 text-blue-700">R$ {moeda(utilizado)}</td>
+                  <td 
+                    className="p-2 cursor-pointer hover:bg-yellow-100 transition"
+                    onClick={() => handleEditCell(r.id, 'valor_rubrica', valor)}
+                  >
+                    {editingId === r.id && editField === 'valor_rubrica' ? (
+                      <input
+                        autoFocus
+                        type="number"
+                        step="0.01"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={() => handleSaveEdit(r.id, 'valor_rubrica')}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveEdit(r.id, 'valor_rubrica');
+                          if (e.key === 'Escape') setEditingId(null);
+                        }}
+                        className="w-full border rounded px-1 text-sm"
+                        disabled={savingId === r.id}
+                      />
+                    ) : (
+                      `R$ ${moeda(valor)}`
+                    )}
+                  </td>
+                  <td 
+                    className="p-2 text-blue-700 cursor-pointer hover:bg-yellow-100 transition"
+                    onClick={() => handleEditCell(r.id, 'valor_utilizado', utilizado)}
+                  >
+                    {editingId === r.id && editField === 'valor_utilizado' ? (
+                      <input
+                        autoFocus
+                        type="number"
+                        step="0.01"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={() => handleSaveEdit(r.id, 'valor_utilizado')}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveEdit(r.id, 'valor_utilizado');
+                          if (e.key === 'Escape') setEditingId(null);
+                        }}
+                        className="w-full border rounded px-1 text-sm"
+                        disabled={savingId === r.id}
+                      />
+                    ) : (
+                      `R$ ${moeda(utilizado)}`
+                    )}
+                  </td>
                   <td className={`p-2 font-medium ${saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
                     R$ {moeda(saldo)}
                   </td>
