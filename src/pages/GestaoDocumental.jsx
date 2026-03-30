@@ -245,15 +245,15 @@ export default function GestaoDocumental() {
                             >
                               <Download className="w-4 h-4 text-gray-600" />
                             </a>
-                            {currentUser?.role === 'COORDENADOR_GERAL' && (
-                              <button
-                                onClick={() => setDeleteTarget(doc)}
-                                className="p-2 hover:bg-red-50 rounded transition"
-                                title="Deletar"
-                              >
-                                <Trash2 className="w-4 h-4 text-red-600" />
-                              </button>
-                            )}
+                            {(currentUser?.role === 'COORDENADOR_GERAL' || currentUser?.role === 'COORDENADOR' || currentUser?.role === 'ADMIN') && (
+                               <button
+                                 onClick={() => setDeleteTarget(doc)}
+                                 className="p-2 hover:bg-red-50 rounded transition"
+                                 title="Deletar"
+                               >
+                                 <Trash2 className="w-4 h-4 text-red-600" />
+                               </button>
+                             )}
                           </div>
                         </td>
                       </tr>
