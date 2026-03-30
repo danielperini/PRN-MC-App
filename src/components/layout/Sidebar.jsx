@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import HoverManualTooltip from '@/components/help/HoverManualTooltip';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
@@ -300,32 +301,34 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
                 }
 
                 return (
-                  <Link key={item.name} to={createPageUrl(item.name)}>
-                    <Button
-                      variant="ghost"
-                      className={`w-full justify-start gap-2 rounded-xl px-3 h-auto min-h-[44px] py-2 ${
-                        isActive
-                          ? 'bg-white text-black'
-                          : 'text-white/70 hover:text-white hover:bg-white/10'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 shrink-0 mt-0.5" />
-                      {!collapsed && (
-                        <div className="min-w-0 text-left">
-                          <div className="truncate">{item.label}</div>
-                          {item.description ? (
-                            <div
-                              className={`text-[10px] leading-tight mt-0.5 whitespace-normal ${
-                                isActive ? 'text-black/70' : 'text-white/45'
-                              }`}
-                            >
-                              {item.description}
-                            </div>
-                          ) : null}
-                        </div>
-                      )}
-                    </Button>
-                  </Link>
+                  <HoverManualTooltip key={item.name} text={item.tooltip} pageName={item.label}>
+                    <Link to={createPageUrl(item.name)}>
+                      <Button
+                        variant="ghost"
+                        className={`w-full justify-start gap-2 rounded-xl px-3 h-auto min-h-[44px] py-2 ${
+                          isActive
+                            ? 'bg-white text-black'
+                            : 'text-white/70 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4 shrink-0 mt-0.5" />
+                        {!collapsed && (
+                          <div className="min-w-0 text-left">
+                            <div className="truncate">{item.label}</div>
+                            {item.description ? (
+                              <div
+                                className={`text-[10px] leading-tight mt-0.5 whitespace-normal ${
+                                  isActive ? 'text-black/70' : 'text-white/45'
+                                }`}
+                              >
+                                {item.description}
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </Button>
+                    </Link>
+                  </HoverManualTooltip>
                 );
               })}
             </div>
