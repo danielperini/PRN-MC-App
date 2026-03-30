@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { Calendar, Users, FileText, TrendingUp, Target, Award } from 'lucide-react';
+import NewsCarousel from '@/components/dashboard/NewsCarousel';
 
 export default function DashboardPatrocinador() {
   const [loading, setLoading] = useState(true);
@@ -270,6 +271,9 @@ export default function DashboardPatrocinador() {
           </CardContent>
         </Card>
       )}
+
+      {/* Painel de Notícias */}
+      <NewsCarousel />
 
       {/* Info Rodapé */}
       <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 text-sm text-slate-600">
