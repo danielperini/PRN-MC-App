@@ -1,274 +1,490 @@
-// (arquivo completo já corrigido e robusto)
-
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Upload, Loader2, Plus, AlertCircle, CheckCircle2, Brain } from 'lucide-react';
-import ConformidadeBadge from '@/components/compras/ConformidadeBadge';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  AlertCircle, CheckCircle2, Eye, FileText, Loader2, Plus, Upload, Brain,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
-const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const MONTHS = [
+  'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro',
+];
 
-function toNumber(v){ return Number(v)||0 }
+const VIADUTO_EMISSAO = {
+  razao_social: 'Viaduto das Artes',
+  endereco: 'Av. Olinto Meireles, 45 - Barreiro, Belo Horizonte - MG, 30640-010',
+  cnpj: '23.843.648/0001-25',
+  inscricao_municipal: '0.745.690/001-X',
+  telefone: '(31) 98802-5140',
+  email: 'viadutodasartes@viadutodasartes.org.br',
+  termo: '01-031.069/24-80',
+};
 
-function calcValorParcela(member){
-  const total = toNumber(member?.valor_total);
-  const parcelas = toNumber(member?.numero_parcelas);
-  if(!total || !parcelas) return 0;
-  return total / parcelas;
+function toNumber(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  const n = Number(String(v).replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
 }
 
-function isDentroDoContrato(member, mes, ano){
-  if(!member?.data_inicio || !member?.data_fim) return true;
+function formatBRL(v) {
+  return `R$ ${toNumber(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
-  const inicio = new Date(member.data_inicio);
-  const fim = new Date(member.data_fim);
+function buildMonthOptions() {
+  const now = new Date();
+  const out = [];
+  for (let i = 0; i < 18; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const mes = MONTHS[d.getMonth()];
+    const ano = d.getFullYear();
+    out.push({ value: `${mes}|${ano}`, label: `${mes}/${ano}`, mes, ano });
+  }
+  return out;
+}
 
-  const mesIndex = MONTHS.indexOf(mes);
-  const dataRef = new Date(ano, mesIndex, 1);
+function getPreviousMonthRef(mes, ano) {
+  const idx = MONTHS.indexOf(mes);
+  if (idx === -1) return null;
+  return idx === 0 ? { mes: 'Dezembro', ano: Number(ano) - 1 } : { mes: MONTHS[idx - 1], ano: Number(ano) };
+}
 
-  return dataRef >= inicio && dataRef <= fim;
+function sanitize(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[<>:"/\\|?*]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+function getValorParcela(member) {
+  const vp = toNumber(member?.valor_parcela);
+  if (vp > 0) return vp;
+  const total = toNumber(member?.valor_total);
+  const parcelas = toNumber(member?.numero_parcelas) || toNumber(member?.parcelas);
+  return total && parcelas ? total / parcelas : 0;
+}
+
+function buildFileName({ numeroNF, member, valor, extension }) {
+  const nf = sanitize(numeroNF || 'NF');
+  const cargo = sanitize(member?.funcao || 'FUNCAO');
+  const nome = sanitize(member?.user_name || member?.nome || 'SEM NOME');
+  const valorStr = sanitize(formatBRL(valor));
+  return `${nf} ${cargo} - ${nome} - MUSEUS CENTRO - ${valorStr}.${extension}`;
+}
+
+function getMemberDataStatus(member) {
+  if (!member) return { ok: false, missing: ['Perfil não encontrado'] };
+  const isPJ = String(member?.tipo_pessoa || 'PF').toUpperCase() === 'PJ';
+  const missing = [];
+  if (!member?.user_name) missing.push('Nome');
+  if (!member?.funcao) missing.push('Função');
+  if (!member?.banco) missing.push('Banco');
+  if (!member?.agencia) missing.push('Agência');
+  if (!member?.conta) missing.push('Conta');
+  if (!member?.pix_key) missing.push('PIX');
+  if (isPJ && !member?.cnpj) missing.push('CNPJ');
+  if (!isPJ && !member?.cpf) missing.push('CPF');
+  return { ok: missing.length === 0, missing, isPJ };
+}
+
+function buildDescricaoModelo(member, mes, ano) {
+  const funcao = member?.funcao || 'Função';
+  const isPJ = String(member?.tipo_pessoa || 'PF').toUpperCase() === 'PJ';
+  const doc = isPJ ? `CNPJ: ${member?.cnpj || ''}` : `CPF: ${member?.cpf || ''}`;
+  return [
+    'DESCRIÇÃO DA NOTA',
+    `Prestação de serviço (${funcao}) ao Projeto Museus Centro - Termo de Colaboração ${VIADUTO_EMISSAO.termo}, parceria com SMC/FMC: ${mes}/${ano}.`,
+    '',
+    'Dados para pagamento',
+    `Banco: ${member?.banco || ''}`,
+    `Agência: ${member?.agencia || ''}`,
+    `Conta: ${member?.conta || ''}`,
+    doc,
+    `PIX: ${member?.pix_key || ''}`,
+    '',
+    `VALOR: ${formatBRL(getValorParcela(member))}`,
+    '',
+    VIADUTO_EMISSAO.razao_social,
+    `Endereço: ${VIADUTO_EMISSAO.endereco}`,
+    `CNPJ: ${VIADUTO_EMISSAO.cnpj}`,
+    `Inscrição Municipal: ${VIADUTO_EMISSAO.inscricao_municipal}`,
+    `Telefone: ${VIADUTO_EMISSAO.telefone}`,
+    `Email: ${VIADUTO_EMISSAO.email}`,
+  ].join('\n');
+}
+
+async function renameFile(file, fileName) {
+  const buffer = await file.arrayBuffer();
+  return new File([buffer], fileName, { type: file.type || 'application/octet-stream', lastModified: Date.now() });
 }
 
 export default function TeamPaymentSubmit({ userEmail }) {
-
-  const [showForm,setShowForm] = useState(false);
-  const [loading,setLoading] = useState(false);
-  const [extractingNF,setExtractingNF] = useState(false);
-  const [selectedMemberId,setSelectedMemberId] = useState('');
-
-  const [form,setForm] = useState({
-    mes_referencia:'',
-    ano:new Date().getFullYear(),
-    numero_nf:'',
-    valor_nf:0,
-    nota_fiscal_url:'',
-    xml_url:'',
-  });
-
-  const [nfPreview,setNfPreview] = useState(null);
-  const [analisandoIA, setAnalisandoIA] = useState(false);
-  const [conformidade, setConformidade] = useState(null);
-
   const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadingNF, setUploadingNF] = useState(false);
+  const [uploadingXML, setUploadingXML] = useState(false);
+  const [analysis, setAnalysis] = useState(null);
+  const [analysisStep, setAnalysisStep] = useState('');
 
-  const { data: currentUser } = useQuery({
-    queryKey:['auth-me'],
-    queryFn:()=> base44.auth.me()
+  const [form, setForm] = useState({
+    competencia: '',
+    numero_nf: '',
+    valor_nf: '',
+    nota_fiscal_url: '',
+    xml_url: '',
+    nota_fiscal_file_name: '',
+    xml_file_name: '',
   });
 
-  const isCoordinator = ['ADMIN','COORDENADOR','admin'].includes(currentUser?.role);
+  const monthOptions = useMemo(() => buildMonthOptions(), []);
 
-  const { data: ownMember } = useQuery({
-    queryKey:['own-member',userEmail],
-    queryFn:async ()=>{
-      const d = await base44.entities.TeamMember.filter({ user_email:userEmail });
-      return d?.[0]||null;
+  const selectedComp = useMemo(() => monthOptions.find(o => o.value === form.competencia) || null, [form.competencia, monthOptions]);
+
+  const { data: currentUser } = useQuery({ queryKey: ['auth-me'], queryFn: () => base44.auth.me() });
+
+  const { data: member, isLoading: loadingMember } = useQuery({
+    queryKey: ['team-submit-own-member', userEmail],
+    queryFn: async () => {
+      const rows = await base44.entities.TeamMember.filter({ user_email: userEmail });
+      return Array.isArray(rows) ? rows[0] || null : null;
     },
-    enabled:!!userEmail
+    enabled: !!userEmail,
   });
 
-  const { data: allMembers = [] } = useQuery({
-    queryKey:['all-members'],
-    queryFn:()=> base44.entities.TeamMember.list('-created_date',500),
-    enabled:isCoordinator
-  });
+  const valorParcela = useMemo(() => getValorParcela(member), [member]);
+  const memberStatus = useMemo(() => getMemberDataStatus(member), [member]);
+  const descricaoModelo = useMemo(() => {
+    if (!member || !selectedComp) return '';
+    return buildDescricaoModelo(member, selectedComp.mes, selectedComp.ano);
+  }, [member, selectedComp]);
 
-  const accessibleMembers = useMemo(()=>{
-    return isCoordinator ? allMembers : ownMember ? [ownMember] : [];
-  },[isCoordinator,allMembers,ownMember]);
-
-  useEffect(()=>{
-    if(accessibleMembers.length && !selectedMemberId){
-      setSelectedMemberId(accessibleMembers[0].id);
+  async function checkPreviousReport() {
+    if (!selectedComp || !currentUser?.email) return { ok: true };
+    const prev = getPreviousMonthRef(selectedComp.mes, selectedComp.ano);
+    if (!prev) return { ok: true };
+    const reports = await base44.entities.Report.filter({ mes_referencia: prev.mes, ano: prev.ano });
+    const email = String(currentUser.email).toLowerCase();
+    const own = (reports || []).find(r =>
+      String(r?.created_by || '').toLowerCase() === email ||
+      String(r?.author_email || '').toLowerCase() === email
+    );
+    if (!own) return { ok: false, message: `Antes de enviar a nota de ${selectedComp.mes}/${selectedComp.ano}, envie o relatório de ${prev.mes}/${prev.ano} ao coordenador.` };
+    if (!['SUBMITTED', 'APPROVED'].includes(String(own.status || '').toUpperCase())) {
+      return { ok: false, message: `O relatório de ${prev.mes}/${prev.ano} ainda não foi enviado. Status: ${own.status}.` };
     }
-  },[accessibleMembers]);
-
-  const member = useMemo(()=>{
-    return accessibleMembers.find(m=>m.id===selectedMemberId) || null;
-  },[accessibleMembers,selectedMemberId]);
-
-  const parcelaAtual = (member?.parcelas_pagas || 0) + 1;
-  const valorParcela = calcValorParcela(member);
-
-  const handleUploadNF = async (file)=>{
-    if(!file) return;
-
-    setLoading(true);
-
-    try{
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-
-      setForm(prev=>({...prev,nota_fiscal_url:file_url}));
-
-      const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
-        file_url,
-        json_schema:{
-          type:'object',
-          properties:{
-            numero:{type:'string'},
-            valor_total:{type:'number'}
-          }
-        }
-      });
-
-      if(extracted?.output){
-        setForm(prev=>({
-          ...prev,
-          numero_nf:extracted.output.numero,
-          valor_nf:extracted.output.valor_total
-        }));
-      }
-
-      // Análise de conformidade IA
-      setAnalisandoIA(true);
-      try {
-        const analise = await base44.functions.invoke('analisarConformidadeNF', {
-          file_url,
-          memberId: member?.id,
-        });
-        setConformidade(analise?.data || analise);
-      } catch(e) {
-        console.error('Erro análise IA:', e);
-      } finally {
-        setAnalisandoIA(false);
-      }
-
-    }catch(e){
-      toast.error(e.message);
-    }
-
-    setLoading(false);
-  };
-
-  const handleUploadXML = async (file)=>{
-    if(!file) return;
-
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setForm(prev=>({...prev,xml_url:file_url}));
-  };
-
-  const handleSubmit = async (e)=>{
-    e.preventDefault();
-
-    // 🔥 VALIDAÇÕES NOVAS
-
-    if(!isDentroDoContrato(member, form.mes_referencia, form.ano)){
-      toast.error('Fora do período do contrato');
-      return;
-    }
-
-    if(parcelaAtual > (member?.numero_parcelas || 0)){
-      toast.error('Contrato já finalizado');
-      return;
-    }
-
-    if(Math.abs(form.valor_nf - valorParcela) > 1){
-      toast.error('Valor divergente da parcela');
-      return;
-    }
-
-    if(!form.nota_fiscal_url || !form.xml_url){
-      toast.error('Envie NF e XML');
-      return;
-    }
-
-    setLoading(true);
-
-    try{
-
-      await base44.entities.TeamPayment.create({
-        team_member_id:member.id,
-        user_email:member.user_email,
-        mes_referencia:form.mes_referencia,
-        ano:form.ano,
-        numero_nf:form.numero_nf,
-        valor_nf:form.valor_nf,
-        nota_fiscal_url:form.nota_fiscal_url,
-        xml_url:form.xml_url,
-        numero_parcela:parcelaAtual,
-        valor_parcela_previsto:valorParcela,
-        status:'AGUARDANDO_APROVACAO'
-      });
-
-      toast.success('Enviado corretamente');
-
-      setShowForm(false);
-      await queryClient.invalidateQueries();
-
-    }catch(e){
-      toast.error(e.message);
-    }
-
-    setLoading(false);
-  };
-
-  if(!member){
-    return <div className="p-4 text-sm text-gray-500">Sem acesso</div>;
+    return { ok: true };
   }
 
-  return (
-    <div className="space-y-6">
+  async function handleUploadNF(file) {
+    if (!file) return;
+    if (!selectedComp) { toast.error('Selecione primeiro o mês.'); return; }
+    setUploadingNF(true);
+    try {
+      const renamed = await renameFile(file, buildFileName({ numeroNF: form.numero_nf || 'NF', member, valor: form.valor_nf || valorParcela, extension: 'pdf' }));
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
+      setForm(prev => ({ ...prev, nota_fiscal_url: file_url, nota_fiscal_file_name: renamed.name }));
+      toast.success('Nota fiscal enviada e renomeada.');
+    } catch (e) {
+      toast.error(e?.message || 'Erro ao enviar NF.');
+    } finally {
+      setUploadingNF(false);
+    }
+  }
 
-      <Button onClick={()=>setShowForm(true)}>
-        <Plus className="w-4 h-4 mr-2"/>
-        Novo envio
+  async function handleUploadXML(file) {
+    if (!file) return;
+    if (!selectedComp) { toast.error('Selecione primeiro o mês.'); return; }
+    setUploadingXML(true);
+    try {
+      const renamed = await renameFile(file, buildFileName({ numeroNF: form.numero_nf || 'NF', member, valor: form.valor_nf || valorParcela, extension: 'xml' }));
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
+      setForm(prev => ({ ...prev, xml_url: file_url, xml_file_name: renamed.name }));
+      toast.success('XML enviado e renomeado.');
+    } catch (e) {
+      toast.error(e?.message || 'Erro ao enviar XML.');
+    } finally {
+      setUploadingXML(false);
+    }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!member) { toast.error('Perfil não encontrado.'); return; }
+    if (!memberStatus.ok) { toast.error('Atualize seus dados em "Meus Dados" antes de enviar.'); return; }
+    if (!selectedComp) { toast.error('Selecione o mês.'); return; }
+    if (!form.numero_nf) { toast.error('Informe o número da nota.'); return; }
+    if (!form.nota_fiscal_url || !form.xml_url) { toast.error('Envie o PDF e o XML.'); return; }
+
+    setSubmitting(true);
+    setAnalysis(null);
+
+    try {
+      setAnalysisStep('Verificando relatório anterior...');
+      const repCheck = await checkPreviousReport();
+      if (!repCheck.ok) { toast.error(repCheck.message); setSubmitting(false); setAnalysisStep(''); return; }
+
+      setAnalysisStep('Analisando nota fiscal com IA...');
+      const analysisResult = await base44.functions.invoke('validateTeamPaymentInvoice', {
+        file_url: form.nota_fiscal_url,
+        xml_url: form.xml_url,
+        mes_referencia: selectedComp.mes,
+        ano: selectedComp.ano,
+        numero_nf: form.numero_nf,
+        valor_esperado: valorParcela,
+        member_snapshot: {
+          user_name: member.user_name || '',
+          funcao: member.funcao || '',
+          tipo_pessoa: member.tipo_pessoa || 'PF',
+          cpf: member.cpf || '',
+          cnpj: member.cnpj || '',
+          banco: member.banco || '',
+          agencia: member.agencia || '',
+          conta: member.conta || '',
+          pix_key: member.pix_key || '',
+        },
+        descricao_modelo: descricaoModelo,
+      });
+
+      const ar = analysisResult?.data || analysisResult || {};
+      setAnalysis(ar);
+
+      if (ar?.can_submit === false) {
+        toast.error('A IA identificou inconsistências críticas. Revise antes de enviar.');
+        setSubmitting(false);
+        setAnalysisStep('');
+        return;
+      }
+
+      setAnalysisStep('Registrando envio...');
+      const created = await base44.entities.TeamPayment.create({
+        team_member_id: member.id,
+        user_email: member.user_email,
+        user_name: member.user_name || '',
+        funcao: member.funcao || '',
+        mes_referencia: selectedComp.mes,
+        ano: selectedComp.ano,
+        numero_nf: form.numero_nf,
+        valor_nf: toNumber(form.valor_nf || valorParcela),
+        valor_parcela_previsto: valorParcela,
+        numero_parcela: (toNumber(member.parcelas_pagas) || 0) + 1,
+        nota_fiscal_url: form.nota_fiscal_url,
+        xml_url: form.xml_url,
+        nota_fiscal_file_name: form.nota_fiscal_file_name,
+        xml_file_name: form.xml_file_name,
+        descricao_nf_modelo: descricaoModelo,
+        analysis_status: ar?.status || 'ANALISADO',
+        analysis_summary: ar?.summary || '',
+        analysis_warnings: Array.isArray(ar?.warnings) ? ar.warnings : [],
+        analysis_critical_issues: Array.isArray(ar?.critical_issues) ? ar.critical_issues : [],
+        status: 'AGUARDANDO_APROVACAO',
+      });
+
+      setAnalysisStep('Enviando notificações...');
+      await base44.functions.invoke('notifyTeamPaymentSubmitted', {
+        payment_id: created?.id,
+        team_member_name: member.user_name || '',
+        cargo: member.funcao || '',
+        mes: selectedComp.mes,
+        ano: selectedComp.ano,
+        valor: toNumber(form.valor_nf || valorParcela),
+        user_email: member.user_email,
+        requester_email: currentUser?.email || member.user_email || '',
+        nota_fiscal_url: form.nota_fiscal_url,
+        xml_url: form.xml_url,
+        nota_fiscal_file_name: form.nota_fiscal_file_name,
+        xml_file_name: form.xml_file_name,
+        app_link: window.location.origin + '/Compras',
+      });
+
+      toast.success('Envio realizado com sucesso! As notificações foram disparadas.');
+      setOpen(false);
+      setForm({ competencia: '', numero_nf: '', valor_nf: '', nota_fiscal_url: '', xml_url: '', nota_fiscal_file_name: '', xml_file_name: '' });
+      setAnalysis(null);
+      setAnalysisStep('');
+      await queryClient.invalidateQueries();
+    } catch (e) {
+      toast.error(e?.message || 'Erro ao enviar.');
+    } finally {
+      setSubmitting(false);
+      setAnalysisStep('');
+    }
+  }
+
+  if (loadingMember) return (
+    <div className="rounded-xl border p-4 text-sm text-gray-500 flex items-center gap-2">
+      <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
+    </div>
+  );
+
+  if (!member) return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+      Perfil de equipe não localizado. Peça ao coordenador para cadastrá-lo.
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <Button onClick={() => setOpen(true)}>
+        <Plus className="w-4 h-4 mr-2" /> Novo envio
       </Button>
 
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent>
+      {!memberStatus.ok && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 space-y-1">
+          <div className="font-medium flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Dados incompletos — atualize antes de enviar a nota.</div>
+          <div>Campos pendentes: {memberStatus.missing.join(', ')}</div>
+        </div>
+      )}
 
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Envio mensal</DialogTitle>
+            <DialogTitle>Envio mensal de nota fiscal</DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-
-            <Select
-              value={form.mes_referencia}
-              onValueChange={(v)=>setForm({...form,mes_referencia:v})}
-            >
-              <SelectTrigger><SelectValue/></SelectTrigger>
-              <SelectContent>
-                {MONTHS.map(m=><SelectItem key={m} value={m}>{m}</SelectItem>)}
-              </SelectContent>
-            </Select>
-
-            {/* 🔥 VALOR AUTOMÁTICO */}
-            <Input
-              type="number"
-              value={form.valor_nf || valorParcela}
-              onChange={(e)=>setForm({...form,valor_nf:parseFloat(e.target.value)||0})}
-            />
-
-            <input type="file" onChange={(e)=>handleUploadNF(e.target.files[0])}/>
-            <input type="file" onChange={(e)=>handleUploadXML(e.target.files[0])}/>
-
-            {analisandoIA && (
-              <div className="flex items-center gap-2 text-xs text-gray-500 p-2 bg-gray-50 rounded">
-                <Brain className="w-4 h-4 animate-pulse text-purple-500" />
-                Analisando conformidade com IA...
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Dados para emissão */}
+            {descricaoModelo && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2 text-sm text-blue-900">
+                <div className="font-semibold">📋 Dados para emissão da nota</div>
+                <pre className="whitespace-pre-wrap text-xs leading-relaxed bg-white/70 rounded-lg p-3 border border-blue-100 font-mono">
+                  {descricaoModelo}
+                </pre>
+                <Button type="button" variant="outline" size="sm"
+                  onClick={async () => { try { await navigator.clipboard.writeText(descricaoModelo); toast.success('Copiado!'); } catch { toast.error('Não foi possível copiar.'); } }}>
+                  Copiar dados para emissão
+                </Button>
               </div>
             )}
 
-            {conformidade && !analisandoIA && (
-              <ConformidadeBadge tp={conformidade} expanded={true} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Mês de envio *</Label>
+                <Select value={form.competencia} onValueChange={v => { setForm(prev => ({ ...prev, competencia: v })); setAnalysis(null); }}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o mês" /></SelectTrigger>
+                  <SelectContent>
+                    {monthOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Número da nota fiscal *</Label>
+                <Input value={form.numero_nf} onChange={e => setForm(prev => ({ ...prev, numero_nf: e.target.value }))} placeholder="Ex.: NF 1" />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Valor da nota</Label>
+                <Input value={form.valor_nf} onChange={e => setForm(prev => ({ ...prev, valor_nf: e.target.value }))} placeholder={formatBRL(valorParcela)} />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Valor previsto da parcela</Label>
+                <Input value={formatBRL(valorParcela)} disabled className="bg-gray-50" />
+              </div>
+            </div>
+
+            {/* Dados bancários conferência */}
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm">
+              <div className="font-medium text-gray-900 mb-2">Seus dados bancários para conferência</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-gray-600">
+                <div>Banco: {member?.banco || '—'}</div>
+                <div>Agência: {member?.agencia || '—'}</div>
+                <div>Conta: {member?.conta || '—'}</div>
+                <div>PIX: {member?.pix_key || '—'}</div>
+                <div>{memberStatus.isPJ ? `CNPJ: ${member?.cnpj || '—'}` : `CPF: ${member?.cpf || '—'}`}</div>
+              </div>
+              {!memberStatus.ok && (
+                <div className="mt-2 text-red-600 text-xs font-medium">⚠ Dados incompletos. Atualize em "Meus Dados" antes de enviar.</div>
+              )}
+            </div>
+
+            {/* Uploads */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* PDF */}
+              <div className="space-y-2">
+                <Label>Escolher arquivo de nota fiscal (PDF) *</Label>
+                <label className="border-2 border-dashed rounded-xl p-4 block cursor-pointer hover:bg-gray-50 transition">
+                  <input type="file" accept=".pdf" className="hidden" onChange={e => handleUploadNF(e.target.files?.[0])} disabled={uploadingNF || submitting} />
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    {form.nota_fiscal_file_name || 'Selecionar arquivo PDF'}
+                  </div>
+                </label>
+                {form.nota_fiscal_url && (
+                  <div className="space-y-2">
+                    <a href={form.nota_fiscal_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
+                      <Eye className="w-4 h-4" /> Visualizar PDF gravado
+                    </a>
+                    <iframe src={form.nota_fiscal_url} title="Preview NF" className="w-full h-64 rounded-lg border" />
+                  </div>
+                )}
+              </div>
+
+              {/* XML */}
+              <div className="space-y-2">
+                <Label>Escolher arquivo XML *</Label>
+                <label className="border-2 border-dashed rounded-xl p-4 block cursor-pointer hover:bg-gray-50 transition">
+                  <input type="file" accept=".xml,text/xml,application/xml" className="hidden" onChange={e => handleUploadXML(e.target.files?.[0])} disabled={uploadingXML || submitting} />
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    {uploadingXML ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                    {form.xml_file_name || 'Selecionar arquivo XML'}
+                  </div>
+                </label>
+                {form.xml_url && (
+                  <a href={form.xml_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
+                    <Eye className="w-4 h-4" /> Visualizar XML gravado
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Padrão de nome dos arquivos */}
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
+              <span className="font-medium text-gray-800">Padrão de nome dos arquivos: </span>
+              NF 1 COORDENADOR GERAL - DANIEL PERINI - MUSEUS CENTRO - R$ 7.000,00
+              <span className="block text-gray-400 mt-0.5">Os arquivos são renomeados automaticamente nesse padrão ao fazer upload.</span>
+            </div>
+
+            {/* Análise IA */}
+            {submitting && analysisStep && (
+              <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 flex items-center gap-3 text-sm text-purple-800">
+                <Brain className="w-5 h-5 animate-pulse" />
+                <span>{analysisStep}</span>
+              </div>
             )}
 
-            <Button type="submit" disabled={loading}>
-              {loading ? <Loader2 className="animate-spin w-4"/> : 'Enviar'}
-            </Button>
+            {analysis && (
+              <div className={`rounded-xl border p-4 space-y-2 text-sm ${analysis.can_submit === false ? 'border-red-200 bg-red-50 text-red-800' : 'border-green-200 bg-green-50 text-green-800'}`}>
+                <div className="font-semibold flex items-center gap-2">
+                  {analysis.can_submit === false ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                  Resultado da análise automática
+                </div>
+                {analysis.summary && <div>{analysis.summary}</div>}
+                {Array.isArray(analysis.critical_issues) && analysis.critical_issues.length > 0 && (
+                  <div><div className="font-medium">Pontos críticos</div><ul className="list-disc pl-5">{analysis.critical_issues.map((i, idx) => <li key={idx}>{i}</li>)}</ul></div>
+                )}
+                {Array.isArray(analysis.warnings) && analysis.warnings.length > 0 && (
+                  <div><div className="font-medium">Alertas</div><ul className="list-disc pl-5">{analysis.warnings.map((i, idx) => <li key={idx}>{i}</li>)}</ul></div>
+                )}
+              </div>
+            )}
 
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={submitting || uploadingNF || uploadingXML || !memberStatus.ok}>
+                {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analisando e enviando...</> : 'Enviar'}
+              </Button>
+            </div>
           </form>
-
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }
