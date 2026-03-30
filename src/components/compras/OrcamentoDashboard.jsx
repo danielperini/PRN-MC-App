@@ -79,32 +79,32 @@ export default function OrcamentoDashboard({ budgetLines = [], purchases = [] })
       {/* KPI PRINCIPAL */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
 
-        <div className="p-5 border rounded-xl">
-          <p className="text-xs text-gray-500">Saldo Inicial</p>
-          <p className="text-xl font-bold">{fmt(totalInicial)}</p>
-        </div>
+        
 
-        <div className="p-5 border rounded-xl">
-          <p className="text-xs text-gray-500">Comprometido</p>
-          <p className="text-xl font-bold text-amber-600">{fmt(totalComprometido)}</p>
-        </div>
 
-        <div className="p-5 border rounded-xl">
-          <p className="text-xs text-gray-500">Disponível</p>
-          <p className={`text-xl font-bold ${totalDisponivel < totalInicial*0.1 ? 'text-red-600':'text-green-600'}`}>
-            {fmt(totalDisponivel)}
-          </p>
-        </div>
+        
 
-        <div className="p-5 border rounded-xl">
-          <p className="text-xs text-gray-500">Pago</p>
-          <p className="text-xl font-bold text-green-700">{fmt(totalPago)}</p>
-        </div>
+        
 
-        <div className="p-5 border rounded-xl">
-          <p className="text-xs text-gray-500">Execução</p>
-          <p className="text-2xl font-bold text-green-700">{Math.round(pctExecucao)}%</p>
-        </div>
+
+        
+
+        
+
+
+
+
+        
+
+        
+
+
+        
+
+        
+
+
+        
 
       </div>
 
@@ -112,12 +112,12 @@ export default function OrcamentoDashboard({ budgetLines = [], purchases = [] })
       <div>
         <div className="flex justify-between items-center mb-2">
           <p className="text-sm font-semibold text-gray-700">Comprometimento Total</p>
-          <p className="text-sm font-bold text-gray-900">{totalInicial > 0 ? Math.round((totalComprometido / totalInicial) * 100) : 0}%</p>
+          <p className="text-sm font-bold text-gray-900">{totalInicial > 0 ? Math.round(totalComprometido / totalInicial * 100) : 0}%</p>
         </div>
         <div className="h-6 bg-white border-2 border-white rounded-lg overflow-hidden">
           <div
             className="h-full bg-black transition-all"
-            style={{ width: `${totalInicial > 0 ? Math.min((totalComprometido / totalInicial) * 100, 100) : 0}%` }} />
+            style={{ width: `${totalInicial > 0 ? Math.min(totalComprometido / totalInicial * 100, 100) : 0}%` }} />
         </div>
       </div>
 
@@ -163,8 +163,8 @@ export default function OrcamentoDashboard({ budgetLines = [], purchases = [] })
                     className="h-full bg-blue-500"
                     style={{ width: `${pct}%` }} />
                 </div>
-              </div>
-            );
+              </div>);
+
           })}
         </div>
       </div>
@@ -194,13 +194,13 @@ export default function OrcamentoDashboard({ budgetLines = [], purchases = [] })
                 <td className={saldo < 0 ? 'text-red-600' : 'text-green-600'}>
                   {fmt(saldo)}
                 </td>
-              </tr>
-            );
+              </tr>);
+
           })}
         </tbody>
       </table>
 
-    </div>
-  );
+    </div>);
+
 
 }
