@@ -111,10 +111,10 @@ export default function AttachmentsSection({ reportId, canEdit }) {
     const fileList = Array.from(files);
     
     for (const file of fileList) {
-      const error = validateFile(file, attachments.length);
-      if (error) {
-        toast.error(error);
-        return;
+       const error = validateFile(file, attachments.length);
+       if (error) {
+         toastMessages.warning(error);
+         return;
       }
     }
 

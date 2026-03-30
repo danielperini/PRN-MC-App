@@ -134,7 +134,7 @@ export default function PurchaseFormDialog({
         await base44.entities.PurchaseRequest.create(payload);
       }
 
-      toastMessages.saveSuccess();
+      toastMessages.createSuccess();
       onSuccess();
 
     } catch (e) {
