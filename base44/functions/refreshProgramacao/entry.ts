@@ -667,6 +667,7 @@ function toProgramacaoRecord(parsed: AnyObj): AnyObj {
     tipo_atividade: parsed.tipo ?? null,
     formato: parsed.formato ?? null,
     publico: parsed.publico ?? null,
+    publico_alvo: parsed.publico ?? null,
     vagas: parsed.vagas != null ? String(parsed.vagas) : null,
     acessibilidade: parsed.acessibilidade ?? null,
     inscricao: parsed.inscricao ?? null,
@@ -676,6 +677,7 @@ function toProgramacaoRecord(parsed: AnyObj): AnyObj {
     source_sheet: parsed.source_sheet ?? null,
     source_row: parsed.source_row ?? null,
     sync_month: parsed.sync_month ?? null,
+    month_key: parsed.sync_month ?? null,
   };
 
   rec.external_key = buildDedupKey(rec);

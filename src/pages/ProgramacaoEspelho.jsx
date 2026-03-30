@@ -62,7 +62,7 @@ export default function ProgramacaoEspelho() {
       // extrair meses disponíveis
       const monthSet = new Set();
       items.forEach((item) => {
-        const key = item.month_key || (item.data_inicio ? getMonthKey(new Date(item.data_inicio)) : null);
+        const key = item.month_key || item.sync_month || (item.data_inicio ? getMonthKey(new Date(item.data_inicio)) : null);
         if (key) monthSet.add(key);
       });
       const sorted = Array.from(monthSet).sort().reverse();
@@ -92,7 +92,7 @@ export default function ProgramacaoEspelho() {
   const hasNextInYear = monthsOfYear.includes(nextMonth(currentMonth));
 
   const filtered = allItems.filter((item) => {
-    const key = item.month_key || (item.data_inicio ? getMonthKey(new Date(item.data_inicio)) : '');
+    const key = item.month_key || item.sync_month || (item.data_inicio ? getMonthKey(new Date(item.data_inicio)) : '');
     if (key !== currentMonth) return false;
     if (museuFilter !== 'Todos' && item.museu !== museuFilter) return false;
     if (search) {
