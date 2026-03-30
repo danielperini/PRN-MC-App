@@ -14,10 +14,7 @@ function moeda(value) {
   });
 }
 
-export default function RubricasGrid({
-  rubricas = [],
-  onRefresh,
-}) {
+export default function RubricasGrid({ rubricas = [], onRefresh }) {
   const [search, setSearch] = useState('');
   const [recalcLoading, setRecalcLoading] = useState(false);
   const [recalcMsg, setRecalcMsg] = useState('');
@@ -51,22 +48,15 @@ export default function RubricasGrid({
   const totais = useMemo(() => {
     let previsto = 0;
     let utilizado = 0;
-
     for (const r of filtradas) {
       previsto += toNumber(r?.valor_rubrica);
       utilizado += toNumber(r?.valor_utilizado);
     }
-
-    return {
-      previsto,
-      utilizado,
-      saldo: previsto - utilizado,
-    };
+    return { previsto, utilizado, saldo: previsto - utilizado };
   }, [filtradas]);
 
   return (
     <div className="space-y-4">
-
       {/* BARRA SUPERIOR */}
       <div className="flex items-center gap-2">
         <input
@@ -94,7 +84,6 @@ export default function RubricasGrid({
       {/* TABELA */}
       <div className="overflow-auto border rounded">
         <table className="w-full text-sm">
-
           <thead className="bg-gray-100 text-left">
             <tr>
               <th className="p-2">Grupo</th>
@@ -118,21 +107,16 @@ export default function RubricasGrid({
                   <td className="p-2">{r?.grupo}</td>
                   <td className="p-2">{r?.rubrica}</td>
                   <td className="p-2">R$ {moeda(valor)}</td>
-                  <td className="p-2 text-blue-700">
-                    R$ {moeda(utilizado)}
-                  </td>
+                  <td className="p-2 text-blue-700">R$ {moeda(utilizado)}</td>
                   <td className={`p-2 font-medium ${saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
                     R$ {moeda(saldo)}
                   </td>
-                  <td className="p-2">
-                    {perc.toFixed(1)}%
-                  </td>
+                  <td className="p-2">{perc.toFixed(1)}%</td>
                 </tr>
               );
             })}
           </tbody>
 
-          {/* RODAPÉ */}
           <tfoot className="bg-gray-50 font-bold">
             <tr>
               <td colSpan={2} className="p-2">TOTAL</td>
@@ -142,7 +126,6 @@ export default function RubricasGrid({
               <td></td>
             </tr>
           </tfoot>
-
         </table>
       </div>
     </div>
