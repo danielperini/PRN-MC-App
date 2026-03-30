@@ -154,7 +154,6 @@ function scoreProgramacao(programacao, question) {
   if (museu.includes(q)) score += 25;
   if (data.includes(q)) score += 15;
   
-  // Bonus para perguntas sobre atividades
   if ((q.includes('atividade') || q.includes('atividades')) && isProgramacaoLike(programacao)) score += 12;
   if ((q.includes('programacao') || q.includes('programação')) && isProgramacaoLike(programacao)) score += 15;
   if ((q.includes('quando') || q.includes('data') || q.includes('mes')) && (data || titulo)) score += 10;
@@ -189,7 +188,7 @@ export default function AssistantChat() {
     {
       role: 'assistant',
       content:
-        'Assistente ativo. Posso buscar respostas na Biblioteca de Conhecimento e no Manual do sistema. Faça sua pergunta.',
+        'Assistente ativo. Posso buscar respostas na Biblioteca de Conhecimento, Programação, Compras, Rubricas e Equipe. Faça sua pergunta.',
     },
   ]);
   const [input, setInput] = useState('');
@@ -202,12 +201,15 @@ export default function AssistantChat() {
 
   async function buscarContexto(pergunta) {
     try {
-      const [docs, programacoes] = await withTimeout(
+      const [docs, programacoes, compras, rubricas, teamPayments] = await withTimeout(
         Promise.all([
-          base44.entities.KnowledgeDocument.list('-created_date', 120),
-          base44.entities.Programacao.list('-data_inicio', 500),
+          base44.entities.KnowledgeDocument.list('-created_date', 120).catch(() => []),
+          base44.entities.Programacao.list('-data_inicio', 500).catch(() => []),
+          base44.entities.PurchaseRequest.list('-created_date', 300).catch(() => []),
+          base44.entities.Rubrica.list('ordem_exibicao', 150).catch(() => []),
+          base44.entities.TeamPayment.list('-created_date', 150).catch(() => []),
         ]),
-        15000,
+        20000,
         'Busca da base de conhecimento'
       );
 
@@ -240,10 +242,74 @@ export default function AssistantChat() {
         }))
         .filter((prog) => prog._score > 0)
         .sort((a, b) => b._score - a._score)
-        .slice(0, 5);
+        .slice(0, 4);
 
-      const topDocs = rankedDocs.slice(0, 3);
-      const selectedItems = [...topDocs, ...rankedProgramacoes].slice(0, 7);
+      // Buscar em Compras
+      const q = normalizeText(pergunta);
+      const hasCompraKeywords = ['compra', 'compr', 'nota fiscal', 'fornecedor', 'valor', 'pago', 'aprovado'].some(kw => q.includes(kw));
+      const rankedCompras = hasCompraKeywords
+        ? (compras || [])
+            .map((comp) => ({
+              ...comp,
+              _score: scoreText(
+                [comp?.descricao, comp?.fornecedor, comp?.status, String(comp?.valor_solicitado || ''), comp?.museu]
+                  .filter(Boolean)
+                  .join(' '),
+                pergunta
+              ),
+              _type: 'compra',
+            }))
+            .filter((comp) => comp._score > 0)
+            .sort((a, b) => b._score - a._score)
+            .slice(0, 2)
+        : [];
+
+      // Buscar em Rubricas
+      const hasRubricaKeywords = ['rubrica', 'orcamento', 'orçamento', 'saldo', 'valor', 'gasto'].some(kw => q.includes(kw));
+      const rankedRubricas = hasRubricaKeywords
+        ? (rubricas || [])
+            .map((rub) => ({
+              ...rub,
+              _score: scoreText(
+                [rub?.rubrica, rub?.grupo, rub?.centro_custo, rub?.museu, String(rub?.valor_rubrica || ''), String(rub?.saldo || '')]
+                  .filter(Boolean)
+                  .join(' '),
+                pergunta
+              ),
+              _type: 'rubrica',
+            }))
+            .filter((rub) => rub._score > 0)
+            .sort((a, b) => b._score - a._score)
+            .slice(0, 2)
+        : [];
+
+      // Buscar em TeamPayment (Equipe)
+      const hasEquipeKeywords = ['equipe', 'profissional', 'membro', 'contrato', 'pagamento', 'pago'].some(kw => q.includes(kw));
+      const rankedTeamPayments = hasEquipeKeywords
+        ? (teamPayments || [])
+            .map((tp) => ({
+              ...tp,
+              _score: scoreText(
+                [tp?.user_email, tp?.mes_referencia, tp?.status, String(tp?.valor_nf || ''), tp?.observacoes]
+                  .filter(Boolean)
+                  .join(' '),
+                pergunta
+              ),
+              _type: 'equipe',
+            }))
+            .filter((tp) => tp._score > 0)
+            .sort((a, b) => b._score - a._score)
+            .slice(0, 2)
+        : [];
+
+      const topDocs = rankedDocs.slice(0, 2);
+      const selectedItems = [
+        ...topDocs,
+        ...rankedProgramacoes,
+        ...rankedCompras,
+        ...rankedRubricas,
+        ...rankedTeamPayments,
+      ].slice(0, 8);
 
       if (selectedItems.length > 0) {
         return selectedItems
@@ -259,6 +325,37 @@ Museu: ${item?.museu || 'Não especificado'}
 Sinopse: ${item?.sinopse || item?.descricao || ''}
 `.trim();
             }
+            if (item._type === 'compra') {
+              return `
+[Compra ${index + 1}]
+Descrição: ${item?.descricao || 'Sem descrição'}
+Fornecedor: ${item?.fornecedor || 'Não especificado'}
+Valor: R$ ${(item?.valor_solicitado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Status: ${item?.status || 'Sem status'}
+Museu: ${item?.museu || 'Não especificado'}
+`.trim();
+            }
+            if (item._type === 'rubrica') {
+              return `
+[Rúbrica ${index + 1}]
+Nome: ${item?.rubrica || 'Sem nome'}
+Grupo: ${item?.grupo || 'Não especificado'}
+Museu/Centro: ${item?.centro_custo || item?.museu || 'Não especificado'}
+Valor Previsto: R$ ${(item?.valor_rubrica || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Saldo: R$ ${(item?.saldo || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Percentual Utilizado: ${item?.percentual_utilizado || 0}%
+`.trim();
+            }
+            if (item._type === 'equipe') {
+              return `
+[Pagamento de Equipe ${index + 1}]
+Membro: ${item?.user_email || 'Não especificado'}
+Mês: ${item?.mes_referencia || 'Não especificado'}
+Ano: ${item?.ano || ''}
+Valor NF: R$ ${(item?.valor_nf || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Status: ${item?.status || 'Sem status'}
+`.trim();
+            }
             return `
 [Documento ${index + 1}]
 Título: ${item?.titulo || 'Documento sem título'}
@@ -272,37 +369,71 @@ ${(item?.conteudo_extraido || '').slice(0, 2000)}
           .join('\n\n');
       }
 
-      // Fallback: documentos + programações gerais
-      const fallbackDocs = rankedDocs.slice(0, 3);
-      const fallbackProgramacoes = rankedProgramacoes.slice(0, 2);
+      // Fallback: todas as entidades
+      const fallbackAll = [
+        ...rankedDocs.slice(0, 2),
+        ...rankedProgramacoes.slice(0, 2),
+        ...rankedCompras.slice(0, 1),
+        ...rankedRubricas.slice(0, 1),
+        ...rankedTeamPayments.slice(0, 1),
+      ];
 
-      if (fallbackDocs.length === 0 && fallbackProgramacoes.length === 0) return '';
+      if (fallbackAll.length === 0) return '';
 
-      return [
-        ...fallbackDocs.map(
-          (doc, index) => `
-[Documento ${index + 1}]
-Título: ${doc?.titulo || 'Documento sem título'}
-Categoria: ${doc?.categoria || 'Sem categoria'}
-${doc?.tags ? `Tags: ${doc.tags}` : ''}
-${doc?.resumo_ia ? `Resumo: ${doc.resumo_ia}` : ''}
-Conteúdo:
-${(doc?.conteudo_extraido || '').slice(0, 2000)}
-`.trim()
-        ),
-        ...fallbackProgramacoes.map(
-          (prog, index) => `
+      return fallbackAll
+        .map((item, index) => {
+          if (item._type === 'programacao') {
+            return `
 [Programação ${index + 1}]
-Ação: ${prog?.titulo || prog?.nome_acao || 'Sem título'}
-Data: ${prog?.data || 'Data não especificada'}
-Horário: ${prog?.horario || 'Horário não especificado'}
-Local: ${prog?.local || 'Local não especificado'}
-Museu: ${prog?.museu || 'Não especificado'}
-Descrição: ${(prog?.sinopse || prog?.descricao || '').slice(0, 1000)}
-`.trim()
-        ),
-      ]
-        .filter(Boolean)
+Ação: ${item?.titulo || item?.nome_acao || 'Sem título'}
+Data: ${item?.data || 'Data não especificada'}
+Horário: ${item?.horario || 'Horário não especificado'}
+Local: ${item?.local || 'Local não especificado'}
+Museu: ${item?.museu || 'Não especificado'}
+Sinópse: ${item?.sinopse || item?.descricao || ''}
+`.trim();
+          }
+          if (item._type === 'compra') {
+            return `
+[Compra ${index + 1}]
+Descrição: ${item?.descricao || 'Sem descrição'}
+Fornecedor: ${item?.fornecedor || 'Não especificado'}
+Valor: R$ ${(item?.valor_solicitado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Status: ${item?.status || 'Sem status'}
+Museu: ${item?.museu || 'Não especificado'}
+`.trim();
+          }
+          if (item._type === 'rubrica') {
+            return `
+[Rúbrica ${index + 1}]
+Nome: ${item?.rubrica || 'Sem nome'}
+Grupo: ${item?.grupo || 'Não especificado'}
+Museu/Centro: ${item?.centro_custo || item?.museu || 'Não especificado'}
+Valor Previsto: R$ ${(item?.valor_rubrica || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Saldo: R$ ${(item?.saldo || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Percentual Utilizado: ${item?.percentual_utilizado || 0}%
+`.trim();
+          }
+          if (item._type === 'equipe') {
+            return `
+[Pagamento de Equipe ${index + 1}]
+Membro: ${item?.user_email || 'Não especificado'}
+Mês: ${item?.mes_referencia || 'Não especificado'}
+Ano: ${item?.ano || ''}
+Valor NF: R$ ${(item?.valor_nf || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Status: ${item?.status || 'Sem status'}
+`.trim();
+          }
+          return `
+[Documento ${index + 1}]
+Título: ${item?.titulo || 'Documento sem título'}
+Categoria: ${item?.categoria || 'Sem categoria'}
+${item?.tags ? `Tags: ${item.tags}` : ''}
+${item?.resumo_ia ? `Resumo: ${item.resumo_ia}` : ''}
+Conteúdo:
+${(item?.conteudo_extraido || '').slice(0, 2000)}
+`.trim();
+        })
         .join('\n\n');
     } catch (error) {
       console.error('Erro ao buscar contexto:', error);
@@ -331,7 +462,7 @@ Descrição: ${(prog?.sinopse || prog?.descricao || '').slice(0, 1000)}
 Você é o assistente da plataforma Museus Centro.
 
 REGRAS:
-- Consulte sempre a Biblioteca de Conhecimento.
+- Consulte sempre a Biblioteca de Conhecimento, Programação, Compras, Rubricas e Equipe.
 - Para perguntas sobre funcionamento do sistema, priorize o Manual e documentos de ajuda.
 - Leia os documentos do contexto antes de responder.
 - Use SOMENTE a base abaixo.
@@ -424,9 +555,9 @@ ${textToSend}
           <span className="font-medium text-sm">Assistente</span>
           <div className="flex items-center gap-1 text-[10px] text-gray-500">
             <BookOpen className="w-3 h-3" />
-            <span>Manual</span>
-            <FileText className="w-3 h-3 ml-1" />
             <span>Biblioteca</span>
+            <FileText className="w-3 h-3 ml-1" />
+            <span>+5 fontes</span>
           </div>
         </div>
 
@@ -459,7 +590,7 @@ ${textToSend}
 
             {loading && (
               <div className="text-sm text-gray-500 bg-gray-100 rounded inline-block p-2">
-                Buscando no manual e na biblioteca...
+                Buscando em programação, compras, rubricas, equipe e biblioteca...
               </div>
             )}
 
@@ -472,7 +603,7 @@ ${textToSend}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               disabled={loading}
-              placeholder="Pergunte sobre o sistema, manual, fluxos ou documentos"
+              placeholder="Pergunte sobre programação, compras, rubricas, equipe, etc"
             />
             <Button onClick={() => handleSend()} disabled={loading || !input.trim()}>
               <Send className="w-4 h-4" />
