@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toastMessages } from '@/lib/toastMessages';
+import { toast } from 'sonner';
 import { RefreshCw } from 'lucide-react';
 
 function toNumber(value) {
@@ -35,7 +36,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
     try {
       const newValue = parseFloat(editValue);
       if (!Number.isFinite(newValue) || newValue < 0) {
-        toastMessages.error('Informe um valor válido');
+        toast.error('Informe um valor válido');
         setSavingId(null);
         return;
       }
@@ -50,7 +51,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
       setEditField(null);
       if (onRefresh) onRefresh();
     } catch (e) {
-      toastMessages.error('Erro ao salvar: ' + (e?.message || e));
+      toast.error('Erro ao salvar: ' + (e?.message || e));
     } finally {
       setSavingId(null);
     }
