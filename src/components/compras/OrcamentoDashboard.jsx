@@ -79,33 +79,43 @@ export default function OrcamentoDashboard({ budgetLines = [], purchases = [] })
       {/* KPI PRINCIPAL */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
 
-        
+        <div className="p-5 border rounded-xl">
+          <p className="text-xs text-gray-500">Saldo Inicial</p>
+          <p className="text-xl font-bold">{fmt(totalInicial)}</p>
+        </div>
 
+        <div className="p-5 border rounded-xl">
+          <p className="text-xs text-gray-500">Comprometido</p>
+          <p className="text-xl font-bold text-amber-600">{fmt(totalComprometido)}</p>
+        </div>
 
-        
+        <div className="p-5 border rounded-xl">
+          <p className="text-xs text-gray-500">Disponível</p>
+          <p className={`text-xl font-bold ${totalDisponivel < totalInicial*0.1 ? 'text-red-600':'text-green-600'}`}>
+            {fmt(totalDisponivel)}
+          </p>
+        </div>
 
-        
-
-
-        
-
-        
-
-
-
-
-        
-
-        
-
-
-        
+        <div className="p-5 border rounded-xl">
+          <p className="text-xs text-gray-500">Pago</p>
+          <p className="text-xl font-bold text-green-700">{fmt(totalPago)}</p>
+        </div>
 
         <div className="p-5 border rounded-xl">
           <p className="text-xs text-gray-500">Execução</p>
-          <p className="text-xl font-bold">{pctExecucao.toFixed(1)}%</p>
+          <p className="text-2xl font-bold text-green-700">{Math.round(pctExecucao)}%</p>
         </div>
 
+      </div>
+
+      {/* BARRA DE PROGRESSO */}
+      <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+        <div
+          className={`h-full ${
+            pctUsado > 90 ? 'bg-red-500' :
+            pctUsado > 70 ? 'bg-amber-500' :
+            'bg-green-500'}`}
+          style={{ width: `${Math.min(pctUsado, 100)}%` }} />
       </div>
 
       {/* EQUIPE + RISCO */}
@@ -131,18 +141,6 @@ export default function OrcamentoDashboard({ budgetLines = [], purchases = [] })
 
       </div>
 
-      {/* BARRA */}
-      <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-        <div
-          className={`h-full ${
-          pctUsado > 90 ? 'bg-red-500' :
-          pctUsado > 70 ? 'bg-amber-500' :
-          'bg-green-500'}`
-          }
-          style={{ width: `${Math.min(pctUsado, 100)}%` }} />
-        
-      </div>
-
       {/* NATUREZA */}
       <div>
         <h3 className="text-sm font-semibold mb-4">Por Natureza</h3>
@@ -161,7 +159,6 @@ export default function OrcamentoDashboard({ budgetLines = [], purchases = [] })
                   <div
                     className="h-full bg-blue-500"
                     style={{ width: `${pct}%` }} />
-                  
                 </div>
               </div>);
 
