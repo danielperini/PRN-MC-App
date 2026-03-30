@@ -17,7 +17,7 @@ import FileBackupStatus from '../components/backup/FileBackupStatus';
 import FileHierarchy from '../components/gallery/FileHierarchy';
 import FilePreviewViewer from '../components/gallery/FilePreviewViewer';
 import GoogleDriveImporter from '../components/drive/GoogleDriveImporter';
-import { toast } from 'sonner';
+import { toastMessages } from '@/lib/toastMessages';
 
 function GestorArquivosInner() {
   const { user: currentUser } = useCurrentUser();
@@ -101,7 +101,7 @@ function GestorArquivosInner() {
           return 0;
         });
       } catch (error) {
-        toast.error('Erro ao carregar arquivos');
+        toastMessages.warning('Erro ao carregar arquivos');
         return [];
       }
     },
@@ -155,9 +155,9 @@ function GestorArquivosInner() {
     setBackupFullLoading(true);
     try {
       await base44.functions.invoke('backupToGoogleDrive');
-      toast.success('Backup completo realizado com sucesso!');
+      toastMessages.createSuccess();
     } catch (error) {
-      toast.error('Erro no backup completo: ' + (error.message || 'desconhecido'));
+      toastMessages.createFailed(error?.message);
     } finally {
       setBackupFullLoading(false);
     }
@@ -168,9 +168,9 @@ function GestorArquivosInner() {
     try {
       const response = await base44.functions.invoke('backupDriveFolders', {});
       const count = response.data?.totalFilesCopied || 0;
-      toast.success(count > 0 ? `Backup Drive: ${count} arquivo(s) copiado(s)` : 'Backup Drive: nenhum arquivo novo.');
+      toastMessages.createSuccess();
     } catch (error) {
-      toast.error('Erro no backup Drive: ' + (error.message || 'desconhecido'));
+      toastMessages.createFailed(error?.message);
     } finally {
       setBackupDriveLoading(false);
     }
@@ -179,9 +179,9 @@ function GestorArquivosInner() {
   const handleDownloadBackup = async (backup) => {
     if (backup.fileUrl) {
       window.open(backup.fileUrl, '_blank');
-      toast.success(`Download iniciado: ${backup.fileName}`);
+      toastMessages.info('Download iniciado');
     } else {
-      toast.error('URL do arquivo não disponível');
+      toastMessages.warning('URL do arquivo não disponível');
     }
   };
 
@@ -193,12 +193,12 @@ function GestorArquivosInner() {
 
     files.forEach(file => {
       if (file.size > MAX_FILE_SIZE) {
-        toast.error(`${file.name} excede o limite de 100MB`);
+        toastMessages.warning(`${file.name} excede o limite de 100MB`);
         return;
       }
       totalSize += file.size;
       if (totalSize > MAX_FILE_SIZE) {
-        toast.error('Total de arquivos excede 100MB');
+        toastMessages.warning('Total de arquivos excede 100MB');
         return;
       }
       validFiles.push(file);
@@ -209,7 +209,7 @@ function GestorArquivosInner() {
 
   const handleUploadFiles = async () => {
     if (uploadFiles.length === 0) {
-      toast.error('Selecione pelo menos um arquivo');
+      toastMessages.warning('Selecione pelo menos um arquivo');
       return;
     }
 
@@ -229,16 +229,16 @@ function GestorArquivosInner() {
             ativo: true,
             created_by_email: currentUser.email,
           });
-          toast.success(`PDF "${file.name}" adicionado à base de conhecimento`);
-        }
-      }
+          toastMessages.createSuccess();
+          }
+          }
 
-      toast.success(`${uploadFiles.length} arquivo(s) enviado(s) com sucesso`);
-      setUploadFiles([]);
-      setUploadNotes('');
-      setShowUploadDialog(false);
-    } catch (error) {
-      toast.error('Erro ao fazer upload: ' + (error.message || 'desconhecido'));
+          toastMessages.createSuccess();
+          setUploadFiles([]);
+          setUploadNotes('');
+          setShowUploadDialog(false);
+          } catch (error) {
+          toastMessages.createFailed(error?.message);
     } finally {
       setUploading(false);
     }
@@ -266,9 +266,9 @@ function GestorArquivosInner() {
       }
 
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
-      toast.success('Contrato deletado com sucesso');
+      toastMessages.deleteSuccess();
     } catch (error) {
-      toast.error('Erro ao deletar contrato: ' + error.message);
+      toastMessages.deleteFailed(error?.message);
     }
   };
 
@@ -286,9 +286,9 @@ function GestorArquivosInner() {
       });
 
       queryClient.invalidateQueries({ queryKey: ['invoice-submissions'] });
-      toast.success('Nota fiscal deletada com sucesso');
+      toastMessages.deleteSuccess();
     } catch (error) {
-      toast.error('Erro ao deletar nota fiscal: ' + error.message);
+      toastMessages.deleteFailed(error?.message);
     }
   };
 

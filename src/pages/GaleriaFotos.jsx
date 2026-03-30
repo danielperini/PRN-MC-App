@@ -8,7 +8,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
+import { toastMessages } from '@/lib/toastMessages';
 
 function GaleriaFotosInner() {
   const { user: currentUser } = useCurrentUser();
@@ -46,7 +46,7 @@ function GaleriaFotosInner() {
 
         return imageFiles.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       } catch (error) {
-        toast.error('Erro ao carregar galeria de fotos');
+        toastMessages.warning('Erro ao carregar galeria de fotos');
         return [];
       }
     },

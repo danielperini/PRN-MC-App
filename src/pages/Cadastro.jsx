@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'sonner';
+import { toastMessages } from '@/lib/toastMessages';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
@@ -31,10 +31,10 @@ export default function Cadastro() {
       return base44.entities.UserRegistration.create({ ...form, status: 'PENDENTE' });
     },
     onSuccess: () => {
-      toast.success('Solicitação enviada com sucesso! Aguarde a análise de um coordenador.');
-      setDone(true);
-    },
-    onError: (e) => toast.error(e.message || 'Erro ao enviar solicitação. Tente novamente.'),
+       toastMessages.createSuccess();
+       setDone(true);
+     },
+     onError: (e) => toastMessages.createFailed(e.message),
   });
 
   const recoveryMutation = useMutation({
@@ -45,11 +45,11 @@ export default function Cadastro() {
       return base44.functions.invoke('recoverPassword', { email: recoveryEmail });
     },
     onSuccess: () => {
-      toast.success('Senha temporária enviada! Verifique seu email.');
-      setRecoveryEmail('');
-      setShowRecovery(false);
-    },
-    onError: (e) => toast.error(e.message || 'Erro ao recuperar senha.'),
+       toastMessages.info('Senha temporária enviada! Verifique seu email.');
+       setRecoveryEmail('');
+       setShowRecovery(false);
+     },
+     onError: (e) => toastMessages.createFailed(e.message),
   });
 
   if (done) {

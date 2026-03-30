@@ -21,7 +21,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
-import { toast } from 'sonner';
+import { toastMessages } from '@/lib/toastMessages';
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
@@ -100,10 +100,10 @@ function RelatoriosInner() {
     onSuccess: () => {
       queryClient.invalidateQueries(['all-reports-list']);
       queryClient.invalidateQueries(['my-reports-list']);
-      toast.success('Relatório excluído.');
+      toastMessages.deleteSuccess();
       setDeleteTarget(null);
     },
-    onError: () => toast.error('Erro ao excluir relatório.'),
+    onError: () => toastMessages.deleteFailed(),
   });
 
   const { data: allReports = [], isLoading: loadingAll } = useQuery({
@@ -213,7 +213,7 @@ function RelatoriosInner() {
 
    const exportSelectedPDF = async () => {
      if (selectedReports.size === 0) {
-       toast.error('Selecione ao menos um relatório');
+       toastMessages.warning('Selecione ao menos um relatório');
        return;
      }
      setGeneratingPDF(true);
@@ -222,12 +222,12 @@ function RelatoriosInner() {
          reportIds: Array.from(selectedReports)
        });
        if (response.data && response.data.error) {
-         toast.error(response.data.error);
+         toastMessages.warning(response.data.error);
        } else {
-         toast.success('PDF consolidado gerado com sucesso!');
+         toastMessages.createSuccess();
        }
-     } catch (err) {
-       toast.error('Erro ao gerar PDF: ' + (err?.message || 'tente novamente'));
+       } catch (err) {
+       toastMessages.createFailed(err?.message);
      } finally {
        setGeneratingPDF(false);
      }

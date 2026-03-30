@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Upload, Edit2, Trash2, Phone, Mail, Building2 } from 'lucide-react';
+import { toastMessages } from '@/lib/toastMessages';
 
 export default function Fornecedores() {
   const [showForm, setShowForm] = useState(false);
@@ -41,6 +42,7 @@ export default function Fornecedores() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fornecedores'] });
       resetForm();
+      toastMessages.createSuccess();
     }
   });
 
@@ -49,12 +51,16 @@ export default function Fornecedores() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fornecedores'] });
       resetForm();
+      toastMessages.updateSuccess();
     }
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Fornecedor.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fornecedores'] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fornecedores'] });
+      toastMessages.deleteSuccess();
+    }
   });
 
   const handleSubmit = async (e) => {

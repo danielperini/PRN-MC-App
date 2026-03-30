@@ -9,7 +9,7 @@ import { ArrowLeft, Check, AlertCircle, FileText, Users, Archive, Trash2, Eye } 
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
+import { toastMessages } from '@/lib/toastMessages';
 
 const notificationTypeIcons = {
   REPORT_SUBMITTED: FileText,
@@ -80,7 +80,7 @@ function ActivityLogInner() {
     mutationFn: (notifId) => base44.entities.Notification.delete(notifId),
     onSuccess: () => {
       queryClient.invalidateQueries(['user-notifications', user?.email]);
-      toast.success('Notificação removida');
+      toastMessages.deleteSuccess();
     },
   });
 

@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText, Plus, Eye, Download, Check } from 'lucide-react';
 import TermoMetaLinkage from '@/components/termos/TermoMetaLinkage';
+import { toastMessages } from '@/lib/toastMessages';
 
 const TIPOS_TERMO = {
   monitoria_mediacao: 'Monitoria/Mediação',
@@ -106,9 +107,9 @@ function GeradorTermoContent() {
       status: 'rascunho'
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['termos'] });
-      alert('Termo salvo como rascunho!');
-    }
+       queryClient.invalidateQueries({ queryKey: ['termos'] });
+       toastMessages.createSuccess();
+     }
   });
 
   const handleInputChange = (field, value) => {
@@ -137,9 +138,9 @@ function GeradorTermoContent() {
         status: 'gerado'
       });
     } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
-      alert('Erro ao gerar PDF');
-    }
+       console.error('Erro ao gerar PDF:', error);
+       toastMessages.createFailed(error?.message);
+     }
   };
 
   return (

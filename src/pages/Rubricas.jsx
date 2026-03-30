@@ -18,7 +18,7 @@ import {
   Search,
   RefreshCw,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toastMessages } from '@/lib/toastMessages';
 import RequireAuth from '@/components/auth/RequireAuth';
 import RubricasGrid from '@/components/rubricas/RubricasGrid';
 import RubricaDetail from '@/components/rubricas/RubricaDetail';
@@ -44,13 +44,13 @@ export default function RubricasPage() {
     try {
       const res = await base44.functions.invoke('reinitializeRubricas', {});
       if (res.data?.success) {
-        toast.success(`Rubricas inicializadas: ${res.data.rubricas_processadas} processadas`);
+        toastMessages.createSuccess();
         queryClient.invalidateQueries({ queryKey: ['rubricas'] });
       } else {
-        toast.error(res.data?.error || 'Erro ao inicializar rubricas');
+        toastMessages.warning(res.data?.error || 'Erro ao inicializar rubricas');
       }
     } catch (e) {
-      toast.error('Erro ao inicializar rubricas: ' + (e.message || 'tente novamente'));
+      toastMessages.createFailed(e.message);
     } finally {
       setInitializing(false);
     }
