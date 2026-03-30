@@ -1,0 +1,133 @@
+{
+  "name": "UserPermission",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Nome do usu\u00e1rio"
+    },
+    "base_role": {
+      "type": "string",
+      "enum": [
+        "PROFISSIONAL",
+        "COORDENADOR",
+        "ADMIN",
+        "PATROCINADOR"
+      ],
+      "description": "Papel base do usu\u00e1rio"
+    },
+    "can_view_all_reports": {
+      "type": "boolean",
+      "default": true,
+      "description": "Pode visualizar todos os relat\u00f3rios"
+    },
+    "can_review_reports": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode revisar e aprovar relat\u00f3rios"
+    },
+    "can_manage_users": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode gerenciar usu\u00e1rios"
+    },
+    "can_manage_files": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode gerenciar arquivos completamente"
+    },
+    "can_manage_museus": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode gerenciar museus"
+    },
+    "can_manage_equipes": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode gerenciar equipes"
+    },
+    "can_view_audit_log": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode visualizar auditoria"
+    },
+    "can_manage_platform": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode gerenciar plataforma"
+    },
+    "must_submit_monthly_reports": {
+      "type": "boolean",
+      "default": false,
+      "description": "Obrigado a enviar relat\u00f3rio mensal (ser\u00e1 notificado no \u00faltimo dia do m\u00eas)"
+    },
+    "gestao_compras": {
+      "type": "boolean",
+      "default": false,
+      "description": "Acesso completo ao m\u00f3dulo de compras: cadastrar/editar rubricas, ver saldos globais, aprovar compras, acessar notas fiscais"
+    },
+    "pode_ver_saude_orcamentaria": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode visualizar sa\u00fade or\u00e7ament\u00e1ria"
+    },
+    "pode_gerenciar_rubricas": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode gerenciar rubricas e aloca\u00e7\u00f5es"
+    },
+    "pode_aprovar_solicitacoes": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode aprovar solicita\u00e7\u00f5es de compra e pagamentos"
+    },
+    "can_curate_news": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode curar, aprovar e publicar not\u00edcias no carrossel do dashboard"
+    },
+    "can_manage_momentos": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode criar e publicar momentos especiais no carrossel do dashboard"
+    },
+    "can_view_sponsor_dashboard": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode acessar o dashboard do patrocinador (leitura apenas)"
+    },
+    "can_view_approved_reports": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode visualizar apenas relat\u00f3rios aprovados"
+    },
+    "can_view_approved_programacao": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode visualizar programa\u00e7\u00e3o em modo reduzido"
+    },
+    "can_view_public_gallery": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode visualizar galeria de fotos aprovadas"
+    },
+    "can_view_budget_summary": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode visualizar resumo or\u00e7ament\u00e1rio em n\u00edvel macro"
+    },
+    "can_view_project_kpis": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pode visualizar KPIs e indicadores do projeto"
+    }
+  },
+  "required": [
+    "user_email",
+    "base_role"
+  ]
+}
