@@ -16,6 +16,21 @@ function moeda(value) {
   });
 }
 
+function parseMoneda(str) {
+  // Converte "1.234,56" em 1234.56
+  const cleaned = String(str || '').replace(/\./g, '').replace(',', '.');
+  const num = parseFloat(cleaned);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function formatMoneda(value) {
+  // Formata como moeda: "1234.56" → "1.234,56"
+  return toNumber(value).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export default function RubricasGrid({ rubricas = [], onRefresh }) {
   const [search, setSearch] = useState('');
   const [recalcLoading, setRecalcLoading] = useState(false);
@@ -34,19 +49,30 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
   async function handleSaveEdit(rubricaId, field) {
     setSavingId(rubricaId);
     try {
-      const newValue = parseFloat(editValue);
+      const newValue = parseMoneda(editValue);
       if (!Number.isFinite(newValue) || newValue < 0) {
-        toast.error('Informe um valor válido');
+        toast.error('Informe um valor válido (ex: 1.234,56)');
         setSavingId(null);
         return;
       }
 
-      const updateData = field === 'valor_rubrica' 
-        ? { valor_rubrica: newValue }
-        : { valor_utilizado: newValue };
+      const rubrica = rubricas.find(r => r.id === rubricaId);
+      const updateData = {};
+      
+      if (field === 'valor_rubrica') {
+        updateData.valor_rubrica = newValue;
+        updateData.saldo = newValue - toNumber(rubrica?.valor_utilizado);
+        const perc = newValue > 0 ? (toNumber(rubrica?.valor_utilizado) / newValue) * 100 : 0;
+        updateData.percentual_utilizado = perc;
+      } else {
+        updateData.valor_utilizado = newValue;
+        updateData.saldo = toNumber(rubrica?.valor_rubrica) - newValue;
+        const perc = toNumber(rubrica?.valor_rubrica) > 0 ? (newValue / toNumber(rubrica?.valor_rubrica)) * 100 : 0;
+        updateData.percentual_utilizado = perc;
+      }
 
       await base44.entities.Rubrica.update(rubricaId, updateData);
-      toastMessages.success(`${field === 'valor_rubrica' ? 'Valor' : 'Valor utilizado'} atualizado!`);
+      toast.success(`${field === 'valor_rubrica' ? 'Valor' : 'Valor utilizado'} atualizado!`);
       setEditingId(null);
       setEditField(null);
       if (onRefresh) onRefresh();
@@ -154,8 +180,8 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
                     {editingId === r.id && editField === 'valor_rubrica' ? (
                       <input
                         autoFocus
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        placeholder="0,00"
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         onBlur={() => handleSaveEdit(r.id, 'valor_rubrica')}
@@ -167,7 +193,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
                         disabled={savingId === r.id}
                       />
                     ) : (
-                      `R$ ${moeda(valor)}`
+                      <span className="cursor-pointer">R$ {moeda(valor)}</span>
                     )}
                   </td>
                   <td 
@@ -177,8 +203,8 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
                     {editingId === r.id && editField === 'valor_utilizado' ? (
                       <input
                         autoFocus
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        placeholder="0,00"
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         onBlur={() => handleSaveEdit(r.id, 'valor_utilizado')}
@@ -190,7 +216,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
                         disabled={savingId === r.id}
                       />
                     ) : (
-                      `R$ ${moeda(utilizado)}`
+                      <span className="cursor-pointer">R$ {moeda(utilizado)}</span>
                     )}
                   </td>
                   <td className={`p-2 font-medium ${saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
