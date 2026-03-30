@@ -1,4 +1,12 @@
 import React, { useCallback, useMemo, useState } from 'react';
+
+export function validateAtividade(atividade = {}) {
+  const errors = [];
+  if (!atividade || typeof atividade !== 'object') return ['Atividade inválida'];
+  if (!atividade.classificacao || !String(atividade.classificacao).trim()) errors.push('Classificação é obrigatória');
+  if (!atividade.nome || !String(atividade.nome).trim()) errors.push('Nome da atividade é obrigatório');
+  return errors;
+}
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
