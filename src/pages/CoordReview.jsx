@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast } from 'sonner';
+import { toastMessages } from '@/lib/toastMessages';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -45,7 +45,7 @@ function ReturnDialog({ open, onClose, report, onConfirm, isPending }) {
   const hasAnyComment = Object.values(comments).some(v => v.trim());
 
   const handleConfirm = () => {
-    if (!hasAnyComment) { toast.error('Informe pelo menos um comentário de devolução'); return; }
+    if (!hasAnyComment) { toastMessages.warning('Informe pelo menos um comentário de devolução.'); return; }
     onConfirm(comments);
     setComments({ identificacao: '', atividades: '', avaliacao: '', geral: '' });
   };
@@ -245,9 +245,9 @@ function CoordReviewInner() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['review-reports']);
-      toast.success('Revisão delegada com sucesso!');
+      toastMessages.delegationSuccess();
     },
-    onError: (err) => toast.error('Erro ao delegar: ' + (err?.message || 'tente novamente')),
+    onError: (err) => toastMessages.delegationFailed(err?.message),
   });
 
   const workflowMutation = useMutation({
@@ -306,10 +306,11 @@ function CoordReviewInner() {
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries(['review-reports']);
       queryClient.invalidateQueries(['audit-approvals']);
-      const msgs = { IN_REVIEW: 'Revisão iniciada', APPROVED: 'Relatório aprovado!', RETURNED: 'Relatório devolvido' };
-      toast.success(msgs[vars.status] || 'Status atualizado');
+      if (vars.status === 'APPROVED') { toastMessages.approvalSuccess('Relatório aprovado.'); }
+      else if (vars.status === 'RETURNED') { toastMessages.returnSuccess('Relatório devolvido.'); }
+      else { toastMessages.info('Revisão iniciada.'); }
     },
-    onError: (err) => toast.error('Erro: ' + (err?.message || 'tente novamente')),
+    onError: (err) => toastMessages.error(err?.message),
   });
 
   return (

@@ -7,6 +7,7 @@ import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Toolti
 import { DollarSign, TrendingUp, AlertCircle, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toastMessages } from '@/lib/toastMessages';
 
 function DashboardFinanceiroInner() {
   const { user: currentUser, isCoordenador } = useCurrentUser();
@@ -20,7 +21,8 @@ function DashboardFinanceiroInner() {
       try {
         const data = await base44.entities.TermoCompromisso.list('-created_date', 500);
         return Array.isArray(data) ? data : [];
-      } catch {
+      } catch (e) {
+        toastMessages.warning('Erro ao carregar termos.');
         return [];
       }
     }
@@ -32,7 +34,8 @@ function DashboardFinanceiroInner() {
       try {
         const data = await base44.entities.PagamentoFornecedor.list('-data_pagamento', 500);
         return Array.isArray(data) ? data : [];
-      } catch {
+      } catch (e) {
+        toastMessages.warning('Erro ao carregar pagamentos.');
         return [];
       }
     }

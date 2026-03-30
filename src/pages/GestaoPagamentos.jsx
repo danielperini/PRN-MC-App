@@ -9,7 +9,7 @@ import {
   CreditCard, Upload, CheckCircle2, Loader2, ExternalLink,
   Search, SlidersHorizontal, ChevronDown, ChevronUp, AlertCircle
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toastMessages } from '@/lib/toastMessages';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from '@/components/ui/dialog';
@@ -100,12 +100,12 @@ function PagamentoLoteDialog({ open, onClose, selectedPurchases, onSuccess }) {
     const res = await base44.integrations.Core.UploadFile({ file });
     setComprovanteUrl(res.file_url);
     setUploading(false);
-    toast.success('Comprovante/NF enviado!');
+    toastMessages.fileUploadSuccess();
   };
 
   const handleConfirm = async () => {
     if (!comprovanteUrl) {
-      toast.error('Anexe o comprovante ou NF antes de confirmar.');
+      toastMessages.warning('Anexe o comprovante ou NF antes de confirmar.');
       return;
     }
     setSaving(true);
@@ -124,11 +124,11 @@ function PagamentoLoteDialog({ open, onClose, selectedPurchases, onSuccess }) {
     }
     setSaving(false);
     if (erros === 0) {
-      toast.success(`${selectedPurchases.length} solicitação(ões) marcada(s) como PAGO!`);
+      toastMessages.paymentSuccess(`${selectedPurchases.length} solicitação(ões) marcada(s) como pago.`);
       onSuccess();
       onClose();
     } else {
-      toast.error(`${erros} erro(s) ao processar. Verifique e tente novamente.`);
+      toastMessages.error(`${erros} erro(s) ao processar. Verifique e tente novamente.`);
     }
   };
 
