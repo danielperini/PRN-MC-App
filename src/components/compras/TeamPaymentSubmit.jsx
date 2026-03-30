@@ -448,6 +448,39 @@ export default function TeamPaymentSubmit({ userEmail }) {
             </div>
 
 
+            {/* O que deve conter na NF */}
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm space-y-3">
+              <div className="font-semibold text-amber-900 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" />
+                O que deve constar na Nota Fiscal
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-amber-800">
+                <div className="space-y-1.5">
+                  <p className="font-semibold text-amber-900">Dados do Tomador (quem paga)</p>
+                  <div className="bg-white/70 rounded-lg p-2 border border-amber-100 space-y-0.5">
+                    <p><span className="font-medium">Razão Social:</span> {VIADUTO_EMISSAO.razao_social}</p>
+                    <p><span className="font-medium">CNPJ:</span> {VIADUTO_EMISSAO.cnpj}</p>
+                    <p><span className="font-medium">Insc. Municipal:</span> {VIADUTO_EMISSAO.inscricao_municipal}</p>
+                    <p><span className="font-medium">Endereço:</span> {VIADUTO_EMISSAO.endereco}</p>
+                    <p><span className="font-medium">Telefone:</span> {VIADUTO_EMISSAO.telefone}</p>
+                    <p><span className="font-medium">E-mail:</span> {VIADUTO_EMISSAO.email}</p>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="font-semibold text-amber-900">Descrição do Serviço</p>
+                  <div className="bg-white/70 rounded-lg p-2 border border-amber-100 space-y-1">
+                    <p>Prestação de serviço ({member?.funcao || 'sua função'}) ao Projeto Museus Centro</p>
+                    <p>Termo de Colaboração <span className="font-medium">{VIADUTO_EMISSAO.termo}</span></p>
+                    <p>Parceria com SMC/FMC — referente ao mês selecionado</p>
+                  </div>
+                  <p className="font-semibold text-amber-900 mt-2">Valor</p>
+                  <div className="bg-white/70 rounded-lg p-2 border border-amber-100">
+                    <p>O valor deve ser exatamente <span className="font-bold">{formatBRL(valorParcela)}</span></p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Padrão de nome dos arquivos */}
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
               <span className="font-medium text-gray-800">Padrão de nome dos arquivos: </span>
