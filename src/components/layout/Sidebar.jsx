@@ -3,6 +3,7 @@ import HoverManualTooltip from '@/components/help/HoverManualTooltip';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Building2,
   FileText,
@@ -83,6 +84,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           name: 'Dashboard',
           icon: BarChart3,
           label: 'Dashboard',
+          tooltip: 'Painel principal com resumo de atividades, relatórios, notificações e indicadores do mês.',
           show: true,
         },
       ],
@@ -94,12 +96,14 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           name: 'Relatorios',
           icon: FileText,
           label: 'Relatórios',
+          tooltip: 'Crie, edite e acompanhe os relatórios mensais. Exporte o consolidado do mês em PDF com atividades, fotos e assinatura.',
           show: true,
         },
         {
           name: 'Compras',
           icon: ShoppingCart,
           label: 'Compras e Pagamentos',
+          tooltip: 'Gerencie compras, pagamentos de equipe, rubricas, notas fiscais e aprovações de fornecedores e colaboradores.',
           show: true,
         },
       ],
@@ -111,24 +115,28 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           name: 'Agenda',
           icon: CalendarDays,
           label: 'Agenda Museu Centro',
+          tooltip: 'Programação cultural dos museus MIS, MHAB e MUMO. Filtre por museu, mês e ano. Importe atividades direto para o seu relatório.',
           show: true,
         },
         {
           name: 'GaleriaFotos',
           icon: Images,
           label: 'Galeria',
+          tooltip: 'Galeria de fotos e arquivos de mídia vinculados às atividades e relatórios do projeto.',
           show: true,
         },
         {
           name: 'RubricasPorMuseu',
           icon: Building2,
           label: 'Rubricas por museu',
+          tooltip: 'Visualize o orçamento, previsto, utilizado e saldo de cada rubrica separado por museu.',
           show: true,
         },
         {
           name: 'GestorArquivos',
           icon: Paperclip,
           label: 'Arquivos',
+          tooltip: 'Organize, consulte e faça upload de contratos, notas fiscais, XML e documentos de apoio.',
           show: true,
         },
         {
@@ -136,24 +144,28 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           icon: CalendarDays,
           label: 'Informações Completas da Programação',
           description: 'Link de imagens • Minibios • Material de divulgação aprovado',
+          tooltip: 'Espelho completo da planilha de programação: sinopse, links de imagens, minibios dos artistas e material de divulgação aprovado.',
           show: true,
         },
         {
           name: 'MeusDados',
           icon: Users,
           label: 'Meus dados',
+          tooltip: 'Atualize seus dados cadastrais (banco, CPF/CNPJ, PIX). Obrigatório para envio de nota fiscal.',
           show: true,
         },
         {
           name: 'UserManagement',
           icon: Users,
           label: 'Usuários',
+          tooltip: 'Gerencie usuários da plataforma, permissões, funções e acessos por museu.',
           show: canManageUsersFlag,
         },
         {
           name: 'PlataformaAdmin',
           icon: Settings,
           label: 'Plataforma',
+          tooltip: 'Painel administrativo: configurações gerais, base de conhecimento e parâmetros da plataforma.',
           show: coord && canViewMenu('can_manage_platform'),
           submenu: [
             { name: 'PlataformaAdmin', label: 'Painel' },
@@ -170,12 +182,14 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           name: 'GeradorListaPresenca',
           icon: FileText,
           label: 'Gerador de lista de presença',
+          tooltip: 'Gere automaticamente listas de presença para atividades, oficinas e eventos. Baixe em PDF pronto para impressão.',
           show: true,
         },
         {
           name: 'GeradorTermoCompromisso',
           icon: ScrollText,
           label: 'Gerador de termo de compromisso',
+          tooltip: 'Crie termos de compromisso para participantes e colaboradores. Preencha os dados e exporte em PDF.',
           show: true,
         },
       ],
@@ -187,18 +201,21 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           name: 'AssistentePlanejamento',
           icon: HelpCircle,
           label: 'Assistente IA',
+          tooltip: 'Assistente inteligente com acesso à base de conhecimento do projeto. Tire dúvidas sobre fluxos, regras, agenda e relatórios.',
           show: true,
         },
         {
           name: 'Manual',
           icon: BookOpen,
           label: 'Manual e Ajuda',
+          tooltip: 'Guia completo da plataforma: regras, fluxos, passos rápidos, dúvidas frequentes e orientações para todos os módulos.',
           show: true,
         },
         {
           name: 'LeitorNoticias',
           icon: Newspaper,
           label: 'Notícias',
+          tooltip: 'Leia e curade notícias sobre cultura, museus e o setor criativo para manter a equipe atualizada.',
           show: true,
         },
       ],
@@ -301,34 +318,43 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
                 }
 
                 return (
-                  <HoverManualTooltip key={item.name} text={item.tooltip} pageName={item.label}>
-                    <Link to={createPageUrl(item.name)}>
-                      <Button
-                        variant="ghost"
-                        className={`w-full justify-start gap-2 rounded-xl px-3 h-auto min-h-[44px] py-2 ${
-                          isActive
-                            ? 'bg-white text-black'
-                            : 'text-white/70 hover:text-white hover:bg-white/10'
-                        }`}
-                      >
-                        <Icon className="w-4 h-4 shrink-0 mt-0.5" />
-                        {!collapsed && (
-                          <div className="min-w-0 text-left">
-                            <div className="truncate">{item.label}</div>
-                            {item.description ? (
-                              <div
-                                className={`text-[10px] leading-tight mt-0.5 whitespace-normal ${
-                                  isActive ? 'text-black/70' : 'text-white/45'
-                                }`}
-                              >
-                                {item.description}
+                  <TooltipProvider key={item.name} delayDuration={400}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Link to={createPageUrl(item.name)}>
+                          <Button
+                            variant="ghost"
+                            className={`w-full justify-start gap-2 rounded-xl px-3 h-auto min-h-[44px] py-2 ${
+                              isActive
+                                ? 'bg-white text-black'
+                                : 'text-white/70 hover:text-white hover:bg-white/10'
+                            }`}
+                          >
+                            <Icon className="w-4 h-4 shrink-0 mt-0.5" />
+                            {!collapsed && (
+                              <div className="min-w-0 text-left">
+                                <div className="truncate">{item.label}</div>
+                                {item.description ? (
+                                  <div
+                                    className={`text-[10px] leading-tight mt-0.5 whitespace-normal ${
+                                      isActive ? 'text-black/70' : 'text-white/45'
+                                    }`}
+                                  >
+                                    {item.description}
+                                  </div>
+                                ) : null}
                               </div>
-                            ) : null}
-                          </div>
-                        )}
-                      </Button>
-                    </Link>
-                  </HoverManualTooltip>
+                            )}
+                          </Button>
+                        </Link>
+                      </TooltipTrigger>
+                      {item.tooltip && (
+                        <TooltipContent side="right" className="max-w-[220px] text-xs">
+                          {item.tooltip}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
                 );
               })}
             </div>
