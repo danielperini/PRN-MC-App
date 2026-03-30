@@ -1,6 +1,7 @@
 import React from 'react';
 import { base44 } from '@/api/base44Client';
-import { LogOut, UserCircle, Home, ArrowLeft } from 'lucide-react';
+import { LogOut, UserCircle, Home, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { usePatrocinadorView } from '@/context/PatrocinadorViewContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import GlobalSearch from './GlobalSearch';
 
 export default function TopNav({ currentUser }) {
   const navigate = useNavigate();
+  const { isPatrocinadorView, setIsPatrocinadorView } = usePatrocinadorView();
   return (
     <nav className="h-16 border-b border-black bg-white flex items-center justify-between px-6 sticky top-0 z-30">
       {/* Back button + Search */}
@@ -32,6 +34,18 @@ export default function TopNav({ currentUser }) {
         {currentUser?.email && <PendingActionsAlert />}
         {currentUser?.email && <NotificationCenter />}
         {currentUser?.email && <PurchaseNotificationBell currentUser={currentUser} />}
+        
+        {currentUser?.email && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsPatrocinadorView(!isPatrocinadorView)}
+            className="text-black hover:bg-black hover:text-white h-11 w-11"
+            title={isPatrocinadorView ? 'Voltar à visão completa' : 'Visão patrocinador'}
+          >
+            {isPatrocinadorView ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </Button>
+        )}
         
         <Link to={createPageUrl('Perfil')}>
            <Button variant="ghost" size="icon" className="text-black hover:bg-black hover:text-white h-11 w-11">

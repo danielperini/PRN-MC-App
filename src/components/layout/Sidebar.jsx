@@ -26,8 +26,10 @@ import { Button } from '@/components/ui/button';
 import SuggestionForm from '@/components/sidebar/SuggestionForm';
 import { HelpWrapper } from '@/components/help/withContextualHelp';
 import { isCoordenador as checkCoordenador, canManageUsers, isPatrocinador } from '@/components/auth/permissions';
+import { usePatrocinadorView } from '@/context/PatrocinadorViewContext';
 
 export default function Sidebar({ currentPageName, collapsed, onToggle, currentUser }) {
+  const { isPatrocinadorView } = usePatrocinadorView();
   const [customPerms, setCustomPerms] = useState(null);
   const [expandedSections, setExpandedSections] = useState({
     PlataformaAdmin: false,
@@ -78,8 +80,9 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
     }));
   };
 
-  // Menu diferente para patrocinadores
-  const navSections = isSponsor ? [
+  // Menu diferente para patrocinadores ou quando visão patrocinador está ativada
+  const showPatrocinadorMenu = isSponsor || isPatrocinadorView;
+  const navSections = showPatrocinadorMenu ? [
     {
       items: [
         {
