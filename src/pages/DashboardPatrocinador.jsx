@@ -381,35 +381,36 @@ export default function DashboardPatrocinador() {
                     <Bar dataKey="utilizado" fill="#000000" stroke="#000000" strokeWidth={2} name="Utilizado" />
                   </BarChart>
                 ) : (
-                  <PieChart>
-                    <Pie
-                      data={data.rubricas}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={true}
-                      label={({ nome, previsto }) => `${nome}: ${(previsto / 1000).toFixed(1)}K`}
-                      outerRadius={100}
-                      fill="#000000"
-                      dataKey="previsto"
-                    >
-                      {data.rubricas.map((entry, index) => {
-                        const colors = ['#000000', '#333333', '#666666', '#999999', '#cccccc', '#1a1a1a', '#404040', '#595959'];
-                        return (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={colors[index % colors.length]}
-                            stroke="#000000"
-                            strokeWidth={2}
-                          />
-                        );
-                      })}
-                    </Pie>
-                    <Tooltip 
-                      formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
-                      contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}}
-                    />
-                  </PieChart>
-                )}
+                   <PieChart>
+                     <Pie
+                       data={data.rubricas}
+                       cx="50%"
+                       cy="50%"
+                       labelLine={false}
+                       label={false}
+                       outerRadius={100}
+                       fill="#000000"
+                       dataKey="previsto"
+                     >
+                       {data.rubricas.map((entry, index) => {
+                         const colors = ['#FFD700', '#FF6B6B', '#4169E1', '#32CD32', '#FF8C00', '#DC143C', '#00CED1', '#9370DB', '#FF1493', '#20B2AA'];
+                         return (
+                           <Cell
+                             key={`cell-${index}`}
+                             fill={colors[index % colors.length]}
+                             stroke="#000000"
+                             strokeWidth={2}
+                           />
+                         );
+                       })}
+                     </Pie>
+                     <Legend wrapperStyle={{fontSize: '11px'}} />
+                     <Tooltip 
+                       formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
+                       contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}}
+                     />
+                   </PieChart>
+                 )}
               </ResponsiveContainer>
             </div>
           )}
@@ -529,13 +530,13 @@ export default function DashboardPatrocinador() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ tipo, quantidade }) => `${tipo}: ${quantidade}`}
+                    label={false}
                     outerRadius={80}
                     fill="#000000"
                     dataKey="quantidade"
                   >
                     {(filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter(a => a.tipo === filterTipoAtividade)).map((entry, index) => {
-                      const colors = ['#000000', '#1a1a1a', '#333333', '#4d4d4d', '#666666', '#808080', '#999999', '#b3b3b3', '#cccccc', '#e6e6e6'];
+                      const colors = ['#FFD700', '#FF6B6B', '#4169E1', '#32CD32', '#FF8C00', '#DC143C', '#00CED1', '#9370DB', '#FF1493', '#20B2AA'];
                       return (
                         <Cell 
                           key={`cell-${index}`} 
@@ -546,6 +547,7 @@ export default function DashboardPatrocinador() {
                       );
                     })}
                   </Pie>
+                  <Legend wrapperStyle={{fontSize: '11px'}} />
                   <Tooltip contentStyle={{backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px'}} />
                 </PieChart>
               </ResponsiveContainer>
