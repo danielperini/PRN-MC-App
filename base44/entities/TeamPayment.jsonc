@@ -1,0 +1,173 @@
+{
+  "name": "TeamPayment",
+  "type": "object",
+  "properties": {
+    "team_member_id": {
+      "type": "string",
+      "description": "ID do membro da equipe (FK \u2192 TeamMember)"
+    },
+    "user_email": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio (desnormalizado para queries)"
+    },
+    "report_id": {
+      "type": "string",
+      "description": "ID do relat\u00f3rio mensal aprovado vinculado (FK \u2192 Report)"
+    },
+    "mes_referencia": {
+      "type": "string",
+      "enum": [
+        "Janeiro",
+        "Fevereiro",
+        "Mar\u00e7o",
+        "Abril",
+        "Maio",
+        "Junho",
+        "Julho",
+        "Agosto",
+        "Setembro",
+        "Outubro",
+        "Novembro",
+        "Dezembro"
+      ],
+      "description": "M\u00eas refer\u00eancia"
+    },
+    "ano": {
+      "type": "number",
+      "description": "Ano refer\u00eancia"
+    },
+    "nota_fiscal_url": {
+      "type": "string",
+      "description": "URL da nota fiscal em PDF"
+    },
+    "xlsx_url": {
+      "type": "string",
+      "description": "URL do arquivo XLSX (planilha de confer\u00eancia)"
+    },
+    "contract_url": {
+      "type": "string",
+      "description": "URL do contrato anexado pelo coordenador para este per\u00edodo"
+    },
+    "numero_nf": {
+      "type": "string",
+      "description": "N\u00famero da nota fiscal"
+    },
+    "valor_nf": {
+      "type": "number",
+      "description": "Valor da nota fiscal"
+    },
+    "numero_parcela": {
+      "type": "number",
+      "description": "Qual parcela (1, 2, 3...)"
+    },
+    "valor_parcela_previsto": {
+      "type": "number",
+      "description": "Valor previsto da parcela"
+    },
+    "nf_numero_extraido": {
+      "type": "string",
+      "description": "N\u00famero da NF extra\u00eddo automaticamente via IA"
+    },
+    "nf_valor_extraido": {
+      "type": "number",
+      "description": "Valor total extra\u00eddo da NF via IA"
+    },
+    "nf_cnpj_emitente": {
+      "type": "string",
+      "description": "CNPJ do emitente extra\u00eddo via IA"
+    },
+    "nf_razao_social": {
+      "type": "string",
+      "description": "Raz\u00e3o social do emitente extra\u00edda via IA"
+    },
+    "nf_data_emissao": {
+      "type": "string",
+      "description": "Data de emiss\u00e3o da NF extra\u00edda via IA"
+    },
+    "nf_competencia": {
+      "type": "string",
+      "description": "Compet\u00eancia/m\u00eas identificado na NF via IA"
+    },
+    "conformidade_percentual": {
+      "type": "number",
+      "description": "% de conformidade calculado pela IA (0-100)"
+    },
+    "conformidade_status": {
+      "type": "string",
+      "enum": [
+        "CONFORME",
+        "ATENCAO",
+        "CRITICO"
+      ],
+      "description": "Status geral da an\u00e1lise de conformidade"
+    },
+    "conformidade_resumo": {
+      "type": "string",
+      "description": "Resumo da an\u00e1lise IA para o aprovador"
+    },
+    "conformidade_checklist": {
+      "type": "string",
+      "description": "JSON com checklist detalhado da an\u00e1lise"
+    },
+    "conformidade_duvidas": {
+      "type": "string",
+      "description": "JSON com lista de d\u00favidas apontadas pela IA"
+    },
+    "aprovador_ciente_duvidas": {
+      "type": "boolean",
+      "default": false,
+      "description": "Aprovador confirmou ci\u00eancia das d\u00favidas antes de aprovar"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "RASCUNHO",
+        "AGUARDANDO_APROVACAO",
+        "EM_ANALISE_COORD",
+        "DEVOLVIDO_REVISAO",
+        "APROVADO_COORD",
+        "ENCAMINHADO_COORD_ADMIN",
+        "APROVADO",
+        "REVISAO",
+        "PAGO",
+        "RECUSADO",
+        "FINALIZADO"
+      ],
+      "default": "RASCUNHO",
+      "description": "Status do pagamento no fluxo"
+    },
+    "aprov_coord_email": {
+      "type": "string"
+    },
+    "aprov_coord_nome": {
+      "type": "string"
+    },
+    "aprov_coord_data": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "aprov_admin_email": {
+      "type": "string"
+    },
+    "aprov_admin_nome": {
+      "type": "string"
+    },
+    "data_pagamento": {
+      "type": "string",
+      "format": "date"
+    },
+    "comprovante_url": {
+      "type": "string"
+    },
+    "observacoes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "team_member_id",
+    "user_email",
+    "mes_referencia",
+    "ano",
+    "nota_fiscal_url"
+  ]
+}

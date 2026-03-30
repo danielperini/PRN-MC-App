@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Upload, Loader2, Plus, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Upload, Loader2, Plus, AlertCircle, CheckCircle2, Brain } from 'lucide-react';
+import ConformidadeBadge from '@/components/compras/ConformidadeBadge';
 import { toast } from 'sonner';
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -51,6 +52,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
   });
 
   const [nfPreview,setNfPreview] = useState(null);
+  const [analisandoIA, setAnalisandoIA] = useState(false);
+  const [conformidade, setConformidade] = useState(null);
 
   const queryClient = useQueryClient();
 
@@ -122,12 +125,19 @@ export default function TeamPaymentSubmit({ userEmail }) {
         }));
       }
 
-      const validation = await base44.functions.invoke('validateNotaFiscal', {
-        documentId:'preview',
-        file_url
-      });
-
-      setNfPreview(validation);
+      // Análise de conformidade IA
+      setAnalisandoIA(true);
+      try {
+        const analise = await base44.functions.invoke('analisarConformidadeNF', {
+          file_url,
+          memberId: member?.id,
+        });
+        setConformidade(analise?.data || analise);
+      } catch(e) {
+        console.error('Erro análise IA:', e);
+      } finally {
+        setAnalisandoIA(false);
+      }
 
     }catch(e){
       toast.error(e.message);
@@ -239,17 +249,15 @@ export default function TeamPaymentSubmit({ userEmail }) {
             <input type="file" onChange={(e)=>handleUploadNF(e.target.files[0])}/>
             <input type="file" onChange={(e)=>handleUploadXML(e.target.files[0])}/>
 
-            {nfPreview && (
-              <div className={`text-xs p-2 rounded ${
-                nfPreview.status === 'divergente'
-                  ? 'bg-red-50 text-red-700'
-                  : 'bg-green-50 text-green-700'
-              }`}>
-                {nfPreview.status === 'divergente'
-                  ? <AlertCircle className="inline w-3 mr-1"/>
-                  : <CheckCircle2 className="inline w-3 mr-1"/>}
-                Validação IA: R$ {nfPreview.valor}
+            {analisandoIA && (
+              <div className="flex items-center gap-2 text-xs text-gray-500 p-2 bg-gray-50 rounded">
+                <Brain className="w-4 h-4 animate-pulse text-purple-500" />
+                Analisando conformidade com IA...
               </div>
+            )}
+
+            {conformidade && !analisandoIA && (
+              <ConformidadeBadge tp={conformidade} expanded={true} />
             )}
 
             <Button type="submit" disabled={loading}>

@@ -12,7 +12,11 @@ import {
   ExternalLink,
   FileCheck,
   AlertCircle,
+  Brain,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+import ConformidadeBadge from '@/components/compras/ConformidadeBadge';
 import { toast } from 'sonner';
 
 function toNumber(value) {
@@ -27,7 +31,6 @@ function formatBRL(value) {
   })}`;
 }
 
-/* 🔥 NOVO: leitura da validação IA */
 function getNFValidation(tp) {
   try {
     if (!tp?.resultado_validacao) return null;
@@ -35,6 +38,10 @@ function getNFValidation(tp) {
   } catch {
     return null;
   }
+}
+
+function parseJSON(str, fb = []) {
+  try { return str ? JSON.parse(str) : fb; } catch { return fb; }
 }
 
 function ChecklistItem({ ok, label, href }) {
@@ -70,6 +77,9 @@ export default function AprovacoesFila({
   const [loading, setLoading] = useState({});
   const [comentarios, setComentarios] = useState({});
   const [teamPayments, setTeamPayments] = useState({});
+  const [expandedConformidade, setExpandedConformidade] = useState({});
+  const [cientesDuvidas, setCientesDuvidas] = useState({});
+  const [analisando, setAnalisando] = useState({});
 
   const isCoordenador = [
     'ADMIN','admin','COORDENADOR','COORD_COMUNICACAO','COORD_ADMINISTRATIVA','COORD_PRODUCAO',
@@ -141,6 +151,14 @@ export default function AprovacoesFila({
         toast.error('NF com divergência detectada');
         return;
       }
+
+      // Verificar dúvidas de conformidade IA
+      const tp2 = teamPayments[purchase.id];
+      const duvidasTP = parseJSON(tp2?.conformidade_duvidas, []);
+      if (duvidasTP.length > 0 && !cientesDuvidas[purchase.id]) {
+        toast.error('Há dúvidas na NF apontadas pela IA. Marque "Estou ciente" para prosseguir.');
+        return;
+      }
     }
 
     setLoading((l) => ({ ...l, [purchase.id]: true }));
@@ -178,6 +196,9 @@ export default function AprovacoesFila({
         const tp = teamPayments[p.id];
         const validation = getNFValidation(tp);
         const budgetLine = getBudgetLine(p);
+        const duvidasTP = parseJSON(tp?.conformidade_duvidas, []);
+        const temDuvidas = duvidasTP.length > 0;
+        const isExpConformidade = expandedConformidade[p.id];
         const vinculoOk = hasOrcamentoVinculado(p);
 
         const saldoDisponivel = budgetLine
@@ -199,15 +220,44 @@ export default function AprovacoesFila({
               <p className="font-bold">{formatBRL(p.valor_solicitado)}</p>
             </div>
 
-            {/* 🔥 BLOCO IA (DISCRETO) */}
-            {validation && (
-              <div className={`text-xs p-2 rounded ${
-                validation.status === 'divergente'
-                  ? 'bg-red-50 text-red-700'
-                  : 'bg-green-50 text-green-700'
-              }`}>
-                NF: {formatBRL(validation.valor)} • Confiança: {validation.confianca}%
-                {validation.status === 'divergente' && ' • Divergente'}
+            {/* BLOCO CONFORMIDADE IA */}
+            {tp && (
+              <div className="space-y-2">
+                {tp.conformidade_percentual !== undefined && tp.conformidade_percentual !== null ? (
+                  <div>
+                    <button
+                      onClick={() => setExpandedConformidade(e => ({ ...e, [p.id]: !e[p.id] }))}
+                      className="w-full text-left"
+                    >
+                      <ConformidadeBadge tp={tp} expanded={isExpConformidade} />
+                    </button>
+
+                    {/* Ciência das dúvidas */}
+                    {temDuvidas && (
+                      <label className="flex items-center gap-2 mt-2 text-xs cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={!!cientesDuvidas[p.id]}
+                          onChange={e => setCientesDuvidas(c => ({ ...c, [p.id]: e.target.checked }))}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-amber-700 font-medium">
+                          Estou ciente das dúvidas apontadas pela IA e verificarei manualmente antes de aprovar
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleAnalisarNF(p, tp)}
+                    disabled={analisando[p.id]}
+                    className="flex items-center gap-2 text-xs text-purple-600 hover:text-purple-800 px-3 py-2 rounded-lg border border-purple-200 bg-purple-50 w-full justify-center"
+                  >
+                    {analisando[p.id]
+                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Analisando NF com IA...</>
+                      : <><Brain className="w-3.5 h-3.5" /> Analisar conformidade da NF com IA</>}
+                  </button>
+                )}
               </div>
             )}
 
@@ -218,10 +268,12 @@ export default function AprovacoesFila({
                   loading[p.id] ||
                   !vinculoOk ||
                   !saldoOk ||
-                  validation?.status === 'divergente'
+                  validation?.status === 'divergente' ||
+                  (temDuvidas && !cientesDuvidas[p.id])
                 }
+                title={temDuvidas && !cientesDuvidas[p.id] ? 'Confirme ciência das dúvidas da IA antes de aprovar' : ''}
               >
-                Aprovar
+                {loading[p.id] ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Aprovar'}
               </Button>
 
               <Button
