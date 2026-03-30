@@ -43,6 +43,19 @@ const PROGRAMACAO_KEYWORDS = [
   'mis',
   'mhab',
   'mumo',
+  'janeiro',
+  'fevereiro',
+  'marco',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
 ];
 
 function normalizeText(value) {
@@ -152,12 +165,21 @@ function scoreProgramacao(programacao, question) {
   if (sinopse.includes(q)) score += 20;
   if (local.includes(q)) score += 15;
   if (museu.includes(q)) score += 25;
-  if (data.includes(q)) score += 15;
+  if (data.includes(q)) score += 25; // aumentado para priorizar match de data
   
   if ((q.includes('atividade') || q.includes('atividades')) && isProgramacaoLike(programacao)) score += 12;
   if ((q.includes('programacao') || q.includes('programação')) && isProgramacaoLike(programacao)) score += 15;
   if ((q.includes('quando') || q.includes('data') || q.includes('mes')) && (data || titulo)) score += 10;
   if ((q.includes('mis') || q.includes('mhab') || q.includes('mumo')) && museu) score += 20;
+  
+  // Boost para buscas por mês específico
+  const meses = ['janeiro', 'fevereiro', 'marco', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  for (const mes of meses) {
+    if (q.includes(mes) && data.includes(mes)) {
+      score += 30; // match de mês = alta prioridade
+      break;
+    }
+  }
   
   return score;
 }
