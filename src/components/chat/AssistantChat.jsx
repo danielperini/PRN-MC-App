@@ -26,6 +26,25 @@ const MANUAL_KEYWORDS = [
   'assistente',
 ];
 
+const PROGRAMACAO_KEYWORDS = [
+  'atividade',
+  'atividades',
+  'programacao',
+  'programação',
+  'agenda',
+  'evento',
+  'eventos',
+  'quando',
+  'data',
+  'datas',
+  'horario',
+  'horário',
+  'acontece',
+  'mis',
+  'mhab',
+  'mumo',
+];
+
 function normalizeText(value) {
   return String(value || '')
     .normalize('NFD')
@@ -110,6 +129,40 @@ function scoreChunk(chunk, question) {
   return score;
 }
 
+function isProgramacaoLike(item) {
+  const text = normalizeText(
+    [item?.titulo, item?.nome_acao, item?.sinopse, item?.local, item?.museu]
+      .filter(Boolean)
+      .join(' ')
+  );
+  return PROGRAMACAO_KEYWORDS.some((keyword) => text.includes(normalizeText(keyword)));
+}
+
+function scoreProgramacao(programacao, question) {
+  const q = normalizeText(question);
+  const titulo = normalizeText(programacao?.titulo || programacao?.nome_acao || '');
+  const sinopse = normalizeText(programacao?.sinopse || programacao?.descricao || '');
+  const museu = normalizeText(programacao?.museu || '');
+  const local = normalizeText(programacao?.local || '');
+  const data = normalizeText(programacao?.data || '');
+  
+  let score = 0;
+  
+  if (titulo.includes(q)) score += 35;
+  if (sinopse.includes(q)) score += 20;
+  if (local.includes(q)) score += 15;
+  if (museu.includes(q)) score += 25;
+  if (data.includes(q)) score += 15;
+  
+  // Bonus para perguntas sobre atividades
+  if ((q.includes('atividade') || q.includes('atividades')) && isProgramacaoLike(programacao)) score += 12;
+  if ((q.includes('programacao') || q.includes('programação')) && isProgramacaoLike(programacao)) score += 15;
+  if ((q.includes('quando') || q.includes('data') || q.includes('mes')) && (data || titulo)) score += 10;
+  if ((q.includes('mis') || q.includes('mhab') || q.includes('mumo')) && museu) score += 20;
+  
+  return score;
+}
+
 function withTimeout(promise, ms, label = 'Operação') {
   return Promise.race([
     promise,
@@ -182,12 +235,7 @@ export default function AssistantChat() {
       const rankedProgramacoes = (programacoes || [])
         .map((prog) => ({
           ...prog,
-          _score: scoreText(
-            [prog?.titulo, prog?.nome_acao, prog?.sinopse, prog?.descricao, prog?.data, prog?.horario, prog?.local]
-              .filter(Boolean)
-              .join(' '),
-            pergunta
-          ),
+          _score: scoreProgramacao(prog, pergunta),
           _type: 'programacao',
         }))
         .filter((prog) => prog._score > 0)
