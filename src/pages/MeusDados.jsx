@@ -224,7 +224,7 @@ function MeusDadosInner() {
         {/* Header */}
         <div className="mb-10">
           <h1 className="text-3xl font-semibold text-black mb-2">
-            {selectedUserEmail ? `Dados de ${targetUser?.full_name || selectedUserEmail}` : 'Meus Dados'}
+            {selectedUserEmail ? `Informações de ${targetUser?.full_name || selectedUserEmail}` : 'Informações'}
           </h1>
           <p className="text-gray-600">Preencha suas informações pessoais e bancárias para a equipe</p>
         </div>

@@ -445,12 +445,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
               </div>
             </div>
 
-            {/* Padrão de nome dos arquivos */}
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
-              <span className="font-medium text-gray-800">Padrão de nome dos arquivos: </span>
-              NF 1 COORDENADOR GERAL - DANIEL PERINI - MUSEUS CENTRO - R$ 7.000,00
-              <span className="block text-gray-400 mt-0.5">Os arquivos são renomeados automaticamente nesse padrão ao fazer upload.</span>
-            </div>
 
             {/* Análise IA */}
             {submitting && analysisStep && (

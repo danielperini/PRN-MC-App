@@ -32,7 +32,7 @@ const PAGE_TITLES = {
   Manual: 'Manual e Ajuda',
   GeradorListaPresenca: 'Gerador de Lista de Presença',
   GeradorTermoCompromisso: 'Gerador de Termo de Compromisso',
-  MeusDados: 'Meus Dados',
+  MeusDados: 'Informações',
   ProgramacaoEspelho: 'Programação — Espelho da Planilha',
   Agenda: 'Agenda Museu Centro',
 };
