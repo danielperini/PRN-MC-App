@@ -138,14 +138,25 @@ export default function ProgramacaoEspelho() {
             ))}
           </div>
 
-          {/* Mês */}
-          <div className="flex items-center gap-2">
+          {/* Mês — botões diretos para cada mês disponível no ano */}
+          <div className="flex items-center gap-1 flex-wrap">
             <Button variant="outline" size="icon" disabled={!hasPrev} onClick={() => setCurrentMonth(prevMonth(currentMonth))}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <span className="capitalize font-medium text-slate-700 min-w-[160px] text-center">
-              {formatMonthLabel(currentMonth)}
-            </span>
+            {monthsOfYear.slice().sort().map(mk => {
+              const label = parseMonthKey(mk).toLocaleDateString('pt-BR', { month: 'short' });
+              return (
+                <Button
+                  key={mk}
+                  variant={mk === currentMonth ? 'default' : 'outline'}
+                  size="sm"
+                  className="capitalize text-xs px-2"
+                  onClick={() => setCurrentMonth(mk)}
+                >
+                  {label}
+                </Button>
+              );
+            })}
             <Button variant="outline" size="icon" disabled={!hasNext} onClick={() => setCurrentMonth(nextMonth(currentMonth))}>
               <ChevronRight className="w-4 h-4" />
             </Button>
