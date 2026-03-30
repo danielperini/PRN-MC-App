@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { ChevronLeft, ChevronRight, Calendar, Search, ExternalLink, Image, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Search, ExternalLink, Image, FileText, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import ExportProgramacaoDialog from '@/components/programacao/ExportProgramacaoDialog';
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO', 'Externo'];
 
@@ -43,14 +44,15 @@ function nextMonth(key) {
 }
 
 export default function ProgramacaoEspelho() {
-  const [allItems, setAllItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [currentMonth, setCurrentMonth] = useState(getMonthKey(new Date()));
-  const [museuFilter, setMuseuFilter] = useState('Todos');
-  const [search, setSearch] = useState('');
-  const [availableMonths, setAvailableMonths] = useState([]);
-  const [yearFilter, setYearFilter] = useState(new Date().getFullYear());
-  const [availableYears, setAvailableYears] = useState([]);
+   const [allItems, setAllItems] = useState([]);
+   const [loading, setLoading] = useState(true);
+   const [currentMonth, setCurrentMonth] = useState(getMonthKey(new Date()));
+   const [museuFilter, setMuseuFilter] = useState('Todos');
+   const [search, setSearch] = useState('');
+   const [availableMonths, setAvailableMonths] = useState([]);
+   const [yearFilter, setYearFilter] = useState(new Date().getFullYear());
+   const [availableYears, setAvailableYears] = useState([]);
+   const [showExportDialog, setShowExportDialog] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -112,11 +114,19 @@ export default function ProgramacaoEspelho() {
   return (
     <div className="max-w-7xl mx-auto space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2">
-          <Calendar className="w-5 h-5 text-slate-500" />
-          <h1 className="text-xl font-semibold text-slate-800">Programação — Espelho da Planilha</h1>
-        </div>
+       <div className="flex items-center justify-between flex-wrap gap-3">
+         <div className="flex items-center gap-2">
+           <Calendar className="w-5 h-5 text-slate-500" />
+           <h1 className="text-xl font-semibold text-slate-800">Programação — Espelho da Planilha</h1>
+         </div>
+         <Button 
+           onClick={() => setShowExportDialog(true)}
+           className="gap-2"
+           variant="outline"
+         >
+           <Download className="w-4 h-4" />
+           Exportar
+         </Button>
 
         {/* Seletor de Ano + Navegação de mês */}
         <div className="flex items-center gap-3 flex-wrap">
@@ -269,6 +279,14 @@ export default function ProgramacaoEspelho() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
+
+      <ExportProgramacaoDialog
+        open={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        data={filtered}
+        currentMonth={currentMonth}
+        formatMonthLabel={formatMonthLabel}
+      />
+      </div>
+      );
+      }
