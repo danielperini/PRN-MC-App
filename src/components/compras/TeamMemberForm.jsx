@@ -1,8 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -20,174 +19,66 @@ import {
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const EMPTY_FORM = {
-  user_email: '',
-  user_name: '',
-  funcao: '',
-  telefone: '',
-  tipo_pessoa: 'PF',
-  cpf: '',
-  cnpj: '',
-  banco: '',
-  agencia: '',
-  conta: '',
-  pix_key: '',
-  budgetline_id: '',
-  parcelas: '',
-  valor_parcela: '',
-  data_inicio: '',
-  data_fim: '',
-  data_assinatura: '',
-  objeto: '',
-  contrato_url: '',
-  preenchido_por_ia: false,
-};
-
-function normalizeForm(data) {
-  return {
-    ...EMPTY_FORM,
-    ...(data || {}),
-    tipo_pessoa: data?.tipo_pessoa || 'PF',
-    budgetline_id:
-      data?.budgetline_id ||
-      data?.budget_line_id ||
-      '',
-  };
-}
-
 export default function TeamMemberForm({
   isOpen,
   onClose,
   onSuccess,
-  editingMember,
-  budgetLines = [],
 }) {
+  const [selectedUser, setSelectedUser] = useState('');
   const [loading, setLoading] = useState(false);
-  const [loadingContrato, setLoadingContrato] = useState(false);
-  const [form, setForm] = useState(normalizeForm(editingMember));
 
-  const { data: currentUser } = useQuery({
-    queryKey: ['auth-me'],
-    queryFn: () => base44.auth.me(),
-  });
-
-  const isSelfEdit =
-    editingMember?.user_email &&
-    currentUser?.email &&
-    String(editingMember.user_email).toLowerCase() ===
-      String(currentUser.email).toLowerCase();
-
-  const { data: budgetLinesFromDB = [] } = useQuery({
-    queryKey: ['team-form-budgetlines'],
-    queryFn: () => base44.entities.BudgetLine.list('codigo', 200),
+  // 🔹 Buscar todos usuários
+  const { data: users = [], isLoading: loadingUsers } = useQuery({
+    queryKey: ['users-all'],
+    queryFn: () => base44.entities.User.list(),
     enabled: isOpen,
   });
 
-  useEffect(() => {
-    if (isOpen) {
-      setForm(normalizeForm(editingMember));
-    }
-  }, [isOpen, editingMember]);
+  // 🔹 Buscar membros já existentes
+  const { data: teamMembers = [], isLoading: loadingTeam } = useQuery({
+    queryKey: ['team-members-all'],
+    queryFn: () => base44.entities.TeamMember.list(),
+    enabled: isOpen,
+  });
 
-  const finalBudgetLines = useMemo(() => {
-    if (budgetLines && budgetLines.length > 0) return budgetLines;
-    return budgetLinesFromDB;
-  }, [budgetLines, budgetLinesFromDB]);
+  // 🔹 Filtrar usuários que NÃO são equipe
+  const availableUsers = useMemo(() => {
+    const existingEmails = new Set(
+      teamMembers.map(m => (m.user_email || '').toLowerCase())
+    );
 
-  // 🔥 IA DE CONTRATO FINAL
-  const handleUploadContrato = async (file) => {
-    if (!file) return;
+    return users.filter(u =>
+      u.email && !existingEmails.has(u.email.toLowerCase())
+    );
+  }, [users, teamMembers]);
 
-    setLoadingContrato(true);
-
-    try {
-      const upload = await base44.storage.upload(file);
-
-      const response = await fetch('/functions/extractTeamContractData', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file_url: upload.url }),
-      });
-
-      const data = await response.json();
-
-      if (!data?.success) {
-        throw new Error(data?.error || 'Erro na extração');
-      }
-
-      const result = data || {};
-
-      setForm(prev => ({
-        ...prev,
-        contrato_url: upload.url,
-        preenchido_por_ia: true,
-
-        user_name: prev.user_name || result?.nome,
-        funcao: prev.funcao || result?.cargo,
-
-        cpf: prev.cpf || result?.cpf,
-        cnpj: prev.cnpj || result?.cnpj,
-        tipo_pessoa: result?.tipo_pessoa || prev.tipo_pessoa,
-
-        valor_parcela: prev.valor_parcela || result?.valor_parcela,
-        parcelas: prev.parcelas || result?.numero_parcelas,
-
-        data_inicio: prev.data_inicio || result?.vigencia_inicio,
-        data_fim: prev.data_fim || result?.vigencia_fim,
-        data_assinatura: prev.data_assinatura || result?.data_assinatura,
-
-        banco: prev.banco || result?.banco,
-        agencia: prev.agencia || result?.agencia,
-        conta: prev.conta || result?.conta,
-        pix_key: prev.pix_key || result?.pix_key,
-
-        objeto: prev.objeto || result?.objeto_resumo,
-      }));
-
-      if (result?.campos_com_baixa_confianca?.length > 0) {
-        toast.warning('Contrato lido. Revise alguns campos.');
-      } else {
-        toast.success('Contrato analisado com sucesso.');
-      }
-
-    } catch (e) {
-      toast.error('Erro ao ler contrato');
-    }
-
-    setLoadingContrato(false);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!form.user_name) {
-      toast.error('Nome obrigatório');
+  const handleAdd = async () => {
+    if (!selectedUser) {
+      toast.error('Selecione um usuário');
       return;
     }
 
-    if (!form.budgetline_id && !isSelfEdit) {
-      toast.error('Selecione a linha orçamentária');
+    const user = users.find(u => u.email === selectedUser);
+
+    if (!user) {
+      toast.error('Usuário inválido');
       return;
     }
 
     setLoading(true);
 
     try {
-      const payload = {
-        ...form,
-        cpf: form.tipo_pessoa === 'PF' ? form.cpf : '',
-        cnpj: form.tipo_pessoa === 'PJ' ? form.cnpj : '',
-      };
+      await base44.entities.TeamMember.create({
+        user_email: user.email,
+        user_name: user.name || user.email,
+      });
 
-      if (editingMember?.id) {
-        await base44.entities.TeamMember.update(editingMember.id, payload);
-      } else {
-        await base44.entities.TeamMember.create(payload);
-      }
+      toast.success('Membro adicionado');
 
-      toast.success('Dados atualizados');
       onSuccess?.();
       onClose?.();
+      setSelectedUser('');
+
     } catch (e) {
       toast.error(e.message);
     }
@@ -199,43 +90,34 @@ export default function TeamMemberForm({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {isSelfEdit ? 'Editar meu perfil' : editingMember?.id ? 'Editar equipe' : 'Adicionar membro'}
-          </DialogTitle>
+          <DialogTitle>Adicionar membro</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
 
           <div>
-            <Label>Contrato (PDF)</Label>
-            <Input
-              type="file"
-              accept=".pdf"
-              onChange={(e) => handleUploadContrato(e.target.files[0])}
-            />
-            {loadingContrato && (
-              <div className="text-xs text-gray-500 flex gap-1 mt-1">
-                <Loader2 className="animate-spin w-3 h-3" />
-                Lendo contrato...
-              </div>
-            )}
+            <Label>Selecionar usuário</Label>
+
+            <Select value={selectedUser} onValueChange={setSelectedUser}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um usuário" />
+              </SelectTrigger>
+
+              <SelectContent>
+                {availableUsers.map(user => (
+                  <SelectItem key={user.id} value={user.email}>
+                    {user.name || user.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <Input placeholder="Nome" value={form.user_name} onChange={(e) => setForm({ ...form, user_name: e.target.value })} />
-          <Input placeholder="Função" value={form.funcao} onChange={(e) => setForm({ ...form, funcao: e.target.value })} />
-          <Input placeholder="Telefone" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
-
-          <Input placeholder="Parcelas" value={form.parcelas} onChange={(e) => setForm({ ...form, parcelas: e.target.value })} />
-          <Input placeholder="Valor parcela" value={form.valor_parcela} onChange={(e) => setForm({ ...form, valor_parcela: e.target.value })} />
-
-          <Input placeholder="Data início" value={form.data_inicio} onChange={(e) => setForm({ ...form, data_inicio: e.target.value })} />
-          <Input placeholder="Data fim" value={form.data_fim} onChange={(e) => setForm({ ...form, data_fim: e.target.value })} />
-
-          <Button type="submit" disabled={loading}>
-            {loading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Salvar'}
+          <Button onClick={handleAdd} disabled={loading || loadingUsers || loadingTeam}>
+            {loading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Adicionar'}
           </Button>
 
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );
