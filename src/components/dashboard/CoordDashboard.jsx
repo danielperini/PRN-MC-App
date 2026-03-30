@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import PendingApprovalsPanel from './PendingApprovalsPanel';
 import FrasesParticipantes from './FrasesParticipantes';
+import NewsCarousel from './NewsCarousel';
 
 const STATUS_CONFIG = {
   DRAFT:     { label: 'Rascunho',   color: '#e5e7eb', text: '#374151' },
