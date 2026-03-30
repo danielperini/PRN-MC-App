@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -25,98 +25,164 @@ export default function TeamMemberForm({
   onSuccess,
 }) {
   const [selectedUser, setSelectedUser] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  // 🔹 Buscar todos usuários
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedUser('');
+      setSaving(false);
+    }
+  }, [isOpen]);
+
   const { data: users = [], isLoading: loadingUsers } = useQuery({
     queryKey: ['users-all'],
-    queryFn: () => base44.entities.User.list(),
+    queryFn: async () => {
+      const res = await base44.entities.User.list();
+      return Array.isArray(res) ? res : [];
+    },
     enabled: isOpen,
   });
 
-  // 🔹 Buscar membros já existentes
   const { data: teamMembers = [], isLoading: loadingTeam } = useQuery({
     queryKey: ['team-members-all'],
-    queryFn: () => base44.entities.TeamMember.list(),
+    queryFn: async () => {
+      const res = await base44.entities.TeamMember.list();
+      return Array.isArray(res) ? res : [];
+    },
     enabled: isOpen,
   });
 
-  // 🔹 Filtrar usuários que NÃO são equipe
   const availableUsers = useMemo(() => {
     const existingEmails = new Set(
-      teamMembers.map(m => (m.user_email || '').toLowerCase())
+      teamMembers
+        .map((m) => String(m?.user_email || '').trim().toLowerCase())
+        .filter(Boolean)
     );
 
-    return users.filter(u =>
-      u.email && !existingEmails.has(u.email.toLowerCase())
-    );
+    return users.filter((u) => {
+      const email = String(u?.email || '').trim().toLowerCase();
+      return email && !existingEmails.has(email);
+    });
   }, [users, teamMembers]);
 
   const handleAdd = async () => {
+    if (saving) return;
+
     if (!selectedUser) {
-      toast.error('Selecione um usuário');
+      toast.error('Selecione um usuário para adicionar.');
       return;
     }
 
-    const user = users.find(u => u.email === selectedUser);
+    const user = users.find(
+      (u) => String(u?.email || '').trim().toLowerCase() ===
+        String(selectedUser).trim().toLowerCase()
+    );
 
     if (!user) {
-      toast.error('Usuário inválido');
+      toast.error('Usuário selecionado não encontrado.');
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
 
     try {
-      await base44.entities.TeamMember.create({
+      const payload = {
         user_email: user.email,
-        user_name: user.name || user.email,
-      });
+        user_name: user.name || user.full_name || user.email,
+      };
 
-      toast.success('Membro adicionado');
+      const created = await base44.entities.TeamMember.create(payload);
 
-      onSuccess?.();
-      onClose?.();
+      if (!created?.id) {
+        throw new Error('O cadastro não retornou confirmação do registro.');
+      }
+
+      toast.success(`Membro adicionado com sucesso: ${payload.user_name}`);
+
+      if (typeof onSuccess === 'function') {
+        await onSuccess(created);
+      }
+
       setSelectedUser('');
-
+      onClose?.();
     } catch (e) {
-      toast.error(e.message);
+      toast.error(e?.message || 'Erro ao salvar o membro.');
+    } finally {
+      setSaving(false);
     }
-
-    setLoading(false);
   };
 
+  const isBusy = saving || loadingUsers || loadingTeam;
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !saving && onClose?.()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Adicionar membro</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-
-          <div>
+          <div className="space-y-2">
             <Label>Selecionar usuário</Label>
 
-            <Select value={selectedUser} onValueChange={setSelectedUser}>
+            <Select
+              value={selectedUser}
+              onValueChange={setSelectedUser}
+              disabled={isBusy}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione um usuário" />
+                <SelectValue
+                  placeholder={
+                    loadingUsers || loadingTeam
+                      ? 'Carregando usuários...'
+                      : availableUsers.length === 0
+                        ? 'Nenhum usuário disponível'
+                        : 'Selecione um usuário'
+                  }
+                />
               </SelectTrigger>
 
               <SelectContent>
-                {availableUsers.map(user => (
-                  <SelectItem key={user.id} value={user.email}>
-                    {user.name || user.email}
+                {availableUsers.length > 0 ? (
+                  availableUsers.map((user) => (
+                    <SelectItem key={user.id || user.email} value={user.email}>
+                      {user.name || user.full_name || user.email}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="__empty__" disabled>
+                    Nenhum usuário disponível para inclusão
                   </SelectItem>
-                ))}
+                )}
               </SelectContent>
             </Select>
           </div>
 
-          <Button onClick={handleAdd} disabled={loading || loadingUsers || loadingTeam}>
-            {loading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Adicionar'}
-          </Button>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onClose?.()}
+              disabled={saving}
+            >
+              Cancelar
+            </Button>
 
+            <Button
+              type="button"
+              onClick={handleAdd}
+              disabled={isBusy || !selectedUser || selectedUser === '__empty__'}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                'Adicionar'
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
