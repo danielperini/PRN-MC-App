@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import CoordDashboard from '../components/dashboard/CoordDashboard';
+import DashboardPatrocinador from '../pages/DashboardPatrocinador';
 import AdvancedFilters from '../components/dashboard/AdvancedFilters';
 import ComplianceStats from '../components/dashboard/ComplianceStats';
 import WidgetCustomizer from '../components/dashboard/WidgetCustomizer';
@@ -33,6 +34,7 @@ function DashboardInner() {
   const { user: currentUser, isLoading: userLoading, isCoordenador } = useCurrentUser();
   const { widgets, loaded: widgetsLoaded, toggleWidget, resetToDefault } = useWidgetPreferences();
   const [view, setView] = React.useState('coordenador');
+  const [showSponsorView, setShowSponsorView] = React.useState(false);
   const [filters, setFilters] = React.useState({ museu: '', status: '' });
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
@@ -175,16 +177,22 @@ function DashboardInner() {
             {isCoordenador && (
               <div className="flex border border-gray-200 rounded-lg overflow-hidden">
                 <button
-                  onClick={() => setView('coordenador')}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === 'coordenador' ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                  onClick={() => { setView('coordenador'); setShowSponsorView(false); }}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === 'coordenador' && !showSponsorView ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
                 >
                   <LayoutDashboard className="w-3.5 h-3.5" />Coordenação
                 </button>
                 <button
-                  onClick={() => setView('profissional')}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === 'profissional' ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                  onClick={() => { setView('profissional'); setShowSponsorView(false); }}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === 'profissional' && !showSponsorView ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
                 >
                   <User className="w-3.5 h-3.5" />Meus Relatórios
+                </button>
+                <button
+                  onClick={() => setShowSponsorView(!showSponsorView)}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${showSponsorView ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <Eye className="w-3.5 h-3.5" />Patrocinador
                 </button>
               </div>
             )}
@@ -229,8 +237,10 @@ function DashboardInner() {
         {/* Carrossel de Notícias */}
         <NewsCarousel />
 
-        {/* Coordenador: dashboard completo */}
-        {showCoordView ? (
+        {/* Visão Patrocinador */}
+        {showSponsorView ? (
+          <DashboardPatrocinador />
+        ) : showCoordView ? (
           <>
             <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
             <CoordDashboard reports={allReports} isLoading={loadingAll} />
