@@ -163,8 +163,8 @@ export default function OrcamentoDashboard({ budgetLines = [], purchases = [] })
                     className="h-full bg-blue-500"
                     style={{ width: `${pct}%` }} />
                 </div>
-              </div>);
-
+              </div>
+            );
           })}
         </div>
       </div>
@@ -194,12 +194,13 @@ export default function OrcamentoDashboard({ budgetLines = [], purchases = [] })
                 <td className={saldo < 0 ? 'text-red-600' : 'text-green-600'}>
                   {fmt(saldo)}
                 </td>
-              </tr>);
-
+              </tr>
+            );
           })}
         </tbody>
       </table>
 
-    </div>);
+    </div>
+  );
 
 }
