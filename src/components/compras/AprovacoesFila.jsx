@@ -129,10 +129,26 @@ export default function AprovacoesFila({
     return () => { active = false; };
   }, [purchases]);
 
+  const handleAnalisarNF = async (purchase, tp) => {
+    setAnalisando(a => ({ ...a, [purchase.id]: true }));
+    try {
+      await base44.functions.invoke('analisarConformidadeNF', {
+        team_payment_id: tp.id,
+        purchase_id: purchase.id,
+      });
+      toast.success('Análise de conformidade concluída!');
+      await onRefresh?.();
+    } catch (e) {
+      toast.error('Erro ao analisar NF: ' + (e?.message || e));
+    } finally {
+      setAnalisando(a => ({ ...a, [purchase.id]: false }));
+    }
+  };
+
   const handleAction = async (purchase, action) => {
 
     if (!podeAprovar) {
-      toast.error('Sem permissão');
+      toast.error('Sem permissão para realizar esta ação.');
       return;
     }
 
@@ -143,16 +159,15 @@ export default function AprovacoesFila({
     if (action === 'approve_coord') {
 
       if (!hasOrcamentoVinculado(purchase)) {
-        toast.error('Sem rubrica');
+        toast.error('Vincule uma rubrica antes de aprovar.');
         return;
       }
 
       if (validation?.status === 'divergente') {
-        toast.error('NF com divergência detectada');
+        toast.error('Nota fiscal com divergência detectada. Corrija antes de aprovar.');
         return;
       }
 
-      // Verificar dúvidas de conformidade IA
       const tp2 = teamPayments[purchase.id];
       const duvidasTP = parseJSON(tp2?.conformidade_duvidas, []);
       if (duvidasTP.length > 0 && !cientesDuvidas[purchase.id]) {
@@ -175,11 +190,14 @@ export default function AprovacoesFila({
         comentario,
       });
 
-      toast.success('Atualizado');
+      const msg = action === 'approve_coord' ? 'Solicitação aprovada com sucesso!' :
+                  action === 'return_to_user' ? 'Solicitação devolvida ao usuário.' :
+                  'Solicitação recusada.';
+      toast.success(msg);
       await onRefresh?.();
 
     } catch (e) {
-      toast.error(e.message);
+      toast.error('Erro: ' + (e?.message || e));
     }
 
     setLoading((l) => ({ ...l, [purchase.id]: false }));
@@ -279,8 +297,9 @@ export default function AprovacoesFila({
               <Button
                 variant="outline"
                 onClick={() => handleAction(p, 'reject')}
+                disabled={loading[p.id]}
               >
-                Recusar
+                {loading[p.id] ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Recusar'}
               </Button>
             </div>
 
