@@ -52,7 +52,7 @@ function ActivityCard({ item }) {
   const badge = MUSEU_COLORS[museu] || MUSEU_COLORS.Externo;
 
   return (
-    <div className={`bg-white rounded-xl border border-slate-200 border-l-4 ${accent} shadow-sm hover:shadow-md transition-shadow flex flex-col`}>
+    <div className={`bg-white rounded-xl border-2 border-black border-l-4 ${accent} shadow-sm hover:shadow-md transition-shadow flex flex-col font-sans`}>
       <div className="p-4 flex-1">
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-2">
@@ -179,7 +179,7 @@ export default function Agenda() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Agenda Cultural</h1>
+          <h1 className="text-xl font-bold text-slate-800">Agenda Museu Centro</h1>
           <p className="text-sm text-slate-500">Programação dos Museus Centro</p>
         </div>
 

@@ -109,7 +109,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         {
           name: 'Agenda',
           icon: CalendarDays,
-          label: 'Agenda MC',
+          label: 'Agenda Museu Centro',
           show: true,
         },
         {

@@ -34,7 +34,7 @@ const PAGE_TITLES = {
   GeradorTermoCompromisso: 'Gerador de Termo de Compromisso',
   MeusDados: 'Meus Dados',
   ProgramacaoEspelho: 'Programação — Espelho da Planilha',
-  Agenda: 'Agenda Cultural',
+  Agenda: 'Agenda Museu Centro',
 };
 
 export default function Layout({ children, currentPageName }) {
