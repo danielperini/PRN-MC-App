@@ -134,7 +134,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         {
           name: 'ProgramacaoEspelho',
           icon: CalendarDays,
-          label: 'Dados Completos',
+          label: 'Informações Completas da Programação',
           description: 'Link de imagens • Minibios • Material de divulgação aprovado',
           show: true,
         },
