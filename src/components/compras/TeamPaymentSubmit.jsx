@@ -473,7 +473,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
                   </div>
                   <p className="font-semibold text-amber-900 mt-2">Valor</p>
                   <div className="bg-white/70 rounded-lg p-2 border border-amber-100">
-                    <p>O valor deve ser exatamente <span className="font-bold">{formatBRL(valorParcela)}</span></p>
+                    <p>O valor deve ser exatamente o valor da parcela prevista.</p>
                   </div>
                 </div>
               </div>
