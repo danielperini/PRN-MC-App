@@ -93,7 +93,8 @@ export default function CoordDashboard({ reports = [], isLoading }) {
   const porMuseu = useMemo(() => {
     const map = {};
     reportsFiltrados.forEach((r) => {
-      const m = r.museu || 'Outros';
+      const m = r.museu?.trim() || '';
+      if (!m || m.toLowerCase() === 'atuação geral') return;
       if (!map[m]) map[m] = { museu: m, relatorios: 0, atividades: 0, publico: 0 };
       map[m].relatorios++;
       if (r.status !== 'APPROVED') return;
