@@ -74,7 +74,8 @@ export default function TeamMemberForm({
     }
 
     const user = users.find(
-      (u) => String(u?.email || '').trim().toLowerCase() ===
+      (u) =>
+        String(u?.email || '').trim().toLowerCase() ===
         String(selectedUser).trim().toLowerCase()
     );
 
@@ -93,20 +94,27 @@ export default function TeamMemberForm({
 
       const created = await base44.entities.TeamMember.create(payload);
 
-      if (!created?.id) {
-        throw new Error('O cadastro não retornou confirmação do registro.');
+      // 🔴 GARANTIA REAL DE SUCESSO
+      if (!created || !created.id) {
+        throw new Error('Falha ao confirmar gravação do membro.');
       }
 
-      toast.success(`Membro adicionado com sucesso: ${payload.user_name}`);
+      toast.success(`✅ Membro adicionado: ${payload.user_name}`);
 
+      // 🔥 garante atualização externa
       if (typeof onSuccess === 'function') {
         await onSuccess(created);
       }
 
       setSelectedUser('');
       onClose?.();
+
     } catch (e) {
-      toast.error(e?.message || 'Erro ao salvar o membro.');
+      console.error('Erro ao adicionar membro:', e);
+
+      toast.error(
+        e?.message || 'Erro ao salvar o membro. Tente novamente.'
+      );
     } finally {
       setSaving(false);
     }
@@ -115,7 +123,12 @@ export default function TeamMemberForm({
   const isBusy = saving || loadingUsers || loadingTeam;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && !saving && onClose?.()}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !saving) onClose?.();
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Adicionar membro</DialogTitle>
@@ -136,8 +149,8 @@ export default function TeamMemberForm({
                     loadingUsers || loadingTeam
                       ? 'Carregando usuários...'
                       : availableUsers.length === 0
-                        ? 'Nenhum usuário disponível'
-                        : 'Selecione um usuário'
+                      ? 'Nenhum usuário disponível'
+                      : 'Selecione um usuário'
                   }
                 />
               </SelectTrigger>
@@ -145,7 +158,10 @@ export default function TeamMemberForm({
               <SelectContent>
                 {availableUsers.length > 0 ? (
                   availableUsers.map((user) => (
-                    <SelectItem key={user.id || user.email} value={user.email}>
+                    <SelectItem
+                      key={user.id || user.email}
+                      value={user.email}
+                    >
                       {user.name || user.full_name || user.email}
                     </SelectItem>
                   ))
@@ -171,7 +187,11 @@ export default function TeamMemberForm({
             <Button
               type="button"
               onClick={handleAdd}
-              disabled={isBusy || !selectedUser || selectedUser === '__empty__'}
+              disabled={
+                isBusy ||
+                !selectedUser ||
+                selectedUser === '__empty__'
+              }
             >
               {saving ? (
                 <>
