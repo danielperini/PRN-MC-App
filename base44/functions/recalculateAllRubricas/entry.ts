@@ -400,7 +400,12 @@ Deno.serve(async (req) => {
       const valorPago = Number(comprasPagas.reduce((s, p) => s + getPurchaseValue(p), 0).toFixed(2));
       const valorComprometido = Number(comprasAprovadas.reduce((s, p) => s + getPurchaseValue(p), 0).toFixed(2));
 
-      const valorUtilizado = Number((valorEquipe + valorPago + valorComprometido + valorLancamentos).toFixed(2));
+      // REGRA CRÍTICA: Para Equipe e Gestão, APENAS TeamPayments PAGO (máx 1 por pessoa/período)
+      // Não soma compras + lançamentos + comprometido nessas rubricas
+      const valorUtilizado = isEquipeEGestao(rubrica)
+        ? valorEquipe
+        : Number((valorEquipe + valorPago + valorComprometido + valorLancamentos).toFixed(2));
+
       const valorRubrica = toNumber(rubrica.valor_rubrica);
       const saldo = Number((valorRubrica - valorUtilizado).toFixed(2));
       const percentualUtilizado = valorRubrica > 0 ? Number(((valorUtilizado / valorRubrica) * 100).toFixed(2)) : 0;
