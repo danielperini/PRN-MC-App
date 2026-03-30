@@ -165,11 +165,24 @@ Deno.serve(async (req) => {
     const errors = [];
     const debug_sheets = [];
 
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-indexed
+
     for (const sheetName of workbook.SheetNames) {
       const parsed = parseSheetName(sheetName);
 
       if (!parsed) {
         debug_sheets.push({ sheet: sheetName, skipped: true, reason: 'nome não reconhecido como mês/ano' });
+        continue;
+      }
+
+      // Skip future months
+      if (
+        parsed.year > currentYear ||
+        (parsed.year === currentYear && parsed.month > currentMonth)
+      ) {
+        debug_sheets.push({ sheet: sheetName, skipped: true, reason: 'mês futuro, ignorado' });
         continue;
       }
 
