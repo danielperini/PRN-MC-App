@@ -49,6 +49,8 @@ export default function ProgramacaoEspelho() {
   const [museuFilter, setMuseuFilter] = useState('Todos');
   const [search, setSearch] = useState('');
   const [availableMonths, setAvailableMonths] = useState([]);
+  const [yearFilter, setYearFilter] = useState(new Date().getFullYear());
+  const [availableYears, setAvailableYears] = useState([]);
 
   useEffect(() => {
     async function load() {
@@ -66,15 +68,28 @@ export default function ProgramacaoEspelho() {
       const sorted = Array.from(monthSet).sort().reverse();
       setAvailableMonths(sorted);
 
-      // ir para o mês mais recente com dados
-      if (sorted.length > 0 && !monthSet.has(currentMonth)) {
-        setCurrentMonth(sorted[0]);
-      }
+      // extrair anos disponíveis
+      const yearSet = new Set(sorted.map(k => parseInt(k.split('-')[0])));
+      const years = Array.from(yearSet).sort().reverse();
+      setAvailableYears(years);
+
+      // definir ano inicial como o mais recente
+      const latestYear = years[0] || new Date().getFullYear();
+      setYearFilter(latestYear);
+
+      // ir para o mês mais recente desse ano
+      const latestMonthOfYear = sorted.find(k => k.startsWith(String(latestYear)));
+      if (latestMonthOfYear) setCurrentMonth(latestMonthOfYear);
 
       setLoading(false);
     }
     load();
   }, []);
+
+  // meses disponíveis para o ano selecionado
+  const monthsOfYear = availableMonths.filter(k => k.startsWith(String(yearFilter)));
+  const hasPrevInYear = monthsOfYear.includes(prevMonth(currentMonth));
+  const hasNextInYear = monthsOfYear.includes(nextMonth(currentMonth));
 
   const filtered = allItems.filter((item) => {
     const key = item.month_key || (item.data_inicio ? getMonthKey(new Date(item.data_inicio)) : '');
@@ -91,8 +106,8 @@ export default function ProgramacaoEspelho() {
     return true;
   });
 
-  const hasPrev = availableMonths.includes(prevMonth(currentMonth));
-  const hasNext = availableMonths.includes(nextMonth(currentMonth));
+  const hasPrev = hasPrevInYear;
+  const hasNext = hasNextInYear;
 
   return (
     <div className="max-w-7xl mx-auto space-y-4">
@@ -103,27 +118,38 @@ export default function ProgramacaoEspelho() {
           <h1 className="text-xl font-semibold text-slate-800">Programação — Espelho da Planilha</h1>
         </div>
 
-        {/* Navegação de mês */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            disabled={!hasPrev}
-            onClick={() => setCurrentMonth(prevMonth(currentMonth))}
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <span className="capitalize font-medium text-slate-700 min-w-[160px] text-center">
-            {formatMonthLabel(currentMonth)}
-          </span>
-          <Button
-            variant="outline"
-            size="icon"
-            disabled={!hasNext}
-            onClick={() => setCurrentMonth(nextMonth(currentMonth))}
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+        {/* Seletor de Ano + Navegação de mês */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Ano */}
+          <div className="flex gap-1">
+            {availableYears.map(y => (
+              <Button
+                key={y}
+                variant={yearFilter === y ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setYearFilter(y);
+                  const firstMonth = availableMonths.find(k => k.startsWith(String(y)));
+                  if (firstMonth) setCurrentMonth(firstMonth);
+                }}
+              >
+                {y}
+              </Button>
+            ))}
+          </div>
+
+          {/* Mês */}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" disabled={!hasPrev} onClick={() => setCurrentMonth(prevMonth(currentMonth))}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <span className="capitalize font-medium text-slate-700 min-w-[160px] text-center">
+              {formatMonthLabel(currentMonth)}
+            </span>
+            <Button variant="outline" size="icon" disabled={!hasNext} onClick={() => setCurrentMonth(nextMonth(currentMonth))}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
