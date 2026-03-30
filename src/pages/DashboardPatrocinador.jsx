@@ -16,6 +16,7 @@ import {
 export default function DashboardPatrocinador() {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [filterTipoAtividade, setFilterTipoAtividade] = useState('todas');
   const [data, setData] = useState({
     periodo: '',
     museus: ['MIS', 'MHAB', 'MUMO'],
@@ -389,17 +390,32 @@ export default function DashboardPatrocinador() {
       {data.atividades.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Award className="w-5 h-5" />
-              Atividades por Tipo
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Award className="w-5 h-5" />
+                Atividades por Tipo
+              </CardTitle>
+              <div className="w-48">
+                <Select value={filterTipoAtividade} onValueChange={setFilterTipoAtividade}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filtrar por tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todos os tipos</SelectItem>
+                    {data.atividades.map(item => (
+                      <SelectItem key={item.tipo} value={item.tipo}>{item.tipo}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={data.atividades}
+                    data={filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter(a => a.tipo === filterTipoAtividade)}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
@@ -408,7 +424,7 @@ export default function DashboardPatrocinador() {
                     fill="#3b82f6"
                     dataKey="quantidade"
                   >
-                    {data.atividades.map((entry, index) => (
+                    {(filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter(a => a.tipo === filterTipoAtividade)).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][index % 5]} />
                     ))}
                   </Pie>
