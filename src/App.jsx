@@ -7,6 +7,7 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import { PatrocinadorViewProvider } from '@/context/PatrocinadorViewContext';
 import ChecklistProducao from './pages/ChecklistProducao';
 import ProgramacaoEspelho from './pages/ProgramacaoEspelho';
 import Agenda from './pages/Agenda';
@@ -137,12 +138,14 @@ function AuthenticatedApp() {
 function App() {
   return (
     <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <AuthenticatedApp />
-        </Router>
-        <Toaster />
-      </QueryClientProvider>
+      <PatrocinadorViewProvider>
+        <QueryClientProvider client={queryClientInstance}>
+          <Router>
+            <AuthenticatedApp />
+          </Router>
+          <Toaster />
+        </QueryClientProvider>
+      </PatrocinadorViewProvider>
     </AuthProvider>
   );
 }
