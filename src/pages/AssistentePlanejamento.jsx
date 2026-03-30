@@ -57,10 +57,15 @@ function score(chunk, pergunta) {
 }
 
 function AssistenteInner() {
+  const [user, setUser] = useState(null);
   const [conversation, setConversation] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef(null);
+
+  useEffect(() => {
+    base44.auth.me().then(u => setUser(u)).catch(() => setUser(null));
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -176,6 +181,18 @@ ${pergunta}
     // 🔥 GARANTE QUE NUNCA TRAVA
     setLoading(false);
   };
+
+  if (user?.role === 'PATROCINADOR') {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-6">
+        <div className="max-w-md text-center">
+          <HelpCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <h1 className="text-2xl font-semibold text-gray-900 mb-2">Acesso Restrito</h1>
+          <p className="text-gray-600">O assistente de IA está disponível apenas para coordenadores e profissionais.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">

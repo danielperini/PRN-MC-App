@@ -33,6 +33,7 @@ const BANKING_FIELDS = [
 function MeusDadosInner() {
   const [user, setUser] = useState(null);
   const [coordGeral, setCoordGeral] = useState(false);
+  const [isSponsor, setIsSponsor] = useState(false);
   const [selectedUserEmail, setSelectedUserEmail] = useState(null); // null = próprio usuário
   const [formData, setFormData] = useState({
     email_pessoal: '',
@@ -58,6 +59,7 @@ function MeusDadosInner() {
       if (!u) { setUser(null); return; }
       setUser(u);
       setCoordGeral(isCoordGeral(u));
+      setIsSponsor(u.role === 'PATROCINADOR');
       loadUserData(u);
     }).catch(() => setUser(null));
   }, []);
@@ -151,6 +153,12 @@ function MeusDadosInner() {
   const targetEmail = selectedUserEmail || user?.email;
   const targetUser = selectedUserEmail ? allUsers.find(u => u.email === selectedUserEmail) : user;
 
+  const isComplete = isSponsor
+    ? formData.email_pessoal && formData.telefone
+    : formData.email_pessoal && formData.telefone && formData.cpf && 
+      formData.banco && formData.agencia && formData.conta &&
+      (formData.tipo_pessoa === 'PF' || (formData.cnpj && formData.empresa_nome));
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       // Só atualiza via auth.updateMe se for o próprio usuário
@@ -205,10 +213,6 @@ function MeusDadosInner() {
 
   const set = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
 
-  const isComplete = formData.email_pessoal && formData.telefone && formData.cpf && 
-                     formData.banco && formData.agencia && formData.conta &&
-                     (formData.tipo_pessoa === 'PF' || (formData.cnpj && formData.empresa_nome));
-
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center text-gray-400">
@@ -223,10 +227,10 @@ function MeusDadosInner() {
 
         {/* Header */}
         <div className="mb-10">
-          <h1 className="text-3xl font-semibold text-black mb-2">
-            {selectedUserEmail ? `Informações de ${targetUser?.full_name || selectedUserEmail}` : 'Informações'}
-          </h1>
-          <p className="text-gray-600">Preencha suas informações pessoais e bancárias para a equipe</p>
+         <h1 className="text-3xl font-semibold text-black mb-2">
+           {selectedUserEmail ? `Informações de ${targetUser?.full_name || selectedUserEmail}` : 'Informações'}
+         </h1>
+         <p className="text-gray-600">{isSponsor ? 'Atualize seus dados pessoais' : 'Preencha suas informações pessoais e bancárias para a equipe'}</p>
         </div>
 
         {/* Seletor de usuário — apenas Coordenador Geral */}
@@ -369,34 +373,36 @@ function MeusDadosInner() {
             </Section>
           )}
 
-          {/* Dados Bancários */}
-          <Section title="Dados Bancários">
-            <div className="space-y-4">
-              {BANKING_FIELDS.map(field => (
-                <div key={field.name} className="space-y-1.5">
-                  <Label>{field.label} {field.name !== 'pix_key' ? '*' : ''}</Label>
-                  <Input
-                    type={field.type}
-                    value={formData[field.name]}
-                    onChange={e => set(field.name, e.target.value)}
-                    placeholder={field.label}
-                    required={field.name !== 'pix_key'}
-                  />
-                </div>
-              ))}
+          {/* Dados Bancários — Não mostrar para patrocinadores */}
+          {!isSponsor && (
+            <Section title="Dados Bancários">
+              <div className="space-y-4">
+                {BANKING_FIELDS.map(field => (
+                  <div key={field.name} className="space-y-1.5">
+                    <Label>{field.label} {field.name !== 'pix_key' ? '*' : ''}</Label>
+                    <Input
+                      type={field.type}
+                      value={formData[field.name]}
+                      onChange={e => set(field.name, e.target.value)}
+                      placeholder={field.label}
+                      required={field.name !== 'pix_key'}
+                    />
+                  </div>
+                ))}
 
-              <div className="space-y-1.5">
-                <Label>Tipo de Conta *</Label>
-                <Select value={formData.tipo_conta} onValueChange={v => set('tipo_conta', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Corrente">Corrente</SelectItem>
-                    <SelectItem value="Poupança">Poupança</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1.5">
+                  <Label>Tipo de Conta *</Label>
+                  <Select value={formData.tipo_conta} onValueChange={v => set('tipo_conta', v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Corrente">Corrente</SelectItem>
+                      <SelectItem value="Poupança">Poupança</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
-          </Section>
+            </Section>
+          )}
 
           {/* Ações */}
           <div className="flex gap-2 justify-end pt-6 border-t">

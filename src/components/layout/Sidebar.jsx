@@ -92,6 +92,18 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       ],
     },
     {
+      label: 'Programação',
+      items: [
+        {
+          name: 'ProgramacaoEspelho',
+          icon: CalendarDays,
+          label: 'Programação',
+          tooltip: 'Informações completas da programação: sinopse, links de imagens, minibios dos artistas.',
+          show: true,
+        },
+      ],
+    },
+    {
       label: 'Museu Centro',
       items: [
         {
@@ -111,13 +123,13 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       ],
     },
     {
-      label: 'Informações',
+      label: 'Perfil',
       items: [
         {
-          name: 'Manual',
-          icon: BookOpen,
-          label: 'Manual',
-          tooltip: 'Informações sobre o projeto e documentação institucional.',
+          name: 'Perfil',
+          icon: Users,
+          label: 'Meu Perfil',
+          tooltip: 'Atualize seus dados pessoais.',
           show: true,
         },
       ],
