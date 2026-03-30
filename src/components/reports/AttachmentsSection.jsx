@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toastMessages } from '@/lib/toastMessages';
 import { 
   Paperclip, 
   Upload, 
@@ -19,7 +20,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
 import MediaUploader from '@/components/gallery/MediaUploader';
 import MediaGalleryViewer from '@/components/gallery/MediaGalleryViewer';
 
@@ -85,9 +85,9 @@ export default function AttachmentsSection({ reportId, canEdit }) {
     mutationFn: (id) => base44.entities.Attachment.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries(['attachments', reportId]);
-      toast.success('Anexo removido');
+      toastMessages.deleteSuccess();
     },
-    onError: () => toast.error('Erro ao remover anexo'),
+    onError: (e) => toastMessages.deleteFailed(e?.message),
   });
 
   const updateMutation = useMutation({
@@ -95,16 +95,16 @@ export default function AttachmentsSection({ reportId, canEdit }) {
     onSuccess: () => {
       queryClient.invalidateQueries(['attachments', reportId]);
       setEditingId(null);
-      toast.success('Descrição atualizada');
+      toastMessages.updateSuccess();
     },
-    onError: () => toast.error('Erro ao atualizar descrição'),
+    onError: (e) => toastMessages.updateFailed(e?.message),
   });
 
   const handleDownloadAll = () => {
     attachments.forEach(att => {
       window.open(att.file_url, '_blank');
     });
-    toast.success(`${attachments.length} arquivo(s) abertos para download`);
+    toastMessages.info(`${attachments.length} arquivo(s) abertos para download.`);
   };
 
   const handleFiles = async (files) => {
@@ -131,10 +131,10 @@ export default function AttachmentsSection({ reportId, canEdit }) {
         });
       }
       queryClient.invalidateQueries(['attachments', reportId]);
-      toast.success(`${fileList.length} arquivo(s) enviado(s) com sucesso`);
+      toastMessages.fileUploadSuccess();
     } catch (err) {
       console.error('Upload error:', err);
-      toast.error('Erro ao enviar arquivo: ' + (err?.message || 'tente novamente'));
+      toastMessages.fileUploadFailed(err?.message);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

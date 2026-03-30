@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { toastMessages } from '@/lib/toastMessages';
 import { RefreshCw } from 'lucide-react';
 
 function toNumber(value) {
@@ -25,14 +26,17 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
     try {
       const res = await base44.functions.invoke('recalculateAllRubricas', {});
       const s = res?.data?.sumario;
-      setRecalcMsg(
-        s
-          ? `Atualizado: ${s.total_rubricas_unicas} rubricas | Utilizado: R$ ${moeda(s.valor_total_utilizado)}`
-          : 'Recálculo concluído.'
-      );
+      if (s) {
+        setRecalcMsg(`Atualizado: ${s.total_rubricas_unicas} rubricas | Utilizado: R$ ${moeda(s.valor_total_utilizado)}`);
+        toastMessages.syncSuccess();
+      } else {
+        setRecalcMsg('Recálculo concluído.');
+        toastMessages.info('Sincronização concluída com sucesso.');
+      }
       if (onRefresh) onRefresh();
     } catch (e) {
       setRecalcMsg('Erro ao recalcular: ' + (e?.message || e));
+      toastMessages.syncFailed(e?.message);
     } finally {
       setRecalcLoading(false);
     }

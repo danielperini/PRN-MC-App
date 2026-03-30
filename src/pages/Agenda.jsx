@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { toastMessages } from '@/lib/toastMessages';
 import { ChevronLeft, ChevronRight, MapPin, Users, Ticket, ExternalLink, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -136,22 +137,28 @@ export default function Agenda() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const data = await base44.entities.Programacao.list('-data_inicio', 5000);
-      const items = Array.isArray(data) ? data : [];
-      setAllItems(items);
+      try {
+        const data = await base44.entities.Programacao.list('-data_inicio', 5000);
+        const items = Array.isArray(data) ? data : [];
+        setAllItems(items);
 
-      const monthSet = new Set();
-      items.forEach((item) => {
-        const key = item.month_key || (item.data_inicio ? getMonthKey(new Date(item.data_inicio)) : null);
-        if (key) monthSet.add(key);
-      });
-      const sorted = Array.from(monthSet).sort().reverse();
-      setAvailableMonths(sorted);
+        const monthSet = new Set();
+        items.forEach((item) => {
+          const key = item.month_key || (item.data_inicio ? getMonthKey(new Date(item.data_inicio)) : null);
+          if (key) monthSet.add(key);
+        });
+        const sorted = Array.from(monthSet).sort().reverse();
+        setAvailableMonths(sorted);
 
-      if (sorted.length > 0 && !monthSet.has(getMonthKey(new Date()))) {
-        setCurrentMonth(sorted[0]);
+        if (sorted.length > 0 && !monthSet.has(getMonthKey(new Date()))) {
+          setCurrentMonth(sorted[0]);
+        }
+      } catch (e) {
+        console.error('Erro ao carregar agenda:', e);
+        toastMessages.warning('Erro ao carregar agenda. Tente novamente.');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     load();
   }, []);
