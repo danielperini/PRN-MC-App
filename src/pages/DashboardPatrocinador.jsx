@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Calendar, Users, FileText, TrendingUp, Target, Award } from 'lucide-react';
+import { Calendar, Users, FileText, TrendingUp, Target, Award, RotateCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import NewsCarousel from '@/components/dashboard/NewsCarousel';
 
 export default function DashboardPatrocinador() {
   const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(null);
   const [data, setData] = useState({
     periodo: '',
     museus: ['MIS', 'MHAB', 'MUMO'],
@@ -104,6 +106,7 @@ export default function DashboardPatrocinador() {
         totalUtilizado,
         relatoriosAprovados: reportsRaw?.length || 0,
       });
+      setLastUpdate(new Date());
     } catch (error) {
       console.error('Erro ao carregar dashboard patrocinador:', error);
     } finally {
@@ -192,10 +195,28 @@ export default function DashboardPatrocinador() {
       {/* Orçamento Executivo */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Target className="w-5 h-5" />
-            Orçamento Executivo
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Target className="w-5 h-5" />
+              Orçamento Executivo
+            </CardTitle>
+            <div className="flex items-center gap-3">
+              {lastUpdate && (
+                <span className="text-xs text-slate-500">
+                  Atualizado: {lastUpdate.toLocaleString('pt-BR')}
+                </span>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={loadDashboardData}
+                disabled={loading}
+                className="gap-1.5"
+              >
+                <RotateCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
