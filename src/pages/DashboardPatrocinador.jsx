@@ -2,9 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Calendar, Users, FileText, TrendingUp, Target, Award, RotateCw } from 'lucide-react';
+import { Calendar, Users, FileText, TrendingUp, Target, Award, RotateCw, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import NewsCarousel from '@/components/dashboard/NewsCarousel';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function DashboardPatrocinador() {
   const [loading, setLoading] = useState(true);
@@ -18,6 +25,8 @@ export default function DashboardPatrocinador() {
     statusProjeto: 'Em andamento',
     atividades: [],
     rubricas: [],
+    dadosMensais: [],
+    dadosClassificacao: [],
   });
 
   useEffect(() => {
@@ -38,12 +47,43 @@ export default function DashboardPatrocinador() {
       const mesAtual = now.getMonth() + 1;
       const anoAtual = now.getFullYear();
 
+      // Atividades por mês
+      const atividadesPorMes = {};
+      (activitiesRaw || []).forEach(a => {
+        if (!a?.data_realizacao) return;
+        const data = new Date(a.data_realizacao);
+        const mes = String(data.getMonth() + 1).padStart(2, '0');
+        const ano = data.getFullYear();
+        const chave = `${ano}-${mes}`;
+        if (!atividadesPorMes[chave]) {
+          atividadesPorMes[chave] = { mes: chave, atividades: 0, publico: 0 };
+        }
+        atividadesPorMes[chave].atividades += 1;
+        atividadesPorMes[chave].publico += Number(a?.publico_total) || 0;
+      });
+
+      const dadosMensais = Object.values(atividadesPorMes)
+        .sort((a, b) => a.mes.localeCompare(b.mes))
+        .slice(-12);
+
       // Atividades do mês atual
       const atividadesMes = (activitiesRaw || []).filter(a => {
         if (!a?.data_realizacao) return false;
         const data = new Date(a.data_realizacao);
         return data.getMonth() + 1 === mesAtual && data.getFullYear() === anoAtual;
       });
+
+      // Atividades por classificação
+      const atividadesClassificacao = {};
+      atividadesMes.forEach(a => {
+        const classificacao = a?.classificacao || 'Outro';
+        atividadesClassificacao[classificacao] = (atividadesClassificacao[classificacao] || 0) + 1;
+      });
+
+      const dadosClassificacao = Object.entries(atividadesClassificacao).map(([nome, quantidade]) => ({
+        nome,
+        quantidade,
+      }));
 
       // Total público
       const totalPublico = (activitiesRaw || []).reduce((sum, a) => {
@@ -105,6 +145,8 @@ export default function DashboardPatrocinador() {
         totalOrcado,
         totalUtilizado,
         relatoriosAprovados: reportsRaw?.length || 0,
+        dadosMensais,
+        dadosClassificacao,
       });
       setLastUpdate(new Date());
     } catch (error) {
@@ -134,6 +176,38 @@ export default function DashboardPatrocinador() {
         <div className="flex items-center gap-2 mt-3 text-sm bg-slate-700/50 w-fit px-3 py-1 rounded-full">
           <span className="w-2 h-2 bg-green-400 rounded-full" />
           {data.statusProjeto}
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex-1">
+          <label className="text-sm font-medium text-slate-700 mb-2 block">Período</label>
+          <Select defaultValue="todos">
+            <SelectTrigger>
+              <SelectValue placeholder="Selecionar período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os meses</SelectItem>
+              {data.dadosMensais?.map(m => (
+                <SelectItem key={m.mes} value={m.mes}>{m.mes}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex-1">
+          <label className="text-sm font-medium text-slate-700 mb-2 block">Tipo de Análise</label>
+          <Select defaultValue="todas">
+            <SelectTrigger>
+              <SelectValue placeholder="Selecionar análise" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas as atividades</SelectItem>
+              <SelectItem value="META">Apenas Metas</SelectItem>
+              <SelectItem value="ROTINA">Apenas Rotina</SelectItem>
+              <SelectItem value="EXTRA">Apenas Extra</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -257,6 +331,59 @@ export default function DashboardPatrocinador() {
           )}
         </CardContent>
       </Card>
+
+      {/* Atividades por Classificação */}
+      {data.dadosClassificacao && data.dadosClassificacao.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="w-5 h-5" />
+              Atividades por Classificação (Metas, Rotina, Extra)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.dadosClassificacao}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="nome" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="quantidade" fill="#8b5cf6" name="Quantidade" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Atividades por Mês */}
+      {data.dadosMensais && data.dadosMensais.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Atividades e Público por Mês
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data.dadosMensais}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="mes" />
+                  <YAxis yAxisId="left" label={{ value: 'Atividades', angle: -90, position: 'insideLeft' }} />
+                  <YAxis yAxisId="right" orientation="right" label={{ value: 'Público', angle: 90, position: 'insideRight' }} />
+                  <Tooltip />
+                  <Legend />
+                  <Line yAxisId="left" type="monotone" dataKey="atividades" stroke="#3b82f6" name="Atividades" />
+                  <Line yAxisId="right" type="monotone" dataKey="publico" stroke="#10b981" name="Público" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Atividades por Tipo */}
       {data.atividades.length > 0 && (
