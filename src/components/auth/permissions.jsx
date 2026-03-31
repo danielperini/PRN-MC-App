@@ -5,10 +5,6 @@
 
 export const COORD_GERAL_EMAIL = 'daniel@periniprojetos.com.br';
 
-export const SPECIAL_COORD_EMAILS = [
-  'programacao.mc@viadutodasartes.org.br',
-];
-
 export const AUTO_APPROVED_DOMAINS = [
   '@viadutodasartes.org.br',
   '@periniprojetos.com.br',
@@ -22,18 +18,9 @@ export const AUTO_APPROVED_DOMAINS = [
 export function isCoordGeral(user) {
   if (!user) return false;
   return (
-    String(user.email || '').toLowerCase() === COORD_GERAL_EMAIL.toLowerCase() ||
+    user.email === COORD_GERAL_EMAIL ||
     user.can_manage_users === true
   );
-}
-
-/**
- * Verifica se o usuário faz parte do grupo especial de coordenação por email
- */
-export function isSpecialCoordinator(user) {
-  if (!user) return false;
-  const email = String(user.email || '').toLowerCase();
-  return SPECIAL_COORD_EMAILS.includes(email);
 }
 
 /**
@@ -42,8 +29,6 @@ export function isSpecialCoordinator(user) {
 export function isCoordenador(user) {
   if (!user) return false;
   if (isCoordGeral(user)) return true;
-  if (isSpecialCoordinator(user)) return true;
-
   return [
     'COORDENADOR',
     'ADMIN',
@@ -61,7 +46,7 @@ export function isCoordenador(user) {
 export function isAutoApprovedDomain(email) {
   if (!email) return false;
   const lower = email.toLowerCase();
-  return AUTO_APPROVED_DOMAINS.some((domain) => lower.endsWith(domain));
+  return AUTO_APPROVED_DOMAINS.some(domain => lower.endsWith(domain));
 }
 
 /**
@@ -80,11 +65,7 @@ export function canEditReport(currentUser, reportAuthorEmail) {
 export function canManageUsers(user) {
   if (!user) return false;
   if (isCoordGeral(user)) return true;
-
-  return (
-    user.can_manage_users === true ||
-    ['COORDENADOR', 'admin', 'ADMIN'].includes(user.role)
-  );
+  return user.can_manage_users === true || ['COORDENADOR', 'admin', 'ADMIN'].includes(user.role);
 }
 
 /**
