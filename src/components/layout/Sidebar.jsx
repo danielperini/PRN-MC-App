@@ -73,7 +73,7 @@ const NAV_GROUPS = [
     items: [
       { path: 'AssistentePlanejamento', label: 'Assistente IA', icon: Bot, roles: ['all'] },
       { path: 'Manual', label: 'Manual e Ajuda', icon: HelpCircle, roles: ['all'] },
-      { path: 'LeitorNoticias', label: 'Notícias', icon: Newspaper, roles: ['all'] },
+      { path: 'LeitorNoticias', label: 'Notícias', icon: Newspaper, roles: ['coord', 'admin'] },
     ],
   },
 ];
@@ -97,7 +97,7 @@ function NavItem({ item, currentPageName, collapsed, userPermission }) {
         <div className="min-w-0">
           <span className="truncate block leading-tight">{item.label}</span>
           {item.subtitle && (
-          <span className={`text-[10px] truncate block leading-tight mt-0.5 ${isActive ? 'text-slate-500' : 'text-slate-500'}`}>
+            <span className={`text-[10px] truncate block leading-tight mt-0.5 ${isActive ? 'text-slate-500' : 'text-slate-500'}`}>
               {item.subtitle}
             </span>
           )}
@@ -146,7 +146,6 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         collapsed ? 'w-16' : 'w-60'
       } min-h-screen`}
     >
-      {/* Header */}
       <div className={`flex items-center justify-between px-3 py-4 border-b border-slate-800 ${collapsed ? 'flex-col gap-2' : ''}`}>
         {!collapsed && (
           <div className="flex flex-col">
@@ -162,7 +161,6 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         </button>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
         {NAV_GROUPS.map((group) => {
           const visibleItems = group.items.filter(shouldShowItem);
@@ -191,7 +189,6 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         })}
       </nav>
 
-      {/* User footer */}
       <div className={`border-t border-slate-800 px-3 py-3 ${collapsed ? 'flex justify-center' : ''}`}>
         <Link
           to="/Perfil"
