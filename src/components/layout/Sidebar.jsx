@@ -88,16 +88,16 @@ function NavItem({ item, currentPageName, collapsed, userPermission }) {
       title={collapsed ? item.label : undefined}
       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors group ${
         isActive
-          ? 'bg-slate-900 text-white'
-          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+          ? 'bg-white text-slate-900'
+          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
       }`}
     >
-      <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700'}`} />
+      <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-slate-900' : 'text-slate-500 group-hover:text-white'}`} />
       {!collapsed && (
         <div className="min-w-0">
           <span className="truncate block leading-tight">{item.label}</span>
           {item.subtitle && (
-            <span className={`text-[10px] truncate block leading-tight mt-0.5 ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>
+          <span className={`text-[10px] truncate block leading-tight mt-0.5 ${isActive ? 'text-slate-500' : 'text-slate-500'}`}>
               {item.subtitle}
             </span>
           )}
@@ -142,21 +142,21 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
 
   return (
     <div
-      className={`flex flex-col bg-white border-r border-slate-200 transition-all duration-200 ${
+      className={`flex flex-col bg-slate-900 border-r border-slate-800 transition-all duration-200 ${
         collapsed ? 'w-16' : 'w-60'
       } min-h-screen`}
     >
       {/* Header */}
-      <div className={`flex items-center justify-between px-3 py-4 border-b border-slate-100 ${collapsed ? 'flex-col gap-2' : ''}`}>
+      <div className={`flex items-center justify-between px-3 py-4 border-b border-slate-800 ${collapsed ? 'flex-col gap-2' : ''}`}>
         {!collapsed && (
           <div className="flex flex-col">
-            <span className="text-xs font-bold text-slate-900 leading-tight">Museus Centro</span>
+            <span className="text-xs font-bold text-white leading-tight">Museus Centro</span>
             <span className="text-[10px] text-slate-400">Plataforma de Gestão</span>
           </div>
         )}
         <button
           onClick={onToggle}
-          className="p-1.5 rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+          className="p-1.5 rounded-md text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors"
         >
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
@@ -171,7 +171,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           return (
             <div key={group.label}>
               {!collapsed && (
-                <p className="px-3 mb-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                <p className="px-3 mb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                   {group.label}
                 </p>
               )}
@@ -192,21 +192,21 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
       </nav>
 
       {/* User footer */}
-      <div className={`border-t border-slate-100 px-3 py-3 ${collapsed ? 'flex justify-center' : ''}`}>
+      <div className={`border-t border-slate-800 px-3 py-3 ${collapsed ? 'flex justify-center' : ''}`}>
         <Link
           to="/Perfil"
-          className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors"
+          className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
           title={collapsed ? currentUser?.full_name || 'Perfil' : undefined}
         >
-          <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-            <span className="text-xs font-semibold text-slate-600">
+          <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+            <span className="text-xs font-semibold text-slate-300">
               {(currentUser?.full_name || currentUser?.email || '?')[0].toUpperCase()}
             </span>
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-xs font-medium text-slate-800 truncate">{currentUser?.full_name || 'Usuário'}</p>
-              <p className="text-[10px] text-slate-400 truncate">{currentUser?.email || ''}</p>
+              <p className="text-xs font-medium text-slate-200 truncate">{currentUser?.full_name || 'Usuário'}</p>
+              <p className="text-[10px] text-slate-500 truncate">{currentUser?.email || ''}</p>
             </div>
           )}
         </Link>
