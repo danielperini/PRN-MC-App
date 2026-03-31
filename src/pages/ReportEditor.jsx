@@ -90,7 +90,6 @@ function ReportEditorInner() {
   const [declaracaoAceita, setDeclaracaoAceita] = useState(false);
   const [currentTab, setCurrentTab] = useState('identificacao');
   const [autoSaveTimer, setAutoSaveTimer] = useState(null);
-  const [showSaveAlert, setShowSaveAlert] = useState(false);
   const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
   const [showLoadTemplateDialog, setShowLoadTemplateDialog] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
@@ -159,6 +158,17 @@ function ReportEditorInner() {
     staleTime: 30000
   });
 
+  const { data: activitiesFromDB = [] } = useQuery({
+    queryKey: ['activities', reportId],
+    queryFn: async () => {
+      if (!reportId) return [];
+      const res = await base44.entities.Activity.filter({ report_id: reportId });
+      return Array.isArray(res) ? res : [];
+    },
+    enabled: !!reportId,
+    staleTime: 30000
+  });
+
   useEffect(() => {
     if (!reportId || !reportData?.id) return;
     if (initializedReportRef.current && loadedReportIdRef.current === reportId) return;
@@ -166,9 +176,9 @@ function ReportEditorInner() {
     setFormData({
       ...EMPTY_FORM,
       ...reportData,
-      atividades: Array.isArray(reportData.atividades)
-        ? reportData.atividades.map((item) => ({ ...item }))
-        : [],
+      atividades: activitiesFromDB.length > 0
+        ? activitiesFromDB.map((item) => ({ ...item }))
+        : (Array.isArray(reportData.atividades) ? reportData.atividades.map(i => ({ ...i })) : []),
       oportunidades: Array.isArray(reportData.oportunidades)
         ? reportData.oportunidades.map((item) => ({ ...item }))
         : [],
@@ -182,7 +192,7 @@ function ReportEditorInner() {
 
     initializedReportRef.current = true;
     loadedReportIdRef.current = reportId;
-  }, [reportData, reportId]);
+  }, [reportData, reportId, activitiesFromDB]);
 
   const gerarNumeroProtocolo = async (mes, ano) => {
     const MESES_ABREV = {
@@ -206,18 +216,37 @@ function ReportEditorInner() {
     return `MC-${mesAbrev}${ano}-${seq}`;
   };
 
-  const handleSaveDraft = () => {
-    setShowSaveAlert(true);
+  const syncActivities = async (savedReportId, atividades) => {
+    const existing = await base44.entities.Activity.filter({ report_id: savedReportId });
+    const existingIds = new Set((existing || []).map(a => a.id));
+    const keptIds = new Set();
+
+    for (const atv of (atividades || [])) {
+      const { id, created_date, updated_date, created_by, ...fields } = atv;
+      const payload = { ...fields, report_id: savedReportId };
+      if (id && existingIds.has(id)) {
+        await base44.entities.Activity.update(id, payload);
+        keptIds.add(id);
+      } else {
+        const created = await base44.entities.Activity.create(payload);
+        keptIds.add(created.id);
+      }
+    }
+
+    for (const a of (existing || [])) {
+      if (!keptIds.has(a.id)) {
+        await base44.entities.Activity.delete(a.id);
+      }
+    }
   };
 
-  const proceedWithSave = () => {
-    setShowSaveAlert(false);
+  const handleSaveDraft = () => {
     saveMutation.mutate(formData);
   };
 
   const saveMutation = useMutation({
     mutationFn: async (data) => {
-      const { id, created_date, updated_date, created_by, ...payload } = data;
+      const { id, created_date, updated_date, created_by, atividades, ...payload } = data;
 
       if (!reportId && !payload.numero_protocolo) {
         payload.numero_protocolo = await gerarNumeroProtocolo(
@@ -226,24 +255,33 @@ function ReportEditorInner() {
         );
       }
 
-      return reportId
-        ? base44.entities.Report.update(reportId, payload)
-        : base44.entities.Report.create(payload);
+      const saved = reportId
+        ? await base44.entities.Report.update(reportId, payload)
+        : await base44.entities.Report.create(payload);
+
+      const savedId = saved?.id || reportId;
+      if (savedId) {
+        await syncActivities(savedId, atividades);
+      }
+
+      return saved;
     },
     onSuccess: (saved) => {
+      const savedId = saved?.id || reportId;
       queryClient.invalidateQueries(['report', reportId]);
       queryClient.invalidateQueries(['my-reports']);
-      toast.success('Rascunho salvo', {
-        description: '✓ Suas alterações foram gravadas com sucesso.'
+      queryClient.invalidateQueries(['activities', savedId]);
+      toast.success('Rascunho salvo com sucesso!', {
+        description: `✓ ${formData.atividades?.length || 0} atividade(s) gravada(s).`
       });
 
       if (!reportId && saved?.id) {
         navigate(createPageUrl(`ReportEditor?id=${saved.id}`), { replace: true });
       }
     },
-    onError: () => {
+    onError: (err) => {
       toast.error('Erro ao salvar rascunho', {
-        description: 'Não foi possível gravar as alterações. Tente novamente.'
+        description: err?.message || 'Não foi possível gravar as alterações. Tente novamente.'
       });
     }
   });
@@ -270,7 +308,7 @@ function ReportEditorInner() {
         throw new Error('Museu obrigatório');
       }
 
-      const { id, created_date, updated_date, created_by, ...payload } = formData;
+      const { id, created_date, updated_date, created_by, atividades, ...payload } = formData;
 
       if (!reportId && !payload.numero_protocolo) {
         payload.numero_protocolo = await gerarNumeroProtocolo(
@@ -281,13 +319,22 @@ function ReportEditorInner() {
 
       const data = { ...payload, status: 'SUBMITTED' };
 
-      return reportId
-        ? base44.entities.Report.update(reportId, data)
-        : base44.entities.Report.create(data);
+      const saved = reportId
+        ? await base44.entities.Report.update(reportId, data)
+        : await base44.entities.Report.create(data);
+
+      const savedId = saved?.id || reportId;
+      if (savedId) {
+        await syncActivities(savedId, atividades);
+      }
+
+      return saved;
     },
-    onSuccess: () => {
+    onSuccess: (saved) => {
       setShowSubmitConfirm(false);
+      const savedId = saved?.id || reportId;
       queryClient.invalidateQueries(['my-reports']);
+      queryClient.invalidateQueries(['activities', savedId]);
       toast.success('Relatório enviado para revisão!', {
         description: '✓ O coordenador será notificado em breve.'
       });
@@ -752,7 +799,7 @@ function ReportEditorInner() {
           <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
             <Button variant="outline" onClick={handleSaveDraft} disabled={saveMutation.isPending}>
               <Save className="w-4 h-4 mr-2" />
-              Salvar Rascunho
+              {saveMutation.isPending ? 'Salvando...' : 'Salvar Rascunho'}
             </Button>
             <Button
               className="bg-black hover:bg-gray-800 text-white"
@@ -793,25 +840,7 @@ function ReportEditorInner() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <AlertDialog open={showSaveAlert} onOpenChange={setShowSaveAlert}>
-          <AlertDialogContent className="max-w-md">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-amber-600" />
-                Atenção — Rascunho em Progresso
-              </AlertDialogTitle>
-              <AlertDialogDescription className="mt-3 text-sm text-gray-700">
-                Apenas relatórios aprovados são considerados na prestação de contas. Rascunhos ficam salvos apenas na plataforma.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="flex justify-end gap-3 mt-6">
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={proceedWithSave} className="bg-black hover:bg-gray-800">
-                Salvar Rascunho
-              </AlertDialogAction>
-            </div>
-          </AlertDialogContent>
-        </AlertDialog>
+
       </div>
     </div>
   );

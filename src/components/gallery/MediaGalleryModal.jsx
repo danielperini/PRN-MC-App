@@ -5,18 +5,12 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 export default function MediaGalleryModal({ isOpen, onClose, mediaItems, initialIndex = 0 }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
-  if (!mediaItems || mediaItems.length === 0) return null;
-
-  const currentMedia = mediaItems[currentIndex];
-  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(currentMedia.fileName);
-  const isVideo = /\.(mp4|webm|mov|avi)$/i.test(currentMedia.fileName);
-
   const handlePrevious = () => {
-    setCurrentIndex((prev) => (prev === 0 ? mediaItems.length - 1 : prev - 1));
+    setCurrentIndex((prev) => (prev === 0 ? (mediaItems || []).length - 1 : prev - 1));
   };
 
   const handleNext = () => {
-    setCurrentIndex((prev) => (prev === mediaItems.length - 1 ? 0 : prev + 1));
+    setCurrentIndex((prev) => (prev === (mediaItems || []).length - 1 ? 0 : prev + 1));
   };
 
   const handleKeyDown = (e) => {
@@ -30,7 +24,9 @@ export default function MediaGalleryModal({ isOpen, onClose, mediaItems, initial
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
-  }, [isOpen, mediaItems.length]);
+  }, [isOpen, (mediaItems || []).length]);
+
+  if (!mediaItems || mediaItems.length === 0) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
