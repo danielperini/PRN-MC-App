@@ -36,6 +36,7 @@ export function isCoordenador(user) {
     'COORD_PRODUCAO',
     'COORD_ADMINISTRATIVA',
     'COORD_COMUNICACAO',
+    'COORD_PROGRAMACAO',
     'CONSULTORIA_PROGRAMACAO',
   ].includes(user.role);
 }
