@@ -221,26 +221,21 @@ function ReportEditorInner() {
     const existingIds = new Set(existing.map(a => a.id));
     const keptIds = new Set();
 
-    // Process all activities in parallel batches of 5
-    const list = atividades || [];
-    for (let i = 0; i < list.length; i += 5) {
-      const chunk = list.slice(i, i + 5);
-      await Promise.all(chunk.map(async (atv) => {
-        const { id, created_date, updated_date, created_by, nome, ...fields } = atv;
-        // Map form field 'nome' → entity field 'titulo'
-        const payload = {
-          ...fields,
-          titulo: nome || fields.titulo || '',
-          report_id: savedReportId,
-        };
-        if (id && existingIds.has(id)) {
-          await base44.entities.Activity.update(id, payload);
-          keptIds.add(id);
-        } else {
-          const created = await base44.entities.Activity.create(payload);
-          keptIds.add(created.id);
-        }
-      }));
+    // Process all activities sequentially to guarantee all are saved
+    for (const atv of (atividades || [])) {
+      const { id, created_date, updated_date, created_by, nome, ...fields } = atv;
+      const payload = {
+        ...fields,
+        titulo: nome || fields.titulo || '',
+        report_id: savedReportId,
+      };
+      if (id && existingIds.has(id)) {
+        await base44.entities.Activity.update(id, payload);
+        keptIds.add(id);
+      } else {
+        const created = await base44.entities.Activity.create(payload);
+        keptIds.add(created.id);
+      }
     }
 
     // Delete removed activities in parallel
