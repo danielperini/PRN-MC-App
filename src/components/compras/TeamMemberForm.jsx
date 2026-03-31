@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles, Paperclip, FileCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CARGOS_FUNCOES = [
@@ -79,6 +79,8 @@ export default function TeamMemberForm({
   const [selectedUser, setSelectedUser] = useState('');
   const [saving, setSaving] = useState(false);
   const [loadingAI, setLoadingAI] = useState(false);
+  const [uploadingContract, setUploadingContract] = useState(false);
+  const [contractUrl, setContractUrl] = useState('');
 
   const [form, setForm] = useState({
     user_email: '',
@@ -99,24 +101,9 @@ export default function TeamMemberForm({
       setMode('select');
       setSelectedUser('');
       setSaving(false);
-      setForm({
-        user_email: '',
-        user_name: '',
-        funcao: '',
-        role: '',
-        budgetline_id: '',
-        parcelas: '',
-        numero_parcelas: '',
-        valor_parcela: '',
-        valor_total: '',
-        telefone: '',
-        status: 'ATIVO',
-      });
-      return;
-    }
-
-    if (editingMember) {
+      setContractUrl('');
       setMode('form');
+      setContractUrl(editingMember?.contrato_url || '');
       setForm({
         user_email: editingMember?.user_email || '',
         user_name: editingMember?.user_name || editingMember?.nome || '',
@@ -228,6 +215,48 @@ export default function TeamMemberForm({
     setMode('form');
   };
 
+  const handleContractUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingContract(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setContractUrl(file_url);
+      // Auto-read contract with AI
+      const cargo = form.funcao || form.role || 'profissional';
+      const result = await base44.integrations.Core.InvokeLLM({
+        prompt: `Leia o contrato anexado e extraia: número de parcelas, valor de cada parcela, valor total do contrato para o cargo "${cargo}". Se não encontrar, retorne null nos campos.`,
+        file_urls: [file_url],
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            numero_parcelas: { type: 'number' },
+            valor_parcela: { type: 'number' },
+            valor_total: { type: 'number' },
+            observacao: { type: 'string' },
+          },
+        },
+      });
+      if (result?.numero_parcelas || result?.valor_parcela || result?.valor_total) {
+        setForm(prev => ({
+          ...prev,
+          numero_parcelas: result.numero_parcelas ? String(result.numero_parcelas) : prev.numero_parcelas,
+          parcelas: result.numero_parcelas ? String(result.numero_parcelas) : prev.parcelas,
+          valor_parcela: result.valor_parcela ? String(result.valor_parcela) : prev.valor_parcela,
+          valor_total: result.valor_total ? String(result.valor_total) : prev.valor_total,
+        }));
+        toast.success('Contrato lido pela IA — valores preenchidos automaticamente.');
+      } else {
+        toast.success('Contrato anexado. Preencha os valores manualmente.');
+      }
+    } catch (err) {
+      toast.error('Erro ao enviar contrato: ' + (err?.message || 'Tente novamente.'));
+    } finally {
+      setUploadingContract(false);
+      e.target.value = '';
+    }
+  };
+
   const handleSuggestFromAI = async () => {
     setLoadingAI(true);
     try {
@@ -319,6 +348,7 @@ Responda SOMENTE com os dados extraídos.`,
         valor_parcela: valorParcela,
         valor_total: valorTotal,
         status: String(form.status || 'ATIVO').trim() || 'ATIVO',
+        ...(contractUrl ? { contrato_url: contractUrl } : {}),
       };
 
       let result;
@@ -516,6 +546,33 @@ Responda SOMENTE com os dados extraídos.`,
                   )}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Contrato</Label>
+              <div className="flex items-center gap-2">
+                <label className={`flex items-center gap-2 px-3 py-2 rounded-md border text-sm cursor-pointer transition-colors ${
+                  uploadingContract ? 'opacity-50 pointer-events-none' : 'hover:bg-slate-50'
+                }`}>
+                  {uploadingContract ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Lendo contrato...</>
+                  ) : contractUrl ? (
+                    <><FileCheck className="w-4 h-4 text-green-600" /> Contrato anexado</>
+                  ) : (
+                    <><Paperclip className="w-4 h-4" /> Anexar contrato (PDF)</>  
+                  )}
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    className="hidden"
+                    onChange={handleContractUpload}
+                    disabled={saving || uploadingContract}
+                  />
+                </label>
+                {contractUrl && (
+                  <a href={contractUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">Ver</a>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
