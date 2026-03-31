@@ -1,1 +1,11 @@
-
+{
+  "name": "enviarNotaFiscalNotificacao",
+  "description": "Envia e-mail de notificação de Nota Fiscal com o arquivo já renomeado como anexo.",
+  "timeout_seconds": 60,
+  "memory_mb": 256,
+  "triggers": [
+    {
+      "type": "http"
+    }
+  ]
+}
