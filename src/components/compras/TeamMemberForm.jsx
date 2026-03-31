@@ -66,6 +66,46 @@ function toNumberOrZero(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function normalizeListResponse(res) {
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res?.items)) return res.items;
+  return [];
+}
+
+function normalizeEntityResponse(res) {
+  if (!res) return null;
+  if (res?.id) return res;
+  if (res?.data?.id) return res.data;
+  if (res?.item?.id) return res.item;
+  return res?.data || res?.item || res || null;
+}
+
+function withTimeout(promise, ms = 20000, message = 'A operação demorou mais do que o esperado.') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(message)), ms);
+    }),
+  ]);
+}
+
+const EMPTY_FORM = {
+  user_email: '',
+  user_name: '',
+  funcao: '',
+  role: '',
+  budgetline_id: '',
+  parcelas: '',
+  numero_parcelas: '',
+  valor_parcela: '',
+  valor_total: '',
+  data_inicio_contrato: '',
+  data_fim_contrato: '',
+  telefone: '',
+  status: 'ATIVO',
+};
+
 export default function TeamMemberForm({
   isOpen,
   onClose,
@@ -81,22 +121,7 @@ export default function TeamMemberForm({
   const [loadingAI, setLoadingAI] = useState(false);
   const [uploadingContract, setUploadingContract] = useState(false);
   const [contractUrl, setContractUrl] = useState('');
-
-  const [form, setForm] = useState({
-    user_email: '',
-    user_name: '',
-    funcao: '',
-    role: '',
-    budgetline_id: '',
-    parcelas: '',
-    numero_parcelas: '',
-    valor_parcela: '',
-    valor_total: '',
-    data_inicio_contrato: '',
-    data_fim_contrato: '',
-    telefone: '',
-    status: 'ATIVO',
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
 
   useEffect(() => {
     if (!isOpen) {
@@ -104,21 +129,7 @@ export default function TeamMemberForm({
       setSelectedUser('');
       setSaving(false);
       setContractUrl('');
-      setForm({
-        user_email: '',
-        user_name: '',
-        funcao: '',
-        role: '',
-        budgetline_id: '',
-        parcelas: '',
-        numero_parcelas: '',
-        valor_parcela: '',
-        valor_total: '',
-        data_inicio_contrato: '',
-        data_fim_contrato: '',
-        telefone: '',
-        status: 'ATIVO',
-      });
+      setForm(EMPTY_FORM);
       return;
     }
 
@@ -140,6 +151,11 @@ export default function TeamMemberForm({
         telefone: editingMember?.telefone || '',
         status: editingMember?.status || 'ATIVO',
       });
+    } else {
+      setMode('select');
+      setSelectedUser('');
+      setContractUrl('');
+      setForm(EMPTY_FORM);
     }
   }, [isOpen, editingMember]);
 
@@ -147,7 +163,7 @@ export default function TeamMemberForm({
     queryKey: ['users-all'],
     queryFn: async () => {
       const res = await base44.entities.User.list();
-      return Array.isArray(res) ? res : [];
+      return normalizeListResponse(res);
     },
     enabled: isOpen,
   });
@@ -156,7 +172,7 @@ export default function TeamMemberForm({
     queryKey: ['team-members'],
     queryFn: async () => {
       const res = await base44.entities.TeamMember.list();
-      return Array.isArray(res) ? res : [];
+      return normalizeListResponse(res);
     },
     enabled: isOpen,
   });
@@ -165,7 +181,7 @@ export default function TeamMemberForm({
     queryKey: ['team-member-form-budget-lines'],
     queryFn: async () => {
       const res = await base44.entities.BudgetLine.list();
-      return Array.isArray(res) ? res : [];
+      return normalizeListResponse(res);
     },
     enabled: isOpen && (!Array.isArray(budgetLines) || budgetLines.length === 0),
   });
@@ -213,15 +229,9 @@ export default function TeamMemberForm({
     }
 
     setForm({
+      ...EMPTY_FORM,
       user_email: user.email || '',
       user_name: user.name || user.full_name || user.email || '',
-      funcao: '',
-      role: '',
-      budgetline_id: '',
-      parcelas: '',
-      numero_parcelas: '',
-      valor_parcela: '',
-      valor_total: '',
       telefone: user.phone || user.telefone || '',
       status: 'ATIVO',
     });
@@ -232,17 +242,32 @@ export default function TeamMemberForm({
   const handleContractUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     setUploadingContract(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const uploadRes = await base44.integrations.Core.UploadFile({ file });
+      const file_url = uploadRes?.file_url || uploadRes?.data?.file_url || '';
+      if (!file_url) throw new Error('Arquivo enviado, mas sem URL retornada.');
+
       setContractUrl(file_url);
 
-      // Build rubrica context for AI
-      const rubricasContext = finalBudgetLines.map(b => `ID: ${b.id} | ${getBudgetLineLabel(b)}`).join('\n');
+      const rubricasContext = finalBudgetLines
+        .map((b) => `ID: ${b.id} | ${getBudgetLineLabel(b)}`)
+        .join('\n');
+
       const cargo = form.funcao || form.role || 'profissional';
 
       const result = await base44.integrations.Core.InvokeLLM({
-        prompt: `Leia o contrato PDF anexado e extraia as seguintes informações:\n- numero_parcelas (inteiro)\n- valor_parcela (número)\n- valor_total (número)\n- data_inicio (formato YYYY-MM-DD)\n- data_fim (formato YYYY-MM-DD)\n- rubrica_id_sugerida: escolha o ID mais adequado dentre as rubricas abaixo para o cargo "${cargo}":\n${rubricasContext}\n\nSe não encontrar algum campo, retorne null.`,
+        prompt: `Leia o contrato PDF anexado e extraia as seguintes informações:
+- numero_parcelas (inteiro)
+- valor_parcela (número)
+- valor_total (número)
+- data_inicio (formato YYYY-MM-DD)
+- data_fim (formato YYYY-MM-DD)
+- rubrica_id_sugerida: escolha o ID mais adequado dentre as rubricas abaixo para o cargo "${cargo}":
+${rubricasContext}
+
+Se não encontrar algum campo, retorne null.`,
         file_urls: [file_url],
         response_json_schema: {
           type: 'object',
@@ -258,7 +283,7 @@ export default function TeamMemberForm({
         },
       });
 
-      setForm(prev => ({
+      setForm((prev) => ({
         ...prev,
         numero_parcelas: result?.numero_parcelas ? String(result.numero_parcelas) : prev.numero_parcelas,
         parcelas: result?.numero_parcelas ? String(result.numero_parcelas) : prev.parcelas,
@@ -269,9 +294,10 @@ export default function TeamMemberForm({
         budgetline_id: result?.rubrica_id_sugerida || prev.budgetline_id,
       }));
 
-      toast.success(result?.observacao || 'Contrato lido — dados preenchidos automaticamente pela IA.');
+      toast.success(result?.observacao || 'Contrato lido e campos preenchidos.');
     } catch (err) {
-      toast.error('Erro ao processar contrato: ' + (err?.message || 'Tente novamente.'));
+      console.error('Erro ao processar contrato:', err);
+      toast.error(`Erro ao processar contrato: ${err?.message || 'Tente novamente.'}`);
     } finally {
       setUploadingContract(false);
       e.target.value = '';
@@ -281,13 +307,24 @@ export default function TeamMemberForm({
   const handleSuggestFromAI = async () => {
     setLoadingAI(true);
     try {
-      const docs = await base44.entities.KnowledgeDocument.filter({ categoria: 'Plano de Trabalho', ativo: true });
-      if (!docs || docs.length === 0) {
+      const docsRes = await base44.entities.KnowledgeDocument.filter({
+        categoria: 'Plano de Trabalho',
+        ativo: true,
+      });
+      const docs = normalizeListResponse(docsRes);
+
+      if (!docs.length) {
         toast.error('Nenhum Plano de Trabalho encontrado na base de conhecimento.');
         return;
       }
-      const conteudo = docs.map(d => d.conteudo_extraido || d.descricao || d.titulo).filter(Boolean).join('\n\n---\n\n');
+
+      const conteudo = docs
+        .map((d) => d.conteudo_extraido || d.descricao || d.titulo)
+        .filter(Boolean)
+        .join('\n\n---\n\n');
+
       const cargo = form.funcao || form.role || 'profissional';
+
       const result = await base44.integrations.Core.InvokeLLM({
         prompt: `Com base no Plano de Trabalho abaixo, extraia o número de parcelas e o valor de cada parcela para o cargo "${cargo}".
 
@@ -305,20 +342,22 @@ Responda SOMENTE com os dados extraídos.`,
           },
         },
       });
+
       if (result?.numero_parcelas || result?.valor_parcela) {
-        setForm(prev => ({
+        setForm((prev) => ({
           ...prev,
           numero_parcelas: String(result.numero_parcelas ?? prev.numero_parcelas),
           parcelas: String(result.numero_parcelas ?? prev.parcelas),
           valor_parcela: String(result.valor_parcela ?? prev.valor_parcela),
           valor_total: String(result.valor_total ?? prev.valor_total),
         }));
-        toast.success(result.observacao || 'Valores sugeridos pela IA com base no Plano de Trabalho.');
+        toast.success(result?.observacao || 'Valores sugeridos com base no Plano de Trabalho.');
       } else {
-        toast.error('A IA não encontrou valores para esse cargo no Plano de Trabalho.');
+        toast.error('Não foi possível sugerir valores para esse cargo.');
       }
     } catch (e) {
-      toast.error('Erro ao consultar IA: ' + (e?.message || 'Tente novamente.'));
+      console.error('Erro ao consultar IA:', e);
+      toast.error(`Erro ao consultar IA: ${e?.message || 'Tente novamente.'}`);
     } finally {
       setLoadingAI(false);
     }
@@ -350,15 +389,16 @@ Responda SOMENTE com os dados extraídos.`,
     setSaving(true);
 
     try {
-      const numeroParcelas = toNumberOrZero(
-        form.numero_parcelas || form.parcelas
-      );
+      const numeroParcelas = toNumberOrZero(form.numero_parcelas || form.parcelas);
       const valorParcela = toNumberOrZero(form.valor_parcela);
-      const valorTotal = toNumberOrZero(form.valor_total);
+      const valorTotal =
+        toNumberOrZero(form.valor_total) ||
+        (numeroParcelas > 0 && valorParcela > 0 ? numeroParcelas * valorParcela : 0);
 
       const payload = {
         user_email: String(form.user_email || '').trim(),
         user_name: String(form.user_name || '').trim(),
+        nome: String(form.user_name || '').trim(),
         funcao: String(form.funcao || form.role || '').trim(),
         role: String(form.funcao || form.role || '').trim(),
         budgetline_id: normalizeBudgetLineId(form.budgetline_id),
@@ -374,16 +414,22 @@ Responda SOMENTE com os dados extraídos.`,
         ...(contractUrl ? { contrato_url: contractUrl } : {}),
       };
 
-      let result;
+      let rawResult;
       if (editingMember?.id) {
-        result = await base44.entities.TeamMember.update(editingMember.id, payload);
+        rawResult = await withTimeout(
+          base44.entities.TeamMember.update(editingMember.id, payload),
+          20000,
+          'Salvar membro demorou demais. Verifique a conexão e tente novamente.'
+        );
       } else {
-        result = await base44.entities.TeamMember.create(payload);
+        rawResult = await withTimeout(
+          base44.entities.TeamMember.create(payload),
+          20000,
+          'Criar membro demorou demais. Verifique a conexão e tente novamente.'
+        );
       }
 
-      if (!result || !result.id) {
-        throw new Error('Erro ao salvar membro.');
-      }
+      const result = normalizeEntityResponse(rawResult);
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['team-members'] }),
@@ -396,20 +442,20 @@ Responda SOMENTE com os dados extraídos.`,
         queryClient.refetchQueries({ queryKey: ['users-all'] }),
       ]);
 
-      if (editingMember?.id) {
-        toast.success(`✅ Equipe atualizada com sucesso — ${String(form.user_name || '').trim()}`);
-      } else {
-        toast.success(`✅ Novo membro adicionado — ${String(form.user_name || '').trim()}`);
-      }
+      toast.success(
+        editingMember?.id
+          ? `Equipe atualizada com sucesso — ${String(result?.user_name || form.user_name || '').trim()}`
+          : `Novo membro adicionado — ${String(result?.user_name || form.user_name || '').trim()}`
+      );
 
       if (typeof onSuccess === 'function') {
-        await onSuccess(result);
+        await onSuccess(result || payload);
       }
 
       onClose?.();
     } catch (error) {
       console.error('Erro ao salvar TeamMember:', error);
-      toast.error(`❌ Erro ao salvar: ${error?.message || 'Tente novamente.'}`);
+      toast.error(`Erro ao salvar membro: ${error?.message || 'Tente novamente.'}`);
     } finally {
       setSaving(false);
     }
@@ -574,16 +620,28 @@ Responda SOMENTE com os dados extraídos.`,
             <div className="space-y-2">
               <Label>Contrato</Label>
               <div className="flex items-center gap-2">
-                <label className={`flex items-center gap-2 px-3 py-2 rounded-md border text-sm cursor-pointer transition-colors ${
-                  uploadingContract ? 'opacity-50 pointer-events-none' : 'hover:bg-slate-50'
-                }`}>
+                <label
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md border text-sm cursor-pointer transition-colors ${
+                    uploadingContract ? 'opacity-50 pointer-events-none' : 'hover:bg-slate-50'
+                  }`}
+                >
                   {uploadingContract ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Lendo contrato...</>
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Lendo contrato...
+                    </>
                   ) : contractUrl ? (
-                    <><FileCheck className="w-4 h-4 text-green-600" /> Contrato anexado</>
+                    <>
+                      <FileCheck className="w-4 h-4 text-green-600" />
+                      Contrato anexado
+                    </>
                   ) : (
-                    <><Paperclip className="w-4 h-4" /> Anexar contrato (PDF)</>  
+                    <>
+                      <Paperclip className="w-4 h-4" />
+                      Anexar contrato (PDF)
+                    </>
                   )}
+
                   <input
                     type="file"
                     accept=".pdf,.doc,.docx"
@@ -592,8 +650,16 @@ Responda SOMENTE com os dados extraídos.`,
                     disabled={saving || uploadingContract}
                   />
                 </label>
+
                 {contractUrl && (
-                  <a href={contractUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">Ver</a>
+                  <a
+                    href={contractUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-blue-600 underline"
+                  >
+                    Ver
+                  </a>
                 )}
               </div>
             </div>
@@ -604,16 +670,21 @@ Responda SOMENTE com os dados extraídos.`,
                 <Input
                   type="date"
                   value={form.data_inicio_contrato || ''}
-                  onChange={(e) => setForm(prev => ({ ...prev, data_inicio_contrato: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, data_inicio_contrato: e.target.value }))
+                  }
                   disabled={saving}
                 />
               </div>
+
               <div className="space-y-2">
                 <Label>Data fim do contrato</Label>
                 <Input
                   type="date"
                   value={form.data_fim_contrato || ''}
-                  onChange={(e) => setForm(prev => ({ ...prev, data_fim_contrato: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, data_fim_contrato: e.target.value }))
+                  }
                   disabled={saving}
                 />
               </div>
@@ -641,10 +712,15 @@ Responda SOMENTE com os dados extraídos.`,
                   disabled={saving || loadingAI}
                   className="h-7 text-xs gap-1"
                 >
-                  {loadingAI ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                  {loadingAI ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3 h-3" />
+                  )}
                   Sugerir via IA
                 </Button>
               </div>
+
               <Input
                 type="number"
                 placeholder="Número de parcelas"
