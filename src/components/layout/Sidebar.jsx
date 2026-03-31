@@ -276,7 +276,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           icon: Newspaper,
           label: 'Notícias',
           tooltip: 'Leia e curade notícias sobre cultura, museus e o setor criativo para manter a equipe atualizada.',
-          show: true,
+          show: coord,
         },
       ],
     },
