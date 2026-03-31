@@ -64,8 +64,7 @@ export function canEditReport(currentUser, reportAuthorEmail) {
  */
 export function canManageUsers(user) {
   if (!user) return false;
-  if (isCoordGeral(user)) return true;
-  return user.can_manage_users === true || ['COORDENADOR', 'admin', 'ADMIN'].includes(user.role);
+  return isCoordGeral(user) || user.can_manage_users === true || isCoordenador(user);
 }
 
 /**

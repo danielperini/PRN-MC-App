@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
-import { isCoordGeral } from '@/components/auth/permissions';
+import { isCoordGeral, isCoordenador } from '@/components/auth/permissions';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, Plus, Pencil, Trash2, Bell, CheckCircle, XCircle, Copy, Check, Mail, Key, AlertCircle, Shield, ChevronDown, ChevronUp, Save, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -822,6 +822,7 @@ function UserManagementInner() {
           onChange={e => setEditingUserData({ ...editingUserData, full_name: e.target.value })}
         />
       </div>
+      {isCoordGeral(currentUser) && (
       <div>
         <Label>Cargo</Label>
         <Select
@@ -841,6 +842,7 @@ function UserManagementInner() {
           {CARGO_OPTIONS.find(o => o.value === editingUserData.role)?.description}
         </p>
       </div>
+      )}
       <div>
         <Label>Equipe</Label>
         <Select
@@ -1229,7 +1231,7 @@ function UserManagementInner() {
 function UserManagementGate({ children }) {
   const [allowed, setAllowed] = React.useState(null);
   React.useEffect(() => {
-    base44.auth.me().then(u => setAllowed(isCoordGeral(u))).catch(() => setAllowed(false));
+    base44.auth.me().then(u => setAllowed(isCoordenador(u))).catch(() => setAllowed(false));
   }, []);
   if (allowed === null) return <div className="min-h-screen flex items-center justify-center text-gray-400">Verificando acesso...</div>;
   if (!allowed) return (
@@ -1237,7 +1239,7 @@ function UserManagementGate({ children }) {
       <div className="text-center max-w-sm">
         <div className="text-4xl mb-4">🔒</div>
         <p className="text-lg font-semibold text-black mb-2">Acesso Restrito</p>
-        <p className="text-sm text-gray-500">Apenas o Coordenador Geral pode gerenciar usuários.</p>
+        <p className="text-sm text-gray-500">Apenas coordenadores podem gerenciar usuários.</p>
       </div>
     </div>
   );
