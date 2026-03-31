@@ -158,7 +158,7 @@ function ReportEditorInner() {
     staleTime: 30000
   });
 
-  const { data: activitiesFromDB = [] } = useQuery({
+  const { data: activitiesFromDB = [], isLoading: isActivitiesLoading } = useQuery({
     queryKey: ['activities', reportId],
     queryFn: async () => {
       if (!reportId) return [];
@@ -171,14 +171,38 @@ function ReportEditorInner() {
 
   useEffect(() => {
     if (!reportId || !reportData?.id) return;
+    // Aguardar ambas as queries terminarem antes de inicializar
+    if (isActivitiesLoading) return;
     if (initializedReportRef.current && loadedReportIdRef.current === reportId) return;
+
+    // Merge: priorizar entity Activity (por id), completar com embedded sem id correspondente
+    const entityById = new Map((activitiesFromDB || []).map(a => [a.id, a]));
+    const embedded = Array.isArray(reportData.atividades) ? reportData.atividades : [];
+    let mergedAtividades;
+
+    if (activitiesFromDB.length > 0) {
+      // Atividades da entity são a fonte primária
+      mergedAtividades = activitiesFromDB.map(a => ({ ...a }));
+      // Adicionar embedded que não têm id correspondente na entity (dados legados)
+      for (const emb of embedded) {
+        if (emb.id && entityById.has(emb.id)) continue; // já está
+        if (!emb.id) {
+          // embedded sem id: checar se já existe por nome+data para não duplicar
+          const alreadyExists = mergedAtividades.some(
+            a => a.nome === emb.nome && a.data_inicio === emb.data_inicio
+          );
+          if (!alreadyExists) mergedAtividades.push({ ...emb });
+        }
+      }
+    } else {
+      // Sem entity Activities: usar embedded do report
+      mergedAtividades = embedded.map(i => ({ ...i }));
+    }
 
     setFormData({
       ...EMPTY_FORM,
       ...reportData,
-      atividades: activitiesFromDB.length > 0
-        ? activitiesFromDB.map((item) => ({ ...item }))
-        : (Array.isArray(reportData.atividades) ? reportData.atividades.map(i => ({ ...i })) : []),
+      atividades: mergedAtividades,
       oportunidades: Array.isArray(reportData.oportunidades)
         ? reportData.oportunidades.map((item) => ({ ...item }))
         : [],
@@ -192,7 +216,7 @@ function ReportEditorInner() {
 
     initializedReportRef.current = true;
     loadedReportIdRef.current = reportId;
-  }, [reportData, reportId, activitiesFromDB]);
+  }, [reportData, reportId, activitiesFromDB, isActivitiesLoading]);
 
   const gerarNumeroProtocolo = async (mes, ano) => {
     const MESES_ABREV = {
@@ -467,25 +491,15 @@ function ReportEditorInner() {
     clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(async () => {
       try {
-        const response = await base44.functions.invoke('autoSaveReport', {
-          reportId,
-          formData
-        });
-
-        if (response.data.hasConflict) {
-          setConflictError(response.data.conflictMessage);
-          toast.error('Conflito de edição detectado!', {
-            description: 'Outro usuário editou este relatório. Verifique as alterações.',
-            duration: 10000
-          });
-        } else {
-          setLastSaveTime(new Date().toLocaleTimeString('pt-BR'));
-          setConflictError(null);
-        }
+        const { id, created_date, updated_date, created_by, atividades, ...payload } = formData;
+        await base44.entities.Report.update(reportId, payload);
+        await syncActivities(reportId, atividades);
+        setLastSaveTime(new Date().toLocaleTimeString('pt-BR'));
+        setConflictError(null);
       } catch (err) {
         console.error('Erro ao auto-salvar:', err);
       }
-    }, 5000);
+    }, 8000);
 
     return () => clearTimeout(autoSaveTimerRef.current);
   }, [formData, canEdit, reportId]);
