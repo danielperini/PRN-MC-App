@@ -29,6 +29,11 @@ function toInputValue(value, fallback = '') {
   return value;
 }
 
+function parseNum(value, fallback = 0) {
+  const n = parseInt(value, 10);
+  return isNaN(n) || n < 0 ? fallback : n;
+}
+
 export default function AtividadeCamposBasicos({
   atividade,
   canEdit,
@@ -116,7 +121,12 @@ export default function AtividadeCamposBasicos({
             type="number"
             min="0"
             value={toInputValue(atividade?.publico_estimado, '')}
-            onChange={(e) => onChange('publico_estimado', e.target.value)}
+            onChange={(e) => {
+              const pub = parseNum(e.target.value, 0);
+              onChange('publico_estimado', pub);
+              const rep = parseNum(atividade?.quantas_vezes_ocorreu, 1) || 1;
+              onChange('publico_total', pub * rep);
+            }}
             disabled={!canEdit}
             placeholder="0"
           />
@@ -149,13 +159,20 @@ export default function AtividadeCamposBasicos({
         </Field>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-3 gap-4">
         <Field label="Quantas vezes ocorreu?">
           <Input
             type="number"
             min="1"
             value={toInputValue(atividade?.quantas_vezes_ocorreu, 1)}
-            onChange={(e) => onChange('quantas_vezes_ocorreu', e.target.value)}
+            onChange={(e) => {
+              const val = parseNum(e.target.value, 1) || 1;
+              onChange('quantas_vezes_ocorreu', val);
+              const pub = parseNum(atividade?.publico_estimado, 0);
+              onChange('publico_total', pub * val);
+              const qtd = parseNum(atividade?.quantidade_produtos, 0);
+              onChange('total_produtos_gerados', qtd * val);
+            }}
             disabled={!canEdit}
             placeholder="1"
           />
@@ -166,9 +183,19 @@ export default function AtividadeCamposBasicos({
             type="number"
             min="0"
             value={toInputValue(atividade?.total_atividades, 0)}
-            onChange={(e) => onChange('total_atividades', e.target.value)}
+            onChange={(e) => onChange('total_atividades', parseNum(e.target.value, 0))}
             disabled={!canEdit}
             placeholder="0"
+          />
+        </Field>
+
+        <Field label="Público total (estimado × ocorrências)">
+          <Input
+            type="number"
+            value={parseNum(atividade?.publico_estimado, 0) * (parseNum(atividade?.quantas_vezes_ocorreu, 1) || 1)}
+            readOnly
+            disabled
+            className="bg-gray-50 font-medium"
           />
         </Field>
       </div>
@@ -188,20 +215,24 @@ export default function AtividadeCamposBasicos({
             type="number"
             min="0"
             value={toInputValue(atividade?.quantidade_produtos, 0)}
-            onChange={(e) => onChange('quantidade_produtos', e.target.value)}
+            onChange={(e) => {
+              const qtd = parseNum(e.target.value, 0);
+              onChange('quantidade_produtos', qtd);
+              const rep = parseNum(atividade?.quantas_vezes_ocorreu, 1) || 1;
+              onChange('total_produtos_gerados', qtd * rep);
+            }}
             disabled={!canEdit}
             placeholder="0"
           />
         </Field>
 
-        <Field label="Total de produtos gerados">
+        <Field label="Total de produtos gerados (auto)">
           <Input
             type="number"
-            min="0"
-            value={toInputValue(atividade?.total_produtos_gerados, 0)}
-            onChange={(e) => onChange('total_produtos_gerados', e.target.value)}
-            disabled={!canEdit}
-            placeholder="0"
+            value={parseNum(atividade?.quantidade_produtos, 0) * (parseNum(atividade?.quantas_vezes_ocorreu, 1) || 1)}
+            readOnly
+            disabled
+            className="bg-gray-50 font-medium"
           />
         </Field>
       </div>
