@@ -59,6 +59,11 @@ function getBudgetLineLabel(budgetLine) {
   return codigo || descricao || 'Rubrica';
 }
 
+function toNumberOrZero(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function TeamMemberForm({
   isOpen,
   onClose,
@@ -79,9 +84,11 @@ export default function TeamMemberForm({
     role: '',
     budgetline_id: '',
     parcelas: '',
+    numero_parcelas: '',
     valor_parcela: '',
     valor_total: '',
     telefone: '',
+    status: 'ATIVO',
   });
 
   useEffect(() => {
@@ -95,9 +102,11 @@ export default function TeamMemberForm({
         role: '',
         budgetline_id: '',
         parcelas: '',
+        numero_parcelas: '',
         valor_parcela: '',
         valor_total: '',
         telefone: '',
+        status: 'ATIVO',
       });
       setSaving(false);
       return;
@@ -114,10 +123,18 @@ export default function TeamMemberForm({
           editingMember?.budgetline_id ||
           editingMember?.budget_line_id ||
           '',
-        parcelas: editingMember?.parcelas || editingMember?.numero_parcelas || '',
+        parcelas:
+          editingMember?.parcelas ||
+          editingMember?.numero_parcelas ||
+          '',
+        numero_parcelas:
+          editingMember?.numero_parcelas ||
+          editingMember?.parcelas ||
+          '',
         valor_parcela: editingMember?.valor_parcela || '',
         valor_total: editingMember?.valor_total || '',
         telefone: editingMember?.telefone || '',
+        status: editingMember?.status || 'ATIVO',
       });
     }
   }, [isOpen, editingMember]);
@@ -163,10 +180,18 @@ export default function TeamMemberForm({
   }, [users, teamMembers]);
 
   const finalBudgetLines = useMemo(() => {
-    if (Array.isArray(budgetLines) && budgetLines.length > 0) {
-      return budgetLines;
-    }
-    return Array.isArray(budgetLinesFromDB) ? budgetLinesFromDB : [];
+    const source =
+      Array.isArray(budgetLines) && budgetLines.length > 0
+        ? budgetLines
+        : Array.isArray(budgetLinesFromDB)
+          ? budgetLinesFromDB
+          : [];
+
+    const filtradas3Aditivo = source.filter((b) =>
+      String(b?.codigo || '').startsWith('MC3A')
+    );
+
+    return filtradas3Aditivo.length > 0 ? filtradas3Aditivo : source;
   }, [budgetLines, budgetLinesFromDB]);
 
   const loadingSelectData = loadingUsers || loadingTeamMembers;
@@ -190,9 +215,11 @@ export default function TeamMemberForm({
       role: '',
       budgetline_id: '',
       parcelas: '',
+      numero_parcelas: '',
       valor_parcela: '',
       valor_total: '',
       telefone: user.phone || user.telefone || '',
+      status: 'ATIVO',
     });
 
     setMode('form');
@@ -201,7 +228,7 @@ export default function TeamMemberForm({
   const handleSave = async () => {
     if (saving) return;
 
-    if (!form.user_email) {
+    if (!String(form.user_email || '').trim()) {
       toast.error('Usuário inválido.');
       return;
     }
@@ -224,16 +251,28 @@ export default function TeamMemberForm({
     setSaving(true);
 
     try {
+      const numeroParcelas = toNumberOrZero(
+        form.numero_parcelas || form.parcelas
+      );
+      const valorParcela = toNumberOrZero(form.valor_parcela);
+      const valorTotal = toNumberOrZero(form.valor_total);
+
       const payload = {
-        ...form,
+        user_email: String(form.user_email || '').trim(),
+        user_name: String(form.user_name || '').trim(),
         funcao: String(form.funcao || form.role || '').trim(),
         role: String(form.funcao || form.role || '').trim(),
         budgetline_id: normalizeBudgetLineId(form.budgetline_id),
         budget_line_id: normalizeBudgetLineId(form.budgetline_id),
+        telefone: String(form.telefone || '').trim(),
+        numero_parcelas: numeroParcelas,
+        parcelas: numeroParcelas,
+        valor_parcela: valorParcela,
+        valor_total: valorTotal,
+        status: String(form.status || 'ATIVO').trim() || 'ATIVO',
       };
 
       let result;
-
       if (editingMember?.id) {
         result = await base44.entities.TeamMember.update(editingMember.id, payload);
       } else {
@@ -254,6 +293,12 @@ export default function TeamMemberForm({
         queryClient.refetchQueries({ queryKey: ['team-members'] }),
         queryClient.refetchQueries({ queryKey: ['users-all'] }),
       ]);
+
+      if (editingMember?.id) {
+        toast.success('Dados da equipe atualizados com sucesso');
+      } else {
+        toast.success('Novo membro adicionado com sucesso');
+      }
 
       if (typeof onSuccess === 'function') {
         await onSuccess(result);
@@ -439,9 +484,13 @@ export default function TeamMemberForm({
               <Label>Número de parcelas</Label>
               <Input
                 type="number"
-                value={form.parcelas || ''}
+                value={form.numero_parcelas || form.parcelas || ''}
                 onChange={(e) =>
-                  setForm((prev) => ({ ...prev, parcelas: e.target.value }))
+                  setForm((prev) => ({
+                    ...prev,
+                    numero_parcelas: e.target.value,
+                    parcelas: e.target.value,
+                  }))
                 }
                 disabled={saving}
               />
