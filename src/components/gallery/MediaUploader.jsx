@@ -95,7 +95,7 @@ export default function MediaUploader({ reportId, onUploadSuccess, isOpen = fals
       <input
         ref={fileInputRef}
         type="file"
-        accept={uploadType === 'video' ? 'video/*' : 'image/*'}
+        accept={uploadType === 'video' ? 'video/*' : 'image/*,video/*'}
         onChange={handleFileSelect}
         className="hidden"
       />

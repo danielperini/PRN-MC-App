@@ -23,19 +23,7 @@ import { Input } from '@/components/ui/input';
 import MediaUploader from '@/components/gallery/MediaUploader';
 import MediaGalleryViewer from '@/components/gallery/MediaGalleryViewer';
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-const MAX_FILES_PER_REPORT = 30;
-const ALLOWED_TYPES = [
-  'image/jpeg', 'image/jpg', 'image/png',
-  'video/mp4',
-  'audio/mpeg', 'audio/mp3', 'audio/wav',
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-];
-const ALLOWED_EXTENSIONS = ['jpg','jpeg','png','mp4','mp3','wav','pdf','doc','docx','xls','xlsx'];
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB por arquivo
 
 function getFileIcon(fileType) {
   if (!fileType) return File;
@@ -52,17 +40,9 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function validateFile(file, currentCount) {
-  const ext = file.name.split('.').pop().toLowerCase();
-  
-  if (!ALLOWED_EXTENSIONS.includes(ext)) {
-    return `Tipo de arquivo não permitido: .${ext}. Use: ${ALLOWED_EXTENSIONS.join(', ')}`;
-  }
+function validateFile(file) {
   if (file.size > MAX_FILE_SIZE) {
-    return `Arquivo muito grande: ${formatBytes(file.size)}. Máximo: 50MB`;
-  }
-  if (currentCount >= MAX_FILES_PER_REPORT) {
-    return `Limite atingido: máximo de ${MAX_FILES_PER_REPORT} arquivos por relatório`;
+    return `Arquivo muito grande: ${formatBytes(file.size)}. Máximo: 500MB`;
   }
   return null;
 }
@@ -111,7 +91,7 @@ export default function AttachmentsSection({ reportId, canEdit }) {
     const fileList = Array.from(files);
     
     for (const file of fileList) {
-       const error = validateFile(file, attachments.length);
+       const error = validateFile(file);
        if (error) {
          toastMessages.warning(error);
          return;
@@ -167,7 +147,7 @@ export default function AttachmentsSection({ reportId, canEdit }) {
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-medium text-black">Anexos e Evidências</h2>
               <span className="text-sm text-gray-400">
-                {attachments.length}/{MAX_FILES_PER_REPORT}
+                {attachments.length} arquivo(s)
               </span>
             </div>
             <div className="flex gap-2">
@@ -187,7 +167,7 @@ export default function AttachmentsSection({ reportId, canEdit }) {
                   variant="outline"
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading || attachments.length >= MAX_FILES_PER_REPORT}
+                  disabled={uploading}
                 >
                   {uploading ? (
                     <Loader2 className="w-4 h-4 mr-1 animate-spin" />
@@ -209,7 +189,7 @@ export default function AttachmentsSection({ reportId, canEdit }) {
                 onUploadSuccess={() => queryClient.invalidateQueries(['attachments', reportId])}
               />
               <p className="text-xs text-blue-700 mt-2">
-                ✓ Fotos ilimitadas | ✓ Vídeos até 100MB | ✓ Duplicatas detectadas automaticamente
+                ✓ Fotos e vídeos ilimitados | ✓ Arquivos até 500MB | ✓ Duplicatas detectadas automaticamente
               </p>
             </div>
           )}
@@ -219,7 +199,7 @@ export default function AttachmentsSection({ reportId, canEdit }) {
            ref={fileInputRef}
            type="file"
            multiple
-           accept={ALLOWED_EXTENSIONS.map(e => `.${e}`).join(',')}
+           accept="*"
            className="hidden"
            onChange={handleInputChange}
          />

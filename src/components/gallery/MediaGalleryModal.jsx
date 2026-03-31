@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogClose } from '@/components/ui/dialog';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 
@@ -27,6 +27,10 @@ export default function MediaGalleryModal({ isOpen, onClose, mediaItems, initial
   }, [isOpen, (mediaItems || []).length]);
 
   if (!mediaItems || mediaItems.length === 0) return null;
+
+  const currentMedia = mediaItems[currentIndex];
+  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(currentMedia.fileName);
+  const isVideo = /\.(mp4|webm|mov|avi)$/i.test(currentMedia.fileName);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
