@@ -12,7 +12,7 @@ function toNumber(value) {
 function moeda(value) {
   return toNumber(value).toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 2
   });
 }
 
@@ -27,7 +27,7 @@ function formatMoneda(value) {
   // Formata como moeda: "1234.56" → "1.234,56"
   return toNumber(value).toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 2
   });
 }
 
@@ -56,18 +56,18 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
         return;
       }
 
-      const rubrica = rubricas.find(r => r.id === rubricaId);
+      const rubrica = rubricas.find((r) => r.id === rubricaId);
       const updateData = {};
-      
+
       if (field === 'valor_rubrica') {
         updateData.valor_rubrica = newValue;
         updateData.saldo = newValue - toNumber(rubrica?.valor_utilizado);
-        const perc = newValue > 0 ? (toNumber(rubrica?.valor_utilizado) / newValue) * 100 : 0;
+        const perc = newValue > 0 ? toNumber(rubrica?.valor_utilizado) / newValue * 100 : 0;
         updateData.percentual_utilizado = perc;
       } else {
         updateData.valor_utilizado = newValue;
         updateData.saldo = toNumber(rubrica?.valor_rubrica) - newValue;
-        const perc = toNumber(rubrica?.valor_rubrica) > 0 ? (newValue / toNumber(rubrica?.valor_rubrica)) * 100 : 0;
+        const perc = toNumber(rubrica?.valor_rubrica) > 0 ? newValue / toNumber(rubrica?.valor_rubrica) * 100 : 0;
         updateData.percentual_utilizado = perc;
       }
 
@@ -106,7 +106,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
   }
 
   const filtradas = useMemo(() => {
-    return rubricas.filter(r => {
+    return rubricas.filter((r) => {
       const texto = `${r?.rubrica || ''} ${r?.grupo || ''}`.toLowerCase();
       return texto.includes(search.toLowerCase());
     });
@@ -130,23 +130,23 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
           placeholder="Buscar rubrica..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 border rounded p-2 text-sm"
-        />
-        <button
-          onClick={handleRecalcular}
-          disabled={recalcLoading}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm bg-slate-800 text-white rounded hover:bg-slate-700 disabled:opacity-50 whitespace-nowrap"
-        >
-          <RefreshCw className={`w-4 h-4 ${recalcLoading ? 'animate-spin' : ''}`} />
-          {recalcLoading ? 'Recalculando...' : 'Recalcular'}
-        </button>
+          className="flex-1 border rounded p-2 text-sm" />
+        
+        
+
+
+
+
+
+
+        
       </div>
 
-      {recalcMsg && (
-        <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+      {recalcMsg &&
+      <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
           {recalcMsg}
         </div>
-      )}
+      }
 
       {/* TABELA */}
       <div className="overflow-auto border rounded">
@@ -166,65 +166,65 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
             {filtradas.map((r) => {
               const valor = toNumber(r?.valor_rubrica);
               const utilizado = toNumber(r?.valor_utilizado);
-              const saldo = toNumber(r?.saldo ?? (valor - utilizado));
-              const perc = valor > 0 ? (utilizado / valor) * 100 : 0;
+              const saldo = toNumber(r?.saldo ?? valor - utilizado);
+              const perc = valor > 0 ? utilizado / valor * 100 : 0;
 
               return (
                 <tr key={r.id} className="border-t hover:bg-blue-50">
                   <td className="p-2">{r?.grupo}</td>
                   <td className="p-2">{r?.rubrica}</td>
-                  <td 
+                  <td
                     className="p-2 cursor-pointer hover:bg-yellow-100 transition"
-                    onClick={() => handleEditCell(r.id, 'valor_rubrica', valor)}
-                  >
-                    {editingId === r.id && editField === 'valor_rubrica' ? (
-                      <input
-                        autoFocus
-                        type="text"
-                        placeholder="0,00"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={() => handleSaveEdit(r.id, 'valor_rubrica')}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveEdit(r.id, 'valor_rubrica');
-                          if (e.key === 'Escape') setEditingId(null);
-                        }}
-                        className="w-full border rounded px-1 text-sm"
-                        disabled={savingId === r.id}
-                      />
-                    ) : (
-                      <span className="cursor-pointer">R$ {moeda(valor)}</span>
-                    )}
+                    onClick={() => handleEditCell(r.id, 'valor_rubrica', valor)}>
+                    
+                    {editingId === r.id && editField === 'valor_rubrica' ?
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder="0,00"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={() => handleSaveEdit(r.id, 'valor_rubrica')}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveEdit(r.id, 'valor_rubrica');
+                        if (e.key === 'Escape') setEditingId(null);
+                      }}
+                      className="w-full border rounded px-1 text-sm"
+                      disabled={savingId === r.id} /> :
+
+
+                    <span className="cursor-pointer">R$ {moeda(valor)}</span>
+                    }
                   </td>
-                  <td 
+                  <td
                     className="p-2 text-blue-700 cursor-pointer hover:bg-yellow-100 transition"
-                    onClick={() => handleEditCell(r.id, 'valor_utilizado', utilizado)}
-                  >
-                    {editingId === r.id && editField === 'valor_utilizado' ? (
-                      <input
-                        autoFocus
-                        type="text"
-                        placeholder="0,00"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={() => handleSaveEdit(r.id, 'valor_utilizado')}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveEdit(r.id, 'valor_utilizado');
-                          if (e.key === 'Escape') setEditingId(null);
-                        }}
-                        className="w-full border rounded px-1 text-sm"
-                        disabled={savingId === r.id}
-                      />
-                    ) : (
-                      <span className="cursor-pointer">R$ {moeda(utilizado)}</span>
-                    )}
+                    onClick={() => handleEditCell(r.id, 'valor_utilizado', utilizado)}>
+                    
+                    {editingId === r.id && editField === 'valor_utilizado' ?
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder="0,00"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={() => handleSaveEdit(r.id, 'valor_utilizado')}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveEdit(r.id, 'valor_utilizado');
+                        if (e.key === 'Escape') setEditingId(null);
+                      }}
+                      className="w-full border rounded px-1 text-sm"
+                      disabled={savingId === r.id} /> :
+
+
+                    <span className="cursor-pointer">R$ {moeda(utilizado)}</span>
+                    }
                   </td>
                   <td className={`p-2 font-medium ${saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
                     R$ {moeda(saldo)}
                   </td>
                   <td className="p-2">{perc.toFixed(1)}%</td>
-                </tr>
-              );
+                </tr>);
+
             })}
           </tbody>
 
@@ -239,6 +239,6 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
           </tfoot>
         </table>
       </div>
-    </div>
-  );
+    </div>);
+
 }
