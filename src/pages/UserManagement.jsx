@@ -650,7 +650,24 @@ function UserManagementInner() {
                             </span>
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-black">{user.full_name || user.email}</p>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <p className="font-semibold text-black">{user.full_name || user.email}</p>
+                              {isCoordGeral(currentUser) && (
+                                <Select
+                                  value={user.role || 'PROFISSIONAL'}
+                                  onValueChange={v => updateMutation.mutate({ id: user.id, data: { role: v } })}
+                                >
+                                  <SelectTrigger className="w-44 h-6 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {CARGO_OPTIONS.map(opt => (
+                                      <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
                             <p className="text-xs text-gray-500">{user.email}</p>
                             {user.matricula && <p className="text-xs text-gray-400">{user.matricula}</p>}
                           </div>
