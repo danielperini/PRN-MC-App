@@ -31,62 +31,49 @@ import { isCoordenador, canManageUsers } from '@/components/auth/permissions';
 
 const NAV_GROUPS = [
   {
-    label: 'Principal',
+    label: '',
     items: [
-      { path: 'Dashboard', label: 'Painel', icon: LayoutDashboard, roles: ['coord', 'admin', 'prof'] },
-      { path: 'DashboardProfissional', label: 'Meu Painel', icon: User, roles: ['prof'] },
-      { path: 'DashboardFinanceiro', label: 'Financeiro', icon: PieChart, roles: ['coord', 'admin'] },
+      { path: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['all'] },
     ],
   },
   {
-    label: 'Relatórios',
+    label: 'Trabalho',
     items: [
       { path: 'Relatorios', label: 'Relatórios', icon: FileText, roles: ['all'] },
-      { path: 'CoordReview', label: 'Revisão', icon: ClipboardList, roles: ['coord', 'admin'] },
-      { path: 'RelatorioMeta', label: 'Rel. por Meta', icon: BarChart3, roles: ['coord', 'admin'] },
+      { path: 'Compras', label: 'Compras e Pagamentos', icon: ShoppingCart, roles: ['all'] },
     ],
   },
   {
-    label: 'Atividades',
+    label: 'Museu Centro',
     items: [
-      { path: 'Agenda', label: 'Agenda', icon: CalendarDays, roles: ['all'] },
-      { path: 'ProgramacaoEspelho', label: 'Programação', icon: CalendarDays, roles: ['coord', 'admin'] },
-      { path: 'MonitoringPanel', label: 'Monitoramento', icon: BarChart3, roles: ['coord', 'admin'] },
-    ],
-  },
-  {
-    label: 'Financeiro',
-    items: [
-      { path: 'Compras', label: 'Compras', icon: ShoppingCart, roles: ['all'] },
-      { path: 'GestaoPagamentos', label: 'Pagamentos', icon: CreditCard, roles: ['coord', 'admin'] },
-      { path: 'RubricasPorMuseu', label: 'Rubricas', icon: DollarSign, roles: ['coord', 'admin'] },
-      { path: 'PrestacaoDeContas', label: 'Prestação de Contas', icon: Receipt, roles: ['coord', 'admin'] },
-    ],
-  },
-  {
-    label: 'Arquivos e Mídia',
-    items: [
-      { path: 'GestorArquivos', label: 'Arquivos', icon: Folder, roles: ['all'] },
+      { path: 'Agenda', label: 'Agenda Museu Centro', icon: CalendarDays, roles: ['all'] },
       { path: 'GaleriaFotos', label: 'Galeria', icon: Image, roles: ['all'] },
+      { path: 'RubricasPorMuseu', label: 'Rubricas por museu', icon: DollarSign, roles: ['coord', 'admin'] },
+      { path: 'GestorArquivos', label: 'Arquivos', icon: Folder, roles: ['all'] },
+      { path: 'ProgramacaoEspelho', label: 'Informações Completas da Programação', subtitle: 'Link de imagens • Minibios • Material de divulgação aprovado', icon: Star, roles: ['all'] },
+    ],
+  },
+  {
+    label: 'Meus dados',
+    items: [
+      { path: 'MeusDados', label: 'Meus dados', icon: User, roles: ['all'] },
+      { path: 'UserManagement', label: 'Usuários', icon: Users, roles: ['coord', 'admin'], permission: 'canManageUsers' },
+      { path: 'PlataformaAdmin', label: 'Plataforma', icon: Settings, roles: ['admin'], permission: 'canManagePlatform' },
     ],
   },
   {
     label: 'Ferramentas',
     items: [
-      { path: 'AssistentePlanejamento', label: 'Assistente IA', icon: Bot, roles: ['all'] },
-      { path: 'LeitorNoticias', label: 'Notícias', icon: Newspaper, roles: ['all'] },
-      { path: 'BaseConhecimento', label: 'Conhecimento', icon: BookOpen, roles: ['coord', 'admin'] },
-      { path: 'GeradorListaPresenca', label: 'Lista de Presença', icon: CheckSquare, roles: ['all'] },
-      { path: 'GeradorTermoCompromisso', label: 'Termo de Compromisso', icon: FileText, roles: ['coord', 'admin'] },
+      { path: 'GeradorListaPresenca', label: 'Gerador de lista de presença', icon: CheckSquare, roles: ['all'] },
+      { path: 'GeradorTermoCompromisso', label: 'Gerador de termo de compromisso', icon: FileText, roles: ['coord', 'admin'] },
     ],
   },
   {
-    label: 'Administração',
+    label: 'Recursos',
     items: [
-      { path: 'UserManagement', label: 'Usuários', icon: Users, roles: ['coord', 'admin'], permission: 'canManageUsers' },
-      { path: 'ActivityLog', label: 'Auditoria', icon: ClipboardList, roles: ['coord', 'admin'], permission: 'canViewAuditLog' },
-      { path: 'PlataformaAdmin', label: 'Plataforma', icon: Settings, roles: ['admin'], permission: 'canManagePlatform' },
-      { path: 'MeusDados', label: 'Informações', icon: Star, roles: ['all'] },
+      { path: 'AssistentePlanejamento', label: 'Assistente IA', icon: Bot, roles: ['all'] },
+      { path: 'Manual', label: 'Manual e Ajuda', icon: HelpCircle, roles: ['all'] },
+      { path: 'LeitorNoticias', label: 'Notícias', icon: Newspaper, roles: ['all'] },
     ],
   },
 ];
@@ -106,7 +93,16 @@ function NavItem({ item, currentPageName, collapsed, userPermission }) {
       }`}
     >
       <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700'}`} />
-      {!collapsed && <span className="truncate">{item.label}</span>}
+      {!collapsed && (
+        <div className="min-w-0">
+          <span className="truncate block leading-tight">{item.label}</span>
+          {item.subtitle && (
+            <span className={`text-[10px] truncate block leading-tight mt-0.5 ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>
+              {item.subtitle}
+            </span>
+          )}
+        </div>
+      )}
     </Link>
   );
 }
