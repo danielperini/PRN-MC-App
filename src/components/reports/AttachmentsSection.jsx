@@ -147,6 +147,7 @@ export default function AttachmentsSection({ reportId, canEdit, reportData }) {
     }
 
     setUploading(true);
+    const nfUploadResults = [];
     try {
       const existingNFs = attachments.filter(a => a.nf_tipo_documento).length;
 
@@ -163,6 +164,7 @@ export default function AttachmentsSection({ reportId, canEdit, reportData }) {
         };
 
         // Tenta extrair metadados se for NF
+        let savedAttachment = null;
         if (isNFFile(file)) {
           try {
             const nfMeta = await processNFFile({
@@ -173,7 +175,7 @@ export default function AttachmentsSection({ reportId, canEdit, reportData }) {
               userName: reportData?.author_name || '',
             });
             if (nfMeta) {
-              await base44.entities.Attachment.create({
+              savedAttachment = await base44.entities.Attachment.create({
                 ...attachmentBase,
                 file_name: nfMeta.nome_renomeado || file.name,
                 nf_tipo_documento: nfMeta.tipo_documento,
@@ -190,7 +192,8 @@ export default function AttachmentsSection({ reportId, canEdit, reportData }) {
                 nf_nome_renomeado: nfMeta.nome_renomeado || null,
                 nf_revisado: false,
               });
-              toastMessages.info(`NF lida: ${nfMeta.status_leitura.replace(/_/g, ' ')}`);
+
+              nfUploadResults.push({ nfMeta, fileName: nfMeta.nome_renomeado || file.name, fileUrl: file_url });
               continue;
             }
           } catch {
@@ -198,11 +201,46 @@ export default function AttachmentsSection({ reportId, canEdit, reportData }) {
           }
         }
 
-        await base44.entities.Attachment.create(attachmentBase);
+        if (!savedAttachment) {
+          await base44.entities.Attachment.create(attachmentBase);
+        }
       }
 
       queryClient.invalidateQueries(['attachments', reportId]);
-      toastMessages.fileUploadSuccess();
+
+      if (nfUploadResults.length > 0) {
+        // Notificações por email
+        const emails = [
+          'notasfiscais@viadutodasartes.org.br',
+          'danielperini.mc@viadutodasartes.org.br'
+        ];
+        const nfInfo = nfUploadResults.map(r => {
+          const m = r.nfMeta;
+          return [
+            `Arquivo: ${r.fileName}`,
+            m.numero_nf ? `NF Nº: ${m.numero_nf}` : '',
+            m.valor_total != null ? `Valor: R$ ${m.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '',
+            m.data_emissao ? `Emissão: ${m.data_emissao}` : '',
+            m.emitente_nome ? `Emitente: ${m.emitente_nome}` : '',
+            m.emitente_cpf_cnpj ? `CPF/CNPJ: ${m.emitente_cpf_cnpj}` : '',
+            `Status leitura: ${(m.status_leitura || '').replace(/_/g, ' ')}`,
+            `URL: ${r.fileUrl}`,
+          ].filter(Boolean).join('\n');
+        }).join('\n\n---\n\n');
+
+        const subject = `[Museus Centro] Nova(s) NF anexada(s) — ${reportData?.author_name || 'Profissional'} — ${reportData?.mes_referencia || ''} ${reportData?.ano || ''}`;
+        const body = `Nova(s) nota(s) fiscal(is) foram anexadas na plataforma Museus Centro.\n\nProfissional: ${reportData?.author_name || ''}\nFunção: ${reportData?.funcao || ''}\nMuseu: ${reportData?.museu || ''}\nMês: ${reportData?.mes_referencia || ''} ${reportData?.ano || ''}\n\n${nfInfo}\n\n---\nAcesse a plataforma para revisar e aprovar os dados.`;
+
+        await Promise.allSettled(
+          emails.map(to => base44.integrations.Core.SendEmail({ to, subject, body }))
+        );
+
+        toastMessages.info(
+          `✅ ${nfUploadResults.length} NF(s) anexada(s) com sucesso! Notificação enviada por email.`
+        );
+      } else {
+        toastMessages.fileUploadSuccess();
+      }
     } catch (err) {
       console.error('Upload error:', err);
       toastMessages.fileUploadFailed(err?.message);
