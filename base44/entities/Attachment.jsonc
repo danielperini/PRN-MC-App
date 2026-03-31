@@ -1,0 +1,115 @@
+{
+  "name": "Attachment",
+  "type": "object",
+  "properties": {
+    "report_id": {
+      "type": "string",
+      "description": "ID do relat\u00f3rio vinculado (FK \u2192 Report)"
+    },
+    "activity_id": {
+      "type": "string",
+      "description": "ID da atividade vinculada (FK \u2192 Activity, opcional)"
+    },
+    "file_name": {
+      "type": "string",
+      "description": "Nome original do arquivo"
+    },
+    "file_type": {
+      "type": "string",
+      "description": "MIME type do arquivo"
+    },
+    "file_size": {
+      "type": "number",
+      "description": "Tamanho em bytes"
+    },
+    "file_url": {
+      "type": "string",
+      "description": "URL p\u00fablica do arquivo armazenado"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o opcional do arquivo"
+    },
+    "drive_file_id": {
+      "type": "string",
+      "description": "ID do arquivo no Google Drive (preenchido ap\u00f3s backup)"
+    },
+    "backup_done": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o arquivo j\u00e1 foi enviado para backup no Google Drive"
+    },
+    "backup_date": {
+      "type": "string",
+      "description": "Data/hora do \u00faltimo backup realizado"
+    },
+    "nf_tipo_documento": {
+      "type": "string",
+      "enum": [
+        "pdf_nf",
+        "xml_nf"
+      ],
+      "description": "Tipo de documento NF detectado"
+    },
+    "nf_numero": {
+      "type": "string",
+      "description": "N\u00famero da nota fiscal"
+    },
+    "nf_valor_total": {
+      "type": "number",
+      "description": "Valor total da NF"
+    },
+    "nf_data_emissao": {
+      "type": "string",
+      "description": "Data de emiss\u00e3o da NF (YYYY-MM-DD)"
+    },
+    "nf_emitente_nome": {
+      "type": "string",
+      "description": "Nome/raz\u00e3o social do emitente"
+    },
+    "nf_emitente_cpf_cnpj": {
+      "type": "string",
+      "description": "CPF ou CNPJ do emitente (apenas d\u00edgitos)"
+    },
+    "nf_destinatario_nome": {
+      "type": "string",
+      "description": "Nome/raz\u00e3o social do destinat\u00e1rio/tomador"
+    },
+    "nf_destinatario_cpf_cnpj": {
+      "type": "string",
+      "description": "CPF ou CNPJ do destinat\u00e1rio (apenas d\u00edgitos)"
+    },
+    "nf_chave_acesso": {
+      "type": "string",
+      "description": "Chave de acesso NF-e (44 d\u00edgitos)"
+    },
+    "nf_status_leitura": {
+      "type": "string",
+      "enum": [
+        "lido_com_sucesso",
+        "leitura_parcial",
+        "leitura_falhou"
+      ],
+      "description": "Status da leitura/extra\u00e7\u00e3o da NF"
+    },
+    "nf_nome_original": {
+      "type": "string",
+      "description": "Nome original do arquivo antes da renomea\u00e7\u00e3o"
+    },
+    "nf_nome_renomeado": {
+      "type": "string",
+      "description": "Nome padronizado gerado automaticamente"
+    },
+    "nf_revisado": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se os dados foram revisados manualmente pelo usu\u00e1rio"
+    }
+  },
+  "required": [
+    "report_id",
+    "file_name",
+    "file_type",
+    "file_url"
+  ]
+}

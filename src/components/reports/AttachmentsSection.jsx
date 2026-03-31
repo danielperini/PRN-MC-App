@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toastMessages } from '@/lib/toastMessages';
+import { isNFFile, processNFFile } from '@/lib/nfParser';
 import { 
   Paperclip, 
   Upload, 
@@ -16,7 +17,10 @@ import {
   Download,
   Edit2,
   Check,
-  X as XIcon
+  X as XIcon,
+  Receipt,
+  AlertCircle,
+  CheckCircle2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +28,50 @@ import MediaUploader from '@/components/gallery/MediaUploader';
 import MediaGalleryViewer from '@/components/gallery/MediaGalleryViewer';
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB por arquivo
+
+// ── Card de metadados NF ──────────────────────────────────
+function NFMetaCard({ attachment, canEdit, onEdit }) {
+  if (!attachment.nf_tipo_documento) return null;
+
+  const statusColor = {
+    lido_com_sucesso: 'text-green-700 bg-green-50 border-green-200',
+    leitura_parcial: 'text-amber-700 bg-amber-50 border-amber-200',
+    leitura_falhou: 'text-red-700 bg-red-50 border-red-200',
+  }[attachment.nf_status_leitura] || 'text-gray-600 bg-gray-50 border-gray-200';
+
+  const StatusIcon = attachment.nf_status_leitura === 'lido_com_sucesso' ? CheckCircle2 : AlertCircle;
+
+  return (
+    <div className="mt-2 pt-2 border-t border-gray-100">
+      <div className={`rounded-lg border p-3 text-xs space-y-1.5 ${statusColor}`}>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-1.5 font-semibold">
+            <Receipt className="w-3.5 h-3.5" />
+            Nota Fiscal — {attachment.nf_tipo_documento === 'xml_nf' ? 'XML' : 'PDF'}
+          </div>
+          <div className="flex items-center gap-1">
+            <StatusIcon className="w-3 h-3" />
+            <span className="capitalize">{(attachment.nf_status_leitura || '').replace(/_/g, ' ')}</span>
+            {attachment.nf_revisado && <span className="ml-1 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Revisado</span>}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+          {attachment.nf_numero && <span><strong>Nº NF:</strong> {attachment.nf_numero}</span>}
+          {attachment.nf_data_emissao && <span><strong>Emissão:</strong> {attachment.nf_data_emissao}</span>}
+          {attachment.nf_valor_total != null && (
+            <span><strong>Valor:</strong> R$ {attachment.nf_valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+          )}
+          {attachment.nf_emitente_cpf_cnpj && <span><strong>CPF/CNPJ:</strong> {attachment.nf_emitente_cpf_cnpj}</span>}
+          {attachment.nf_emitente_nome && <span className="col-span-2"><strong>Emitente:</strong> {attachment.nf_emitente_nome}</span>}
+          {attachment.nf_destinatario_nome && <span className="col-span-2"><strong>Tomador:</strong> {attachment.nf_destinatario_nome}</span>}
+          {attachment.nf_nome_renomeado && (
+            <span className="col-span-2 truncate"><strong>Nome padrão:</strong> {attachment.nf_nome_renomeado}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function getFileIcon(fileType) {
   if (!fileType) return File;
@@ -47,7 +95,7 @@ function validateFile(file) {
   return null;
 }
 
-export default function AttachmentsSection({ reportId, canEdit }) {
+export default function AttachmentsSection({ reportId, canEdit, reportData }) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -100,16 +148,59 @@ export default function AttachmentsSection({ reportId, canEdit }) {
 
     setUploading(true);
     try {
-      for (const file of fileList) {
+      const existingNFs = attachments.filter(a => a.nf_tipo_documento).length;
+
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
         const { file_url } = await base44.integrations.Core.UploadFile({ file });
-        await base44.entities.Attachment.create({
+
+        const attachmentBase = {
           report_id: reportId,
           file_name: file.name,
           file_type: file.type || 'application/octet-stream',
           file_size: file.size,
-          file_url
-        });
+          file_url,
+        };
+
+        // Tenta extrair metadados se for NF
+        if (isNFFile(file)) {
+          try {
+            const nfMeta = await processNFFile({
+              file,
+              fileUrl: file_url,
+              sequencial: existingNFs + i + 1,
+              userFuncao: reportData?.funcao || reportData?.author_role || '',
+              userName: reportData?.author_name || '',
+            });
+            if (nfMeta) {
+              await base44.entities.Attachment.create({
+                ...attachmentBase,
+                file_name: nfMeta.nome_renomeado || file.name,
+                nf_tipo_documento: nfMeta.tipo_documento,
+                nf_numero: nfMeta.numero_nf || null,
+                nf_valor_total: nfMeta.valor_total ?? null,
+                nf_data_emissao: nfMeta.data_emissao || null,
+                nf_emitente_nome: nfMeta.emitente_nome || null,
+                nf_emitente_cpf_cnpj: nfMeta.emitente_cpf_cnpj || null,
+                nf_destinatario_nome: nfMeta.destinatario_nome || null,
+                nf_destinatario_cpf_cnpj: nfMeta.destinatario_cpf_cnpj || null,
+                nf_chave_acesso: nfMeta.chave_acesso || null,
+                nf_status_leitura: nfMeta.status_leitura,
+                nf_nome_original: file.name,
+                nf_nome_renomeado: nfMeta.nome_renomeado || null,
+                nf_revisado: false,
+              });
+              toastMessages.info(`NF lida: ${nfMeta.status_leitura.replace(/_/g, ' ')}`);
+              continue;
+            }
+          } catch {
+            // fallback — salva sem metadados NF
+          }
+        }
+
+        await base44.entities.Attachment.create(attachmentBase);
       }
+
       queryClient.invalidateQueries(['attachments', reportId]);
       toastMessages.fileUploadSuccess();
     } catch (err) {
@@ -277,13 +368,16 @@ export default function AttachmentsSection({ reportId, canEdit }) {
                        )}
 
                        <div className="flex-1 min-w-0">
-                         <p className="text-sm font-semibold text-black truncate">
-                           {attachment.file_name}
-                         </p>
-                         <p className="text-xs text-gray-500 mt-0.5">
-                           {formatBytes(attachment.file_size)}
-                         </p>
-                       </div>
+                           <p className="text-sm font-semibold text-black truncate">
+                             {attachment.file_name}
+                           </p>
+                           <p className="text-xs text-gray-500 mt-0.5">
+                             {formatBytes(attachment.file_size)}
+                             {attachment.nf_nome_original && attachment.nf_nome_original !== attachment.file_name && (
+                               <span className="ml-2 text-gray-400">orig: {attachment.nf_nome_original}</span>
+                             )}
+                           </p>
+                         </div>
 
                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                          <a
@@ -357,6 +451,9 @@ export default function AttachmentsSection({ reportId, canEdit }) {
                          {attachment.description}
                        </div>
                      )}
+
+                     {/* NF Metadata Card */}
+                     <NFMetaCard attachment={attachment} canEdit={canEdit} />
                      </div>
                      );
                  })}
