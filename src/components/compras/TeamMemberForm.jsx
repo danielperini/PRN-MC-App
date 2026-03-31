@@ -92,6 +92,8 @@ export default function TeamMemberForm({
     numero_parcelas: '',
     valor_parcela: '',
     valor_total: '',
+    data_inicio_contrato: '',
+    data_fim_contrato: '',
     telefone: '',
     status: 'ATIVO',
   });
@@ -102,6 +104,25 @@ export default function TeamMemberForm({
       setSelectedUser('');
       setSaving(false);
       setContractUrl('');
+      setForm({
+        user_email: '',
+        user_name: '',
+        funcao: '',
+        role: '',
+        budgetline_id: '',
+        parcelas: '',
+        numero_parcelas: '',
+        valor_parcela: '',
+        valor_total: '',
+        data_inicio_contrato: '',
+        data_fim_contrato: '',
+        telefone: '',
+        status: 'ATIVO',
+      });
+      return;
+    }
+
+    if (editingMember) {
       setMode('form');
       setContractUrl(editingMember?.contrato_url || '');
       setForm({
@@ -109,20 +130,13 @@ export default function TeamMemberForm({
         user_name: editingMember?.user_name || editingMember?.nome || '',
         funcao: editingMember?.funcao || editingMember?.role || '',
         role: editingMember?.role || editingMember?.funcao || '',
-        budgetline_id:
-          editingMember?.budgetline_id ||
-          editingMember?.budget_line_id ||
-          '',
-        parcelas:
-          editingMember?.parcelas ||
-          editingMember?.numero_parcelas ||
-          '',
-        numero_parcelas:
-          editingMember?.numero_parcelas ||
-          editingMember?.parcelas ||
-          '',
+        budgetline_id: editingMember?.budgetline_id || editingMember?.budget_line_id || '',
+        parcelas: editingMember?.parcelas || editingMember?.numero_parcelas || '',
+        numero_parcelas: editingMember?.numero_parcelas || editingMember?.parcelas || '',
         valor_parcela: editingMember?.valor_parcela || '',
         valor_total: editingMember?.valor_total || '',
+        data_inicio_contrato: editingMember?.data_inicio_contrato || '',
+        data_fim_contrato: editingMember?.data_fim_contrato || '',
         telefone: editingMember?.telefone || '',
         status: editingMember?.status || 'ATIVO',
       });
@@ -222,10 +236,13 @@ export default function TeamMemberForm({
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setContractUrl(file_url);
-      // Auto-read contract with AI
+
+      // Build rubrica context for AI
+      const rubricasContext = finalBudgetLines.map(b => `ID: ${b.id} | ${getBudgetLineLabel(b)}`).join('\n');
       const cargo = form.funcao || form.role || 'profissional';
+
       const result = await base44.integrations.Core.InvokeLLM({
-        prompt: `Leia o contrato anexado e extraia: número de parcelas, valor de cada parcela, valor total do contrato para o cargo "${cargo}". Se não encontrar, retorne null nos campos.`,
+        prompt: `Leia o contrato PDF anexado e extraia as seguintes informações:\n- numero_parcelas (inteiro)\n- valor_parcela (número)\n- valor_total (número)\n- data_inicio (formato YYYY-MM-DD)\n- data_fim (formato YYYY-MM-DD)\n- rubrica_id_sugerida: escolha o ID mais adequado dentre as rubricas abaixo para o cargo "${cargo}":\n${rubricasContext}\n\nSe não encontrar algum campo, retorne null.`,
         file_urls: [file_url],
         response_json_schema: {
           type: 'object',
@@ -233,24 +250,28 @@ export default function TeamMemberForm({
             numero_parcelas: { type: 'number' },
             valor_parcela: { type: 'number' },
             valor_total: { type: 'number' },
+            data_inicio: { type: 'string' },
+            data_fim: { type: 'string' },
+            rubrica_id_sugerida: { type: 'string' },
             observacao: { type: 'string' },
           },
         },
       });
-      if (result?.numero_parcelas || result?.valor_parcela || result?.valor_total) {
-        setForm(prev => ({
-          ...prev,
-          numero_parcelas: result.numero_parcelas ? String(result.numero_parcelas) : prev.numero_parcelas,
-          parcelas: result.numero_parcelas ? String(result.numero_parcelas) : prev.parcelas,
-          valor_parcela: result.valor_parcela ? String(result.valor_parcela) : prev.valor_parcela,
-          valor_total: result.valor_total ? String(result.valor_total) : prev.valor_total,
-        }));
-        toast.success('Contrato lido pela IA — valores preenchidos automaticamente.');
-      } else {
-        toast.success('Contrato anexado. Preencha os valores manualmente.');
-      }
+
+      setForm(prev => ({
+        ...prev,
+        numero_parcelas: result?.numero_parcelas ? String(result.numero_parcelas) : prev.numero_parcelas,
+        parcelas: result?.numero_parcelas ? String(result.numero_parcelas) : prev.parcelas,
+        valor_parcela: result?.valor_parcela ? String(result.valor_parcela) : prev.valor_parcela,
+        valor_total: result?.valor_total ? String(result.valor_total) : prev.valor_total,
+        data_inicio_contrato: result?.data_inicio || prev.data_inicio_contrato,
+        data_fim_contrato: result?.data_fim || prev.data_fim_contrato,
+        budgetline_id: result?.rubrica_id_sugerida || prev.budgetline_id,
+      }));
+
+      toast.success(result?.observacao || 'Contrato lido — dados preenchidos automaticamente pela IA.');
     } catch (err) {
-      toast.error('Erro ao enviar contrato: ' + (err?.message || 'Tente novamente.'));
+      toast.error('Erro ao processar contrato: ' + (err?.message || 'Tente novamente.'));
     } finally {
       setUploadingContract(false);
       e.target.value = '';
@@ -347,6 +368,8 @@ Responda SOMENTE com os dados extraídos.`,
         parcelas: numeroParcelas,
         valor_parcela: valorParcela,
         valor_total: valorTotal,
+        data_inicio_contrato: form.data_inicio_contrato || undefined,
+        data_fim_contrato: form.data_fim_contrato || undefined,
         status: String(form.status || 'ATIVO').trim() || 'ATIVO',
         ...(contractUrl ? { contrato_url: contractUrl } : {}),
       };
@@ -374,9 +397,9 @@ Responda SOMENTE com os dados extraídos.`,
       ]);
 
       if (editingMember?.id) {
-        toast.success('Dados da equipe atualizados com sucesso');
+        toast.success(`✅ Equipe atualizada com sucesso — ${String(form.user_name || '').trim()}`);
       } else {
-        toast.success('Novo membro adicionado com sucesso');
+        toast.success(`✅ Novo membro adicionado — ${String(form.user_name || '').trim()}`);
       }
 
       if (typeof onSuccess === 'function') {
@@ -386,7 +409,7 @@ Responda SOMENTE com os dados extraídos.`,
       onClose?.();
     } catch (error) {
       console.error('Erro ao salvar TeamMember:', error);
-      toast.error(error?.message || 'Erro ao salvar.');
+      toast.error(`❌ Erro ao salvar: ${error?.message || 'Tente novamente.'}`);
     } finally {
       setSaving(false);
     }
@@ -572,6 +595,27 @@ Responda SOMENTE com os dados extraídos.`,
                 {contractUrl && (
                   <a href={contractUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">Ver</a>
                 )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Data início do contrato</Label>
+                <Input
+                  type="date"
+                  value={form.data_inicio_contrato || ''}
+                  onChange={(e) => setForm(prev => ({ ...prev, data_inicio_contrato: e.target.value }))}
+                  disabled={saving}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Data fim do contrato</Label>
+                <Input
+                  type="date"
+                  value={form.data_fim_contrato || ''}
+                  onChange={(e) => setForm(prev => ({ ...prev, data_fim_contrato: e.target.value }))}
+                  disabled={saving}
+                />
               </div>
             </div>
 
