@@ -172,7 +172,8 @@ function ReportEditorInner() {
     let merged = [];
 
     if (activitiesFromDB.length > 0) {
-      merged = activitiesFromDB.map(a => ({ ...a }));
+      // Map entity field 'titulo' → form field 'nome' for display
+      merged = activitiesFromDB.map(a => ({ ...a, nome: a.nome || a.titulo || '' }));
     }
 
     for (const emb of embedded) {
@@ -207,25 +208,45 @@ function ReportEditorInner() {
   };
 
   const syncActivities = async (savedReportId, atividades) => {
-    const existing = await base44.entities.Activity.filter({ report_id: savedReportId });
-    const existingIds = new Set((existing || []).map(a => a.id));
+    // Fetch ALL existing with high limit
+    let existing = [];
+    let page = 0;
+    while (true) {
+      const batch = await base44.entities.Activity.filter({ report_id: savedReportId }, '-updated_date', 200, page * 200);
+      if (!batch || batch.length === 0) break;
+      existing = existing.concat(batch);
+      if (batch.length < 200) break;
+      page++;
+    }
+    const existingIds = new Set(existing.map(a => a.id));
     const keptIds = new Set();
 
-    for (const atv of (atividades || [])) {
-      const { id, created_date, updated_date, created_by, ...fields } = atv;
-      const payload = { ...fields, report_id: savedReportId };
-      if (id && existingIds.has(id)) {
-        await base44.entities.Activity.update(id, payload);
-        keptIds.add(id);
-      } else {
-        const created = await base44.entities.Activity.create(payload);
-        keptIds.add(created.id);
-      }
+    // Process all activities in parallel batches of 5
+    const list = atividades || [];
+    for (let i = 0; i < list.length; i += 5) {
+      const chunk = list.slice(i, i + 5);
+      await Promise.all(chunk.map(async (atv) => {
+        const { id, created_date, updated_date, created_by, nome, ...fields } = atv;
+        // Map form field 'nome' → entity field 'titulo'
+        const payload = {
+          ...fields,
+          titulo: nome || fields.titulo || '',
+          report_id: savedReportId,
+        };
+        if (id && existingIds.has(id)) {
+          await base44.entities.Activity.update(id, payload);
+          keptIds.add(id);
+        } else {
+          const created = await base44.entities.Activity.create(payload);
+          keptIds.add(created.id);
+        }
+      }));
     }
 
-    for (const a of (existing || [])) {
-      if (!keptIds.has(a.id)) await base44.entities.Activity.delete(a.id);
-    }
+    // Delete removed activities in parallel
+    await Promise.all(
+      existing.filter(a => !keptIds.has(a.id)).map(a => base44.entities.Activity.delete(a.id))
+    );
   };
 
   const saveMutation = useMutation({
