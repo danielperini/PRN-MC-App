@@ -95,6 +95,7 @@ export default function TeamMemberForm({
     if (!isOpen) {
       setMode('select');
       setSelectedUser('');
+      setSaving(false);
       setForm({
         user_email: '',
         user_name: '',
@@ -108,7 +109,6 @@ export default function TeamMemberForm({
         telefone: '',
         status: 'ATIVO',
       });
-      setSaving(false);
       return;
     }
 
