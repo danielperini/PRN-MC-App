@@ -223,11 +223,25 @@ function ReportEditorInner() {
 
     // Process all activities sequentially to guarantee all are saved
     for (const atv of (atividades || [])) {
-      const { id, created_date, updated_date, created_by, nome, ...fields } = atv;
+      const { id, created_date, updated_date, created_by, nome, quantas_vezes_ocorreu, total_atividades, museu_lista, tipo_acao_lista, produto_realizado, total_produtos_gerados, ...fields } = atv;
       const payload = {
         ...fields,
         titulo: nome || fields.titulo || '',
         report_id: savedReportId,
+        // Field name mappings: form → entity
+        justificativa_tecnica: atv.justificativa_tecnica || '',
+        descricao: atv.descricao || '',
+        classificacao: atv.classificacao || '',
+        data_inicio: atv.data_inicio || '',
+        data_fim: atv.data_fim || '',
+        publico_estimado: atv.publico_estimado ?? 0,
+        quantas_repeticoes: quantas_vezes_ocorreu ?? atv.quantas_repeticoes ?? 1,
+        publico_total: atv.publico_total ?? 0,
+        quantidade_produtos: atv.quantidade_produtos ?? 0,
+        // Store extra form fields in available entity fields
+        equipe_responsavel: atv.museu || atv.equipe_responsavel || '',
+        observacoes: [atv.tipo_acao, atv.produto_realizado, atv.observacoes].filter(Boolean).join(' | ') || '',
+        resultado_alcancado: atv.resultado_alcancado || '',
       };
       if (id && existingIds.has(id)) {
         await base44.entities.Activity.update(id, payload);
