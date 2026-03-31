@@ -329,12 +329,12 @@ export default function OrcamentoDashboard({
 
       {/* BARRA DE PROGRESSO - COMPROMETIMENTO */}
       <div>
-        <div className="flex justify-between items-center mb-2">
-          <p className="text-sm font-semibold text-gray-700">Comprometimento Total</p>
-          <p className="text-sm font-bold text-gray-900">
-            {totalInicial > 0 ? Math.round(totalComprometido / totalInicial * 100) : 0}%
-          </p>
-        </div>
+        
+
+
+
+
+        
         <div className="h-6 bg-white border-2 border-white rounded-lg overflow-hidden">
           <div
             className="h-full bg-black transition-all"
