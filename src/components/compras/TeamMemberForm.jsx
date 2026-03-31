@@ -28,6 +28,7 @@ const CARGOS_FUNCOES = [
   'Coordenador(a) de Produção',
   'Coordenador(a) Administrativo(a)',
   'Coordenador(a) de Comunicação',
+  'Consultoria de Programação',
   'Comunicador(a)',
   'Designer',
   'Fotógrafo(a)',
