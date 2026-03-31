@@ -17,10 +17,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CARGOS_FUNCOES = [
+  'Educador',
   'Educador(a)',
   'Produtor(a)',
   'Assistente de Produção',
@@ -77,6 +78,7 @@ export default function TeamMemberForm({
   const [mode, setMode] = useState('select');
   const [selectedUser, setSelectedUser] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loadingAI, setLoadingAI] = useState(false);
 
   const [form, setForm] = useState({
     user_email: '',
@@ -224,6 +226,52 @@ export default function TeamMemberForm({
     });
 
     setMode('form');
+  };
+
+  const handleSuggestFromAI = async () => {
+    setLoadingAI(true);
+    try {
+      const docs = await base44.entities.KnowledgeDocument.filter({ categoria: 'Plano de Trabalho', ativo: true });
+      if (!docs || docs.length === 0) {
+        toast.error('Nenhum Plano de Trabalho encontrado na base de conhecimento.');
+        return;
+      }
+      const conteudo = docs.map(d => d.conteudo_extraido || d.descricao || d.titulo).filter(Boolean).join('\n\n---\n\n');
+      const cargo = form.funcao || form.role || 'profissional';
+      const result = await base44.integrations.Core.InvokeLLM({
+        prompt: `Com base no Plano de Trabalho abaixo, extraia o número de parcelas e o valor de cada parcela para o cargo "${cargo}".
+
+PLANO DE TRABALHO:
+${conteudo}
+
+Responda SOMENTE com os dados extraídos.`,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            numero_parcelas: { type: 'number' },
+            valor_parcela: { type: 'number' },
+            valor_total: { type: 'number' },
+            observacao: { type: 'string' },
+          },
+        },
+      });
+      if (result?.numero_parcelas || result?.valor_parcela) {
+        setForm(prev => ({
+          ...prev,
+          numero_parcelas: String(result.numero_parcelas ?? prev.numero_parcelas),
+          parcelas: String(result.numero_parcelas ?? prev.parcelas),
+          valor_parcela: String(result.valor_parcela ?? prev.valor_parcela),
+          valor_total: String(result.valor_total ?? prev.valor_total),
+        }));
+        toast.success(result.observacao || 'Valores sugeridos pela IA com base no Plano de Trabalho.');
+      } else {
+        toast.error('A IA não encontrou valores para esse cargo no Plano de Trabalho.');
+      }
+    } catch (e) {
+      toast.error('Erro ao consultar IA: ' + (e?.message || 'Tente novamente.'));
+    } finally {
+      setLoadingAI(false);
+    }
   };
 
   const handleSave = async () => {
@@ -482,9 +530,23 @@ export default function TeamMemberForm({
             </div>
 
             <div className="space-y-2">
-              <Label>Número de parcelas</Label>
+              <div className="flex items-center justify-between">
+                <Label>Número de parcelas e valor</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSuggestFromAI}
+                  disabled={saving || loadingAI}
+                  className="h-7 text-xs gap-1"
+                >
+                  {loadingAI ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                  Sugerir via IA
+                </Button>
+              </div>
               <Input
                 type="number"
+                placeholder="Número de parcelas"
                 value={form.numero_parcelas || form.parcelas || ''}
                 onChange={(e) =>
                   setForm((prev) => ({
