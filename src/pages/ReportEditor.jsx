@@ -172,7 +172,6 @@ function ReportEditorInner() {
     let merged = [];
 
     if (activitiesFromDB.length > 0) {
-      // Map entity field 'titulo' → form field 'nome' for display
       merged = activitiesFromDB.map(a => ({ ...a, nome: a.nome || a.titulo || '' }));
     }
 
@@ -208,7 +207,6 @@ function ReportEditorInner() {
   };
 
   const syncActivities = async (savedReportId, atividades) => {
-    // Fetch ALL existing with high limit
     let existing = [];
     let page = 0;
     while (true) {
@@ -221,43 +219,47 @@ function ReportEditorInner() {
     const existingIds = new Set(existing.map(a => a.id));
     const keptIds = new Set();
 
-    // Process all activities sequentially to guarantee all are saved
     for (const atv of (atividades || [])) {
-      // Strip non-entity / computed meta fields; map form names → entity names
       const { id, created_date, updated_date, created_by, ...rest } = atv;
       const payload = {
         report_id: savedReportId,
-        // Core identification
         titulo: rest.nome || rest.titulo || '',
         classificacao: rest.classificacao || '',
         descricao: rest.descricao || '',
         justificativa_tecnica: rest.justificativa_tecnica || '',
-        // Dates
         data_inicio: rest.data_inicio || '',
         data_fim: rest.data_fim || '',
         data_realizacao: rest.data_realizacao || '',
-        // Audience
         publico_estimado: rest.publico_estimado ?? 0,
-        quantas_repeticoes: rest.quantas_vezes_ocorreu ?? rest.quantas_repeticoes ?? 1,
+
+        // CORRIGIDO: aceita os nomes novos e antigos
+        quantas_repeticoes:
+          rest.quantidade_ocorrencias ??
+          rest.quantas_vezes_ocorreu ??
+          rest.quantas_repeticoes ??
+          1,
+
         publico_total: rest.publico_total ?? 0,
-        // Products
-        quantidade_produtos: rest.quantidade_produtos ?? 0,
-        // Map museu/museu_lista → equipe_responsavel (no museu field on entity)
+
+        // CORRIGIDO: aceita os nomes novos e antigos
+        quantidade_produtos:
+          rest.quantidade_produtos_gerados ??
+          rest.quantidade_produtos ??
+          0,
+
         equipe_responsavel: Array.isArray(rest.museu_lista) && rest.museu_lista.length
           ? rest.museu_lista.join(', ')
           : (rest.museu || rest.equipe_responsavel || ''),
-        // Map tipo_acao/tipo_acao_lista → observacoes (no tipo_acao field on entity)
+
         observacoes: [
           Array.isArray(rest.tipo_acao_lista) && rest.tipo_acao_lista.length
             ? rest.tipo_acao_lista.join(', ')
             : rest.tipo_acao,
           rest.observacoes
         ].filter(Boolean).join(' | ') || '',
-        // produto_realizado → resultado_alcancado
+
         resultado_alcancado: rest.produto_realizado || rest.resultado_alcancado || '',
-        // total_atividades → meta_quantitativa
         meta_quantitativa: rest.total_atividades != null ? String(rest.total_atividades) : (rest.meta_quantitativa || ''),
-        // Other passthrough entity fields
         meta_id: rest.meta_id || '',
         rubrica_id: rest.rubrica_id || '',
         tipo_equipe: rest.tipo_equipe || '',
@@ -280,6 +282,7 @@ function ReportEditorInner() {
         fotos: rest.fotos || [],
         documentos: rest.documentos || [],
       };
+
       if (id && existingIds.has(id)) {
         await base44.entities.Activity.update(id, payload);
         keptIds.add(id);
@@ -289,7 +292,6 @@ function ReportEditorInner() {
       }
     }
 
-    // Delete removed activities in parallel
     await Promise.all(
       existing.filter(a => !keptIds.has(a.id)).map(a => base44.entities.Activity.delete(a.id))
     );
