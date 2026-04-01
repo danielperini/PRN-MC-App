@@ -11,14 +11,13 @@ const TABS_INFO = [
 ];
 
 export default function ReportTabsNavigation({ currentTab, formData, onTabChange }) {
-  // Determina se cada aba tem conteúdo preenchido
   const tabProgress = {
     identificacao: !!(formData.mes_referencia && formData.author_name && formData.museu),
     atividades: (formData.atividades || []).length > 0,
     oportunidades: (formData.oportunidades || []).length > 0,
     avaliacao: !!(formData.avaliacao_pontos_positivos || formData.avaliacao_desafios || formData.avaliacao_sugestoes),
-    comentarios: true, // sempre disponível
-    historico: true, // sempre disponível
+    comentarios: true,
+    historico: true,
   };
 
   const totalTabs = TABS_INFO.length;
@@ -27,7 +26,6 @@ export default function ReportTabsNavigation({ currentTab, formData, onTabChange
 
   return (
     <div className="mb-8 space-y-4">
-      {/* Progresso Geral */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
@@ -45,7 +43,6 @@ export default function ReportTabsNavigation({ currentTab, formData, onTabChange
         </div>
       </div>
 
-      {/* Breadcrumbs com Status */}
       <div className="flex flex-wrap gap-2">
         {TABS_INFO.map((tab, idx) => {
           const isCompleted = tabProgress[tab.value];
