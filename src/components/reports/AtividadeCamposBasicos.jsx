@@ -86,7 +86,7 @@ export default function AtividadeCamposBasicos({
           <Input
             value={atividade?.classificacao || ''}
             onChange={(e) => onChange('classificacao', e.target.value)}
-            disabled={!canEdit}
+            disabled={false}
             placeholder="Ex.: ROTINA"
           />
         </Field>
@@ -95,7 +95,7 @@ export default function AtividadeCamposBasicos({
           <Input
             value={atividade?.nome || ''}
             onChange={(e) => onChange('nome', e.target.value)}
-            disabled={!canEdit}
+            disabled={false}
             placeholder="Digite o nome da atividade"
           />
         </Field>
@@ -105,7 +105,7 @@ export default function AtividadeCamposBasicos({
         <Textarea
           value={atividade?.justificativa_tecnica || ''}
           onChange={(e) => onChange('justificativa_tecnica', e.target.value)}
-          disabled={!canEdit}
+            disabled={false}
           placeholder="Descreva a justificativa técnica da atividade"
           rows={4}
         />
@@ -117,7 +117,7 @@ export default function AtividadeCamposBasicos({
             type="date"
             value={atividade?.data_inicio || ''}
             onChange={(e) => onChange('data_inicio', e.target.value)}
-            disabled={!canEdit}
+            disabled={false}
           />
         </Field>
 
@@ -126,7 +126,7 @@ export default function AtividadeCamposBasicos({
             type="date"
             value={atividade?.data_fim || ''}
             onChange={(e) => onChange('data_fim', e.target.value)}
-            disabled={!canEdit}
+            disabled={false}
           />
         </Field>
 
@@ -140,7 +140,7 @@ export default function AtividadeCamposBasicos({
               onChange('publico_estimado', pub);
               onChange('publico_total', pub * quantidadeOcorrencias);
             }}
-            disabled={!canEdit}
+            disabled={false}
             placeholder="0"
           />
         </Field>
@@ -152,7 +152,7 @@ export default function AtividadeCamposBasicos({
             options={museus}
             values={museuLista}
             onChange={handleMuseusChange}
-            disabled={!canEdit}
+            disabled={false}
             placeholder="Selecione um ou mais locais"
             searchPlaceholder="Filtrar museus / locais..."
             emptyText="Nenhum local encontrado"
@@ -164,7 +164,7 @@ export default function AtividadeCamposBasicos({
             options={tiposAcao}
             values={tipoAcaoLista}
             onChange={handleTiposAcaoChange}
-            disabled={!canEdit}
+            disabled={false}
             placeholder="Selecione um ou mais tipos"
             searchPlaceholder="Filtrar tipos de ação..."
             emptyText="Nenhum tipo encontrado"
@@ -199,7 +199,7 @@ export default function AtividadeCamposBasicos({
             min="0"
             value={toInputValue(atividade?.total_atividades, 0)}
             onChange={(e) => onChange('total_atividades', parseNum(e.target.value, 0))}
-            disabled={!canEdit}
+            disabled={false}
             placeholder="0"
           />
         </Field>
@@ -220,7 +220,7 @@ export default function AtividadeCamposBasicos({
           <Input
             value={atividade?.produto_realizado || ''}
             onChange={(e) => onChange('produto_realizado', e.target.value)}
-            disabled={!canEdit}
+            disabled={false}
             placeholder="Ex.: catálogo, vídeo, post, oficina"
           />
         </Field>
