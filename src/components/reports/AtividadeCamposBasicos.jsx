@@ -184,11 +184,11 @@ export default function AtividadeCamposBasicos({
             onChange={(e) => {
               const val = parseNum(e.target.value, 1) || 1;
               onChange('quantidade_ocorrencias', val);
-              onChange('quantas_vezes_ocorreu', val); // compatibilidade
+              onChange('quantas_vezes_ocorreu', val);
               onChange('publico_total', publicoEstimado * val);
               onChange('total_produtos_gerados', quantidadeProdutosGerados * val);
             }}
-            disabled={!canEdit}
+            disabled={false}
             placeholder="1"
           />
         </Field>
@@ -236,10 +236,10 @@ export default function AtividadeCamposBasicos({
             onChange={(e) => {
               const qtd = parseNum(e.target.value, 0);
               onChange('quantidade_produtos_gerados', qtd);
-              onChange('quantidade_produtos', qtd); // compatibilidade
+              onChange('quantidade_produtos', qtd);
               onChange('total_produtos_gerados', qtd * quantidadeOcorrencias);
             }}
-            disabled={!canEdit}
+            disabled={false}
             placeholder="0"
           />
         </Field>
