@@ -144,6 +144,15 @@ export default function AtividadeCamposBasicos({
         </Field>
       </div>
 
+      <Field label="Descrição">
+        <Textarea
+          value={toInputValue(atividade?.descricao, '')}
+          onChange={(e) => onChange('descricao', e.target.value)}
+          rows={4}
+          disabled={!canEdit}
+        />
+      </Field>
+
       <Field label="Justificativa técnica">
         <Textarea
           value={toInputValue(atividade?.justificativa_tecnica, '')}
@@ -178,6 +187,26 @@ export default function AtividadeCamposBasicos({
             min="0"
             value={toInputValue(atividade?.publico_estimado, '')}
             onChange={handlePublicoEstimadoChange}
+            disabled={!canEdit}
+          />
+        </Field>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <Field label="Museu / Local">
+          <FilterMultiSelect
+            options={museus}
+            values={museuLista}
+            onChange={handleMuseusChange}
+            disabled={!canEdit}
+          />
+        </Field>
+
+        <Field label="Tipo de ação">
+          <FilterMultiSelect
+            options={tiposAcao}
+            values={tipoAcaoLista}
+            onChange={handleTiposAcaoChange}
             disabled={!canEdit}
           />
         </Field>
