@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
+import ContractAutoFill, { applyAiSuggestions } from '@/components/users/ContractAutoFill';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Users, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,10 @@ function MeusDadosInner() {
   const [coordGeral, setCoordGeral] = useState(false);
   const [isSponsor, setIsSponsor] = useState(false);
   const [selectedUserEmail, setSelectedUserEmail] = useState(null); // null = próprio usuário
+  // Tracking: campos editados manualmente pelo utilizador (nunca sobrescrever com IA)
+  const manualFields = useRef(new Set());
+  // Campos preenchidos pela IA (para exibir badge e appliedFields)
+  const [aiApplied, setAiApplied] = useState({});
   const [formData, setFormData] = useState({
     email_pessoal: '',
     telefone: '',
@@ -211,7 +216,22 @@ function MeusDadosInner() {
     onError: () => toast.error('Erro ao salvar dados.'),
   });
 
-  const set = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
+  // set manual: marca campo como editado manualmente
+  const set = (key, value) => {
+    manualFields.current.add(key);
+    setFormData(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Quando coordGeral muda de utilizador, resetar tracking manual e IA
+  const resetAiTracking = () => {
+    manualFields.current = new Set();
+    setAiApplied({});
+  };
+
+  const handleAiApply = useCallback((suggestions) => {
+    setFormData(prev => applyAiSuggestions(prev, suggestions, manualFields.current));
+    setAiApplied(suggestions);
+  }, []);
 
   if (!user) {
     return (
@@ -239,7 +259,7 @@ function MeusDadosInner() {
             <Label className="text-sm font-semibold text-slate-700">Editar dados de outro usuário</Label>
             <Select
               value={selectedUserEmail || '__own__'}
-              onValueChange={v => setSelectedUserEmail(v === '__own__' ? null : v)}
+              onValueChange={v => { setSelectedUserEmail(v === '__own__' ? null : v); resetAiTracking(); }}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -252,6 +272,16 @@ function MeusDadosInner() {
               </SelectContent>
             </Select>
           </div>
+        )}
+
+        {/* Autopreenchimento por contrato IA */}
+        {!isSponsor && (
+          <ContractAutoFill
+            userEmail={targetEmail}
+            userCpf={formData.cpf || ''}
+            onApply={handleAiApply}
+            appliedFields={aiApplied}
+          />
         )}
 
         {/* Equipe Info */}
