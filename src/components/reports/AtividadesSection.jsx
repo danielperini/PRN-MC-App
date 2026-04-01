@@ -42,6 +42,7 @@ export default function AtividadesSection({
   mesReferencia = '',
   ano = 2026,
 }) {
+
   const museus = useMemo(
     () => Array.from(new Set((museusOptions || []).filter(Boolean))),
     [museusOptions]
@@ -69,15 +70,25 @@ export default function AtividadesSection({
     staleTime: 60000,
   });
 
+  // ✅ FIX PRINCIPAL — update seguro
   const updateAtividade = useCallback(
     (index, field, value) => {
       setAtividades((prev) => {
         const list = Array.isArray(prev) ? [...prev] : [];
-        const current = { ...(list[index] || {}) };
 
-        current[field] = value;
+        const current = {
+          ...(list[index] || {})
+        };
+
+        // 🔒 garante número correto quando necessário
+        if (typeof value === 'number') {
+          current[field] = Number.isFinite(value) ? value : 0;
+        } else {
+          current[field] = value;
+        }
 
         list[index] = current;
+
         return list;
       });
     },
@@ -88,6 +99,7 @@ export default function AtividadesSection({
     (base = {}) => {
       setAtividades((prev) => {
         const list = Array.isArray(prev) ? [...prev] : [];
+
         list.push({
           classificacao: '',
           justificativa_tecnica: '',
@@ -95,19 +107,25 @@ export default function AtividadesSection({
           descricao: '',
           data_inicio: '',
           data_fim: '',
+
+          // ✅ valores seguros
           publico_estimado: 0,
           quantidade_ocorrencias: 1,
+          quantidade_produtos_gerados: 0,
+          total_produtos_gerados: 0,
+          publico_total: 0,
+
           total_atividades: 0,
+
           museu: '',
           museu_lista: [],
           tipo_acao: '',
           tipo_acao_lista: [],
           produto_realizado: '',
-          quantidade_produtos_gerados: 0,
-          total_produtos_gerados: 0,
-          publico_total: 0,
+
           ...base,
         });
+
         return list;
       });
     },
@@ -142,6 +160,7 @@ export default function AtividadesSection({
 
   return (
     <div className="space-y-6">
+
       {canEdit && programacaoItems.length > 0 && (
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium text-blue-900">
@@ -156,7 +175,9 @@ export default function AtividadesSection({
             <SelectContent>
               {programacaoItems.map((item) => (
                 <SelectItem key={item.id} value={item.id}>
-                  <span className="font-medium">{item.museu ? `[${item.museu}] ` : ''}</span>
+                  <span className="font-medium">
+                    {item.museu ? `[${item.museu}] ` : ''}
+                  </span>
                   {item.titulo || item.nome_acao || item.id}
                   {item.data || item.data_inicio ? ` — ${item.data || item.data_inicio}` : ''}
                 </SelectItem>
@@ -165,16 +186,17 @@ export default function AtividadesSection({
           </Select>
 
           <p className="text-xs text-blue-700">
-            Ao selecionar, uma nova atividade será criada com nome e sinopse preenchidos automaticamente.
+            Ao selecionar, uma nova atividade será criada automaticamente.
           </p>
         </div>
       )}
 
-      {atividades.map((atividade, index) => (
+      {(atividades || []).map((atividade, index) => (
         <div
-          key={atividade?.id || index}
+          key={atividade?.id ?? index}
           className="rounded-lg border bg-white p-4 shadow-sm space-y-4"
         >
+
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-800">
               Atividade {index + 1}
@@ -200,15 +222,18 @@ export default function AtividadesSection({
             onChange={(field, value) => updateAtividade(index, field, value)}
           />
 
-          {atividade.id && (
+          {atividade?.id && (
             <div className="border-t pt-4 mt-4">
               <ActivityPhotoLinker
                 activityId={atividade.id}
-                onPhotosChange={(fotos) => updateAtividade(index, 'fotos', fotos)}
+                onPhotosChange={(fotos) =>
+                  updateAtividade(index, 'fotos', fotos)
+                }
                 disabled={!canEdit}
               />
             </div>
           )}
+
         </div>
       ))}
 
@@ -225,6 +250,7 @@ export default function AtividadesSection({
           </Button>
         </div>
       )}
+
     </div>
   );
 }
