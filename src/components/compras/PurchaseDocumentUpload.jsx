@@ -12,6 +12,13 @@ import {
 } from '@/components/ui/select';
 import { Upload, X, Loader2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
+import { uploadNotaFiscalToDrive } from '@/lib/uploadNotaFiscalToDrive';
+
+const GOOGLE_APPS_SCRIPT_URL =
+  'https://script.google.com/macros/s/AKfycbwnAs6KpIipWiMTU5XxmfJWvPdrOpdIERkQv_VGDUyxe79iNjefwDF3uA6HF1qox5km/exec';
+
+// TROQUE pelo mesmo token definido no seu Code.gs
+const GOOGLE_APPS_SCRIPT_TOKEN = 'COLE_AQUI_O_MESMO_API_TOKEN_DO_CODE_GS';
 
 const DOCUMENT_TYPES = [
   { value: 'orcamento', label: '📊 Orçamento' },
@@ -28,6 +35,11 @@ function parseMoney(value) {
   const normalized = String(value).replace(/\./g, '').replace(',', '.').trim();
   const n = Number(normalized);
   return Number.isFinite(n) ? n : null;
+}
+
+function normalizeDate(value) {
+  if (!value) return new Date().toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
 }
 
 export default function PurchaseDocumentUpload({
@@ -105,6 +117,22 @@ export default function PurchaseDocumentUpload({
       return;
     }
 
+    if (
+      !GOOGLE_APPS_SCRIPT_URL ||
+      GOOGLE_APPS_SCRIPT_URL.includes('COLE_AQUI')
+    ) {
+      toast.error('URL do Apps Script não configurada.');
+      return;
+    }
+
+    if (
+      !GOOGLE_APPS_SCRIPT_TOKEN ||
+      GOOGLE_APPS_SCRIPT_TOKEN.includes('COLE_AQUI')
+    ) {
+      toast.error('Token do Apps Script não configurado.');
+      return;
+    }
+
     setUploading(true);
 
     try {
@@ -117,19 +145,20 @@ export default function PurchaseDocumentUpload({
         return;
       }
 
-      const effectiveRubricaId =
-        rubricaId ||
-        purchase.rubrica_id ||
-        null;
-
+      const effectiveRubricaId = rubricaId || purchase.rubrica_id || null;
       const createdDocs = [];
 
       for (const currentFile of files) {
-        const uploadRes = await base44.integrations.Core.UploadFile({
-          file: currentFile,
+        const driveResult = await uploadNotaFiscalToDrive(currentFile, {
+          webAppUrl: GOOGLE_APPS_SCRIPT_URL,
+          token: GOOGLE_APPS_SCRIPT_TOKEN,
+          fornecedor: formData.fornecedor || purchase.fornecedor_nome || '',
+          valor: formData.valor_documento || '',
+          dataReferencia: normalizeDate(formData.data_documento),
+          categoria: formData.tipo_documento === 'xml_nf' ? 'XML' : 'NF',
         });
 
-        const file_url = uploadRes?.file_url || uploadRes?.url || '';
+        const file_url = driveResult?.fileUrl || '';
 
         if (!file_url) {
           throw new Error(`Falha ao obter URL do arquivo ${currentFile.name}`);
@@ -139,8 +168,12 @@ export default function PurchaseDocumentUpload({
           purchase_id: purchaseId,
           rubrica_id: effectiveRubricaId,
           tipo_documento: formData.tipo_documento,
-          nome_arquivo: currentFile.name,
+          nome_arquivo: driveResult.fileName || currentFile.name,
           file_url,
+          file_id_externo: driveResult.fileId || '',
+          download_url: driveResult.downloadUrl || '',
+          folder_path: driveResult.folderPath || '',
+          storage_provider: 'google_drive',
           file_size: currentFile.size || 0,
           mime_type: currentFile.type || '',
           descricao: formData.descricao || '',
