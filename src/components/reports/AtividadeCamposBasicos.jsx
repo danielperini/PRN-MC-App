@@ -23,14 +23,11 @@ function normalizeArray(value) {
 }
 
 function toInputValue(value, fallback = '') {
-  return value ?? fallback;
+  return value === null || value === undefined ? fallback : value;
 }
 
-function parseNum(value, fallback = 0, { min = 0, allowEmpty = true } = {}) {
-  if (value === '' || value === null || value === undefined) {
-    return allowEmpty ? fallback : fallback;
-  }
-
+function toNumberOrFallback(value, fallback = 0, { min = 0 } = {}) {
+  if (value === '' || value === null || value === undefined) return fallback;
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   if (n < min) return fallback;
@@ -42,22 +39,32 @@ export default function AtividadeCamposBasicos({
   onChange,
   museus = [],
   tiposAcao = [],
+  canEdit = true,
 }) {
   const museuLista = normalizeArray(atividade?.museu_lista ?? atividade?.museu);
   const tipoAcaoLista = normalizeArray(atividade?.tipo_acao_lista ?? atividade?.tipo_acao);
 
-  const quantidadeOcorrencias = parseNum(atividade?.quantidade_ocorrencias ?? 1, 1, {
-    min: 1,
-  });
-  const quantidadeProdutosGerados = parseNum(
-    atividade?.quantidade_produtos_gerados ?? 0,
+  const quantidadeOcorrenciasNumero = toNumberOrFallback(
+    atividade?.quantidade_ocorrencias,
+    1,
+    { min: 1 }
+  );
+
+  const quantidadeProdutosGeradosNumero = toNumberOrFallback(
+    atividade?.quantidade_produtos_gerados,
     0,
     { min: 0 }
   );
-  const publicoEstimado = parseNum(atividade?.publico_estimado ?? 0, 0, { min: 0 });
 
-  const publicoTotal = publicoEstimado * quantidadeOcorrencias;
-  const totalProdutosGerados = quantidadeProdutosGerados * quantidadeOcorrencias;
+  const publicoEstimadoNumero = toNumberOrFallback(
+    atividade?.publico_estimado,
+    0,
+    { min: 0 }
+  );
+
+  const publicoTotal = publicoEstimadoNumero * quantidadeOcorrenciasNumero;
+  const totalProdutosGerados =
+    quantidadeProdutosGeradosNumero * quantidadeOcorrenciasNumero;
 
   function handleMuseusChange(nextValues) {
     const lista = Array.isArray(nextValues) ? nextValues : [];
@@ -73,29 +80,66 @@ export default function AtividadeCamposBasicos({
 
   function handlePublicoEstimadoChange(e) {
     const raw = e.target.value;
-    const pub = parseNum(raw, 0, { min: 0 });
+
+    if (raw === '') {
+      onChange('publico_estimado', '');
+      onChange('publico_total', 0);
+      return;
+    }
+
+    const pub = Number(raw);
+    if (!Number.isFinite(pub) || pub < 0) return;
+
     onChange('publico_estimado', pub);
-    onChange('publico_total', pub * quantidadeOcorrencias);
+    onChange('publico_total', pub * quantidadeOcorrenciasNumero);
   }
 
   function handleQuantidadeOcorrenciasChange(e) {
     const raw = e.target.value;
-    const val = parseNum(raw, 1, { min: 1 });
+
+    if (raw === '') {
+      onChange('quantidade_ocorrencias', '');
+      onChange('publico_total', 0);
+      onChange('total_produtos_gerados', 0);
+      return;
+    }
+
+    const val = Number(raw);
+    if (!Number.isFinite(val) || val < 1) return;
+
     onChange('quantidade_ocorrencias', val);
-    onChange('publico_total', publicoEstimado * val);
-    onChange('total_produtos_gerados', quantidadeProdutosGerados * val);
+    onChange('publico_total', publicoEstimadoNumero * val);
+    onChange('total_produtos_gerados', quantidadeProdutosGeradosNumero * val);
   }
 
   function handleTotalAtividadesChange(e) {
     const raw = e.target.value;
-    onChange('total_atividades', parseNum(raw, 0, { min: 0 }));
+
+    if (raw === '') {
+      onChange('total_atividades', '');
+      return;
+    }
+
+    const val = Number(raw);
+    if (!Number.isFinite(val) || val < 0) return;
+
+    onChange('total_atividades', val);
   }
 
   function handleQuantidadeProdutosGeradosChange(e) {
     const raw = e.target.value;
-    const qtd = parseNum(raw, 0, { min: 0 });
+
+    if (raw === '') {
+      onChange('quantidade_produtos_gerados', '');
+      onChange('total_produtos_gerados', 0);
+      return;
+    }
+
+    const qtd = Number(raw);
+    if (!Number.isFinite(qtd) || qtd < 0) return;
+
     onChange('quantidade_produtos_gerados', qtd);
-    onChange('total_produtos_gerados', qtd * quantidadeOcorrencias);
+    onChange('total_produtos_gerados', qtd * quantidadeOcorrenciasNumero);
   }
 
   return (
@@ -105,6 +149,7 @@ export default function AtividadeCamposBasicos({
           <Input
             value={toInputValue(atividade?.classificacao, '')}
             onChange={(e) => onChange('classificacao', e.target.value)}
+            disabled={!canEdit}
           />
         </Field>
 
@@ -112,6 +157,7 @@ export default function AtividadeCamposBasicos({
           <Input
             value={toInputValue(atividade?.nome, '')}
             onChange={(e) => onChange('nome', e.target.value)}
+            disabled={!canEdit}
           />
         </Field>
       </div>
@@ -121,6 +167,7 @@ export default function AtividadeCamposBasicos({
           value={toInputValue(atividade?.justificativa_tecnica, '')}
           onChange={(e) => onChange('justificativa_tecnica', e.target.value)}
           rows={4}
+          disabled={!canEdit}
         />
       </Field>
 
@@ -130,6 +177,7 @@ export default function AtividadeCamposBasicos({
             type="date"
             value={toInputValue(atividade?.data_inicio, '')}
             onChange={(e) => onChange('data_inicio', e.target.value)}
+            disabled={!canEdit}
           />
         </Field>
 
@@ -138,6 +186,7 @@ export default function AtividadeCamposBasicos({
             type="date"
             value={toInputValue(atividade?.data_fim, '')}
             onChange={(e) => onChange('data_fim', e.target.value)}
+            disabled={!canEdit}
           />
         </Field>
 
@@ -145,8 +194,9 @@ export default function AtividadeCamposBasicos({
           <Input
             type="number"
             min="0"
-            value={toInputValue(atividade?.publico_estimado, 0)}
+            value={toInputValue(atividade?.publico_estimado, '')}
             onChange={handlePublicoEstimadoChange}
+            disabled={!canEdit}
           />
         </Field>
       </div>
@@ -157,6 +207,7 @@ export default function AtividadeCamposBasicos({
             options={museus}
             values={museuLista}
             onChange={handleMuseusChange}
+            disabled={!canEdit}
           />
         </Field>
 
@@ -165,6 +216,7 @@ export default function AtividadeCamposBasicos({
             options={tiposAcao}
             values={tipoAcaoLista}
             onChange={handleTiposAcaoChange}
+            disabled={!canEdit}
           />
         </Field>
       </div>
@@ -174,8 +226,9 @@ export default function AtividadeCamposBasicos({
           <Input
             type="number"
             min="1"
-            value={toInputValue(atividade?.quantidade_ocorrencias, 1)}
+            value={toInputValue(atividade?.quantidade_ocorrencias, '')}
             onChange={handleQuantidadeOcorrenciasChange}
+            disabled={!canEdit}
           />
         </Field>
 
@@ -183,8 +236,9 @@ export default function AtividadeCamposBasicos({
           <Input
             type="number"
             min="0"
-            value={toInputValue(atividade?.total_atividades, 0)}
+            value={toInputValue(atividade?.total_atividades, '')}
             onChange={handleTotalAtividadesChange}
+            disabled={!canEdit}
           />
         </Field>
 
@@ -198,6 +252,7 @@ export default function AtividadeCamposBasicos({
           <Input
             value={toInputValue(atividade?.produto_realizado, '')}
             onChange={(e) => onChange('produto_realizado', e.target.value)}
+            disabled={!canEdit}
           />
         </Field>
 
@@ -205,8 +260,9 @@ export default function AtividadeCamposBasicos({
           <Input
             type="number"
             min="0"
-            value={toInputValue(atividade?.quantidade_produtos_gerados, 0)}
+            value={toInputValue(atividade?.quantidade_produtos_gerados, '')}
             onChange={handleQuantidadeProdutosGeradosChange}
+            disabled={!canEdit}
           />
         </Field>
 
