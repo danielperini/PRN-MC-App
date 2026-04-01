@@ -20,6 +20,15 @@ const MESES_NUM = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 
+const NUMERIC_FIELDS = new Set([
+  'publico_estimado',
+  'quantidade_ocorrencias',
+  'quantidade_produtos_gerados',
+  'total_produtos_gerados',
+  'publico_total',
+  'total_atividades',
+]);
+
 function toMonthKey(mes, ano) {
   const idx = MESES_NUM.indexOf(mes);
   if (idx === -1 || !ano) return null;
@@ -33,6 +42,13 @@ function prevMonthKey(mes, ano) {
   return `${ano}-${String(idx).padStart(2, '0')}`;
 }
 
+function normalizeFieldValue(field, value) {
+  if (!NUMERIC_FIELDS.has(field)) return value;
+  if (value === '' || value === null || value === undefined) return '';
+  const n = Number(value);
+  return Number.isFinite(n) ? n : '';
+}
+
 export default function AtividadesSection({
   atividades = [],
   setAtividades,
@@ -42,7 +58,6 @@ export default function AtividadesSection({
   mesReferencia = '',
   ano = 2026,
 }) {
-
   const museus = useMemo(
     () => Array.from(new Set((museusOptions || []).filter(Boolean))),
     [museusOptions]
@@ -70,23 +85,13 @@ export default function AtividadesSection({
     staleTime: 60000,
   });
 
-  // ✅ FIX PRINCIPAL — update seguro
   const updateAtividade = useCallback(
     (index, field, value) => {
       setAtividades((prev) => {
         const list = Array.isArray(prev) ? [...prev] : [];
+        const current = { ...(list[index] || {}) };
 
-        const current = {
-          ...(list[index] || {})
-        };
-
-        // 🔒 garante número correto quando necessário
-        if (typeof value === 'number') {
-          current[field] = Number.isFinite(value) ? value : 0;
-        } else {
-          current[field] = value;
-        }
-
+        current[field] = normalizeFieldValue(field, value);
         list[index] = current;
 
         return list;
@@ -107,22 +112,17 @@ export default function AtividadesSection({
           descricao: '',
           data_inicio: '',
           data_fim: '',
-
-          // ✅ valores seguros
-          publico_estimado: 0,
-          quantidade_ocorrencias: 1,
-          quantidade_produtos_gerados: 0,
-          total_produtos_gerados: 0,
-          publico_total: 0,
-
-          total_atividades: 0,
-
+          publico_estimado: '',
+          quantidade_ocorrencias: '',
+          quantidade_produtos_gerados: '',
+          total_produtos_gerados: '',
+          publico_total: '',
+          total_atividades: '',
           museu: '',
           museu_lista: [],
           tipo_acao: '',
           tipo_acao_lista: [],
           produto_realizado: '',
-
           ...base,
         });
 
@@ -160,7 +160,6 @@ export default function AtividadesSection({
 
   return (
     <div className="space-y-6">
-
       {canEdit && programacaoItems.length > 0 && (
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium text-blue-900">
@@ -196,7 +195,6 @@ export default function AtividadesSection({
           key={atividade?.id ?? index}
           className="rounded-lg border bg-white p-4 shadow-sm space-y-4"
         >
-
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-800">
               Atividade {index + 1}
@@ -226,14 +224,11 @@ export default function AtividadesSection({
             <div className="border-t pt-4 mt-4">
               <ActivityPhotoLinker
                 activityId={atividade.id}
-                onPhotosChange={(fotos) =>
-                  updateAtividade(index, 'fotos', fotos)
-                }
+                onPhotosChange={(fotos) => updateAtividade(index, 'fotos', fotos)}
                 disabled={!canEdit}
               />
             </div>
           )}
-
         </div>
       ))}
 
@@ -250,7 +245,6 @@ export default function AtividadesSection({
           </Button>
         </div>
       )}
-
     </div>
   );
 }
