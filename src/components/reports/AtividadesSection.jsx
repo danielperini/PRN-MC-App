@@ -6,6 +6,7 @@ import { Plus, Trash2, CalendarDays } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AtividadeCamposBasicos from './AtividadeCamposBasicos';
 import ActivityPhotoLinker from './ActivityPhotoLinker';
+import ActivityAttachments from './ActivityAttachments';
 
 export default function AtividadesSection({
   atividades = [],
@@ -15,6 +16,7 @@ export default function AtividadesSection({
   tiposAcaoOptions = [],
   mesReferencia = '',
   ano = 2026,
+  reportId = null,
 }) {
 
   // 🔥 BUSCAR PROGRAMAÇÃO REAL (ProgramacaoEspelho)
@@ -139,6 +141,18 @@ export default function AtividadesSection({
             canEdit={canEdit}
           />
 
+          {/* Evidências (upload de arquivos vinculados à atividade) */}
+          {reportId && (
+            <ActivityAttachments
+              reportId={reportId}
+              activityIndex={index}
+              activityId={atividade?.id || atividade?._id}
+              activityName={atividade?.nome || atividade?.titulo || `Atividade ${index + 1}`}
+              canEdit={canEdit}
+            />
+          )}
+
+          {/* Vínculo de fotos da galeria */}
           {atividade?.id && (
             <ActivityPhotoLinker
               activityId={atividade.id}
