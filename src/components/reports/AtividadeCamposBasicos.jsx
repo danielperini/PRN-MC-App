@@ -6,8 +6,8 @@ import FilterMultiSelect from '@/components/ui/filter-multi-select';
 
 function Field({ label, children }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-sm text-gray-700">{label}</Label>
+    <div className="space-y-1">
+      <Label className="text-xs text-gray-600">{label}</Label>
       {children}
     </div>
   );
@@ -16,7 +16,6 @@ function Field({ label, children }) {
 function normalizeArray(value) {
   if (Array.isArray(value)) return value.filter(Boolean);
   if (!value) return [];
-
   return String(value)
     .split(',')
     .map((item) => item.trim())
@@ -24,13 +23,18 @@ function normalizeArray(value) {
 }
 
 function toInputValue(value, fallback = '') {
-  if (value === null || value === undefined) return fallback;
-  return value;
+  return value ?? fallback;
 }
 
-function parseNum(value, fallback = 0) {
-  const n = parseInt(value, 10);
-  return isNaN(n) || n < 0 ? fallback : n;
+function parseNum(value, fallback = 0, { min = 0, allowEmpty = true } = {}) {
+  if (value === '' || value === null || value === undefined) {
+    return allowEmpty ? fallback : fallback;
+  }
+
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  if (n < min) return fallback;
+  return n;
 }
 
 export default function AtividadeCamposBasicos({
@@ -39,13 +43,19 @@ export default function AtividadeCamposBasicos({
   museus = [],
   tiposAcao = [],
 }) {
-  const museuLista = normalizeArray(atividade?.museu_lista || atividade?.museu);
-  const tipoAcaoLista = normalizeArray(atividade?.tipo_acao_lista || atividade?.tipo_acao);
+  const museuLista = normalizeArray(atividade?.museu_lista ?? atividade?.museu);
+  const tipoAcaoLista = normalizeArray(atividade?.tipo_acao_lista ?? atividade?.tipo_acao);
 
-  const quantidadeOcorrencias = parseNum(atividade?.quantidade_ocorrencias, 1);
-  const quantidadeProdutosGerados = parseNum(atividade?.quantidade_produtos_gerados, 0);
+  const quantidadeOcorrencias = parseNum(atividade?.quantidade_ocorrencias ?? 1, 1, {
+    min: 1,
+  });
+  const quantidadeProdutosGerados = parseNum(
+    atividade?.quantidade_produtos_gerados ?? 0,
+    0,
+    { min: 0 }
+  );
+  const publicoEstimado = parseNum(atividade?.publico_estimado ?? 0, 0, { min: 0 });
 
-  const publicoEstimado = parseNum(atividade?.publico_estimado, 0);
   const publicoTotal = publicoEstimado * quantidadeOcorrencias;
   const totalProdutosGerados = quantidadeProdutosGerados * quantidadeOcorrencias;
 
@@ -61,27 +71,54 @@ export default function AtividadeCamposBasicos({
     onChange('tipo_acao', lista.join(', '));
   }
 
+  function handlePublicoEstimadoChange(e) {
+    const raw = e.target.value;
+    const pub = parseNum(raw, 0, { min: 0 });
+    onChange('publico_estimado', pub);
+    onChange('publico_total', pub * quantidadeOcorrencias);
+  }
+
+  function handleQuantidadeOcorrenciasChange(e) {
+    const raw = e.target.value;
+    const val = parseNum(raw, 1, { min: 1 });
+    onChange('quantidade_ocorrencias', val);
+    onChange('publico_total', publicoEstimado * val);
+    onChange('total_produtos_gerados', quantidadeProdutosGerados * val);
+  }
+
+  function handleTotalAtividadesChange(e) {
+    const raw = e.target.value;
+    onChange('total_atividades', parseNum(raw, 0, { min: 0 }));
+  }
+
+  function handleQuantidadeProdutosGeradosChange(e) {
+    const raw = e.target.value;
+    const qtd = parseNum(raw, 0, { min: 0 });
+    onChange('quantidade_produtos_gerados', qtd);
+    onChange('total_produtos_gerados', qtd * quantidadeOcorrencias);
+  }
+
   return (
     <>
       <div className="grid md:grid-cols-2 gap-4">
-        <Field label="Classificação da Atividade">
+        <Field label="Classificação *">
           <Input
-            value={atividade?.classificacao || ''}
+            value={toInputValue(atividade?.classificacao, '')}
             onChange={(e) => onChange('classificacao', e.target.value)}
           />
         </Field>
 
-        <Field label="Nome da atividade">
+        <Field label="Nome da atividade *">
           <Input
-            value={atividade?.nome || ''}
+            value={toInputValue(atividade?.nome, '')}
             onChange={(e) => onChange('nome', e.target.value)}
           />
         </Field>
       </div>
 
-      <Field label="Justificativa Técnica">
+      <Field label="Justificativa técnica">
         <Textarea
-          value={atividade?.justificativa_tecnica || ''}
+          value={toInputValue(atividade?.justificativa_tecnica, '')}
           onChange={(e) => onChange('justificativa_tecnica', e.target.value)}
           rows={4}
         />
@@ -91,7 +128,7 @@ export default function AtividadeCamposBasicos({
         <Field label="Data de início">
           <Input
             type="date"
-            value={atividade?.data_inicio || ''}
+            value={toInputValue(atividade?.data_inicio, '')}
             onChange={(e) => onChange('data_inicio', e.target.value)}
           />
         </Field>
@@ -99,7 +136,7 @@ export default function AtividadeCamposBasicos({
         <Field label="Data de fim">
           <Input
             type="date"
-            value={atividade?.data_fim || ''}
+            value={toInputValue(atividade?.data_fim, '')}
             onChange={(e) => onChange('data_fim', e.target.value)}
           />
         </Field>
@@ -107,12 +144,9 @@ export default function AtividadeCamposBasicos({
         <Field label="Público estimado">
           <Input
             type="number"
-            value={toInputValue(atividade?.publico_estimado, '')}
-            onChange={(e) => {
-              const pub = parseNum(e.target.value, 0);
-              onChange('publico_estimado', pub);
-              onChange('publico_total', pub * quantidadeOcorrencias);
-            }}
+            min="0"
+            value={toInputValue(atividade?.publico_estimado, 0)}
+            onChange={handlePublicoEstimadoChange}
           />
         </Field>
       </div>
@@ -139,21 +173,18 @@ export default function AtividadeCamposBasicos({
         <Field label="Quantas vezes ocorreu?">
           <Input
             type="number"
+            min="1"
             value={toInputValue(atividade?.quantidade_ocorrencias, 1)}
-            onChange={(e) => {
-              const val = parseNum(e.target.value, 1);
-              onChange('quantidade_ocorrencias', val);
-              onChange('publico_total', publicoEstimado * val);
-              onChange('total_produtos_gerados', quantidadeProdutosGerados * val);
-            }}
+            onChange={handleQuantidadeOcorrenciasChange}
           />
         </Field>
 
         <Field label="Total de atividades">
           <Input
             type="number"
+            min="0"
             value={toInputValue(atividade?.total_atividades, 0)}
-            onChange={(e) => onChange('total_atividades', parseNum(e.target.value, 0))}
+            onChange={handleTotalAtividadesChange}
           />
         </Field>
 
@@ -165,7 +196,7 @@ export default function AtividadeCamposBasicos({
       <div className="grid md:grid-cols-3 gap-4">
         <Field label="Produto realizado">
           <Input
-            value={atividade?.produto_realizado || ''}
+            value={toInputValue(atividade?.produto_realizado, '')}
             onChange={(e) => onChange('produto_realizado', e.target.value)}
           />
         </Field>
@@ -173,12 +204,9 @@ export default function AtividadeCamposBasicos({
         <Field label="Quantidade de produtos gerados">
           <Input
             type="number"
+            min="0"
             value={toInputValue(atividade?.quantidade_produtos_gerados, 0)}
-            onChange={(e) => {
-              const qtd = parseNum(e.target.value, 0);
-              onChange('quantidade_produtos_gerados', qtd);
-              onChange('total_produtos_gerados', qtd * quantidadeOcorrencias);
-            }}
+            onChange={handleQuantidadeProdutosGeradosChange}
           />
         </Field>
 
