@@ -72,11 +72,32 @@ function EditDialog({ user, onClose }) {
           </div>
           <div>
             <Label className="text-sm mb-1 block">Função</Label>
-            <Input value={form.funcao} onChange={e => setForm({ ...form, funcao: e.target.value })} placeholder="Ex: Coordenação Geral" />
+            <Select value={form.funcao} onValueChange={v => setForm({ ...form, funcao: v })}>
+              <SelectTrigger><SelectValue placeholder="Selecione a função" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Coordenação Geral">Coordenação Geral</SelectItem>
+                <SelectItem value="Coordenação de Comunicação">Coordenação de Comunicação</SelectItem>
+                <SelectItem value="Educador">Educador</SelectItem>
+                <SelectItem value="Produtor Cultural">Produtor Cultural</SelectItem>
+                <SelectItem value="Comunicador">Comunicador</SelectItem>
+                <SelectItem value="Administrador">Administrador</SelectItem>
+                <SelectItem value="Outro">Outro</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label className="text-sm mb-1 block">Equipe</Label>
-            <Input value={form.equipe} onChange={e => setForm({ ...form, equipe: e.target.value })} placeholder="Ex: Coordenação" />
+            <Select value={form.equipe} onValueChange={v => setForm({ ...form, equipe: v })}>
+              <SelectTrigger><SelectValue placeholder="Selecione a equipe" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Coordenação">Coordenação</SelectItem>
+                <SelectItem value="Comunicação">Comunicação</SelectItem>
+                <SelectItem value="Educativo">Educativo</SelectItem>
+                <SelectItem value="Produção">Produção</SelectItem>
+                <SelectItem value="Administração">Administração</SelectItem>
+                <SelectItem value="Outra">Outra</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label className="text-sm mb-1 block">Papel</Label>
