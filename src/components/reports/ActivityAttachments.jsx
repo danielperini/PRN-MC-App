@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
-const ALLOWED_EXTENSIONS = ['jpg','jpeg','png','mp4','mp3','wav','pdf','doc','docx','xls','xlsx'];
+const ALLOWED_EXTENSIONS = ['jpg','jpeg','png','gif','webp','pdf'];
+const ACCEPT_STRING = '.jpg,.jpeg,.png,.gif,.webp,.pdf';
 
 function getFileIcon(fileType = '') {
   if (fileType.startsWith('image/')) return FileImage;
@@ -67,16 +68,24 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
     onError: () => toast.error('Erro ao remover anexo'),
   });
 
+  const triggerBackup = async (attachmentId) => {
+    try {
+      await base44.functions.invoke('backupSingleFile', { attachment_id: attachmentId });
+    } catch (err) {
+      console.warn('Backup agendado falhou (não crítico):', err?.message);
+    }
+  };
+
   const handleFiles = async (files) => {
     const fileList = Array.from(files);
     for (const file of fileList) {
       const ext = file.name.split('.').pop().toLowerCase();
       if (!ALLOWED_EXTENSIONS.includes(ext)) {
-        toast.error(`Tipo não permitido: .${ext}`);
+        toast.error(`Somente imagens e PDFs são permitidos. Tipo rejeitado: .${ext}`);
         return;
       }
       if (file.size > MAX_FILE_SIZE) {
-        toast.error(`Arquivo muito grande: ${formatBytes(file.size)}`);
+        toast.error(`Arquivo muito grande (máx 50MB): ${formatBytes(file.size)}`);
         return;
       }
     }
@@ -85,26 +94,31 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
     try {
       for (const file of fileList) {
         const { file_url } = await base44.integrations.Core.UploadFile({ file });
-        
-        // Renomear arquivo com ID da atividade e número sequencial
-        const fileExt = file.name.split('.').pop();
-        const timestamp = new Date().getTime();
-        const renamedFileName = `${activityId || `activity_${activityIndex}`}__${activityName.substring(0, 20).replace(/\s+/g, '_')}__${timestamp}.${fileExt}`;
-        
-        await base44.entities.Attachment.create({
+
+        // Renomear com nome da atividade para organização
+        const fileExt = file.name.split('.').pop().toLowerCase();
+        const safeName = activityName.substring(0, 40).replace(/[^a-zA-Z0-9À-ÿ\s]/g, '').replace(/\s+/g, '_');
+        const timestamp = Date.now();
+        const renamedFileName = `${safeName}__${timestamp}.${fileExt}`;
+
+        const created = await base44.entities.Attachment.create({
           report_id: reportId,
-          activity_id: activityId || `activity_${activityIndex}`,  // vínculo com a atividade
-          file_name: renamedFileName,  // nome organizado e padronizado
+          activity_id: activityId || `activity_${activityIndex}`,
+          file_name: renamedFileName,
           file_type: file.type || 'application/octet-stream',
           file_size: file.size,
           file_url,
-          description: file.name,  // guardar nome original como descrição
+          description: file.name, // nome original preservado
+          backup_done: false,
         });
+
+        // Backup automático no Drive
+        if (created?.id) triggerBackup(created.id);
       }
       queryClient.invalidateQueries(qKey);
       queryClient.invalidateQueries(['attachments', reportId]);
       queryClient.invalidateQueries(['gestor-attachments']);
-      toast.success(`${fileList.length} arquivo(s) enviado(s)`);
+      toast.success(`${fileList.length} arquivo(s) enviado(s) e backup iniciado`);
     } catch (err) {
       console.error('Upload error (activity):', err);
       toast.error('Erro ao enviar: ' + (err?.message || 'tente novamente'));
@@ -137,7 +151,7 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
           ref={fileInputRef}
           type="file"
           multiple
-          accept={ALLOWED_EXTENSIONS.map(e => `.${e}`).join(',')}
+          accept={ACCEPT_STRING}
           className="hidden"
           onChange={e => e.target.files?.length && handleFiles(e.target.files)}
         />
@@ -151,7 +165,7 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
             onClick={() => fileInputRef.current?.click()}
             className="w-full text-xs text-gray-600 border-2 border-dashed border-gray-300 rounded-lg py-5 hover:border-blue-400 hover:bg-blue-50 transition-all font-medium"
           >
-            📁 Clique para adicionar evidências (fotos, vídeos, PDFs)
+            📁 Clique para adicionar fotos ou PDFs
           </button>
         ) : (
           <p className="text-xs text-gray-400">Sem evidências anexadas</p>

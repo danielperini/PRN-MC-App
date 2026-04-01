@@ -7,8 +7,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 // ou { event: { entity_id: "..." } }
 // ou { data: { event: { entity_id: "..." } } }
 
-const FOTOS_FOLDER_ID = '1HlhZvINo-j29SqZ3OInEtxNktp6IlKl9';
-const DOCUMENTOS_FOLDER_ID = '1psLJvyj6sNuO7kscJIjrCsINgRBTQq_1';
+// Pasta raiz de evidências por atividade
+const ATIVIDADES_ROOT_FOLDER_ID = '1JIQOY1eY29Qt-iUFgivfioaSoaFXGFJy';
 
 function sanitizeFolderName(value: string | undefined | null) {
   return String(value || 'Sem Usuario')
@@ -119,13 +119,26 @@ Deno.serve(async (req) => {
       uploaderName = sanitizeFolderName(user?.full_name || user?.email || 'Sem Usuario');
     }
 
-    let targetFolderId: string;
-    if (isPhoto) {
-      targetFolderId = await getOrCreateFolder(accessToken, uploaderName, FOTOS_FOLDER_ID);
-    } else {
-      const anexosFolderId = await getOrCreateFolder(accessToken, 'Anexos', DOCUMENTOS_FOLDER_ID);
-      targetFolderId = await getOrCreateFolder(accessToken, uploaderName, anexosFolderId);
+    // Determinar nome da pasta: por atividade (se disponível), senão por autor
+    let folderLabel = uploaderName;
+    if (attachment.activity_id) {
+      // Tentar buscar nome da atividade pelo report
+      if (attachment.report_id) {
+        const activities = await base44.asServiceRole.entities.Activity
+          .filter({ report_id: attachment.report_id })
+          .catch(() => []);
+        const act = activities.find(
+          (a: any) => a.id === attachment.activity_id || `activity_${a.index}` === attachment.activity_id
+        );
+        if (act?.titulo || act?.nome) {
+          folderLabel = sanitizeFolderName(act.titulo || act.nome);
+        }
+      }
     }
+
+    const typeFolder = isPhoto ? 'Fotos' : 'Documentos';
+    const typeFolderId = await getOrCreateFolder(accessToken, typeFolder, ATIVIDADES_ROOT_FOLDER_ID);
+    const targetFolderId = await getOrCreateFolder(accessToken, folderLabel, typeFolderId);
 
     const fileResponse = await fetch(attachment.file_url);
     if (!fileResponse.ok) {
