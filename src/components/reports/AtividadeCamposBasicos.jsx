@@ -26,12 +26,9 @@ function toInputValue(value, fallback = '') {
   return value === null || value === undefined ? fallback : value;
 }
 
-function toNumberOrFallback(value, fallback = 0, { min = 0 } = {}) {
-  if (value === '' || value === null || value === undefined) return fallback;
+function safeNumber(value, fallback = 0) {
   const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  if (n < min) return fallback;
-  return n;
+  return Number.isFinite(n) ? n : fallback;
 }
 
 export default function AtividadeCamposBasicos({
@@ -44,27 +41,12 @@ export default function AtividadeCamposBasicos({
   const museuLista = normalizeArray(atividade?.museu_lista ?? atividade?.museu);
   const tipoAcaoLista = normalizeArray(atividade?.tipo_acao_lista ?? atividade?.tipo_acao);
 
-  const quantidadeOcorrenciasNumero = toNumberOrFallback(
-    atividade?.quantidade_ocorrencias,
-    1,
-    { min: 1 }
-  );
+  const ocorrencias = safeNumber(atividade?.quantidade_ocorrencias, 0);
+  const publicoEstimado = safeNumber(atividade?.publico_estimado, 0);
+  const produtosGerados = safeNumber(atividade?.quantidade_produtos_gerados, 0);
 
-  const quantidadeProdutosGeradosNumero = toNumberOrFallback(
-    atividade?.quantidade_produtos_gerados,
-    0,
-    { min: 0 }
-  );
-
-  const publicoEstimadoNumero = toNumberOrFallback(
-    atividade?.publico_estimado,
-    0,
-    { min: 0 }
-  );
-
-  const publicoTotal = publicoEstimadoNumero * quantidadeOcorrenciasNumero;
-  const totalProdutosGerados =
-    quantidadeProdutosGeradosNumero * quantidadeOcorrenciasNumero;
+  const publicoTotal = publicoEstimado * ocorrencias;
+  const totalProdutosGerados = produtosGerados * ocorrencias;
 
   function handleMuseusChange(nextValues) {
     const lista = Array.isArray(nextValues) ? nextValues : [];
@@ -87,11 +69,11 @@ export default function AtividadeCamposBasicos({
       return;
     }
 
-    const pub = Number(raw);
-    if (!Number.isFinite(pub) || pub < 0) return;
+    const val = Number(raw);
+    if (!Number.isFinite(val) || val < 0) return;
 
-    onChange('publico_estimado', pub);
-    onChange('publico_total', pub * quantidadeOcorrenciasNumero);
+    onChange('publico_estimado', val);
+    onChange('publico_total', val * ocorrencias);
   }
 
   function handleQuantidadeOcorrenciasChange(e) {
@@ -105,11 +87,11 @@ export default function AtividadeCamposBasicos({
     }
 
     const val = Number(raw);
-    if (!Number.isFinite(val) || val < 1) return;
+    if (!Number.isFinite(val) || val < 0) return;
 
     onChange('quantidade_ocorrencias', val);
-    onChange('publico_total', publicoEstimadoNumero * val);
-    onChange('total_produtos_gerados', quantidadeProdutosGeradosNumero * val);
+    onChange('publico_total', publicoEstimado * val);
+    onChange('total_produtos_gerados', produtosGerados * val);
   }
 
   function handleTotalAtividadesChange(e) {
@@ -135,11 +117,11 @@ export default function AtividadeCamposBasicos({
       return;
     }
 
-    const qtd = Number(raw);
-    if (!Number.isFinite(qtd) || qtd < 0) return;
+    const val = Number(raw);
+    if (!Number.isFinite(val) || val < 0) return;
 
-    onChange('quantidade_produtos_gerados', qtd);
-    onChange('total_produtos_gerados', qtd * quantidadeOcorrenciasNumero);
+    onChange('quantidade_produtos_gerados', val);
+    onChange('total_produtos_gerados', val * ocorrencias);
   }
 
   return (
@@ -201,31 +183,11 @@ export default function AtividadeCamposBasicos({
         </Field>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <Field label="Museu / Local">
-          <FilterMultiSelect
-            options={museus}
-            values={museuLista}
-            onChange={handleMuseusChange}
-            disabled={!canEdit}
-          />
-        </Field>
-
-        <Field label="Tipo de ação">
-          <FilterMultiSelect
-            options={tiposAcao}
-            values={tipoAcaoLista}
-            onChange={handleTiposAcaoChange}
-            disabled={!canEdit}
-          />
-        </Field>
-      </div>
-
       <div className="grid md:grid-cols-3 gap-4">
         <Field label="Quantas vezes ocorreu?">
           <Input
             type="number"
-            min="1"
+            min="0"
             value={toInputValue(atividade?.quantidade_ocorrencias, '')}
             onChange={handleQuantidadeOcorrenciasChange}
             disabled={!canEdit}
