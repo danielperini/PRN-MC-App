@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { notifyCoordinators } from '@/lib/notifyHelpers';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -133,6 +134,14 @@ export default function MemberInvoiceSubmission() {
         })),
         valor_total: invoices.reduce((sum, inv) => sum + (inv.extracted?.valor_total || 0), 0),
         status: 'PENDENTE_ANALISE'
+      });
+
+      // Notificar coordenadores
+      await notifyCoordinators({
+        title: '📄 Nova submissão de notas fiscais',
+        message: `${currentUser?.full_name || currentUser?.email} enviou ${invoices.length} nota(s) fiscal(is) para aprovação.`,
+        type: 'INVOICE_SUBMITTED',
+        action_url: `${window.location.origin}/Compras`,
       });
 
       toast.success('Notas fiscais enviadas com sucesso!');

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { notifyUser, notifyCoordinators } from '@/lib/notifyHelpers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -96,11 +97,23 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
           });
         }
         await sendStatusNotif(reviewing, 'APROVADO_COORD', comment);
+        await notifyUser(reviewing.user_email, {
+          title: '✅ Nota fiscal aprovada',
+          message: `Sua nota fiscal de ${reviewing.mes_referencia}/${reviewing.ano} foi aprovada pela coordenação.`,
+          type: 'PAYMENT_APPROVED',
+          action_url: `${window.location.origin}/Compras`,
+        });
         toast.success('Envio aprovado.');
       }
       if (action === 'return') {
         await base44.entities.TeamPayment.update(reviewing.id, { status: 'DEVOLVIDO_REVISAO', observacoes: comment || '' });
         await sendStatusNotif(reviewing, 'DEVOLVIDO_REVISAO', comment);
+        await notifyUser(reviewing.user_email, {
+          title: '⚠️ Nota fiscal devolvida para revisão',
+          message: `Sua nota fiscal de ${reviewing.mes_referencia}/${reviewing.ano} foi devolvida. Motivo: ${comment}`,
+          type: 'PAYMENT_RETURNED',
+          action_url: `${window.location.origin}/Compras`,
+        });
         toast.success('Envio devolvido para revisão.');
       }
       setReviewing(null); setAction(null); setComment('');
@@ -127,6 +140,12 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
         });
       }
       await sendStatusNotif(payment, 'PAGO', 'Pagamento realizado.');
+      await notifyUser(payment.user_email, {
+        title: '💰 Pagamento realizado',
+        message: `Seu pagamento de ${payment.mes_referencia}/${payment.ano} foi marcado como realizado.`,
+        type: 'PAYMENT_DONE',
+        action_url: `${window.location.origin}/Compras`,
+      });
       toast.success('Pagamento marcado como realizado e notificação enviada ao solicitante.');
       await queryClient.invalidateQueries();
     } catch (e) {

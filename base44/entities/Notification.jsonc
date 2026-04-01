@@ -1,0 +1,60 @@
+{
+  "name": "Notification",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio destinat\u00e1rio"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "REPORT_SUBMITTED",
+        "REPORT_APPROVED",
+        "REPORT_RETURNED",
+        "REPORT_NEEDS_ATTENTION",
+        "USER_APPROVED",
+        "INVOICE_SUBMITTED",
+        "INVOICE_APPROVED",
+        "INVOICE_RETURNED",
+        "PAYMENT_SUBMITTED",
+        "PAYMENT_APPROVED",
+        "PAYMENT_RETURNED",
+        "PAYMENT_DONE"
+      ],
+      "description": "Tipo de notifica\u00e7\u00e3o"
+    },
+    "title": {
+      "type": "string",
+      "description": "T\u00edtulo da notifica\u00e7\u00e3o"
+    },
+    "message": {
+      "type": "string",
+      "description": "Mensagem da notifica\u00e7\u00e3o"
+    },
+    "report_id": {
+      "type": "string",
+      "description": "ID do relat\u00f3rio relacionado (opcional)"
+    },
+    "action_url": {
+      "type": "string",
+      "description": "URL para a\u00e7\u00e3o (ex: link para o relat\u00f3rio)"
+    },
+    "read": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se a notifica\u00e7\u00e3o foi lida"
+    },
+    "email_sent": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se email foi enviado"
+    }
+  },
+  "required": [
+    "user_email",
+    "type",
+    "title",
+    "message"
+  ]
+}

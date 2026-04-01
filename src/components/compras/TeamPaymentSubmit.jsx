@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { notifyCoordinators } from '@/lib/notifyHelpers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -301,6 +302,14 @@ export default function TeamPaymentSubmit({ userEmail }) {
         nota_fiscal_file_name: form.nota_fiscal_file_name,
         xml_file_name: form.xml_file_name,
         app_link: window.location.origin + '/Compras',
+      });
+
+      // Notificação interna para coordenadores
+      await notifyCoordinators({
+        title: '💰 Nova nota fiscal para aprovação',
+        message: `${member.user_name || member.user_email} enviou nota fiscal de ${selectedComp.mes}/${selectedComp.ano} (${formatBRL(toNumber(form.valor_nf || valorParcela))}) para aprovação.`,
+        type: 'PAYMENT_SUBMITTED',
+        action_url: `${window.location.origin}/Compras`,
       });
 
       toast.success('Envio realizado com sucesso! As notificações foram disparadas.');

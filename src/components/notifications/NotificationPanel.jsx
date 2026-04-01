@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, CheckCircle2, AlertCircle, Clock, Mail } from 'lucide-react';
+import { X, CheckCircle2, AlertCircle, Clock, Mail, FileText, CreditCard, RotateCcw, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
@@ -10,6 +10,13 @@ const NOTIFICATION_ICONS = {
   REPORT_RETURNED: AlertCircle,
   REPORT_NEEDS_ATTENTION: Clock,
   USER_APPROVED: CheckCircle2,
+  INVOICE_SUBMITTED: FileText,
+  INVOICE_APPROVED: CheckCircle2,
+  INVOICE_RETURNED: RotateCcw,
+  PAYMENT_SUBMITTED: CreditCard,
+  PAYMENT_APPROVED: CheckCircle2,
+  PAYMENT_RETURNED: RotateCcw,
+  PAYMENT_DONE: DollarSign,
 };
 
 const NOTIFICATION_COLORS = {
@@ -18,6 +25,13 @@ const NOTIFICATION_COLORS = {
   REPORT_RETURNED: 'bg-red-50 border-red-100 text-red-900',
   REPORT_NEEDS_ATTENTION: 'bg-amber-50 border-amber-100 text-amber-900',
   USER_APPROVED: 'bg-green-50 border-green-100 text-green-900',
+  INVOICE_SUBMITTED: 'bg-indigo-50 border-indigo-100 text-indigo-900',
+  INVOICE_APPROVED: 'bg-green-50 border-green-100 text-green-900',
+  INVOICE_RETURNED: 'bg-orange-50 border-orange-100 text-orange-900',
+  PAYMENT_SUBMITTED: 'bg-indigo-50 border-indigo-100 text-indigo-900',
+  PAYMENT_APPROVED: 'bg-green-50 border-green-100 text-green-900',
+  PAYMENT_RETURNED: 'bg-orange-50 border-orange-100 text-orange-900',
+  PAYMENT_DONE: 'bg-emerald-50 border-emerald-100 text-emerald-900',
 };
 
 export default function NotificationPanel({ notifications, onClose, userEmail }) {
