@@ -6,25 +6,19 @@ import {
   Users,
   Folder,
   Image,
-  ClipboardList,
   Settings,
   Bot,
   User,
-  BookOpen,
   Newspaper,
   HelpCircle,
   ShoppingCart,
-  CreditCard,
   ChevronLeft,
   ChevronRight,
   CalendarDays,
-  BarChart3,
-  Map,
   CheckSquare,
-  Receipt,
   DollarSign,
-  PieChart,
   Star,
+  Eye,
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { isCoordenador, canManageUsers } from '@/components/auth/permissions';
@@ -40,6 +34,7 @@ const NAV_GROUPS = [
     label: 'Trabalho',
     items: [
       { path: 'Relatorios', label: 'Relatórios', icon: FileText, roles: ['all'] },
+      { path: 'CoordReview', label: 'Revisão de relatórios', icon: Eye, roles: ['coord', 'admin'] },
       { path: 'Compras', label: 'Compras e Pagamentos', icon: ShoppingCart, roles: ['all'] },
     ],
   },
@@ -50,7 +45,13 @@ const NAV_GROUPS = [
       { path: 'GaleriaFotos', label: 'Galeria', icon: Image, roles: ['all'] },
       { path: 'RubricasPorMuseu', label: 'Rubricas por museu', icon: DollarSign, roles: ['coord', 'admin'] },
       { path: 'GestorArquivos', label: 'Arquivos', icon: Folder, roles: ['all'] },
-      { path: 'ProgramacaoEspelho', label: 'Informações Completas da Programação', subtitle: 'Link de imagens • Minibios • Material de divulgação aprovado', icon: Star, roles: ['all'] },
+      {
+        path: 'ProgramacaoEspelho',
+        label: 'Informações Completas da Programação',
+        subtitle: 'Link de imagens • Minibios • Material de divulgação aprovado',
+        icon: Star,
+        roles: ['all'],
+      },
     ],
   },
   {
@@ -78,7 +79,7 @@ const NAV_GROUPS = [
   },
 ];
 
-function NavItem({ item, currentPageName, collapsed, userPermission }) {
+function NavItem({ item, currentPageName, collapsed }) {
   const Icon = item.icon;
   const isActive = currentPageName === item.path;
 
@@ -92,12 +93,20 @@ function NavItem({ item, currentPageName, collapsed, userPermission }) {
           : 'text-slate-400 hover:bg-slate-800 hover:text-white'
       }`}
     >
-      <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-slate-900' : 'text-slate-500 group-hover:text-white'}`} />
+      <Icon
+        className={`w-4 h-4 flex-shrink-0 ${
+          isActive ? 'text-slate-900' : 'text-slate-500 group-hover:text-white'
+        }`}
+      />
       {!collapsed && (
         <div className="min-w-0">
           <span className="truncate block leading-tight">{item.label}</span>
           {item.subtitle && (
-          <span className={`text-[10px] truncate block leading-tight mt-0.5 ${isActive ? 'text-slate-500' : 'text-slate-500'}`}>
+            <span
+              className={`text-[10px] truncate block leading-tight mt-0.5 ${
+                isActive ? 'text-slate-500' : 'text-slate-500'
+              }`}
+            >
               {item.subtitle}
             </span>
           )}
@@ -114,7 +123,9 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
     async function loadPermission() {
       if (!currentUser?.email) return;
       try {
-        const perms = await base44.entities.UserPermission.filter({ user_email: currentUser.email });
+        const perms = await base44.entities.UserPermission.filter({
+          user_email: currentUser.email,
+        });
         setUserPermission(perms?.[0] || null);
       } catch {
         setUserPermission(null);
@@ -128,14 +139,13 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
   const isAdmin = role === 'admin' || role === 'ADMIN';
 
   function shouldShowItem(item) {
+    if (item.permission === 'canManageUsers') return canManageUsers(currentUser);
+    if (item.permission === 'canManagePlatform') return isAdmin;
+
     if (item.roles.includes('all')) return true;
     if (item.roles.includes('admin') && isAdmin) return true;
     if (item.roles.includes('coord') && isCoord) return true;
     if (item.roles.includes('prof') && !isCoord && !isAdmin) return true;
-
-    if (item.permission === 'canManageUsers') return canManageUsers(currentUser);
-    if (item.permission === 'canViewAuditLog') return isCoord || isAdmin;
-    if (item.permission === 'canManagePlatform') return isAdmin;
 
     return false;
   }
@@ -146,8 +156,11 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         collapsed ? 'w-16' : 'w-60'
       } min-h-screen`}
     >
-      {/* Header */}
-      <div className={`flex items-center justify-between px-3 py-4 border-b border-slate-800 ${collapsed ? 'flex-col gap-2' : ''}`}>
+      <div
+        className={`flex items-center justify-between px-3 py-4 border-b border-slate-800 ${
+          collapsed ? 'flex-col gap-2' : ''
+        }`}
+      >
         {!collapsed && (
           <div className="flex flex-col">
             <span className="text-xs font-bold text-white leading-tight">Museus Centro</span>
@@ -162,7 +175,6 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         </button>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
         {NAV_GROUPS.map((group) => {
           const visibleItems = group.items.filter(shouldShowItem);
@@ -170,7 +182,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
 
           return (
             <div key={group.label}>
-              {!collapsed && (
+              {!collapsed && group.label && (
                 <p className="px-3 mb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                   {group.label}
                 </p>
@@ -182,7 +194,6 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
                     item={item}
                     currentPageName={currentPageName}
                     collapsed={collapsed}
-                    userPermission={userPermission}
                   />
                 ))}
               </div>
@@ -191,7 +202,6 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         })}
       </nav>
 
-      {/* User footer */}
       <div className={`border-t border-slate-800 px-3 py-3 ${collapsed ? 'flex justify-center' : ''}`}>
         <Link
           to="/Perfil"
@@ -205,7 +215,9 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-xs font-medium text-slate-200 truncate">{currentUser?.full_name || 'Usuário'}</p>
+              <p className="text-xs font-medium text-slate-200 truncate">
+                {currentUser?.full_name || 'Usuário'}
+              </p>
               <p className="text-[10px] text-slate-500 truncate">{currentUser?.email || ''}</p>
             </div>
           )}
