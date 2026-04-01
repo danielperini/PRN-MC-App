@@ -231,33 +231,25 @@ function ReportEditorInner() {
         data_fim: rest.data_fim || '',
         data_realizacao: rest.data_realizacao || '',
         publico_estimado: rest.publico_estimado ?? 0,
-
-        // CORRIGIDO: aceita os nomes novos e antigos
         quantas_repeticoes:
           rest.quantidade_ocorrencias ??
           rest.quantas_vezes_ocorreu ??
           rest.quantas_repeticoes ??
           1,
-
         publico_total: rest.publico_total ?? 0,
-
-        // CORRIGIDO: aceita os nomes novos e antigos
         quantidade_produtos:
           rest.quantidade_produtos_gerados ??
           rest.quantidade_produtos ??
           0,
-
         equipe_responsavel: Array.isArray(rest.museu_lista) && rest.museu_lista.length
           ? rest.museu_lista.join(', ')
           : (rest.museu || rest.equipe_responsavel || ''),
-
         observacoes: [
           Array.isArray(rest.tipo_acao_lista) && rest.tipo_acao_lista.length
             ? rest.tipo_acao_lista.join(', ')
             : rest.tipo_acao,
           rest.observacoes
         ].filter(Boolean).join(' | ') || '',
-
         resultado_alcancado: rest.produto_realizado || rest.resultado_alcancado || '',
         meta_quantitativa: rest.total_atividades != null ? String(rest.total_atividades) : (rest.meta_quantitativa || ''),
         meta_id: rest.meta_id || '',
@@ -371,14 +363,6 @@ function ReportEditorInner() {
   });
 
   const handleSubmitClick = () => {
-    if (!declaracaoAceita) {
-      toast.error('Aceite a declaração de responsabilidade antes de enviar.');
-      return;
-    }
-    if (!(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0)) {
-      toast.error('Preencha atividades ou oportunidades para enviar');
-      return;
-    }
     setShowSubmitConfirm(true);
   };
 
@@ -778,26 +762,25 @@ function ReportEditorInner() {
           </TabsContent>
         </Tabs>
 
-        {canEdit && (
-          <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
-            <Button variant="outline" onClick={handleSaveDraft} disabled={saveMutation.isPending}>
-              <Save className="w-4 h-4 mr-2" />
-              {saveMutation.isPending ? 'Salvando...' : 'Salvar Rascunho'}
-            </Button>
-            <Button
-              className="bg-black hover:bg-gray-800 text-white"
-              onClick={handleSubmitClick}
-              disabled={
-                submitMutation.isPending ||
-                !declaracaoAceita ||
-                (!(formData.atividades?.length > 0) && !(formData.oportunidades?.length > 0))
-              }
-            >
-              <Send className="w-4 h-4 mr-2" />
-              Enviar para Revisão
-            </Button>
-          </div>
-        )}
+        <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end gap-3">
+          <Button
+            variant="outline"
+            onClick={handleSaveDraft}
+            disabled={saveMutation.isPending}
+          >
+            <Save className="w-4 h-4 mr-2" />
+            {saveMutation.isPending ? 'Salvando...' : 'Salvar Rascunho'}
+          </Button>
+
+          <Button
+            className="bg-black hover:bg-gray-800 text-white"
+            onClick={handleSubmitClick}
+            disabled={submitMutation.isPending}
+          >
+            <Send className="w-4 h-4 mr-2" />
+            {submitMutation.isPending ? 'Enviando...' : 'Enviar para Revisão'}
+          </Button>
+        </div>
 
         <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
           <AlertDialogContent className="max-w-lg">
