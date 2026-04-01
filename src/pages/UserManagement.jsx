@@ -42,7 +42,12 @@ const PERMISSION_GROUPS = [
 
 function EditDialog({ user, onClose }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ full_name: user.full_name || '', role: user.role || 'user' });
+  const [form, setForm] = useState({
+    full_name: user.full_name || '',
+    role: user.role || 'user',
+    funcao: user.funcao || '',
+    equipe: user.equipe || '',
+  });
   const [saving, setSaving] = useState(false);
 
   async function save() {
@@ -66,6 +71,14 @@ function EditDialog({ user, onClose }) {
             <Input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} />
           </div>
           <div>
+            <Label className="text-sm mb-1 block">Função</Label>
+            <Input value={form.funcao} onChange={e => setForm({ ...form, funcao: e.target.value })} placeholder="Ex: Coordenação Geral" />
+          </div>
+          <div>
+            <Label className="text-sm mb-1 block">Equipe</Label>
+            <Input value={form.equipe} onChange={e => setForm({ ...form, equipe: e.target.value })} placeholder="Ex: Coordenação" />
+          </div>
+          <div>
             <Label className="text-sm mb-1 block">Papel</Label>
             <Select value={form.role} onValueChange={v => setForm({ ...form, role: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -86,7 +99,6 @@ function EditDialog({ user, onClose }) {
 }
 
 function PasswordDialog({ user, onClose }) {
-  const [pw, setPw] = useState('');
   return (
     <Dialog open onOpenChange={() => onClose()}>
       <DialogContent className="max-w-sm">
@@ -173,6 +185,8 @@ function PermissionsDialog({ user, permissions, onClose }) {
 function UserCard({ user, onEdit, onPassword, onPermissions }) {
   const role = user.permissions?.base_role || user.role || 'user';
   const initials = (user.full_name || user.email || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const funcao = user.funcao || null;
+  const equipe = user.equipe || null;
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-4 border border-gray-200 rounded-2xl px-5 py-4 bg-white hover:bg-gray-50 transition-colors">
@@ -183,6 +197,7 @@ function UserCard({ user, onEdit, onPassword, onPermissions }) {
         </div>
         <div className="min-w-0">
           <p className="font-semibold text-gray-900 truncate">{user.full_name || '—'}</p>
+          {funcao && <p className="text-xs text-gray-600 truncate">{funcao}</p>}
           <p className="text-xs text-gray-500 truncate">{user.email}</p>
           {user.numero_matricula && (
             <p className="text-xs text-gray-400 font-mono mt-0.5">{user.numero_matricula}</p>
@@ -190,8 +205,14 @@ function UserCard({ user, onEdit, onPassword, onPermissions }) {
         </div>
       </div>
 
-      {/* Role + actions */}
+      {/* Role + equipe + actions */}
       <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+        {funcao && (
+          <Badge className="text-xs px-2.5 py-0.5 bg-gray-100 text-gray-700">{funcao}</Badge>
+        )}
+        {equipe && (
+          <Badge className="text-xs px-2.5 py-0.5 bg-slate-100 text-slate-600">{equipe}</Badge>
+        )}
         <Badge className={`text-xs px-2.5 py-0.5 ${ROLE_COLORS[role] || ROLE_COLORS.user}`}>
           {ROLE_LABELS[role] || role}
         </Badge>
