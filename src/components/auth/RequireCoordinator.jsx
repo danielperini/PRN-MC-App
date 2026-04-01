@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { isCoordenador } from './permissions';
 
 export default function RequireCoordinator({ children, permission = null, fallback = null }) {
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -23,10 +24,21 @@ export default function RequireCoordinator({ children, permission = null, fallba
           return;
         }
 
-        // Verificar se é coordenador ou admin
-        const isCoordinator = user.role === 'COORDENADOR' || user.role === 'ADMIN';
-        
-        if (!isCoordinator) {
+        // Verificar se é coordenador (usando a mesma função central de permissões)
+        const isCoordinator = isCoordenador(user);
+
+        // Também verifica can_review_reports no UserPermission
+        let hasReviewAccess = isCoordinator;
+        if (!hasReviewAccess) {
+          try {
+            const perms = await base44.asServiceRole.entities.UserPermission.filter(
+              { user_email: user.email }, '-updated_date', 1
+            );
+            hasReviewAccess = perms[0]?.can_review_reports === true;
+          } catch (_) {}
+        }
+
+        if (!hasReviewAccess) {
           setIsAuthorized(false);
           setIsLoading(false);
           return;
