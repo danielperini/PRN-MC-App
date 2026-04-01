@@ -1,12 +1,4 @@
 import React, { useCallback, useMemo, useState } from 'react';
-
-export function validateAtividade(atividade = {}) {
-  const errors = [];
-  if (!atividade || typeof atividade !== 'object') return ['Atividade inválida'];
-  if (!atividade.classificacao || !String(atividade.classificacao).trim()) errors.push('Classificação é obrigatória');
-  if (!atividade.nome || !String(atividade.nome).trim()) errors.push('Nome da atividade é obrigatório');
-  return errors;
-}
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -15,9 +7,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import AtividadeCamposBasicos from './AtividadeCamposBasicos';
 import ActivityPhotoLinker from './ActivityPhotoLinker';
 
+export function validateAtividade(atividade = {}) {
+  const errors = [];
+  if (!atividade || typeof atividade !== 'object') return ['Atividade inválida'];
+  if (!atividade.classificacao || !String(atividade.classificacao).trim()) errors.push('Classificação é obrigatória');
+  if (!atividade.nome || !String(atividade.nome).trim()) errors.push('Nome da atividade é obrigatório');
+  return errors;
+}
+
 const MESES_NUM = [
-  'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
-  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 
 function toMonthKey(mes, ano) {
@@ -42,8 +42,15 @@ export default function AtividadesSection({
   mesReferencia = '',
   ano = 2026,
 }) {
-  const museus = useMemo(() => Array.from(new Set((museusOptions || []).filter(Boolean))), [museusOptions]);
-  const tiposAcao = useMemo(() => Array.from(new Set((tiposAcaoOptions || []).filter(Boolean))), [tiposAcaoOptions]);
+  const museus = useMemo(
+    () => Array.from(new Set((museusOptions || []).filter(Boolean))),
+    [museusOptions]
+  );
+
+  const tiposAcao = useMemo(
+    () => Array.from(new Set((tiposAcaoOptions || []).filter(Boolean))),
+    [tiposAcaoOptions]
+  );
 
   const currentKey = toMonthKey(mesReferencia, ano);
   const prevKey = prevMonthKey(mesReferencia, ano);
@@ -53,7 +60,7 @@ export default function AtividadesSection({
     queryFn: async () => {
       if (!currentKey && !prevKey) return [];
       const all = await base44.entities.Programacao.list('-data_inicio', 1000);
-      return (all || []).filter(item => {
+      return (all || []).filter((item) => {
         const k = item.month_key || '';
         return k === currentKey || k === prevKey;
       });
@@ -77,36 +84,51 @@ export default function AtividadesSection({
     [setAtividades]
   );
 
-  const addAtividade = useCallback((base = {}) => {
-    setAtividades((prev) => {
-      const list = Array.isArray(prev) ? [...prev] : [];
-      list.push({
-        classificacao: '',
-        justificativa_tecnica: '',
-        nome: '',
-        descricao: '',
-        data_inicio: '',
-        data_fim: '',
-        publico_estimado: 0,
-        quantas_vezes_ocorreu: 1,
-        total_atividades: 0,
-        museu: '',
-        museu_lista: [],
-        tipo_acao: '',
-        tipo_acao_lista: [],
-        produto_realizado: '',
-        quantidade_produtos: 0,
-        total_produtos_gerados: 0,
-        ...base,
+  const addAtividade = useCallback(
+    (base = {}) => {
+      setAtividades((prev) => {
+        const list = Array.isArray(prev) ? [...prev] : [];
+        list.push({
+          classificacao: '',
+          justificativa_tecnica: '',
+          nome: '',
+          descricao: '',
+          data_inicio: '',
+          data_fim: '',
+          publico_estimado: 0,
+
+          // Nome novo correto
+          quantidade_ocorrencias: 1,
+
+          total_atividades: 0,
+          museu: '',
+          museu_lista: [],
+          tipo_acao: '',
+          tipo_acao_lista: [],
+          produto_realizado: '',
+
+          // Nome novo correto
+          quantidade_produtos_gerados: 0,
+
+          total_produtos_gerados: 0,
+
+          // Compatibilidade opcional com dados antigos
+          quantas_vezes_ocorreu: 1,
+          quantidade_produtos: 0,
+
+          ...base,
+        });
+        return list;
       });
-      return list;
-    });
-  }, [setAtividades]);
+    },
+    [setAtividades]
+  );
 
   function importFromCronograma(value) {
     if (!value) return;
-    const item = programacaoItems.find(p => p.id === value);
+    const item = programacaoItems.find((p) => p.id === value);
     if (!item) return;
+
     addAtividade({
       nome: item.titulo || item.nome_acao || '',
       descricao: item.sinopse || item.descricao || '',
@@ -136,12 +158,13 @@ export default function AtividadesSection({
             <CalendarDays className="w-4 h-4" />
             Importar atividade da Programação (mês atual + anterior)
           </div>
+
           <Select onValueChange={importFromCronograma}>
             <SelectTrigger className="bg-white">
               <SelectValue placeholder="Selecione uma atividade do cronograma..." />
             </SelectTrigger>
             <SelectContent>
-              {programacaoItems.map(item => (
+              {programacaoItems.map((item) => (
                 <SelectItem key={item.id} value={item.id}>
                   <span className="font-medium">{item.museu ? `[${item.museu}] ` : ''}</span>
                   {item.titulo || item.nome_acao || item.id}
@@ -150,7 +173,10 @@ export default function AtividadesSection({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-blue-700">Ao selecionar, uma nova atividade será criada com nome e sinopse preenchidos automaticamente.</p>
+
+          <p className="text-xs text-blue-700">
+            Ao selecionar, uma nova atividade será criada com nome e sinopse preenchidos automaticamente.
+          </p>
         </div>
       )}
 
@@ -177,7 +203,20 @@ export default function AtividadesSection({
           </div>
 
           <AtividadeCamposBasicos
-            atividade={atividade}
+            atividade={{
+              ...atividade,
+
+              // Normaliza os nomes para o componente de campos
+              quantidade_ocorrencias:
+                atividade?.quantidade_ocorrencias ??
+                atividade?.quantas_vezes_ocorreu ??
+                1,
+
+              quantidade_produtos_gerados:
+                atividade?.quantidade_produtos_gerados ??
+                atividade?.quantidade_produtos ??
+                0,
+            }}
             canEdit={canEdit}
             museus={museus}
             tiposAcao={tiposAcao}
@@ -201,7 +240,7 @@ export default function AtividadesSection({
           <Button
             type="button"
             variant="outline"
-            onClick={addAtividade}
+            onClick={() => addAtividade()}
             className="gap-2"
           >
             <Plus className="h-4 w-4" />
