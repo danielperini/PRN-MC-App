@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -96,26 +96,16 @@ export default function AtividadesSection({
           data_inicio: '',
           data_fim: '',
           publico_estimado: 0,
-
-          // Nome novo correto
           quantidade_ocorrencias: 1,
-
           total_atividades: 0,
           museu: '',
           museu_lista: [],
           tipo_acao: '',
           tipo_acao_lista: [],
           produto_realizado: '',
-
-          // Nome novo correto
           quantidade_produtos_gerados: 0,
-
           total_produtos_gerados: 0,
-
-          // Compatibilidade opcional com dados antigos
-          quantas_vezes_ocorreu: 1,
-          quantidade_produtos: 0,
-
+          publico_total: 0,
           ...base,
         });
         return list;
@@ -182,7 +172,7 @@ export default function AtividadesSection({
 
       {atividades.map((atividade, index) => (
         <div
-          key={index}
+          key={atividade?.id || index}
           className="rounded-lg border bg-white p-4 shadow-sm space-y-4"
         >
           <div className="flex items-center justify-between">
@@ -203,20 +193,7 @@ export default function AtividadesSection({
           </div>
 
           <AtividadeCamposBasicos
-            atividade={{
-              ...atividade,
-
-              // Normaliza os nomes para o componente de campos
-              quantidade_ocorrencias:
-                atividade?.quantidade_ocorrencias ??
-                atividade?.quantas_vezes_ocorreu ??
-                1,
-
-              quantidade_produtos_gerados:
-                atividade?.quantidade_produtos_gerados ??
-                atividade?.quantidade_produtos ??
-                0,
-            }}
+            atividade={atividade}
             canEdit={canEdit}
             museus={museus}
             tiposAcao={tiposAcao}
