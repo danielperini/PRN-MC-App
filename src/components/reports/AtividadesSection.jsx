@@ -10,14 +10,18 @@ import ActivityPhotoLinker from './ActivityPhotoLinker';
 export function validateAtividade(atividade = {}) {
   const errors = [];
   if (!atividade || typeof atividade !== 'object') return ['Atividade inválida'];
-  if (!atividade.classificacao || !String(atividade.classificacao).trim()) errors.push('Classificação é obrigatória');
-  if (!atividade.nome || !String(atividade.nome).trim()) errors.push('Nome da atividade é obrigatório');
+  if (!atividade.classificacao || !String(atividade.classificacao).trim()) {
+    errors.push('Classificação é obrigatória');
+  }
+  if (!atividade.nome || !String(atividade.nome).trim()) {
+    errors.push('Nome da atividade é obrigatório');
+  }
   return errors;
 }
 
 const MESES_NUM = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 
 const NUMERIC_FIELDS = new Set([
@@ -28,6 +32,26 @@ const NUMERIC_FIELDS = new Set([
   'publico_total',
   'total_atividades',
 ]);
+
+const CLASSIFICACAO_OPTIONS = [
+  'Meta',
+  'Extra',
+  'Rotina',
+];
+
+const PRODUTO_REALIZADO_OPTIONS = [
+  'Oficina',
+  'Visita mediada',
+  'Palestra',
+  'Exposição',
+  'Reunião',
+  'Ação educativa',
+  'Ação cultural',
+  'Ação de comunicação',
+  'Registro',
+  'Relatório',
+  'Outro',
+];
 
 function toMonthKey(mes, ano) {
   const idx = MESES_NUM.indexOf(mes);
@@ -49,6 +73,51 @@ function normalizeFieldValue(field, value) {
   return Number.isFinite(n) ? n : '';
 }
 
+function uniqueStrings(values = []) {
+  return Array.from(new Set((values || []).filter(Boolean).map((v) => String(v).trim()).filter(Boolean)));
+}
+
+function normalizeMetaOptions(items = []) {
+  return (items || []).map((item) => ({
+    id: String(item?.id ?? item?.value ?? item?.slug ?? item?.titulo ?? item?.nome ?? ''),
+    label: String(
+      item?.titulo ||
+      item?.nome ||
+      item?.label ||
+      item?.descricao_curta ||
+      item?.id ||
+      ''
+    ).trim(),
+  })).filter((item) => item.id && item.label);
+}
+
+function normalizeTeamOptions(items = []) {
+  return (items || []).map((item) => ({
+    id: String(item?.id ?? item?.user_email ?? item?.email_pessoal ?? item?.email ?? item?.nome ?? ''),
+    label: String(
+      item?.user_name ||
+      item?.nome ||
+      item?.full_name ||
+      item?.name ||
+      item?.email_pessoal ||
+      item?.user_email ||
+      item?.email ||
+      ''
+    ).trim(),
+  })).filter((item) => item.id && item.label);
+}
+
+function normalizeProgramacaoOptions(items = []) {
+  return (items || []).map((item) => ({
+    id: String(item?.id ?? ''),
+    label: String(item?.titulo || item?.nome_acao || item?.nome || item?.id || '').trim(),
+    sinopse: String(item?.sinopse || item?.descricao || '').trim(),
+    museu: String(item?.museu || '').trim(),
+    tipo: String(item?.tipo || item?.tipo_atividade || '').trim(),
+    data_inicio: String(item?.data_inicio || item?.data || '').trim(),
+  })).filter((item) => item.id && item.label);
+}
+
 export default function AtividadesSection({
   atividades = [],
   setAtividades,
@@ -58,13 +127,19 @@ export default function AtividadesSection({
   mesReferencia = '',
   ano = 2026,
 }) {
-  const museus = useMemo(
-    () => Array.from(new Set((museusOptions || []).filter(Boolean))),
+  const museusBase = useMemo(
+    () => uniqueStrings([
+      'MIS',
+      'MHAB',
+      'MUMO',
+      'Ação geral',
+      ...(museusOptions || []),
+    ]),
     [museusOptions]
   );
 
   const tiposAcao = useMemo(
-    () => Array.from(new Set((tiposAcaoOptions || []).filter(Boolean))),
+    () => uniqueStrings(tiposAcaoOptions || []),
     [tiposAcaoOptions]
   );
 
@@ -84,6 +159,45 @@ export default function AtividadesSection({
     enabled: !!currentKey || !!prevKey,
     staleTime: 60000,
   });
+
+  const { data: teamMembersRaw = [] } = useQuery({
+    queryKey: ['report-team-members'],
+    queryFn: async () => {
+      try {
+        return await base44.entities.TeamMember.list('-created_date', 1000);
+      } catch (_err) {
+        return [];
+      }
+    },
+    staleTime: 60000,
+  });
+
+  const { data: metasRaw = [] } = useQuery({
+    queryKey: ['report-metas'],
+    queryFn: async () => {
+      try {
+        return await base44.entities.Meta.list('-created_date', 1000);
+      } catch (_err) {
+        return [];
+      }
+    },
+    staleTime: 60000,
+  });
+
+  const teamOptions = useMemo(
+    () => normalizeTeamOptions(teamMembersRaw),
+    [teamMembersRaw]
+  );
+
+  const metaOptions = useMemo(
+    () => [{ id: 'nenhuma-meta', label: 'Nenhuma meta' }, ...normalizeMetaOptions(metasRaw)],
+    [metasRaw]
+  );
+
+  const programacaoOptions = useMemo(
+    () => normalizeProgramacaoOptions(programacaoItems),
+    [programacaoItems]
+  );
 
   const updateAtividade = useCallback(
     (index, field, value) => {
@@ -123,6 +237,11 @@ export default function AtividadesSection({
           tipo_acao: '',
           tipo_acao_lista: [],
           produto_realizado: '',
+          equipe_participante_ids: [],
+          equipe_participante_nomes: '',
+          meta_vinculada_ids: [],
+          meta_vinculada_titulos: '',
+          programacao_id: '',
           ...base,
         });
 
@@ -137,11 +256,15 @@ export default function AtividadesSection({
     const item = programacaoItems.find((p) => p.id === value);
     if (!item) return;
 
+    const museuLista = item.museu ? [item.museu] : [];
+
     addAtividade({
       nome: item.titulo || item.nome_acao || '',
       descricao: item.sinopse || item.descricao || '',
-      museu: item.museu || '',
+      museu: museuLista.join(', '),
+      museu_lista: museuLista,
       tipo_acao: item.tipo || item.tipo_atividade || '',
+      tipo_acao_lista: item.tipo || item.tipo_atividade ? [item.tipo || item.tipo_atividade] : [],
       data_inicio: item.data_inicio || '',
       programacao_id: item.id,
     });
@@ -215,8 +338,13 @@ export default function AtividadesSection({
           <AtividadeCamposBasicos
             atividade={atividade}
             canEdit={canEdit}
-            museus={museus}
+            museus={museusBase}
             tiposAcao={tiposAcao}
+            classificacaoOptions={CLASSIFICACAO_OPTIONS}
+            produtoRealizadoOptions={PRODUTO_REALIZADO_OPTIONS}
+            teamOptions={teamOptions}
+            metaOptions={metaOptions}
+            programacaoOptions={programacaoOptions}
             onChange={(field, value) => updateAtividade(index, field, value)}
           />
 
