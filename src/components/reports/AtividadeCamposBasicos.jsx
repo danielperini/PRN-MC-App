@@ -53,6 +53,20 @@ export default function AtividadeCamposBasicos({
       : atividade?.tipo_acao
   );
 
+  const quantidadeOcorrencias = parseNum(
+    atividade?.quantidade_ocorrencias ?? atividade?.quantas_vezes_ocorreu,
+    1
+  ) || 1;
+
+  const quantidadeProdutosGerados = parseNum(
+    atividade?.quantidade_produtos_gerados ?? atividade?.quantidade_produtos,
+    0
+  );
+
+  const publicoEstimado = parseNum(atividade?.publico_estimado, 0);
+  const publicoTotal = publicoEstimado * quantidadeOcorrencias;
+  const totalProdutosGerados = quantidadeProdutosGerados * quantidadeOcorrencias;
+
   function handleMuseusChange(nextValues) {
     const lista = Array.isArray(nextValues) ? nextValues : [];
     onChange('museu_lista', lista);
@@ -124,8 +138,7 @@ export default function AtividadeCamposBasicos({
             onChange={(e) => {
               const pub = parseNum(e.target.value, 0);
               onChange('publico_estimado', pub);
-              const rep = parseNum(atividade?.quantas_vezes_ocorreu, 1) || 1;
-              onChange('publico_total', pub * rep);
+              onChange('publico_total', pub * quantidadeOcorrencias);
             }}
             disabled={!canEdit}
             placeholder="0"
@@ -164,14 +177,16 @@ export default function AtividadeCamposBasicos({
           <Input
             type="number"
             min="1"
-            value={toInputValue(atividade?.quantas_vezes_ocorreu, 1)}
+            value={toInputValue(
+              atividade?.quantidade_ocorrencias ?? atividade?.quantas_vezes_ocorreu,
+              1
+            )}
             onChange={(e) => {
               const val = parseNum(e.target.value, 1) || 1;
-              onChange('quantas_vezes_ocorreu', val);
-              const pub = parseNum(atividade?.publico_estimado, 0);
-              onChange('publico_total', pub * val);
-              const qtd = parseNum(atividade?.quantidade_produtos, 0);
-              onChange('total_produtos_gerados', qtd * val);
+              onChange('quantidade_ocorrencias', val);
+              onChange('quantas_vezes_ocorreu', val); // compatibilidade
+              onChange('publico_total', publicoEstimado * val);
+              onChange('total_produtos_gerados', quantidadeProdutosGerados * val);
             }}
             disabled={!canEdit}
             placeholder="1"
@@ -192,7 +207,7 @@ export default function AtividadeCamposBasicos({
         <Field label="Público total (estimado × ocorrências)">
           <Input
             type="number"
-            value={parseNum(atividade?.publico_estimado, 0) * (parseNum(atividade?.quantas_vezes_ocorreu, 1) || 1)}
+            value={publicoTotal}
             readOnly
             disabled
             className="bg-gray-50 font-medium"
@@ -214,12 +229,15 @@ export default function AtividadeCamposBasicos({
           <Input
             type="number"
             min="0"
-            value={toInputValue(atividade?.quantidade_produtos, 0)}
+            value={toInputValue(
+              atividade?.quantidade_produtos_gerados ?? atividade?.quantidade_produtos,
+              0
+            )}
             onChange={(e) => {
               const qtd = parseNum(e.target.value, 0);
-              onChange('quantidade_produtos', qtd);
-              const rep = parseNum(atividade?.quantas_vezes_ocorreu, 1) || 1;
-              onChange('total_produtos_gerados', qtd * rep);
+              onChange('quantidade_produtos_gerados', qtd);
+              onChange('quantidade_produtos', qtd); // compatibilidade
+              onChange('total_produtos_gerados', qtd * quantidadeOcorrencias);
             }}
             disabled={!canEdit}
             placeholder="0"
@@ -229,7 +247,7 @@ export default function AtividadeCamposBasicos({
         <Field label="Total de produtos gerados (auto)">
           <Input
             type="number"
-            value={parseNum(atividade?.quantidade_produtos, 0) * (parseNum(atividade?.quantas_vezes_ocorreu, 1) || 1)}
+            value={totalProdutosGerados}
             readOnly
             disabled
             className="bg-gray-50 font-medium"
