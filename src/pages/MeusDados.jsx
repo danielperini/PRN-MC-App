@@ -278,7 +278,6 @@ function MeusDadosInner() {
         {!isSponsor && (
           <ContractAutoFill
             userEmail={targetEmail}
-            userCpf={formData.cpf || ''}
             onApply={handleAiApply}
             appliedFields={aiApplied}
           />
