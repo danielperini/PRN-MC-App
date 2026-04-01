@@ -16,6 +16,12 @@ export function fileToBase64(file) {
   });
 }
 
+const DEFAULT_WEB_APP_URL =
+  'https://script.google.com/macros/s/AKfycbwnAs6KpIipWiMTU5XxmfJWvPdrOpdIERkQv_VGDUyxe79iNjefwDF3uA6HF1qox5km/exec';
+
+// TROQUE pelo mesmo token definido no seu Code.gs
+const DEFAULT_TOKEN = 'COLE_AQUI_O_MESMO_API_TOKEN_DO_CODE_GS';
+
 function getExt(fileName = '') {
   const parts = String(fileName).split('.');
   return parts.length > 1 ? parts.pop().toLowerCase() : '';
@@ -68,13 +74,8 @@ export async function uploadNotaFiscalToDrive(file, dados = {}) {
     throw new Error('Arquivo não informado.');
   }
 
-  const webAppUrl =
-    dados.webAppUrl ||
-    'COLE_AQUI_A_URL_DO_SEU_GOOGLE_APPS_SCRIPT';
-
-  const token =
-    dados.token ||
-    'COLE_AQUI_O_MESMO_TOKEN_DO_APPS_SCRIPT';
+  const webAppUrl = dados.webAppUrl || DEFAULT_WEB_APP_URL;
+  const token = dados.token || DEFAULT_TOKEN;
 
   if (!webAppUrl || webAppUrl.includes('COLE_AQUI')) {
     throw new Error('URL do Apps Script não configurada.');
