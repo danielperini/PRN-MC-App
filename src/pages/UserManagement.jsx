@@ -203,7 +203,7 @@ function PermissionsDialog({ user, permissions, onClose }) {
   );
 }
 
-function UserCard({ user, onEdit, onPassword, onPermissions }) {
+function UserCard({ user, onEdit, onPassword, onPermissions, onRoleChange }) {
   const role = user.permissions?.base_role || user.role || 'user';
   const initials = (user.full_name || user.email || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
   const funcao = user.funcao || null;
@@ -226,17 +226,25 @@ function UserCard({ user, onEdit, onPassword, onPermissions }) {
         </div>
       </div>
 
-      {/* Role + equipe + actions */}
+      {/* Role select + equipe badges + actions */}
       <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-        {funcao && (
-          <Badge className="text-xs px-2.5 py-0.5 bg-gray-100 text-gray-700">{funcao}</Badge>
-        )}
         {equipe && (
           <Badge className="text-xs px-2.5 py-0.5 bg-slate-100 text-slate-600">{equipe}</Badge>
         )}
-        <Badge className={`text-xs px-2.5 py-0.5 ${ROLE_COLORS[role] || ROLE_COLORS.user}`}>
-          {ROLE_LABELS[role] || role}
-        </Badge>
+
+        {/* Inline role selector */}
+        <Select value={role} onValueChange={v => onRoleChange(user, v)}>
+          <SelectTrigger className={`h-7 text-xs px-2.5 border-0 font-medium ${ROLE_COLORS[role] || ROLE_COLORS.user}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
+            <SelectItem value="COORDENADOR">Coordenador</SelectItem>
+            <SelectItem value="ADMIN">Administrador</SelectItem>
+            <SelectItem value="PATROCINADOR">Patrocinador</SelectItem>
+          </SelectContent>
+        </Select>
+
         <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => onEdit(user)}>
           <Pencil className="w-3 h-3" />
           Editar
@@ -259,6 +267,7 @@ export default function UserManagement() {
   const [passwordUser, setPasswordUser] = useState(null);
   const [permissionsUser, setPermissionsUser] = useState(null);
   const [showInvite, setShowInvite] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data = [], isLoading } = useQuery({
     queryKey: ['user-management'],
@@ -273,6 +282,20 @@ export default function UserManagement() {
       }));
     },
   });
+
+  async function handleRoleChange(user, newRole) {
+    try {
+      const perms = user.permissions;
+      const d = { base_role: newRole, user_email: user.email, user_name: user.full_name };
+      if (perms?.id) {
+        await base44.entities.UserPermission.update(perms.id, { ...perms, ...d });
+      } else {
+        await base44.entities.UserPermission.create(d);
+      }
+      toast.success(`Papel alterado para ${newRole}`);
+      queryClient.invalidateQueries(['user-management']);
+    } catch (e) { toast.error('Erro: ' + e.message); }
+  }
 
   const filtered = data.filter(u =>
     (u.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -324,6 +347,7 @@ export default function UserManagement() {
                 onEdit={setEditingUser}
                 onPassword={setPasswordUser}
                 onPermissions={setPermissionsUser}
+                onRoleChange={handleRoleChange}
               />
             ))}
           </div>
