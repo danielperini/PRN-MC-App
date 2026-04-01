@@ -1,23 +1,22 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-// Backup de um único Attachment para o Google Drive
-// Funciona tanto via frontend quanto via automação
-// Payload aceito:
-// { attachment_id: "..." }
-// ou { event: { entity_id: "..." } }
-// ou { data: { event: { entity_id: "..." } } }
+/**
+ * Backup de um Attachment para o Google Drive.
+ * Usa escopo drive.file — NÃO pode listar/buscar arquivos com query.
+ * Cacheia IDs de pastas no BackupLog para evitar duplicatas.
+ */
 
-// Pasta raiz de evidências por atividade
 const ATIVIDADES_ROOT_FOLDER_ID = '1JIQOY1eY29Qt-iUFgivfioaSoaFXGFJy';
+const CACHE_KEY_PREFIX = 'drive_folder_cache__';
 
-function sanitizeFolderName(value: string | undefined | null) {
-  return String(value || 'Sem Usuario')
+function sanitize(value) {
+  return String(value || 'Sem_Nome')
     .trim()
     .replace(/[\/\\:*?"<>|]/g, '_')
-    .slice(0, 120) || 'Sem Usuario';
+    .slice(0, 80) || 'Sem_Nome';
 }
 
-function extractAttachmentId(body: any): string | null {
+function extractAttachmentId(body) {
   return (
     body?.attachment_id ||
     body?.entity_id ||
@@ -28,50 +27,63 @@ function extractAttachmentId(body: any): string | null {
   );
 }
 
-async function findFolder(accessToken: string, folderName: string, parentFolderId: string) {
-  const q = encodeURIComponent(
-    `name='${folderName}' and '${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
-  );
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`, {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  const data = await res.json();
-  return data.files?.[0]?.id || null;
-}
-
-async function createFolder(accessToken: string, folderName: string, parentFolderId: string) {
+async function createDriveFolder(accessToken, folderName, parentId) {
   const res = await fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       name: folderName,
       mimeType: 'application/vnd.google-apps.folder',
-      parents: [parentFolderId]
-    })
+      parents: [parentId],
+    }),
   });
-
   const data = await res.json();
-  if (data.error) throw new Error(`Erro ao criar pasta: ${data.error.message}`);
+  if (data.error) throw new Error(`Erro ao criar pasta "${folderName}": ${data.error.message}`);
   return data.id;
 }
 
-async function getOrCreateFolder(accessToken: string, folderName: string, parentFolderId: string) {
-  return (await findFolder(accessToken, folderName, parentFolderId)) || (await createFolder(accessToken, folderName, parentFolderId));
+/**
+ * Retorna o ID de uma pasta, criando-a se não existir.
+ * Usa BackupLog como cache de IDs para não criar duplicatas.
+ */
+async function getOrCreateCachedFolder(base44, accessToken, folderName, parentId) {
+  const cacheKey = `${CACHE_KEY_PREFIX}${parentId}__${folderName}`;
+
+  // Tenta buscar no cache
+  const cached = await base44.asServiceRole.entities.BackupLog
+    .filter({ details: cacheKey })
+    .catch(() => []);
+
+  if (cached && cached.length > 0) {
+    const record = cached[0];
+    // O ID da pasta está armazenado no campo "entity_id"
+    if (record.entity_id && record.entity_id.length > 10) {
+      return record.entity_id;
+    }
+  }
+
+  // Cria a pasta no Drive
+  const folderId = await createDriveFolder(accessToken, folderName, parentId);
+
+  // Salva no cache
+  await base44.asServiceRole.entities.AuditLog.create({
+    action: 'CREATE',
+    entity_type: 'ATTACHMENT',
+    entity_id: folderId,
+    actor_email: 'system',
+    actor_name: 'Backup System',
+    details: cacheKey,
+  }).catch(() => null); // não bloquear se o cache falhar
+
+  return folderId;
 }
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-
-    let user: any = null;
-    try {
-      user = await base44.auth.me();
-    } catch {
-      user = null;
-    }
 
     const body = await req.json().catch(() => ({}));
     const attachment_id = extractAttachmentId(body);
@@ -91,7 +103,6 @@ Deno.serve(async (req) => {
         reason: 'Backup já realizado',
         attachment_id,
         drive_file_id: attachment.drive_file_id,
-        backup_date: attachment.backup_date
       });
     }
 
@@ -105,48 +116,37 @@ Deno.serve(async (req) => {
       /\.(jpg|jpeg|png|gif|webp)$/i.test(attachment.file_name || '') ||
       /^image\//i.test(attachment.file_type || '');
 
-    let uploaderName = 'Sem Usuario';
+    // Determinar label da subpasta: nome da atividade ou autor do relatório
+    let folderLabel = 'Sem_Atividade';
 
-    if (attachment.report_id) {
-      const report = await base44.asServiceRole.entities.Report.get(attachment.report_id).catch(() => null);
-      uploaderName = sanitizeFolderName(
-        report?.author_name ||
-        user?.full_name ||
-        user?.email ||
-        'Sem Usuario'
-      );
-    } else {
-      uploaderName = sanitizeFolderName(user?.full_name || user?.email || 'Sem Usuario');
-    }
-
-    // Determinar nome da pasta: por atividade (se disponível), senão por autor
-    let folderLabel = uploaderName;
-    if (attachment.activity_id) {
-      // Tentar buscar nome da atividade pelo report
-      if (attachment.report_id) {
-        const activities = await base44.asServiceRole.entities.Activity
-          .filter({ report_id: attachment.report_id })
-          .catch(() => []);
-        const act = activities.find(
-          (a: any) => a.id === attachment.activity_id || `activity_${a.index}` === attachment.activity_id
-        );
-        if (act?.titulo || act?.nome) {
-          folderLabel = sanitizeFolderName(act.titulo || act.nome);
-        }
+    if (attachment.activity_id && attachment.report_id) {
+      const activities = await base44.asServiceRole.entities.Activity
+        .filter({ report_id: attachment.report_id })
+        .catch(() => []);
+      const act = activities.find(a => a.id === attachment.activity_id);
+      if (act?.titulo) {
+        folderLabel = sanitize(act.titulo);
       }
     }
 
-    const typeFolder = isPhoto ? 'Fotos' : 'Documentos';
-    const typeFolderId = await getOrCreateFolder(accessToken, typeFolder, ATIVIDADES_ROOT_FOLDER_ID);
-    const targetFolderId = await getOrCreateFolder(accessToken, folderLabel, typeFolderId);
+    if (folderLabel === 'Sem_Atividade' && attachment.report_id) {
+      const report = await base44.asServiceRole.entities.Report.get(attachment.report_id).catch(() => null);
+      if (report?.author_name) folderLabel = sanitize(report.author_name);
+    }
 
+    // Estrutura: Root / Fotos|Documentos / NomeDaAtividade
+    const typeLabel = isPhoto ? 'Fotos' : 'Documentos';
+    const typeFolderId = await getOrCreateCachedFolder(base44, accessToken, typeLabel, ATIVIDADES_ROOT_FOLDER_ID);
+    const targetFolderId = await getOrCreateCachedFolder(base44, accessToken, folderLabel, typeFolderId);
+
+    // Download do arquivo original
     const fileResponse = await fetch(attachment.file_url);
     if (!fileResponse.ok) {
       return Response.json({ error: 'Não foi possível baixar o arquivo original' }, { status: 400 });
     }
-
     const fileBlob = await fileResponse.blob();
 
+    // Upload para o Drive
     const formData = new FormData();
     formData.append(
       'metadata',
@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
-        body: formData
+        body: formData,
       }
     );
 
@@ -172,11 +172,10 @@ Deno.serve(async (req) => {
     }
 
     const backupDate = new Date().toISOString();
-
     await base44.asServiceRole.entities.Attachment.update(attachment_id, {
       backup_done: true,
       drive_file_id: result.id,
-      backup_date: backupDate
+      backup_date: backupDate,
     });
 
     return Response.json({
@@ -185,10 +184,10 @@ Deno.serve(async (req) => {
       drive_file_id: result.id,
       drive_link: `https://drive.google.com/file/d/${result.id}/view`,
       backup_date: backupDate,
-      folder: isPhoto ? `Fotos/${uploaderName}` : `Documentos/Anexos/${uploaderName}`
+      folder: `${typeLabel}/${folderLabel}`,
     });
-  } catch (error: any) {
-    console.error('Erro no backup do arquivo:', error);
+  } catch (error) {
+    console.error('Erro no backup:', error);
     return Response.json({ error: error?.message || String(error) }, { status: 500 });
   }
 });
