@@ -129,8 +129,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [uploadingNF, setUploadingNF] = useState(false);
-  const [uploadingXML, setUploadingXML] = useState(false);
+  const [pdfFile, setPdfFile] = useState(null);
+  const [xmlFile, setXmlFile] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [analysisStep, setAnalysisStep] = useState('');
 
@@ -143,6 +143,18 @@ export default function TeamPaymentSubmit({ userEmail }) {
     nota_fiscal_file_name: '',
     xml_file_name: '',
   });
+
+  function handleSelectPDF(file) {
+    if (!file) return;
+    setPdfFile(file);
+    setForm(prev => ({ ...prev, nota_fiscal_file_name: file.name, nota_fiscal_url: '' }));
+  }
+
+  function handleSelectXML(file) {
+    if (!file) return;
+    setXmlFile(file);
+    setForm(prev => ({ ...prev, xml_file_name: file.name, xml_url: '' }));
+  }
 
   const monthOptions = useMemo(() => buildMonthOptions(), []);
 
@@ -183,37 +195,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
     return { ok: true };
   }
 
-  async function handleUploadNF(file) {
-    if (!file) return;
-    if (!selectedComp) { toast.error('Selecione primeiro o mês.'); return; }
-    setUploadingNF(true);
-    try {
-      const renamed = await renameFile(file, buildFileName({ numeroNF: form.numero_nf || 'NF', member, valor: form.valor_nf || valorParcela, extension: 'pdf' }));
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
-      setForm(prev => ({ ...prev, nota_fiscal_url: file_url, nota_fiscal_file_name: renamed.name }));
-      toast.success('Nota fiscal enviada e renomeada.');
-    } catch (e) {
-      toast.error(e?.message || 'Erro ao enviar NF.');
-    } finally {
-      setUploadingNF(false);
-    }
-  }
 
-  async function handleUploadXML(file) {
-    if (!file) return;
-    if (!selectedComp) { toast.error('Selecione primeiro o mês.'); return; }
-    setUploadingXML(true);
-    try {
-      const renamed = await renameFile(file, buildFileName({ numeroNF: form.numero_nf || 'NF', member, valor: form.valor_nf || valorParcela, extension: 'xml' }));
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
-      setForm(prev => ({ ...prev, xml_url: file_url, xml_file_name: renamed.name }));
-      toast.success('XML enviado e renomeado.');
-    } catch (e) {
-      toast.error(e?.message || 'Erro ao enviar XML.');
-    } finally {
-      setUploadingXML(false);
-    }
-  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -221,7 +203,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
     if (!memberStatus.ok) { toast.error('Atualize seus dados em "Meus Dados" antes de enviar.'); return; }
     if (!selectedComp) { toast.error('Selecione o mês.'); return; }
     if (!form.numero_nf) { toast.error('Informe o número da nota.'); return; }
-    if (!form.nota_fiscal_url || !form.xml_url) { toast.error('Envie o PDF e o XML.'); return; }
+    if (!pdfFile && !form.nota_fiscal_url) { toast.error('Selecione o arquivo PDF da nota fiscal.'); return; }
+    if (!xmlFile && !form.xml_url) { toast.error('Selecione o arquivo XML da nota fiscal.'); return; }
 
     setSubmitting(true);
     setAnalysis(null);
@@ -230,6 +213,24 @@ export default function TeamPaymentSubmit({ userEmail }) {
       setAnalysisStep('Verificando relatório anterior...');
       const repCheck = await checkPreviousReport();
       if (!repCheck.ok) { toast.error(repCheck.message); setSubmitting(false); setAnalysisStep(''); return; }
+
+      // Upload dos arquivos agora (se ainda não foram enviados)
+      if (pdfFile && !form.nota_fiscal_url) {
+        setAnalysisStep('Enviando PDF...');
+        const renamed = await renameFile(pdfFile, buildFileName({ numeroNF: form.numero_nf || 'NF', member, valor: form.valor_nf || valorParcela, extension: 'pdf' }));
+        const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
+        setForm(prev => ({ ...prev, nota_fiscal_url: file_url, nota_fiscal_file_name: renamed.name }));
+        form.nota_fiscal_url = file_url;
+        form.nota_fiscal_file_name = renamed.name;
+      }
+      if (xmlFile && !form.xml_url) {
+        setAnalysisStep('Enviando XML...');
+        const renamed = await renameFile(xmlFile, buildFileName({ numeroNF: form.numero_nf || 'NF', member, valor: form.valor_nf || valorParcela, extension: 'xml' }));
+        const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
+        setForm(prev => ({ ...prev, xml_url: file_url, xml_file_name: renamed.name }));
+        form.xml_url = file_url;
+        form.xml_file_name = renamed.name;
+      }
 
       setAnalysisStep('Analisando nota fiscal com IA...');
       const analysisResult = await base44.functions.invoke('validateTeamPaymentInvoice', {
@@ -314,6 +315,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
       toast.success('Envio realizado com sucesso! As notificações foram disparadas.');
       setOpen(false);
+      setPdfFile(null);
+      setXmlFile(null);
       setForm({ competencia: '', numero_nf: '', valor_nf: '', nota_fiscal_url: '', xml_url: '', nota_fiscal_file_name: '', xml_file_name: '' });
       setAnalysis(null);
       setAnalysisStep('');
@@ -420,12 +423,17 @@ export default function TeamPaymentSubmit({ userEmail }) {
               <div className="space-y-2">
                 <Label>Escolher arquivo de nota fiscal (PDF) *</Label>
                 <label className="border-2 border-dashed rounded-xl p-4 block cursor-pointer hover:bg-gray-50 transition">
-                  <input type="file" accept=".pdf" className="hidden" onChange={e => handleUploadNF(e.target.files?.[0])} disabled={uploadingNF || submitting} />
+                  <input type="file" accept=".pdf" className="hidden" onChange={e => handleSelectPDF(e.target.files?.[0])} disabled={submitting} />
                   <div className="flex items-center gap-2 text-sm text-gray-700">
-                    {uploadingNF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                    {form.nota_fiscal_file_name || 'Selecionar arquivo PDF'}
+                    <Upload className="w-4 h-4" />
+                    {pdfFile ? <span className="text-green-700 font-medium">{pdfFile.name}</span> : 'Selecionar arquivo PDF'}
                   </div>
                 </label>
+                {pdfFile && (
+                  <div className="text-xs text-green-700 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Arquivo selecionado — será enviado ao confirmar
+                  </div>
+                )}
                 {form.nota_fiscal_url && (
                   <div className="space-y-2">
                     <a href={form.nota_fiscal_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
@@ -440,12 +448,17 @@ export default function TeamPaymentSubmit({ userEmail }) {
               <div className="space-y-2">
                 <Label>Escolher arquivo XML *</Label>
                 <label className="border-2 border-dashed rounded-xl p-4 block cursor-pointer hover:bg-gray-50 transition">
-                  <input type="file" accept=".xml,text/xml,application/xml" className="hidden" onChange={e => handleUploadXML(e.target.files?.[0])} disabled={uploadingXML || submitting} />
+                  <input type="file" accept=".xml,text/xml,application/xml" className="hidden" onChange={e => handleSelectXML(e.target.files?.[0])} disabled={submitting} />
                   <div className="flex items-center gap-2 text-sm text-gray-700">
-                    {uploadingXML ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                    {form.xml_file_name || 'Selecionar arquivo XML'}
+                    <FileText className="w-4 h-4" />
+                    {xmlFile ? <span className="text-green-700 font-medium">{xmlFile.name}</span> : 'Selecionar arquivo XML'}
                   </div>
                 </label>
+                {xmlFile && (
+                  <div className="text-xs text-green-700 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Arquivo selecionado — será enviado ao confirmar
+                  </div>
+                )}
                 {form.xml_url && (
                   <a href={form.xml_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
                     <Eye className="w-4 h-4" /> Visualizar XML gravado
@@ -521,7 +534,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={submitting || uploadingNF || uploadingXML || !memberStatus.ok}>
+              <Button type="submit" disabled={submitting || !memberStatus.ok}>
                 {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analisando e enviando...</> : 'Enviar'}
               </Button>
             </div>
