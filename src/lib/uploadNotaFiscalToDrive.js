@@ -19,7 +19,7 @@ export function fileToBase64(file) {
 const DEFAULT_WEB_APP_URL =
   'https://script.google.com/macros/s/AKfycbwnAs6KpIipWiMTU5XxmfJWvPdrOpdIERkQv_VGDUyxe79iNjefwDF3uA6HF1qox5km/exec';
 
-// TROQUE pelo mesmo token definido no seu Code.gs
+// TROQUE AQUI pelo mesmo valor do const API_TOKEN no seu Code.gs
 const DEFAULT_TOKEN = 'COLE_AQUI_O_MESMO_API_TOKEN_DO_CODE_GS';
 
 function getExt(fileName = '') {
