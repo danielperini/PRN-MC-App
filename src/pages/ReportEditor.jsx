@@ -4,11 +4,19 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import AtividadesSection from '@/components/reports/AtividadesSection';
+import ReportTabsNavigation from '@/components/reports/ReportTabsNavigation';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 function normalizeNullableNumber(value) {
   if (value === '' || value === null || value === undefined) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function toInputValue(value, fallback = '') {
+  return value === null || value === undefined ? fallback : value;
 }
 
 function getStatusLabel(status) {
@@ -43,12 +51,35 @@ function getStatusClasses(status) {
   }
 }
 
+function Field({ label, children }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs text-gray-600">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function normalizeOportunidades(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [''];
+  return [String(value)];
+}
+
 export default function ReportEditor() {
   const [params] = useSearchParams();
   const reportId = params.get('id');
 
+  const [currentTab, setCurrentTab] = useState('identificacao');
   const [form, setForm] = useState({
     atividades: [],
+    oportunidades: [''],
+    comentarios_coordenacao: '',
+    comentarios_gerais: '',
+    avaliacao_pontos_positivos: '',
+    avaliacao_desafios: '',
+    avaliacao_sugestoes: '',
+    historico_observacoes: '',
   });
 
   const { data: report, refetch } = useQuery({
@@ -71,6 +102,13 @@ export default function ReportEditor() {
             total_atividades: atividade?.total_atividades ?? '',
           }))
         : [],
+      oportunidades: normalizeOportunidades(report.oportunidades),
+      comentarios_coordenacao: report?.comentarios_coordenacao ?? '',
+      comentarios_gerais: report?.comentarios_gerais ?? '',
+      avaliacao_pontos_positivos: report?.avaliacao_pontos_positivos ?? '',
+      avaliacao_desafios: report?.avaliacao_desafios ?? '',
+      avaliacao_sugestoes: report?.avaliacao_sugestoes ?? '',
+      historico_observacoes: report?.historico_observacoes ?? '',
     });
   }, [report]);
 
@@ -84,10 +122,49 @@ export default function ReportEditor() {
     return Array.isArray(valores) ? valores.filter(Boolean) : [];
   }, [report]);
 
+  const isApproved = form?.status === 'APPROVED';
+
+  function updateField(field, value) {
+    setForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  }
+
+  function updateOportunidade(index, value) {
+    setForm((prev) => {
+      const list = Array.isArray(prev.oportunidades) ? [...prev.oportunidades] : [];
+      list[index] = value;
+      return {
+        ...prev,
+        oportunidades: list,
+      };
+    });
+  }
+
+  function addOportunidade() {
+    setForm((prev) => ({
+      ...prev,
+      oportunidades: [...(Array.isArray(prev.oportunidades) ? prev.oportunidades : []), ''],
+    }));
+  }
+
+  function removeOportunidade(index) {
+    setForm((prev) => {
+      const list = Array.isArray(prev.oportunidades) ? [...prev.oportunidades] : [];
+      list.splice(index, 1);
+      return {
+        ...prev,
+        oportunidades: list.length ? list : [''],
+      };
+    });
+  }
+
   function buildPayload(nextStatus) {
     return {
       ...form,
       ...(nextStatus ? { status: nextStatus } : {}),
+      oportunidades: (form.oportunidades || []).map((item) => String(item || '').trim()).filter(Boolean),
       atividades: (form.atividades || []).map((a) => ({
         ...a,
         quantidade_ocorrencias: normalizeNullableNumber(a.quantidade_ocorrencias),
@@ -131,13 +208,17 @@ export default function ReportEditor() {
     onError: (e) => toast.error(e?.message || 'Erro ao enviar relatório'),
   });
 
-  const isApproved = form?.status === 'APPROVED';
   const canSubmit = !isApproved && !saveMutation.isPending && !submitMutation.isPending;
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-xl font-semibold">Editar Relatório</h1>
+        <div>
+          <h1 className="text-xl font-semibold">Editar Relatório</h1>
+          <p className="text-sm text-gray-500">
+            Preencha as abas do relatório e envie para revisão da coordenação.
+          </p>
+        </div>
 
         <div className="flex items-center gap-2">
           <span
@@ -172,26 +253,230 @@ export default function ReportEditor() {
         </div>
       )}
 
-      <AtividadesSection
-        atividades={form.atividades || []}
-        setAtividades={(updater) => {
-          setForm((prev) => {
-            const atividadesAtuais = Array.isArray(prev.atividades) ? prev.atividades : [];
-            const novasAtividades =
-              typeof updater === 'function' ? updater(atividadesAtuais) : updater;
-
-            return {
-              ...prev,
-              atividades: Array.isArray(novasAtividades) ? novasAtividades : [],
-            };
-          });
-        }}
-        canEdit={!isApproved}
-        museusOptions={museusOptions}
-        tiposAcaoOptions={tiposAcaoOptions}
-        mesReferencia={form?.mes_referencia || report?.mes_referencia || ''}
-        ano={Number(form?.ano || report?.ano || new Date().getFullYear())}
+      <ReportTabsNavigation
+        currentTab={currentTab}
+        formData={form}
+        onTabChange={setCurrentTab}
       />
+
+      {currentTab === 'identificacao' && (
+        <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
+          <div className="grid md:grid-cols-3 gap-4">
+            <Field label="Mês de referência">
+              <Input
+                value={toInputValue(form?.mes_referencia, '')}
+                onChange={(e) => updateField('mes_referencia', e.target.value)}
+                disabled={isApproved}
+              />
+            </Field>
+
+            <Field label="Ano">
+              <Input
+                type="number"
+                value={toInputValue(form?.ano, '')}
+                onChange={(e) => updateField('ano', e.target.value)}
+                disabled={isApproved}
+              />
+            </Field>
+
+            <Field label="Museu">
+              <Input
+                value={toInputValue(form?.museu, '')}
+                onChange={(e) => updateField('museu', e.target.value)}
+                disabled={isApproved}
+              />
+            </Field>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <Field label="Autor do relatório">
+              <Input
+                value={toInputValue(form?.author_name, '')}
+                onChange={(e) => updateField('author_name', e.target.value)}
+                disabled={isApproved}
+              />
+            </Field>
+
+            <Field label="E-mail do autor">
+              <Input
+                value={toInputValue(form?.author_email, '')}
+                onChange={(e) => updateField('author_email', e.target.value)}
+                disabled={isApproved}
+              />
+            </Field>
+          </div>
+
+          <Field label="Resumo / apresentação do período">
+            <Textarea
+              value={toInputValue(form?.resumo_periodo, '')}
+              onChange={(e) => updateField('resumo_periodo', e.target.value)}
+              rows={5}
+              disabled={isApproved}
+            />
+          </Field>
+        </div>
+      )}
+
+      {currentTab === 'atividades' && (
+        <AtividadesSection
+          atividades={form.atividades || []}
+          setAtividades={(updater) => {
+            setForm((prev) => {
+              const atividadesAtuais = Array.isArray(prev.atividades) ? prev.atividades : [];
+              const novasAtividades =
+                typeof updater === 'function' ? updater(atividadesAtuais) : updater;
+
+              return {
+                ...prev,
+                atividades: Array.isArray(novasAtividades) ? novasAtividades : [],
+              };
+            });
+          }}
+          canEdit={!isApproved}
+          museusOptions={museusOptions}
+          tiposAcaoOptions={tiposAcaoOptions}
+          mesReferencia={form?.mes_referencia || report?.mes_referencia || ''}
+          ano={Number(form?.ano || report?.ano || new Date().getFullYear())}
+        />
+      )}
+
+      {currentTab === 'oportunidades' && (
+        <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-800">
+              Oportunidades identificadas
+            </h2>
+
+            {!isApproved && (
+              <button
+                type="button"
+                onClick={addOportunidade}
+                className="px-3 py-1.5 border rounded text-sm"
+              >
+                Adicionar oportunidade
+              </button>
+            )}
+          </div>
+
+          {(form.oportunidades || []).map((item, index) => (
+            <div key={index} className="flex gap-2">
+              <Textarea
+                value={toInputValue(item, '')}
+                onChange={(e) => updateOportunidade(index, e.target.value)}
+                rows={3}
+                disabled={isApproved}
+              />
+              {!isApproved && (
+                <button
+                  type="button"
+                  onClick={() => removeOportunidade(index)}
+                  className="px-3 py-2 border rounded h-fit"
+                >
+                  Remover
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {currentTab === 'avaliacao' && (
+        <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
+          <Field label="Pontos positivos">
+            <Textarea
+              value={toInputValue(form?.avaliacao_pontos_positivos, '')}
+              onChange={(e) => updateField('avaliacao_pontos_positivos', e.target.value)}
+              rows={5}
+              disabled={isApproved}
+            />
+          </Field>
+
+          <Field label="Desafios encontrados">
+            <Textarea
+              value={toInputValue(form?.avaliacao_desafios, '')}
+              onChange={(e) => updateField('avaliacao_desafios', e.target.value)}
+              rows={5}
+              disabled={isApproved}
+            />
+          </Field>
+
+          <Field label="Sugestões / encaminhamentos">
+            <Textarea
+              value={toInputValue(form?.avaliacao_sugestoes, '')}
+              onChange={(e) => updateField('avaliacao_sugestoes', e.target.value)}
+              rows={5}
+              disabled={isApproved}
+            />
+          </Field>
+        </div>
+      )}
+
+      {currentTab === 'comentarios' && (
+        <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
+          <Field label="Comentários gerais">
+            <Textarea
+              value={toInputValue(form?.comentarios_gerais, '')}
+              onChange={(e) => updateField('comentarios_gerais', e.target.value)}
+              rows={5}
+              disabled={isApproved}
+            />
+          </Field>
+
+          <Field label="Comentários para coordenação">
+            <Textarea
+              value={toInputValue(form?.comentarios_coordenacao, '')}
+              onChange={(e) => updateField('comentarios_coordenacao', e.target.value)}
+              rows={5}
+              disabled={isApproved}
+            />
+          </Field>
+
+          {form?.review_comment && (
+            <Field label="Comentário de aprovação">
+              <Textarea value={toInputValue(form?.review_comment, '')} rows={4} readOnly />
+            </Field>
+          )}
+
+          {form?.return_comment && (
+            <Field label="Comentário de devolução">
+              <Textarea value={toInputValue(form?.return_comment, '')} rows={4} readOnly />
+            </Field>
+          )}
+        </div>
+      )}
+
+      {currentTab === 'historico' && (
+        <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
+          <div className="grid md:grid-cols-2 gap-4">
+            <Field label="Criado em">
+              <Input value={toInputValue(form?.created_date, '')} readOnly />
+            </Field>
+
+            <Field label="Última atualização">
+              <Input value={toInputValue(form?.updated_date, '')} readOnly />
+            </Field>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <Field label="Revisor">
+              <Input value={toInputValue(form?.reviewer_name, '')} readOnly />
+            </Field>
+
+            <Field label="E-mail do revisor">
+              <Input value={toInputValue(form?.reviewer_email, '')} readOnly />
+            </Field>
+          </div>
+
+          <Field label="Observações de histórico">
+            <Textarea
+              value={toInputValue(form?.historico_observacoes, '')}
+              onChange={(e) => updateField('historico_observacoes', e.target.value)}
+              rows={5}
+              disabled={isApproved}
+            />
+          </Field>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 pt-2">
         <button
