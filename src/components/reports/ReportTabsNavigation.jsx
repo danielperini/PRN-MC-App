@@ -4,6 +4,7 @@ import { CheckCircle, AlertCircle } from 'lucide-react';
 const TABS_INFO = [
   { value: 'identificacao', label: 'Identificação', icon: '📋' },
   { value: 'atividades', label: 'Atividades', icon: '📝' },
+  { value: 'fotos', label: 'Fotos & Anexos', icon: '📸' },
   { value: 'oportunidades', label: 'Oportunidades', icon: '💡' },
   { value: 'avaliacao', label: 'Avaliação', icon: '⭐' },
   { value: 'comentarios', label: 'Comentários', icon: '💬' },

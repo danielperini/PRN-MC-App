@@ -4,6 +4,8 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import AtividadesSection from '@/components/reports/AtividadesSection';
+import AttachmentsSection from '@/components/reports/AttachmentsSection';
+import ReportPhotoSection from '@/components/reports/ReportPhotoSection';
 import ReportTabsNavigation from '@/components/reports/ReportTabsNavigation';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -103,6 +105,7 @@ export default function ReportEditor() {
           }))
         : [],
       oportunidades: normalizeOportunidades(report.oportunidades),
+      fotos: Array.isArray(report.fotos) ? report.fotos : [],
       comentarios_coordenacao: report?.comentarios_coordenacao ?? '',
       comentarios_gerais: report?.comentarios_gerais ?? '',
       avaliacao_pontos_positivos: report?.avaliacao_pontos_positivos ?? '',
@@ -338,6 +341,47 @@ export default function ReportEditor() {
           mesReferencia={form?.mes_referencia || report?.mes_referencia || ''}
           ano={Number(form?.ano || report?.ano || new Date().getFullYear())}
         />
+      )}
+
+      {currentTab === 'fotos' && reportId && (
+        <div className="space-y-6">
+          {/* Vínculos de fotos já enviadas da galeria */}
+          <div className="rounded-lg border bg-white p-4 shadow-sm">
+            <h2 className="text-sm font-semibold text-gray-800 mb-4">📎 Fotos vinculadas ao relatório</h2>
+            <ReportPhotoSection
+              photos={form.fotos || []}
+              reportId={reportId}
+              onAddPhoto={(photo) => {
+                setForm(prev => ({
+                  ...prev,
+                  fotos: [...(prev.fotos || []), photo],
+                }));
+              }}
+              onUpdatePhoto={(photoId, caption) => {
+                setForm(prev => ({
+                  ...prev,
+                  fotos: (prev.fotos || []).map(p =>
+                    p.id === photoId ? { ...p, caption } : p
+                  ),
+                }));
+              }}
+              onDeletePhoto={(photoId) => {
+                setForm(prev => ({
+                  ...prev,
+                  fotos: (prev.fotos || []).filter(p => p.id !== photoId),
+                }));
+              }}
+            />
+            <p className="text-xs text-gray-500 mt-3">💡 Vincule fotos da galeria de relatórios aprovados. Salve o relatório para persistir os vínculos.</p>
+          </div>
+
+          {/* Upload de novos arquivos e fotos */}
+          <AttachmentsSection
+            reportId={reportId}
+            canEdit={!isApproved}
+            reportData={form}
+          />
+        </div>
       )}
 
       {currentTab === 'oportunidades' && (
