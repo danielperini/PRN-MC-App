@@ -7,26 +7,25 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Search, UserPlus, Shield, User, Save, Users } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Search, UserPlus, Save, Users, KeyRound, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import InviteDialog from '@/components/users/InviteDialog';
 
 const ROLE_LABELS = {
-  ADMIN: 'Admin',
-  COORDENADOR: 'Coordenador',
-  PROFISSIONAL: 'Profissional',
-  PATROCINADOR: 'Patrocinador',
-  admin: 'Admin',
-  user: 'Usuário',
+  ADMIN: 'admin', admin: 'admin',
+  COORDENADOR: 'coordenador',
+  PROFISSIONAL: 'profissional',
+  PATROCINADOR: 'patrocinador',
+  user: 'usuário',
 };
 
 const ROLE_COLORS = {
-  ADMIN: 'bg-black text-white',
-  admin: 'bg-black text-white',
+  ADMIN: 'bg-black text-white', admin: 'bg-black text-white',
   COORDENADOR: 'bg-blue-100 text-blue-800',
-  PROFISSIONAL: 'bg-gray-100 text-gray-800',
-  PATROCINADOR: 'bg-purple-100 text-purple-800',
-  user: 'bg-gray-100 text-gray-800',
+  PROFISSIONAL: 'bg-gray-100 text-gray-700',
+  PATROCINADOR: 'bg-purple-100 text-purple-700',
+  user: 'bg-gray-100 text-gray-700',
 };
 
 const PERMISSION_GROUPS = [
@@ -40,6 +39,69 @@ const PERMISSION_GROUPS = [
   { key: 'can_curate_news', label: 'Curadoria de notícias' },
   { key: 'must_submit_monthly_reports', label: 'Enviar relatório mensal' },
 ];
+
+function EditDialog({ user, onClose }) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({ full_name: user.full_name || '', role: user.role || 'user' });
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await base44.entities.User.update(user.id, form);
+      toast.success('Usuário atualizado!');
+      queryClient.invalidateQueries(['user-management']);
+      onClose();
+    } catch (e) { toast.error('Erro: ' + e.message); }
+    setSaving(false);
+  }
+
+  return (
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Editar — {user.full_name || user.email}</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div>
+            <Label className="text-sm mb-1 block">Nome completo</Label>
+            <Input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} />
+          </div>
+          <div>
+            <Label className="text-sm mb-1 block">Papel</Label>
+            <Select value={form.role} onValueChange={v => setForm({ ...form, role: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="user">Usuário</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex gap-2 pt-2">
+          <Button onClick={save} disabled={saving} className="flex-1">{saving ? 'Salvando...' : 'Salvar'}</Button>
+          <Button variant="outline" onClick={onClose} className="flex-1">Cancelar</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PasswordDialog({ user, onClose }) {
+  const [pw, setPw] = useState('');
+  return (
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Senha — {user.full_name || user.email}</DialogTitle></DialogHeader>
+        <div className="py-3 space-y-3">
+          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            Alteração de senha automática requer plano Builder+. Oriente o usuário a usar o fluxo de redefinição de senha.
+          </p>
+          <Input placeholder="Nova senha (indisponível neste plano)" disabled />
+        </div>
+        <Button variant="outline" onClick={onClose} className="w-full">Fechar</Button>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function PermissionsDialog({ user, permissions, onClose }) {
   const queryClient = useQueryClient();
@@ -59,22 +121,17 @@ function PermissionsDialog({ user, permissions, onClose }) {
       toast.success('Permissões salvas!');
       queryClient.invalidateQueries(['user-management']);
       onClose();
-    } catch (e) {
-      toast.error('Erro ao salvar: ' + e.message);
-    }
+    } catch (e) { toast.error('Erro: ' + e.message); }
     setSaving(false);
   }
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
       <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Permissões — {user.full_name || user.email}</DialogTitle>
-        </DialogHeader>
-
+        <DialogHeader><DialogTitle>Permissões — {user.full_name || user.email}</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
           <div>
-            <label className="text-sm font-semibold text-gray-700 block mb-2">Papel principal</label>
+            <Label className="text-sm font-semibold mb-2 block">Papel principal</Label>
             <Select value={role} onValueChange={setRole}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -85,10 +142,9 @@ function PermissionsDialog({ user, permissions, onClose }) {
               </SelectContent>
             </Select>
           </div>
-
           <div>
-            <label className="text-sm font-semibold text-gray-700 block mb-2">Permissões específicas</label>
-            <div className="space-y-2">
+            <Label className="text-sm font-semibold mb-2 block">Permissões específicas</Label>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
               {PERMISSION_GROUPS.map(p => (
                 <div key={p.key} className="flex items-center gap-3">
                   <Checkbox
@@ -102,7 +158,6 @@ function PermissionsDialog({ user, permissions, onClose }) {
             </div>
           </div>
         </div>
-
         <div className="flex gap-2 pt-2">
           <Button onClick={save} disabled={saving} className="flex-1 gap-2">
             <Save className="w-4 h-4" />
@@ -115,9 +170,52 @@ function PermissionsDialog({ user, permissions, onClose }) {
   );
 }
 
+function UserCard({ user, onEdit, onPassword, onPermissions }) {
+  const role = user.permissions?.base_role || user.role || 'user';
+  const initials = (user.full_name || user.email || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center gap-4 border border-gray-200 rounded-2xl px-5 py-4 bg-white hover:bg-gray-50 transition-colors">
+      {/* Avatar + info */}
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="w-10 h-10 rounded-full bg-gray-900 text-white flex items-center justify-center text-sm font-semibold flex-shrink-0">
+          {initials}
+        </div>
+        <div className="min-w-0">
+          <p className="font-semibold text-gray-900 truncate">{user.full_name || '—'}</p>
+          <p className="text-xs text-gray-500 truncate">{user.email}</p>
+          {user.numero_matricula && (
+            <p className="text-xs text-gray-400 font-mono mt-0.5">{user.numero_matricula}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Role + actions */}
+      <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+        <Badge className={`text-xs px-2.5 py-0.5 ${ROLE_COLORS[role] || ROLE_COLORS.user}`}>
+          {ROLE_LABELS[role] || role}
+        </Badge>
+        <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => onEdit(user)}>
+          <Pencil className="w-3 h-3" />
+          Editar
+        </Button>
+        <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => onPassword(user)}>
+          <KeyRound className="w-3 h-3" />
+          Senha
+        </Button>
+        <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => onPermissions(user)}>
+          Permissões
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function UserManagement() {
   const [search, setSearch] = useState('');
   const [editingUser, setEditingUser] = useState(null);
+  const [passwordUser, setPasswordUser] = useState(null);
+  const [permissionsUser, setPermissionsUser] = useState(null);
   const [showInvite, setShowInvite] = useState(false);
 
   const { data = [], isLoading } = useQuery({
@@ -143,15 +241,15 @@ export default function UserManagement() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-5xl mx-auto px-4 md:px-6 py-8">
+      <div className="max-w-4xl mx-auto px-4 md:px-6 py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <Users className="w-6 h-6 text-black" />
+              <Users className="w-5 h-5 text-black" />
               <h1 className="text-2xl font-semibold text-black">Gestão de Usuários</h1>
             </div>
-            <p className="text-sm text-gray-500">Gerencie membros e permissões da plataforma</p>
+            <p className="text-sm text-gray-500">{data.length} usuário(s) cadastrado(s)</p>
           </div>
           <Button onClick={() => setShowInvite(true)} className="gap-2">
             <UserPlus className="w-4 h-4" />
@@ -160,7 +258,7 @@ export default function UserManagement() {
         </div>
 
         {/* Search */}
-        <div className="relative mb-6">
+        <div className="relative mb-5">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
             placeholder="Buscar por nome ou email..."
@@ -170,77 +268,37 @@ export default function UserManagement() {
           />
         </div>
 
-        {/* Users list */}
+        {/* List */}
         {isLoading ? (
           <div className="text-center py-16 text-gray-400">Carregando usuários...</div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-400">Nenhum usuário encontrado</div>
         ) : (
           <div className="space-y-3">
-            {filtered.map(u => {
-              const role = u.permissions?.base_role || u.role || 'user';
-              return (
-                <div
-                  key={u.id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-gray-200 rounded-xl px-5 py-4 bg-white hover:bg-gray-50 transition-colors"
-                >
-                  {/* Info */}
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                      {role === 'ADMIN' || role === 'admin' ? (
-                        <Shield className="w-4 h-4 text-gray-600" />
-                      ) : (
-                        <User className="w-4 h-4 text-gray-400" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium text-black truncate">{u.full_name || '—'}</p>
-                      <p className="text-xs text-gray-500 truncate">{u.email}</p>
-                    </div>
-                  </div>
-
-                  {/* Role + actions */}
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <Badge className={`text-xs ${ROLE_COLORS[role] || ROLE_COLORS.user}`}>
-                      {ROLE_LABELS[role] || role}
-                    </Badge>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1.5 text-xs"
-                      onClick={() => setEditingUser(u)}
-                    >
-                      <Shield className="w-3.5 h-3.5" />
-                      Permissões
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
+            {filtered.map(u => (
+              <UserCard
+                key={u.id}
+                user={u}
+                onEdit={setEditingUser}
+                onPassword={setPasswordUser}
+                onPermissions={setPermissionsUser}
+              />
+            ))}
           </div>
-        )}
-
-        {/* Summary */}
-        {!isLoading && (
-          <p className="text-xs text-gray-400 mt-4 text-center">{filtered.length} usuário(s)</p>
         )}
       </div>
 
-      {/* Dialogs */}
-      {editingUser && (
+      {editingUser && <EditDialog user={editingUser} onClose={() => setEditingUser(null)} />}
+      {passwordUser && <PasswordDialog user={passwordUser} onClose={() => setPasswordUser(null)} />}
+      {permissionsUser && (
         <PermissionsDialog
-          user={editingUser}
-          permissions={editingUser.permissions}
-          onClose={() => setEditingUser(null)}
+          user={permissionsUser}
+          permissions={permissionsUser.permissions}
+          onClose={() => setPermissionsUser(null)}
         />
       )}
-
       {showInvite && (
-        <InviteDialog
-          open={showInvite}
-          onClose={() => setShowInvite(false)}
-          cadastroUrl={cadastroUrl}
-        />
+        <InviteDialog open={showInvite} onClose={() => setShowInvite(false)} cadastroUrl={cadastroUrl} />
       )}
     </div>
   );
