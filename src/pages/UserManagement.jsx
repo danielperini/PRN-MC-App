@@ -8,7 +8,7 @@ export default function UserManagement() {
 
   async function loadUsers() {
     const res = await base44.entities.User.list();
-    setUsers(res?.data || []);
+    setUsers(Array.isArray(res) ? res : (res?.data || []));
   }
 
   useEffect(() => {
