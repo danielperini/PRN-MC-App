@@ -112,9 +112,9 @@ function CoordReviewInner() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['review-reports'] });
-      toastMessages.success('Ação realizada com sucesso');
+      toastMessages.approveSuccess();
     },
-    onError: (e) => toastMessages.error(e?.message || 'Erro ao processar ação'),
+    onError: (e) => toastMessages.createFailed(e?.message || 'Erro ao processar ação'),
   });
 
   return (
