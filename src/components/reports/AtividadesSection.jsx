@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -9,8 +9,16 @@ import AtividadeCamposBasicos from './AtividadeCamposBasicos';
 import ActivityPhotoLinker from './ActivityPhotoLinker';
 import ActivityAttachments from './ActivityAttachments';
 
+function createActivityId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `atividade_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export default function AtividadesSection({
   atividades: atividadesInitial = [],
+  setAtividades: setAtividadesFromParent = null,
   onAtividadesChange = null,
   canEdit = true,
   museusOptions = [],
@@ -21,39 +29,51 @@ export default function AtividadesSection({
   reportId = null,
   onSave = null,
 }) {
-  const [atividades, setAtividades] = useState(atividadesInitial);
+  const [atividades, setAtividadesLocal] = useState(Array.isArray(atividadesInitial) ? atividadesInitial : []);
   const [saving, setSaving] = useState(false);
 
-  React.useEffect(() => {
-    if (onAtividadesChange) {
-      onAtividadesChange(atividades);
+  useEffect(() => {
+    setAtividadesLocal(Array.isArray(atividadesInitial) ? atividadesInitial : []);
+  }, [atividadesInitial]);
+
+  function syncAtividades(next) {
+    setAtividadesLocal(next);
+
+    if (typeof setAtividadesFromParent === 'function') {
+      setAtividadesFromParent(next);
     }
-  }, [atividades, onAtividadesChange]);
+
+    if (typeof onAtividadesChange === 'function') {
+      onAtividadesChange(next);
+    }
+  }
 
   async function handleSaveAtividades() {
-    if (!onSave) return;
+    if (!onSave) {
+      toast.error('Função de salvar atividades não definida.');
+      return;
+    }
+
     setSaving(true);
     try {
       await onSave();
       toast.success('✅ Atividades salvas com sucesso!', { duration: 3000 });
     } catch (e) {
-      toast.error('❌ Erro ao salvar atividades: ' + (e?.message || 'tente novamente'));
+      toast.error(`❌ Erro ao salvar atividades: ${e?.message || 'tente novamente'}`);
     } finally {
       setSaving(false);
     }
   }
 
-  // 🔥 BUSCAR PROGRAMAÇÃO REAL (ProgramacaoEspelho)
   const { data: programacaoItemsRaw = [] } = useQuery({
     queryKey: ['programacao-espelho'],
     queryFn: async () => {
       const res = await base44.entities.Programacao.list('-data_inicio', 1000);
-      return res || [];
+      return Array.isArray(res) ? res : [];
     },
     staleTime: 60000,
   });
 
-  // Filtrar pelos últimos 45 dias
   const programacaoItems = useMemo(() => {
     const agora = new Date();
     const limite = new Date();
@@ -70,41 +90,44 @@ export default function AtividadesSection({
     });
   }, [programacaoItemsRaw]);
 
-  // 🔥 BUSCAR EQUIPE
   const { data: equipe = [] } = useQuery({
     queryKey: ['user-permissions-team'],
     queryFn: async () => {
       const res = await base44.entities.UserPermission.list('user_name', 1000);
-      return (res || []).map(u => ({ id: u.user_email, label: u.user_name || u.user_email }));
-    }
+      return (Array.isArray(res) ? res : []).map((u) => ({
+        id: u.user_email,
+        label: u.user_name || u.user_email,
+      }));
+    },
   });
 
-  // 🔥 BUSCAR METAS
   const { data: metas = [] } = useQuery({
     queryKey: ['project-metas'],
     queryFn: async () => {
       const res = await base44.entities.ProjectMeta.list('nome', 1000);
-      return (res || []).filter(m => m.ativo !== false).map(m => ({
-        id: m.id,
-        label: m.nome,
-        nome: m.nome,
-      }));
-    }
+      return (Array.isArray(res) ? res : [])
+        .filter((m) => m.ativo !== false)
+        .map((m) => ({
+          id: m.id,
+          label: m.nome,
+          nome: m.nome,
+        }));
+    },
   });
 
-  const updateAtividade = useCallback((index, field, value) => {
-    setAtividades((prev) => {
-      const list = [...prev];
-      list[index] = { ...list[index], [field]: value };
-      return list;
-    });
-  }, [setAtividades]);
+  function updateAtividade(index, field, value) {
+    syncAtividades(
+      atividades.map((atividade, i) =>
+        i === index ? { ...atividade, [field]: value } : atividade
+      )
+    );
+  }
 
-  const addAtividade = useCallback(() => {
-    setAtividades((prev) => [
-      ...prev,
+  function addAtividade() {
+    syncAtividades([
+      ...atividades,
       {
-        id: crypto.randomUUID(),
+        id: createActivityId(),
         classificacao: '',
         nome: '',
         descricao: '',
@@ -112,69 +135,68 @@ export default function AtividadesSection({
         tipo_acao_lista: [],
         equipe_participante_ids: [],
         meta_vinculada_ids: [],
-      }
+      },
     ]);
-  }, [setAtividades]);
+  }
 
-  const removeAtividade = useCallback((index) => {
-    setAtividades((prev) => {
-      const list = [...prev];
-      list.splice(index, 1);
-      return list;
-    });
-  }, [setAtividades]);
+  function removeAtividade(index) {
+    syncAtividades(atividades.filter((_, i) => i !== index));
+  }
+
+  function importarDaProgramacao(id) {
+    const item = programacaoItems.find((p) => p.id === id);
+    if (!item) return;
+
+    syncAtividades([
+      ...atividades,
+      {
+        id: createActivityId(),
+        classificacao: '',
+        nome: item.titulo || item.nome || '',
+        descricao: item.sinopse || item.descricao || '',
+        museu_lista: item.museu ? [item.museu] : [],
+        tipo_acao_lista: item.tipo ? [item.tipo] : [],
+        equipe_participante_ids: [],
+        meta_vinculada_ids: [],
+        programacao_id: item.id,
+      },
+    ]);
+  }
 
   return (
     <div className="space-y-6">
-
-      {/* IMPORTAR DA PROGRAMAÇÃO */}
       {canEdit && (
         <div className="bg-blue-50 p-4 rounded border">
-          <Select onValueChange={(id) => {
-            const item = programacaoItems.find(p => p.id === id);
-            if (!item) return;
-            const newId = crypto.randomUUID();
-            setAtividades(prev => [
-              ...prev,
-              {
-                id: newId,
-                classificacao: '',
-                nome: item.titulo || '',
-                descricao: item.sinopse || '',
-                museu_lista: item.museu ? [item.museu] : [],
-                tipo_acao_lista: item.tipo ? [item.tipo] : [],
-                equipe_participante_ids: [],
-                meta_vinculada_ids: [],
-                programacao_id: item.id,
-              }
-            ]);
-          }}>
+          <Select onValueChange={importarDaProgramacao}>
             <SelectTrigger>
               <SelectValue placeholder="Importar da programação (últimos 45 dias)" />
             </SelectTrigger>
             <SelectContent>
               {programacaoItems
-                .filter(p => !museu || !p.museu || p.museu === museu)
-                .map(p => (
+                .filter((p) => !museu || !p.museu || p.museu === museu)
+                .map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.titulo} {p.museu ? `(${p.museu})` : ''}
+                    {(p.titulo || p.nome || 'Sem título')}{' '}
+                    {p.museu ? `(${p.museu})` : ''}
                   </SelectItem>
                 ))}
             </SelectContent>
           </Select>
-          </div>
-          )}
+        </div>
+      )}
 
-          {/* ATIVIDADES JÁ CRIADAS */}
-
-          {(atividades || []).map((atividade, index) => (
+      {(atividades || []).map((atividade, index) => (
         <div key={atividade?.id || index} className="border p-4 rounded space-y-4">
-
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center">
             <b>Atividade {index + 1}</b>
 
             {canEdit && (
-              <Button size="icon" variant="ghost" onClick={() => removeAtividade(index)}>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={() => removeAtividade(index)}
+              >
                 <Trash2 className="text-red-500 w-4 h-4" />
               </Button>
             )}
@@ -189,9 +211,10 @@ export default function AtividadesSection({
             metaOptions={metas}
             programacaoOptions={programacaoItems}
             canEdit={canEdit}
+            mesReferencia={mesReferencia}
+            ano={ano}
           />
 
-          {/* Evidências (upload de arquivos vinculados à atividade) */}
           {reportId && (
             <ActivityAttachments
               reportId={reportId}
@@ -202,7 +225,6 @@ export default function AtividadesSection({
             />
           )}
 
-          {/* Vínculo de fotos da galeria */}
           {atividade?.id && (
             <ActivityPhotoLinker
               activityId={atividade.id}
@@ -210,25 +232,24 @@ export default function AtividadesSection({
               disabled={!canEdit}
             />
           )}
-
         </div>
       ))}
 
       <div className="flex gap-2">
         {canEdit && (
-          <Button onClick={addAtividade} variant="outline">
+          <Button type="button" onClick={addAtividade} variant="outline">
             <Plus className="w-4 h-4 mr-2" />
             Adicionar atividade
           </Button>
         )}
+
         {canEdit && onSave && (
-          <Button onClick={handleSaveAtividades} disabled={saving}>
+          <Button type="button" onClick={handleSaveAtividades} disabled={saving}>
             <Save className="w-4 h-4 mr-2" />
             {saving ? 'Salvando...' : 'Salvar atividades'}
           </Button>
         )}
       </div>
-
     </div>
   );
 }
