@@ -1,1 +1,11 @@
-
+{
+  "name": "generateSingleReportPDF",
+  "description": "Gera o layout HTML de relatório para assinatura, pronto para impressão e salvamento em PDF.",
+  "timeout_seconds": 60,
+  "memory_mb": 256,
+  "triggers": [
+    {
+      "type": "http"
+    }
+  ]
+}
