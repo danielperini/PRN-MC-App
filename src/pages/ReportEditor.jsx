@@ -183,6 +183,8 @@ export default function ReportEditor() {
     return Array.isArray(valores) ? valores.filter(Boolean) : [];
   }, [report]);
 
+  const isApproved = form?.status === 'APPROVED';
+
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {

@@ -5,7 +5,7 @@ const TABS_INFO = [
   { value: 'identificacao', label: 'Identificação', icon: '📋' },
   { value: 'atividades', label: 'Atividades', icon: '📝' },
   { value: 'oportunidades', label: 'Oportunidades', icon: '💡' },
-  { value: 'avaliacao', label: 'Avaliação', icon: '⭐' },
+  { value: 'avaliacao', label: 'Avaliação e Envio', icon: '⭐' },
   { value: 'comentarios', label: 'Comentários', icon: '💬' },
   { value: 'historico', label: 'Histórico', icon: '📊' },
 ];
