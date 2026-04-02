@@ -339,7 +339,7 @@ ${currentValue}`,
       try {
         const payload = buildPayload(form?.status || 'DRAFT');
         await base44.entities.Report.update(reportId, payload);
-        console.log('[AutoSave] Relatório salvo automaticamente');
+        toast.success('✅ Relatório salvo automaticamente', { duration: 2000 });
       } catch (err) {
         console.error('[AutoSave] Erro ao salvar:', err?.message);
       }
