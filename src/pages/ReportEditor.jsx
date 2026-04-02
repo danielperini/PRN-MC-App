@@ -327,7 +327,7 @@ ${currentValue}`,
       const saved = await base44.entities.Report.update(idParaSalvar, payload);
       if (!saved) throw new Error('Servidor não confirmou o envio. Tente novamente.');
       try {
-        return await base44.functions.invoke('backupReportToDrive', { reportId });
+        return await base44.functions.invoke('backupReportToDrive', { reportId: idParaSalvar });
       } catch (e) {
         console.warn('Backup Drive ao enviar falhou:', e?.message);
         return null;
@@ -357,14 +357,15 @@ ${currentValue}`,
       isFirstRender.current = false;
       return;
     }
-    // Só auto-salva se houver reportId e o relatório não estiver aprovado
-    if (!reportId || isApproved) return;
+    // Só auto-salva se houver ID e o relatório não estiver aprovado
+    const idAutoSave = localReportId || reportId;
+    if (!idAutoSave || isApproved) return;
 
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(async () => {
       try {
         const payload = buildPayload(form?.status || 'DRAFT');
-        await base44.entities.Report.update(reportId, payload);
+        await base44.entities.Report.update(idAutoSave, payload);
         toast.success('✅ Relatório salvo automaticamente', { duration: 2000 });
       } catch (err) {
         console.error('[AutoSave] Erro ao salvar:', err?.message);
