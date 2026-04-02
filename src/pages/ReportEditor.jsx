@@ -279,13 +279,11 @@ ${currentValue}`,
       const payload = buildPayload(form?.status || 'DRAFT');
       const idParaSalvar = localReportId || reportId;
 
-      // Validar campos obrigatórios apenas ao ATUALIZAR (não ao criar novo)
-      if (idParaSalvar) {
-        if (!payload.author_name) throw new Error('Campo obrigatório ausente: Nome do autor');
-        if (!payload.mes_referencia) throw new Error('Campo obrigatório ausente: Mês de referência');
-        if (!payload.ano) throw new Error('Campo obrigatório ausente: Ano');
-        if (!payload.museu) throw new Error('Campo obrigatório ausente: Museu / Área');
-      }
+      // Validar campos obrigatórios SEMPRE (tanto na criação quanto na edição)
+      if (!payload.museu) throw new Error('Selecione um Museu / Área antes de salvar');
+      if (!payload.mes_referencia) throw new Error('Selecione um Mês de referência antes de salvar');
+      if (!payload.author_name) throw new Error('Preencha o Nome do autor');
+      if (!payload.ano) throw new Error('Selecione um Ano');
 
       let saved;
 
