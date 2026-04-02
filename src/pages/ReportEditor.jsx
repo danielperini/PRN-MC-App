@@ -73,6 +73,7 @@ export default function ReportEditor() {
   const reportId = params.get('id');
 
   const [currentTab, setCurrentTab] = useState('identificacao');
+  const [successMessage, setSuccessMessage] = useState(null); // { type: 'save' | 'submit', text }
   const [form, setForm] = useState({
     atividades: [],
     oportunidades: [''],
@@ -183,8 +184,8 @@ export default function ReportEditor() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = buildPayload(form?.status || 'DRAFT');
-      await base44.entities.Report.update(reportId, payload);
-      // Backup no Drive após salvar
+      const saved = await base44.entities.Report.update(reportId, payload);
+      if (!saved) throw new Error('Servidor não confirmou a gravação. Tente novamente.');
       try {
         const backupRes = await base44.functions.invoke('backupReportToDrive', { reportId });
         return backupRes?.data;
@@ -194,17 +195,17 @@ export default function ReportEditor() {
       }
     },
     onSuccess: (backupData) => {
-      if (backupData?.success) {
-        toast.success(
-          `✅ Relatório salvo e sincronizado no Drive!\n📁 ${backupData.pasta_drive} — ${backupData.contagens?.atividades || 0} atividade(s) e ${backupData.contagens?.documentos || 0} documento(s) salvos.`,
-          { duration: 5000 }
-        );
-      } else {
-        toast.success('Relatório salvo com sucesso!');
-      }
+      const driveInfo = backupData?.success
+        ? ` | 📁 Drive: ${backupData.pasta_drive || 'sincronizado'}`
+        : '';
+      const msg = `✅ Relatório gravado com sucesso!${driveInfo}`;
+      setSuccessMessage({ type: 'save', text: msg });
+      toast.success(msg, { duration: 5000 });
       refetch();
     },
-    onError: (e) => toast.error(e?.message || 'Erro ao salvar relatório'),
+    onError: (e) => {
+      toast.error('❌ Erro ao salvar: ' + (e?.message || 'tente novamente'));
+    },
   });
 
   const submitMutation = useMutation({
@@ -212,8 +213,8 @@ export default function ReportEditor() {
       const payload = buildPayload('SUBMITTED');
       payload.submitted_at = new Date().toISOString();
       payload.review_status = 'aguardando_revisao';
-      await base44.entities.Report.update(reportId, payload);
-      // Backup no Drive ao enviar
+      const saved = await base44.entities.Report.update(reportId, payload);
+      if (!saved) throw new Error('Servidor não confirmou o envio. Tente novamente.');
       try {
         return await base44.functions.invoke('backupReportToDrive', { reportId });
       } catch (e) {
@@ -223,18 +224,16 @@ export default function ReportEditor() {
     },
     onSuccess: async (backupRes) => {
       const bd = backupRes?.data;
-      if (bd?.success) {
-        toast.success(
-          `📨 Relatório enviado para revisão e backup feito!\n📁 ${bd.pasta_drive} — ${bd.contagens?.atividades || 0} atividade(s) salvas no Drive.`,
-          { duration: 6000 }
-        );
-      } else {
-        toast.success('Relatório enviado para revisão!');
-      }
+      const driveInfo = bd?.success ? ` | 📁 ${bd.pasta_drive || 'Drive sincronizado'}` : '';
+      const msg = `📨 Relatório enviado para revisão com sucesso!${driveInfo} A coordenação será notificada.`;
+      setSuccessMessage({ type: 'submit', text: msg });
+      toast.success(msg, { duration: 8000 });
       setForm((prev) => ({ ...prev, status: 'SUBMITTED', review_status: 'aguardando_revisao' }));
       await refetch();
     },
-    onError: (e) => toast.error(e?.message || 'Erro ao enviar relatório'),
+    onError: (e) => {
+      toast.error('❌ Erro ao enviar para revisão: ' + (e?.message || 'tente novamente'));
+    },
   });
 
   // Auto-save com debounce de 2s sempre que atividades mudarem (garante persistência no banco)
@@ -287,6 +286,31 @@ export default function ReportEditor() {
           </span>
         </div>
       </div>
+
+      {/* Banner de sucesso após salvar/enviar */}
+      {successMessage && (
+        <div className={`rounded-xl border-2 p-4 flex items-start gap-3 ${
+          successMessage.type === 'submit'
+            ? 'border-blue-400 bg-blue-50'
+            : 'border-green-400 bg-green-50'
+        }`}>
+          <span className="text-2xl">{successMessage.type === 'submit' ? '📨' : '✅'}</span>
+          <div className="flex-1">
+            <p className={`font-semibold text-sm ${successMessage.type === 'submit' ? 'text-blue-800' : 'text-green-800'}`}>
+              {successMessage.type === 'submit' ? 'Relatório Enviado para Revisão!' : 'Relatório Salvo com Sucesso!'}
+            </p>
+            <p className={`text-xs mt-0.5 ${successMessage.type === 'submit' ? 'text-blue-700' : 'text-green-700'}`}>
+              {successMessage.text}
+            </p>
+            {successMessage.type === 'submit' && (
+              <p className="text-xs text-blue-600 mt-1 font-medium">
+                ⏳ Status atual: <strong>Aguardando Revisão da Coordenação</strong>
+              </p>
+            )}
+          </div>
+          <button onClick={() => setSuccessMessage(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+        </div>
+      )}
 
       {form?.status === 'RETURNED' && form?.return_comment && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4">
