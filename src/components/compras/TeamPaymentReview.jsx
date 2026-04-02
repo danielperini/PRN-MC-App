@@ -87,8 +87,34 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
     try {
       const user = await base44.auth.me();
 
-      // 🔥 APROVAR
+      // 🔒 VALIDAÇÃO ANTES DE APROVAR
       if (action === 'approve') {
+        try {
+          const budgetCheck = await base44.functions.invoke('check_budget', {
+            valor: toNumber(reviewing?.valor_nf),
+            contexto: 'TEAM_PAYMENT_APPROVAL',
+            mes: reviewing?.mes_referencia,
+            ano: reviewing?.ano
+          });
+
+          const bc = budgetCheck?.data || {};
+
+          if (bc?.blocked_by_rubrica) {
+            toast.error('Aprovação bloqueada: rubrica inválida.');
+            setSaving(false);
+            return;
+          }
+
+          if (bc?.saldo_insuficiente) {
+            toast.error('Saldo insuficiente para aprovação.');
+            setSaving(false);
+            return;
+          }
+
+        } catch (e) {
+          console.warn('Falha ao validar saldo na aprovação', e);
+        }
+
         await base44.entities.TeamPayment.update(reviewing.id, {
           status: 'APROVADO_COORD',
           aprov_coord_nome: user?.full_name || '',
@@ -97,7 +123,6 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
           observacoes: comment || '',
         });
 
-        // 🔥 DÉBITO NA RUBRICA (comprometido)
         if (budgetLine?.id) {
           await base44.entities.BudgetLine.update(budgetLine.id, {
             saldo_comprometido: toNumber(budgetLine?.saldo_comprometido) + toNumber(reviewing?.valor_nf),
@@ -116,7 +141,6 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
         toast.success('Envio aprovado e encaminhado corretamente.');
       }
 
-      // 🔥 DEVOLVER
       if (action === 'return') {
         await base44.entities.TeamPayment.update(reviewing.id, {
           status: 'DEVOLVIDO_REVISAO',
@@ -152,6 +176,32 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
     setMarkingPaid(m => ({ ...m, [payment.id]: true }));
 
     try {
+      if (String(payment?.status).toUpperCase() !== 'APROVADO_COORD') {
+        toast.error('Só é possível pagar após aprovação.');
+        setMarkingPaid(m => ({ ...m, [payment.id]: false }));
+        return;
+      }
+
+      try {
+        const budgetCheck = await base44.functions.invoke('check_budget', {
+          valor: toNumber(payment?.valor_nf),
+          contexto: 'TEAM_PAYMENT_PAYMENT',
+          mes: payment?.mes_referencia,
+          ano: payment?.ano
+        });
+
+        const bc = budgetCheck?.data || {};
+
+        if (bc?.saldo_insuficiente) {
+          toast.error('Saldo insuficiente para pagamento.');
+          setMarkingPaid(m => ({ ...m, [payment.id]: false }));
+          return;
+        }
+
+      } catch (e) {
+        console.warn('Falha ao validar saldo no pagamento', e);
+      }
+
       const member = getMember(payment);
 
       await base44.entities.TeamPayment.update(payment.id, {
@@ -160,14 +210,12 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
         data_pagamento: new Date().toISOString(),
       });
 
-      // 🔥 ATUALIZA PARCELAS
       if (member?.id) {
         await base44.entities.TeamMember.update(member.id, {
           parcelas_pagas: toNumber(member?.parcelas_pagas) + 1,
         });
       }
 
-      // 🔥 NOTIFICA
       await sendStatusNotif(payment, 'PAGO', 'Pagamento realizado.');
 
       await notifyUser(payment.user_email, {
@@ -222,7 +270,6 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
               Valor: <b>{formatBRL(payment?.valor_nf)}</b>
             </div>
 
-            {/* IA */}
             <div className="rounded border p-3 text-sm">
               {payment?.analysis_summary || 'Sem análise de IA'}
 
