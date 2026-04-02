@@ -22,6 +22,7 @@ export default function MemberInvoiceSubmission() {
   const [appliedContractFields, setAppliedContractFields] = useState({});
   const [contractValid, setContractValid] = useState(null);
   const [contractAlert, setContractAlert] = useState(null);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
 
   useEffect(() => {
     base44.auth.me().then(setCurrentUser).catch(() => {});
@@ -69,40 +70,39 @@ export default function MemberInvoiceSubmission() {
     setContractData(null);
     setAppliedContractFields({});
     setContractAlert(null);
+    setUploadingFiles(false);
   };
 
   const handleOpen = () => { resetState(); setIsOpen(true); };
   const handleClose = () => { setIsOpen(false); resetState(); };
 
-  const handleFileSelect = (type, file) => {
+  const handleFileSelect = async (type, file) => {
     if (!file) return;
     if (type === 'pdf') { setPdfFile(file); setPdfUrl(null); }
     if (type === 'xml') { setXmlFile(file); setXmlUrl(null); }
+    
+    // Se ambos os arquivos estão selecionados, fazer upload automático
+    const pdf = type === 'pdf' ? file : pdfFile;
+    const xml = type === 'xml' ? file : xmlFile;
+    if (pdf && xml && !uploadingFiles) {
+      await triggerAutoUploadAndAnalysis(pdf, xml);
+    }
   };
 
-  const handleAnalyze = async () => {
-    if (!pdfFile || !xmlFile) {
-      toast.error('Você precisa anexar o PDF e o XML da nota fiscal.');
-      return;
-    }
-
-    if (contractAlert) {
-      toast.error('Contrato inválido. ' + contractAlert);
-      return;
-    }
-
+  const triggerAutoUploadAndAnalysis = async (pdf, xml) => {
+    if (uploadingFiles) return;
+    setUploadingFiles(true);
     setStep('analyzing');
+    
     try {
-      // Upload ambos arquivos
       toast.info('Enviando arquivos...');
       const [pdfRes, xmlRes] = await Promise.all([
-        base44.integrations.Core.UploadFile({ file: pdfFile }),
-        base44.integrations.Core.UploadFile({ file: xmlFile }),
+        base44.integrations.Core.UploadFile({ file: pdf }),
+        base44.integrations.Core.UploadFile({ file: xml }),
       ]);
       setPdfUrl(pdfRes.file_url);
       setXmlUrl(xmlRes.file_url);
 
-      // Análise pela IA
       toast.info('Analisando nota fiscal com IA...');
       const extracted = await base44.integrations.Core.InvokeLLM({
         model: 'gpt_5',
@@ -147,7 +147,7 @@ export default function MemberInvoiceSubmission() {
 
       setAiData(extracted);
       
-      // Mesclar dados do contrato com dados extraídos da IA
+      // Mesclar com dados do contrato se aplicável
       if (contractData && Object.keys(appliedContractFields).length > 0) {
         const merged = {
           ...extracted,
@@ -160,11 +160,28 @@ export default function MemberInvoiceSubmission() {
         setAiData(merged);
       }
 
+      toast.success('✅ Análise concluída!');
       setStep('review');
     } catch (err) {
       toast.error('Erro ao analisar arquivos: ' + err.message);
       setStep('upload');
+    } finally {
+      setUploadingFiles(false);
     }
+  };
+
+  // Mantém fallback manual apenas se análise automática falhar
+  const handleAnalyzeManual = async () => {
+    if (!pdfFile || !xmlFile) {
+      toast.error('Você precisa anexar o PDF e o XML da nota fiscal.');
+      return;
+    }
+    // Já foi feito automaticamente, apenas avança
+    if (aiData) {
+      setStep('review');
+      return;
+    }
+    await triggerAutoUploadAndAnalysis(pdfFile, xmlFile);
   };
 
   const handleSubmit = async () => {
@@ -318,20 +335,26 @@ export default function MemberInvoiceSubmission() {
                 </label>
               </div>
 
-              <div className="flex gap-3 justify-end pt-2">
-                <Button variant="outline" onClick={handleClose}>Cancelar</Button>
-                <Button
-                  onClick={handleAnalyze}
-                  disabled={!pdfFile || !xmlFile || step === 'analyzing'}
-                  className="bg-indigo-600 hover:bg-indigo-700"
-                >
-                  {step === 'analyzing' ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analisando...</>
-                  ) : (
-                    <>Analisar com IA →</>
-                  )}
-                </Button>
-              </div>
+              {/* Mostrar status quando em análise automática */}
+              {step === 'analyzing' && (
+                <div className="flex items-center gap-2 text-sm text-indigo-600 font-medium">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Enviando e analisando arquivos...
+                </div>
+              )}
+
+              {/* Botão de avançar apenas quando análise automática completar com falha */}
+              {step === 'upload' && pdfFile && xmlFile && !aiData && (
+                <div className="flex gap-3 justify-end pt-2">
+                  <Button variant="outline" onClick={handleClose}>Cancelar</Button>
+                  <Button
+                    onClick={handleAnalyzeManual}
+                    className="bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    Analisar com IA →
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
