@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/select';
 import { Loader2, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 const CENTROS = ['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Publicações', 'Geral'];
 
@@ -97,6 +98,35 @@ export default function PurchaseFormDialog({
   const selectedRubrica = useMemo(() => {
     return rubricasAtivas.find((r) => r.id === form.rubrica_id) || null;
   }, [rubricasAtivas, form.rubrica_id]);
+
+  // 🔥 IA SUGESTÃO DE PREENCHIMENTO (DESCRIÇÃO + VALOR)
+  useEffect(() => {
+    async function sugerirDadosIA() {
+      if (!form.descricao_item) return;
+      if (form.valor_solicitado) return;
+
+      try {
+        const res = await base44.functions.invoke('analyze_meta', {
+          descricao: form.descricao_item,
+        });
+
+        const sugestao = res?.data || {};
+
+        setForm(prev => ({
+          ...prev,
+          valor_solicitado: prev.valor_solicitado || sugestao.valor_estimado || '',
+          centro_custo: prev.centro_custo || sugestao.centro_custo || '',
+        }));
+
+        toast.success('Sugestões automáticas aplicadas');
+
+      } catch (e) {
+        console.warn('IA sugestão falhou', e);
+      }
+    }
+
+    sugerirDadosIA();
+  }, [form.descricao_item]);
 
   const validateFinanceiro = () => {
     if (!form.centro_custo) return 'Selecione o centro de custo.';
