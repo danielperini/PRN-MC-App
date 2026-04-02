@@ -54,12 +54,6 @@ function buildMonthOptions() {
   return out;
 }
 
-function getPreviousMonthRef(mes, ano) {
-  const idx = MONTHS.indexOf(mes);
-  if (idx === -1) return null;
-  return idx === 0 ? { mes: 'Dezembro', ano: Number(ano) - 1 } : { mes: MONTHS[idx - 1], ano: Number(ano) };
-}
-
 function sanitize(value) {
   return String(value || '')
     .normalize('NFD')
@@ -163,7 +157,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
   const [analysis, setAnalysis] = useState(null);
   const [analysisStep, setAnalysisStep] = useState('');
   const [submissionSteps, setSubmissionSteps] = useState([
-    { label: 'Verificação de relatório', done: false },
     { label: 'Upload do PDF', done: false },
     { label: 'Upload do XML', done: false },
     { label: 'Análise com IA', done: false },
@@ -187,7 +180,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
   function resetSubmissionProgress() {
     setSubmissionSteps([
-      { label: 'Verificação de relatório', done: false },
       { label: 'Upload do PDF', done: false },
       { label: 'Upload do XML', done: false },
       { label: 'Análise com IA', done: false },
@@ -301,31 +293,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
     return buildDescricaoModelo(effectiveMember, currentUser, selectedComp.mes, selectedComp.ano);
   }, [effectiveMember, currentUser, selectedComp]);
 
-  async function checkPreviousReport() {
-    if (!selectedComp || !currentUser?.email) return { ok: true };
-    const prev = getPreviousMonthRef(selectedComp.mes, selectedComp.ano);
-    if (!prev) return { ok: true };
-    const reports = await base44.entities.Report.filter({ mes_referencia: prev.mes, ano: prev.ano });
-    const email = String(currentUser.email).toLowerCase();
-    const own = (reports || []).find((r) =>
-      String(r?.created_by || '').toLowerCase() === email ||
-      String(r?.author_email || '').toLowerCase() === email
-    );
-    if (!own) {
-      return {
-        ok: false,
-        message: `Antes de enviar a nota de ${selectedComp.mes}/${selectedComp.ano}, envie o relatório de ${prev.mes}/${prev.ano} ao coordenador.`
-      };
-    }
-    if (!['SUBMITTED', 'APPROVED'].includes(String(own.status || '').toUpperCase())) {
-      return {
-        ok: false,
-        message: `O relatório de ${prev.mes}/${prev.ano} ainda não foi enviado. Status: ${own.status}.`
-      };
-    }
-    return { ok: true };
-  }
-
   async function saveManualMemberFields() {
     if (!effectiveMember?.id) return;
     const funcaoNormalizada = resolveMemberFuncao(effectiveMember, currentUser);
@@ -356,16 +323,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
     resetSubmissionProgress();
 
     try {
-      setAnalysisStep('Verificando relatório anterior...');
-      const repCheck = await checkPreviousReport();
-      if (!repCheck.ok) {
-        toast.error(repCheck.message);
-        setSubmitting(false);
-        setAnalysisStep('');
-        return;
-      }
-      markStepDone(0, 14);
-
       let pdfUrl = form.nota_fiscal_url;
       let pdfName = form.nota_fiscal_file_name;
       let xmlUrl = form.xml_url;
@@ -388,7 +345,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
         pdfName = renamed.name;
         setForm((prev) => ({ ...prev, nota_fiscal_url: file_url, nota_fiscal_file_name: renamed.name }));
       }
-      markStepDone(1, 28);
+      markStepDone(0, 20);
 
       if (xmlFile && !xmlUrl) {
         setAnalysisStep('Gravando XML da nota fiscal...');
@@ -407,7 +364,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
         xmlName = renamed.name;
         setForm((prev) => ({ ...prev, xml_url: file_url, xml_file_name: renamed.name }));
       }
-      markStepDone(2, 42);
+      markStepDone(1, 35);
 
       setAnalysisStep('Lendo nota fiscal com IA...');
       const analysisResult = await base44.functions.invoke('validateTeamPaymentInvoice', {
@@ -435,7 +392,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
       const ar = analysisResult?.data || analysisResult || {};
       setAnalysis(ar);
-      markStepDone(3, 57);
+      markStepDone(2, 55);
 
       if (ar?.can_submit === false) {
         toast.error('A IA identificou inconsistências críticas. Revise antes de enviar.');
@@ -471,7 +428,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
         resultado_validacao: JSON.stringify(ar || {}),
         status: 'AGUARDANDO_APROVACAO'
       });
-      markStepDone(4, 71);
+      markStepDone(3, 72);
 
       try {
         setAnalysisStep('Salvando arquivos conforme as regras...');
@@ -485,7 +442,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
       } catch (e) {
         console.warn('Falha no backup do Drive (não bloqueante)', e);
       }
-      markStepDone(5, 85);
+      markStepDone(4, 87);
 
       setAnalysisStep('Notificando e-mails...');
       await base44.functions.invoke('notifyTeamPaymentSubmitted', {
@@ -511,7 +468,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
         action_url: `${window.location.origin}/Compras`
       });
 
-      markStepDone(6, 100);
+      markStepDone(5, 100);
 
       setTimeout(() => {
         toast.success(`✅ Nota fiscal de ${selectedComp.mes}/${selectedComp.ano} enviada com sucesso!`);
