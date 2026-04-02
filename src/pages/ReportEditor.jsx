@@ -272,18 +272,20 @@ ${currentValue}`,
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = buildPayload(form?.status || 'DRAFT');
-
-      // Validar campos obrigatórios antes de persistir
-      if (!payload.author_name) throw new Error('Campo obrigatório ausente: Nome do autor');
-      if (!payload.mes_referencia) throw new Error('Campo obrigatório ausente: Mês de referência');
-      if (!payload.ano) throw new Error('Campo obrigatório ausente: Ano');
-      if (!payload.museu) throw new Error('Campo obrigatório ausente: Museu / Área');
-
-      let saved;
       const idParaSalvar = localReportId || reportId;
 
+      // Validar campos obrigatórios apenas ao ATUALIZAR (não ao criar novo)
+      if (idParaSalvar) {
+        if (!payload.author_name) throw new Error('Campo obrigatório ausente: Nome do autor');
+        if (!payload.mes_referencia) throw new Error('Campo obrigatório ausente: Mês de referência');
+        if (!payload.ano) throw new Error('Campo obrigatório ausente: Ano');
+        if (!payload.museu) throw new Error('Campo obrigatório ausente: Museu / Área');
+      }
+
+      let saved;
+
       if (!idParaSalvar) {
-        // Novo relatório — criar
+        // Novo relatório — criar com dados mínimos
         saved = await base44.entities.Report.create({ ...payload, status: 'DRAFT' });
         if (saved?.id) {
           setLocalReportId(saved.id);
