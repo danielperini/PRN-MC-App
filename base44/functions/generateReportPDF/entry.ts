@@ -1,291 +1,313 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 import { jsPDF } from 'npm:jspdf@4.0.0';
 import 'npm:jspdf-autotable@3.5.31';
+
+const BASE_FONT = 12;
+const SECTION_FONT = 13;
+const LABEL_FONT = 11;
+
+function sectionHeader(doc, text, y, pageWidth) {
+  doc.setFillColor(30, 64, 120);
+  doc.rect(10, y - 5, pageWidth - 20, 8, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(SECTION_FONT);
+  doc.setFont(undefined, 'bold');
+  doc.text(text, 15, y + 1);
+  return y + 10;
+}
+
+function checkPage(doc, y, pageHeight) {
+  if (y > pageHeight - 40) {
+    doc.addPage();
+    return 20;
+  }
+  return y;
+}
+
+async function fetchImageBase64(url) {
+  try {
+    const res = await fetch(url);
+    const buf = await res.arrayBuffer();
+    return btoa(String.fromCharCode(...new Uint8Array(buf)));
+  } catch {
+    return null;
+  }
+}
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const { reportId, coverPhotoIds } = await req.json();
+    const { reportId, selectedFields = [], assinatura = '', coverPhotoIds = [] } = await req.json();
 
-    if (!reportId) {
-      return Response.json({ error: 'reportId é obrigatório' }, { status: 400 });
-    }
+    if (!reportId) return Response.json({ error: 'reportId é obrigatório' }, { status: 400 });
 
     const report = await base44.entities.Report.get(reportId);
-    if (!report) {
-      return Response.json({ error: 'Relatório não encontrado' }, { status: 404 });
-    }
+    if (!report) return Response.json({ error: 'Relatório não encontrado' }, { status: 404 });
 
-    // Buscar fotos selecionadas
-    let coverPhotos = [];
-    if (coverPhotoIds && coverPhotoIds.length > 0) {
-      const attachments = await base44.entities.Attachment.filter(
-        { id: { $in: coverPhotoIds } },
-        'created_date',
-        3
-      );
-      coverPhotos = attachments || [];
-    }
+    const include = (field) => selectedFields.length === 0 || selectedFields.includes(field);
 
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
-
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    let yPosition = 15;
+    let y = 15;
 
-    // ===== CABEÇALHO COM FOTOS =====
-    let headerHeight = 40;
-
-    // Se houver fotos, adicionar galeria no topo
-    if (coverPhotos.length > 0) {
-      const photoWidth = (pageWidth - 30) / Math.min(coverPhotos.length, 3);
-      let xPos = 15;
-
-      for (const photo of coverPhotos) {
-        try {
-          const response = await fetch(photo.file_url);
-          const arrayBuffer = await response.arrayBuffer();
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-          const imgData = `data:image/jpeg;base64,${base64}`;
-          doc.addImage(imgData, 'JPEG', xPos, 15, photoWidth - 2, 20);
-          xPos += photoWidth;
-        } catch (err) {
-          console.error('Erro ao processar foto:', err);
-        }
-      }
-      yPosition += 25;
-      headerHeight += 25;
-    }
-
-    // Logo e Identificação
-    doc.setFillColor(245, 245, 245);
-    doc.rect(0, yPosition - 5, pageWidth, 30, 'F');
-
-    doc.setTextColor(40, 40, 40);
-    doc.setFontSize(20);
+    // ===== CABEÇALHO =====
+    doc.setFillColor(245, 247, 252);
+    doc.rect(0, 0, pageWidth, 38, 'F');
+    doc.setTextColor(30, 64, 120);
+    doc.setFontSize(18);
     doc.setFont(undefined, 'bold');
-    doc.text('MUSEUS CENTRO', 15, yPosition + 5);
-
-    doc.setFontSize(9);
+    doc.text('MUSEUS CENTRO', 15, y + 6);
+    doc.setFontSize(BASE_FONT - 2);
     doc.setFont(undefined, 'normal');
     doc.setTextColor(100, 100, 100);
-    doc.text('Relatório Executivo | Belo Horizonte', 15, yPosition + 12);
-
-    doc.setTextColor(60, 60, 60);
-    doc.setFontSize(8);
+    doc.text('Relatório Executivo Mensal — Belo Horizonte', 15, y + 13);
+    doc.setFontSize(BASE_FONT - 3);
     doc.setFont(undefined, 'italic');
-    doc.text(`Protocolo: ${report.numero_protocolo} | Data: ${new Date().toLocaleDateString('pt-BR')}`, 15, yPosition + 18);
-
-    yPosition += 35;
+    doc.text(`Protocolo: ${report.numero_protocolo || '-'}   |   Emitido em: ${new Date().toLocaleDateString('pt-BR')}`, 15, y + 19);
+    doc.setDrawColor(30, 64, 120);
+    doc.setLineWidth(0.5);
+    doc.line(10, y + 22, pageWidth - 10, y + 22);
+    y += 30;
 
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(9);
-    doc.setFont(undefined, 'italic');
+    doc.setFont(undefined, 'normal');
 
-    yPosition = 35;
-
-    // ===== SEÇÃO: IDENTIFICAÇÃO =====
-    doc.setFillColor(70, 130, 180);
-    doc.rect(10, yPosition - 4, pageWidth - 20, 7, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(12);
-    doc.setFont(undefined, 'bold');
-    doc.text('IDENTIFICAÇÃO DO RELATÓRIO', 15, yPosition + 1);
-
-    yPosition += 12;
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-
-    const identData = [
-      ['Profissional:', report.author_name || 'N/A'],
-      ['Função:', report.funcao || 'N/A'],
-      ['Museu:', report.museu || 'N/A'],
-      ['Museu Secundário:', report.museu_secundario || '-'],
-      ['Equipe:', report.equipe || 'N/A'],
-      ['Período:', `${report.mes_referencia}/${report.ano}`],
-      ['Status:', report.status || 'DRAFT']
-    ];
-
-    identData.forEach(([label, value]) => {
-      doc.setFont(undefined, 'bold');
-      doc.setFontSize(9);
-      doc.text(label, 15, yPosition);
-      doc.setFont(undefined, 'normal');
-      doc.text(String(value), 50, yPosition);
-      yPosition += 5;
-    });
-
-    yPosition += 5;
-
-    // ===== SEÇÃO: RESUMO EXECUTIVO =====
-    if (report.resumo_executivo) {
-      doc.setFillColor(70, 130, 180);
-      doc.rect(10, yPosition - 4, pageWidth - 20, 7, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(12);
-      doc.setFont(undefined, 'bold');
-      doc.text('RESUMO EXECUTIVO', 15, yPosition + 1);
-
-      yPosition += 10;
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(10);
-      doc.setFont(undefined, 'normal');
-
-      const splitText = doc.splitTextToSize(report.resumo_executivo, pageWidth - 30);
-      doc.text(splitText, 15, yPosition);
-      yPosition += splitText.length * 5 + 8;
+    // ===== IDENTIFICAÇÃO =====
+    if (include('identificacao')) {
+      y = sectionHeader(doc, 'IDENTIFICAÇÃO DO RELATÓRIO', y, pageWidth);
+      const fields = [
+        ['Profissional', report.author_name || '-'],
+        ['Função', report.funcao || '-'],
+        ['Museu', report.museu || '-'],
+        ['Museu Secundário', report.museu_secundario || '-'],
+        ['Equipe', report.equipe || '-'],
+        ['Período', `${report.mes_referencia || '-'} / ${report.ano || '-'}`],
+        ['Status', report.status || 'DRAFT'],
+      ];
+      doc.setFontSize(BASE_FONT);
+      for (const [label, value] of fields) {
+        y = checkPage(doc, y, pageHeight);
+        doc.setFont(undefined, 'bold');
+        doc.text(`${label}:`, 15, y);
+        doc.setFont(undefined, 'normal');
+        doc.text(String(value), 60, y);
+        y += 6;
+      }
+      y += 4;
     }
 
-    // ===== SEÇÃO: ATIVIDADES =====
-    if (report.atividades && report.atividades.length > 0) {
-      if (yPosition > pageHeight - 50) {
-        doc.addPage();
-        yPosition = 15;
+    // ===== RESUMO EXECUTIVO =====
+    if (include('resumo') && report.resumo_executivo) {
+      y = checkPage(doc, y, pageHeight);
+      y = sectionHeader(doc, 'RESUMO EXECUTIVO', y, pageWidth);
+      doc.setFontSize(BASE_FONT);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(40, 40, 40);
+      const lines = doc.splitTextToSize(report.resumo_executivo, pageWidth - 30);
+      for (const line of lines) {
+        y = checkPage(doc, y, pageHeight);
+        doc.text(line, 15, y);
+        y += 6;
       }
-
-      doc.setFillColor(70, 130, 180);
-      doc.rect(10, yPosition - 4, pageWidth - 20, 7, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(12);
-      doc.setFont(undefined, 'bold');
-      doc.text('ATIVIDADES REALIZADAS', 15, yPosition + 1);
-
-      yPosition += 10;
+      y += 4;
       doc.setTextColor(0, 0, 0);
-      doc.setFontSize(9);
+    }
 
-      report.atividades.forEach((activity, idx) => {
-        if (yPosition > pageHeight - 30) {
-          doc.addPage();
-          yPosition = 15;
-        }
+    // ===== ATIVIDADES =====
+    if (include('atividades') && report.atividades?.length > 0) {
+      y = checkPage(doc, y, pageHeight);
+      y = sectionHeader(doc, 'ATIVIDADES REALIZADAS', y, pageWidth);
 
+      for (let idx = 0; idx < report.atividades.length; idx++) {
+        const act = report.atividades[idx];
+        y = checkPage(doc, y, pageHeight);
+
+        doc.setFontSize(BASE_FONT);
         doc.setFont(undefined, 'bold');
-        doc.text(`${idx + 1}. ${activity.titulo || 'Sem título'}`, 15, yPosition);
-        yPosition += 5;
-
+        doc.setTextColor(30, 64, 120);
+        doc.text(`${idx + 1}. ${act.nome || act.titulo || 'Sem título'}`, 15, y);
+        y += 6;
+        doc.setTextColor(0, 0, 0);
         doc.setFont(undefined, 'normal');
-        doc.setFontSize(8);
+        doc.setFontSize(LABEL_FONT);
 
         const details = [
-          `Equipe: ${activity.tipo_equipe || 'N/A'}`,
-          `Classificação: ${activity.classificacao || 'N/A'}`,
-          `Data: ${activity.data_realizacao || 'N/A'}`,
-          `Público: ${activity.publico_total || 0} pessoas`
+          ['Classificação', act.classificacao || '-'],
+          ['Museu/Local', Array.isArray(act.museu_lista) ? act.museu_lista.join(', ') : (act.museu || '-')],
+          ['Tipo de ação', Array.isArray(act.tipo_acao_lista) ? act.tipo_acao_lista.join(', ') : (act.tipo_acao || '-')],
+          ['Público total', String(act.publico_total || act.publico_estimado || 0)],
+          ['Ocorrências', String(act.quantidade_ocorrencias || 1)],
         ];
 
-        details.forEach(detail => {
-          doc.text(detail, 20, yPosition);
-          yPosition += 4;
-        });
-
-        if (activity.descricao) {
-          const descSplit = doc.splitTextToSize(activity.descricao, pageWidth - 40);
-          doc.setFontSize(8);
-          doc.text('Descrição:', 20, yPosition);
-          yPosition += 3;
-          doc.text(descSplit, 25, yPosition);
-          yPosition += descSplit.length * 3 + 2;
+        for (const [label, val] of details) {
+          y = checkPage(doc, y, pageHeight);
+          doc.setFont(undefined, 'bold');
+          doc.text(`${label}:`, 20, y);
+          doc.setFont(undefined, 'normal');
+          doc.text(String(val), 65, y);
+          y += 5;
         }
 
-        yPosition += 3;
+        if (act.descricao) {
+          y = checkPage(doc, y, pageHeight);
+          doc.setFont(undefined, 'bold');
+          doc.text('Descrição:', 20, y);
+          y += 5;
+          doc.setFont(undefined, 'normal');
+          const dLines = doc.splitTextToSize(act.descricao, pageWidth - 45);
+          for (const dl of dLines) {
+            y = checkPage(doc, y, pageHeight);
+            doc.text(dl, 25, y);
+            y += 5;
+          }
+        }
+
+        // Miniaturas de fotos da atividade
+        if (include('fotos') && act.fotos?.length > 0) {
+          y = checkPage(doc, y + 2, pageHeight);
+          doc.setFont(undefined, 'italic');
+          doc.setFontSize(10);
+          doc.text('Evidências fotográficas:', 20, y);
+          y += 4;
+          const thumbSize = 28;
+          const gap = 4;
+          let xThumb = 20;
+          for (const foto of act.fotos.slice(0, 4)) {
+            const att = foto.file_url ? foto : null;
+            const fileUrl = att?.file_url || foto?.url;
+            if (!fileUrl) continue;
+            const b64 = await fetchImageBase64(fileUrl);
+            if (b64) {
+              y = checkPage(doc, y, pageHeight);
+              doc.addImage(`data:image/jpeg;base64,${b64}`, 'JPEG', xThumb, y, thumbSize, thumbSize * 0.75);
+              xThumb += thumbSize + gap;
+              if (xThumb > pageWidth - 30) { xThumb = 20; y += thumbSize * 0.75 + gap; }
+            }
+          }
+          y += thumbSize * 0.75 + gap;
+        }
+
+        // Linha separadora leve
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.2);
+        doc.line(15, y + 1, pageWidth - 15, y + 1);
+        y += 6;
+      }
+    }
+
+    // ===== AVALIAÇÃO =====
+    if (include('avaliacao') && (report.avaliacao_pontos_positivos || report.avaliacao_desafios || report.avaliacao_sugestoes)) {
+      y = checkPage(doc, y, pageHeight);
+      y = sectionHeader(doc, 'AVALIAÇÃO', y, pageWidth);
+      doc.setFontSize(BASE_FONT);
+
+      const avaliacoes = [
+        ['Pontos Positivos', report.avaliacao_pontos_positivos],
+        ['Desafios', report.avaliacao_desafios],
+        ['Sugestões de Melhoria', report.avaliacao_sugestoes],
+      ];
+
+      for (const [label, val] of avaliacoes) {
+        if (!val) continue;
+        y = checkPage(doc, y, pageHeight);
+        doc.setFont(undefined, 'bold');
+        doc.text(`${label}:`, 15, y);
+        y += 5;
+        doc.setFont(undefined, 'normal');
+        const lns = doc.splitTextToSize(val, pageWidth - 30);
+        for (const ln of lns) {
+          y = checkPage(doc, y, pageHeight);
+          doc.text(ln, 15, y);
+          y += 5;
+        }
+        y += 2;
+      }
+    }
+
+    // ===== OPORTUNIDADES =====
+    if (include('oportunidades') && report.oportunidades?.length > 0) {
+      y = checkPage(doc, y, pageHeight);
+      y = sectionHeader(doc, 'OPORTUNIDADES', y, pageWidth);
+      doc.setFontSize(BASE_FONT);
+      report.oportunidades.forEach((op, i) => {
+        y = checkPage(doc, y, pageHeight);
+        doc.setFont(undefined, 'bold');
+        doc.text(`${i + 1}. ${op.titulo || op.nome || 'Oportunidade'}`, 15, y);
+        y += 5;
+        if (op.descricao) {
+          doc.setFont(undefined, 'normal');
+          const lns = doc.splitTextToSize(op.descricao, pageWidth - 30);
+          for (const ln of lns) { y = checkPage(doc, y, pageHeight); doc.text(ln, 20, y); y += 5; }
+        }
+        y += 2;
       });
-
-      yPosition += 2;
     }
 
-    // ===== SEÇÃO: AVALIAÇÃO =====
-    const hasEvaluation = report.avaliacao_pontos_positivos || 
-                          report.avaliacao_desafios || 
-                          report.avaliacao_sugestoes;
-
-    if (hasEvaluation) {
-      if (yPosition > pageHeight - 50) {
-        doc.addPage();
-        yPosition = 15;
-      }
-
-      doc.setFillColor(70, 130, 180);
-      doc.rect(10, yPosition - 4, pageWidth - 20, 7, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(12);
-      doc.setFont(undefined, 'bold');
-      doc.text('AVALIAÇÃO', 15, yPosition + 1);
-
-      yPosition += 10;
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(10);
-
-      if (report.avaliacao_pontos_positivos) {
-        doc.setFont(undefined, 'bold');
-        doc.text('Pontos Positivos:', 15, yPosition);
-        yPosition += 5;
-        doc.setFont(undefined, 'normal');
-        const posSplit = doc.splitTextToSize(report.avaliacao_pontos_positivos, pageWidth - 30);
-        doc.setFontSize(9);
-        doc.text(posSplit, 15, yPosition);
-        yPosition += posSplit.length * 5 + 5;
-      }
-
-      if (report.avaliacao_desafios) {
-        doc.setFont(undefined, 'bold');
-        doc.setFontSize(10);
-        doc.text('Desafios:', 15, yPosition);
-        yPosition += 5;
-        doc.setFont(undefined, 'normal');
-        const chalSplit = doc.splitTextToSize(report.avaliacao_desafios, pageWidth - 30);
-        doc.setFontSize(9);
-        doc.text(chalSplit, 15, yPosition);
-        yPosition += chalSplit.length * 5 + 5;
-      }
-
-      if (report.avaliacao_sugestoes) {
-        doc.setFont(undefined, 'bold');
-        doc.setFontSize(10);
-        doc.text('Sugestões de Melhoria:', 15, yPosition);
-        yPosition += 5;
-        doc.setFont(undefined, 'normal');
-        const sugSplit = doc.splitTextToSize(report.avaliacao_sugestoes, pageWidth - 30);
-        doc.setFontSize(9);
-        doc.text(sugSplit, 15, yPosition);
-        yPosition += sugSplit.length * 5 + 5;
-      }
+    // ===== DEPOIMENTOS =====
+    if (include('depoimentos') && report.depoimentos?.length > 0) {
+      y = checkPage(doc, y, pageHeight);
+      y = sectionHeader(doc, 'DEPOIMENTOS', y, pageWidth);
+      doc.setFontSize(BASE_FONT);
+      report.depoimentos.forEach((dep, i) => {
+        y = checkPage(doc, y, pageHeight);
+        doc.setFont(undefined, 'italic');
+        const lns = doc.splitTextToSize(`"${dep.texto || ''}"`, pageWidth - 40);
+        for (const ln of lns) { y = checkPage(doc, y, pageHeight); doc.text(ln, 20, y); y += 5; }
+        if (dep.autor) {
+          doc.setFont(undefined, 'bold');
+          doc.text(`— ${dep.autor}`, pageWidth - 20, y, { align: 'right' });
+          y += 6;
+        }
+        y += 2;
+      });
     }
+
+    // ===== ASSINATURA =====
+    y = checkPage(doc, y + 10, pageHeight);
+    doc.setDrawColor(80, 80, 80);
+    doc.setLineWidth(0.3);
+    doc.line(15, y, 100, y);
+    y += 5;
+    doc.setFontSize(BASE_FONT);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(40, 40, 40);
+    doc.text(assinatura || report.author_name || '_______________________________', 15, y);
+    y += 5;
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'italic');
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Profissional responsável — ${report.mes_referencia || ''}/${report.ano || ''}`, 15, y);
+    y += 8;
+
+    // ===== MENSAGEM DE PRAZO =====
+    doc.setFillColor(255, 248, 225);
+    doc.setDrawColor(200, 150, 0);
+    doc.setLineWidth(0.4);
+    doc.rect(10, y, pageWidth - 20, 14, 'FD');
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(120, 80, 0);
+    doc.text('⚠ ATENÇÃO: PRAZO DE ENVIO', 15, y + 5);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Este relatório deve ser enviado ao coordenador até o dia 15 do mês seguinte ao período de referência (${report.mes_referencia || '...'}).`, 15, y + 10, { maxWidth: pageWidth - 30 });
 
     // ===== RODAPÉ =====
     const totalPages = doc.internal.pages.length - 1;
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text(
-        `Página ${i} de ${totalPages}`,
-        pageWidth / 2,
-        pageHeight - 8,
-        { align: 'center' }
-      );
-      doc.text(
-        'Plataforma Museus Centro - Relatório Oficial',
-        pageWidth / 2,
-        pageHeight - 4,
-        { align: 'center' }
-      );
+      doc.setTextColor(160, 160, 160);
+      doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
+      doc.text('Plataforma Museus Centro — Relatório Oficial', pageWidth / 2, pageHeight - 4, { align: 'center' });
     }
 
-    // Gerar PDF em bytes
     const pdfBytes = doc.output('arraybuffer');
-
-    // Retornar com headers apropriados para download
     return new Response(pdfBytes, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="relatorio-${report.numero_protocolo}-${Date.now()}.pdf"`
+        'Content-Disposition': `attachment; filename="relatorio-${report.numero_protocolo || reportId}.pdf"`
       }
     });
   } catch (error) {
