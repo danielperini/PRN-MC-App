@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { notifyUser, notifyCoordinators } from '@/lib/notifyHelpers';
+import { notifyUser } from '@/lib/notifyHelpers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -68,7 +68,7 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
       team_member_name: payment?.user_name || '',
       mes: payment?.mes_referencia || '',
       ano: payment?.ano || '',
-      valor: payment?.valor_nf || payment?.valor_parcela_previsto || 0,
+      valor: payment?.valor_nf || 0,
       observacoes: obs || '',
       nota_fiscal_url: payment?.nota_fiscal_url || '',
       xml_url: payment?.xml_url || '',
@@ -78,11 +78,25 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
 
   async function handleConfirm() {
     if (!reviewing || !action) return;
+
     const member = getMember(reviewing);
     const budgetLine = getBudgetLine(member);
+
+    const critical = Array.isArray(reviewing?.analysis_critical_issues)
+      ? reviewing.analysis_critical_issues
+      : [];
+
+    // 🚨 BLOQUEIO POR IA
+    if (action === 'approve' && critical.length > 0) {
+      toast.error('Não é possível aprovar: existem inconsistências críticas na análise da IA.');
+      return;
+    }
+
     setSaving(true);
+
     try {
       const user = await base44.auth.me();
+
       if (action === 'approve') {
         await base44.entities.TeamPayment.update(reviewing.id, {
           status: 'APROVADO_COORD',
@@ -91,33 +105,50 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
           aprov_coord_data: new Date().toISOString(),
           observacoes: comment || '',
         });
+
+        // 💰 compromisso financeiro (sem quebrar lógica existente)
         if (budgetLine?.id) {
           await base44.entities.BudgetLine.update(budgetLine.id, {
             saldo_comprometido: toNumber(budgetLine?.saldo_comprometido) + toNumber(reviewing?.valor_nf),
           });
         }
+
         await sendStatusNotif(reviewing, 'APROVADO_COORD', comment);
+
         await notifyUser(reviewing.user_email, {
           title: '✅ Nota fiscal aprovada',
-          message: `Sua nota fiscal de ${reviewing.mes_referencia}/${reviewing.ano} foi aprovada pela coordenação.`,
+          message: `Sua nota fiscal foi aprovada.`,
           type: 'PAYMENT_APPROVED',
-          action_url: `${window.location.origin}/Compras`,
+          action_url: buildAppUrl(),
         });
-        toast.success('Envio aprovado.');
+
+        toast.success('Aprovado com sucesso.');
       }
+
       if (action === 'return') {
-        await base44.entities.TeamPayment.update(reviewing.id, { status: 'DEVOLVIDO_REVISAO', observacoes: comment || '' });
-        await sendStatusNotif(reviewing, 'DEVOLVIDO_REVISAO', comment);
-        await notifyUser(reviewing.user_email, {
-          title: '⚠️ Nota fiscal devolvida para revisão',
-          message: `Sua nota fiscal de ${reviewing.mes_referencia}/${reviewing.ano} foi devolvida. Motivo: ${comment}`,
-          type: 'PAYMENT_RETURNED',
-          action_url: `${window.location.origin}/Compras`,
+        await base44.entities.TeamPayment.update(reviewing.id, {
+          status: 'DEVOLVIDO_REVISAO',
+          observacoes: comment || '',
         });
-        toast.success('Envio devolvido para revisão.');
+
+        await sendStatusNotif(reviewing, 'DEVOLVIDO_REVISAO', comment);
+
+        await notifyUser(reviewing.user_email, {
+          title: '⚠️ Nota devolvida',
+          message: `Sua nota foi devolvida. Motivo: ${comment}`,
+          type: 'PAYMENT_RETURNED',
+          action_url: buildAppUrl(),
+        });
+
+        toast.success('Devolvido.');
       }
-      setReviewing(null); setAction(null); setComment('');
+
+      setReviewing(null);
+      setAction(null);
+      setComment('');
+
       await queryClient.invalidateQueries();
+
     } catch (e) {
       toast.error(e?.message || 'Erro ao processar.');
     } finally {
@@ -127,27 +158,35 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
 
   async function marcarComoPago(payment) {
     setMarkingPaid(m => ({ ...m, [payment.id]: true }));
+
     try {
       const member = getMember(payment);
+
       await base44.entities.TeamPayment.update(payment.id, {
         status: 'PAGO',
-        valor_pago: payment?.valor_nf || payment?.valor_parcela_previsto || 0,
+        valor_pago: payment?.valor_nf || 0,
         data_pagamento: new Date().toISOString(),
       });
+
       if (member?.id) {
         await base44.entities.TeamMember.update(member.id, {
           parcelas_pagas: toNumber(member?.parcelas_pagas) + 1,
         });
       }
+
       await sendStatusNotif(payment, 'PAGO', 'Pagamento realizado.');
+
       await notifyUser(payment.user_email, {
         title: '💰 Pagamento realizado',
-        message: `Seu pagamento de ${payment.mes_referencia}/${payment.ano} foi marcado como realizado.`,
+        message: `Pagamento concluído.`,
         type: 'PAYMENT_DONE',
-        action_url: `${window.location.origin}/Compras`,
+        action_url: buildAppUrl(),
       });
-      toast.success('Pagamento marcado como realizado e notificação enviada ao solicitante.');
+
+      toast.success('Pagamento realizado.');
+
       await queryClient.invalidateQueries();
+
     } catch (e) {
       toast.error(e?.message || 'Erro ao marcar pagamento.');
     } finally {
@@ -157,121 +196,64 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
 
   return (
     <div className="space-y-4">
-      {orderedPayments.length === 0 && (
-        <div className="rounded-xl border p-4 text-sm text-gray-500">Nenhum envio encontrado.</div>
-      )}
-
       {orderedPayments.map(payment => {
         const member = getMember(payment);
         const badge = getStatusBadge(payment?.status);
-        const warnings = Array.isArray(payment?.analysis_warnings) ? payment.analysis_warnings : [];
-        const critical = Array.isArray(payment?.analysis_critical_issues) ? payment.analysis_critical_issues : [];
         const status = String(payment?.status || '').toUpperCase();
 
         return (
           <div key={payment.id} className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">
-            <div className="flex items-start justify-between gap-3">
+            
+            <div className="flex justify-between">
               <div>
-                <div className="font-semibold text-gray-900">
-                  {member?.user_name || payment?.user_name || payment?.user_email || 'Membro'}
+                <div className="font-semibold">
+                  {member?.user_name || payment?.user_name}
                 </div>
                 <div className="text-xs text-gray-500">
-                  {payment?.mes_referencia}/{payment?.ano} • Parcela {payment?.numero_parcela || '—'} • {payment?.funcao || '—'}
+                  {payment?.mes_referencia}/{payment?.ano}
                 </div>
               </div>
               <Badge className={badge.className}>{badge.label}</Badge>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-              <div><div className="text-gray-500">Valor</div><div className="font-medium">{formatBRL(payment?.valor_nf)}</div></div>
-              <div><div className="text-gray-500">NF nº</div><div className="font-medium">{payment?.numero_nf || '—'}</div></div>
-              <div><div className="text-gray-500">Criado em</div><div className="font-medium">{formatDate(payment?.created_date)}</div></div>
-              <div><div className="text-gray-500">Pago em</div><div className="font-medium">{formatDate(payment?.data_pagamento)}</div></div>
+            <div className="text-sm">
+              <b>{formatBRL(payment?.valor_nf)}</b>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-              {/* Arquivos */}
-              <div className="rounded-lg border bg-gray-50 p-3 space-y-2">
-                <div className="font-medium text-gray-900">Arquivos</div>
-                {payment?.nota_fiscal_url
-                  ? <a href={payment.nota_fiscal_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-blue-700 hover:underline"><ExternalLink className="w-4 h-4" />Abrir PDF renomeado</a>
-                  : <span className="text-gray-400">Sem PDF</span>}
-                {payment?.xml_url
-                  ? <a href={payment.xml_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-blue-700 hover:underline block"><ExternalLink className="w-4 h-4" />Abrir XML renomeado</a>
-                  : <span className="text-gray-400 block">Sem XML</span>}
-              </div>
-
-              {/* Análise IA */}
-              <div className="rounded-lg border bg-gray-50 p-3">
-                <div className="font-medium text-gray-900 mb-2">Análise automática</div>
-                {payment?.analysis_summary
-                  ? <div className="text-gray-700 text-sm mb-2">{payment.analysis_summary}</div>
-                  : <div className="text-gray-400 text-sm">Sem análise registrada.</div>}
-                {critical.length > 0 && (
-                  <div className="text-red-700 text-xs mb-1">
-                    <div className="font-medium flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />Pontos críticos</div>
-                    <ul className="list-disc pl-4">{critical.map((i, idx) => <li key={idx}>{i}</li>)}</ul>
-                  </div>
-                )}
-                {warnings.length > 0 && (
-                  <div className="text-amber-700 text-xs">
-                    <div className="font-medium flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />Alertas</div>
-                    <ul className="list-disc pl-4">{warnings.map((i, idx) => <li key={idx}>{i}</li>)}</ul>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {payment?.observacoes && (
-              <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
-                <div className="font-medium">Observações</div>
-                <div>{payment.observacoes}</div>
+            {status === 'AGUARDANDO_APROVACAO' && (
+              <div className="flex gap-2">
+                <Button onClick={() => { setReviewing(payment); setAction('approve'); }}>
+                  Aprovar
+                </Button>
+                <Button variant="outline" onClick={() => { setReviewing(payment); setAction('return'); }}>
+                  Devolver
+                </Button>
               </div>
             )}
 
-            <div className="flex flex-wrap gap-2">
-              {status === 'AGUARDANDO_APROVACAO' && (
-                <>
-                  <Button onClick={() => { setReviewing(payment); setAction('approve'); setComment(''); }}>Aprovar</Button>
-                  <Button variant="outline" onClick={() => { setReviewing(payment); setAction('return'); setComment(''); }}>Devolver</Button>
-                </>
-              )}
-              {status === 'APROVADO_COORD' && (
-                <Button
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                  onClick={() => marcarComoPago(payment)}
-                  disabled={markingPaid[payment.id]}
-                >
-                  {markingPaid[payment.id]
-                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</>
-                    : '✓ Pagamento realizado'}
-                </Button>
-              )}
-            </div>
+            {status === 'APROVADO_COORD' && (
+              <Button onClick={() => marcarComoPago(payment)}>
+                ✓ Pagamento realizado
+              </Button>
+            )}
+
           </div>
         );
       })}
 
       {reviewing && (
-        <Dialog open onOpenChange={() => setReviewing(null)}>
+        <Dialog open>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{action === 'approve' ? 'Aprovar envio' : 'Devolver envio'}</DialogTitle>
+              <DialogTitle>Confirmar ação</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="text-sm text-gray-600">
-                {reviewing?.user_name || reviewing?.user_email} • {reviewing?.mes_referencia}/{reviewing?.ano}
-              </div>
-              <Textarea
-                value={comment}
-                onChange={e => setComment(e.target.value)}
-                placeholder={action === 'approve' ? 'Comentário opcional' : 'Motivo da devolução (obrigatório)'}
-              />
-            </div>
+
+            <Textarea value={comment} onChange={e => setComment(e.target.value)} />
+
             <DialogFooter>
-              <Button variant="outline" onClick={() => setReviewing(null)}>Cancelar</Button>
-              <Button onClick={handleConfirm} disabled={saving || (action === 'return' && !comment.trim())}>
-                {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : 'Confirmar'}
+              <Button onClick={() => setReviewing(null)}>Cancelar</Button>
+              <Button onClick={handleConfirm} disabled={saving}>
+                {saving ? 'Salvando...' : 'Confirmar'}
               </Button>
             </DialogFooter>
           </DialogContent>
