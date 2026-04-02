@@ -41,9 +41,14 @@ export default function AtividadesSection({
 
   // 🔥 BUSCAR METAS
   const { data: metas = [] } = useQuery({
-    queryKey: ['metas'],
+    queryKey: ['project-metas'],
     queryFn: async () => {
-      return await base44.entities.Meta.list('-created_at', 1000);
+      const res = await base44.entities.ProjectMeta.list('nome', 1000);
+      return (res || []).filter(m => m.ativo !== false).map(m => ({
+        id: m.id,
+        label: m.nome,
+        nome: m.nome,
+      }));
     }
   });
 

@@ -123,10 +123,7 @@ export default function AtividadeCamposBasicos({
   const equipeOptions = (teamOptions || []).every(t => t.id && t.label)
     ? teamOptions
     : normalizeOptionList(teamOptions);
-  const metasOptions = normalizeOptionList([
-    { id: 'nenhuma-meta', label: 'Nenhuma meta' },
-    ...(metaOptions || []),
-  ]);
+  const metasOptions = normalizeOptionList(metaOptions || []);
   const programacoes = normalizeOptionList(programacaoOptions);
 
   const ocorrencias = safeNumber(atividade?.quantidade_ocorrencias, 0);
@@ -162,13 +159,6 @@ export default function AtividadeCamposBasicos({
     const labels = Array.isArray(selectedLabels) ? selectedLabels : [];
     const selecionados = metasOptions.filter((item) => labels.includes(item.label));
     const ids = selecionados.map((item) => item.id);
-
-    if (ids.includes('nenhuma-meta')) {
-      onChange('meta_vinculada_ids', ['nenhuma-meta']);
-      onChange('meta_vinculada_titulos', 'Nenhuma meta');
-      return;
-    }
-
     const titulos = selecionados.map((item) => item.label);
     onChange('meta_vinculada_ids', ids);
     onChange('meta_vinculada_titulos', titulos.join(', '));
@@ -446,7 +436,10 @@ export default function AtividadeCamposBasicos({
           />
         </Field>
 
-        <Field label="Metas vinculadas">
+        <Field label={atividade?.classificacao === 'Meta' ? 'Metas vinculadas *' : 'Metas vinculadas'}>
+          {atividade?.classificacao === 'Meta' && metasLista.length === 0 && (
+            <p className="text-xs text-red-500 mb-1">Selecione ao menos uma meta para esta atividade.</p>
+          )}
           <FilterMultiSelect
             options={metasOptions.map((item) => item.label)}
             values={metasOptions
@@ -454,6 +447,7 @@ export default function AtividadeCamposBasicos({
               .map((item) => item.label)}
             onChange={handleMetasChange}
             disabled={!canEdit}
+            placeholder={metasOptions.length === 0 ? 'Carregando metas...' : 'Selecione metas...'}
           />
         </Field>
       </div>
