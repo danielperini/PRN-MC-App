@@ -172,7 +172,7 @@ export default function AtividadesSection({
         </div>
       )}
 
-      {(atividades || []).map((atividade, index) => (
+      {(Array.isArray(atividades) ? atividades : []).map((atividade, index) => (
         <div key={atividade?.id || index} className="border p-4 rounded space-y-4">
           <div className="flex justify-between items-center">
             <b>Atividade {index + 1}</b>
