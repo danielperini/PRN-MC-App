@@ -165,6 +165,8 @@ export default function AtividadesSection({
           </div>
           )}
 
+          {/* ATIVIDADES JÁ CRIADAS */}
+
           {(atividades || []).map((atividade, index) => (
         <div key={atividade?.id || index} className="border p-4 rounded space-y-4">
 
