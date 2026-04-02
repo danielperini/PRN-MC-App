@@ -133,69 +133,27 @@ export default function TeamPaymentSubmit({ userEmail }) {
   const [xmlFile, setXmlFile] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [analysisStep, setAnalysisStep] = useState('');
-  const [extractedData, setExtractedData] = useState(null);
-  const [processingFile, setProcessingFile] = useState(false);
 
   const [form, setForm] = useState({
     competencia: '',
     numero_nf: '',
     valor_nf: '',
-    data_emissao: '',
     nota_fiscal_url: '',
     xml_url: '',
     nota_fiscal_file_name: '',
     xml_file_name: '',
   });
 
-  async function handleSelectPDF(file) {
+  function handleSelectPDF(file) {
     if (!file) return;
     setPdfFile(file);
     setForm(prev => ({ ...prev, nota_fiscal_file_name: file.name, nota_fiscal_url: '' }));
-    await processFile(file, 'pdf');
   }
 
-  async function handleSelectXML(file) {
+  function handleSelectXML(file) {
     if (!file) return;
     setXmlFile(file);
     setForm(prev => ({ ...prev, xml_file_name: file.name, xml_url: '' }));
-    await processFile(file, 'xml');
-  }
-
-  async function processFile(file, type) {
-    setProcessingFile(true);
-    try {
-      setAnalysisStep(`Enviando ${type === 'pdf' ? 'PDF' : 'XML'}...`);
-      const renamed = await renameFile(file, buildFileName({ 
-        numeroNF: form.numero_nf || 'NF', 
-        member, 
-        valor: form.valor_nf || valorParcela, 
-        extension: type === 'pdf' ? 'pdf' : 'xml' 
-      }));
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
-      
-      if (type === 'pdf') {
-        setForm(prev => ({ ...prev, nota_fiscal_url: file_url, nota_fiscal_file_name: renamed.name }));
-        setAnalysisStep('Extraindo dados da NF com IA...');
-        const aiResult = await base44.functions.invoke('extractInvoiceData', { file_url });
-        const extracted = aiResult?.data || aiResult || {};
-        setExtractedData(extracted);
-        setForm(prev => ({
-          ...prev,
-          numero_nf: extracted.numero || prev.numero_nf,
-          valor_nf: extracted.valor || prev.valor_nf,
-          data_emissao: extracted.data_emissao || prev.data_emissao,
-        }));
-        toast.success('Dados extraídos e preenchidos! Revise e ajuste conforme necessário.');
-      } else {
-        setForm(prev => ({ ...prev, xml_url: file_url, xml_file_name: renamed.name }));
-        toast.success('XML salvo com sucesso!');
-      }
-    } catch (e) {
-      toast.error(`Erro ao processar ${type}: ${e?.message}`);
-    } finally {
-      setProcessingFile(false);
-      setAnalysisStep('');
-    }
   }
 
   const monthOptions = useMemo(() => buildMonthOptions(), []);
@@ -403,6 +361,20 @@ export default function TeamPaymentSubmit({ userEmail }) {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Dados para emissão */}
+            {descricaoModelo && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2 text-sm text-blue-900">
+                <div className="font-semibold">📋 Dados para emissão da nota</div>
+                <pre className="whitespace-pre-wrap text-xs leading-relaxed bg-white/70 rounded-lg p-3 border border-blue-100 font-mono">
+                  {descricaoModelo}
+                </pre>
+                <Button type="button" variant="outline" size="sm"
+                  onClick={async () => { try { await navigator.clipboard.writeText(descricaoModelo); toast.success('Copiado!'); } catch { toast.error('Não foi possível copiar.'); } }}>
+                  Copiar dados para emissão
+                </Button>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Mês de envio *</Label>
@@ -416,17 +388,12 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
               <div className="space-y-2">
                 <Label>Número da nota fiscal *</Label>
-                <Input value={form.numero_nf} onChange={e => setForm(prev => ({ ...prev, numero_nf: e.target.value }))} placeholder="Ex.: NF 1" disabled={processingFile} />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Data de emissão</Label>
-                <Input type="date" value={form.data_emissao} onChange={e => setForm(prev => ({ ...prev, data_emissao: e.target.value }))} disabled={processingFile} />
+                <Input value={form.numero_nf} onChange={e => setForm(prev => ({ ...prev, numero_nf: e.target.value }))} placeholder="Ex.: NF 1" />
               </div>
 
               <div className="space-y-2">
                 <Label>Valor da nota</Label>
-                <Input value={form.valor_nf} onChange={e => setForm(prev => ({ ...prev, valor_nf: e.target.value }))} placeholder={formatBRL(valorParcela)} disabled={processingFile} />
+                <Input value={form.valor_nf} onChange={e => setForm(prev => ({ ...prev, valor_nf: e.target.value }))} placeholder={formatBRL(valorParcela)} />
               </div>
 
               <div className="space-y-2">
@@ -439,24 +406,16 @@ export default function TeamPaymentSubmit({ userEmail }) {
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm">
               <div className="font-medium text-gray-900 mb-2">Seus dados bancários para conferência</div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-gray-600">
-                <div>Banco: <span className="font-semibold">{member?.banco || '—'}</span></div>
-                <div>Agência: <span className="font-semibold">{member?.agencia || '—'}</span></div>
-                <div>Conta: <span className="font-semibold">{member?.conta || '—'}</span></div>
-                <div>PIX: <span className="font-semibold">{member?.pix_key || '—'}</span></div>
-                <div>{memberStatus.isPJ ? `CNPJ: ` : `CPF: `}<span className="font-semibold">{memberStatus.isPJ ? member?.cnpj || '—' : member?.cpf || '—'}</span></div>
+                <div>Banco: {member?.banco || '—'}</div>
+                <div>Agência: {member?.agencia || '—'}</div>
+                <div>Conta: {member?.conta || '—'}</div>
+                <div>PIX: {member?.pix_key || '—'}</div>
+                <div>{memberStatus.isPJ ? `CNPJ: ${member?.cnpj || '—'}` : `CPF: ${member?.cpf || '—'}`}</div>
               </div>
               {!memberStatus.ok && (
                 <div className="mt-2 text-red-600 text-xs font-medium">⚠ Dados incompletos. Atualize em "Meus Dados" antes de enviar.</div>
               )}
             </div>
-
-            {/* Processamento de arquivos */}
-            {processingFile && (
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 flex items-center gap-3 text-sm text-blue-800">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>{analysisStep}</span>
-              </div>
-            )}
 
             {/* Uploads */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -549,6 +508,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
               <span className="block text-gray-400 mt-0.5">Os arquivos são renomeados automaticamente nesse padrão ao fazer upload.</span>
             </div>
 
+            {/* Análise IA */}
             {submitting && analysisStep && (
               <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 flex items-center gap-3 text-sm text-purple-800">
                 <Brain className="w-5 h-5 animate-pulse" />

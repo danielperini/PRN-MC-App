@@ -1,807 +1,468 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { notifyCoordinators } from '@/lib/notifyHelpers';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import RequireAuth from '../components/auth/RequireAuth';
+import ContractAutoFill, { applyAiSuggestions } from '@/components/users/ContractAutoFill';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { Users, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  AlertCircle, CheckCircle2, Eye, FileText, Loader2, Plus, Upload, Brain,
-} from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { isCoordGeral } from '@/components/auth/permissions';
 
-const MONTHS = [
-  'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
-  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro',
-];
+const FORM_FIELDS = [
+{ name: 'email_pessoal', label: 'Email Pessoal', type: 'email' },
+{ name: 'telefone', label: 'Telefone de Contato', type: 'tel' },
+{ name: 'cpf', label: 'CPF', type: 'text' }];
 
-const VIADUTO_EMISSAO = {
-  razao_social: 'Viaduto das Artes',
-  endereco: 'Av. Olinto Meireles, 45 - Barreiro, Belo Horizonte - MG, 30640-010',
-  cnpj: '23.843.648/0001-25',
-  inscricao_municipal: '0.745.690/001-X',
-  telefone: '(31) 98802-5140',
-  email: 'viadutodasartes@viadutodasartes.org.br',
-  termo: '01-031.069/24-80',
-};
 
-function toNumber(v) {
-  if (v === null || v === undefined || v === '') return 0;
-  const n = Number(String(v).replace(/\./g, '').replace(',', '.'));
-  return Number.isFinite(n) ? n : 0;
-}
+const EMPRESA_FIELDS = [
+{ name: 'empresa_nome', label: 'Razão Social / Nome da Empresa', type: 'text' },
+{ name: 'empresa_endereco', label: 'Endereço', type: 'text' },
+{ name: 'representante_legal_nome', label: 'Nome do Representante Legal', type: 'text' },
+{ name: 'representante_legal_cpf', label: 'CPF do Representante', type: 'text' }];
 
-function formatBRL(v) {
-  return `R$ ${toNumber(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
-function buildMonthOptions() {
-  const now = new Date();
-  const out = [];
-  for (let i = 0; i < 18; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    const mes = MONTHS[d.getMonth()];
-    const ano = d.getFullYear();
-    out.push({ value: `${mes}|${ano}`, label: `${mes}/${ano}`, mes, ano });
-  }
-  return out;
-}
+const BANKING_FIELDS = [
+{ name: 'banco', label: 'Banco', type: 'text' },
+{ name: 'agencia', label: 'Agência', type: 'text' },
+{ name: 'conta', label: 'Conta', type: 'text' },
+{ name: 'pix_key', label: 'Chave PIX (opcional)', type: 'text' }];
 
-function getPreviousMonthRef(mes, ano) {
-  const idx = MONTHS.indexOf(mes);
-  if (idx === -1) return null;
-  return idx === 0 ? { mes: 'Dezembro', ano: Number(ano) - 1 } : { mes: MONTHS[idx - 1], ano: Number(ano) };
-}
 
-function sanitize(value) {
-  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[<>:"/\\|?*]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
-}
-
-function getValorParcela(member) {
-  const vp = toNumber(member?.valor_parcela);
-  if (vp > 0) return vp;
-  const total = toNumber(member?.valor_total);
-  const parcelas = toNumber(member?.numero_parcelas) || toNumber(member?.parcelas);
-  return total && parcelas ? total / parcelas : 0;
-}
-
-function buildFileName({ numeroNF, member, valor, extension }) {
-  const nf = sanitize(numeroNF || 'NF');
-  const cargo = sanitize(member?.funcao || 'FUNCAO');
-  const nome = sanitize(member?.user_name || member?.nome || 'SEM NOME');
-  const valorStr = sanitize(formatBRL(valor));
-  return `${nf} ${cargo} - ${nome} - MUSEUS CENTRO - ${valorStr}.${extension}`;
-}
-
-function getMemberDataStatus(member) {
-  if (!member) return { ok: false, missing: ['Perfil não encontrado'] };
-  const isPJ = String(member?.tipo_pessoa || 'PF').toUpperCase() === 'PJ';
-  const missing = [];
-  if (!member?.user_name) missing.push('Nome');
-  if (!member?.funcao) missing.push('Função');
-  if (!member?.banco) missing.push('Banco');
-  if (!member?.agencia) missing.push('Agência');
-  if (!member?.conta) missing.push('Conta');
-  if (!member?.pix_key) missing.push('PIX');
-  if (isPJ && !member?.cnpj) missing.push('CNPJ');
-  if (!isPJ && !member?.cpf) missing.push('CPF');
-  return { ok: missing.length === 0, missing, isPJ };
-}
-
-function buildDescricaoModelo(member, mes, ano) {
-  const funcao = member?.funcao || 'Função';
-  const isPJ = String(member?.tipo_pessoa || 'PF').toUpperCase() === 'PJ';
-  const doc = isPJ ? `CNPJ: ${member?.cnpj || ''}` : `CPF: ${member?.cpf || ''}`;
-  return [
-    'DESCRIÇÃO DA NOTA',
-    `Prestação de serviço (${funcao}) ao Projeto Museus Centro - Termo de Colaboração ${VIADUTO_EMISSAO.termo}, parceria com SMC/FMC: ${mes}/${ano}.`,
-    '',
-    'Dados para pagamento',
-    `Banco: ${member?.banco || ''}`,
-    `Agência: ${member?.agencia || ''}`,
-    `Conta: ${member?.conta || ''}`,
-    doc,
-    `PIX: ${member?.pix_key || ''}`,
-    '',
-    `VALOR: ${formatBRL(getValorParcela(member))}`,
-    '',
-    VIADUTO_EMISSAO.razao_social,
-    `Endereço: ${VIADUTO_EMISSAO.endereco}`,
-    `CNPJ: ${VIADUTO_EMISSAO.cnpj}`,
-    `Inscrição Municipal: ${VIADUTO_EMISSAO.inscricao_municipal}`,
-    `Telefone: ${VIADUTO_EMISSAO.telefone}`,
-    `Email: ${VIADUTO_EMISSAO.email}`,
-  ].join('\n');
-}
-
-async function renameFile(file, fileName) {
-  const buffer = await file.arrayBuffer();
-  return new File([buffer], fileName, { type: file.type || 'application/octet-stream', lastModified: Date.now() });
-}
-
-function buildAutofillPatchFromAnalysis(ar, prev) {
-  const patch = {};
-
-  const valorEncontrado = toNumber(ar?.valor_encontrado);
-  if (!prev.valor_nf && valorEncontrado > 0) {
-    patch.valor_nf = String(valorEncontrado).replace('.', ',');
-  }
-
-  const numeroEncontrado = String(ar?.numero_nf_encontrado || '').trim();
-  if (!prev.numero_nf && numeroEncontrado) {
-    patch.numero_nf = numeroEncontrado;
-  }
-
-  const banco = String(ar?.dados_extraidos_nf?.banco || '').trim();
-  const agencia = String(ar?.dados_extraidos_nf?.agencia || '').trim();
-  const conta = String(ar?.dados_extraidos_nf?.conta || '').trim();
-  const pix = String(ar?.dados_extraidos_nf?.pix_key || '').trim();
-  const cpf = String(ar?.dados_extraidos_nf?.cpf || '').trim();
-  const cnpj = String(ar?.dados_extraidos_nf?.cnpj || '').trim();
-
-  patch.__member = { banco, agencia, conta, pix_key: pix, cpf, cnpj };
-
-  return patch;
-}
-
-export default function TeamPaymentSubmit({ userEmail }) {
-  const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [analyzingOnly, setAnalyzingOnly] = useState(false);
-  const [pdfFile, setPdfFile] = useState(null);
-  const [xmlFile, setXmlFile] = useState(null);
-  const [analysis, setAnalysis] = useState(null);
-  const [analysisStep, setAnalysisStep] = useState('');
-  const [memberLocalPatch, setMemberLocalPatch] = useState({});
-
-  const [form, setForm] = useState({
-    competencia: '',
-    numero_nf: '',
-    valor_nf: '',
-    nota_fiscal_url: '',
-    xml_url: '',
-    nota_fiscal_file_name: '',
-    xml_file_name: '',
+function MeusDadosInner() {
+  const [user, setUser] = useState(null);
+  const [coordGeral, setCoordGeral] = useState(false);
+  const [isSponsor, setIsSponsor] = useState(false);
+  const [selectedUserEmail, setSelectedUserEmail] = useState(null); // null = próprio usuário
+  // Tracking: campos editados manualmente pelo utilizador (nunca sobrescrever com IA)
+  const manualFields = useRef(new Set());
+  // Campos preenchidos pela IA (para exibir badge e appliedFields)
+  const [aiApplied, setAiApplied] = useState({});
+  const [formData, setFormData] = useState({
+    email_pessoal: '',
+    telefone: '',
+    cpf: '',
+    tipo_pessoa: 'PF',
+    cnpj: '',
+    empresa_nome: '',
+    empresa_endereco: '',
+    representante_legal_nome: '',
+    representante_legal_cpf: '',
+    cargo_representante: '',
+    banco: '',
+    agencia: '',
+    conta: '',
+    tipo_conta: 'Corrente',
+    pix_key: ''
   });
-
-  function handleSelectPDF(file) {
-    if (!file) return;
-    setPdfFile(file);
-    setAnalysis(null);
-    setForm(prev => ({ ...prev, nota_fiscal_file_name: file.name, nota_fiscal_url: '' }));
-  }
-
-  function handleSelectXML(file) {
-    if (!file) return;
-    setXmlFile(file);
-    setAnalysis(null);
-    setForm(prev => ({ ...prev, xml_file_name: file.name, xml_url: '' }));
-  }
-
-  const monthOptions = useMemo(() => buildMonthOptions(), []);
-  const selectedComp = useMemo(() => monthOptions.find(o => o.value === form.competencia) || null, [form.competencia, monthOptions]);
-
-  const { data: currentUser } = useQuery({ queryKey: ['auth-me'], queryFn: () => base44.auth.me() });
-
-  const { data: member, isLoading: loadingMember } = useQuery({
-    queryKey: ['team-submit-own-member', userEmail],
-    queryFn: async () => {
-      const rows = await base44.entities.TeamMember.filter({ user_email: userEmail });
-      return Array.isArray(rows) ? rows[0] || null : null;
-    },
-    enabled: !!userEmail,
-  });
-
-  const effectiveMember = useMemo(() => ({
-    ...(member || {}),
-    ...(memberLocalPatch || {}),
-  }), [member, memberLocalPatch]);
-
-  const valorParcela = useMemo(() => getValorParcela(effectiveMember), [effectiveMember]);
-  const memberStatus = useMemo(() => getMemberDataStatus(effectiveMember), [effectiveMember]);
-  const descricaoModelo = useMemo(() => {
-    if (!effectiveMember || !selectedComp) return '';
-    return buildDescricaoModelo(effectiveMember, selectedComp.mes, selectedComp.ano);
-  }, [effectiveMember, selectedComp]);
+  const [teamMembers, setTeamMembers] = useState([]);
 
   useEffect(() => {
-    let cancelled = false;
+    base44.auth.me().then((u) => {
+      if (!u) {setUser(null);return;}
+      setUser(u);
+      setCoordGeral(isCoordGeral(u));
+      setIsSponsor(u.role === 'PATROCINADOR');
+      loadUserData(u);
+    }).catch(() => setUser(null));
+  }, []);
 
-    async function hydrateMissingMemberData() {
-      if (!member?.id) return;
-      const missingCritical =
-        !member?.banco ||
-        !member?.agencia ||
-        !member?.conta ||
-        !member?.pix_key ||
-        (!member?.cpf && !member?.cnpj);
+  const loadUserData = (u) => {
+    setFormData({
+      email_pessoal: u.email_pessoal || '',
+      telefone: u.telefone || '',
+      cpf: u.cpf || '',
+      tipo_pessoa: u.tipo_pessoa || 'PF',
+      cnpj: u.cnpj || '',
+      empresa_nome: u.empresa_nome || '',
+      empresa_endereco: u.empresa_endereco || '',
+      representante_legal_nome: u.representante_legal_nome || '',
+      representante_legal_cpf: u.representante_legal_cpf || '',
+      cargo_representante: u.cargo_representante || '',
+      banco: u.banco || '',
+      agencia: u.agencia || '',
+      conta: u.conta || '',
+      tipo_conta: u.tipo_conta || 'Corrente',
+      pix_key: u.pix_key || ''
+    });
+  };
 
-      if (!missingCritical) return;
+  const { data: teamData = [] } = useQuery({
+    queryKey: ['team-members', user?.email],
+    queryFn: () => base44.entities.TeamMember.list(),
+    enabled: !!user?.email
+  });
 
-      try {
-        const res = await base44.functions.invoke('ensureTeamMemberDataComplete', {
-          team_member_id: member.id,
-          user_email: member.user_email,
-        });
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ['all-users-meudados'],
+    queryFn: () => base44.entities.User.list(),
+    enabled: coordGeral
+  });
 
-        const hydratedMember = res?.data?.member || null;
-        if (!cancelled && hydratedMember) {
-          setMemberLocalPatch({
-            banco: hydratedMember.banco || '',
-            agencia: hydratedMember.agencia || '',
-            conta: hydratedMember.conta || '',
-            pix_key: hydratedMember.pix_key || '',
-            cpf: hydratedMember.cpf || '',
-            cnpj: hydratedMember.cnpj || '',
-            valor_parcela: hydratedMember.valor_parcela || member.valor_parcela || '',
-            numero_parcelas: hydratedMember.numero_parcelas || member.numero_parcelas || '',
-            vigencia_inicio: hydratedMember.vigencia_inicio || member.vigencia_inicio || '',
-            vigencia_fim: hydratedMember.vigencia_fim || member.vigencia_fim || '',
-          });
-        }
-      } catch (e) {
-        console.warn('Falha ao completar dados do membro', e);
-      }
-    }
-
-    hydrateMissingMemberData();
-    return () => { cancelled = true; };
-  }, [member?.id, member?.user_email]);
-
-  async function checkPreviousReport() {
-    if (!selectedComp || !currentUser?.email) return { ok: true };
-    const prev = getPreviousMonthRef(selectedComp.mes, selectedComp.ano);
-    if (!prev) return { ok: true };
-    const reports = await base44.entities.Report.filter({ mes_referencia: prev.mes, ano: prev.ano });
-    const email = String(currentUser.email).toLowerCase();
-    const own = (reports || []).find(r =>
-      String(r?.created_by || '').toLowerCase() === email ||
-      String(r?.author_email || '').toLowerCase() === email
-    );
-    if (!own) return { ok: false, message: `Antes de enviar a nota de ${selectedComp.mes}/${selectedComp.ano}, envie o relatório de ${prev.mes}/${prev.ano} ao coordenador.` };
-    if (!['SUBMITTED', 'APPROVED'].includes(String(own.status || '').toUpperCase())) {
-      return { ok: false, message: `O relatório de ${prev.mes}/${prev.ano} ainda não foi enviado. Status: ${own.status}.` };
-    }
-    return { ok: true };
-  }
-
-  async function ensureUploadedFiles() {
-    let nextForm = { ...form };
-
-    if (pdfFile && !nextForm.nota_fiscal_url) {
-      setAnalysisStep('Enviando PDF...');
-      const renamed = await renameFile(
-        pdfFile,
-        buildFileName({
-          numeroNF: nextForm.numero_nf || 'NF',
-          member: effectiveMember,
-          valor: nextForm.valor_nf || valorParcela,
-          extension: 'pdf',
-        })
-      );
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
-      nextForm = {
-        ...nextForm,
-        nota_fiscal_url: file_url,
-        nota_fiscal_file_name: renamed.name,
-      };
-      setForm(nextForm);
-    }
-
-    if (xmlFile && !nextForm.xml_url) {
-      setAnalysisStep('Enviando XML...');
-      const renamed = await renameFile(
-        xmlFile,
-        buildFileName({
-          numeroNF: nextForm.numero_nf || 'NF',
-          member: effectiveMember,
-          valor: nextForm.valor_nf || valorParcela,
-          extension: 'xml',
-        })
-      );
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
-      nextForm = {
-        ...nextForm,
-        xml_url: file_url,
-        xml_file_name: renamed.name,
-      };
-      setForm(nextForm);
-    }
-
-    return nextForm;
-  }
-
-  async function runInvoiceAnalysis() {
-    if (!selectedComp) {
-      toast.error('Selecione o mês antes de analisar.');
-      return null;
-    }
-
-    if (!effectiveMember) {
-      toast.error('Perfil não encontrado.');
-      return null;
-    }
-
-    if (!pdfFile && !form.nota_fiscal_url) {
-      toast.error('Selecione o arquivo PDF da nota fiscal.');
-      return null;
-    }
-
-    if (!xmlFile && !form.xml_url) {
-      toast.error('Selecione o arquivo XML da nota fiscal.');
-      return null;
-    }
-
-    try {
-      setAnalyzingOnly(true);
-      setAnalysis(null);
-
-      const nextForm = await ensureUploadedFiles();
-
-      setAnalysisStep('Analisando nota fiscal com IA...');
-      const analysisResult = await base44.functions.invoke('validateTeamPaymentInvoice', {
-        file_url: nextForm.nota_fiscal_url,
-        xml_url: nextForm.xml_url,
-        mes_referencia: selectedComp.mes,
-        ano: selectedComp.ano,
-        numero_nf: nextForm.numero_nf,
-        valor_esperado: valorParcela,
-        member_snapshot: {
-          user_name: effectiveMember.user_name || '',
-          funcao: effectiveMember.funcao || '',
-          tipo_pessoa: effectiveMember.tipo_pessoa || 'PF',
-          cpf: effectiveMember.cpf || '',
-          cnpj: effectiveMember.cnpj || '',
-          banco: effectiveMember.banco || '',
-          agencia: effectiveMember.agencia || '',
-          conta: effectiveMember.conta || '',
-          pix_key: effectiveMember.pix_key || '',
-          contrato_url: effectiveMember.contrato_url || effectiveMember.file_url || '',
-          file_url: effectiveMember.file_url || effectiveMember.contrato_url || '',
-        },
-        descricao_modelo: descricaoModelo,
+  // Quando coordGeral troca de usuário selecionado, carrega dados do TeamMember
+  useEffect(() => {
+    if (!selectedUserEmail || !teamData.length) return;
+    const member = teamData.find((m) => m.user_email === selectedUserEmail);
+    if (member) {
+      setFormData({
+        email_pessoal: member.email_pessoal || '',
+        telefone: member.telefone || '',
+        cpf: member.cpf || '',
+        tipo_pessoa: member.tipo_pessoa || 'PF',
+        cnpj: member.cnpj || '',
+        empresa_nome: member.empresa_nome || '',
+        empresa_endereco: member.empresa_endereco || '',
+        representante_legal_nome: member.representante_legal_nome || '',
+        representante_legal_cpf: member.representante_legal_cpf || '',
+        cargo_representante: member.cargo_representante || '',
+        banco: member.banco || '',
+        agencia: member.agencia || '',
+        conta: member.conta || '',
+        tipo_conta: member.tipo_conta || 'Corrente',
+        pix_key: member.pix_key || ''
       });
+    }
+  }, [selectedUserEmail, teamData]);
 
-      const ar = analysisResult?.data || analysisResult || {};
-      setAnalysis(ar);
-
-      const patch = buildAutofillPatchFromAnalysis(ar, nextForm);
-
-      if (patch.numero_nf || patch.valor_nf) {
-        setForm(prev => ({
-          ...prev,
-          ...(patch.numero_nf ? { numero_nf: patch.numero_nf } : {}),
-          ...(patch.valor_nf ? { valor_nf: patch.valor_nf } : {}),
+  useEffect(() => {
+    if (teamData && user?.email && !selectedUserEmail) {
+      const currentMember = teamData.find((m) => m.user_email === user.email);
+      if (currentMember) {
+        setFormData((prev) => ({
+          email_pessoal: prev.email_pessoal || currentMember.email_pessoal || '',
+          telefone: prev.telefone || currentMember.telefone || '',
+          cpf: prev.cpf || currentMember.cpf || '',
+          tipo_pessoa: prev.tipo_pessoa || currentMember.tipo_pessoa || 'PF',
+          cnpj: prev.cnpj || currentMember.cnpj || '',
+          empresa_nome: prev.empresa_nome || currentMember.empresa_nome || '',
+          empresa_endereco: prev.empresa_endereco || currentMember.empresa_endereco || '',
+          representante_legal_nome: prev.representante_legal_nome || currentMember.representante_legal_nome || '',
+          representante_legal_cpf: prev.representante_legal_cpf || currentMember.representante_legal_cpf || '',
+          cargo_representante: prev.cargo_representante || currentMember.cargo_representante || '',
+          banco: prev.banco || currentMember.banco || '',
+          agencia: prev.agencia || currentMember.agencia || '',
+          conta: prev.conta || currentMember.conta || '',
+          tipo_conta: prev.tipo_conta || currentMember.tipo_conta || 'Corrente',
+          pix_key: prev.pix_key || currentMember.pix_key || ''
         }));
       }
+      if (user?.equipe) {
+        const teamColeagues = teamData.filter((m) => m.tipo_equipe === user.equipe && m.user_email !== user.email);
+        setTeamMembers(teamColeagues);
+      }
+    }
+  }, [teamData, user?.email, selectedUserEmail]);
 
-      if (effectiveMember?.id && patch.__member) {
-        const memberUpdate = {};
-        if (!effectiveMember?.banco && patch.__member.banco) memberUpdate.banco = patch.__member.banco;
-        if (!effectiveMember?.agencia && patch.__member.agencia) memberUpdate.agencia = patch.__member.agencia;
-        if (!effectiveMember?.conta && patch.__member.conta) memberUpdate.conta = patch.__member.conta;
-        if (!effectiveMember?.pix_key && patch.__member.pix_key) memberUpdate.pix_key = patch.__member.pix_key;
-        if (!effectiveMember?.cpf && patch.__member.cpf) memberUpdate.cpf = patch.__member.cpf;
-        if (!effectiveMember?.cnpj && patch.__member.cnpj) memberUpdate.cnpj = patch.__member.cnpj;
+  const targetEmail = selectedUserEmail || user?.email;
+  const targetUser = selectedUserEmail ? allUsers.find((u) => u.email === selectedUserEmail) : user;
 
-        if (Object.keys(memberUpdate).length > 0) {
-          try {
-            await base44.entities.TeamMember.update(effectiveMember.id, memberUpdate);
-            setMemberLocalPatch(prev => ({ ...prev, ...memberUpdate }));
-          } catch (e) {
-            console.warn('Falha ao atualizar dados do membro a partir da NF', e);
-          }
-        }
+  const isComplete = isSponsor ?
+  formData.email_pessoal && formData.telefone :
+  formData.email_pessoal && formData.telefone && formData.cpf &&
+  formData.banco && formData.agencia && formData.conta && (
+  formData.tipo_pessoa === 'PF' || formData.cnpj && formData.empresa_nome);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      // Só atualiza via auth.updateMe se for o próprio usuário
+      if (!selectedUserEmail) {
+        await base44.auth.updateMe(formData);
       }
 
-      if (ar?.can_submit === false) {
-        toast.error('A IA identificou inconsistências críticas. Revise antes de enviar.');
+      // Sincronizar dados com TeamMember vinculado (cria se não existir)
+      const currentMember = teamData.find((m) => m.user_email === targetEmail);
+      const teamPayload = {
+        user_email: targetEmail,
+        user_name: targetUser?.full_name || '',
+        tipo_equipe: targetUser?.equipe || '',
+        funcao: targetUser?.funcao || '',
+        email_pessoal: formData.email_pessoal,
+        telefone: formData.telefone,
+        cpf: formData.cpf,
+        tipo_pessoa: formData.tipo_pessoa,
+        cnpj: formData.cnpj,
+        empresa_nome: formData.empresa_nome,
+        empresa_endereco: formData.empresa_endereco,
+        representante_legal_nome: formData.representante_legal_nome,
+        representante_legal_cpf: formData.representante_legal_cpf,
+        cargo_representante: formData.cargo_representante,
+        banco: formData.banco,
+        agencia: formData.agencia,
+        conta: formData.conta,
+        tipo_conta: formData.tipo_conta,
+        pix_key: formData.pix_key
+      };
+      if (currentMember) {
+        await base44.entities.TeamMember.update(currentMember.id, teamPayload).catch(() => null);
       } else {
-        toast.success('Nota analisada com sucesso e dados preenchidos.');
+        await base44.entities.TeamMember.create(teamPayload).catch(() => null);
       }
 
-      return { ar, formAfterAnalysis: { ...nextForm, ...(patch.numero_nf ? { numero_nf: patch.numero_nf } : {}), ...(patch.valor_nf ? { valor_nf: patch.valor_nf } : {}) } };
-    } catch (e) {
-      toast.error(e?.message || 'Erro ao analisar nota com IA.');
-      return null;
-    } finally {
-      setAnalyzingOnly(false);
-      setAnalysisStep('');
-    }
+      if (teamMembers.length > 0) {
+        await Promise.all(teamMembers.map((member) =>
+        base44.entities.Notification.create({
+          user_email: member.user_email,
+          type: 'TEAM_DATA_REMINDER',
+          title: `${user.full_name} atualizou seus dados`,
+          message: `Seus colegas estão preenchendo os dados pessoais e bancários. Complete seus dados para manter a equipe sincronizada.`,
+          action_url: '/MeusDados'
+        }).catch(() => null)
+        ));
+      }
+    },
+    onSuccess: () => toast.success('Dados salvos com sucesso!'),
+    onError: () => toast.error('Erro ao salvar dados.')
+  });
+
+  // set manual: marca campo como editado manualmente
+  const set = (key, value) => {
+    manualFields.current.add(key);
+    setFormData((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // Quando coordGeral muda de utilizador, resetar tracking manual e IA
+  const resetAiTracking = () => {
+    manualFields.current = new Set();
+    setAiApplied({});
+  };
+
+  const handleAiApply = useCallback((suggestions) => {
+    setFormData((prev) => applyAiSuggestions(prev, suggestions, manualFields.current));
+    setAiApplied(suggestions);
+  }, []);
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-400">
+        Carregando...
+      </div>);
+
   }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!effectiveMember) { toast.error('Perfil não encontrado.'); return; }
-    if (!memberStatus.ok) { toast.error('Atualize seus dados em "Meus Dados" antes de enviar.'); return; }
-    if (!selectedComp) { toast.error('Selecione o mês.'); return; }
-    if (!form.numero_nf) { toast.error('Informe o número da nota.'); return; }
-    if (!pdfFile && !form.nota_fiscal_url) { toast.error('Selecione o arquivo PDF da nota fiscal.'); return; }
-    if (!xmlFile && !form.xml_url) { toast.error('Selecione o arquivo XML da nota fiscal.'); return; }
-
-    setSubmitting(true);
-    setAnalysis(null);
-
-    try {
-      setAnalysisStep('Verificando relatório anterior...');
-      const repCheck = await checkPreviousReport();
-      if (!repCheck.ok) { toast.error(repCheck.message); setSubmitting(false); setAnalysisStep(''); return; }
-
-      let nextForm = { ...form };
-      let ar = null;
-
-      const analysisRun = await runInvoiceAnalysis();
-      if (analysisRun) {
-        ar = analysisRun.ar;
-        nextForm = analysisRun.formAfterAnalysis;
-      }
-
-      if (!analysisRun) {
-        nextForm = await ensureUploadedFiles();
-
-        setAnalysisStep('Analisando nota fiscal com IA...');
-        const analysisResult = await base44.functions.invoke('validateTeamPaymentInvoice', {
-          file_url: nextForm.nota_fiscal_url,
-          xml_url: nextForm.xml_url,
-          mes_referencia: selectedComp.mes,
-          ano: selectedComp.ano,
-          numero_nf: nextForm.numero_nf,
-          valor_esperado: valorParcela,
-          member_snapshot: {
-            user_name: effectiveMember.user_name || '',
-            funcao: effectiveMember.funcao || '',
-            tipo_pessoa: effectiveMember.tipo_pessoa || 'PF',
-            cpf: effectiveMember.cpf || '',
-            cnpj: effectiveMember.cnpj || '',
-            banco: effectiveMember.banco || '',
-            agencia: effectiveMember.agencia || '',
-            conta: effectiveMember.conta || '',
-            pix_key: effectiveMember.pix_key || '',
-            contrato_url: effectiveMember.contrato_url || effectiveMember.file_url || '',
-            file_url: effectiveMember.file_url || effectiveMember.contrato_url || '',
-          },
-          descricao_modelo: descricaoModelo,
-        });
-
-        ar = analysisResult?.data || analysisResult || {};
-        setAnalysis(ar);
-      }
-
-      if (ar?.can_submit === false) {
-        toast.error('A IA identificou inconsistências críticas. Revise antes de enviar.');
-        setSubmitting(false);
-        setAnalysisStep('');
-        return;
-      }
-
-      setAnalysisStep('Registrando envio...');
-      const created = await base44.entities.TeamPayment.create({
-        team_member_id: effectiveMember.id,
-        user_email: effectiveMember.user_email,
-        user_name: effectiveMember.user_name || '',
-        funcao: effectiveMember.funcao || '',
-        mes_referencia: selectedComp.mes,
-        ano: selectedComp.ano,
-        numero_nf: nextForm.numero_nf,
-        valor_nf: toNumber(nextForm.valor_nf || valorParcela),
-        valor_parcela_previsto: valorParcela,
-        numero_parcela: (toNumber(effectiveMember.parcelas_pagas) || 0) + 1,
-        nota_fiscal_url: nextForm.nota_fiscal_url,
-        xml_url: nextForm.xml_url,
-        nota_fiscal_file_name: nextForm.nota_fiscal_file_name,
-        xml_file_name: nextForm.xml_file_name,
-        descricao_nf_modelo: descricaoModelo,
-        analysis_status: ar?.status || 'ANALISADO',
-        analysis_summary: ar?.summary || '',
-        analysis_warnings: Array.isArray(ar?.warnings) ? ar.warnings : [],
-        analysis_critical_issues: Array.isArray(ar?.critical_issues) ? ar.critical_issues : [],
-        resultado_validacao: JSON.stringify(ar || {}),
-        status: 'AGUARDANDO_APROVACAO',
-      });
-
-      try {
-        setAnalysisStep('Salvando backup no Drive...');
-        await base44.functions.invoke('backupNotasFiscaisToDrive', {
-          file_url: nextForm.nota_fiscal_url,
-          file_name: nextForm.nota_fiscal_file_name,
-          xml_url: nextForm.xml_url,
-          xml_file_name: nextForm.xml_file_name,
-          team_payment_id: created?.id,
-        });
-      } catch (e) {
-        console.warn('Falha no backup do Drive (não bloqueante)', e);
-      }
-
-      setAnalysisStep('Enviando notificações...');
-      await base44.functions.invoke('notifyTeamPaymentSubmitted', {
-        payment_id: created?.id,
-        team_member_name: effectiveMember.user_name || '',
-        cargo: effectiveMember.funcao || '',
-        mes: selectedComp.mes,
-        ano: selectedComp.ano,
-        valor: toNumber(nextForm.valor_nf || valorParcela),
-        user_email: effectiveMember.user_email,
-        requester_email: currentUser?.email || effectiveMember.user_email || '',
-        nota_fiscal_url: nextForm.nota_fiscal_url,
-        xml_url: nextForm.xml_url,
-        nota_fiscal_file_name: nextForm.nota_fiscal_file_name,
-        xml_file_name: nextForm.xml_file_name,
-        app_link: window.location.origin + '/Compras',
-      });
-
-      await notifyCoordinators({
-        title: '💰 Nova nota fiscal para aprovação',
-        message: `${effectiveMember.user_name || effectiveMember.user_email} enviou nota fiscal de ${selectedComp.mes}/${selectedComp.ano} (${formatBRL(toNumber(nextForm.valor_nf || valorParcela))}) para aprovação.`,
-        type: 'PAYMENT_SUBMITTED',
-        action_url: `${window.location.origin}/Compras`,
-      });
-
-      toast.success('Envio realizado com sucesso! As notificações foram disparadas.');
-      setOpen(false);
-      setPdfFile(null);
-      setXmlFile(null);
-      setForm({
-        competencia: '',
-        numero_nf: '',
-        valor_nf: '',
-        nota_fiscal_url: '',
-        xml_url: '',
-        nota_fiscal_file_name: '',
-        xml_file_name: '',
-      });
-      setAnalysis(null);
-      setAnalysisStep('');
-      await queryClient.invalidateQueries();
-    } catch (e) {
-      toast.error(e?.message || 'Erro ao enviar.');
-    } finally {
-      setSubmitting(false);
-      setAnalysisStep('');
-    }
-  }
-
-  if (loadingMember) return (
-    <div className="rounded-xl border p-4 text-sm text-gray-500 flex items-center gap-2">
-      <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
-    </div>
-  );
-
-  if (!effectiveMember) return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-      Perfil de equipe não localizado. Peça ao coordenador para cadastrá-lo.
-    </div>
-  );
 
   return (
-    <div className="space-y-4">
-      <Button onClick={() => setOpen(true)}>
-        <Plus className="w-4 h-4 mr-2" /> Novo envio
-      </Button>
+    <div className="min-h-screen bg-white pb-20">
+      <div className="max-w-2xl mx-auto px-6 py-12">
 
-      {!memberStatus.ok && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 space-y-1">
-          <div className="font-medium flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Dados incompletos — atualize antes de enviar a nota.</div>
-          <div>Campos pendentes: {memberStatus.missing.join(', ')}</div>
+        {/* Header */}
+        <div className="mb-10">
+         <h1 className="text-3xl font-semibold text-black mb-2">
+           {selectedUserEmail ? `Informações de ${targetUser?.full_name || selectedUserEmail}` : 'Informações'}
+         </h1>
+         <p className="text-gray-600">{isSponsor ? 'Atualize seus dados pessoais' : 'Preencha suas informações pessoais e bancárias para a equipe'}</p>
         </div>
-      )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Envio mensal de nota fiscal</DialogTitle>
-          </DialogHeader>
+        {/* Seletor de usuário — apenas Coordenador Geral */}
+        {coordGeral &&
+        <div className="mb-8 p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+            <Label className="text-sm font-semibold text-slate-700">Editar dados de outro usuário</Label>
+            <Select
+            value={selectedUserEmail || '__own__'}
+            onValueChange={(v) => {setSelectedUserEmail(v === '__own__' ? null : v);resetAiTracking();}}>
+            
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__own__">— Meus próprios dados —</SelectItem>
+                {allUsers.filter((u) => u.email !== user?.email).map((u) =>
+              <SelectItem key={u.email} value={u.email}>{u.full_name} ({u.email})</SelectItem>
+              )}
+              </SelectContent>
+            </Select>
+          </div>
+        }
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {descricaoModelo && (
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2 text-sm text-blue-900">
-                <div className="font-semibold">📋 Dados para emissão da nota</div>
-                <pre className="whitespace-pre-wrap text-xs leading-relaxed bg-white/70 rounded-lg p-3 border border-blue-100 font-mono">
-                  {descricaoModelo}
-                </pre>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(descricaoModelo);
-                      toast.success('Copiado!');
-                    } catch {
-                      toast.error('Não foi possível copiar.');
-                    }
-                  }}
-                >
-                  Copiar dados para emissão
-                </Button>
+        {/* Autopreenchimento por contrato IA */}
+        {!isSponsor &&
+        <ContractAutoFill
+          userEmail={targetEmail}
+          onApply={handleAiApply}
+          appliedFields={aiApplied} />
+
+        }
+
+        {/* Equipe Info */}
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+
+        {/* Completion Status */}
+        <div className={`mb-8 p-4 border rounded-lg flex items-start gap-3 ${isComplete ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+          {isComplete ?
+          <>
+              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-green-900">Informações Completas</p>
+                <p className="text-xs text-green-700 mt-0.5">Todas as informações foram preenchidas</p>
+              </div>
+            </> :
+
+          <>
+              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900">Informações Incompletas</p>
+                <p className="text-xs text-amber-700 mt-0.5">Preencha todos os campos obrigatórios</p>
+              </div>
+            </>
+          }
+        </div>
+
+        {/* Form */}
+        <form onSubmit={(e) => {e.preventDefault();saveMutation.mutate();}} className="space-y-8">
+
+          {/* Dados Pessoais */}
+          <Section title="Dados Pessoais">
+            {FORM_FIELDS.map((field) =>
+            <div key={field.name} className="space-y-1.5">
+                <Label>{field.label} *</Label>
+                <Input
+                type={field.type}
+                value={formData[field.name]}
+                onChange={(e) => set(field.name, e.target.value)}
+                placeholder={field.label}
+                required />
+              
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Mês de envio *</Label>
-                <Select value={form.competencia} onValueChange={v => { setForm(prev => ({ ...prev, competencia: v })); setAnalysis(null); }}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o mês" /></SelectTrigger>
+            <div className="space-y-1.5">
+              <Label>Tipo de Pessoa *</Label>
+              <Select value={formData.tipo_pessoa} onValueChange={(v) => set('tipo_pessoa', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PF">Pessoa Física (PF)</SelectItem>
+                  <SelectItem value="MEI">MEI</SelectItem>
+                  <SelectItem value="ME">ME (Microempresa)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {formData.tipo_pessoa !== 'PF' &&
+            <div>
+                <Label>CNPJ *</Label>
+                <Input
+                value={formData.cnpj}
+                onChange={(e) => set('cnpj', e.target.value)}
+                placeholder="00.000.000/0001-00"
+                required={formData.tipo_pessoa !== 'PF'} />
+              
+              </div>
+            }
+          </Section>
+
+          {/* Dados da Empresa */}
+          {formData.tipo_pessoa !== 'PF' &&
+          <Section title="Dados da Empresa">
+              {EMPRESA_FIELDS.map((field) =>
+            <div key={field.name} className="space-y-1.5">
+                  <Label>{field.label} {field.name !== 'empresa_endereco' ? '*' : ''}</Label>
+                  <Input
+                type={field.type}
+                value={formData[field.name]}
+                onChange={(e) => set(field.name, e.target.value)}
+                placeholder={field.label}
+                required={field.name !== 'empresa_endereco'} />
+              
+                </div>
+            )}
+
+              <div className="space-y-1.5">
+                <Label>Cargo do Representante *</Label>
+                <Select value={formData.cargo_representante} onValueChange={(v) => set('cargo_representante', v)}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
                   <SelectContent>
-                    {monthOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    <SelectItem value="Sócio-Gerente">Sócio-Gerente</SelectItem>
+                    <SelectItem value="Diretor">Diretor</SelectItem>
+                    <SelectItem value="Gerente">Gerente</SelectItem>
+                    <SelectItem value="Procurador">Procurador</SelectItem>
+                    <SelectItem value="Outro">Outro</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+            </Section>
+          }
 
-              <div className="space-y-2">
-                <Label>Número da nota fiscal *</Label>
-                <Input value={form.numero_nf} onChange={e => setForm(prev => ({ ...prev, numero_nf: e.target.value }))} placeholder="Ex.: NF 1" />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Valor da nota</Label>
-                <Input value={form.valor_nf} onChange={e => setForm(prev => ({ ...prev, valor_nf: e.target.value }))} placeholder={formatBRL(valorParcela)} />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Valor previsto da parcela</Label>
-                <Input value={formatBRL(valorParcela)} disabled className="bg-gray-50" />
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm">
-              <div className="font-medium text-gray-900 mb-2">Seus dados bancários para conferência</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-gray-600">
-                <div>Banco: {effectiveMember?.banco || '—'}</div>
-                <div>Agência: {effectiveMember?.agencia || '—'}</div>
-                <div>Conta: {effectiveMember?.conta || '—'}</div>
-                <div>PIX: {effectiveMember?.pix_key || '—'}</div>
-                <div>{memberStatus.isPJ ? `CNPJ: ${effectiveMember?.cnpj || '—'}` : `CPF: ${effectiveMember?.cpf || '—'}`}</div>
-              </div>
-              {!memberStatus.ok && (
-                <div className="mt-2 text-red-600 text-xs font-medium">⚠ Dados incompletos. Atualize em "Meus Dados" antes de enviar.</div>
+          {/* Dados Bancários — Não mostrar para patrocinadores */}
+          {!isSponsor &&
+          <Section title="Dados Bancários">
+              <div className="space-y-4">
+                {BANKING_FIELDS.map((field) =>
+              <div key={field.name} className="space-y-1.5">
+                    <Label>{field.label} {field.name !== 'pix_key' ? '*' : ''}</Label>
+                    <Input
+                  type={field.type}
+                  value={formData[field.name]}
+                  onChange={(e) => set(field.name, e.target.value)}
+                  placeholder={field.label}
+                  required={field.name !== 'pix_key'} />
+                
+                  </div>
               )}
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Escolher arquivo de nota fiscal (PDF) *</Label>
-                <label className="border-2 border-dashed rounded-xl p-4 block cursor-pointer hover:bg-gray-50 transition">
-                  <input type="file" accept=".pdf" className="hidden" onChange={e => handleSelectPDF(e.target.files?.[0])} disabled={submitting || analyzingOnly} />
-                  <div className="flex items-center gap-2 text-sm text-gray-700">
-                    <Upload className="w-4 h-4" />
-                    {pdfFile ? <span className="text-green-700 font-medium">{pdfFile.name}</span> : 'Selecionar arquivo PDF'}
-                  </div>
-                </label>
-                {pdfFile && (
-                  <div className="text-xs text-green-700 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Arquivo selecionado — será enviado ao confirmar
-                  </div>
-                )}
-                {form.nota_fiscal_url && (
-                  <div className="space-y-2">
-                    <a href={form.nota_fiscal_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
-                      <Eye className="w-4 h-4" /> Visualizar PDF gravado
-                    </a>
-                    <iframe src={form.nota_fiscal_url} title="Preview NF" className="w-full h-64 rounded-lg border" />
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Escolher arquivo XML *</Label>
-                <label className="border-2 border-dashed rounded-xl p-4 block cursor-pointer hover:bg-gray-50 transition">
-                  <input type="file" accept=".xml,text/xml,application/xml" className="hidden" onChange={e => handleSelectXML(e.target.files?.[0])} disabled={submitting || analyzingOnly} />
-                  <div className="flex items-center gap-2 text-sm text-gray-700">
-                    <FileText className="w-4 h-4" />
-                    {xmlFile ? <span className="text-green-700 font-medium">{xmlFile.name}</span> : 'Selecionar arquivo XML'}
-                  </div>
-                </label>
-                {xmlFile && (
-                  <div className="text-xs text-green-700 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Arquivo selecionado — será enviado ao confirmar
-                  </div>
-                )}
-                {form.xml_url && (
-                  <a href={form.xml_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
-                    <Eye className="w-4 h-4" /> Visualizar XML gravado
-                  </a>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={runInvoiceAnalysis}
-                disabled={submitting || analyzingOnly || !selectedComp}
-              >
-                {analyzingOnly ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Analisando...
-                  </>
-                ) : (
-                  <>
-                    <Brain className="w-4 h-4 mr-2" />
-                    Analisar nota via IA
-                  </>
-                )}
-              </Button>
-            </div>
-
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm space-y-3">
-              <div className="font-semibold text-amber-900 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4" />
-                O que deve constar na Nota Fiscal
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-amber-800">
                 <div className="space-y-1.5">
-                  <p className="font-semibold text-amber-900">Dados do Tomador (quem paga)</p>
-                  <div className="bg-white/70 rounded-lg p-2 border border-amber-100 space-y-0.5">
-                    <p><span className="font-medium">Razão Social:</span> {VIADUTO_EMISSAO.razao_social}</p>
-                    <p><span className="font-medium">CNPJ:</span> {VIADUTO_EMISSAO.cnpj}</p>
-                    <p><span className="font-medium">Insc. Municipal:</span> {VIADUTO_EMISSAO.inscricao_municipal}</p>
-                    <p><span className="font-medium">Endereço:</span> {VIADUTO_EMISSAO.endereco}</p>
-                    <p><span className="font-medium">Telefone:</span> {VIADUTO_EMISSAO.telefone}</p>
-                    <p><span className="font-medium">E-mail:</span> {VIADUTO_EMISSAO.email}</p>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <p className="font-semibold text-amber-900">Descrição do Serviço</p>
-                  <div className="bg-white/70 rounded-lg p-2 border border-amber-100 space-y-1">
-                    <p>Prestação de serviço ({effectiveMember?.funcao || 'sua função'}) ao Projeto Museus Centro</p>
-                    <p>Termo de Colaboração <span className="font-medium">{VIADUTO_EMISSAO.termo}</span></p>
-                    <p>Parceria com SMC/FMC — referente ao mês selecionado</p>
-                  </div>
-                  <p className="font-semibold text-amber-900 mt-2">Valor</p>
-                  <div className="bg-white/70 rounded-lg p-2 border border-amber-100">
-                    <p>O valor deve ser exatamente o valor da parcela prevista.</p>
-                  </div>
+                  <Label>Tipo de Conta *</Label>
+                  <Select value={formData.tipo_conta} onValueChange={(v) => set('tipo_conta', v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Corrente">Corrente</SelectItem>
+                      <SelectItem value="Poupança">Poupança</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            </div>
+            </Section>
+          }
 
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
-              <span className="font-medium text-gray-800">Padrão de nome dos arquivos: </span>
-              NF [Número da NF] CARGO - SEU NOME - MUSEUS CENTRO - R$ VALOR DA NOTA
-              <span className="block text-gray-400 mt-0.5">Os arquivos são renomeados automaticamente nesse padrão ao fazer upload.</span>
-            </div>
+          {/* Ações */}
+          <div className="flex gap-2 justify-end pt-6 border-t">
+            <Button
+              type="submit"
+              className="bg-black hover:bg-gray-800 text-white"
+              disabled={saveMutation.isPending}>
+              
+              {saveMutation.isPending ?
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</> :
 
-            {(submitting || analyzingOnly) && analysisStep && (
-              <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 flex items-center gap-3 text-sm text-purple-800">
-                <Brain className="w-5 h-5 animate-pulse" />
-                <span>{analysisStep}</span>
-              </div>
-            )}
+              'Salvar Dados'
+              }
+            </Button>
+          </div>
+        </form>
 
-            {analysis && (
-              <div className={`rounded-xl border p-4 space-y-2 text-sm ${analysis.can_submit === false ? 'border-red-200 bg-red-50 text-red-800' : 'border-green-200 bg-green-50 text-green-800'}`}>
-                <div className="font-semibold flex items-center gap-2">
-                  {analysis.can_submit === false ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-                  Resultado da análise automática
-                </div>
-                {analysis.summary && <div>{analysis.summary}</div>}
-                {Array.isArray(analysis.critical_issues) && analysis.critical_issues.length > 0 && (
-                  <div><div className="font-medium">Pontos críticos</div><ul className="list-disc pl-5">{analysis.critical_issues.map((i, idx) => <li key={idx}>{i}</li>)}</ul></div>
-                )}
-                {Array.isArray(analysis.warnings) && analysis.warnings.length > 0 && (
-                  <div><div className="font-medium">Alertas</div><ul className="list-disc pl-5">{analysis.warnings.map((i, idx) => <li key={idx}>{i}</li>)}</ul></div>
-                )}
-              </div>
-            )}
+      </div>
+    </div>);
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={submitting || analyzingOnly || !memberStatus.ok}>
-                {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analisando e enviando...</> : 'Enviar'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+}
+
+function Section({ title, children }) {
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold text-black border-b pb-2">{title}</h2>
+      {children}
+    </div>);
+
+}
+
+export default function MeusDados() {
+  return <MeusDadosInner />;
 }
