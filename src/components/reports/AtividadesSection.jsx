@@ -96,6 +96,7 @@ export default function AtividadesSection({
     setAtividades((prev) => [
       ...prev,
       {
+        id: crypto.randomUUID(),
         classificacao: '',
         nome: '',
         descricao: '',

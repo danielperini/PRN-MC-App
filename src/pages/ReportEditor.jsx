@@ -156,6 +156,7 @@ export default function ReportEditor() {
       atividades: Array.isArray(report.atividades)
         ? report.atividades.map((atividade) => ({
             ...atividade,
+            id: atividade?.id || crypto.randomUUID(),
             quantidade_ocorrencias: atividade?.quantidade_ocorrencias ?? '',
             quantidade_produtos_gerados: atividade?.quantidade_produtos_gerados ?? '',
             publico_estimado: atividade?.publico_estimado ?? '',
