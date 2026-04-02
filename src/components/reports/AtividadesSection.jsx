@@ -150,8 +150,22 @@ export default function AtividadesSection({
             ]);
           }}>
             <SelectTrigger>
+              <SelectValue placeholder="Importar da programação (últimos 45 dias)" />
+            </SelectTrigger>
+            <SelectContent>
+              {programacaoItems
+                .filter(p => !museu || !p.museu || p.museu === museu)
+                .map(p => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.titulo} {p.museu ? `(${p.museu})` : ''}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+          </div>
+          )}
 
-      {(atividades || []).map((atividade, index) => (
+          {(atividades || []).map((atividade, index) => (
         <div key={atividade?.id || index} className="border p-4 rounded space-y-4">
 
           <div className="flex justify-between">
