@@ -3,9 +3,9 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Loader2, Upload, CheckCircle2, AlertCircle, FileText, FileCode, X, CloudUpload } from 'lucide-react';
 import { toast } from 'sonner';
+import InvoiceFullAnalysisPanel from './InvoiceFullAnalysisPanel';
 
 export default function MemberInvoiceSubmission() {
   const [isOpen, setIsOpen] = useState(false);
@@ -109,17 +109,25 @@ export default function MemberInvoiceSubmission() {
   const handleSubmit = async () => {
     setStep('submitting');
     try {
-      const res = await base44.functions.invoke('submitInvoiceWithBackup', {
+      const res = await base44.functions.invoke('analyzeInvoiceFull', {
+        submissionId: null,
         pdfFileUrl: pdfUrl,
         xmlFileUrl: xmlUrl,
         aiExtracted: aiData,
-        invoiceData: { user_email: currentUser?.email, user_name: currentUser?.full_name },
       });
 
       if (res?.data?.success) {
         setResult(res.data);
         setStep('done');
-        toast.success('✅ Nota fiscal enviada com sucesso!');
+        const valid = res.data.is_nota_valida;
+        if (res.data.is_equipe && res.data.equipe_msg) {
+          toast.success(res.data.equipe_msg);
+        }
+        if (valid) {
+          toast.success('✅ Nota fiscal salva, analisada e backup realizado!');
+        } else {
+          toast.warning('⚠️ Nota salva com pendências — verifique os pontos críticos.');
+        }
       } else {
         throw new Error(res?.data?.error || 'Erro desconhecido');
       }
@@ -292,34 +300,7 @@ export default function MemberInvoiceSubmission() {
           {/* STEP: DONE */}
           {step === 'done' && result && (
             <div className="space-y-4 py-2">
-              <Alert className="border-green-200 bg-green-50">
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-                <AlertDescription className="text-green-800">
-                  <p className="font-semibold text-base mb-1">✅ Nota Fiscal enviada com sucesso!</p>
-                  <p className="text-sm">Sua NF foi salva no banco de dados{result.backup_done ? ', backup feito no Google Drive' : ''} e enviada para aprovação do coordenador.</p>
-                </AlertDescription>
-              </Alert>
-
-              <div className="bg-gray-50 rounded-lg border p-4 space-y-2 text-sm">
-                <div className="flex gap-2">
-                  <span className="text-gray-500">Status:</span>
-                  <Badge className="bg-amber-100 text-amber-800 border-amber-300">Aguardando Aprovação</Badge>
-                </div>
-                {result.drive_link && (
-                  <div className="flex gap-2 items-center">
-                    <span className="text-gray-500">Drive:</span>
-                    <a href={result.drive_link} target="_blank" rel="noreferrer" className="text-blue-600 underline text-sm">Abrir no Drive</a>
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <span className="text-gray-500">Arquivo:</span>
-                  <span className="text-gray-800 text-xs break-all">{result.nome_arquivo}</span>
-                </div>
-                <div className="text-xs text-gray-500 pt-1">
-                  📧 Notificações enviadas para: {(result.notificacoes_enviadas || []).join(', ')}
-                </div>
-              </div>
-
+              <InvoiceFullAnalysisPanel result={result} />
               <Button className="w-full" onClick={handleClose}>Fechar</Button>
             </div>
           )}
