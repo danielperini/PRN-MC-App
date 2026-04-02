@@ -12,9 +12,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle } from
 '@/components/ui/dialog';
 import {
-  AlertCircle, CheckCircle2, Eye, FileText, Loader2, Plus, Upload, Brain } from
+  AlertCircle, CheckCircle2, Eye, FileText, Loader2, Plus, Upload, Brain, FileCheck } from
 'lucide-react';
 import { toast } from 'sonner';
+import { Progress } from '@/components/ui/progress';
 
 const MONTHS = [
 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -133,6 +134,15 @@ export default function TeamPaymentSubmit({ userEmail }) {
   const [xmlFile, setXmlFile] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [analysisStep, setAnalysisStep] = useState('');
+  const [submissionSteps, setSubmissionSteps] = useState([
+    { label: 'Verificação de relatório', done: false },
+    { label: 'Upload do PDF', done: false },
+    { label: 'Upload do XML', done: false },
+    { label: 'Análise com IA', done: false },
+    { label: 'Registro no sistema', done: false },
+    { label: 'Notificações', done: false }
+  ]);
+  const [progressPercent, setProgressPercent] = useState(0);
 
   const [form, setForm] = useState({
     competencia: '',
@@ -210,12 +220,16 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
     try {
       setAnalysisStep('Verificando relatório anterior...');
+      setSubmissionSteps(prev => prev.map((s, i) => i === 0 ? {...s, done: true} : s));
+      setProgressPercent(16);
       const repCheck = await checkPreviousReport();
       if (!repCheck.ok) {toast.error(repCheck.message);setSubmitting(false);setAnalysisStep('');return;}
 
       // Upload dos arquivos agora (se ainda não foram enviados)
       if (pdfFile && !form.nota_fiscal_url) {
         setAnalysisStep('Enviando PDF...');
+        setSubmissionSteps(prev => prev.map((s, i) => i === 1 ? {...s, done: true} : s));
+        setProgressPercent(32);
         const renamed = await renameFile(pdfFile, buildFileName({ numeroNF: form.numero_nf || 'NF', member, valor: form.valor_nf || valorParcela, extension: 'pdf' }));
         const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
         setForm((prev) => ({ ...prev, nota_fiscal_url: file_url, nota_fiscal_file_name: renamed.name }));
@@ -224,6 +238,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
       }
       if (xmlFile && !form.xml_url) {
         setAnalysisStep('Enviando XML...');
+        setSubmissionSteps(prev => prev.map((s, i) => i === 2 ? {...s, done: true} : s));
+        setProgressPercent(48);
         const renamed = await renameFile(xmlFile, buildFileName({ numeroNF: form.numero_nf || 'NF', member, valor: form.valor_nf || valorParcela, extension: 'xml' }));
         const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
         setForm((prev) => ({ ...prev, xml_url: file_url, xml_file_name: renamed.name }));
@@ -232,6 +248,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
       }
 
       setAnalysisStep('Analisando nota fiscal com IA...');
+      setSubmissionSteps(prev => prev.map((s, i) => i === 3 ? {...s, done: true} : s));
+      setProgressPercent(64);
       const analysisResult = await base44.functions.invoke('validateTeamPaymentInvoice', {
         file_url: form.nota_fiscal_url,
         xml_url: form.xml_url,
@@ -264,6 +282,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
       }
 
       setAnalysisStep('Registrando envio...');
+      setSubmissionSteps(prev => prev.map((s, i) => i === 4 ? {...s, done: true} : s));
+      setProgressPercent(80);
       const created = await base44.entities.TeamPayment.create({
         team_member_id: member.id,
         user_email: member.user_email,
@@ -288,6 +308,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
       });
 
       setAnalysisStep('Enviando notificações...');
+      setSubmissionSteps(prev => prev.map((s, i) => i === 5 ? {...s, done: true} : s));
+      setProgressPercent(95);
       await base44.functions.invoke('notifyTeamPaymentSubmitted', {
         payment_id: created?.id,
         team_member_name: member.user_name || '',
@@ -313,13 +335,25 @@ export default function TeamPaymentSubmit({ userEmail }) {
         action_url: `${window.location.origin}/Compras`
       });
 
-      toast.success(`✅ Nota fiscal de ${selectedComp.mes}/${selectedComp.ano} enviada com sucesso! Aguardando aprovação. Notificações disparadas para danielperini.mc@viadutodasartes.org.br e nostasfiscais@viadutodasartes.org.br`);
-      setOpen(false);
-      setPdfFile(null);
-      setXmlFile(null);
-      setForm({ competencia: '', numero_nf: '', valor_nf: '', nota_fiscal_url: '', xml_url: '', nota_fiscal_file_name: '', xml_file_name: '' });
-      setAnalysis(null);
-      setAnalysisStep('');
+      setProgressPercent(100);
+      setTimeout(() => {
+        toast.success(`✅ Nota fiscal de ${selectedComp.mes}/${selectedComp.ano} enviada com sucesso!`);
+        setOpen(false);
+        setPdfFile(null);
+        setXmlFile(null);
+        setForm({ competencia: '', numero_nf: '', valor_nf: '', nota_fiscal_url: '', xml_url: '', nota_fiscal_file_name: '', xml_file_name: '' });
+        setAnalysis(null);
+        setAnalysisStep('');
+        setSubmissionSteps([
+          { label: 'Verificação de relatório', done: false },
+          { label: 'Upload do PDF', done: false },
+          { label: 'Upload do XML', done: false },
+          { label: 'Análise com IA', done: false },
+          { label: 'Registro no sistema', done: false },
+          { label: 'Notificações', done: false }
+        ]);
+        setProgressPercent(0);
+      }, 500);
       await queryClient.invalidateQueries();
     } catch (e) {
       toast.error(e?.message || 'Erro ao enviar.');
@@ -508,10 +542,24 @@ export default function TeamPaymentSubmit({ userEmail }) {
             </div>
 
             {/* Análise IA */}
-            {submitting && analysisStep &&
-            <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 flex items-center gap-3 text-sm text-purple-800">
-                <Brain className="w-5 h-5 animate-pulse" />
-                <span>{analysisStep}</span>
+            {submitting &&
+            <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 space-y-3">
+                <div className="flex items-center gap-3 text-sm text-purple-800">
+                  <Brain className="w-5 h-5 animate-pulse" />
+                  <span className="font-medium">{analysisStep}</span>
+                </div>
+                <Progress value={progressPercent} className="h-2" />
+                <div className="space-y-2 text-xs text-purple-700">
+                  {submissionSteps.map((step, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      {step.done ? (
+                        <><CheckCircle2 className="w-4 h-4 text-green-600" /> <span className="font-medium text-green-700">{step.label}</span></>
+                      ) : (
+                        <><div className="w-4 h-4 border-2 border-purple-300 rounded-full" /> <span className="text-purple-600">{step.label}</span></>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             }
 
