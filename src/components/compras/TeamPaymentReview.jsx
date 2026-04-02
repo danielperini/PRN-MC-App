@@ -68,7 +68,7 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
       team_member_name: payment?.user_name || '',
       mes: payment?.mes_referencia || '',
       ano: payment?.ano || '',
-      valor: payment?.valor_nf || 0,
+      valor: payment?.valor_nf || payment?.valor_parcela_previsto || 0,
       observacoes: obs || '',
       nota_fiscal_url: payment?.nota_fiscal_url || '',
       xml_url: payment?.xml_url || '',
@@ -82,21 +82,12 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
     const member = getMember(reviewing);
     const budgetLine = getBudgetLine(member);
 
-    const critical = Array.isArray(reviewing?.analysis_critical_issues)
-      ? reviewing.analysis_critical_issues
-      : [];
-
-    // 🚨 BLOQUEIO POR IA
-    if (action === 'approve' && critical.length > 0) {
-      toast.error('Não é possível aprovar: existem inconsistências críticas na análise da IA.');
-      return;
-    }
-
     setSaving(true);
 
     try {
       const user = await base44.auth.me();
 
+      // 🔥 APROVAR
       if (action === 'approve') {
         await base44.entities.TeamPayment.update(reviewing.id, {
           status: 'APROVADO_COORD',
@@ -106,7 +97,7 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
           observacoes: comment || '',
         });
 
-        // 💰 compromisso financeiro (sem quebrar lógica existente)
+        // 🔥 DÉBITO NA RUBRICA (comprometido)
         if (budgetLine?.id) {
           await base44.entities.BudgetLine.update(budgetLine.id, {
             saldo_comprometido: toNumber(budgetLine?.saldo_comprometido) + toNumber(reviewing?.valor_nf),
@@ -117,14 +108,15 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
 
         await notifyUser(reviewing.user_email, {
           title: '✅ Nota fiscal aprovada',
-          message: `Sua nota fiscal foi aprovada.`,
+          message: `Sua nota fiscal de ${reviewing.mes_referencia}/${reviewing.ano} foi aprovada.`,
           type: 'PAYMENT_APPROVED',
-          action_url: buildAppUrl(),
+          action_url: `${window.location.origin}/Compras`,
         });
 
-        toast.success('Aprovado com sucesso.');
+        toast.success('Envio aprovado e encaminhado corretamente.');
       }
 
+      // 🔥 DEVOLVER
       if (action === 'return') {
         await base44.entities.TeamPayment.update(reviewing.id, {
           status: 'DEVOLVIDO_REVISAO',
@@ -135,12 +127,12 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
 
         await notifyUser(reviewing.user_email, {
           title: '⚠️ Nota devolvida',
-          message: `Sua nota foi devolvida. Motivo: ${comment}`,
+          message: `Sua NF foi devolvida. Motivo: ${comment}`,
           type: 'PAYMENT_RETURNED',
-          action_url: buildAppUrl(),
+          action_url: `${window.location.origin}/Compras`,
         });
 
-        toast.success('Devolvido.');
+        toast.success('Envio devolvido.');
       }
 
       setReviewing(null);
@@ -164,26 +156,28 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
 
       await base44.entities.TeamPayment.update(payment.id, {
         status: 'PAGO',
-        valor_pago: payment?.valor_nf || 0,
+        valor_pago: payment?.valor_nf || payment?.valor_parcela_previsto || 0,
         data_pagamento: new Date().toISOString(),
       });
 
+      // 🔥 ATUALIZA PARCELAS
       if (member?.id) {
         await base44.entities.TeamMember.update(member.id, {
           parcelas_pagas: toNumber(member?.parcelas_pagas) + 1,
         });
       }
 
+      // 🔥 NOTIFICA
       await sendStatusNotif(payment, 'PAGO', 'Pagamento realizado.');
 
       await notifyUser(payment.user_email, {
         title: '💰 Pagamento realizado',
-        message: `Pagamento concluído.`,
+        message: `Pagamento confirmado.`,
         type: 'PAYMENT_DONE',
-        action_url: buildAppUrl(),
+        action_url: `${window.location.origin}/Compras`,
       });
 
-      toast.success('Pagamento realizado.');
+      toast.success('Pagamento realizado + rubrica já comprometida.');
 
       await queryClient.invalidateQueries();
 
@@ -196,18 +190,26 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
 
   return (
     <div className="space-y-4">
+      {orderedPayments.length === 0 && (
+        <div className="rounded-xl border p-4 text-sm text-gray-500">
+          Nenhum envio encontrado.
+        </div>
+      )}
+
       {orderedPayments.map(payment => {
         const member = getMember(payment);
         const badge = getStatusBadge(payment?.status);
+        const warnings = Array.isArray(payment?.analysis_warnings) ? payment.analysis_warnings : [];
+        const critical = Array.isArray(payment?.analysis_critical_issues) ? payment.analysis_critical_issues : [];
         const status = String(payment?.status || '').toUpperCase();
 
         return (
           <div key={payment.id} className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">
-            
-            <div className="flex justify-between">
+
+            <div className="flex items-start justify-between">
               <div>
                 <div className="font-semibold">
-                  {member?.user_name || payment?.user_name}
+                  {member?.user_name || payment?.user_name || payment?.user_email}
                 </div>
                 <div className="text-xs text-gray-500">
                   {payment?.mes_referencia}/{payment?.ano}
@@ -217,38 +219,53 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
             </div>
 
             <div className="text-sm">
-              <b>{formatBRL(payment?.valor_nf)}</b>
+              Valor: <b>{formatBRL(payment?.valor_nf)}</b>
             </div>
 
-            {status === 'AGUARDANDO_APROVACAO' && (
-              <div className="flex gap-2">
-                <Button onClick={() => { setReviewing(payment); setAction('approve'); }}>
-                  Aprovar
-                </Button>
-                <Button variant="outline" onClick={() => { setReviewing(payment); setAction('return'); }}>
-                  Devolver
-                </Button>
-              </div>
-            )}
+            {/* IA */}
+            <div className="rounded border p-3 text-sm">
+              {payment?.analysis_summary || 'Sem análise de IA'}
 
-            {status === 'APROVADO_COORD' && (
-              <Button onClick={() => marcarComoPago(payment)}>
-                ✓ Pagamento realizado
-              </Button>
-            )}
+              {critical.length > 0 && (
+                <div className="text-red-600 text-xs mt-2">
+                  {critical.map((i, idx) => <div key={idx}>• {i}</div>)}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              {status === 'AGUARDANDO_APROVACAO' && (
+                <>
+                  <Button onClick={() => { setReviewing(payment); setAction('approve'); }}>Aprovar</Button>
+                  <Button variant="outline" onClick={() => { setReviewing(payment); setAction('return'); }}>Devolver</Button>
+                </>
+              )}
+
+              {status === 'APROVADO_COORD' && (
+                <Button onClick={() => marcarComoPago(payment)}>
+                  Marcar como pago
+                </Button>
+              )}
+            </div>
 
           </div>
         );
       })}
 
       {reviewing && (
-        <Dialog open>
+        <Dialog open onOpenChange={() => setReviewing(null)}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Confirmar ação</DialogTitle>
+              <DialogTitle>
+                {action === 'approve' ? 'Aprovar' : 'Devolver'}
+              </DialogTitle>
             </DialogHeader>
 
-            <Textarea value={comment} onChange={e => setComment(e.target.value)} />
+            <Textarea
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              placeholder="Comentário"
+            />
 
             <DialogFooter>
               <Button onClick={() => setReviewing(null)}>Cancelar</Button>
