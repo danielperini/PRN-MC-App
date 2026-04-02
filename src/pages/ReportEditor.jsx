@@ -572,8 +572,9 @@ export default function ReportEditor() {
               <Textarea
                 value={toInputValue(form?.resumo_periodo, '')}
                 onChange={(e) => updateField('resumo_periodo', e.target.value)}
-                rows={5}
+                rows={7}
                 disabled={isApproved}
+                className="text-base p-4"
               />
             </div>
           </Field>
@@ -590,8 +591,9 @@ export default function ReportEditor() {
                   <Textarea
                     value={toInputValue(form?.[key], '')}
                     onChange={(e) => updateField(key, e.target.value)}
-                    rows={4}
+                    rows={5}
                     disabled={isApproved}
+                    className="text-base p-4"
                   />
                 </Field>
               ))}
@@ -605,9 +607,10 @@ export default function ReportEditor() {
                 <Textarea
                   value={toInputValue(form?.oportunidades_resumo, '')}
                   onChange={(e) => updateField('oportunidades_resumo', e.target.value)}
-                  rows={4}
+                  rows={5}
                   disabled={isApproved}
                   placeholder="Descreva as oportunidades identificadas no período"
+                  className="text-base p-4"
                 />
               </Field>
             </div>
@@ -620,8 +623,9 @@ export default function ReportEditor() {
                 <Textarea
                   value={toInputValue(form?.comentarios_gerais, '')}
                   onChange={(e) => updateField('comentarios_gerais', e.target.value)}
-                  rows={4}
+                  rows={5}
                   disabled={isApproved}
+                  className="text-base p-4"
                 />
               </Field>
 
@@ -629,20 +633,21 @@ export default function ReportEditor() {
                 <Textarea
                   value={toInputValue(form?.comentarios_coordenacao, '')}
                   onChange={(e) => updateField('comentarios_coordenacao', e.target.value)}
-                  rows={4}
+                  rows={5}
                   disabled={isApproved}
+                  className="text-base p-4"
                 />
               </Field>
 
               {form?.review_comment && (
                 <Field label="Comentário de aprovação">
-                  <Textarea value={toInputValue(form?.review_comment, '')} rows={4} readOnly />
+                  <Textarea value={toInputValue(form?.review_comment, '')} rows={5} readOnly className="text-base p-4" />
                 </Field>
               )}
 
               {form?.return_comment && (
                 <Field label="Comentário de devolução">
-                  <Textarea value={toInputValue(form?.return_comment, '')} rows={4} readOnly />
+                  <Textarea value={toInputValue(form?.return_comment, '')} rows={5} readOnly className="text-base p-4" />
                 </Field>
               )}
             </div>
