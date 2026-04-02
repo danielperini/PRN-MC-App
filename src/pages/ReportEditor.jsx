@@ -151,7 +151,7 @@ export default function ReportEditor() {
   return (
     <div className="space-y-6">
       {/* Navigation Tabs */}
-      <ReportTabsNavigation activeTab={activeTab} setActiveTab={setActiveTab} formData={form} />
+      <ReportTabsNavigation currentTab={activeTab} formData={form} onTabChange={setActiveTab} />
 
       {/* Content Area */}
       <Card className="p-6">
