@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -10,8 +10,8 @@ import ActivityPhotoLinker from './ActivityPhotoLinker';
 import ActivityAttachments from './ActivityAttachments';
 
 export default function AtividadesSection({
-  atividades = [],
-  setAtividades,
+  atividades: atividadesInitial = [],
+  onAtividadesChange = null,
   canEdit = true,
   museusOptions = [],
   tiposAcaoOptions = [],
@@ -21,7 +21,14 @@ export default function AtividadesSection({
   reportId = null,
   onSave = null,
 }) {
+  const [atividades, setAtividades] = useState(atividadesInitial);
   const [saving, setSaving] = useState(false);
+
+  React.useEffect(() => {
+    if (onAtividadesChange) {
+      onAtividadesChange(atividades);
+    }
+  }, [atividades, onAtividadesChange]);
 
   async function handleSaveAtividades() {
     if (!onSave) return;
