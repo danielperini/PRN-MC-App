@@ -396,6 +396,18 @@ ${currentValue}`,
     autoSaveTimer.current = setTimeout(async () => {
       try {
         const payload = buildPayload(form?.status || 'DRAFT');
+        
+        // Se ainda não tem ID, cria um rascunho automaticamente
+        if (!effectiveReportId) {
+          const created = await base44.entities.Report.create({ ...payload, status: 'DRAFT' });
+          if (created?.id) {
+            setLocalReportId(created.id);
+            window.history.replaceState(null, '', `/ReportEditor?id=${created.id}`);
+            console.log('[AutoSave] Relatório criado automaticamente:', created.id);
+          }
+          return;
+        }
+        
         await base44.entities.Report.update(effectiveReportId, payload);
         console.log('[AutoSave] Relatório salvo automaticamente');
       } catch (err) {
