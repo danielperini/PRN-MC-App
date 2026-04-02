@@ -663,7 +663,7 @@ ${currentValue}`,
           mesReferencia={form?.mes_referencia || report?.mes_referencia || ''}
           ano={Number(form?.ano || report?.ano || new Date().getFullYear())}
           museu={form?.museu || ''}
-          reportId={effectiveReportId}
+          reportId={localReportId || reportId}
           onSave={async () => {
             const idAtual = localReportId || reportId;
             if (!idAtual) throw new Error('Salve o relatório primeiro antes de salvar atividades.');
@@ -709,7 +709,7 @@ ${currentValue}`,
           </div>
 
           <AttachmentsSection
-            reportId={effectiveReportId}
+           reportId={localReportId || reportId}
             canEdit={!isApproved}
             reportData={form}
           />
