@@ -72,6 +72,7 @@ function normalizeOptionList(options = []) {
 }
 
 const MUSEUS_FIXOS = ['MIS', 'MHAB', 'MUMO', 'Geral'];
+const TIPOS_ACAO_FIXOS = ['Meta', 'Extra', 'Rotina'];
 
 const CLASSIFICACAO_OPTIONS_DEFAULT = [
   { id: 'Meta', label: 'Meta' },
@@ -422,7 +423,7 @@ export default function AtividadeCamposBasicos({
 
         <Field label="Tipo de ação">
           <FilterMultiSelect
-            options={tiposAcao}
+            options={tiposAcao?.length ? tiposAcao : TIPOS_ACAO_FIXOS}
             values={tipoAcaoLista}
             onChange={handleTiposAcaoChange}
             disabled={!canEdit}
