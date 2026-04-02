@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -210,6 +210,34 @@ export default function ReportEditor() {
     },
     onError: (e) => toast.error(e?.message || 'Erro ao enviar relatório'),
   });
+
+  // Auto-save com debounce de 2s sempre que atividades mudarem (garante persistência no banco)
+  const isFirstRender = useRef(true);
+  const autoSaveTimer = useRef(null);
+
+  useEffect(() => {
+    // Ignora na carga inicial (quando o report é carregado do banco)
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    // Só auto-salva se houver reportId e o relatório não estiver aprovado
+    if (!reportId || isApproved) return;
+
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(async () => {
+      try {
+        const payload = buildPayload(form?.status || 'DRAFT');
+        await base44.entities.Report.update(reportId, payload);
+        console.log('[AutoSave] Relatório salvo automaticamente');
+      } catch (err) {
+        console.error('[AutoSave] Erro ao salvar:', err?.message);
+      }
+    }, 2000);
+
+    return () => clearTimeout(autoSaveTimer.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.atividades]);
 
   const canSubmit = !isApproved && !saveMutation.isPending && !submitMutation.isPending;
 
