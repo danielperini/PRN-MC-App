@@ -267,13 +267,36 @@ ${currentValue}`,
     };
   }
 
+  const [localReportId, setLocalReportId] = useState(reportId);
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = buildPayload(form?.status || 'DRAFT');
-      const saved = await base44.entities.Report.update(reportId, payload);
+
+      // Validar campos obrigatórios antes de persistir
+      if (!payload.author_name) throw new Error('Campo obrigatório ausente: Nome do autor');
+      if (!payload.mes_referencia) throw new Error('Campo obrigatório ausente: Mês de referência');
+      if (!payload.ano) throw new Error('Campo obrigatório ausente: Ano');
+      if (!payload.museu) throw new Error('Campo obrigatório ausente: Museu / Área');
+
+      let saved;
+      const idParaSalvar = localReportId || reportId;
+
+      if (!idParaSalvar) {
+        // Novo relatório — criar
+        saved = await base44.entities.Report.create({ ...payload, status: 'DRAFT' });
+        if (saved?.id) {
+          setLocalReportId(saved.id);
+          // Atualizar URL sem recarregar a página
+          window.history.replaceState(null, '', `/ReportEditor?id=${saved.id}`);
+        }
+      } else {
+        saved = await base44.entities.Report.update(idParaSalvar, payload);
+      }
+
       if (!saved) throw new Error('Servidor não confirmou a gravação. Tente novamente.');
       try {
-        const backupRes = await base44.functions.invoke('backupReportToDrive', { reportId });
+        const backupRes = await base44.functions.invoke('backupReportToDrive', { reportId: saved.id || idParaSalvar });
         return backupRes?.data;
       } catch (backupErr) {
         console.warn('Backup Drive falhou (silencioso):', backupErr?.message);
@@ -299,7 +322,9 @@ ${currentValue}`,
       const payload = buildPayload('SUBMITTED');
       payload.submitted_at = new Date().toISOString();
       payload.review_status = 'aguardando_revisao';
-      const saved = await base44.entities.Report.update(reportId, payload);
+      const idParaSalvar = localReportId || reportId;
+      if (!idParaSalvar) throw new Error('Salve o relatório antes de enviar para revisão.');
+      const saved = await base44.entities.Report.update(idParaSalvar, payload);
       if (!saved) throw new Error('Servidor não confirmou o envio. Tente novamente.');
       try {
         return await base44.functions.invoke('backupReportToDrive', { reportId });
@@ -562,10 +587,12 @@ ${currentValue}`,
           mesReferencia={form?.mes_referencia || report?.mes_referencia || ''}
           ano={Number(form?.ano || report?.ano || new Date().getFullYear())}
           museu={form?.museu || ''}
-          reportId={reportId}
+          reportId={localReportId || reportId}
           onSave={async () => {
             const payload = buildPayload(form?.status || 'DRAFT');
-            const saved = await base44.entities.Report.update(reportId, payload);
+            const idParaSalvar = localReportId || reportId;
+            if (!idParaSalvar) throw new Error('Salve o relatório primeiro antes de salvar atividades.');
+            const saved = await base44.entities.Report.update(idParaSalvar, payload);
             if (!saved) throw new Error('Servidor não confirmou a gravação.');
             refetch();
           }}
