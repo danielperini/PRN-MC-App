@@ -20,6 +20,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
 import { toastMessages } from '@/lib/toastMessages';
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -93,6 +94,7 @@ function RelatoriosInner() {
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
   const [periodExportOpen, setPeriodExportOpen] = useState(false);
+  const [exportingSingleId, setExportingSingleId] = useState(null);
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Report.delete(id),
@@ -229,6 +231,56 @@ function RelatoriosInner() {
     }
   };
 
+  const openPdfHtml = (html, fileName = 'relatorio_pdf') => {
+    const printWindow = window.open('', '_blank', 'width=1100,height=800');
+
+    if (!printWindow) {
+      toast.error('Não foi possível abrir a janela do PDF. Verifique o bloqueador de pop-up.');
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.document.title = fileName;
+    printWindow.focus();
+  };
+
+  const exportSingleReportPDF = async (report) => {
+    if (!report?.id) return;
+
+    setExportingSingleId(report.id);
+    try {
+      const response = await base44.functions.invoke('generateSingleReportPDF', {
+        reportId: report.id,
+        mode: 'assinatura',
+      });
+
+      const html = response?.data?.html || response?.html;
+      const url = response?.data?.url || response?.url;
+      const fileName = response?.data?.file_name || response?.file_name || `relatorio_${report.id}`;
+
+      if (url) {
+        window.open(url, '_blank');
+        toast.success('PDF aberto com sucesso.');
+        return;
+      }
+
+      if (html) {
+        openPdfHtml(html, fileName);
+        toast.success('Relatório aberto para impressão e salvamento em PDF.');
+        return;
+      }
+
+      toast.error('O backend não retornou HTML nem URL do PDF.');
+    } catch (err) {
+      console.error('Erro ao exportar PDF individual:', err);
+      toast.error(`Erro ao exportar PDF: ${err?.message || 'tente novamente'}`);
+    } finally {
+      setExportingSingleId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
@@ -239,6 +291,7 @@ function RelatoriosInner() {
               {filtered.length} de {baseReports.length} relatório(s)
             </p>
           </div>
+
           <div className="flex gap-2 flex-wrap">
             <Link to="/ReportEditor">
               <Button className="bg-black hover:bg-gray-800 text-white gap-2">
@@ -257,6 +310,7 @@ function RelatoriosInner() {
                   <Download className="w-4 h-4" />
                   PDF Customizado ({selectedReports.size})
                 </Button>
+
                 <Button
                   variant="outline"
                   className="border-green-600 text-green-600 gap-2"
@@ -402,6 +456,7 @@ function RelatoriosInner() {
                     const attachments = allAttachments.filter(att => att.report_id === report.id);
                     const canDelete = report.created_by === currentUser?.email && (!isComunicacao || report.funcao === 'Comunicador');
                     const isSelected = selectedReports.has(report.id);
+                    const isExportingThis = exportingSingleId === report.id;
 
                     return (
                       <div key={report.id} className={`group relative border rounded-xl transition-all ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-100 bg-white'}`}>
@@ -446,9 +501,26 @@ function RelatoriosInner() {
                         </Link>
 
                         <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              exportSingleReportPDF(report);
+                            }}
+                            disabled={isExportingThis}
+                            className="p-1.5 rounded-lg bg-green-50 border border-green-200 hover:bg-green-100 text-green-700 disabled:opacity-50"
+                            title={isExportingThis ? 'Gerando PDF...' : 'Exportar relatório em PDF'}
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+
                           {report.status === 'DRAFT' && isCoordenador && (
                             <button
-                              onClick={e => { e.preventDefault(); setDeleteTarget(report); }}
+                              onClick={e => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setDeleteTarget(report);
+                              }}
                               className="p-1.5 rounded-lg bg-red-50 border border-red-200 hover:bg-red-100 text-red-600"
                               title="Sem entrega este mês"
                             >
@@ -458,7 +530,11 @@ function RelatoriosInner() {
 
                           {canDelete && report.status !== 'DRAFT' && (
                             <button
-                              onClick={e => { e.preventDefault(); setDeleteTarget(report); }}
+                              onClick={e => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setDeleteTarget(report);
+                              }}
                               className="p-1.5 rounded-lg bg-white border border-gray-200 hover:bg-red-50 hover:border-red-200 text-gray-400 hover:text-red-500"
                               title="Excluir relatório"
                             >
