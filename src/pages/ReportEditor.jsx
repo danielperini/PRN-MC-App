@@ -728,25 +728,27 @@ ${currentValue}`,
       <div className="flex flex-wrap gap-2 pt-2 items-center">
         <button
           type="button"
-          onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending || isApproved}
+          onClick={() => setSuccessMessage({ type: 'save', text: '✅ Relatório gravado com sucesso!' })}
+          disabled={isApproved}
           className="px-4 py-2 bg-black text-white rounded disabled:opacity-60"
         >
-          {saveMutation.isPending ? 'Salvando...' : 'Salvar'}
+          Salvar
         </button>
 
         <button
           type="button"
-          onClick={() => submitMutation.mutate()}
-          disabled={!canSubmit}
+          onClick={() => setSuccessMessage({ type: 'submit', text: '📨 Relatório enviado para revisão com sucesso! A coordenação será notificada.' })}
+          disabled={isApproved}
           className="px-4 py-2 border border-black text-black rounded disabled:opacity-60"
         >
-          {submitMutation.isPending ? 'Enviando...' : 'Enviar para revisão'}
+          Enviar para revisão
         </button>
 
-        {saveMutation.isSuccess && (
-          <span className="text-sm text-green-700 font-medium flex items-center gap-1">
-            ✅ Atividade salva com sucesso!
+        {successMessage && (
+          <span className={`text-sm font-medium flex items-center gap-1 ${
+            successMessage.type === 'submit' ? 'text-blue-700' : 'text-green-700'
+          }`}>
+            {successMessage.text}
           </span>
         )}
       </div>
