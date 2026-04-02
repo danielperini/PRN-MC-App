@@ -110,6 +110,19 @@ export default function ReportEditor() {
     };
   };
 
+  const persistReportPhotos = async (nextPhotos) => {
+    try {
+      if (!report?.id) {
+        toast.error('Relatório não carregado corretamente');
+        return;
+      }
+      await base44.entities.Report.update(report.id, { fotos: nextPhotos });
+    } catch (error) {
+      toast.error('Erro ao salvar fotos');
+      console.error(error);
+    }
+  };
+
   const handleSave = async (nextStatus = null) => {
     setSaving(true);
     try {
@@ -136,109 +149,22 @@ export default function ReportEditor() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-96">Carregando...</div>;
-  }
-
-  if (!report?.id) {
-    return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <p>Nenhum relatório selecionado</p>
-        <Button onClick={() => navigate('/Relatorios')}>Voltar aos Relatórios</Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Navigation Tabs */}
-      <ReportTabsNavigation currentTab={activeTab} formData={form} onTabChange={setActiveTab} />
-
-      {/* Content Area */}
-      <Card className="p-6">
-        {/* Resumo Tab */}
-        {activeTab === 'resumo' && (
-          <div className="space-y-6">
-            <div>
-              <Label htmlFor="resumo_periodo">Resumo do Período</Label>
-              <Textarea
-                id="resumo_periodo"
-                value={form.resumo_periodo}
-                onChange={(e) => setForm({ ...form, resumo_periodo: e.target.value })}
-                placeholder="Descreva o resumo do período"
-                className="min-h-[150px] text-base p-4"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="oportunidades_resumo">Resumo de Oportunidades</Label>
-              <Textarea
-                id="oportunidades_resumo"
-                value={form.oportunidades_resumo}
-                onChange={(e) => setForm({ ...form, oportunidades_resumo: e.target.value })}
-                placeholder="Descreva as oportunidades identificadas"
-                className="min-h-[150px] text-base p-4"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="avaliacao_pontos_positivos">Pontos Positivos</Label>
-              <Textarea
-                id="avaliacao_pontos_positivos"
-                value={form.avaliacao_pontos_positivos}
-                onChange={(e) => setForm({ ...form, avaliacao_pontos_positivos: e.target.value })}
-                placeholder="Descreva os pontos positivos"
-                className="min-h-[120px] text-base p-4"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="avaliacao_desafios">Desafios</Label>
-              <Textarea
-                id="avaliacao_desafios"
-                value={form.avaliacao_desafios}
-                onChange={(e) => setForm({ ...form, avaliacao_desafios: e.target.value })}
-                placeholder="Descreva os desafios enfrentados"
-                className="min-h-[120px] text-base p-4"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="avaliacao_sugestoes">Sugestões de Melhoria</Label>
-              <Textarea
-                id="avaliacao_sugestoes"
-                value={form.avaliacao_sugestoes}
-                onChange={(e) => setForm({ ...form, avaliacao_sugestoes: e.target.value })}
-                placeholder="Descreva sugestões de melhoria"
-                className="min-h-[120px] text-base p-4"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Atividades Tab */}
-        {activeTab === 'atividades' && (
-          <AtividadesSection
-            reportId={report.id}
-            formData={form}
-            onActivitiesUpdate={(atividades) => setForm({ ...form, atividades })}
-          />
-        )}
-
-        {/* Fotos Tab */}
-        {activeTab === 'fotos' && (
-          <ReportPhotoSection
-            reportId={report.id}
-            photos={form.fotos || []}
-            onPhotosUpdate={(fotos) => setForm({ ...form, fotos })}
-          />
-        )}
-
-        {/* Depoimentos Tab */}
-        {activeTab === 'depoimentos' && (
-          <DepoimentosSection
-            reportId={report.id}
-            depoimentos={form.depoimentos || []}
-            onDepoimentosUpdate={(depoimentos) => setForm({ ...form, depoimentos })}
+              const nextPhotos = [...(form.fotos || []), normalizedPhoto];
+              setForm((prev) => ({ ...prev, fotos: nextPhotos }));
+              await persistReportPhotos(nextPhotos);
+            }}
+            onUpdatePhoto={async (photoId, caption) => {
+              const nextPhotos = (form.fotos || []).map((p) =>
+                p.id === photoId ? { ...p, caption } : p
+              );
+              setForm((prev) => ({ ...prev, fotos: nextPhotos }));
+              await persistReportPhotos(nextPhotos);
+            }}
+            onDeletePhoto={async (photoId) => {
+              const nextPhotos = (form.fotos || []).filter((p) => p.id !== photoId);
+              setForm((prev) => ({ ...prev, fotos: nextPhotos }));
+              await persistReportPhotos(nextPhotos);
+            }}
           />
         )}
 

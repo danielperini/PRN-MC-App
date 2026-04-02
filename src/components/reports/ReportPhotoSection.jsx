@@ -12,8 +12,11 @@ export default function ReportPhotoSection({ photos = [], onAddPhoto, onUpdatePh
   const [editingPhotoId, setEditingPhotoId] = useState(null);
   const [editCaption, setEditCaption] = useState('');
 
-  const handleAddPhoto = (photo) => {
-    onAddPhoto(photo);
+  const handleAddPhoto = async (photo) => {
+    if (onAddPhoto) {
+      await onAddPhoto(photo);
+      setSelectorOpen(false);
+    }
   };
 
   const handleEditClick = (photo) => {
