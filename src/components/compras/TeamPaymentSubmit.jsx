@@ -200,7 +200,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!member) {toast.error('Perfil não encontrado.');return;}
-    if (!memberStatus.ok) {toast.error('Atualize seus dados em "Meus Dados" antes de enviar.');return;}
     if (!selectedComp) {toast.error('Selecione o mês.');return;}
     if (!form.numero_nf) {toast.error('Informe o número da nota.');return;}
     if (!pdfFile && !form.nota_fiscal_url) {toast.error('Selecione o arquivo PDF da nota fiscal.');return;}
@@ -302,7 +301,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
         xml_url: form.xml_url,
         nota_fiscal_file_name: form.nota_fiscal_file_name,
         xml_file_name: form.xml_file_name,
-        app_link: window.location.origin + '/Compras'
+        app_link: window.location.origin + '/Compras',
+        cc_emails: ['danielperini.mc@viadutodasartes.org.br', 'nostasfiscais@viadutodasartes.org.br']
       });
 
       // Notificação interna para coordenadores
@@ -313,7 +313,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
         action_url: `${window.location.origin}/Compras`
       });
 
-      toast.success('Envio realizado com sucesso! As notificações foram disparadas.');
+      toast.success(`✅ Nota fiscal de ${selectedComp.mes}/${selectedComp.ano} enviada com sucesso! Aguardando aprovação. Notificações disparadas para danielperini.mc@viadutodasartes.org.br e nostasfiscais@viadutodasartes.org.br`);
       setOpen(false);
       setPdfFile(null);
       setXmlFile(null);
@@ -348,9 +348,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
       </Button>
 
       {!memberStatus.ok &&
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 space-y-1">
-          <div className="font-medium flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Dados incompletos — atualize antes de enviar a nota.</div>
-          <div>Campos pendentes: {memberStatus.missing.join(', ')}</div>
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 space-y-1">
+          <div className="font-medium flex items-center gap-2"><AlertCircle className="w-4 h-4" /> ⚠ Dados incompletos: {memberStatus.missing.join(', ')} — você pode preenchê-los manualmente abaixo.</div>
         </div>
       }
 
@@ -413,7 +412,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
                 <div>{memberStatus.isPJ ? `CNPJ: ${member?.cnpj || '—'}` : `CPF: ${member?.cpf || '—'}`}</div>
               </div>
               {!memberStatus.ok &&
-              <div className="mt-2 text-red-600 text-xs font-medium">⚠ Dados incompletos. Atualize em "Meus Dados" antes de enviar.</div>
+              <div className="mt-2 text-amber-600 text-xs font-medium">💡 Campos faltantes: {memberStatus.missing.join(', ')} — você pode corrigi-los manualmente ou em "Meus Dados".</div>
               }
             </div>
 
@@ -534,8 +533,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={submitting || !memberStatus.ok}>
-                {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analisando e enviando...</> : 'Enviar'}
+              <Button type="submit" disabled={submitting}>
+                {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analisando e enviando...</> : '✅ Enviar Nota Fiscal'}
               </Button>
             </div>
           </form>
