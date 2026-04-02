@@ -133,6 +133,11 @@ export default function ReportEditor() {
   const [currentTab, setCurrentTab] = useState('identificacao');
   const [successMessage, setSuccessMessage] = useState(null);
   const [form, setForm] = useState({
+    museu: '',
+    mes_referencia: '',
+    ano: new Date().getFullYear(),
+    author_name: '',
+    equipe: '',
     atividades: [],
     oportunidades: [''],
     comentarios_coordenacao: '',
