@@ -31,9 +31,10 @@ export default function AtividadesSection({
 
   // 🔥 BUSCAR EQUIPE
   const { data: equipe = [] } = useQuery({
-    queryKey: ['team-members'],
+    queryKey: ['user-permissions-team'],
     queryFn: async () => {
-      return await base44.entities.TeamMember.list('-created_at', 1000);
+      const res = await base44.entities.UserPermission.list('user_name', 1000);
+      return (res || []).map(u => ({ id: u.user_email, label: u.user_name || u.user_email }));
     }
   });
 

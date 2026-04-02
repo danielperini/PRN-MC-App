@@ -119,7 +119,9 @@ export default function AtividadeCamposBasicos({
     produtoRealizadoOptions?.length ? produtoRealizadoOptions : PRODUTO_REALIZADO_OPTIONS_DEFAULT
   );
 
-  const equipeOptions = normalizeOptionList(teamOptions);
+  const equipeOptions = (teamOptions || []).every(t => t.id && t.label)
+    ? teamOptions
+    : normalizeOptionList(teamOptions);
   const metasOptions = normalizeOptionList([
     { id: 'nenhuma-meta', label: 'Nenhuma meta' },
     ...(metaOptions || []),
