@@ -420,7 +420,6 @@ ${currentValue}`,
     form.comentarios_gerais,
     form.comentarios_coordenacao,
     form.historico_observacoes,
-    isApproved,
   ]);
 
   const isApproved = form?.status === 'APPROVED';
