@@ -378,7 +378,7 @@ ${currentValue}`,
               className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-black text-white text-sm rounded-lg disabled:opacity-60 hover:bg-gray-800 transition-colors"
             >
               <Save className="w-4 h-4" />
-              {saveMutation.isPending ? 'Salvando...' : 'Salvar relatório'}
+              {saveMutation.isPending ? 'Salvando...' : 'Salvar Rascunho'}
             </button>
           )}
           {!isApproved && (
