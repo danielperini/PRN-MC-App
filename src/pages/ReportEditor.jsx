@@ -762,11 +762,11 @@ ${currentValue}`,
             >
               {saveMutation.isPending ? 'Salvando...' : 'Salvar oportunidades'}
             </button>
-          )}
-          </div>
-          )}
+            )}
+            </div>
+            )}
 
-          {currentTab === 'avaliacao' && (
+            {currentTab === 'avaliacao' && (
           <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
           {['avaliacao_pontos_positivos', 'avaliacao_desafios', 'avaliacao_sugestoes'].map((key) => (
             <Field key={key} label={key.replace('avaliacao_', '').replace(/_/g, ' ').charAt(0).toUpperCase() + key.slice(1)}>
@@ -888,7 +888,7 @@ ${currentValue}`,
               </div>
               )}
 
-              <div className="flex flex-wrap gap-2 pt-2 items-center">
+              <div className="flex flex-wrap gap-2 pt-2 items-center mt-6">
         <button
           type="button"
           onClick={() => saveMutation.mutate()}
