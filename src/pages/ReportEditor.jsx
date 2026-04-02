@@ -275,53 +275,55 @@ ${currentValue}`,
   }
 
   const [localReportId, setLocalReportId] = useState(reportId);
-  const effectiveReportId = localReportId || reportId;
-  const isEdit = Boolean(effectiveReportId);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = buildPayload(form?.status || 'DRAFT');
 
-      // Para CRIAR: não valida; aceita dados parciais
-      // Para EDITAR: valida campos obrigatórios
-      if (isEdit) {
-        if (!payload.museu) throw new Error('Selecione um Museu / Área antes de salvar');
-        if (!payload.mes_referencia) throw new Error('Selecione um Mês de referência antes de salvar');
-        if (!payload.author_name) throw new Error('Preencha o Nome do autor');
-        if (!payload.ano) throw new Error('Selecione um Ano');
-      }
+      // ⚠️ SEMPRE recalcular aqui
+      const idAtual = localReportId || reportId;
+      const isEditNow = Boolean(idAtual);
 
       let saved;
 
-      if (!isEdit) {
-        // Novo relatório — criar com dados mínimos (sem validação)
-        saved = await base44.entities.Report.create({ ...payload, status: 'DRAFT' });
+      if (!isEditNow) {
+        // CREATE (rascunho leve)
+        saved = await base44.entities.Report.create({
+          ...payload,
+          status: 'DRAFT',
+        });
+
         if (saved?.id) {
           setLocalReportId(saved.id);
-          // Atualizar URL sem recarregar a página
+
+          // 🔥 força atualização imediata do ID
           window.history.replaceState(null, '', `/ReportEditor?id=${saved.id}`);
         }
       } else {
-        saved = await base44.entities.Report.update(effectiveReportId, payload);
+        // UPDATE real (garante persistência)
+        saved = await base44.entities.Report.update(idAtual, payload);
       }
 
-      if (!saved) throw new Error('Servidor não confirmou a gravação. Tente novamente.');
-      try {
-        const backupRes = await base44.functions.invoke('backupReportToDrive', { reportId: saved.id || effectiveReportId });
-        return backupRes?.data;
-      } catch (backupErr) {
-        console.warn('Backup Drive falhou (silencioso):', backupErr?.message);
-        return null;
+      if (!saved?.id) {
+        throw new Error('Servidor não confirmou a gravação.');
       }
+
+      // 🔥 importante: sempre usar id atualizado
+      const finalId = saved.id || idAtual;
+
+      try {
+        await base44.functions.invoke('backupReportToDrive', {
+          reportId: finalId,
+        });
+      } catch (e) {
+        console.warn('Backup falhou:', e?.message);
+      }
+
+      return saved;
     },
-    onSuccess: (backupData) => {
-      const driveInfo = backupData?.success
-        ? ` | 📁 Drive: ${backupData.pasta_drive || 'sincronizado'}`
-        : '';
-      const msg = `✅ Relatório gravado com sucesso!${driveInfo}`;
-      setSuccessMessage({ type: 'save', text: msg });
-      toast.success(msg, { duration: 5000 });
-      refetch();
+    onSuccess: async () => {
+      toast.success('✅ Relatório salvo com sucesso!');
+      await refetch();
     },
     onError: (e) => {
       toast.error('❌ Erro ao salvar: ' + (e?.message || 'tente novamente'));
@@ -330,7 +332,11 @@ ${currentValue}`,
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      if (!isEdit) throw new Error('Salve o relatório antes de enviar para revisão.');
+      const idAtual = localReportId || reportId;
+      
+      if (!idAtual) {
+        throw new Error('Salve o relatório antes de enviar para revisão.');
+      }
       
       const payload = buildPayload('SUBMITTED');
       payload.submitted_at = new Date().toISOString();
@@ -342,13 +348,13 @@ ${currentValue}`,
       if (!payload.author_name) throw new Error('Preencha o Nome do autor antes de enviar');
       if (!payload.ano) throw new Error('Selecione um Ano antes de enviar');
       
-      const saved = await base44.entities.Report.update(effectiveReportId, payload);
+      const saved = await base44.entities.Report.update(idAtual, payload);
       if (!saved) throw new Error('Servidor não confirmou o envio. Tente novamente.');
       
       // Notificar coordenadores
       try {
         await base44.functions.invoke('notifyCoordinatorOnSubmit', {
-          reportId: effectiveReportId,
+          reportId: idAtual,
           reportData: saved,
         });
       } catch (notifErr) {
@@ -356,7 +362,7 @@ ${currentValue}`,
       }
       
       try {
-        return await base44.functions.invoke('backupReportToDrive', { reportId: effectiveReportId });
+        return await base44.functions.invoke('backupReportToDrive', { reportId: idAtual });
       } catch (e) {
         console.warn('Backup Drive ao enviar falhou:', e?.message);
         return null;
@@ -397,9 +403,14 @@ ${currentValue}`,
       try {
         const payload = buildPayload(form?.status || 'DRAFT');
         
-        // Se ainda não tem ID, cria um rascunho automaticamente
-        if (!effectiveReportId) {
-          const created = await base44.entities.Report.create({ ...payload, status: 'DRAFT' });
+        // ⚠️ SEMPRE recalcular aqui
+        const idAutoSave = localReportId || reportId;
+        
+        if (!idAutoSave) {
+          const created = await base44.entities.Report.create({
+            ...payload,
+            status: 'DRAFT',
+          });
           if (created?.id) {
             setLocalReportId(created.id);
             window.history.replaceState(null, '', `/ReportEditor?id=${created.id}`);
@@ -408,7 +419,7 @@ ${currentValue}`,
           return;
         }
         
-        await base44.entities.Report.update(effectiveReportId, payload);
+        await base44.entities.Report.update(idAutoSave, payload);
         console.log('[AutoSave] Relatório salvo automaticamente');
       } catch (err) {
         console.error('[AutoSave] Erro ao salvar:', err?.message);
@@ -421,8 +432,6 @@ ${currentValue}`,
     return () => clearTimeout(autoSaveTimer.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    isEdit,
-    effectiveReportId,
     form.museu,
     form.mes_referencia,
     form.ano,
@@ -440,7 +449,7 @@ ${currentValue}`,
   ]);
 
   const isApproved = form?.status === 'APPROVED';
-  const canSubmit = !isApproved && !saveMutation.isPending && !submitMutation.isPending;
+  const canSubmit = !isApproved && !saveMutation.isPending && !submitMutation.isPending && (localReportId || reportId);
 
   return (
     <div className="p-6 space-y-6">
@@ -651,25 +660,26 @@ ${currentValue}`,
           mesReferencia={form?.mes_referencia || report?.mes_referencia || ''}
           ano={Number(form?.ano || report?.ano || new Date().getFullYear())}
           museu={form?.museu || ''}
-          reportId={effectiveReportId}
+          reportId={localReportId || reportId}
           onSave={async () => {
-            if (!isEdit) throw new Error('Salve o relatório primeiro antes de salvar atividades.');
-            const payload = buildPayload(form?.status || 'DRAFT');
-            const saved = await base44.entities.Report.update(effectiveReportId, payload);
-            if (!saved) throw new Error('Servidor não confirmou a gravação.');
-            refetch();
+          const idAtual = localReportId || reportId;
+          if (!idAtual) throw new Error('Salve o relatório primeiro antes de salvar atividades.');
+          const payload = buildPayload(form?.status || 'DRAFT');
+          const saved = await base44.entities.Report.update(idAtual, payload);
+          if (!saved) throw new Error('Servidor não confirmou a gravação.');
+          refetch();
           }}
         />
       )}
 
-      {currentTab === 'fotos' && effectiveReportId && (
+      {currentTab === 'fotos' && (localReportId || reportId) && (
         <div className="space-y-6">
           {/* Vínculos de fotos já enviadas da galeria */}
           <div className="rounded-lg border bg-white p-4 shadow-sm">
             <h2 className="text-sm font-semibold text-gray-800 mb-4">📎 Fotos vinculadas ao relatório</h2>
             <ReportPhotoSection
               photos={form.fotos || []}
-              reportId={effectiveReportId}
+              reportId={localReportId || reportId}
               onAddPhoto={(photo) => {
                 setForm(prev => ({
                   ...prev,
@@ -696,7 +706,7 @@ ${currentValue}`,
 
           {/* Upload de novos arquivos e fotos */}
           <AttachmentsSection
-           reportId={effectiveReportId}
+           reportId={localReportId || reportId}
             canEdit={!isApproved}
             reportData={form}
           />
