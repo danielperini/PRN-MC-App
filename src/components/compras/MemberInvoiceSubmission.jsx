@@ -300,8 +300,53 @@ export default function MemberInvoiceSubmission() {
           {/* STEP: DONE */}
           {step === 'done' && result && (
             <div className="space-y-4 py-2">
+
+              {/* Mensagem de sucesso principal */}
+              <div className="rounded-xl border-2 border-green-400 bg-green-50 p-5 text-center">
+                <div className="text-4xl mb-2">✅</div>
+                <p className="text-green-800 font-bold text-lg">Nota Fiscal Enviada com Sucesso!</p>
+                <p className="text-green-700 text-sm mt-1">
+                  Sua NF foi gravada no banco de dados{result.backup_done ? ', backup feito no Google Drive' : ''} e <strong>enviada para aprovação da coordenação</strong>.
+                </p>
+                <p className="text-green-600 text-xs mt-1">📧 Emails enviados para você e para os coordenadores.</p>
+              </div>
+
+              {/* Card da nota enviada */}
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-amber-900 flex items-center gap-2">
+                    <FileText className="w-4 h-4" /> Nota Fiscal Enviada
+                  </h4>
+                  <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-3 py-1 rounded-full">
+                    ⏳ Aguardando Aprovação da Coordenação
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {[
+                    ['Nº da Nota', result.nota?.numero || aiData?.numero_nota],
+                    ['Valor', result.nota?.valor_total ? `R$ ${Number(result.nota.valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : null],
+                    ['Emitente', result.emitente?.nome || aiData?.fornecedor_nome],
+                    ['Data Emissão', result.nota?.data_emissao || aiData?.data_emissao],
+                    ['Serviço', result.nota?.descricao_servico || aiData?.descricao_servico],
+                    ['Arquivo', result.nome_arquivo],
+                  ].map(([label, val]) => val ? (
+                    <div key={label} className="col-span-2 sm:col-span-1">
+                      <span className="text-amber-600 text-xs">{label}: </span>
+                      <span className="text-amber-900 font-medium text-xs">{val}</span>
+                    </div>
+                  ) : null)}
+                </div>
+                <div className="flex gap-3 mt-3">
+                  {pdfUrl && <a href={pdfUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline flex items-center gap-1"><FileText className="w-3 h-3" />PDF</a>}
+                  {xmlUrl && <a href={xmlUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline flex items-center gap-1"><FileCode className="w-3 h-3" />XML</a>}
+                  {result.drive_pdf_link && <a href={result.drive_pdf_link} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">📁 Drive</a>}
+                </div>
+              </div>
+
+              {/* Painel de conformidade */}
               <InvoiceFullAnalysisPanel result={result} />
-              <Button className="w-full" onClick={handleClose}>Fechar</Button>
+
+              <Button className="w-full bg-indigo-600 hover:bg-indigo-700" onClick={handleClose}>Fechar</Button>
             </div>
           )}
         </DialogContent>

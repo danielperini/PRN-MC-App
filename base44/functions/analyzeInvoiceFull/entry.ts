@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const DRIVE_FOLDER_ID = '1HlhZvINo-j29SqZ3OInEtxNktp6IlKl9';
+const NOTIFY_EMAILS = ['notasfiscais@viadutosartes.org.br', 'danielperini.mc@viadutodasartes.org.br'];
 
 function sanitize(name) {
   return String(name || '').replace(/[<>:"/\\|?*\n\r]/g, '').trim();
@@ -370,7 +371,83 @@ Responda em português. Seja preciso e técnico.`,
       console.warn('Drive backup falhou:', err.message);
     }
 
-    // --- 5. Detectar se é equipe ---
+    // --- 5. Enviar emails com informações do formulário e anexos ---
+    const emailSubject = `📄 Nova Nota Fiscal Enviada — NF ${numero} — ${nome} (${mes})`;
+    const emailBody = `
+<h2 style="color:#4338ca;">Nova Nota Fiscal Enviada para Aprovação</h2>
+<p>O profissional abaixo enviou uma nota fiscal e aguarda aprovação da coordenação.</p>
+<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;font-size:14px;">
+  <tr><td><b>Profissional</b></td><td>${nome}</td></tr>
+  <tr><td><b>Cargo</b></td><td>${cargo}</td></tr>
+  <tr><td><b>Mês de Referência</b></td><td>${mes}</td></tr>
+  <tr><td><b>Nº da Nota</b></td><td>${numero}</td></tr>
+  <tr><td><b>Valor Total</b></td><td>R$ ${Number(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td></tr>
+  <tr><td><b>Emitente</b></td><td>${analysis?.emitente_nome || aiExtracted?.fornecedor_nome || '-'}</td></tr>
+  <tr><td><b>CNPJ/CPF Emitente</b></td><td>${analysis?.emitente_cnpj_cpf || aiExtracted?.fornecedor_cnpj || '-'}</td></tr>
+  <tr><td><b>Data Emissão</b></td><td>${analysis?.data_emissao || aiExtracted?.data_emissao || '-'}</td></tr>
+  <tr><td><b>Serviço</b></td><td>${analysis?.descricao_servico || aiExtracted?.descricao_servico || '-'}</td></tr>
+  <tr><td><b>Banco</b></td><td>${analysis?.banco_nome || '-'}</td></tr>
+  <tr><td><b>PIX / Conta</b></td><td>${analysis?.banco_pix || analysis?.banco_conta || '-'}</td></tr>
+  <tr><td><b>Favorecido</b></td><td>${analysis?.banco_favorecido || '-'}</td></tr>
+  <tr><td><b>Status</b></td><td><b style="color:#d97706;">⏳ AGUARDANDO APROVAÇÃO DA COORDENAÇÃO</b></td></tr>
+</table>
+<br/>
+<h3>📎 Arquivos Enviados</h3>
+<p><a href="${pdfFileUrl}">📄 PDF da Nota Fiscal — ${buildFileName(numero, cargo, nome, valor, 'pdf')}</a></p>
+${xmlFileUrl ? `<p><a href="${xmlFileUrl}">📋 XML da Nota Fiscal — ${buildFileName(numero, cargo, nome, valor, 'xml')}</a></p>` : ''}
+${driveResults.pdf?.webViewLink ? `<p><a href="${driveResults.pdf.webViewLink}">📁 Abrir pasta no Google Drive</a></p>` : ''}
+<br/>
+<h3>🔍 Conformidade (IA)</h3>
+<p>${analysis?.resumo_conformidade || 'Análise realizada automaticamente.'}</p>
+${(analysis?.pontos_criticos || []).length > 0 ? `<p style="color:red;"><b>Pontos críticos:</b> ${(analysis.pontos_criticos || []).join(' | ')}</p>` : ''}
+<br/>
+<p><a href="${`${Deno.env.get('BASE44_APP_URL') || 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app'}/Compras`}" style="background:#4338ca;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;">🔗 Acessar plataforma para aprovar</a></p>
+<hr/>
+<p style="color:#888;font-size:12px;">Plataforma Museus Centro — Gestão de Notas Fiscais</p>
+    `.trim();
+
+    // Email para os destinatários fixos + coordenadores
+    const allEmails = [...NOTIFY_EMAILS];
+    const coordsForEmail = await base44.asServiceRole.entities.UserPermission.filter(
+      { can_review_reports: true }, '-created_date', 20
+    ).catch(() => []);
+    for (const coord of (coordsForEmail || [])) {
+      if (coord.user_email && !allEmails.includes(coord.user_email)) {
+        allEmails.push(coord.user_email);
+      }
+    }
+
+    for (const email of allEmails) {
+      try {
+        await base44.asServiceRole.integrations.Core.SendEmail({ to: email, subject: emailSubject, body: emailBody });
+      } catch (e) { console.warn('Email falhou para', email, e.message); }
+    }
+
+    // Email de confirmação ao próprio usuário
+    try {
+      await base44.asServiceRole.integrations.Core.SendEmail({
+        to: user.email,
+        subject: `✅ Sua NF ${numero} foi enviada com sucesso — ${mes}`,
+        body: `<h2>Nota Fiscal Enviada com Sucesso!</h2><p>Olá ${nome},</p><p>Sua nota fiscal foi recebida e <b>está aguardando aprovação da coordenação</b>.</p><table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;"><tr><td>Nº da Nota</td><td>${numero}</td></tr><tr><td>Valor</td><td>R$ ${Number(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td></tr><tr><td>Mês</td><td>${mes}</td></tr><tr><td>Status</td><td>⏳ Aguardando aprovação</td></tr></table><br/><p><a href="${pdfFileUrl}">📄 Seu PDF</a>${xmlFileUrl ? ` | <a href="${xmlFileUrl}">📋 Seu XML</a>` : ''}</p><p style="color:#888;font-size:12px;">Plataforma Museus Centro</p>`,
+      });
+    } catch (e) { console.warn('Email usuário falhou:', e.message); }
+
+    // Notificações na plataforma para coordenadores
+    for (const coord of (coordsForEmail || [])) {
+      try {
+        await base44.asServiceRole.entities.Notification.create({
+          user_email: coord.user_email,
+          type: 'INVOICE_SUBMITTED',
+          title: `Nova NF para aprovação — ${nome}`,
+          message: `NF ${numero} — R$ ${Number(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — aguarda aprovação.`,
+          action_url: `${Deno.env.get('BASE44_APP_URL') || 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app'}/Compras`,
+          read: false,
+          email_sent: true,
+        });
+      } catch (e) { console.warn('Notif coord falhou:', e.message); }
+    }
+
+    // --- 6. Detectar se é equipe ---
     const isEquipe = !!teamMember || (perm?.base_role === 'PROFISSIONAL' && cargo !== 'COORDENADOR');
     const equipeMsg = isEquipe && teamMember
       ? `✅ Nota vinculada ao membro de equipe: ${teamMember.user_name || nome} (${teamMember.funcao || cargo})`
