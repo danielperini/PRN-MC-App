@@ -78,20 +78,30 @@ function getValorParcela(member) {
   return total && parcelas ? total / parcelas : 0;
 }
 
-function buildFileName({ numeroNF, member, valor, extension }) {
+function resolveMemberFuncao(member, currentUser) {
+  return String(
+    member?.funcao ||
+    member?.role ||
+    currentUser?.funcao ||
+    currentUser?.role ||
+    ''
+  ).trim();
+}
+
+function buildFileName({ numeroNF, member, currentUser, valor, extension }) {
   const nf = sanitize(numeroNF || 'NF');
-  const cargo = sanitize(member?.funcao || 'FUNCAO');
-  const nome = sanitize(member?.user_name || member?.nome || 'SEM NOME');
+  const cargo = sanitize(resolveMemberFuncao(member, currentUser) || 'FUNCAO');
+  const nome = sanitize(member?.user_name || member?.nome || currentUser?.full_name || 'SEM NOME');
   const valorStr = sanitize(formatBRL(valor));
   return `${nf} ${cargo} - ${nome} - MUSEUS CENTRO - ${valorStr}.${extension}`;
 }
 
-function getMemberDataStatus(member) {
+function getMemberDataStatus(member, currentUser) {
   if (!member) return { ok: false, missing: ['Perfil não encontrado'] };
-  const isPJ = String(member?.tipo_pessoa || 'PF').toUpperCase() === 'PJ';
+  const isPJ = String(member?.tipo_pessoa || 'PF').toUpperCase() === 'PJ' || String(member?.tipo_pessoa || 'PF').toUpperCase() === 'MEI' || String(member?.tipo_pessoa || 'PF').toUpperCase() === 'ME';
   const missing = [];
-  if (!member?.user_name) missing.push('Nome');
-  if (!member?.funcao) missing.push('Função');
+  if (!(member?.user_name || member?.nome || currentUser?.full_name)) missing.push('Nome');
+  if (!resolveMemberFuncao(member, currentUser)) missing.push('Função');
   if (!member?.banco) missing.push('Banco');
   if (!member?.agencia) missing.push('Agência');
   if (!member?.conta) missing.push('Conta');
@@ -101,9 +111,9 @@ function getMemberDataStatus(member) {
   return { ok: missing.length === 0, missing, isPJ };
 }
 
-function buildDescricaoModelo(member, mes, ano) {
-  const funcao = member?.funcao || 'Função';
-  const isPJ = String(member?.tipo_pessoa || 'PF').toUpperCase() === 'PJ';
+function buildDescricaoModelo(member, currentUser, mes, ano) {
+  const funcao = resolveMemberFuncao(member, currentUser) || 'Função';
+  const isPJ = String(member?.tipo_pessoa || 'PF').toUpperCase() === 'PJ' || String(member?.tipo_pessoa || 'PF').toUpperCase() === 'MEI' || String(member?.tipo_pessoa || 'PF').toUpperCase() === 'ME';
   const doc = isPJ ? `CNPJ: ${member?.cnpj || ''}` : `CPF: ${member?.cpf || ''}`;
   return [
     'DESCRIÇÃO DA NOTA',
@@ -248,6 +258,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
             pix_key: member.pix_key || hydratedMember.pix_key || '',
             cpf: member.cpf || hydratedMember.cpf || '',
             cnpj: member.cnpj || hydratedMember.cnpj || '',
+            funcao: member.funcao || hydratedMember.funcao || hydratedMember.role || '',
+            role: member.role || hydratedMember.role || hydratedMember.funcao || '',
             valor_parcela: member.valor_parcela || hydratedMember.valor_parcela || '',
             numero_parcelas: member.numero_parcelas || hydratedMember.numero_parcelas || '',
             vigencia_inicio: member.vigencia_inicio || hydratedMember.vigencia_inicio || '',
@@ -261,7 +273,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
     hydrateMissingMemberData();
     return () => { cancelled = true; };
-  }, [member?.id, member?.user_email]);
+  }, [member?.id, member?.user_email, member?.funcao, member?.role]);
 
   const effectiveMember = useMemo(() => ({
     ...(member || {}),
@@ -269,11 +281,12 @@ export default function TeamPaymentSubmit({ userEmail }) {
   }), [member, memberLocalPatch]);
 
   const valorParcela = useMemo(() => getValorParcela(effectiveMember), [effectiveMember]);
-  const memberStatus = useMemo(() => getMemberDataStatus(effectiveMember), [effectiveMember]);
+  const memberStatus = useMemo(() => getMemberDataStatus(effectiveMember, currentUser), [effectiveMember, currentUser]);
+  const resolvedFuncao = useMemo(() => resolveMemberFuncao(effectiveMember, currentUser), [effectiveMember, currentUser]);
   const descricaoModelo = useMemo(() => {
     if (!effectiveMember || !selectedComp) return '';
-    return buildDescricaoModelo(effectiveMember, selectedComp.mes, selectedComp.ano);
-  }, [effectiveMember, selectedComp]);
+    return buildDescricaoModelo(effectiveMember, currentUser, selectedComp.mes, selectedComp.ano);
+  }, [effectiveMember, currentUser, selectedComp]);
 
   async function checkPreviousReport() {
     if (!selectedComp || !currentUser?.email) return { ok: true };
@@ -302,13 +315,17 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
   async function saveManualMemberFields() {
     if (!effectiveMember?.id) return;
+    const funcaoNormalizada = resolveMemberFuncao(effectiveMember, currentUser);
+
     await base44.entities.TeamMember.update(effectiveMember.id, {
       banco: effectiveMember.banco || '',
       agencia: effectiveMember.agencia || '',
       conta: effectiveMember.conta || '',
       pix_key: effectiveMember.pix_key || '',
       cpf: effectiveMember.cpf || '',
-      cnpj: effectiveMember.cnpj || ''
+      cnpj: effectiveMember.cnpj || '',
+      funcao: funcaoNormalizada,
+      role: funcaoNormalizada
     }).catch(() => null);
   }
 
@@ -317,6 +334,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
     if (!effectiveMember) { toast.error('Perfil não encontrado.'); return; }
     if (!selectedComp) { toast.error('Selecione o mês.'); return; }
     if (!form.numero_nf) { toast.error('Informe o número da nota.'); return; }
+    if (!resolvedFuncao) { toast.error('Informe o cargo / função para continuar.'); return; }
     if (!pdfFile && !form.nota_fiscal_url) { toast.error('Selecione o arquivo PDF da nota fiscal.'); return; }
     if (!xmlFile && !form.xml_url) { toast.error('Selecione o arquivo XML da nota fiscal.'); return; }
 
@@ -342,6 +360,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
           buildFileName({
             numeroNF: form.numero_nf || 'NF',
             member: effectiveMember,
+            currentUser,
             valor: form.valor_nf || valorParcela,
             extension: 'pdf'
           })
@@ -360,6 +379,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
           buildFileName({
             numeroNF: form.numero_nf || 'NF',
             member: effectiveMember,
+            currentUser,
             valor: form.valor_nf || valorParcela,
             extension: 'xml'
           })
@@ -380,8 +400,9 @@ export default function TeamPaymentSubmit({ userEmail }) {
         numero_nf: form.numero_nf,
         valor_esperado: valorParcela,
         member_snapshot: {
-          user_name: effectiveMember.user_name || '',
-          funcao: effectiveMember.funcao || '',
+          user_name: effectiveMember.user_name || currentUser?.full_name || '',
+          funcao: resolvedFuncao,
+          role: resolvedFuncao,
           tipo_pessoa: effectiveMember.tipo_pessoa || 'PF',
           cpf: effectiveMember.cpf || '',
           cnpj: effectiveMember.cnpj || '',
@@ -410,8 +431,9 @@ export default function TeamPaymentSubmit({ userEmail }) {
       const created = await base44.entities.TeamPayment.create({
         team_member_id: effectiveMember.id,
         user_email: effectiveMember.user_email,
-        user_name: effectiveMember.user_name || '',
-        funcao: effectiveMember.funcao || '',
+        user_name: effectiveMember.user_name || currentUser?.full_name || '',
+        funcao: resolvedFuncao,
+        role: resolvedFuncao,
         mes_referencia: selectedComp.mes,
         ano: selectedComp.ano,
         numero_nf: form.numero_nf,
@@ -448,8 +470,9 @@ export default function TeamPaymentSubmit({ userEmail }) {
       setAnalysisStep('Enviando notificações...');
       await base44.functions.invoke('notifyTeamPaymentSubmitted', {
         payment_id: created?.id,
-        team_member_name: effectiveMember.user_name || '',
-        cargo: effectiveMember.funcao || '',
+        team_member_name: effectiveMember.user_name || currentUser?.full_name || '',
+        cargo: resolvedFuncao,
+        funcao: resolvedFuncao,
         mes: selectedComp.mes,
         ano: selectedComp.ano,
         valor: toNumber(form.valor_nf || valorParcela),
@@ -575,6 +598,19 @@ export default function TeamPaymentSubmit({ userEmail }) {
               <div className="font-medium text-gray-900 mb-2">Seus dados bancários para conferência</div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Cargo / Função</Label>
+                  <Input
+                    value={resolvedFuncao}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setMemberField('funcao', value);
+                      setMemberField('role', value);
+                    }}
+                    placeholder="Informe seu cargo / função"
+                  />
+                </div>
+
                 <div className="space-y-1.5">
                   <Label>Banco</Label>
                   <Input
@@ -706,7 +742,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
                 <div className="space-y-1.5">
                   <p className="font-semibold text-amber-900">Descrição do Serviço</p>
                   <div className="bg-white/70 rounded-lg p-2 border border-amber-100 space-y-1">
-                    <p>Prestação de serviço ({effectiveMember?.funcao || 'sua função'}) ao Projeto Museus Centro</p>
+                    <p>Prestação de serviço ({resolvedFuncao || 'sua função'}) ao Projeto Museus Centro</p>
                     <p>Termo de Colaboração <span className="font-medium">{VIADUTO_EMISSAO.termo}</span></p>
                     <p>Parceria com SMC/FMC — referente ao mês selecionado</p>
                   </div>
