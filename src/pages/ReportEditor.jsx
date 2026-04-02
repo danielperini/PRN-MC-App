@@ -331,6 +331,12 @@ ${currentValue}`,
       payload.review_status = 'aguardando_revisao';
       const idParaSalvar = localReportId || reportId;
       if (!idParaSalvar) throw new Error('Salve o relatório antes de enviar para revisão.');
+      
+      // Validar campos obrigatórios antes de enviar
+      if (!payload.museu) throw new Error('Selecione um Museu / Área antes de enviar');
+      if (!payload.mes_referencia) throw new Error('Selecione um Mês de referência antes de enviar');
+      if (!payload.author_name) throw new Error('Preencha o Nome do autor antes de enviar');
+      if (!payload.ano) throw new Error('Selecione um Ano antes de enviar');
       const saved = await base44.entities.Report.update(idParaSalvar, payload);
       if (!saved) throw new Error('Servidor não confirmou o envio. Tente novamente.');
       
