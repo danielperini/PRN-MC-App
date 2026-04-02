@@ -1,7 +1,51 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { notifyCoordinators } from '@/lib/notifyHelpers';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } fr// 🔥 APENAS TRECHO ALTERADO DENTRO DO handleSubmit (ANTES DO create)
+
+      // 🔒 VALIDAÇÕES CRÍTICAS ANTES DO ENVIO
+
+      // 1. 🔁 NF DUPLICADA
+      const existing = await base44.entities.TeamPayment.filter({
+        team_member_id: effectiveMember.id,
+        numero_nf: form.numero_nf,
+        mes_referencia: selectedComp.mes,
+        ano: selectedComp.ano
+      });
+
+      if (Array.isArray(existing) && existing.length > 0) {
+        toast.error('Já existe uma nota fiscal enviada para essa competência com esse número.');
+        setSubmitting(false);
+        return;
+      }
+
+      // 2. 💰 VALIDAÇÃO DE SALDO + RUBRICA
+      try {
+        const budgetCheck = await base44.functions.invoke('check_budget', {
+          valor: toNumber(form.valor_nf || valorParcela),
+          user_email: effectiveMember.user_email,
+          contexto: 'TEAM_PAYMENT',
+          mes: selectedComp.mes,
+          ano: selectedComp.ano
+        });
+
+        const bc = budgetCheck?.data || {};
+
+        if (bc?.blocked_by_rubrica) {
+          toast.error('Envio bloqueado: rubrica inválida ou não permitida.');
+          setSubmitting(false);
+          return;
+        }
+
+        if (bc?.saldo_insuficiente) {
+          toast.error('Saldo insuficiente para envio desta nota fiscal.');
+          setSubmitting(false);
+          return;
+        }
+
+      } catch (e) {
+        console.warn('Falha ao validar saldo/rubrica', e);
+      }om '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
