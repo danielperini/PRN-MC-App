@@ -1,8 +1,9 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, CalendarDays } from 'lucide-react';
+import { Plus, Trash2, Save } from 'lucide-react';
+import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AtividadeCamposBasicos from './AtividadeCamposBasicos';
 import ActivityPhotoLinker from './ActivityPhotoLinker';
@@ -18,7 +19,22 @@ export default function AtividadesSection({
   ano = 2026,
   museu = '',
   reportId = null,
+  onSave = null,
 }) {
+  const [saving, setSaving] = useState(false);
+
+  async function handleSaveAtividades() {
+    if (!onSave) return;
+    setSaving(true);
+    try {
+      await onSave();
+      toast.success('✅ Atividades salvas com sucesso!', { duration: 3000 });
+    } catch (e) {
+      toast.error('❌ Erro ao salvar atividades: ' + (e?.message || 'tente novamente'));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   // Mapear nome do mês para número
   const MES_MAP = {
@@ -189,12 +205,20 @@ export default function AtividadesSection({
         </div>
       ))}
 
-      {canEdit && (
-        <Button onClick={addAtividade} variant="outline">
-          <Plus className="w-4 h-4 mr-2" />
-          Adicionar atividade
-        </Button>
-      )}
+      <div className="flex gap-2">
+        {canEdit && (
+          <Button onClick={addAtividade} variant="outline">
+            <Plus className="w-4 h-4 mr-2" />
+            Adicionar atividade
+          </Button>
+        )}
+        {canEdit && onSave && (
+          <Button onClick={handleSaveAtividades} disabled={saving}>
+            <Save className="w-4 h-4 mr-2" />
+            {saving ? 'Salvando...' : 'Salvar atividades'}
+          </Button>
+        )}
+      </div>
 
     </div>
   );

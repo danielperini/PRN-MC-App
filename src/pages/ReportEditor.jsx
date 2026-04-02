@@ -541,6 +541,12 @@ ${currentValue}`,
           ano={Number(form?.ano || report?.ano || new Date().getFullYear())}
           museu={form?.museu || ''}
           reportId={reportId}
+          onSave={async () => {
+            const payload = buildPayload(form?.status || 'DRAFT');
+            const saved = await base44.entities.Report.update(reportId, payload);
+            if (!saved) throw new Error('Servidor não confirmou a gravação.');
+            refetch();
+          }}
         />
       )}
 
