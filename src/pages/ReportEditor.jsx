@@ -183,8 +183,6 @@ export default function ReportEditor() {
     return Array.isArray(valores) ? valores.filter(Boolean) : [];
   }, [report]);
 
-  const isApproved = form?.status === 'APPROVED';
-
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
@@ -351,6 +349,7 @@ ${currentValue}`,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.atividades]);
 
+  const isApproved = form?.status === 'APPROVED';
   const canSubmit = !isApproved && !saveMutation.isPending && !submitMutation.isPending;
 
   return (
