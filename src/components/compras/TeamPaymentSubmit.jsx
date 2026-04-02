@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { notifyCoordinators } from '@/lib/notifyHelpers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -6,21 +6,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from
-'@/components/ui/select';
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from '@/components/ui/select';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle } from
-'@/components/ui/dialog';
+  Dialog, DialogContent, DialogHeader, DialogTitle
+} from '@/components/ui/dialog';
 import {
-  AlertCircle, CheckCircle2, Eye, FileText, Loader2, Plus, Upload, Brain, FileCheck } from
-'lucide-react';
+  AlertCircle, CheckCircle2, Eye, FileText, Loader2, Plus, Upload, Brain, FileCheck
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
 
 const MONTHS = [
-'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
 
 const VIADUTO_EMISSAO = {
   razao_social: 'Viaduto das Artes',
@@ -61,7 +61,13 @@ function getPreviousMonthRef(mes, ano) {
 }
 
 function sanitize(value) {
-  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[<>:"/\\|?*]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[<>:"/\\|?*]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
 }
 
 function getValorParcela(member) {
@@ -100,25 +106,25 @@ function buildDescricaoModelo(member, mes, ano) {
   const isPJ = String(member?.tipo_pessoa || 'PF').toUpperCase() === 'PJ';
   const doc = isPJ ? `CNPJ: ${member?.cnpj || ''}` : `CPF: ${member?.cpf || ''}`;
   return [
-  'DESCRIÇÃO DA NOTA',
-  `Prestação de serviço (${funcao}) ao Projeto Museus Centro - Termo de Colaboração ${VIADUTO_EMISSAO.termo}, parceria com SMC/FMC: ${mes}/${ano}.`,
-  '',
-  'Dados para pagamento',
-  `Banco: ${member?.banco || ''}`,
-  `Agência: ${member?.agencia || ''}`,
-  `Conta: ${member?.conta || ''}`,
-  doc,
-  `PIX: ${member?.pix_key || ''}`,
-  '',
-  `VALOR: ${formatBRL(getValorParcela(member))}`,
-  '',
-  VIADUTO_EMISSAO.razao_social,
-  `Endereço: ${VIADUTO_EMISSAO.endereco}`,
-  `CNPJ: ${VIADUTO_EMISSAO.cnpj}`,
-  `Inscrição Municipal: ${VIADUTO_EMISSAO.inscricao_municipal}`,
-  `Telefone: ${VIADUTO_EMISSAO.telefone}`,
-  `Email: ${VIADUTO_EMISSAO.email}`].
-  join('\n');
+    'DESCRIÇÃO DA NOTA',
+    `Prestação de serviço (${funcao}) ao Projeto Museus Centro - Termo de Colaboração ${VIADUTO_EMISSAO.termo}, parceria com SMC/FMC: ${mes}/${ano}.`,
+    '',
+    'Dados para pagamento',
+    `Banco: ${member?.banco || ''}`,
+    `Agência: ${member?.agencia || ''}`,
+    `Conta: ${member?.conta || ''}`,
+    doc,
+    `PIX: ${member?.pix_key || ''}`,
+    '',
+    `VALOR: ${formatBRL(getValorParcela(member))}`,
+    '',
+    VIADUTO_EMISSAO.razao_social,
+    `Endereço: ${VIADUTO_EMISSAO.endereco}`,
+    `CNPJ: ${VIADUTO_EMISSAO.cnpj}`,
+    `Inscrição Municipal: ${VIADUTO_EMISSAO.inscricao_municipal}`,
+    `Telefone: ${VIADUTO_EMISSAO.telefone}`,
+    `Email: ${VIADUTO_EMISSAO.email}`
+  ].join('\n');
 }
 
 async function renameFile(file, fileName) {
@@ -140,9 +146,12 @@ export default function TeamPaymentSubmit({ userEmail }) {
     { label: 'Upload do XML', done: false },
     { label: 'Análise com IA', done: false },
     { label: 'Registro no sistema', done: false },
+    { label: 'Backup no Drive', done: false },
     { label: 'Notificações', done: false }
   ]);
   const [progressPercent, setProgressPercent] = useState(0);
+  const [memberLocalPatch, setMemberLocalPatch] = useState({});
+  const [analyzingOnly, setAnalyzingOnly] = useState(false);
 
   const [form, setForm] = useState({
     competencia: '',
@@ -153,6 +162,24 @@ export default function TeamPaymentSubmit({ userEmail }) {
     nota_fiscal_file_name: '',
     xml_file_name: ''
   });
+
+  function resetSubmissionProgress() {
+    setSubmissionSteps([
+      { label: 'Verificação de relatório', done: false },
+      { label: 'Upload do PDF', done: false },
+      { label: 'Upload do XML', done: false },
+      { label: 'Análise com IA', done: false },
+      { label: 'Registro no sistema', done: false },
+      { label: 'Backup no Drive', done: false },
+      { label: 'Notificações', done: false }
+    ]);
+    setProgressPercent(0);
+  }
+
+  function markStepDone(index, percent) {
+    setSubmissionSteps((prev) => prev.map((s, i) => i === index ? { ...s, done: true } : s));
+    setProgressPercent(percent);
+  }
 
   function handleSelectPDF(file) {
     if (!file) return;
@@ -166,11 +193,21 @@ export default function TeamPaymentSubmit({ userEmail }) {
     setForm((prev) => ({ ...prev, xml_file_name: file.name, xml_url: '' }));
   }
 
+  function setMemberField(field, value) {
+    setMemberLocalPatch((prev) => ({ ...prev, [field]: value }));
+  }
+
   const monthOptions = useMemo(() => buildMonthOptions(), []);
 
-  const selectedComp = useMemo(() => monthOptions.find((o) => o.value === form.competencia) || null, [form.competencia, monthOptions]);
+  const selectedComp = useMemo(
+    () => monthOptions.find((o) => o.value === form.competencia) || null,
+    [form.competencia, monthOptions]
+  );
 
-  const { data: currentUser } = useQuery({ queryKey: ['auth-me'], queryFn: () => base44.auth.me() });
+  const { data: currentUser } = useQuery({
+    queryKey: ['auth-me'],
+    queryFn: () => base44.auth.me()
+  });
 
   const { data: member, isLoading: loadingMember } = useQuery({
     queryKey: ['team-submit-own-member', userEmail],
@@ -181,12 +218,62 @@ export default function TeamPaymentSubmit({ userEmail }) {
     enabled: !!userEmail
   });
 
-  const valorParcela = useMemo(() => getValorParcela(member), [member]);
-  const memberStatus = useMemo(() => getMemberDataStatus(member), [member]);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function hydrateMissingMemberData() {
+      if (!member?.id) return;
+
+      const missingCritical =
+        !member?.banco ||
+        !member?.agencia ||
+        !member?.conta ||
+        !member?.pix_key ||
+        (!member?.cpf && !member?.cnpj);
+
+      if (!missingCritical) return;
+
+      try {
+        const res = await base44.functions.invoke('ensureTeamMemberDataComplete', {
+          team_member_id: member.id,
+          user_email: member.user_email
+        });
+
+        const hydratedMember = res?.data?.member || null;
+        if (!cancelled && hydratedMember) {
+          setMemberLocalPatch({
+            banco: member.banco || hydratedMember.banco || '',
+            agencia: member.agencia || hydratedMember.agencia || '',
+            conta: member.conta || hydratedMember.conta || '',
+            pix_key: member.pix_key || hydratedMember.pix_key || '',
+            cpf: member.cpf || hydratedMember.cpf || '',
+            cnpj: member.cnpj || hydratedMember.cnpj || '',
+            valor_parcela: member.valor_parcela || hydratedMember.valor_parcela || '',
+            numero_parcelas: member.numero_parcelas || hydratedMember.numero_parcelas || '',
+            vigencia_inicio: member.vigencia_inicio || hydratedMember.vigencia_inicio || '',
+            vigencia_fim: member.vigencia_fim || hydratedMember.vigencia_fim || ''
+          });
+        }
+      } catch (e) {
+        console.warn('Falha ao completar dados do membro', e);
+      }
+    }
+
+    hydrateMissingMemberData();
+    return () => { cancelled = true; };
+  }, [member?.id, member?.user_email]);
+
+  const effectiveMember = useMemo(() => ({
+    ...(member || {}),
+    ...(memberLocalPatch || {})
+  }), [member, memberLocalPatch]);
+
+  const valorParcela = useMemo(() => getValorParcela(effectiveMember), [effectiveMember]);
+  const memberStatus = useMemo(() => getMemberDataStatus(effectiveMember), [effectiveMember]);
   const descricaoModelo = useMemo(() => {
-    if (!member || !selectedComp) return '';
-    return buildDescricaoModelo(member, selectedComp.mes, selectedComp.ano);
-  }, [member, selectedComp]);
+    if (!effectiveMember || !selectedComp) return '';
+    return buildDescricaoModelo(effectiveMember, selectedComp.mes, selectedComp.ano);
+  }, [effectiveMember, selectedComp]);
 
   async function checkPreviousReport() {
     if (!selectedComp || !currentUser?.email) return { ok: true };
@@ -195,61 +282,96 @@ export default function TeamPaymentSubmit({ userEmail }) {
     const reports = await base44.entities.Report.filter({ mes_referencia: prev.mes, ano: prev.ano });
     const email = String(currentUser.email).toLowerCase();
     const own = (reports || []).find((r) =>
-    String(r?.created_by || '').toLowerCase() === email ||
-    String(r?.author_email || '').toLowerCase() === email
+      String(r?.created_by || '').toLowerCase() === email ||
+      String(r?.author_email || '').toLowerCase() === email
     );
-    if (!own) return { ok: false, message: `Antes de enviar a nota de ${selectedComp.mes}/${selectedComp.ano}, envie o relatório de ${prev.mes}/${prev.ano} ao coordenador.` };
+    if (!own) {
+      return {
+        ok: false,
+        message: `Antes de enviar a nota de ${selectedComp.mes}/${selectedComp.ano}, envie o relatório de ${prev.mes}/${prev.ano} ao coordenador.`
+      };
+    }
     if (!['SUBMITTED', 'APPROVED'].includes(String(own.status || '').toUpperCase())) {
-      return { ok: false, message: `O relatório de ${prev.mes}/${prev.ano} ainda não foi enviado. Status: ${own.status}.` };
+      return {
+        ok: false,
+        message: `O relatório de ${prev.mes}/${prev.ano} ainda não foi enviado. Status: ${own.status}.`
+      };
     }
     return { ok: true };
   }
 
-
+  async function saveManualMemberFields() {
+    if (!effectiveMember?.id) return;
+    await base44.entities.TeamMember.update(effectiveMember.id, {
+      banco: effectiveMember.banco || '',
+      agencia: effectiveMember.agencia || '',
+      conta: effectiveMember.conta || '',
+      pix_key: effectiveMember.pix_key || '',
+      cpf: effectiveMember.cpf || '',
+      cnpj: effectiveMember.cnpj || ''
+    }).catch(() => null);
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!member) {toast.error('Perfil não encontrado.');return;}
-    if (!selectedComp) {toast.error('Selecione o mês.');return;}
-    if (!form.numero_nf) {toast.error('Informe o número da nota.');return;}
-    if (!pdfFile && !form.nota_fiscal_url) {toast.error('Selecione o arquivo PDF da nota fiscal.');return;}
-    if (!xmlFile && !form.xml_url) {toast.error('Selecione o arquivo XML da nota fiscal.');return;}
+    if (!effectiveMember) { toast.error('Perfil não encontrado.'); return; }
+    if (!selectedComp) { toast.error('Selecione o mês.'); return; }
+    if (!form.numero_nf) { toast.error('Informe o número da nota.'); return; }
+    if (!pdfFile && !form.nota_fiscal_url) { toast.error('Selecione o arquivo PDF da nota fiscal.'); return; }
+    if (!xmlFile && !form.xml_url) { toast.error('Selecione o arquivo XML da nota fiscal.'); return; }
 
     setSubmitting(true);
     setAnalysis(null);
+    resetSubmissionProgress();
 
     try {
       setAnalysisStep('Verificando relatório anterior...');
-      setSubmissionSteps(prev => prev.map((s, i) => i === 0 ? {...s, done: true} : s));
-      setProgressPercent(16);
       const repCheck = await checkPreviousReport();
-      if (!repCheck.ok) {toast.error(repCheck.message);setSubmitting(false);setAnalysisStep('');return;}
+      if (!repCheck.ok) {
+        toast.error(repCheck.message);
+        setSubmitting(false);
+        setAnalysisStep('');
+        return;
+      }
+      markStepDone(0, 14);
 
-      // Upload dos arquivos agora (se ainda não foram enviados)
       if (pdfFile && !form.nota_fiscal_url) {
         setAnalysisStep('Enviando PDF...');
-        setSubmissionSteps(prev => prev.map((s, i) => i === 1 ? {...s, done: true} : s));
-        setProgressPercent(32);
-        const renamed = await renameFile(pdfFile, buildFileName({ numeroNF: form.numero_nf || 'NF', member, valor: form.valor_nf || valorParcela, extension: 'pdf' }));
+        const renamed = await renameFile(
+          pdfFile,
+          buildFileName({
+            numeroNF: form.numero_nf || 'NF',
+            member: effectiveMember,
+            valor: form.valor_nf || valorParcela,
+            extension: 'pdf'
+          })
+        );
         const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
         setForm((prev) => ({ ...prev, nota_fiscal_url: file_url, nota_fiscal_file_name: renamed.name }));
         form.nota_fiscal_url = file_url;
         form.nota_fiscal_file_name = renamed.name;
       }
+      markStepDone(1, 28);
+
       if (xmlFile && !form.xml_url) {
         setAnalysisStep('Enviando XML...');
-        setSubmissionSteps(prev => prev.map((s, i) => i === 2 ? {...s, done: true} : s));
-        setProgressPercent(48);
-        const renamed = await renameFile(xmlFile, buildFileName({ numeroNF: form.numero_nf || 'NF', member, valor: form.valor_nf || valorParcela, extension: 'xml' }));
+        const renamed = await renameFile(
+          xmlFile,
+          buildFileName({
+            numeroNF: form.numero_nf || 'NF',
+            member: effectiveMember,
+            valor: form.valor_nf || valorParcela,
+            extension: 'xml'
+          })
+        );
         const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
         setForm((prev) => ({ ...prev, xml_url: file_url, xml_file_name: renamed.name }));
         form.xml_url = file_url;
         form.xml_file_name = renamed.name;
       }
+      markStepDone(2, 42);
 
       setAnalysisStep('Analisando nota fiscal com IA...');
-      setSubmissionSteps(prev => prev.map((s, i) => i === 3 ? {...s, done: true} : s));
-      setProgressPercent(64);
       const analysisResult = await base44.functions.invoke('validateTeamPaymentInvoice', {
         file_url: form.nota_fiscal_url,
         xml_url: form.xml_url,
@@ -258,21 +380,22 @@ export default function TeamPaymentSubmit({ userEmail }) {
         numero_nf: form.numero_nf,
         valor_esperado: valorParcela,
         member_snapshot: {
-          user_name: member.user_name || '',
-          funcao: member.funcao || '',
-          tipo_pessoa: member.tipo_pessoa || 'PF',
-          cpf: member.cpf || '',
-          cnpj: member.cnpj || '',
-          banco: member.banco || '',
-          agencia: member.agencia || '',
-          conta: member.conta || '',
-          pix_key: member.pix_key || ''
+          user_name: effectiveMember.user_name || '',
+          funcao: effectiveMember.funcao || '',
+          tipo_pessoa: effectiveMember.tipo_pessoa || 'PF',
+          cpf: effectiveMember.cpf || '',
+          cnpj: effectiveMember.cnpj || '',
+          banco: effectiveMember.banco || '',
+          agencia: effectiveMember.agencia || '',
+          conta: effectiveMember.conta || '',
+          pix_key: effectiveMember.pix_key || ''
         },
         descricao_modelo: descricaoModelo
       });
 
       const ar = analysisResult?.data || analysisResult || {};
       setAnalysis(ar);
+      markStepDone(3, 57);
 
       if (ar?.can_submit === false) {
         toast.error('A IA identificou inconsistências críticas. Revise antes de enviar.');
@@ -281,20 +404,20 @@ export default function TeamPaymentSubmit({ userEmail }) {
         return;
       }
 
+      await saveManualMemberFields();
+
       setAnalysisStep('Registrando envio...');
-      setSubmissionSteps(prev => prev.map((s, i) => i === 4 ? {...s, done: true} : s));
-      setProgressPercent(80);
       const created = await base44.entities.TeamPayment.create({
-        team_member_id: member.id,
-        user_email: member.user_email,
-        user_name: member.user_name || '',
-        funcao: member.funcao || '',
+        team_member_id: effectiveMember.id,
+        user_email: effectiveMember.user_email,
+        user_name: effectiveMember.user_name || '',
+        funcao: effectiveMember.funcao || '',
         mes_referencia: selectedComp.mes,
         ano: selectedComp.ano,
         numero_nf: form.numero_nf,
         valor_nf: toNumber(form.valor_nf || valorParcela),
         valor_parcela_previsto: valorParcela,
-        numero_parcela: (toNumber(member.parcelas_pagas) || 0) + 1,
+        numero_parcela: (toNumber(effectiveMember.parcelas_pagas) || 0) + 1,
         nota_fiscal_url: form.nota_fiscal_url,
         xml_url: form.xml_url,
         nota_fiscal_file_name: form.nota_fiscal_file_name,
@@ -306,54 +429,68 @@ export default function TeamPaymentSubmit({ userEmail }) {
         analysis_critical_issues: Array.isArray(ar?.critical_issues) ? ar.critical_issues : [],
         status: 'AGUARDANDO_APROVACAO'
       });
+      markStepDone(4, 71);
+
+      try {
+        setAnalysisStep('Gerando backup automático no Drive...');
+        await base44.functions.invoke('backupNotasFiscaisToDrive', {
+          file_url: form.nota_fiscal_url,
+          file_name: form.nota_fiscal_file_name,
+          xml_url: form.xml_url,
+          xml_file_name: form.xml_file_name,
+          team_payment_id: created?.id
+        });
+      } catch (e) {
+        console.warn('Falha no backup do Drive (não bloqueante)', e);
+      }
+      markStepDone(5, 85);
 
       setAnalysisStep('Enviando notificações...');
-      setSubmissionSteps(prev => prev.map((s, i) => i === 5 ? {...s, done: true} : s));
-      setProgressPercent(95);
       await base44.functions.invoke('notifyTeamPaymentSubmitted', {
         payment_id: created?.id,
-        team_member_name: member.user_name || '',
-        cargo: member.funcao || '',
+        team_member_name: effectiveMember.user_name || '',
+        cargo: effectiveMember.funcao || '',
         mes: selectedComp.mes,
         ano: selectedComp.ano,
         valor: toNumber(form.valor_nf || valorParcela),
-        user_email: member.user_email,
-        requester_email: currentUser?.email || member.user_email || '',
+        user_email: effectiveMember.user_email,
+        requester_email: currentUser?.email || effectiveMember.user_email || '',
         nota_fiscal_url: form.nota_fiscal_url,
         xml_url: form.xml_url,
         nota_fiscal_file_name: form.nota_fiscal_file_name,
         xml_file_name: form.xml_file_name,
         app_link: window.location.origin + '/Compras',
-        cc_emails: ['danielperini.mc@viadutodasartes.org.br', 'nostasfiscais@viadutodasartes.org.br']
+        cc_emails: ['danielperini.mc@viadutodasartes.org.br', 'notasfiscais@viadutodasartes.org.br']
       });
 
-      // Notificação interna para coordenadores
       await notifyCoordinators({
         title: '💰 Nova nota fiscal para aprovação',
-        message: `${member.user_name || member.user_email} enviou nota fiscal de ${selectedComp.mes}/${selectedComp.ano} (${formatBRL(toNumber(form.valor_nf || valorParcela))}) para aprovação.`,
+        message: `${effectiveMember.user_name || effectiveMember.user_email} enviou nota fiscal de ${selectedComp.mes}/${selectedComp.ano} (${formatBRL(toNumber(form.valor_nf || valorParcela))}) para aprovação.`,
         type: 'PAYMENT_SUBMITTED',
         action_url: `${window.location.origin}/Compras`
       });
 
-      setProgressPercent(100);
+      markStepDone(6, 100);
+
       setTimeout(() => {
         toast.success(`✅ Nota fiscal de ${selectedComp.mes}/${selectedComp.ano} enviada com sucesso!`);
         setOpen(false);
         setPdfFile(null);
         setXmlFile(null);
-        setForm({ competencia: '', numero_nf: '', valor_nf: '', nota_fiscal_url: '', xml_url: '', nota_fiscal_file_name: '', xml_file_name: '' });
+        setForm({
+          competencia: '',
+          numero_nf: '',
+          valor_nf: '',
+          nota_fiscal_url: '',
+          xml_url: '',
+          nota_fiscal_file_name: '',
+          xml_file_name: ''
+        });
         setAnalysis(null);
         setAnalysisStep('');
-        setSubmissionSteps([
-          { label: 'Verificação de relatório', done: false },
-          { label: 'Upload do PDF', done: false },
-          { label: 'Upload do XML', done: false },
-          { label: 'Análise com IA', done: false },
-          { label: 'Registro no sistema', done: false },
-          { label: 'Notificações', done: false }
-        ]);
-        setProgressPercent(0);
+        resetSubmissionProgress();
       }, 500);
+
       await queryClient.invalidateQueries();
     } catch (e) {
       toast.error(e?.message || 'Erro ao enviar.');
@@ -366,14 +503,14 @@ export default function TeamPaymentSubmit({ userEmail }) {
   if (loadingMember) return (
     <div className="rounded-xl border p-4 text-sm text-gray-500 flex items-center gap-2">
       <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
-    </div>);
+    </div>
+  );
 
-
-  if (!member) return (
+  if (!effectiveMember) return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
       Perfil de equipe não localizado. Peça ao coordenador para cadastrá-lo.
-    </div>);
-
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -382,8 +519,10 @@ export default function TeamPaymentSubmit({ userEmail }) {
       </Button>
 
       {!memberStatus.ok &&
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 space-y-1">
-          <div className="font-medium flex items-center gap-2"><AlertCircle className="w-4 h-4" /> ⚠ Dados incompletos: {memberStatus.missing.join(', ')} — você pode preenchê-los manualmente abaixo.</div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 space-y-1">
+          <div className="font-medium flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" /> ⚠ Dados incompletos: {memberStatus.missing.join(', ')} — você pode preenchê-los manualmente abaixo.
+          </div>
         </div>
       }
 
@@ -394,24 +533,13 @@ export default function TeamPaymentSubmit({ userEmail }) {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Dados para emissão */}
-            
-
-
-
-
-
-
-
-
-
-
-            
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Mês de envio *</Label>
-                <Select value={form.competencia} onValueChange={(v) => {setForm((prev) => ({ ...prev, competencia: v }));setAnalysis(null);}}>
+                <Select
+                  value={form.competencia}
+                  onValueChange={(v) => { setForm((prev) => ({ ...prev, competencia: v })); setAnalysis(null); }}
+                >
                   <SelectTrigger><SelectValue placeholder="Selecione o mês" /></SelectTrigger>
                   <SelectContent>
                     {monthOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
@@ -421,12 +549,20 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
               <div className="space-y-2">
                 <Label>Número da nota fiscal *</Label>
-                <Input value={form.numero_nf} onChange={(e) => setForm((prev) => ({ ...prev, numero_nf: e.target.value }))} placeholder="Ex.: NF 1" />
+                <Input
+                  value={form.numero_nf}
+                  onChange={(e) => setForm((prev) => ({ ...prev, numero_nf: e.target.value }))}
+                  placeholder="Ex.: NF 1"
+                />
               </div>
 
               <div className="space-y-2">
                 <Label>Valor da nota</Label>
-                <Input value={form.valor_nf} onChange={(e) => setForm((prev) => ({ ...prev, valor_nf: e.target.value }))} placeholder={formatBRL(valorParcela)} />
+                <Input
+                  value={form.valor_nf}
+                  onChange={(e) => setForm((prev) => ({ ...prev, valor_nf: e.target.value }))}
+                  placeholder={formatBRL(valorParcela)}
+                />
               </div>
 
               <div className="space-y-2">
@@ -435,40 +571,91 @@ export default function TeamPaymentSubmit({ userEmail }) {
               </div>
             </div>
 
-            {/* Dados bancários conferência */}
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm">
               <div className="font-medium text-gray-900 mb-2">Seus dados bancários para conferência</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-gray-600">
-                <div>Banco: {member?.banco || '—'}</div>
-                <div>Agência: {member?.agencia || '—'}</div>
-                <div>Conta: {member?.conta || '—'}</div>
-                <div>PIX: {member?.pix_key || '—'}</div>
-                <div>{memberStatus.isPJ ? `CNPJ: ${member?.cnpj || '—'}` : `CPF: ${member?.cpf || '—'}`}</div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Banco</Label>
+                  <Input
+                    value={effectiveMember?.banco || ''}
+                    onChange={(e) => setMemberField('banco', e.target.value)}
+                    placeholder="Banco"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Agência</Label>
+                  <Input
+                    value={effectiveMember?.agencia || ''}
+                    onChange={(e) => setMemberField('agencia', e.target.value)}
+                    placeholder="Agência"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Conta</Label>
+                  <Input
+                    value={effectiveMember?.conta || ''}
+                    onChange={(e) => setMemberField('conta', e.target.value)}
+                    placeholder="Conta"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>PIX</Label>
+                  <Input
+                    value={effectiveMember?.pix_key || ''}
+                    onChange={(e) => setMemberField('pix_key', e.target.value)}
+                    placeholder="Chave PIX"
+                  />
+                </div>
+
+                {memberStatus.isPJ ? (
+                  <div className="space-y-1.5 md:col-span-2">
+                    <Label>CNPJ</Label>
+                    <Input
+                      value={effectiveMember?.cnpj || ''}
+                      onChange={(e) => setMemberField('cnpj', e.target.value)}
+                      placeholder="CNPJ"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 md:col-span-2">
+                    <Label>CPF</Label>
+                    <Input
+                      value={effectiveMember?.cpf || ''}
+                      onChange={(e) => setMemberField('cpf', e.target.value)}
+                      placeholder="CPF"
+                    />
+                  </div>
+                )}
               </div>
+
               {!memberStatus.ok &&
-              <div className="mt-2 text-amber-600 text-xs font-medium">💡 Campos faltantes: {memberStatus.missing.join(', ')} — você pode corrigi-los manualmente ou em "Meus Dados".</div>
+                <div className="mt-2 text-amber-600 text-xs font-medium">
+                  💡 Campos faltantes: {memberStatus.missing.join(', ')} — você pode corrigi-los manualmente aqui ou em "Meus Dados".
+                </div>
               }
             </div>
 
-            {/* Uploads */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* PDF */}
               <div className="space-y-2">
                 <Label>Escolher arquivo de nota fiscal (PDF) *</Label>
                 <label className="border-2 border-dashed rounded-xl p-4 block cursor-pointer hover:bg-gray-50 transition">
-                  <input type="file" accept=".pdf" className="hidden" onChange={(e) => handleSelectPDF(e.target.files?.[0])} disabled={submitting} />
+                  <input type="file" accept=".pdf" className="hidden" onChange={(e) => handleSelectPDF(e.target.files?.[0])} disabled={submitting || analyzingOnly} />
                   <div className="flex items-center gap-2 text-sm text-gray-700">
                     <Upload className="w-4 h-4" />
                     {pdfFile ? <span className="text-green-700 font-medium">{pdfFile.name}</span> : 'Selecionar arquivo PDF'}
                   </div>
                 </label>
                 {pdfFile &&
-                <div className="text-xs text-green-700 flex items-center gap-1">
+                  <div className="text-xs text-green-700 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> Arquivo selecionado — será enviado ao confirmar
                   </div>
                 }
                 {form.nota_fiscal_url &&
-                <div className="space-y-2">
+                  <div className="space-y-2">
                     <a href={form.nota_fiscal_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
                       <Eye className="w-4 h-4" /> Visualizar PDF gravado
                     </a>
@@ -477,31 +664,28 @@ export default function TeamPaymentSubmit({ userEmail }) {
                 }
               </div>
 
-              {/* XML */}
               <div className="space-y-2">
                 <Label>Escolher arquivo XML *</Label>
                 <label className="border-2 border-dashed rounded-xl p-4 block cursor-pointer hover:bg-gray-50 transition">
-                  <input type="file" accept=".xml,text/xml,application/xml" className="hidden" onChange={(e) => handleSelectXML(e.target.files?.[0])} disabled={submitting} />
+                  <input type="file" accept=".xml,text/xml,application/xml" className="hidden" onChange={(e) => handleSelectXML(e.target.files?.[0])} disabled={submitting || analyzingOnly} />
                   <div className="flex items-center gap-2 text-sm text-gray-700">
                     <FileText className="w-4 h-4" />
                     {xmlFile ? <span className="text-green-700 font-medium">{xmlFile.name}</span> : 'Selecionar arquivo XML'}
                   </div>
                 </label>
                 {xmlFile &&
-                <div className="text-xs text-green-700 flex items-center gap-1">
+                  <div className="text-xs text-green-700 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> Arquivo selecionado — será enviado ao confirmar
                   </div>
                 }
                 {form.xml_url &&
-                <a href={form.xml_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
+                  <a href={form.xml_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
                     <Eye className="w-4 h-4" /> Visualizar XML gravado
                   </a>
                 }
               </div>
             </div>
 
-
-            {/* O que deve conter na NF */}
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm space-y-3">
               <div className="font-semibold text-amber-900 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4" />
@@ -522,7 +706,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
                 <div className="space-y-1.5">
                   <p className="font-semibold text-amber-900">Descrição do Serviço</p>
                   <div className="bg-white/70 rounded-lg p-2 border border-amber-100 space-y-1">
-                    <p>Prestação de serviço ({member?.funcao || 'sua função'}) ao Projeto Museus Centro</p>
+                    <p>Prestação de serviço ({effectiveMember?.funcao || 'sua função'}) ao Projeto Museus Centro</p>
                     <p>Termo de Colaboração <span className="font-medium">{VIADUTO_EMISSAO.termo}</span></p>
                     <p>Parceria com SMC/FMC — referente ao mês selecionado</p>
                   </div>
@@ -534,16 +718,14 @@ export default function TeamPaymentSubmit({ userEmail }) {
               </div>
             </div>
 
-            {/* Padrão de nome dos arquivos */}
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
               <span className="font-medium text-gray-800">Padrão de nome dos arquivos: </span>
               NF [Número da NF] CARGO - SEU NOME - MUSEUS CENTRO - R$ VALOR DA NOTA
               <span className="block text-gray-400 mt-0.5">Os arquivos são renomeados automaticamente nesse padrão ao fazer upload.</span>
             </div>
 
-            {/* Análise IA */}
             {submitting &&
-            <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 space-y-3">
+              <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 space-y-3">
                 <div className="flex items-center gap-3 text-sm text-purple-800">
                   <Brain className="w-5 h-5 animate-pulse" />
                   <span className="font-medium">{analysisStep}</span>
@@ -553,9 +735,15 @@ export default function TeamPaymentSubmit({ userEmail }) {
                   {submissionSteps.map((step, idx) => (
                     <div key={idx} className="flex items-center gap-2">
                       {step.done ? (
-                        <><CheckCircle2 className="w-4 h-4 text-green-600" /> <span className="font-medium text-green-700">{step.label}</span></>
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-green-600" />
+                          <span className="font-medium text-green-700">{step.label}</span>
+                        </>
                       ) : (
-                        <><div className="w-4 h-4 border-2 border-purple-300 rounded-full" /> <span className="text-purple-600">{step.label}</span></>
+                        <>
+                          <div className="w-4 h-4 border-2 border-purple-300 rounded-full" />
+                          <span className="text-purple-600">{step.label}</span>
+                        </>
                       )}
                     </div>
                   ))}
@@ -564,30 +752,41 @@ export default function TeamPaymentSubmit({ userEmail }) {
             }
 
             {analysis &&
-            <div className={`rounded-xl border p-4 space-y-2 text-sm ${analysis.can_submit === false ? 'border-red-200 bg-red-50 text-red-800' : 'border-green-200 bg-green-50 text-green-800'}`}>
+              <div className={`rounded-xl border p-4 space-y-2 text-sm ${analysis.can_submit === false ? 'border-red-200 bg-red-50 text-red-800' : 'border-green-200 bg-green-50 text-green-800'}`}>
                 <div className="font-semibold flex items-center gap-2">
                   {analysis.can_submit === false ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
                   Resultado da análise automática
                 </div>
                 {analysis.summary && <div>{analysis.summary}</div>}
                 {Array.isArray(analysis.critical_issues) && analysis.critical_issues.length > 0 &&
-              <div><div className="font-medium">Pontos críticos</div><ul className="list-disc pl-5">{analysis.critical_issues.map((i, idx) => <li key={idx}>{i}</li>)}</ul></div>
-              }
+                  <div>
+                    <div className="font-medium">Pontos críticos</div>
+                    <ul className="list-disc pl-5">{analysis.critical_issues.map((i, idx) => <li key={idx}>{i}</li>)}</ul>
+                  </div>
+                }
                 {Array.isArray(analysis.warnings) && analysis.warnings.length > 0 &&
-              <div><div className="font-medium">Alertas</div><ul className="list-disc pl-5">{analysis.warnings.map((i, idx) => <li key={idx}>{i}</li>)}</ul></div>
-              }
+                  <div>
+                    <div className="font-medium">Alertas</div>
+                    <ul className="list-disc pl-5">{analysis.warnings.map((i, idx) => <li key={idx}>{i}</li>)}</ul>
+                  </div>
+                }
               </div>
             }
 
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={submitting}>
-                {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analisando e enviando...</> : '✅ Enviar Nota Fiscal'}
+              <Button type="submit" disabled={submitting || analyzingOnly}>
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Analisando e enviando...
+                  </>
+                ) : '✅ Enviar nota para aprovação'}
               </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
-    </div>);
-
+    </div>
+  );
 }
