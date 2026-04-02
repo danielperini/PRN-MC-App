@@ -347,7 +347,7 @@ ${currentValue}`,
 
     return () => clearTimeout(autoSaveTimer.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.atividades]);
+  }, [form.atividades, form.mes_referencia, form.ano, form.museu, form.author_name, form.equipe, form.resumo_periodo, form.avaliacao_pontos_positivos, form.avaliacao_desafios, form.avaliacao_sugestoes, form.oportunidades, form.comentarios_gerais, form.comentarios_coordenacao]);
 
   const isApproved = form?.status === 'APPROVED';
   const canSubmit = !isApproved && !saveMutation.isPending && !submitMutation.isPending;
