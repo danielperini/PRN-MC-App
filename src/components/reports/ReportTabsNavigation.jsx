@@ -2,22 +2,16 @@ import React from 'react';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 
 const TABS_INFO = [
-  { value: 'identificacao', label: 'Identificação', icon: '📋' },
+  { value: 'relatorio', label: 'Relatório', icon: '📋' },
   { value: 'atividades', label: 'Atividades', icon: '📝' },
-  { value: 'oportunidades', label: 'Oportunidades', icon: '💡' },
-  { value: 'avaliacao', label: 'Avaliação e Envio', icon: '⭐' },
-  { value: 'comentarios', label: 'Comentários', icon: '💬' },
-  { value: 'historico', label: 'Histórico', icon: '📊' },
+  { value: 'fotos', label: 'Fotos', icon: '📸' },
 ];
 
 export default function ReportTabsNavigation({ currentTab, formData, onTabChange }) {
   const tabProgress = {
-    identificacao: !!(formData.mes_referencia && formData.author_name && formData.museu),
+    relatorio: !!(formData.mes_referencia && formData.author_name && formData.museu),
     atividades: (formData.atividades || []).length > 0,
-    oportunidades: (formData.oportunidades || []).length > 0,
-    avaliacao: !!(formData.avaliacao_pontos_positivos || formData.avaliacao_desafios || formData.avaliacao_sugestoes),
-    comentarios: true,
-    historico: true,
+    fotos: (formData.fotos || []).length > 0,
   };
 
   const totalTabs = TABS_INFO.length;

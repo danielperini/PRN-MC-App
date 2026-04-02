@@ -68,12 +68,6 @@ function Field({ label, children }) {
   );
 }
 
-function normalizeOportunidades(value) {
-  if (Array.isArray(value)) return value;
-  if (!value) return [''];
-  return [String(value)];
-}
-
 export default function ReportEditor() {
   const [params] = useSearchParams();
   const reportId = params.get('id');
@@ -94,7 +88,6 @@ export default function ReportEditor() {
     equipe: '',
     resumo_periodo: '',
     atividades: [],
-    oportunidades: [''],
     oportunidades_resumo: '',
     comentarios_coordenacao: '',
     comentarios_gerais: '',
@@ -150,7 +143,6 @@ export default function ReportEditor() {
             total_produtos_gerados: atividade?.total_produtos_gerados ?? '',
           }))
         : [],
-      oportunidades: normalizeOportunidades(report.oportunidades),
       fotos: Array.isArray(report.fotos) ? report.fotos : [],
       comentarios_coordenacao: report?.comentarios_coordenacao ?? '',
       comentarios_gerais: report?.comentarios_gerais ?? '',
@@ -174,67 +166,11 @@ export default function ReportEditor() {
     return Array.isArray(valores) ? valores.filter(Boolean) : [];
   }, [report]);
 
-  async function aiComplete(field, currentValue, context) {
-    if (!currentValue && !context) return;
-    toast.info('✨ IA completando...', { duration: 2000 });
-
-    const res = await base44.integrations.Core.InvokeLLM({
-      prompt: `Você é um assistente de redação para relatórios de museus culturais. Complete ou melhore o seguinte texto do campo "${field}" de um relatório mensal. Seja claro, objetivo e escreva em português formal. Mantenha o estilo em tópicos com • se já houver tópicos. Retorne apenas o texto melhorado, sem explicações.
-
-Contexto do relatório: ${context || ''}
-
-Texto atual:
-${currentValue}`,
-    });
-
-    if (res) {
-      updateField(
-        field === 'Pontos positivos'
-          ? 'avaliacao_pontos_positivos'
-          : field === 'Desafios'
-            ? 'avaliacao_desafios'
-            : field === 'Sugestões'
-              ? 'avaliacao_sugestoes'
-              : 'resumo_periodo',
-        res
-      );
-    }
-  }
-
   function updateField(field, value) {
     setForm((prev) => ({
       ...prev,
       [field]: value,
     }));
-  }
-
-  function updateOportunidade(index, value) {
-    setForm((prev) => {
-      const list = Array.isArray(prev.oportunidades) ? [...prev.oportunidades] : [];
-      list[index] = value;
-      return {
-        ...prev,
-        oportunidades: list,
-      };
-    });
-  }
-
-  function addOportunidade() {
-    setForm((prev) => ({
-      ...prev,
-      oportunidades: [...(Array.isArray(prev.oportunidades) ? prev.oportunidades : []), ''],
-    }));
-  }
-
-  function removeOportunidade(index) {
-    setForm((prev) => {
-      const list = Array.isArray(prev.oportunidades) ? [...prev.oportunidades] : [];
-      list.splice(index, 1);
-      return {
-        ...prev,
-        oportunidades: list.length ? list : [''],
-      };
-    });
   }
 
   function buildPayload(nextStatus) {
@@ -247,14 +183,13 @@ ${currentValue}`,
       author_name: form?.author_name ?? '',
       equipe: form?.equipe ?? '',
       resumo_periodo: form?.resumo_periodo ?? '',
+      oportunidades_resumo: form?.oportunidades_resumo ?? '',
       comentarios_coordenacao: form?.comentarios_coordenacao ?? '',
       comentarios_gerais: form?.comentarios_gerais ?? '',
       avaliacao_pontos_positivos: form?.avaliacao_pontos_positivos ?? '',
       avaliacao_desafios: form?.avaliacao_desafios ?? '',
       avaliacao_sugestoes: form?.avaliacao_sugestoes ?? '',
-      oportunidades_resumo: form?.oportunidades_resumo ?? '',
       historico_observacoes: form?.historico_observacoes ?? '',
-      oportunidades: (form.oportunidades || []).map((item) => String(item || '').trim()).filter(Boolean),
       atividades: (form.atividades || []).map((a) => ({
         ...a,
         quantidade_ocorrencias: normalizeNullableNumber(a.quantidade_ocorrencias),
@@ -426,11 +361,10 @@ ${currentValue}`,
     form.equipe,
     form.resumo_periodo,
     form.atividades,
-    form.oportunidades,
+    form.oportunidades_resumo,
     form.avaliacao_pontos_positivos,
     form.avaliacao_desafios,
     form.avaliacao_sugestoes,
-    form.oportunidades_resumo,
     form.comentarios_gerais,
     form.comentarios_coordenacao,
     form.historico_observacoes,
@@ -798,56 +732,6 @@ ${currentValue}`,
             canEdit={!isApproved}
             reportData={form}
           />
-        </div>
-      )}
-
-      {currentTab === 'oportunidades' && (
-        <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-800">
-              Oportunidades identificadas
-            </h2>
-
-            {!isApproved && (
-              <button
-                type="button"
-                onClick={addOportunidade}
-                className="px-3 py-1.5 border rounded text-sm"
-              >
-                Adicionar oportunidade
-              </button>
-            )}
-          </div>
-
-          {(form.oportunidades || []).map((item, index) => (
-            <div key={index} className="flex gap-2">
-              <Textarea
-                value={toInputValue(item, '')}
-                onChange={(e) => updateOportunidade(index, e.target.value)}
-                rows={3}
-                disabled={isApproved}
-              />
-              {!isApproved && (
-                <button
-                  type="button"
-                  onClick={() => removeOportunidade(index)}
-                  className="px-3 py-2 border rounded h-fit"
-                >
-                  Remover
-                </button>
-              )}
-            </div>
-          ))}
-          {!isApproved && (
-            <button
-              type="button"
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending}
-              className="mt-4 px-4 py-2 bg-black text-white rounded disabled:opacity-60"
-            >
-              {saveMutation.isPending ? 'Salvando...' : 'Salvar oportunidades'}
-            </button>
-          )}
         </div>
       )}
 
