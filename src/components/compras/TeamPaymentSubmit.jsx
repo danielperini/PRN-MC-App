@@ -88,19 +88,30 @@ function resolveMemberFuncao(member, currentUser) {
   ).trim();
 }
 
+function resolveMemberName(member, currentUser) {
+  return String(
+    member?.user_name ||
+    member?.nome ||
+    currentUser?.full_name ||
+    currentUser?.name ||
+    ''
+  ).trim();
+}
+
 function buildFileName({ numeroNF, member, currentUser, valor, extension }) {
   const nf = sanitize(numeroNF || 'NF');
   const cargo = sanitize(resolveMemberFuncao(member, currentUser) || 'FUNCAO');
-  const nome = sanitize(member?.user_name || member?.nome || currentUser?.full_name || 'SEM NOME');
+  const nome = sanitize(resolveMemberName(member, currentUser) || 'SEM NOME');
   const valorStr = sanitize(formatBRL(valor));
   return `${nf} ${cargo} - ${nome} - MUSEUS CENTRO - ${valorStr}.${extension}`;
 }
 
 function getMemberDataStatus(member, currentUser) {
   if (!member) return { ok: false, missing: ['Perfil não encontrado'] };
-  const isPJ = String(member?.tipo_pessoa || 'PF').toUpperCase() === 'PJ' || String(member?.tipo_pessoa || 'PF').toUpperCase() === 'MEI' || String(member?.tipo_pessoa || 'PF').toUpperCase() === 'ME';
+  const tipoPessoa = String(member?.tipo_pessoa || 'PF').toUpperCase();
+  const isPJ = tipoPessoa === 'PJ' || tipoPessoa === 'MEI' || tipoPessoa === 'ME';
   const missing = [];
-  if (!(member?.user_name || member?.nome || currentUser?.full_name)) missing.push('Nome');
+  if (!resolveMemberName(member, currentUser)) missing.push('Nome');
   if (!resolveMemberFuncao(member, currentUser)) missing.push('Função');
   if (!member?.banco) missing.push('Banco');
   if (!member?.agencia) missing.push('Agência');
@@ -113,7 +124,8 @@ function getMemberDataStatus(member, currentUser) {
 
 function buildDescricaoModelo(member, currentUser, mes, ano) {
   const funcao = resolveMemberFuncao(member, currentUser) || 'Função';
-  const isPJ = String(member?.tipo_pessoa || 'PF').toUpperCase() === 'PJ' || String(member?.tipo_pessoa || 'PF').toUpperCase() === 'MEI' || String(member?.tipo_pessoa || 'PF').toUpperCase() === 'ME';
+  const tipoPessoa = String(member?.tipo_pessoa || 'PF').toUpperCase();
+  const isPJ = tipoPessoa === 'PJ' || tipoPessoa === 'MEI' || tipoPessoa === 'ME';
   const doc = isPJ ? `CNPJ: ${member?.cnpj || ''}` : `CPF: ${member?.cpf || ''}`;
   return [
     'DESCRIÇÃO DA NOTA',
@@ -283,6 +295,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
   const valorParcela = useMemo(() => getValorParcela(effectiveMember), [effectiveMember]);
   const memberStatus = useMemo(() => getMemberDataStatus(effectiveMember, currentUser), [effectiveMember, currentUser]);
   const resolvedFuncao = useMemo(() => resolveMemberFuncao(effectiveMember, currentUser), [effectiveMember, currentUser]);
+  const resolvedName = useMemo(() => resolveMemberName(effectiveMember, currentUser), [effectiveMember, currentUser]);
   const descricaoModelo = useMemo(() => {
     if (!effectiveMember || !selectedComp) return '';
     return buildDescricaoModelo(effectiveMember, currentUser, selectedComp.mes, selectedComp.ano);
@@ -353,8 +366,13 @@ export default function TeamPaymentSubmit({ userEmail }) {
       }
       markStepDone(0, 14);
 
-      if (pdfFile && !form.nota_fiscal_url) {
-        setAnalysisStep('Enviando PDF...');
+      let pdfUrl = form.nota_fiscal_url;
+      let pdfName = form.nota_fiscal_file_name;
+      let xmlUrl = form.xml_url;
+      let xmlName = form.xml_file_name;
+
+      if (pdfFile && !pdfUrl) {
+        setAnalysisStep('Gravando PDF da nota fiscal...');
         const renamed = await renameFile(
           pdfFile,
           buildFileName({
@@ -366,14 +384,14 @@ export default function TeamPaymentSubmit({ userEmail }) {
           })
         );
         const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
+        pdfUrl = file_url;
+        pdfName = renamed.name;
         setForm((prev) => ({ ...prev, nota_fiscal_url: file_url, nota_fiscal_file_name: renamed.name }));
-        form.nota_fiscal_url = file_url;
-        form.nota_fiscal_file_name = renamed.name;
       }
       markStepDone(1, 28);
 
-      if (xmlFile && !form.xml_url) {
-        setAnalysisStep('Enviando XML...');
+      if (xmlFile && !xmlUrl) {
+        setAnalysisStep('Gravando XML da nota fiscal...');
         const renamed = await renameFile(
           xmlFile,
           buildFileName({
@@ -385,22 +403,22 @@ export default function TeamPaymentSubmit({ userEmail }) {
           })
         );
         const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
+        xmlUrl = file_url;
+        xmlName = renamed.name;
         setForm((prev) => ({ ...prev, xml_url: file_url, xml_file_name: renamed.name }));
-        form.xml_url = file_url;
-        form.xml_file_name = renamed.name;
       }
       markStepDone(2, 42);
 
-      setAnalysisStep('Analisando nota fiscal com IA...');
+      setAnalysisStep('Lendo nota fiscal com IA...');
       const analysisResult = await base44.functions.invoke('validateTeamPaymentInvoice', {
-        file_url: form.nota_fiscal_url,
-        xml_url: form.xml_url,
+        file_url: pdfUrl,
+        xml_url: xmlUrl,
         mes_referencia: selectedComp.mes,
         ano: selectedComp.ano,
         numero_nf: form.numero_nf,
-        valor_esperado: valorParcela,
+        valor_esperado: toNumber(form.valor_nf || valorParcela),
         member_snapshot: {
-          user_name: effectiveMember.user_name || currentUser?.full_name || '',
+          user_name: resolvedName || '',
           funcao: resolvedFuncao,
           role: resolvedFuncao,
           tipo_pessoa: effectiveMember.tipo_pessoa || 'PF',
@@ -409,7 +427,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
           banco: effectiveMember.banco || '',
           agencia: effectiveMember.agencia || '',
           conta: effectiveMember.conta || '',
-          pix_key: effectiveMember.pix_key || ''
+          pix_key: effectiveMember.pix_key || '',
+          contrato_url: effectiveMember.contrato_url || effectiveMember.file_url || ''
         },
         descricao_modelo: descricaoModelo
       });
@@ -431,7 +450,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
       const created = await base44.entities.TeamPayment.create({
         team_member_id: effectiveMember.id,
         user_email: effectiveMember.user_email,
-        user_name: effectiveMember.user_name || currentUser?.full_name || '',
+        user_name: resolvedName || '',
         funcao: resolvedFuncao,
         role: resolvedFuncao,
         mes_referencia: selectedComp.mes,
@@ -440,26 +459,27 @@ export default function TeamPaymentSubmit({ userEmail }) {
         valor_nf: toNumber(form.valor_nf || valorParcela),
         valor_parcela_previsto: valorParcela,
         numero_parcela: (toNumber(effectiveMember.parcelas_pagas) || 0) + 1,
-        nota_fiscal_url: form.nota_fiscal_url,
-        xml_url: form.xml_url,
-        nota_fiscal_file_name: form.nota_fiscal_file_name,
-        xml_file_name: form.xml_file_name,
+        nota_fiscal_url: pdfUrl,
+        xml_url: xmlUrl,
+        nota_fiscal_file_name: pdfName,
+        xml_file_name: xmlName,
         descricao_nf_modelo: descricaoModelo,
         analysis_status: ar?.status || 'ANALISADO',
         analysis_summary: ar?.summary || '',
         analysis_warnings: Array.isArray(ar?.warnings) ? ar.warnings : [],
         analysis_critical_issues: Array.isArray(ar?.critical_issues) ? ar.critical_issues : [],
+        resultado_validacao: JSON.stringify(ar || {}),
         status: 'AGUARDANDO_APROVACAO'
       });
       markStepDone(4, 71);
 
       try {
-        setAnalysisStep('Gerando backup automático no Drive...');
+        setAnalysisStep('Salvando arquivos conforme as regras...');
         await base44.functions.invoke('backupNotasFiscaisToDrive', {
-          file_url: form.nota_fiscal_url,
-          file_name: form.nota_fiscal_file_name,
-          xml_url: form.xml_url,
-          xml_file_name: form.xml_file_name,
+          file_url: pdfUrl,
+          file_name: pdfName,
+          xml_url: xmlUrl,
+          xml_file_name: xmlName,
           team_payment_id: created?.id
         });
       } catch (e) {
@@ -467,28 +487,26 @@ export default function TeamPaymentSubmit({ userEmail }) {
       }
       markStepDone(5, 85);
 
-      setAnalysisStep('Enviando notificações...');
+      setAnalysisStep('Notificando e-mails...');
       await base44.functions.invoke('notifyTeamPaymentSubmitted', {
         payment_id: created?.id,
-        team_member_name: effectiveMember.user_name || currentUser?.full_name || '',
+        team_member_name: resolvedName || '',
         cargo: resolvedFuncao,
-        funcao: resolvedFuncao,
         mes: selectedComp.mes,
         ano: selectedComp.ano,
         valor: toNumber(form.valor_nf || valorParcela),
         user_email: effectiveMember.user_email,
         requester_email: currentUser?.email || effectiveMember.user_email || '',
-        nota_fiscal_url: form.nota_fiscal_url,
-        xml_url: form.xml_url,
-        nota_fiscal_file_name: form.nota_fiscal_file_name,
-        xml_file_name: form.xml_file_name,
-        app_link: window.location.origin + '/Compras',
-        cc_emails: ['danielperini.mc@viadutodasartes.org.br', 'notasfiscais@viadutodasartes.org.br']
+        nota_fiscal_url: pdfUrl,
+        xml_url: xmlUrl,
+        nota_fiscal_file_name: pdfName,
+        xml_file_name: xmlName,
+        app_link: window.location.origin + '/Compras'
       });
 
       await notifyCoordinators({
         title: '💰 Nova nota fiscal para aprovação',
-        message: `${effectiveMember.user_name || effectiveMember.user_email} enviou nota fiscal de ${selectedComp.mes}/${selectedComp.ano} (${formatBRL(toNumber(form.valor_nf || valorParcela))}) para aprovação.`,
+        message: `${resolvedName || effectiveMember.user_email} enviou nota fiscal de ${selectedComp.mes}/${selectedComp.ano} (${formatBRL(toNumber(form.valor_nf || valorParcela))}) para aprovação.`,
         type: 'PAYMENT_SUBMITTED',
         action_url: `${window.location.origin}/Compras`
       });
