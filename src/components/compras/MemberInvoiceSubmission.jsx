@@ -3,9 +3,10 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Upload, CheckCircle2, AlertCircle, FileText, FileCode, X, CloudUpload } from 'lucide-react';
+import { Loader2, Upload, CheckCircle2, AlertCircle, FileText, FileCode, X, CloudUpload, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import InvoiceFullAnalysisPanel from './InvoiceFullAnalysisPanel';
+import ContractAutoFill, { applyAiSuggestions } from '@/components/users/ContractAutoFill';
 
 export default function MemberInvoiceSubmission() {
   const [isOpen, setIsOpen] = useState(false);
@@ -17,16 +18,57 @@ export default function MemberInvoiceSubmission() {
   const [aiData, setAiData] = useState(null);
   const [result, setResult] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [contractData, setContractData] = useState(null);
+  const [appliedContractFields, setAppliedContractFields] = useState({});
+  const [contractValid, setContractValid] = useState(null);
+  const [contractAlert, setContractAlert] = useState(null);
 
   useEffect(() => {
     base44.auth.me().then(setCurrentUser).catch(() => {});
   }, []);
+
+  // Validar contrato quando o usuário entra
+  useEffect(() => {
+    if (currentUser?.email && isOpen) {
+      validateUserContract(currentUser.email);
+    }
+  }, [currentUser?.email, isOpen]);
+
+  const validateUserContract = async (userEmail) => {
+    try {
+      const members = await base44.entities.TeamMember.filter({ user_email: userEmail });
+      if (!members?.length) {
+        setContractValid(false);
+        return;
+      }
+      const member = members.sort((a, b) => new Date(b.created_date) - new Date(a.created_date))[0];
+      if (!member.data_fim_contrato) {
+        setContractValid(false);
+        return;
+      }
+      const endDate = new Date(member.data_fim_contrato);
+      const today = new Date();
+      const isValid = endDate >= today;
+      setContractValid(isValid);
+      if (!isValid) {
+        setContractAlert(`⚠️ Contrato vencido em ${endDate.toLocaleDateString('pt-BR')}. Solicite renovação à coordenação.`);
+      } else {
+        setContractAlert(null);
+      }
+    } catch (e) {
+      console.warn('Erro ao validar contrato:', e);
+      setContractValid(false);
+    }
+  };
 
   const resetState = () => {
     setStep('upload');
     setPdfFile(null); setXmlFile(null);
     setPdfUrl(null); setXmlUrl(null);
     setAiData(null); setResult(null);
+    setContractData(null);
+    setAppliedContractFields({});
+    setContractAlert(null);
   };
 
   const handleOpen = () => { resetState(); setIsOpen(true); };
@@ -41,6 +83,11 @@ export default function MemberInvoiceSubmission() {
   const handleAnalyze = async () => {
     if (!pdfFile || !xmlFile) {
       toast.error('Você precisa anexar o PDF e o XML da nota fiscal.');
+      return;
+    }
+
+    if (contractAlert) {
+      toast.error('Contrato inválido. ' + contractAlert);
       return;
     }
 
@@ -99,6 +146,20 @@ export default function MemberInvoiceSubmission() {
       });
 
       setAiData(extracted);
+      
+      // Mesclar dados do contrato com dados extraídos da IA
+      if (contractData && Object.keys(appliedContractFields).length > 0) {
+        const merged = {
+          ...extracted,
+          banco_nome: extracted.banco_nome || contractData.banco,
+          banco_agencia: extracted.banco_agencia || contractData.agencia,
+          banco_conta: extracted.banco_conta || contractData.conta,
+          banco_pix: extracted.banco_pix || contractData.pix_key,
+          banco_favorecido: extracted.banco_favorecido || contractData.user_name,
+        };
+        setAiData(merged);
+      }
+
       setStep('review');
     } catch (err) {
       toast.error('Erro ao analisar arquivos: ' + err.message);
@@ -155,6 +216,43 @@ export default function MemberInvoiceSubmission() {
           {/* STEP: UPLOAD */}
           {(step === 'upload' || step === 'analyzing') && (
             <div className="space-y-4 py-2">
+              {/* Validação de Contrato */}
+              {contractValid !== null && (
+                <Alert className={contractValid ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}>
+                  {contractValid ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <AlertDescription className="text-green-800 text-sm">
+                        ✅ Contrato válido. Prosseguir com envio de nota fiscal.
+                      </AlertDescription>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="h-4 w-4 text-red-600" />
+                      <AlertDescription className="text-red-800 text-sm">
+                        {contractAlert || '❌ Nenhum contrato válido encontrado. Solicite cadastro à coordenação.'}
+                      </AlertDescription>
+                    </>
+                  )}
+                </Alert>
+              )}
+
+              {/* Auto-fill de contrato */}
+              {currentUser && currentUser.email && (
+                <ContractAutoFill
+                  userEmail={currentUser.email}
+                  onApply={(suggestions) => {
+                    const applied = {};
+                    for (const [key, val] of Object.entries(suggestions)) {
+                      applied[key] = true;
+                    }
+                    setAppliedContractFields(applied);
+                    setContractData(suggestions);
+                    toast.info('Dados do contrato carregados.');
+                  }}
+                  appliedFields={appliedContractFields}
+                />
+              )}
               <Alert className="border-blue-200 bg-blue-50">
                 <AlertCircle className="h-4 w-4 text-blue-600" />
                 <AlertDescription className="text-blue-800 text-sm">

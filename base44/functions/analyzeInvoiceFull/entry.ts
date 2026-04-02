@@ -65,26 +65,45 @@ Deno.serve(async (req) => {
     const { submissionId, pdfFileUrl, xmlFileUrl, aiExtracted } = await req.json();
     if (!pdfFileUrl) return Response.json({ error: 'PDF obrigatorio' }, { status: 400 });
 
-    // --- 1. Contexto do usuário ---
+    // --- 1. Contexto do usuário + Validação de Contrato ---
     const [teamMembers, userPermission] = await Promise.all([
       base44.asServiceRole.entities.TeamMember.list('-created_date', 200).catch(() => []),
       base44.asServiceRole.entities.UserPermission.filter({ user_email: user.email }, '-created_date', 1).catch(() => []),
     ]);
 
+    // Buscar contrato do usuário para validação e preenchimento
+    const userTeamMembers = (teamMembers || []).filter(m => m.user_email === user.email);
+    const teamMember = userTeamMembers.sort((a, b) => new Date(b.created_date) - new Date(a.created_date))[0];
+    
+    let contractStatus = { valid: true, alerts: [] };
+    if (teamMember && teamMember.data_fim_contrato) {
+      const endDate = new Date(teamMember.data_fim_contrato);
+      const today = new Date();
+      if (endDate < today) {
+        contractStatus.valid = false;
+        contractStatus.alerts.push(`Contrato vencido em ${endDate.toLocaleDateString('pt-BR')}.`);
+      }
+    }
+
     const perm = (userPermission || [])[0];
     const cargo = perm?.base_role || user.role || user.funcao || 'PROFISSIONAL';
     const nome = user.full_name || user.email;
     const mes = new Date().toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
-    const teamMember = (teamMembers || []).find(m =>
-      m.user_email === user.email || m.email === user.email ||
-      (m.user_name || '').toLowerCase().includes((user.full_name || '').toLowerCase())
-    );
 
     const numero = aiExtracted?.numero_nota || '000';
     const valor = aiExtracted?.valor_total || 0;
     const nomeArquivoPadrao = buildFileName(numero, cargo, nome, valor, 'pdf');
 
     // --- 2. Salvar no banco IMEDIATAMENTE ---
+    // Preencher dados bancários do contrato se vazios na IA
+    const bancoDados = {
+      banco_nome: aiExtracted?.banco_nome || teamMember?.banco || '',
+      banco_agencia: aiExtracted?.banco_agencia || teamMember?.agencia || '',
+      banco_conta: aiExtracted?.banco_conta || teamMember?.conta || '',
+      banco_pix: aiExtracted?.banco_pix || teamMember?.pix_key || '',
+      banco_favorecido: aiExtracted?.banco_favorecido || teamMember?.user_name || nome,
+    };
+
     const baseData = {
       user_email: user.email,
       user_name: nome,
@@ -96,17 +115,16 @@ Deno.serve(async (req) => {
       pdf_url: pdfFileUrl,
       xml_url: xmlFileUrl || null,
       dados_extraidos: aiExtracted,
-      status: 'PENDENTE_APROVACAO',
+      status: contractStatus.valid ? 'PENDENTE_APROVACAO' : 'VENCIDO',
       nome_arquivo_padrao: nomeArquivoPadrao,
       analysis_done: false,
       team_member_id: teamMember?.id || null,
       team_member_name: teamMember?.user_name || nome,
       emitente_nome: aiExtracted?.fornecedor_nome || '',
       emitente_cnpj_cpf: aiExtracted?.fornecedor_cnpj || '',
-      banco_nome: aiExtracted?.banco_nome || '',
-      banco_pix: aiExtracted?.banco_pix || '',
-      banco_conta: aiExtracted?.banco_conta || '',
-      banco_favorecido: aiExtracted?.banco_favorecido || '',
+      ...bancoDados,
+      contract_valid: contractStatus.valid,
+      contract_end_date: teamMember?.data_fim_contrato || null,
     };
 
     let savedSubmission;
@@ -200,6 +218,10 @@ Deno.serve(async (req) => {
       ? `✅ Nota vinculada ao membro: ${teamMember.user_name || nome}`
       : null;
 
+    // Adicionar alertas de contrato se houver
+    const pontos_criticos_final = contractStatus.valid ? [] : contractStatus.alerts;
+    const alertas_final = [...(contractStatus.alerts || [])];
+
     return Response.json({
       success: true,
       submission_id: savedSubmission.id,
@@ -210,11 +232,13 @@ Deno.serve(async (req) => {
       nome_arquivo: nomeArquivoPadrao,
       equipe_msg: equipeMsg,
       is_equipe: isEquipe,
-      is_nota_valida: true,
-      pontos_criticos: [],
-      alertas: [],
-      resumo_conformidade: 'Nota gravada e enviada para aprovação.',
-      recomendacao_final: 'Aguardar aprovação da coordenação.',
+      is_nota_valida: contractStatus.valid,
+      contract_valid: contractStatus.valid,
+      contract_end_date: teamMember?.data_fim_contrato,
+      pontos_criticos: pontos_criticos_final,
+      alertas: alertas_final,
+      resumo_conformidade: contractStatus.valid ? 'Nota gravada com contrato válido.' : 'Nota gravada com contrato vencido ou ausente.',
+      recomendacao_final: contractStatus.valid ? 'Aguardar aprovação da coordenação.' : 'Renove o contrato antes de efetuar o pagamento.',
       nota: {
         numero,
         valor_total: valor,
