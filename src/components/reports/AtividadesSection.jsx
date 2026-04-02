@@ -125,23 +125,21 @@ export default function AtividadesSection({
           <Select onValueChange={(id) => {
             const item = programacaoItems.find(p => p.id === id);
             if (!item) return;
-
-            addAtividade();
-
-            setTimeout(() => {
-              setAtividades(prev => {
-                const last = prev.length - 1;
-                prev[last] = {
-                  ...prev[last],
-                  nome: item.titulo,
-                  descricao: item.sinopse,
-                  museu_lista: [item.museu],
-                  tipo_acao_lista: [item.tipo],
-                  programacao_id: item.id
-                };
-                return [...prev];
-              });
-            }, 50);
+            const newId = crypto.randomUUID();
+            setAtividades(prev => [
+              ...prev,
+              {
+                id: newId,
+                classificacao: '',
+                nome: item.titulo || '',
+                descricao: item.sinopse || '',
+                museu_lista: item.museu ? [item.museu] : [],
+                tipo_acao_lista: item.tipo ? [item.tipo] : [],
+                equipe_participante_ids: [],
+                meta_vinculada_ids: [],
+                programacao_id: item.id,
+              }
+            ]);
           }}>
             <SelectTrigger>
               <SelectValue placeholder="Importar da programação" />
@@ -160,7 +158,7 @@ export default function AtividadesSection({
       )}
 
       {(atividades || []).map((atividade, index) => (
-        <div key={index} className="border p-4 rounded space-y-4">
+        <div key={atividade?.id || index} className="border p-4 rounded space-y-4">
 
           <div className="flex justify-between">
             <b>Atividade {index + 1}</b>
