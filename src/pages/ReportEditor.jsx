@@ -333,6 +333,17 @@ ${currentValue}`,
       if (!idParaSalvar) throw new Error('Salve o relatório antes de enviar para revisão.');
       const saved = await base44.entities.Report.update(idParaSalvar, payload);
       if (!saved) throw new Error('Servidor não confirmou o envio. Tente novamente.');
+      
+      // Notificar coordenadores
+      try {
+        await base44.functions.invoke('notifyCoordinatorOnSubmit', {
+          reportId: idParaSalvar,
+          reportData: saved,
+        });
+      } catch (notifErr) {
+        console.warn('Notificação falhou (silenciosa):', notifErr?.message);
+      }
+      
       try {
         return await base44.functions.invoke('backupReportToDrive', { reportId: idParaSalvar });
       } catch (e) {
