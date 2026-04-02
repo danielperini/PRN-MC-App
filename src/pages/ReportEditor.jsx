@@ -340,6 +340,7 @@ export default function ReportEditor() {
           tiposAcaoOptions={tiposAcaoOptions}
           mesReferencia={form?.mes_referencia || report?.mes_referencia || ''}
           ano={Number(form?.ano || report?.ano || new Date().getFullYear())}
+          reportId={reportId}
         />
       )}
 
