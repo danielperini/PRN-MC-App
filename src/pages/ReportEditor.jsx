@@ -232,8 +232,15 @@ export default function ReportEditor() {
         {activeTab === 'atividades' && (
           <AtividadesSection
             reportId={report.id}
-            formData={form}
-            onActivitiesUpdate={(atividades) => setForm({ ...form, atividades })}
+            atividades={form.atividades || []}
+            setAtividades={(atividades) =>
+              setForm((prev) => ({ ...prev, atividades }))
+            }
+            mesReferencia={form.mes_referencia}
+            ano={form.ano}
+            museu={form.museu}
+            onSave={() => handleSave()}
+            canEdit={true}
           />
         )}
 
