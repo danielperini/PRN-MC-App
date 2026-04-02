@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -43,13 +43,6 @@ export default function AtividadesSection({
     }
   }
 
-  // Mapear nome do mês para número
-  const MES_MAP = {
-    Janeiro: 1, Fevereiro: 2, Março: 3, Abril: 4, Maio: 5, Junho: 6,
-    Julho: 7, Agosto: 8, Setembro: 9, Outubro: 10, Novembro: 11, Dezembro: 12,
-  };
-  const mesNumero = MES_MAP[mesReferencia] || null;
-
   // 🔥 BUSCAR PROGRAMAÇÃO REAL (ProgramacaoEspelho)
   const { data: programacaoItemsRaw = [] } = useQuery({
     queryKey: ['programacao-espelho'],
@@ -60,14 +53,22 @@ export default function AtividadesSection({
     staleTime: 60000,
   });
 
-  // Filtrar pelo mês/ano de referência do relatório
-  const programacaoItems = mesNumero
-    ? programacaoItemsRaw.filter(p => {
-        if (!p.data_inicio) return false;
-        const d = new Date(p.data_inicio);
-        return d.getMonth() + 1 === mesNumero && d.getFullYear() === Number(ano);
-      })
-    : programacaoItemsRaw;
+  // Filtrar pelos últimos 45 dias
+  const programacaoItems = useMemo(() => {
+    const agora = new Date();
+    const limite = new Date();
+    limite.setHours(0, 0, 0, 0);
+    limite.setDate(agora.getDate() - 45);
+
+    return (programacaoItemsRaw || []).filter((p) => {
+      if (!p?.data_inicio) return false;
+
+      const data = new Date(p.data_inicio);
+      if (Number.isNaN(data.getTime())) return false;
+
+      return data >= limite && data <= agora;
+    });
+  }, [programacaoItemsRaw]);
 
   // 🔥 BUSCAR EQUIPE
   const { data: equipe = [] } = useQuery({
@@ -149,20 +150,6 @@ export default function AtividadesSection({
             ]);
           }}>
             <SelectTrigger>
-              <SelectValue placeholder="Importar da programação" />
-            </SelectTrigger>
-            <SelectContent>
-              {programacaoItems
-                .filter(p => !museu || !p.museu || p.museu === museu)
-                .map(p => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.titulo} {p.museu ? `(${p.museu})` : ''}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
 
       {(atividades || []).map((atividade, index) => (
         <div key={atividade?.id || index} className="border p-4 rounded space-y-4">
