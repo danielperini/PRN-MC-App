@@ -200,6 +200,31 @@ Deno.serve(async (req) => {
       console.warn('Drive backup falhou:', err.message);
     }
 
+    // --- 3.5 Cruzamento Contrato vs NF (validação complementar) ---
+    let crossValidation = { status: 'ok', summary: '', warnings: [], critical_issues: [], comparacao: {} };
+    const alertas_final = [...(contractStatus.alerts || [])];
+    
+    if (teamMember?.contrato_url && aiExtracted) {
+      try {
+        const validationRes = await base44.functions.invoke('validateContractVsInvoice', {
+          contractUrl: teamMember.contrato_url,
+          invoiceData: aiExtracted,
+          tolerance: 1.00,
+          competenciaData: aiExtracted?.data_emissao || new Date().toISOString(),
+        });
+        if (validationRes?.data?.success) {
+          crossValidation = validationRes.data;
+          // Se há divergências críticas, adicionar aos alertas finais
+          if (crossValidation.critical_issues?.length > 0) {
+            alertas_final.push(...crossValidation.critical_issues);
+          }
+          alertas_final.push(...(crossValidation.warnings || []));
+        }
+      } catch (err) {
+        console.warn('Validação cruzada falhou (não bloqueia):', err.message);
+      }
+    }
+
     // --- 4. Emails + Notificações ---
     const emailSubject = `📄 Nova Nota Fiscal — NF ${numero} — ${nome} (${mes})`;
     const emailBody = `
@@ -262,7 +287,6 @@ Deno.serve(async (req) => {
 
     // Adicionar alertas de contrato se houver
     const pontos_criticos_final = contractStatus.valid ? [] : contractStatus.alerts;
-    const alertas_final = [...(contractStatus.alerts || [])];
 
     return Response.json({
       success: true,
@@ -278,6 +302,7 @@ Deno.serve(async (req) => {
       contract_valid: contractStatus.valid,
       contract_end_date: teamMember?.data_fim_contrato,
       data_origem_bancaria: dataOrigemBancaria,
+      cross_validation: crossValidation,
       pontos_criticos: pontos_criticos_final,
       alertas: alertas_final,
       resumo_conformidade: contractStatus.valid ? 'Nota gravada com contrato válido. Dados bancários conferidos.' : 'Nota gravada com contrato vencido ou ausente.',
