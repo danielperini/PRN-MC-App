@@ -388,8 +388,8 @@ ${currentValue}`,
       return;
     }
     
-    // Auto-save APENAS se já existe relatório e não está aprovado
-    if (!isEdit || isApproved) return;
+    // Auto-save APENAS se não está aprovado
+    if (isApproved) return;
 
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     
