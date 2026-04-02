@@ -110,6 +110,16 @@ function mapMemberToForm(member) {
   };
 }
 
+function resolveFuncao(currentMember, targetUser) {
+  return String(
+    currentMember?.funcao ||
+    currentMember?.role ||
+    targetUser?.funcao ||
+    targetUser?.role ||
+    ''
+  ).trim();
+}
+
 function MeusDadosInner() {
   const [user, setUser] = useState(null);
   const [coordGeral, setCoordGeral] = useState(false);
@@ -155,7 +165,7 @@ function MeusDadosInner() {
     if (!selectedUserEmail) {
       setFormData((prev) => mergeWithoutOverwrite(prev, mapUserToForm(user)));
     }
-  }, [user?.email, selectedUserEmail]);
+  }, [user?.email, selectedUserEmail, user]);
 
   useEffect(() => {
     if (!teamData?.length || !user?.email) return;
@@ -171,7 +181,7 @@ function MeusDadosInner() {
         setTeamMembers(teamColeagues);
       }
     }
-  }, [teamData, user?.email, user?.equipe, selectedUserEmail]);
+  }, [teamData, user?.email, user?.equipe, selectedUserEmail, user]);
 
   useEffect(() => {
     if (!selectedUserEmail || !teamData.length) return;
@@ -231,11 +241,14 @@ function MeusDadosInner() {
       }
 
       const currentMember = teamData.find((m) => m.user_email === targetEmail);
+      const funcaoResolvida = resolveFuncao(currentMember, targetUser);
+
       const teamPayload = {
         user_email: targetEmail,
         user_name: targetUser?.full_name || '',
         tipo_equipe: targetUser?.equipe || '',
-        funcao: targetUser?.funcao || '',
+        funcao: funcaoResolvida,
+        role: funcaoResolvida,
         email_pessoal: formData.email_pessoal,
         telefone: formData.telefone,
         cpf: formData.cpf,
