@@ -71,6 +71,8 @@ function normalizeOptionList(options = []) {
     .filter((item) => item.id && item.label);
 }
 
+const MUSEUS_FIXOS = ['MIS', 'MHAB', 'MUMO', 'Geral'];
+
 const CLASSIFICACAO_OPTIONS_DEFAULT = [
   { id: 'Meta', label: 'Meta' },
   { id: 'Extra', label: 'Extra' },
@@ -411,7 +413,7 @@ export default function AtividadeCamposBasicos({
       <div className="grid md:grid-cols-2 gap-4">
         <Field label="Museu / Local">
           <FilterMultiSelect
-            options={museus}
+            options={museus?.length ? museus : MUSEUS_FIXOS}
             values={museuLista}
             onChange={handleMuseusChange}
             disabled={!canEdit}
