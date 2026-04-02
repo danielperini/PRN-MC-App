@@ -86,6 +86,7 @@ const PRODUTO_REALIZADO_OPTIONS_DEFAULT = [
   'Palestra',
   'Exposição',
   'Reunião',
+  'Roda de Conversa',
   'Ação educativa',
   'Ação cultural',
   'Ação de comunicação',
