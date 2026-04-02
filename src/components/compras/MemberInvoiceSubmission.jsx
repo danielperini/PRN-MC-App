@@ -237,21 +237,30 @@ export default function MemberInvoiceSubmission() {
                 </Alert>
               )}
 
+              {/* Informação sobre dados bancários */}
+              <Alert className="border-blue-200 bg-blue-50">
+               <AlertCircle className="h-4 w-4 text-blue-600" />
+               <AlertDescription className="text-blue-800 text-sm">
+                 <strong>💳 Dados Bancários:</strong> Seus dados bancários cadastrados serão utilizados para conferência automática com a nota fiscal.
+                 {contractValid && !contractAlert && ' Se incompletos, serão lidos automaticamente do seu contrato.'}
+               </AlertDescription>
+              </Alert>
+
               {/* Auto-fill de contrato */}
               {currentUser && currentUser.email && (
-                <ContractAutoFill
-                  userEmail={currentUser.email}
-                  onApply={(suggestions) => {
-                    const applied = {};
-                    for (const [key, val] of Object.entries(suggestions)) {
-                      applied[key] = true;
-                    }
-                    setAppliedContractFields(applied);
-                    setContractData(suggestions);
-                    toast.info('Dados do contrato carregados.');
-                  }}
-                  appliedFields={appliedContractFields}
-                />
+               <ContractAutoFill
+                 userEmail={currentUser.email}
+                 onApply={(suggestions) => {
+                   const applied = {};
+                   for (const [key, val] of Object.entries(suggestions)) {
+                     applied[key] = true;
+                   }
+                   setAppliedContractFields(applied);
+                   setContractData(suggestions);
+                   toast.info('✅ Dados do contrato carregados para preenchimento.');
+                 }}
+                 appliedFields={appliedContractFields}
+               />
               )}
               <Alert className="border-blue-200 bg-blue-50">
                 <AlertCircle className="h-4 w-4 text-blue-600" />
@@ -369,6 +378,9 @@ export default function MemberInvoiceSubmission() {
                       <span className="text-blue-900 font-medium">{val}</span>
                     </div>
                   ) : null)}
+                  <div className="text-xs text-blue-600 mt-2 pt-2 border-t border-blue-200">
+                    {result?.data_origem_bancaria && <p>ℹ️ Origem: {result.data_origem_bancaria}</p>}
+                  </div>
                 </div>
               )}
 
@@ -409,16 +421,30 @@ export default function MemberInvoiceSubmission() {
                 <p className="text-green-600 text-xs mt-1">📧 Emails enviados para você e para os coordenadores.</p>
               </div>
 
+              {/* Confirmação de dados bancários */}
+              {result?.banco && (
+               <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+                 <div className="flex items-center gap-2 font-semibold text-green-800 mb-2">
+                   <CheckCircle2 className="w-4 h-4" /> Dados Bancários Conferidos
+                 </div>
+                 <div className="text-xs text-green-700 space-y-1">
+                   <p><strong>Banco:</strong> {result.banco.nome || '-'}</p>
+                   <p><strong>Conta:</strong> {result.banco.conta || result.banco.pix || '-'}</p>
+                   {result.data_origem_bancaria && <p className="mt-2 text-green-600">ℹ️ Dados lidos de: {result.data_origem_bancaria}</p>}
+                 </div>
+               </div>
+              )}
+
               {/* Card da nota enviada */}
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold text-amber-900 flex items-center gap-2">
-                    <FileText className="w-4 h-4" /> Nota Fiscal Enviada
-                  </h4>
-                  <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-3 py-1 rounded-full">
-                    ⏳ Aguardando Aprovação da Coordenação
-                  </span>
-                </div>
+               <div className="flex items-center justify-between mb-3">
+                 <h4 className="font-semibold text-amber-900 flex items-center gap-2">
+                   <FileText className="w-4 h-4" /> Nota Fiscal Enviada
+                 </h4>
+                 <span className="text-xs font-semibold bg-amber-200 text-amber-800 px-3 py-1 rounded-full">
+                   ⏳ Aguardando Aprovação da Coordenação
+                 </span>
+               </div>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   {[
                     ['Nº da Nota', result.nota?.numero || aiData?.numero_nota],

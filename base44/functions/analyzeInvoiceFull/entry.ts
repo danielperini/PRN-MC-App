@@ -95,14 +95,56 @@ Deno.serve(async (req) => {
     const nomeArquivoPadrao = buildFileName(numero, cargo, nome, valor, 'pdf');
 
     // --- 2. Salvar no banco IMEDIATAMENTE ---
-    // Preencher dados bancários do contrato se vazios na IA
-    const bancoDados = {
-      banco_nome: aiExtracted?.banco_nome || teamMember?.banco || '',
-      banco_agencia: aiExtracted?.banco_agencia || teamMember?.agencia || '',
-      banco_conta: aiExtracted?.banco_conta || teamMember?.conta || '',
-      banco_pix: aiExtracted?.banco_pix || teamMember?.pix_key || '',
-      banco_favorecido: aiExtracted?.banco_favorecido || teamMember?.user_name || nome,
+    // Validar dados bancários e determinar origem
+    let dataOrigemBancaria = 'Cadastro do utilizador';
+    let bancoDados = {
+      banco_nome: aiExtracted?.banco_nome || '',
+      banco_agencia: aiExtracted?.banco_agencia || '',
+      banco_conta: aiExtracted?.banco_conta || '',
+      banco_pix: aiExtracted?.banco_pix || '',
+      banco_favorecido: aiExtracted?.banco_favorecido || '',
     };
+
+    // Se dados bancários estão incompletos → tentar ler do contrato
+    const bancosPreenchidos = Object.values(bancoDados).filter(v => v?.trim()).length;
+    if (bancosPreenchidos < 2 && teamMember?.contrato_url) {
+      // Fallback: ler do contrato
+      const extractedFromContract = await base44.asServiceRole.integrations.Core.ExtractDataFromUploadedFile({
+        file_url: teamMember.contrato_url,
+        json_schema: {
+          type: 'object',
+          properties: {
+            contratado_banco: { type: 'string' },
+            contratado_agencia: { type: 'string' },
+            contratado_conta: { type: 'string' },
+            pix_key: { type: 'string' },
+          }
+        }
+      }).catch(() => ({ status: 'error' }));
+
+      if (extractedFromContract.status === 'success' && extractedFromContract.output) {
+        const output = extractedFromContract.output;
+        bancoDados.banco_nome = bancoDados.banco_nome || output.contratado_banco || '';
+        bancoDados.banco_agencia = bancoDados.banco_agencia || output.contratado_agencia || '';
+        bancoDados.banco_conta = bancoDados.banco_conta || output.contratado_conta || '';
+        bancoDados.banco_pix = bancoDados.banco_pix || output.pix_key || '';
+        dataOrigemBancaria = 'Contrato (leitura automática via IA)';
+      }
+    }
+
+    // Se ainda não tem dados do contrato → usar dados salvos no TeamMember
+    if (!bancoDados.banco_nome && teamMember?.banco) {
+      bancoDados.banco_nome = teamMember.banco;
+      bancoDados.banco_agencia = teamMember.agencia || '';
+      bancoDados.banco_conta = teamMember.conta || '';
+      bancoDados.banco_pix = teamMember.pix_key || '';
+      dataOrigemBancaria = 'Cadastro do utilizador';
+    }
+
+    // Garantir nome do favorecido
+    if (!bancoDados.banco_favorecido) {
+      bancoDados.banco_favorecido = teamMember?.user_name || nome;
+    }
 
     const baseData = {
       user_email: user.email,
@@ -235,9 +277,10 @@ Deno.serve(async (req) => {
       is_nota_valida: contractStatus.valid,
       contract_valid: contractStatus.valid,
       contract_end_date: teamMember?.data_fim_contrato,
+      data_origem_bancaria: dataOrigemBancaria,
       pontos_criticos: pontos_criticos_final,
       alertas: alertas_final,
-      resumo_conformidade: contractStatus.valid ? 'Nota gravada com contrato válido.' : 'Nota gravada com contrato vencido ou ausente.',
+      resumo_conformidade: contractStatus.valid ? 'Nota gravada com contrato válido. Dados bancários conferidos.' : 'Nota gravada com contrato vencido ou ausente.',
       recomendacao_final: contractStatus.valid ? 'Aguardar aprovação da coordenação.' : 'Renove o contrato antes de efetuar o pagamento.',
       nota: {
         numero,
