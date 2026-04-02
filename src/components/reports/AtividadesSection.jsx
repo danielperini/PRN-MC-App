@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Save } from 'lucide-react';
+import { Plus, Trash2, Save, FileDown, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AtividadeCamposBasicos from './AtividadeCamposBasicos';
@@ -27,8 +27,11 @@ export default function AtividadesSection({
   museu = '',
   reportId = null,
   onSave = null,
+  onExportPdf = null,
+  onBackToReport = null,
 }) {
   const [saving, setSaving] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   async function handleSaveAtividades() {
     if (!onSave) return;
@@ -40,6 +43,19 @@ export default function AtividadesSection({
       toast.error(`❌ Erro ao salvar atividades: ${e?.message || 'tente novamente'}`);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleExportPdf() {
+    if (!onExportPdf) return;
+    setExportingPdf(true);
+    try {
+      await onExportPdf();
+      toast.success('📄 PDF preparado para exportação.', { duration: 3000 });
+    } catch (e) {
+      toast.error(`❌ Erro ao exportar PDF: ${e?.message || 'tente novamente'}`);
+    } finally {
+      setExportingPdf(false);
     }
   }
 
@@ -172,7 +188,7 @@ export default function AtividadesSection({
         </div>
       )}
 
-      {(Array.isArray(atividades) ? atividades : []).map((atividade, index) => (
+      {(atividades || []).map((atividade, index) => (
         <div key={atividade?.id || index} className="border p-4 rounded space-y-4">
           <div className="flex justify-between items-center">
             <b>Atividade {index + 1}</b>
@@ -222,7 +238,7 @@ export default function AtividadesSection({
         </div>
       ))}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {canEdit && (
           <Button type="button" onClick={addAtividade} variant="outline">
             <Plus className="w-4 h-4 mr-2" />
@@ -234,6 +250,29 @@ export default function AtividadesSection({
           <Button type="button" onClick={handleSaveAtividades} disabled={saving}>
             <Save className="w-4 h-4 mr-2" />
             {saving ? 'Salvando...' : 'Salvar atividades'}
+          </Button>
+        )}
+
+        {onExportPdf && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleExportPdf}
+            disabled={exportingPdf}
+          >
+            <FileDown className="w-4 h-4 mr-2" />
+            {exportingPdf ? 'Exportando PDF...' : 'Exportar PDF para assinatura'}
+          </Button>
+        )}
+
+        {onBackToReport && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onBackToReport}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Retornar para relatório
           </Button>
         )}
       </div>
