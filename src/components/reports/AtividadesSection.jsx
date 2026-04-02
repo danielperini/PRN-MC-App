@@ -47,10 +47,18 @@ export default function AtividadesSection({
   }
 
   async function handleExportPdf() {
-    if (!onExportPdf) return;
     setExportingPdf(true);
+
     try {
-      await onExportPdf();
+      if (onSave) {
+        await onSave();
+        toast.success('✅ Atividades salvas com sucesso!', { duration: 3000 });
+      }
+
+      if (onExportPdf) {
+        await onExportPdf();
+        toast.success('📄 PDF gerado com sucesso!', { duration: 3000 });
+      }
     } catch (e) {
       toast.error(`❌ Erro ao exportar PDF: ${e?.message || 'tente novamente'}`);
     } finally {
