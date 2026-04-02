@@ -765,6 +765,19 @@ ${currentValue}`,
           )}
           </div>
           )}
+
+          {currentTab === 'avaliacao' && (
+          <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
+          {['avaliacao_pontos_positivos', 'avaliacao_desafios', 'avaliacao_sugestoes'].map((key) => (
+            <Field key={key} label={key.replace('avaliacao_', '').replace(/_/g, ' ').charAt(0).toUpperCase() + key.slice(1)}>
+              <Textarea
+                value={toInputValue(form?.[key], '')}
+                onChange={(e) => updateField(key, e.target.value)}
+                rows={5}
+                disabled={isApproved}
+              />
+            </Field>
+          ))}
           {!isApproved && (
             <button
               type="button"
@@ -778,7 +791,7 @@ ${currentValue}`,
           </div>
           )}
 
-              {currentTab === 'comentarios' && (
+          {currentTab === 'comentarios' && (
         <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
           <Field label="Comentários gerais">
             <Textarea
@@ -822,7 +835,7 @@ ${currentValue}`,
           </div>
           )}
 
-      {currentTab === 'historico' && (
+          {currentTab === 'historico' && (
         <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
             <Field label="Criado em">
@@ -870,12 +883,12 @@ ${currentValue}`,
               className="mt-4 px-4 py-2 bg-black text-white rounded disabled:opacity-60"
             >
               {saveMutation.isPending ? 'Salvando...' : 'Salvar histórico'}
-            </button>
-            )}
-            </div>
-            )}
+              </button>
+              )}
+              </div>
+              )}
 
-            <div className="flex flex-wrap gap-2 pt-2 items-center">
+              <div className="flex flex-wrap gap-2 pt-2 items-center">
         <button
           type="button"
           onClick={() => saveMutation.mutate()}
