@@ -17,7 +17,7 @@ export default function ReportEditor() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState('resumo');
+  const [activeTab, setActiveTab] = useState('relatorio');
   const lastLoadedReportIdRef = useRef(null);
 
   const [form, setForm] = useState({
@@ -42,9 +42,9 @@ export default function ReportEditor() {
     oportunidades: [],
     fotos: [],
     depoimentos: [],
+    attachments: [],
   });
 
-  // Load report from URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const reportId = urlParams.get('id');
@@ -69,7 +69,6 @@ export default function ReportEditor() {
     loadReport();
   }, []);
 
-  // Initialize form with report data
   useEffect(() => {
     if (!report?.id) return;
     if (lastLoadedReportIdRef.current === report.id) return;
@@ -78,7 +77,19 @@ export default function ReportEditor() {
       ...prev,
       ...report,
       resumo_periodo: report?.resumo_periodo ?? '',
+      resumo_executivo: report?.resumo_executivo ?? '',
+      avaliacao_pontos_positivos: report?.avaliacao_pontos_positivos ?? '',
+      avaliacao_desafios: report?.avaliacao_desafios ?? '',
+      avaliacao_sugestoes: report?.avaliacao_sugestoes ?? '',
+      comentarios_gerais: report?.comentarios_gerais ?? '',
+      comentarios_coordenacao: report?.comentarios_coordenacao ?? '',
+      historico_observacoes: report?.historico_observacoes ?? '',
       oportunidades_resumo: report?.oportunidades_resumo ?? '',
+      atividades: Array.isArray(report?.atividades) ? report.atividades : [],
+      oportunidades: Array.isArray(report?.oportunidades) ? report.oportunidades : [],
+      fotos: Array.isArray(report?.fotos) ? report.fotos : [],
+      depoimentos: Array.isArray(report?.depoimentos) ? report.depoimentos : [],
+      attachments: Array.isArray(report?.attachments) ? report.attachments : [],
     }));
 
     lastLoadedReportIdRef.current = report.id;
@@ -107,6 +118,7 @@ export default function ReportEditor() {
       oportunidades: form.oportunidades || [],
       fotos: form.fotos || [],
       depoimentos: form.depoimentos || [],
+      attachments: form.attachments || [],
     };
   };
 
@@ -130,21 +142,62 @@ export default function ReportEditor() {
 
       if (report?.id) {
         await base44.entities.Report.update(report.id, payload);
-        
+
         if (nextStatus === 'SUBMITTED') {
           toast.success('Relatório enviado para revisão com sucesso!');
         } else {
-          toast.success('Relatório salvo em rascunho com sucesso!');
+          toast.success('Relatório salvo com sucesso!');
         }
-        
+
         setForm((prev) => ({ ...prev, status: nextStatus || prev.status }));
-        if (report) setReport({ ...report, ...payload });
+        setReport((prev) => (prev ? { ...prev, ...payload } : prev));
       }
     } catch (error) {
       toast.error('Erro ao salvar relatório');
       console.error(error);
+      throw error;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openHtmlForPrint = (html, title = 'Relatório para assinatura') => {
+    const printWindow = window.open('', '_blank', 'width=1100,height=800');
+
+    if (!printWindow) {
+      toast.error('Não foi possível abrir a janela de impressão. Verifique o bloqueador de pop-up.');
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.document.title = title;
+    printWindow.focus();
+  };
+
+  const handleExportPdf = async () => {
+    try {
+      await handleSave('DRAFT');
+
+      const response = await base44.functions.invoke('generateSingleReportPDF', {
+        reportId: report?.id,
+        mode: 'assinatura',
+      });
+
+      const html = response?.data?.html || response?.html;
+      const fileName = response?.data?.file_name || response?.file_name || 'relatorio_assinatura';
+
+      if (!html) {
+        toast.error('Não foi possível gerar o conteúdo do PDF.');
+        return;
+      }
+
+      openHtmlForPrint(html, fileName);
+      toast.success('Layout de assinatura aberto. Use “Salvar como PDF” na impressão.');
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao gerar PDF para assinatura');
     }
   };
 
@@ -163,20 +216,17 @@ export default function ReportEditor() {
 
   return (
     <div className="space-y-6">
-      {/* Navigation Tabs */}
       <ReportTabsNavigation currentTab={activeTab} formData={form} onTabChange={setActiveTab} />
 
-      {/* Content Area */}
       <Card className="p-6">
-        {/* Resumo Tab */}
-        {activeTab === 'resumo' && (
+        {activeTab === 'relatorio' && (
           <div className="space-y-6">
             <div>
               <Label htmlFor="resumo_periodo">Resumo do Período</Label>
               <Textarea
                 id="resumo_periodo"
                 value={form.resumo_periodo}
-                onChange={(e) => setForm({ ...form, resumo_periodo: e.target.value })}
+                onChange={(e) => setForm((prev) => ({ ...prev, resumo_periodo: e.target.value }))}
                 placeholder="Descreva o resumo do período"
                 className="min-h-[150px] text-base p-4"
               />
@@ -187,7 +237,7 @@ export default function ReportEditor() {
               <Textarea
                 id="oportunidades_resumo"
                 value={form.oportunidades_resumo}
-                onChange={(e) => setForm({ ...form, oportunidades_resumo: e.target.value })}
+                onChange={(e) => setForm((prev) => ({ ...prev, oportunidades_resumo: e.target.value }))}
                 placeholder="Descreva as oportunidades identificadas"
                 className="min-h-[150px] text-base p-4"
               />
@@ -198,7 +248,7 @@ export default function ReportEditor() {
               <Textarea
                 id="avaliacao_pontos_positivos"
                 value={form.avaliacao_pontos_positivos}
-                onChange={(e) => setForm({ ...form, avaliacao_pontos_positivos: e.target.value })}
+                onChange={(e) => setForm((prev) => ({ ...prev, avaliacao_pontos_positivos: e.target.value }))}
                 placeholder="Descreva os pontos positivos"
                 className="min-h-[120px] text-base p-4"
               />
@@ -209,7 +259,7 @@ export default function ReportEditor() {
               <Textarea
                 id="avaliacao_desafios"
                 value={form.avaliacao_desafios}
-                onChange={(e) => setForm({ ...form, avaliacao_desafios: e.target.value })}
+                onChange={(e) => setForm((prev) => ({ ...prev, avaliacao_desafios: e.target.value }))}
                 placeholder="Descreva os desafios enfrentados"
                 className="min-h-[120px] text-base p-4"
               />
@@ -220,7 +270,7 @@ export default function ReportEditor() {
               <Textarea
                 id="avaliacao_sugestoes"
                 value={form.avaliacao_sugestoes}
-                onChange={(e) => setForm({ ...form, avaliacao_sugestoes: e.target.value })}
+                onChange={(e) => setForm((prev) => ({ ...prev, avaliacao_sugestoes: e.target.value }))}
                 placeholder="Descreva sugestões de melhoria"
                 className="min-h-[120px] text-base p-4"
               />
@@ -228,23 +278,34 @@ export default function ReportEditor() {
           </div>
         )}
 
-        {/* Atividades Tab */}
         {activeTab === 'atividades' && (
           <AtividadesSection
             reportId={report.id}
             atividades={form.atividades || []}
-            setAtividades={(atividades) =>
-              setForm((prev) => ({ ...prev, atividades }))
-            }
+            setAtividades={(updater) => {
+              if (typeof updater === 'function') {
+                setForm((prev) => ({
+                  ...prev,
+                  atividades: updater(prev.atividades || []),
+                }));
+                return;
+              }
+
+              setForm((prev) => ({
+                ...prev,
+                atividades: Array.isArray(updater) ? updater : [],
+              }));
+            }}
             mesReferencia={form.mes_referencia}
             ano={form.ano}
             museu={form.museu}
-            onSave={() => handleSave()}
+            onSave={() => handleSave('DRAFT')}
+            onExportPdf={handleExportPdf}
+            onBackToReport={() => setActiveTab('relatorio')}
             canEdit={true}
           />
         )}
 
-        {/* Fotos Tab */}
         {activeTab === 'fotos' && (
           <ReportPhotoSection
             reportId={report.id}
@@ -276,31 +337,34 @@ export default function ReportEditor() {
           />
         )}
 
-        {/* Attachments Tab */}
         {activeTab === 'attachments' && (
           <AttachmentsSection
             reportId={report.id}
             attachments={form.attachments || []}
           />
         )}
+
+        {activeTab === 'depoimentos' && (
+          <DepoimentosSection
+            reportId={report.id}
+            depoimentos={form.depoimentos || []}
+            onChange={(nextDepoimentos) =>
+              setForm((prev) => ({ ...prev, depoimentos: nextDepoimentos }))
+            }
+          />
+        )}
       </Card>
 
-      {/* Action Buttons */}
       <div className="flex gap-3 justify-end">
         <Button variant="outline" onClick={() => navigate('/Relatorios')}>
           Cancelar
         </Button>
-        <Button
-          onClick={() => handleSave('DRAFT')}
-          disabled={saving}
-          variant="secondary"
-        >
+
+        <Button onClick={() => handleSave('DRAFT')} disabled={saving} variant="secondary">
           {saving ? 'Salvando...' : 'Salvar Rascunho'}
         </Button>
-        <Button
-          onClick={() => handleSave('SUBMITTED')}
-          disabled={saving}
-        >
+
+        <Button onClick={() => handleSave('SUBMITTED')} disabled={saving}>
           {saving ? 'Enviando...' : 'Enviar para Revisão'}
         </Button>
       </div>
