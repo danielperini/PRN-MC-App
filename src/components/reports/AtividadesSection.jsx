@@ -16,6 +16,7 @@ export default function AtividadesSection({
   tiposAcaoOptions = [],
   mesReferencia = '',
   ano = 2026,
+  museu = '',
   reportId = null,
 }) {
 
@@ -108,11 +109,13 @@ export default function AtividadesSection({
               <SelectValue placeholder="Importar da programação" />
             </SelectTrigger>
             <SelectContent>
-              {programacaoItems.map(p => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.titulo}
-                </SelectItem>
-              ))}
+              {programacaoItems
+                .filter(p => !museu || !p.museu || p.museu === museu)
+                .map(p => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.titulo} {p.museu ? `(${p.museu})` : ''}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>

@@ -539,6 +539,7 @@ ${currentValue}`,
           tiposAcaoOptions={tiposAcaoOptions}
           mesReferencia={form?.mes_referencia || report?.mes_referencia || ''}
           ano={Number(form?.ano || report?.ano || new Date().getFullYear())}
+          museu={form?.museu || ''}
           reportId={reportId}
         />
       )}
