@@ -51,8 +51,9 @@ export default function ReportTabsNavigation({ currentTab, formData, onTabChange
           return (
             <div key={tab.value} className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => onTabChange(tab.value)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
                   isActive
                     ? 'bg-black text-white'
                     : isCompleted
