@@ -498,13 +498,7 @@ export default function AtividadeCamposBasicos({
           <Input value={totalProdutosGerados} readOnly className="bg-gray-50" />
         </Field>
 
-        <Field label="Equipe selecionada">
-          <Input
-            value={toInputValue(atividade?.equipe_participante_nomes, '')}
-            readOnly
-            className="bg-gray-50"
-          />
-        </Field>
+
       </div>
     </>
   );
