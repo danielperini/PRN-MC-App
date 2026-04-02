@@ -725,7 +725,7 @@ ${currentValue}`,
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 pt-2">
+      <div className="flex flex-wrap gap-2 pt-2 items-center">
         <button
           type="button"
           onClick={() => saveMutation.mutate()}
@@ -743,6 +743,12 @@ ${currentValue}`,
         >
           {submitMutation.isPending ? 'Enviando...' : 'Enviar para revisão'}
         </button>
+
+        {saveMutation.isSuccess && (
+          <span className="text-sm text-green-700 font-medium flex items-center gap-1">
+            ✅ Atividade salva com sucesso!
+          </span>
+        )}
       </div>
     </div>
   );
