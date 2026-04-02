@@ -871,11 +871,11 @@ ${currentValue}`,
             >
               {saveMutation.isPending ? 'Salvando...' : 'Salvar histórico'}
             </button>
-          )}
-          </div>
-          )}
+            )}
+            </div>
+            )}
 
-      <div className="flex flex-wrap gap-2 pt-2 items-center">
+            <div className="flex flex-wrap gap-2 pt-2 items-center">
         <button
           type="button"
           onClick={() => saveMutation.mutate()}
