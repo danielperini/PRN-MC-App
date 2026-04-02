@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -10,6 +10,8 @@ import ReportTabsNavigation from '@/components/reports/ReportTabsNavigation';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sparkles, List } from 'lucide-react';
 
 function normalizeNullableNumber(value) {
   if (value === '' || value === null || value === undefined) return null;
@@ -53,11 +55,67 @@ function getStatusClasses(status) {
   }
 }
 
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const ANOS = [2024, 2025, 2026];
+const MUSEUS_OPTIONS = ['MIS','MuMo','MHAB','Administração','Comunicação','Coordenação','Área'];
+
 function Field({ label, children }) {
   return (
     <div className="space-y-1">
       <Label className="text-xs text-gray-600">{label}</Label>
       {children}
+    </div>
+  );
+}
+
+function BulletTextarea({ value, onChange, rows = 5, disabled }) {
+  const ref = useRef(null);
+
+  function addBullet() {
+    const ta = ref.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const before = value.slice(0, start);
+    const after = value.slice(start);
+    const lineStart = before.lastIndexOf('\n') + 1;
+    const lineContent = before.slice(lineStart);
+    let newVal;
+    if (lineContent === '' || lineContent === '• ') {
+      newVal = before + '• ' + after;
+    } else {
+      newVal = before + '\n• ' + after;
+    }
+    onChange({ target: { value: newVal } });
+    setTimeout(() => {
+      ta.selectionStart = ta.selectionEnd = start + (lineContent === '' ? 2 : 4);
+      ta.focus();
+    }, 10);
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') {
+      const ta = e.target;
+      const start = ta.selectionStart;
+      const before = value.slice(0, start);
+      const lineStart = before.lastIndexOf('\n') + 1;
+      const lineContent = before.slice(lineStart);
+      if (lineContent.startsWith('• ') && lineContent.trim() !== '•') {
+        e.preventDefault();
+        const newVal = value.slice(0, start) + '\n• ' + value.slice(start);
+        onChange({ target: { value: newVal } });
+        setTimeout(() => { ta.selectionStart = ta.selectionEnd = start + 3; }, 10);
+      }
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      {!disabled && (
+        <button type="button" onClick={addBullet} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 px-2 py-1 border rounded">
+          <List className="w-3 h-3" /> Tópico
+        </button>
+      )}
+      <Textarea ref={ref} value={value} onChange={onChange} onKeyDown={handleKeyDown} rows={rows} disabled={disabled} />
     </div>
   );
 }
@@ -73,7 +131,7 @@ export default function ReportEditor() {
   const reportId = params.get('id');
 
   const [currentTab, setCurrentTab] = useState('identificacao');
-  const [successMessage, setSuccessMessage] = useState(null); // { type: 'save' | 'submit', text }
+  const [successMessage, setSuccessMessage] = useState(null);
   const [form, setForm] = useState({
     atividades: [],
     oportunidades: [''],
@@ -93,7 +151,6 @@ export default function ReportEditor() {
 
   useEffect(() => {
     if (!report) return;
-
     setForm({
       ...report,
       atividades: Array.isArray(report.atividades)
@@ -126,7 +183,35 @@ export default function ReportEditor() {
     return Array.isArray(valores) ? valores.filter(Boolean) : [];
   }, [report]);
 
-  const isApproved = form?.status === 'APPROVED';
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    base44.auth.me().then(u => setCurrentUser(u)).catch(() => {});
+  }, []);
+
+  // Pré-preencher autor e equipe do usuário logado
+  useEffect(() => {
+    if (!currentUser) return;
+    setForm(prev => ({
+      ...prev,
+      author_name: prev.author_name || currentUser.full_name || '',
+      equipe: prev.equipe || currentUser.email || '',
+    }));
+  }, [currentUser]);
+
+  async function aiComplete(field, currentValue, context) {
+    if (!currentValue && !context) return;
+    toast.info('✨ IA completando...', { duration: 2000 });
+    const res = await base44.integrations.Core.InvokeLLM({
+      prompt: `Você é um assistente de redação para relatórios de museus culturais. Complete ou melhore o seguinte texto do campo "${field}" de um relatório mensal. Seja claro, objetivo e escreva em português formal. Mantenha o estilo em tópicos com • se já houver tópicos. Retorne apenas o texto melhorado, sem explicações.
+
+Contexto do relatório: ${context || ''}
+
+Texto atual:
+${currentValue}`,
+    });
+    if (res) updateField(field === 'Pontos positivos' ? 'avaliacao_pontos_positivos' : field === 'Desafios' ? 'avaliacao_desafios' : field === 'Sugestões' ? 'avaliacao_sugestoes' : 'resumo_periodo', res);
+  }
 
   function updateField(field, value) {
     setForm((prev) => ({
@@ -344,56 +429,91 @@ export default function ReportEditor() {
         <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
           <div className="grid md:grid-cols-3 gap-4">
             <Field label="Mês de referência">
-              <Input
-                value={toInputValue(form?.mes_referencia, '')}
-                onChange={(e) => updateField('mes_referencia', e.target.value)}
+              <Select
+                value={form?.mes_referencia || ''}
+                onValueChange={(v) => updateField('mes_referencia', v)}
                 disabled={isApproved}
-              />
+              >
+                <SelectTrigger><SelectValue placeholder="Selecione o mês" /></SelectTrigger>
+                <SelectContent>
+                  {MESES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </Field>
 
             <Field label="Ano">
-              <Input
-                type="number"
-                value={toInputValue(form?.ano, '')}
-                onChange={(e) => updateField('ano', e.target.value)}
+              <Select
+                value={String(form?.ano || '')}
+                onValueChange={(v) => updateField('ano', Number(v))}
                 disabled={isApproved}
-              />
+              >
+                <SelectTrigger><SelectValue placeholder="Selecione o ano" /></SelectTrigger>
+                <SelectContent>
+                  {ANOS.map(a => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </Field>
 
-            <Field label="Museu">
-              <Input
-                value={toInputValue(form?.museu, '')}
-                onChange={(e) => updateField('museu', e.target.value)}
+            <Field label="Museu / Área">
+              <Select
+                value={form?.museu || ''}
+                onValueChange={(v) => updateField('museu', v)}
                 disabled={isApproved}
-              />
+              >
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {MUSEUS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </Field>
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
             <Field label="Autor do relatório">
               <Input
-                value={toInputValue(form?.author_name, '')}
+                value={toInputValue(form?.author_name, currentUser?.full_name || '')}
                 onChange={(e) => updateField('author_name', e.target.value)}
                 disabled={isApproved}
+                placeholder={currentUser?.full_name || 'Nome do autor'}
               />
             </Field>
 
-            <Field label="E-mail do autor">
+            <Field label="Equipe / E-mail de login">
               <Input
-                value={toInputValue(form?.author_email, '')}
-                onChange={(e) => updateField('author_email', e.target.value)}
+                value={toInputValue(form?.equipe, currentUser?.email || '')}
+                onChange={(e) => updateField('equipe', e.target.value)}
                 disabled={isApproved}
+                placeholder={currentUser?.email || 'E-mail de login'}
               />
             </Field>
           </div>
 
           <Field label="Resumo / apresentação do período">
-            <Textarea
-              value={toInputValue(form?.resumo_periodo, '')}
-              onChange={(e) => updateField('resumo_periodo', e.target.value)}
-              rows={5}
-              disabled={isApproved}
-            />
+            <div className="space-y-1">
+              {!isApproved && (
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => {
+                    const v = form?.resumo_periodo || '';
+                    updateField('resumo_periodo', v + (v && !v.endsWith('\n') ? '\n' : '') + '• ');
+                  }} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 px-2 py-1 border rounded">
+                    <List className="w-3 h-3" /> Tópico
+                  </button>
+                  <button type="button" onClick={async () => {
+                    toast.info('✨ IA completando...', { duration: 2000 });
+                    const res = await base44.integrations.Core.InvokeLLM({ prompt: `Complete ou melhore este resumo de relatório mensal de museu. Escreva em português formal, em tópicos com •. Retorne apenas o texto.\n\nTexto atual:\n${form?.resumo_periodo || ''}` });
+                    if (res) updateField('resumo_periodo', res);
+                  }} className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 px-2 py-1 border border-purple-200 rounded">
+                    <Sparkles className="w-3 h-3" /> IA
+                  </button>
+                </div>
+              )}
+              <Textarea
+                value={toInputValue(form?.resumo_periodo, '')}
+                onChange={(e) => updateField('resumo_periodo', e.target.value)}
+                rows={5}
+                disabled={isApproved}
+              />
+            </div>
           </Field>
         </div>
       )}
@@ -505,32 +625,35 @@ export default function ReportEditor() {
 
       {currentTab === 'avaliacao' && (
         <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
-          <Field label="Pontos positivos">
-            <Textarea
-              value={toInputValue(form?.avaliacao_pontos_positivos, '')}
-              onChange={(e) => updateField('avaliacao_pontos_positivos', e.target.value)}
-              rows={5}
-              disabled={isApproved}
-            />
-          </Field>
-
-          <Field label="Desafios encontrados">
-            <Textarea
-              value={toInputValue(form?.avaliacao_desafios, '')}
-              onChange={(e) => updateField('avaliacao_desafios', e.target.value)}
-              rows={5}
-              disabled={isApproved}
-            />
-          </Field>
-
-          <Field label="Sugestões / encaminhamentos">
-            <Textarea
-              value={toInputValue(form?.avaliacao_sugestoes, '')}
-              onChange={(e) => updateField('avaliacao_sugestoes', e.target.value)}
-              rows={5}
-              disabled={isApproved}
-            />
-          </Field>
+          {[['Pontos positivos','avaliacao_pontos_positivos'],['Desafios encontrados','avaliacao_desafios'],['Sugestões / encaminhamentos','avaliacao_sugestoes']].map(([label, key]) => (
+            <Field key={key} label={label}>
+              <div className="space-y-1">
+                {!isApproved && (
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => {
+                      const v = form?.[key] || '';
+                      updateField(key, v + (v && !v.endsWith('\n') ? '\n' : '') + '• ');
+                    }} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 px-2 py-1 border rounded">
+                      <List className="w-3 h-3" /> Tópico
+                    </button>
+                    <button type="button" onClick={async () => {
+                      toast.info('✨ IA completando...', { duration: 2000 });
+                      const res = await base44.integrations.Core.InvokeLLM({ prompt: `Complete ou melhore este campo "${label}" de relatório mensal de museu cultural. Escreva em português formal, em tópicos com •. Retorne apenas o texto.\n\nTexto atual:\n${form?.[key] || ''}` });
+                      if (res) updateField(key, res);
+                    }} className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 px-2 py-1 border border-purple-200 rounded">
+                      <Sparkles className="w-3 h-3" /> IA
+                    </button>
+                  </div>
+                )}
+                <Textarea
+                  value={toInputValue(form?.[key], '')}
+                  onChange={(e) => updateField(key, e.target.value)}
+                  rows={5}
+                  disabled={isApproved}
+                />
+              </div>
+            </Field>
+          ))}
         </div>
       )}
 
