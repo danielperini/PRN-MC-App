@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Sparkles, List } from 'lucide-react';
+import { Sparkles, List, Save } from 'lucide-react';
 
 function normalizeNullableNumber(value) {
   if (value === '' || value === null || value === undefined) return null;
@@ -362,7 +362,7 @@ ${currentValue}`,
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span
             className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${getStatusClasses(
               form?.status
@@ -370,6 +370,27 @@ ${currentValue}`,
           >
             {getStatusLabel(form?.status)}
           </span>
+          {!isApproved && (
+            <button
+              type="button"
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-black text-white text-sm rounded-lg disabled:opacity-60 hover:bg-gray-800 transition-colors"
+            >
+              <Save className="w-4 h-4" />
+              {saveMutation.isPending ? 'Salvando...' : 'Salvar relatório'}
+            </button>
+          )}
+          {!isApproved && (
+            <button
+              type="button"
+              onClick={() => submitMutation.mutate()}
+              disabled={!canSubmit}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 border border-black text-black text-sm rounded-lg disabled:opacity-60 hover:bg-gray-50 transition-colors"
+            >
+              {submitMutation.isPending ? 'Enviando...' : 'Enviar para revisão'}
+            </button>
+          )}
         </div>
       </div>
 
