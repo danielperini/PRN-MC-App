@@ -1,280 +1,446 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import ReportTabsNavigation from '@/components/reports/ReportTabsNavigation';
+import AtividadesSection from '@/components/reports/AtividadesSection';
+import AttachmentsSection from '@/components/reports/AttachmentsSection';
+import ReportPhotoSection from '@/components/reports/ReportPhotoSection';
+import DepoimentosSection from '@/components/reports/DepoimentosSection';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Save, FileDown, ArrowLeft } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import AtividadeCamposBasicos from './AtividadeCamposBasicos';
-import ActivityPhotoLinker from './ActivityPhotoLinker';
-import ActivityAttachments from './ActivityAttachments';
+import { useNavigate } from 'react-router-dom';
 
-function createActivityId() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `atividade_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
-export default function AtividadesSection({
-  atividades = [],
-  setAtividades,
-  canEdit = true,
-  museusOptions = [],
-  tiposAcaoOptions = [],
-  mesReferencia = '',
-  ano = 2026,
-  museu = '',
-  reportId = null,
-  onSave = null,
-  onExportPdf = null,
-  onBackToReport = null,
-}) {
+export default function ReportEditor() {
+  const navigate = useNavigate();
+  const printRef = useRef(null);
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [exportingPdf, setExportingPdf] = useState(false);
+  const [activeTab, setActiveTab] = useState('resumo');
+  const lastLoadedReportIdRef = useRef(null);
 
-  async function handleSaveAtividades() {
-    if (!onSave) return;
+  const [form, setForm] = useState({
+    numero_protocolo: '',
+    author_name: '',
+    funcao: '',
+    museu: '',
+    equipe: '',
+    mes_referencia: '',
+    ano: new Date().getFullYear(),
+    resumo_periodo: '',
+    resumo_executivo: '',
+    avaliacao_pontos_positivos: '',
+    avaliacao_desafios: '',
+    avaliacao_sugestoes: '',
+    comentarios_gerais: '',
+    comentarios_coordenacao: '',
+    historico_observacoes: '',
+    oportunidades_resumo: '',
+    status: 'DRAFT',
+    atividades: [],
+    oportunidades: [],
+    fotos: [],
+    depoimentos: [],
+  });
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const reportId = urlParams.get('id');
+
+    if (!reportId) {
+      setLoading(false);
+      return;
+    }
+
+    const loadReport = async () => {
+      try {
+        const data = await base44.entities.Report.get(reportId);
+        setReport(data);
+      } catch (error) {
+        toast.error('Erro ao carregar relatório');
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadReport();
+  }, []);
+
+  useEffect(() => {
+    if (!report?.id) return;
+    if (lastLoadedReportIdRef.current === report.id) return;
+
+    setForm((prev) => ({
+      ...prev,
+      ...report,
+      resumo_periodo: report?.resumo_periodo ?? '',
+      resumo_executivo: report?.resumo_executivo ?? '',
+      avaliacao_pontos_positivos: report?.avaliacao_pontos_positivos ?? '',
+      avaliacao_desafios: report?.avaliacao_desafios ?? '',
+      avaliacao_sugestoes: report?.avaliacao_sugestoes ?? '',
+      comentarios_gerais: report?.comentarios_gerais ?? '',
+      comentarios_coordenacao: report?.comentarios_coordenacao ?? '',
+      historico_observacoes: report?.historico_observacoes ?? '',
+      oportunidades_resumo: report?.oportunidades_resumo ?? '',
+      atividades: Array.isArray(report?.atividades) ? report.atividades : [],
+      oportunidades: Array.isArray(report?.oportunidades) ? report.oportunidades : [],
+      fotos: Array.isArray(report?.fotos) ? report.fotos : [],
+      depoimentos: Array.isArray(report?.depoimentos) ? report.depoimentos : [],
+    }));
+
+    lastLoadedReportIdRef.current = report.id;
+  }, [report]);
+
+  const buildPayload = (nextStatus = null) => {
+    return {
+      numero_protocolo: form.numero_protocolo,
+      author_name: form.author_name,
+      funcao: form.funcao,
+      museu: form.museu,
+      equipe: form.equipe,
+      mes_referencia: form.mes_referencia,
+      ano: form.ano,
+      resumo_periodo: form.resumo_periodo ?? '',
+      resumo_executivo: form.resumo_executivo ?? '',
+      avaliacao_pontos_positivos: form.avaliacao_pontos_positivos ?? '',
+      avaliacao_desafios: form.avaliacao_desafios ?? '',
+      avaliacao_sugestoes: form.avaliacao_sugestoes ?? '',
+      comentarios_gerais: form.comentarios_gerais ?? '',
+      comentarios_coordenacao: form.comentarios_coordenacao ?? '',
+      historico_observacoes: form.historico_observacoes ?? '',
+      oportunidades_resumo: form.oportunidades_resumo ?? '',
+      status: nextStatus || form.status,
+      atividades: form.atividades || [],
+      oportunidades: form.oportunidades || [],
+      fotos: form.fotos || [],
+      depoimentos: form.depoimentos || [],
+    };
+  };
+
+  const persistReportPhotos = async (nextPhotos) => {
+    try {
+      if (!report?.id) {
+        toast.error('Relatório não carregado corretamente');
+        return;
+      }
+      await base44.entities.Report.update(report.id, { fotos: nextPhotos });
+    } catch (error) {
+      toast.error('Erro ao salvar fotos');
+      console.error(error);
+    }
+  };
+
+  const handleSave = async (nextStatus = null) => {
     setSaving(true);
     try {
-      await onSave();
-      toast.success('✅ Atividades salvas com sucesso!', { duration: 3000 });
-    } catch (e) {
-      toast.error(`❌ Erro ao salvar atividades: ${e?.message || 'tente novamente'}`);
+      const payload = buildPayload(nextStatus);
+
+      if (report?.id) {
+        await base44.entities.Report.update(report.id, payload);
+
+        if (nextStatus === 'SUBMITTED') {
+          toast.success('Relatório enviado para revisão com sucesso!');
+        } else {
+          toast.success('Relatório salvo em rascunho com sucesso!');
+        }
+
+        setForm((prev) => ({ ...prev, status: nextStatus || prev.status }));
+        setReport((prev) => (prev ? { ...prev, ...payload } : prev));
+      }
+    } catch (error) {
+      toast.error('Erro ao salvar relatório');
+      console.error(error);
+      throw error;
     } finally {
       setSaving(false);
     }
-  }
+  };
 
-  async function handleExportPdf() {
-    if (!onExportPdf) return;
-    setExportingPdf(true);
-    try {
-      await onExportPdf();
-      toast.success('📄 PDF preparado para exportação.', { duration: 3000 });
-    } catch (e) {
-      toast.error(`❌ Erro ao exportar PDF: ${e?.message || 'tente novamente'}`);
-    } finally {
-      setExportingPdf(false);
+  const handleExportPdf = async () => {
+    await handleSave('DRAFT');
+
+    const previousTitle = document.title;
+    document.title = `Relatorio_${form.author_name || 'autor'}_${form.mes_referencia || 'sem-mes'}_${form.ano || new Date().getFullYear()}`;
+
+    const styleId = 'report-print-style';
+    let styleTag = document.getElementById(styleId);
+
+    if (!styleTag) {
+      styleTag = document.createElement('style');
+      styleTag.id = styleId;
+      styleTag.innerHTML = `
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+
+          .report-print-area,
+          .report-print-area * {
+            visibility: visible !important;
+          }
+
+          .report-print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background: white;
+            padding: 24px;
+          }
+
+          .no-print {
+            display: none !important;
+          }
+
+          .print-signature-block {
+            display: block !important;
+            margin-top: 48px;
+            page-break-inside: avoid;
+          }
+        }
+
+        @media screen {
+          .print-signature-block {
+            display: none;
+          }
+        }
+      `;
+      document.head.appendChild(styleTag);
     }
+
+    setTimeout(() => {
+      window.print();
+      document.title = previousTitle;
+    }, 250);
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-96">Carregando...</div>;
   }
 
-  const { data: programacaoItemsRaw = [] } = useQuery({
-    queryKey: ['programacao-espelho'],
-    queryFn: async () => {
-      const res = await base44.entities.Programacao.list('-data_inicio', 1000);
-      return Array.isArray(res) ? res : [];
-    },
-    staleTime: 60000,
-  });
-
-  const programacaoItems = useMemo(() => {
-    const agora = new Date();
-    const limite = new Date();
-    limite.setHours(0, 0, 0, 0);
-    limite.setDate(agora.getDate() - 45);
-
-    return (programacaoItemsRaw || []).filter((p) => {
-      if (!p?.data_inicio) return false;
-
-      const data = new Date(p.data_inicio);
-      if (Number.isNaN(data.getTime())) return false;
-
-      return data >= limite && data <= agora;
-    });
-  }, [programacaoItemsRaw]);
-
-  const { data: equipe = [] } = useQuery({
-    queryKey: ['user-permissions-team'],
-    queryFn: async () => {
-      const res = await base44.entities.UserPermission.list('user_name', 1000);
-      return (Array.isArray(res) ? res : []).map((u) => ({
-        id: u.user_email,
-        label: u.user_name || u.user_email,
-      }));
-    },
-  });
-
-  const { data: metas = [] } = useQuery({
-    queryKey: ['project-metas'],
-    queryFn: async () => {
-      const res = await base44.entities.ProjectMeta.list('nome', 1000);
-      return (Array.isArray(res) ? res : [])
-        .filter((m) => m.ativo !== false)
-        .map((m) => ({
-          id: m.id,
-          label: m.nome,
-          nome: m.nome,
-        }));
-    },
-  });
-
-  const updateAtividade = useCallback((index, field, value) => {
-    if (typeof setAtividades !== 'function') return;
-
-    setAtividades((prev) => {
-      const list = Array.isArray(prev) ? [...prev] : [];
-      list[index] = { ...(list[index] || {}), [field]: value };
-      return list;
-    });
-  }, [setAtividades]);
-
-  const addAtividade = useCallback(() => {
-    if (typeof setAtividades !== 'function') return;
-
-    setAtividades((prev) => [
-      ...(Array.isArray(prev) ? prev : []),
-      {
-        id: createActivityId(),
-        classificacao: '',
-        nome: '',
-        descricao: '',
-        museu_lista: [],
-        tipo_acao_lista: [],
-        equipe_participante_ids: [],
-        meta_vinculada_ids: [],
-      },
-    ]);
-  }, [setAtividades]);
-
-  const removeAtividade = useCallback((index) => {
-    if (typeof setAtividades !== 'function') return;
-
-    setAtividades((prev) => {
-      const list = Array.isArray(prev) ? [...prev] : [];
-      list.splice(index, 1);
-      return list;
-    });
-  }, [setAtividades]);
-
-  const importarDaProgramacao = useCallback((id) => {
-    const item = programacaoItems.find((p) => p.id === id);
-    if (!item || typeof setAtividades !== 'function') return;
-
-    setAtividades((prev) => [
-      ...(Array.isArray(prev) ? prev : []),
-      {
-        id: createActivityId(),
-        classificacao: '',
-        nome: item.titulo || item.nome || '',
-        descricao: item.sinopse || item.descricao || '',
-        museu_lista: item.museu ? [item.museu] : [],
-        tipo_acao_lista: item.tipo ? [item.tipo] : [],
-        equipe_participante_ids: [],
-        meta_vinculada_ids: [],
-        programacao_id: item.id,
-      },
-    ]);
-  }, [programacaoItems, setAtividades]);
+  if (!report?.id) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <p>Nenhum relatório selecionado</p>
+        <Button onClick={() => navigate('/Relatorios')}>Voltar aos Relatórios</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {canEdit && (
-        <div className="bg-blue-50 p-4 rounded border">
-          <Select onValueChange={importarDaProgramacao}>
-            <SelectTrigger>
-              <SelectValue placeholder="Importar da programação (últimos 45 dias)" />
-            </SelectTrigger>
-            <SelectContent>
-              {programacaoItems
-                .filter((p) => !museu || !p.museu || p.museu === museu)
-                .map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {(p.titulo || p.nome || 'Sem título')} {p.museu ? `(${p.museu})` : ''}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      <div className="no-print">
+        <ReportTabsNavigation currentTab={activeTab} formData={form} onTabChange={setActiveTab} />
+      </div>
 
-      {(atividades || []).map((atividade, index) => (
-        <div key={atividade?.id || index} className="border p-4 rounded space-y-4">
-          <div className="flex justify-between items-center">
-            <b>Atividade {index + 1}</b>
-
-            {canEdit && (
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                onClick={() => removeAtividade(index)}
-              >
-                <Trash2 className="text-red-500 w-4 h-4" />
-              </Button>
-            )}
+      <Card className="p-6 report-print-area" ref={printRef}>
+        <div className="space-y-6">
+          <div className="border-b pb-4">
+            <h1 className="text-2xl font-bold">Relatório Mensal</h1>
+            <div className="mt-3 grid md:grid-cols-2 gap-3 text-sm">
+              <div><strong>Autor:</strong> {form.author_name || '-'}</div>
+              <div><strong>Função:</strong> {form.funcao || '-'}</div>
+              <div><strong>Museu:</strong> {form.museu || '-'}</div>
+              <div><strong>Equipe:</strong> {form.equipe || '-'}</div>
+              <div><strong>Mês de referência:</strong> {form.mes_referencia || '-'}</div>
+              <div><strong>Ano:</strong> {form.ano || '-'}</div>
+              <div><strong>Protocolo:</strong> {form.numero_protocolo || '-'}</div>
+              <div><strong>Status:</strong> {form.status || '-'}</div>
+            </div>
           </div>
 
-          <AtividadeCamposBasicos
-            atividade={atividade}
-            onChange={(field, value) => updateAtividade(index, field, value)}
-            museus={museusOptions}
-            tiposAcao={tiposAcaoOptions}
-            teamOptions={equipe}
-            metaOptions={metas}
-            programacaoOptions={programacaoItems}
-            canEdit={canEdit}
-            mesReferencia={mesReferencia}
-            ano={ano}
-          />
+          {activeTab === 'resumo' && (
+            <div className="space-y-6">
+              <div className="no-print">
+                <Label htmlFor="resumo_periodo">Resumo do Período</Label>
+                <Textarea
+                  id="resumo_periodo"
+                  value={form.resumo_periodo}
+                  onChange={(e) => setForm({ ...form, resumo_periodo: e.target.value })}
+                  placeholder="Descreva o resumo do período"
+                  className="min-h-[150px] text-base p-4"
+                />
+              </div>
+              <div className="print-only">
+                <h2 className="text-lg font-semibold mb-2">Resumo do Período</h2>
+                <p className="whitespace-pre-wrap">{form.resumo_periodo || '-'}</p>
+              </div>
 
-          {reportId && (
-            <ActivityAttachments
-              reportId={reportId}
-              activityIndex={index}
-              activityId={atividade?.id || atividade?._id}
-              activityName={atividade?.nome || atividade?.titulo || `Atividade ${index + 1}`}
-              canEdit={canEdit}
+              <div className="no-print">
+                <Label htmlFor="oportunidades_resumo">Resumo de Oportunidades</Label>
+                <Textarea
+                  id="oportunidades_resumo"
+                  value={form.oportunidades_resumo}
+                  onChange={(e) => setForm({ ...form, oportunidades_resumo: e.target.value })}
+                  placeholder="Descreva as oportunidades identificadas"
+                  className="min-h-[150px] text-base p-4"
+                />
+              </div>
+              <div className="print-only">
+                <h2 className="text-lg font-semibold mb-2">Resumo de Oportunidades</h2>
+                <p className="whitespace-pre-wrap">{form.oportunidades_resumo || '-'}</p>
+              </div>
+
+              <div className="no-print">
+                <Label htmlFor="avaliacao_pontos_positivos">Pontos Positivos</Label>
+                <Textarea
+                  id="avaliacao_pontos_positivos"
+                  value={form.avaliacao_pontos_positivos}
+                  onChange={(e) => setForm({ ...form, avaliacao_pontos_positivos: e.target.value })}
+                  placeholder="Descreva os pontos positivos"
+                  className="min-h-[120px] text-base p-4"
+                />
+              </div>
+              <div className="print-only">
+                <h2 className="text-lg font-semibold mb-2">Pontos Positivos</h2>
+                <p className="whitespace-pre-wrap">{form.avaliacao_pontos_positivos || '-'}</p>
+              </div>
+
+              <div className="no-print">
+                <Label htmlFor="avaliacao_desafios">Desafios</Label>
+                <Textarea
+                  id="avaliacao_desafios"
+                  value={form.avaliacao_desafios}
+                  onChange={(e) => setForm({ ...form, avaliacao_desafios: e.target.value })}
+                  placeholder="Descreva os desafios enfrentados"
+                  className="min-h-[120px] text-base p-4"
+                />
+              </div>
+              <div className="print-only">
+                <h2 className="text-lg font-semibold mb-2">Desafios</h2>
+                <p className="whitespace-pre-wrap">{form.avaliacao_desafios || '-'}</p>
+              </div>
+
+              <div className="no-print">
+                <Label htmlFor="avaliacao_sugestoes">Sugestões de Melhoria</Label>
+                <Textarea
+                  id="avaliacao_sugestoes"
+                  value={form.avaliacao_sugestoes}
+                  onChange={(e) => setForm({ ...form, avaliacao_sugestoes: e.target.value })}
+                  placeholder="Descreva sugestões de melhoria"
+                  className="min-h-[120px] text-base p-4"
+                />
+              </div>
+              <div className="print-only">
+                <h2 className="text-lg font-semibold mb-2">Sugestões de Melhoria</h2>
+                <p className="whitespace-pre-wrap">{form.avaliacao_sugestoes || '-'}</p>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'atividades' && (
+            <AtividadesSection
+              reportId={report.id}
+              atividades={form.atividades || []}
+              setAtividades={(updater) => {
+                if (typeof updater === 'function') {
+                  setForm((prev) => ({
+                    ...prev,
+                    atividades: updater(prev.atividades || []),
+                  }));
+                  return;
+                }
+
+                setForm((prev) => ({
+                  ...prev,
+                  atividades: Array.isArray(updater) ? updater : [],
+                }));
+              }}
+              mesReferencia={form.mes_referencia}
+              ano={form.ano}
+              museu={form.museu}
+              onSave={() => handleSave('DRAFT')}
+              onExportPdf={handleExportPdf}
+              onBackToReport={() => setActiveTab('resumo')}
+              canEdit={true}
             />
           )}
 
-          {atividade?.id && (
-            <ActivityPhotoLinker
-              activityId={atividade.id}
-              onPhotosChange={(fotos) => updateAtividade(index, 'fotos', fotos)}
-              disabled={!canEdit}
+          {activeTab === 'fotos' && (
+            <ReportPhotoSection
+              reportId={report.id}
+              photos={form.fotos || []}
+              onAddPhoto={async (photo) => {
+                const normalizedPhoto = {
+                  id: photo?.id || photo?._id || photo?.file_id || crypto.randomUUID(),
+                  url: photo?.url || photo?.file_url || '',
+                  fileName: photo?.fileName || photo?.file_name || photo?.name || 'Foto',
+                  author: photo?.author || photo?.uploaded_by || photo?.author_name || '',
+                  caption: photo?.caption || '',
+                };
+                const nextPhotos = [...(form.fotos || []), normalizedPhoto];
+                setForm((prev) => ({ ...prev, fotos: nextPhotos }));
+                await persistReportPhotos(nextPhotos);
+              }}
+              onUpdatePhoto={async (photoId, caption) => {
+                const nextPhotos = (form.fotos || []).map((p) =>
+                  p.id === photoId ? { ...p, caption } : p
+                );
+                setForm((prev) => ({ ...prev, fotos: nextPhotos }));
+                await persistReportPhotos(nextPhotos);
+              }}
+              onDeletePhoto={async (photoId) => {
+                const nextPhotos = (form.fotos || []).filter((p) => p.id !== photoId);
+                setForm((prev) => ({ ...prev, fotos: nextPhotos }));
+                await persistReportPhotos(nextPhotos);
+              }}
+            />
+          )}
+
+          {activeTab === 'attachments' && (
+            <AttachmentsSection
+              reportId={report.id}
+              attachments={form.attachments || []}
+            />
+          )}
+
+          {activeTab === 'depoimentos' && (
+            <DepoimentosSection
+              reportId={report.id}
+              depoimentos={form.depoimentos || []}
+              onChange={(nextDepoimentos) =>
+                setForm((prev) => ({ ...prev, depoimentos: nextDepoimentos }))
+              }
             />
           )}
         </div>
-      ))}
 
-      <div className="flex flex-wrap gap-2">
-        {canEdit && (
-          <Button type="button" onClick={addAtividade} variant="outline">
-            <Plus className="w-4 h-4 mr-2" />
-            Adicionar atividade
-          </Button>
-        )}
+        <div className="print-signature-block">
+          <div className="mt-16 grid md:grid-cols-2 gap-12">
+            <div className="pt-10 text-center">
+              <div className="border-t border-black pt-2 text-sm">
+                Assinatura do responsável pelo relatório
+              </div>
+            </div>
+            <div className="pt-10 text-center">
+              <div className="border-t border-black pt-2 text-sm">
+                Assinatura da coordenação
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
 
-        {canEdit && onSave && (
-          <Button type="button" onClick={handleSaveAtividades} disabled={saving}>
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? 'Salvando...' : 'Salvar atividades'}
-          </Button>
-        )}
-
-        {onExportPdf && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleExportPdf}
-            disabled={exportingPdf}
-          >
-            <FileDown className="w-4 h-4 mr-2" />
-            {exportingPdf ? 'Exportando PDF...' : 'Exportar PDF para assinatura'}
-          </Button>
-        )}
-
-        {onBackToReport && (
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onBackToReport}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Retornar para relatório
-          </Button>
-        )}
+      <div className="flex gap-3 justify-end no-print">
+        <Button variant="outline" onClick={() => navigate('/Relatorios')}>
+          Cancelar
+        </Button>
+        <Button
+          onClick={() => handleSave('DRAFT')}
+          disabled={saving}
+          variant="secondary"
+        >
+          {saving ? 'Salvando...' : 'Salvar Rascunho'}
+        </Button>
+        <Button
+          onClick={() => handleSave('SUBMITTED')}
+          disabled={saving}
+        >
+          {saving ? 'Enviando...' : 'Enviar para Revisão'}
+        </Button>
       </div>
     </div>
   );
