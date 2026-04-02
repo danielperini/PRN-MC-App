@@ -138,6 +138,7 @@ export default function ReportEditor() {
     ano: new Date().getFullYear(),
     author_name: '',
     equipe: '',
+    resumo_periodo: '',
     atividades: [],
     oportunidades: [''],
     comentarios_coordenacao: '',
