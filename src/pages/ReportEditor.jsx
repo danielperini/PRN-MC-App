@@ -82,7 +82,7 @@ export default function ReportEditor() {
   const effectiveReportId = localReportId || reportId || null;
   const isEdit = Boolean(effectiveReportId);
 
-  const [currentTab, setCurrentTab] = useState('identificacao');
+  const [currentTab, setCurrentTab] = useState('relatorio');
   const [successMessage, setSuccessMessage] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -537,7 +537,7 @@ ${currentValue}`,
         onTabChange={setCurrentTab}
       />
 
-      {currentTab === 'identificacao' && (
+      {currentTab === 'relatorio' && (
         <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
           <div className="grid md:grid-cols-3 gap-4">
             <Field label="Mês de referência">
@@ -639,6 +639,72 @@ ${currentValue}`,
               />
             </div>
           </Field>
+
+          <div className="border-t pt-6 mt-6">
+            <h3 className="text-sm font-semibold text-gray-800 mb-4">Avaliação do período</h3>
+            <div className="space-y-4">
+              {[
+                { key: 'avaliacao_pontos_positivos', label: 'Pontos positivos' },
+                { key: 'avaliacao_desafios', label: 'Desafios encontrados' },
+                { key: 'avaliacao_sugestoes', label: 'Sugestões e encaminhamentos' }
+              ].map(({ key, label }) => (
+                <Field key={key} label={label}>
+                  <Textarea
+                    value={toInputValue(form?.[key], '')}
+                    onChange={(e) => updateField(key, e.target.value)}
+                    rows={4}
+                    disabled={isApproved}
+                  />
+                </Field>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t pt-6 mt-6">
+            <h3 className="text-sm font-semibold text-gray-800 mb-4">Comentários</h3>
+            <div className="space-y-4">
+              <Field label="Comentários gerais">
+                <Textarea
+                  value={toInputValue(form?.comentarios_gerais, '')}
+                  onChange={(e) => updateField('comentarios_gerais', e.target.value)}
+                  rows={4}
+                  disabled={isApproved}
+                />
+              </Field>
+
+              <Field label="Comentários para coordenação">
+                <Textarea
+                  value={toInputValue(form?.comentarios_coordenacao, '')}
+                  onChange={(e) => updateField('comentarios_coordenacao', e.target.value)}
+                  rows={4}
+                  disabled={isApproved}
+                />
+              </Field>
+
+              {form?.review_comment && (
+                <Field label="Comentário de aprovação">
+                  <Textarea value={toInputValue(form?.review_comment, '')} rows={4} readOnly />
+                </Field>
+              )}
+
+              {form?.return_comment && (
+                <Field label="Comentário de devolução">
+                  <Textarea value={toInputValue(form?.return_comment, '')} rows={4} readOnly />
+                </Field>
+              )}
+            </div>
+          </div>
+
+          {!isApproved && (
+            <button
+              type="button"
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              className="mt-6 px-4 py-2 bg-black text-white rounded disabled:opacity-60"
+            >
+              {saveMutation.isPending ? 'Salvando...' : 'Salvar relatório'}
+            </button>
+          )}
         </div>
       )}
 
@@ -709,7 +775,7 @@ ${currentValue}`,
           </div>
 
           <AttachmentsSection
-           reportId={localReportId || reportId}
+            reportId={localReportId || reportId}
             canEdit={!isApproved}
             reportData={form}
           />
@@ -762,137 +828,11 @@ ${currentValue}`,
             >
               {saveMutation.isPending ? 'Salvando...' : 'Salvar oportunidades'}
             </button>
-            )}
-            </div>
-            )}
-
-            {currentTab === 'avaliacao' && (
-              <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
-                {[
-                  { key: 'avaliacao_pontos_positivos', label: 'Pontos positivos' },
-                  { key: 'avaliacao_desafios', label: 'Desafios' },
-                  { key: 'avaliacao_sugestoes', label: 'Sugestões' }
-                ].map(({ key, label }) => (
-                  <Field key={key} label={label}>
-                    <Textarea
-                      value={toInputValue(form?.[key], '')}
-                      onChange={(e) => updateField(key, e.target.value)}
-                      rows={5}
-                      disabled={isApproved}
-                    />
-                  </Field>
-                ))}
-                {!isApproved && (
-            <button
-              type="button"
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending}
-              className="mt-4 px-4 py-2 bg-black text-white rounded disabled:opacity-60"
-            >
-              {saveMutation.isPending ? 'Salvando...' : 'Salvar avaliação'}
-            </button>
           )}
-          </div>
-          )}
+        </div>
+      )}
 
-          {currentTab === 'comentarios' && (
-        <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
-          <Field label="Comentários gerais">
-            <Textarea
-              value={toInputValue(form?.comentarios_gerais, '')}
-              onChange={(e) => updateField('comentarios_gerais', e.target.value)}
-              rows={5}
-              disabled={isApproved}
-            />
-          </Field>
-
-          <Field label="Comentários para coordenação">
-            <Textarea
-              value={toInputValue(form?.comentarios_coordenacao, '')}
-              onChange={(e) => updateField('comentarios_coordenacao', e.target.value)}
-              rows={5}
-              disabled={isApproved}
-            />
-          </Field>
-
-          {form?.review_comment && (
-            <Field label="Comentário de aprovação">
-              <Textarea value={toInputValue(form?.review_comment, '')} rows={4} readOnly />
-            </Field>
-          )}
-
-          {form?.return_comment && (
-            <Field label="Comentário de devolução">
-              <Textarea value={toInputValue(form?.return_comment, '')} rows={4} readOnly />
-            </Field>
-          )}
-          {!isApproved && (
-            <button
-              type="button"
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending}
-              className="mt-4 px-4 py-2 bg-black text-white rounded disabled:opacity-60"
-            >
-              {saveMutation.isPending ? 'Salvando...' : 'Salvar comentários'}
-            </button>
-          )}
-          </div>
-          )}
-
-          {currentTab === 'historico' && (
-        <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Criado em">
-              <Input value={toInputValue(form?.created_date, '')} readOnly />
-            </Field>
-
-            <Field label="Última atualização">
-              <Input value={toInputValue(form?.updated_date, '')} readOnly />
-            </Field>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Revisor">
-              <Input value={toInputValue(form?.reviewer_name, '')} readOnly />
-            </Field>
-
-            <Field label="E-mail do revisor">
-              <Input value={toInputValue(form?.reviewer_email, '')} readOnly />
-            </Field>
-          </div>
-          {!isApproved && (
-            <button
-              type="button"
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending}
-              className="mt-4 px-4 py-2 bg-black text-white rounded disabled:opacity-60"
-            >
-              {saveMutation.isPending ? 'Salvando...' : 'Salvar identificação'}
-            </button>
-          )}
-
-          <Field label="Observações de histórico">
-            <Textarea
-              value={toInputValue(form?.historico_observacoes, '')}
-              onChange={(e) => updateField('historico_observacoes', e.target.value)}
-              rows={5}
-              disabled={isApproved}
-            />
-          </Field>
-          {!isApproved && (
-            <button
-              type="button"
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending}
-              className="mt-4 px-4 py-2 bg-black text-white rounded disabled:opacity-60"
-            >
-              {saveMutation.isPending ? 'Salvando...' : 'Salvar histórico'}
-              </button>
-              )}
-              </div>
-              )}
-
-              <div className="flex flex-wrap gap-2 pt-2 items-center mt-6">
+      <div className="flex flex-wrap gap-2 pt-2 items-center mt-6">
         <button
           type="button"
           onClick={() => saveMutation.mutate()}
