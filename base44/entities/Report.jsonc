@@ -90,6 +90,10 @@
       "type": "string",
       "description": "Observa\u00e7\u00f5es de hist\u00f3rico"
     },
+    "oportunidades_resumo": {
+      "type": "string",
+      "description": "Resumo de oportunidades identificadas"
+    },
     "status": {
       "type": "string",
       "enum": [
