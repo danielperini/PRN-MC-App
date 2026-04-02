@@ -728,20 +728,20 @@ ${currentValue}`,
       <div className="flex flex-wrap gap-2 pt-2 items-center">
         <button
           type="button"
-          onClick={() => setSuccessMessage({ type: 'save', text: '✅ Relatório gravado com sucesso!' })}
-          disabled={isApproved}
+          onClick={() => saveMutation.mutate()}
+          disabled={saveMutation.isPending || isApproved}
           className="px-4 py-2 bg-black text-white rounded disabled:opacity-60"
         >
-          Salvar
+          {saveMutation.isPending ? 'Salvando...' : 'Salvar'}
         </button>
 
         <button
           type="button"
-          onClick={() => setSuccessMessage({ type: 'submit', text: '📨 Relatório enviado para revisão com sucesso! A coordenação será notificada.' })}
-          disabled={isApproved}
+          onClick={() => submitMutation.mutate()}
+          disabled={!canSubmit}
           className="px-4 py-2 border border-black text-black rounded disabled:opacity-60"
         >
-          Enviar para revisão
+          {submitMutation.isPending ? 'Enviando...' : 'Enviar para revisão'}
         </button>
 
         {successMessage && (
