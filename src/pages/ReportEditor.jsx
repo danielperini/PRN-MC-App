@@ -371,7 +371,7 @@ ${currentValue}`,
     },
   });
 
-  // Auto-save com debounce de 2s sempre que atividades mudarem (garante persistência no banco)
+  // Auto-save com debounce de 1s em qualquer mudança de campo
   const isFirstRender = useRef(true);
   const autoSaveTimer = useRef(null);
 
@@ -381,24 +381,47 @@ ${currentValue}`,
       isFirstRender.current = false;
       return;
     }
+    
     // Só auto-salva se houver ID e o relatório não estiver aprovado
     const idAutoSave = localReportId || reportId;
     if (!idAutoSave || isApproved) return;
 
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    
     autoSaveTimer.current = setTimeout(async () => {
       try {
         const payload = buildPayload(form?.status || 'DRAFT');
         await base44.entities.Report.update(idAutoSave, payload);
-        toast.success('✅ Relatório salvo automaticamente', { duration: 2000 });
+        // Silent save - apenas log, sem toast a menos que seja erro
+        console.log('[AutoSave] Relatório salvo automaticamente');
       } catch (err) {
         console.error('[AutoSave] Erro ao salvar:', err?.message);
+        // Mostra erro apenas se houver problema
+        if (err?.message) {
+          toast.error('⚠️ Erro ao salvar automaticamente: ' + err.message, { duration: 3000 });
+        }
       }
-    }, 2000);
+    }, 1000);
 
     return () => clearTimeout(autoSaveTimer.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.atividades, form.mes_referencia, form.ano, form.museu, form.author_name, form.equipe, form.resumo_periodo, form.avaliacao_pontos_positivos, form.avaliacao_desafios, form.avaliacao_sugestoes, form.oportunidades, form.comentarios_gerais, form.comentarios_coordenacao]);
+  }, [
+    form.museu,
+    form.mes_referencia,
+    form.ano,
+    form.author_name,
+    form.equipe,
+    form.resumo_periodo,
+    form.atividades,
+    form.oportunidades,
+    form.avaliacao_pontos_positivos,
+    form.avaliacao_desafios,
+    form.avaliacao_sugestoes,
+    form.comentarios_gerais,
+    form.comentarios_coordenacao,
+    form.historico_observacoes,
+    isApproved,
+  ]);
 
   const isApproved = form?.status === 'APPROVED';
   const canSubmit = !isApproved && !saveMutation.isPending && !submitMutation.isPending;
