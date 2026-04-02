@@ -753,56 +753,32 @@ ${currentValue}`,
               )}
             </div>
           ))}
-        </div>
-      )}
+          {!isApproved && (
+            <button
+              type="button"
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              className="mt-4 px-4 py-2 bg-black text-white rounded disabled:opacity-60"
+            >
+              {saveMutation.isPending ? 'Salvando...' : 'Salvar oportunidades'}
+            </button>
+          )}
+          </div>
+          )}
+          {!isApproved && (
+            <button
+              type="button"
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              className="mt-4 px-4 py-2 bg-black text-white rounded disabled:opacity-60"
+            >
+              {saveMutation.isPending ? 'Salvando...' : 'Salvar avaliação'}
+            </button>
+          )}
+          </div>
+          )}
 
-      {currentTab === 'avaliacao' && (
-        <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
-          {[
-            ['Pontos positivos', 'avaliacao_pontos_positivos'],
-            ['Desafios encontrados', 'avaliacao_desafios'],
-            ['Sugestões / encaminhamentos', 'avaliacao_sugestoes'],
-          ].map(([label, key]) => (
-            <Field key={key} label={label}>
-              <div className="space-y-1">
-                {!isApproved && (
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const v = form?.[key] || '';
-                        updateField(key, v + (v && !v.endsWith('\n') ? '\n' : '') + '• ');
-                      }}
-                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 px-2 py-1 border rounded"
-                    >
-                      <List className="w-3 h-3" /> Tópico
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await aiComplete(label, form?.[key] || '', form?.resumo_periodo || '');
-                      }}
-                      className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 px-2 py-1 border border-purple-200 rounded"
-                    >
-                      <Sparkles className="w-3 h-3" /> IA
-                    </button>
-                  </div>
-                )}
-
-                <Textarea
-                  value={toInputValue(form?.[key], '')}
-                  onChange={(e) => updateField(key, e.target.value)}
-                  rows={5}
-                  disabled={isApproved}
-                />
-              </div>
-            </Field>
-          ))}
-        </div>
-      )}
-
-      {currentTab === 'comentarios' && (
+              {currentTab === 'comentarios' && (
         <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
           <Field label="Comentários gerais">
             <Textarea
@@ -833,8 +809,18 @@ ${currentValue}`,
               <Textarea value={toInputValue(form?.return_comment, '')} rows={4} readOnly />
             </Field>
           )}
-        </div>
-      )}
+          {!isApproved && (
+            <button
+              type="button"
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              className="mt-4 px-4 py-2 bg-black text-white rounded disabled:opacity-60"
+            >
+              {saveMutation.isPending ? 'Salvando...' : 'Salvar comentários'}
+            </button>
+          )}
+          </div>
+          )}
 
       {currentTab === 'historico' && (
         <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
@@ -857,6 +843,16 @@ ${currentValue}`,
               <Input value={toInputValue(form?.reviewer_email, '')} readOnly />
             </Field>
           </div>
+          {!isApproved && (
+            <button
+              type="button"
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              className="mt-4 px-4 py-2 bg-black text-white rounded disabled:opacity-60"
+            >
+              {saveMutation.isPending ? 'Salvando...' : 'Salvar identificação'}
+            </button>
+          )}
 
           <Field label="Observações de histórico">
             <Textarea
@@ -866,8 +862,18 @@ ${currentValue}`,
               disabled={isApproved}
             />
           </Field>
-        </div>
-      )}
+          {!isApproved && (
+            <button
+              type="button"
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              className="mt-4 px-4 py-2 bg-black text-white rounded disabled:opacity-60"
+            >
+              {saveMutation.isPending ? 'Salvando...' : 'Salvar histórico'}
+            </button>
+          )}
+          </div>
+          )}
 
       <div className="flex flex-wrap gap-2 pt-2 items-center">
         <button
