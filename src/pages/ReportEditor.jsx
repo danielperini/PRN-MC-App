@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -55,67 +55,15 @@ function getStatusClasses(status) {
   }
 }
 
-const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const ANOS = [2024, 2025, 2026];
-const MUSEUS_OPTIONS = ['MIS','MuMo','MHAB','Administração','Comunicação','Coordenação','Área'];
+const MUSEUS_OPTIONS = ['MIS', 'MuMo', 'MHAB', 'Administração', 'Comunicação', 'Coordenação', 'Área'];
 
 function Field({ label, children }) {
   return (
     <div className="space-y-1">
       <Label className="text-xs text-gray-600">{label}</Label>
       {children}
-    </div>
-  );
-}
-
-function BulletTextarea({ value, onChange, rows = 5, disabled }) {
-  const ref = useRef(null);
-
-  function addBullet() {
-    const ta = ref.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const before = value.slice(0, start);
-    const after = value.slice(start);
-    const lineStart = before.lastIndexOf('\n') + 1;
-    const lineContent = before.slice(lineStart);
-    let newVal;
-    if (lineContent === '' || lineContent === '• ') {
-      newVal = before + '• ' + after;
-    } else {
-      newVal = before + '\n• ' + after;
-    }
-    onChange({ target: { value: newVal } });
-    setTimeout(() => {
-      ta.selectionStart = ta.selectionEnd = start + (lineContent === '' ? 2 : 4);
-      ta.focus();
-    }, 10);
-  }
-
-  function handleKeyDown(e) {
-    if (e.key === 'Enter') {
-      const ta = e.target;
-      const start = ta.selectionStart;
-      const before = value.slice(0, start);
-      const lineStart = before.lastIndexOf('\n') + 1;
-      const lineContent = before.slice(lineStart);
-      if (lineContent.startsWith('• ') && lineContent.trim() !== '•') {
-        e.preventDefault();
-        const newVal = value.slice(0, start) + '\n• ' + value.slice(start);
-        onChange({ target: { value: newVal } });
-        setTimeout(() => { ta.selectionStart = ta.selectionEnd = start + 3; }, 10);
-      }
-    }
-  }
-
-  return (
-    <div className="space-y-1">
-      {!disabled && (
-        <button type="button" onClick={addBullet} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 px-2 py-1 border rounded">
-          <List className="w-3 h-3" /> Tópico
-        </button>
-      )}
-      <Textarea ref={ref} value={value} onChange={onChange} onKeyDown={handleKeyDown} rows={rows} disabled={disabled} />
     </div>
   );
 }
@@ -130,8 +78,14 @@ export default function ReportEditor() {
   const [params] = useSearchParams();
   const reportId = params.get('id');
 
+  const [localReportId, setLocalReportId] = useState(reportId || null);
+  const effectiveReportId = localReportId || reportId || null;
+  const isEdit = Boolean(effectiveReportId);
+
   const [currentTab, setCurrentTab] = useState('identificacao');
   const [successMessage, setSuccessMessage] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+
   const [form, setForm] = useState({
     museu: '',
     mes_referencia: '',
@@ -147,38 +101,65 @@ export default function ReportEditor() {
     avaliacao_desafios: '',
     avaliacao_sugestoes: '',
     historico_observacoes: '',
+    fotos: [],
+    status: 'DRAFT',
   });
 
+  const lastLoadedReportIdRef = useRef(null);
+  const isFirstRender = useRef(true);
+  const autoSaveTimer = useRef(null);
+
   const { data: report, refetch } = useQuery({
-    queryKey: ['report', reportId],
-    enabled: !!reportId,
-    queryFn: () => base44.entities.Report.get(reportId),
+    queryKey: ['report', effectiveReportId],
+    enabled: !!effectiveReportId,
+    queryFn: () => base44.entities.Report.get(effectiveReportId),
   });
 
   useEffect(() => {
-   if (!report) return;
-   setForm({
-     ...report,
-     resumo_periodo: report?.resumo_periodo ?? '',
-     atividades: Array.isArray(report.atividades)
-       ? report.atividades.map((atividade) => ({
-           ...atividade,
-           id: atividade?.id || crypto.randomUUID(),
-           quantidade_ocorrencias: atividade?.quantidade_ocorrencias ?? '',
-           quantidade_produtos_gerados: atividade?.quantidade_produtos_gerados ?? '',
-           publico_estimado: atividade?.publico_estimado ?? '',
-           total_atividades: atividade?.total_atividades ?? '',
-         }))
-       : [],
-     oportunidades: normalizeOportunidades(report.oportunidades),
-     fotos: Array.isArray(report.fotos) ? report.fotos : [],
-     comentarios_coordenacao: report?.comentarios_coordenacao ?? '',
-     comentarios_gerais: report?.comentarios_gerais ?? '',
-     avaliacao_pontos_positivos: report?.avaliacao_pontos_positivos ?? '',
-     avaliacao_desafios: report?.avaliacao_desafios ?? '',
-     avaliacao_sugestoes: report?.avaliacao_sugestoes ?? '',
-     historico_observacoes: report?.historico_observacoes ?? '',
-   });
+    base44.auth.me().then((u) => setCurrentUser(u)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setForm((prev) => ({
+      ...prev,
+      author_name: prev.author_name || currentUser.full_name || '',
+      equipe: prev.equipe || currentUser.email || '',
+    }));
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!report?.id) return;
+    if (lastLoadedReportIdRef.current === report.id) return;
+
+    setForm((prev) => ({
+      ...prev,
+      ...report,
+      resumo_periodo: report?.resumo_periodo ?? '',
+      atividades: Array.isArray(report.atividades)
+        ? report.atividades.map((atividade) => ({
+            ...atividade,
+            id: atividade?.id || crypto.randomUUID(),
+            quantidade_ocorrencias: atividade?.quantidade_ocorrencias ?? '',
+            quantidade_produtos_gerados: atividade?.quantidade_produtos_gerados ?? '',
+            publico_estimado: atividade?.publico_estimado ?? '',
+            total_atividades: atividade?.total_atividades ?? '',
+            publico_total: atividade?.publico_total ?? '',
+            total_produtos_gerados: atividade?.total_produtos_gerados ?? '',
+          }))
+        : [],
+      oportunidades: normalizeOportunidades(report.oportunidades),
+      fotos: Array.isArray(report.fotos) ? report.fotos : [],
+      comentarios_coordenacao: report?.comentarios_coordenacao ?? '',
+      comentarios_gerais: report?.comentarios_gerais ?? '',
+      avaliacao_pontos_positivos: report?.avaliacao_pontos_positivos ?? '',
+      avaliacao_desafios: report?.avaliacao_desafios ?? '',
+      avaliacao_sugestoes: report?.avaliacao_sugestoes ?? '',
+      historico_observacoes: report?.historico_observacoes ?? '',
+      status: report?.status || 'DRAFT',
+    }));
+
+    lastLoadedReportIdRef.current = report.id;
   }, [report]);
 
   const museusOptions = useMemo(() => {
@@ -191,25 +172,10 @@ export default function ReportEditor() {
     return Array.isArray(valores) ? valores.filter(Boolean) : [];
   }, [report]);
 
-  const [currentUser, setCurrentUser] = useState(null);
-
-  useEffect(() => {
-    base44.auth.me().then(u => setCurrentUser(u)).catch(() => {});
-  }, []);
-
-  // Pré-preencher autor e equipe do usuário logado
-  useEffect(() => {
-    if (!currentUser) return;
-    setForm(prev => ({
-      ...prev,
-      author_name: prev.author_name || currentUser.full_name || '',
-      equipe: prev.equipe || currentUser.email || '',
-    }));
-  }, [currentUser]);
-
   async function aiComplete(field, currentValue, context) {
     if (!currentValue && !context) return;
     toast.info('✨ IA completando...', { duration: 2000 });
+
     const res = await base44.integrations.Core.InvokeLLM({
       prompt: `Você é um assistente de redação para relatórios de museus culturais. Complete ou melhore o seguinte texto do campo "${field}" de um relatório mensal. Seja claro, objetivo e escreva em português formal. Mantenha o estilo em tópicos com • se já houver tópicos. Retorne apenas o texto melhorado, sem explicações.
 
@@ -218,7 +184,19 @@ Contexto do relatório: ${context || ''}
 Texto atual:
 ${currentValue}`,
     });
-    if (res) updateField(field === 'Pontos positivos' ? 'avaliacao_pontos_positivos' : field === 'Desafios' ? 'avaliacao_desafios' : field === 'Sugestões' ? 'avaliacao_sugestoes' : 'resumo_periodo', res);
+
+    if (res) {
+      updateField(
+        field === 'Pontos positivos'
+          ? 'avaliacao_pontos_positivos'
+          : field === 'Desafios'
+            ? 'avaliacao_desafios'
+            : field === 'Sugestões'
+              ? 'avaliacao_sugestoes'
+              : 'resumo_periodo',
+        res
+      );
+    }
   }
 
   function updateField(field, value) {
@@ -261,6 +239,18 @@ ${currentValue}`,
     return {
       ...form,
       ...(nextStatus ? { status: nextStatus } : {}),
+      museu: form?.museu ?? '',
+      mes_referencia: form?.mes_referencia ?? '',
+      ano: form?.ano ?? new Date().getFullYear(),
+      author_name: form?.author_name ?? '',
+      equipe: form?.equipe ?? '',
+      resumo_periodo: form?.resumo_periodo ?? '',
+      comentarios_coordenacao: form?.comentarios_coordenacao ?? '',
+      comentarios_gerais: form?.comentarios_gerais ?? '',
+      avaliacao_pontos_positivos: form?.avaliacao_pontos_positivos ?? '',
+      avaliacao_desafios: form?.avaliacao_desafios ?? '',
+      avaliacao_sugestoes: form?.avaliacao_sugestoes ?? '',
+      historico_observacoes: form?.historico_observacoes ?? '',
       oportunidades: (form.oportunidades || []).map((item) => String(item || '').trim()).filter(Boolean),
       atividades: (form.atividades || []).map((a) => ({
         ...a,
@@ -271,36 +261,34 @@ ${currentValue}`,
         publico_total: normalizeNullableNumber(a.publico_total),
         total_produtos_gerados: normalizeNullableNumber(a.total_produtos_gerados),
       })),
+      fotos: Array.isArray(form.fotos) ? form.fotos : [],
     };
   }
 
-  const [localReportId, setLocalReportId] = useState(reportId);
+  const isApproved = form?.status === 'APPROVED';
+  const canSubmit = !isApproved;
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = buildPayload(form?.status || 'DRAFT');
 
-      // ⚠️ SEMPRE recalcular aqui
       const idAtual = localReportId || reportId;
       const isEditNow = Boolean(idAtual);
 
       let saved;
 
       if (!isEditNow) {
-        // CREATE (rascunho leve)
         saved = await base44.entities.Report.create({
           ...payload,
-          status: 'DRAFT',
+          status: payload?.status || 'DRAFT',
         });
 
         if (saved?.id) {
           setLocalReportId(saved.id);
-
-          // 🔥 força atualização imediata do ID
+          lastLoadedReportIdRef.current = null;
           window.history.replaceState(null, '', `/ReportEditor?id=${saved.id}`);
         }
       } else {
-        // UPDATE real (garante persistência)
         saved = await base44.entities.Report.update(idAtual, payload);
       }
 
@@ -308,21 +296,20 @@ ${currentValue}`,
         throw new Error('Servidor não confirmou a gravação.');
       }
 
-      // 🔥 importante: sempre usar id atualizado
-      const finalId = saved.id || idAtual;
+      const finalId = saved?.id || idAtual;
 
       try {
-        await base44.functions.invoke('backupReportToDrive', {
-          reportId: finalId,
-        });
-      } catch (e) {
-        console.warn('Backup falhou:', e?.message);
+        await base44.functions.invoke('backupReportToDrive', { reportId: finalId });
+      } catch (backupErr) {
+        console.warn('Backup Drive falhou (silencioso):', backupErr?.message);
       }
 
       return saved;
     },
     onSuccess: async () => {
-      toast.success('✅ Relatório salvo com sucesso!');
+      const msg = '✅ Relatório gravado com sucesso!';
+      setSuccessMessage({ type: 'save', text: msg });
+      toast.success(msg, { duration: 5000 });
       await refetch();
     },
     onError: (e) => {
@@ -333,25 +320,26 @@ ${currentValue}`,
   const submitMutation = useMutation({
     mutationFn: async () => {
       const idAtual = localReportId || reportId;
-      
+
       if (!idAtual) {
         throw new Error('Salve o relatório antes de enviar para revisão.');
       }
-      
+
       const payload = buildPayload('SUBMITTED');
       payload.submitted_at = new Date().toISOString();
       payload.review_status = 'aguardando_revisao';
-      
-      // Validar campos obrigatórios antes de ENVIAR
+
       if (!payload.museu) throw new Error('Selecione um Museu / Área antes de enviar');
       if (!payload.mes_referencia) throw new Error('Selecione um Mês de referência antes de enviar');
       if (!payload.author_name) throw new Error('Preencha o Nome do autor antes de enviar');
       if (!payload.ano) throw new Error('Selecione um Ano antes de enviar');
-      
+
       const saved = await base44.entities.Report.update(idAtual, payload);
-      if (!saved) throw new Error('Servidor não confirmou o envio. Tente novamente.');
-      
-      // Notificar coordenadores
+
+      if (!saved?.id) {
+        throw new Error('Servidor não confirmou o envio. Tente novamente.');
+      }
+
       try {
         await base44.functions.invoke('notifyCoordinatorOnSubmit', {
           reportId: idAtual,
@@ -360,21 +348,24 @@ ${currentValue}`,
       } catch (notifErr) {
         console.warn('Notificação falhou (silenciosa):', notifErr?.message);
       }
-      
+
       try {
-        return await base44.functions.invoke('backupReportToDrive', { reportId: idAtual });
+        await base44.functions.invoke('backupReportToDrive', { reportId: idAtual });
       } catch (e) {
         console.warn('Backup Drive ao enviar falhou:', e?.message);
-        return null;
       }
+
+      return saved;
     },
-    onSuccess: async (backupRes) => {
-      const bd = backupRes?.data;
-      const driveInfo = bd?.success ? ` | 📁 ${bd.pasta_drive || 'Drive sincronizado'}` : '';
-      const msg = `📨 Relatório enviado para revisão com sucesso!${driveInfo} A coordenação será notificada.`;
+    onSuccess: async () => {
+      const msg = '📨 Relatório enviado para revisão com sucesso! A coordenação será notificada.';
       setSuccessMessage({ type: 'submit', text: msg });
       toast.success(msg, { duration: 8000 });
-      setForm((prev) => ({ ...prev, status: 'SUBMITTED', review_status: 'aguardando_revisao' }));
+      setForm((prev) => ({
+        ...prev,
+        status: 'SUBMITTED',
+        review_status: 'aguardando_revisao',
+      }));
       await refetch();
     },
     onError: (e) => {
@@ -382,56 +373,49 @@ ${currentValue}`,
     },
   });
 
-  // Auto-save com debounce de 1s em qualquer mudança de campo
-  // APENAS para relatórios já salvos (isEdit = true)
-  const isFirstRender = useRef(true);
-  const autoSaveTimer = useRef(null);
-
   useEffect(() => {
-    // Ignora na carga inicial
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
-    
-    // Auto-save APENAS se não está aprovado
+
     if (isApproved) return;
 
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    
+
     autoSaveTimer.current = setTimeout(async () => {
       try {
         const payload = buildPayload(form?.status || 'DRAFT');
-        
-        // ⚠️ SEMPRE recalcular aqui
         const idAutoSave = localReportId || reportId;
-        
+
         if (!idAutoSave) {
           const created = await base44.entities.Report.create({
             ...payload,
             status: 'DRAFT',
           });
+
           if (created?.id) {
             setLocalReportId(created.id);
+            lastLoadedReportIdRef.current = null;
             window.history.replaceState(null, '', `/ReportEditor?id=${created.id}`);
             console.log('[AutoSave] Relatório criado automaticamente:', created.id);
           }
           return;
         }
-        
+
         await base44.entities.Report.update(idAutoSave, payload);
         console.log('[AutoSave] Relatório salvo automaticamente');
       } catch (err) {
         console.error('[AutoSave] Erro ao salvar:', err?.message);
-        if (err?.message) {
-          toast.error('⚠️ Erro ao salvar: ' + err.message, { duration: 3000 });
-        }
       }
     }, 1000);
 
     return () => clearTimeout(autoSaveTimer.current);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    localReportId,
+    reportId,
+    isApproved,
     form.museu,
     form.mes_referencia,
     form.ano,
@@ -446,10 +430,9 @@ ${currentValue}`,
     form.comentarios_gerais,
     form.comentarios_coordenacao,
     form.historico_observacoes,
+    form.status,
+    form.fotos,
   ]);
-
-  const isApproved = form?.status === 'APPROVED';
-  const canSubmit = !isApproved && !saveMutation.isPending && !submitMutation.isPending && (localReportId || reportId);
 
   return (
     <div className="p-6 space-y-6">
@@ -469,6 +452,7 @@ ${currentValue}`,
           >
             {getStatusLabel(form?.status)}
           </span>
+
           {!isApproved && (
             <button
               type="button"
@@ -480,11 +464,12 @@ ${currentValue}`,
               {saveMutation.isPending ? 'Salvando...' : 'Salvar Rascunho'}
             </button>
           )}
+
           {!isApproved && (
             <button
               type="button"
               onClick={() => submitMutation.mutate()}
-              disabled={!canSubmit}
+              disabled={!canSubmit || saveMutation.isPending || submitMutation.isPending}
               className="inline-flex items-center gap-1.5 px-4 py-1.5 border border-black text-black text-sm rounded-lg disabled:opacity-60 hover:bg-gray-50 transition-colors"
             >
               {submitMutation.isPending ? 'Enviando...' : 'Enviar para revisão'}
@@ -493,13 +478,14 @@ ${currentValue}`,
         </div>
       </div>
 
-      {/* Banner de sucesso após salvar/enviar */}
       {successMessage && (
-        <div className={`rounded-xl border-2 p-4 flex items-start gap-3 ${
-          successMessage.type === 'submit'
-            ? 'border-blue-400 bg-blue-50'
-            : 'border-green-400 bg-green-50'
-        }`}>
+        <div
+          className={`rounded-xl border-2 p-4 flex items-start gap-3 ${
+            successMessage.type === 'submit'
+              ? 'border-blue-400 bg-blue-50'
+              : 'border-green-400 bg-green-50'
+          }`}
+        >
           <span className="text-2xl">{successMessage.type === 'submit' ? '📨' : '✅'}</span>
           <div className="flex-1">
             <p className={`font-semibold text-sm ${successMessage.type === 'submit' ? 'text-blue-800' : 'text-green-800'}`}>
@@ -514,7 +500,12 @@ ${currentValue}`,
               </p>
             )}
           </div>
-          <button onClick={() => setSuccessMessage(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+          <button
+            onClick={() => setSuccessMessage(null)}
+            className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+          >
+            ×
+          </button>
         </div>
       )}
 
@@ -557,7 +548,7 @@ ${currentValue}`,
               >
                 <SelectTrigger><SelectValue placeholder="Selecione o mês" /></SelectTrigger>
                 <SelectContent>
-                  {MESES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  {MESES.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                 </SelectContent>
               </Select>
             </Field>
@@ -570,7 +561,7 @@ ${currentValue}`,
               >
                 <SelectTrigger><SelectValue placeholder="Selecione o ano" /></SelectTrigger>
                 <SelectContent>
-                  {ANOS.map(a => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
+                  {ANOS.map((a) => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
                 </SelectContent>
               </Select>
             </Field>
@@ -583,7 +574,7 @@ ${currentValue}`,
               >
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  {MUSEUS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  {MUSEUS_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                 </SelectContent>
               </Select>
             </Field>
@@ -613,21 +604,33 @@ ${currentValue}`,
             <div className="space-y-1">
               {!isApproved && (
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => {
-                    const v = form?.resumo_periodo || '';
-                    updateField('resumo_periodo', v + (v && !v.endsWith('\n') ? '\n' : '') + '• ');
-                  }} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 px-2 py-1 border rounded">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const v = form?.resumo_periodo || '';
+                      updateField('resumo_periodo', v + (v && !v.endsWith('\n') ? '\n' : '') + '• ');
+                    }}
+                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 px-2 py-1 border rounded"
+                  >
                     <List className="w-3 h-3" /> Tópico
                   </button>
-                  <button type="button" onClick={async () => {
-                    toast.info('✨ IA completando...', { duration: 2000 });
-                    const res = await base44.integrations.Core.InvokeLLM({ prompt: `Complete ou melhore este resumo de relatório mensal de museu. Escreva em português formal, em tópicos com •. Retorne apenas o texto.\n\nTexto atual:\n${form?.resumo_periodo || ''}` });
-                    if (res) updateField('resumo_periodo', res);
-                  }} className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 px-2 py-1 border border-purple-200 rounded">
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      toast.info('✨ IA completando...', { duration: 2000 });
+                      const res = await base44.integrations.Core.InvokeLLM({
+                        prompt: `Complete ou melhore este resumo de relatório mensal de museu. Escreva em português formal, em tópicos com •. Retorne apenas o texto.\n\nTexto atual:\n${form?.resumo_periodo || ''}`,
+                      });
+                      if (res) updateField('resumo_periodo', res);
+                    }}
+                    className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 px-2 py-1 border border-purple-200 rounded"
+                  >
                     <Sparkles className="w-3 h-3" /> IA
                   </button>
                 </div>
               )}
+
               <Textarea
                 value={toInputValue(form?.resumo_periodo, '')}
                 onChange={(e) => updateField('resumo_periodo', e.target.value)}
@@ -660,53 +663,53 @@ ${currentValue}`,
           mesReferencia={form?.mes_referencia || report?.mes_referencia || ''}
           ano={Number(form?.ano || report?.ano || new Date().getFullYear())}
           museu={form?.museu || ''}
-          reportId={localReportId || reportId}
+          reportId={effectiveReportId}
           onSave={async () => {
-          const idAtual = localReportId || reportId;
-          if (!idAtual) throw new Error('Salve o relatório primeiro antes de salvar atividades.');
-          const payload = buildPayload(form?.status || 'DRAFT');
-          const saved = await base44.entities.Report.update(idAtual, payload);
-          if (!saved) throw new Error('Servidor não confirmou a gravação.');
-          refetch();
+            const idAtual = localReportId || reportId;
+            if (!idAtual) throw new Error('Salve o relatório primeiro antes de salvar atividades.');
+            const payload = buildPayload(form?.status || 'DRAFT');
+            const saved = await base44.entities.Report.update(idAtual, payload);
+            if (!saved?.id) throw new Error('Servidor não confirmou a gravação.');
+            await refetch();
           }}
         />
       )}
 
-      {currentTab === 'fotos' && (localReportId || reportId) && (
+      {currentTab === 'fotos' && effectiveReportId && (
         <div className="space-y-6">
-          {/* Vínculos de fotos já enviadas da galeria */}
           <div className="rounded-lg border bg-white p-4 shadow-sm">
             <h2 className="text-sm font-semibold text-gray-800 mb-4">📎 Fotos vinculadas ao relatório</h2>
             <ReportPhotoSection
               photos={form.fotos || []}
-              reportId={localReportId || reportId}
+              reportId={effectiveReportId}
               onAddPhoto={(photo) => {
-                setForm(prev => ({
+                setForm((prev) => ({
                   ...prev,
                   fotos: [...(prev.fotos || []), photo],
                 }));
               }}
               onUpdatePhoto={(photoId, caption) => {
-                setForm(prev => ({
+                setForm((prev) => ({
                   ...prev,
-                  fotos: (prev.fotos || []).map(p =>
+                  fotos: (prev.fotos || []).map((p) =>
                     p.id === photoId ? { ...p, caption } : p
                   ),
                 }));
               }}
               onDeletePhoto={(photoId) => {
-                setForm(prev => ({
+                setForm((prev) => ({
                   ...prev,
-                  fotos: (prev.fotos || []).filter(p => p.id !== photoId),
+                  fotos: (prev.fotos || []).filter((p) => p.id !== photoId),
                 }));
               }}
             />
-            <p className="text-xs text-gray-500 mt-3">💡 Vincule fotos da galeria de relatórios aprovados. Salve o relatório para persistir os vínculos.</p>
+            <p className="text-xs text-gray-500 mt-3">
+              💡 Vincule fotos da galeria de relatórios aprovados. Salve o relatório para persistir os vínculos.
+            </p>
           </div>
 
-          {/* Upload de novos arquivos e fotos */}
           <AttachmentsSection
-           reportId={localReportId || reportId}
+            reportId={effectiveReportId}
             canEdit={!isApproved}
             reportData={form}
           />
@@ -755,26 +758,38 @@ ${currentValue}`,
 
       {currentTab === 'avaliacao' && (
         <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
-          {[['Pontos positivos','avaliacao_pontos_positivos'],['Desafios encontrados','avaliacao_desafios'],['Sugestões / encaminhamentos','avaliacao_sugestoes']].map(([label, key]) => (
+          {[
+            ['Pontos positivos', 'avaliacao_pontos_positivos'],
+            ['Desafios encontrados', 'avaliacao_desafios'],
+            ['Sugestões / encaminhamentos', 'avaliacao_sugestoes'],
+          ].map(([label, key]) => (
             <Field key={key} label={label}>
               <div className="space-y-1">
                 {!isApproved && (
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => {
-                      const v = form?.[key] || '';
-                      updateField(key, v + (v && !v.endsWith('\n') ? '\n' : '') + '• ');
-                    }} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 px-2 py-1 border rounded">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const v = form?.[key] || '';
+                        updateField(key, v + (v && !v.endsWith('\n') ? '\n' : '') + '• ');
+                      }}
+                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 px-2 py-1 border rounded"
+                    >
                       <List className="w-3 h-3" /> Tópico
                     </button>
-                    <button type="button" onClick={async () => {
-                      toast.info('✨ IA completando...', { duration: 2000 });
-                      const res = await base44.integrations.Core.InvokeLLM({ prompt: `Complete ou melhore este campo "${label}" de relatório mensal de museu cultural. Escreva em português formal, em tópicos com •. Retorne apenas o texto.\n\nTexto atual:\n${form?.[key] || ''}` });
-                      if (res) updateField(key, res);
-                    }} className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 px-2 py-1 border border-purple-200 rounded">
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await aiComplete(label, form?.[key] || '', form?.resumo_periodo || '');
+                      }}
+                      className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 px-2 py-1 border border-purple-200 rounded"
+                    >
                       <Sparkles className="w-3 h-3" /> IA
                     </button>
                   </div>
                 )}
+
                 <Textarea
                   value={toInputValue(form?.[key], '')}
                   onChange={(e) => updateField(key, e.target.value)}
@@ -867,16 +882,18 @@ ${currentValue}`,
         <button
           type="button"
           onClick={() => submitMutation.mutate()}
-          disabled={!canSubmit}
+          disabled={!canSubmit || saveMutation.isPending || submitMutation.isPending}
           className="px-4 py-2 border border-black text-black rounded disabled:opacity-60"
         >
           {submitMutation.isPending ? 'Enviando...' : 'Enviar para revisão'}
         </button>
 
         {successMessage && (
-          <span className={`text-sm font-medium flex items-center gap-1 ${
-            successMessage.type === 'submit' ? 'text-blue-700' : 'text-green-700'
-          }`}>
+          <span
+            className={`text-sm font-medium flex items-center gap-1 ${
+              successMessage.type === 'submit' ? 'text-blue-700' : 'text-green-700'
+            }`}
+          >
             {successMessage.text}
           </span>
         )}
