@@ -1,51 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { notifyCoordinators } from '@/lib/notifyHelpers';
-import { useQuery, useQueryClient } fr// 🔥 APENAS TRECHO ALTERADO DENTRO DO handleSubmit (ANTES DO create)
-
-      // 🔒 VALIDAÇÕES CRÍTICAS ANTES DO ENVIO
-
-      // 1. 🔁 NF DUPLICADA
-      const existing = await base44.entities.TeamPayment.filter({
-        team_member_id: effectiveMember.id,
-        numero_nf: form.numero_nf,
-        mes_referencia: selectedComp.mes,
-        ano: selectedComp.ano
-      });
-
-      if (Array.isArray(existing) && existing.length > 0) {
-        toast.error('Já existe uma nota fiscal enviada para essa competência com esse número.');
-        setSubmitting(false);
-        return;
-      }
-
-      // 2. 💰 VALIDAÇÃO DE SALDO + RUBRICA
-      try {
-        const budgetCheck = await base44.functions.invoke('check_budget', {
-          valor: toNumber(form.valor_nf || valorParcela),
-          user_email: effectiveMember.user_email,
-          contexto: 'TEAM_PAYMENT',
-          mes: selectedComp.mes,
-          ano: selectedComp.ano
-        });
-
-        const bc = budgetCheck?.data || {};
-
-        if (bc?.blocked_by_rubrica) {
-          toast.error('Envio bloqueado: rubrica inválida ou não permitida.');
-          setSubmitting(false);
-          return;
-        }
-
-        if (bc?.saldo_insuficiente) {
-          toast.error('Saldo insuficiente para envio desta nota fiscal.');
-          setSubmitting(false);
-          return;
-        }
-
-      } catch (e) {
-        console.warn('Falha ao validar saldo/rubrica', e);
-      }om '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -56,7 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle
 } from '@/components/ui/dialog';
 import {
-  AlertCircle, CheckCircle2, Eye, FileText, Loader2, Plus, Upload, Brain, FileCheck
+  AlertCircle, CheckCircle2, Eye, FileText, Loader2, Plus, Upload, Brain
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
@@ -189,7 +145,10 @@ function buildDescricaoModelo(member, currentUser, mes, ano) {
 
 async function renameFile(file, fileName) {
   const buffer = await file.arrayBuffer();
-  return new File([buffer], fileName, { type: file.type || 'application/octet-stream', lastModified: Date.now() });
+  return new File([buffer], fileName, {
+    type: file.type || 'application/octet-stream',
+    lastModified: Date.now()
+  });
 }
 
 export default function TeamPaymentSubmit({ userEmail }) {
@@ -204,13 +163,14 @@ export default function TeamPaymentSubmit({ userEmail }) {
     { label: 'Upload do PDF', done: false },
     { label: 'Upload do XML', done: false },
     { label: 'Análise com IA', done: false },
+    { label: 'Validações de negócio', done: false },
     { label: 'Registro no sistema', done: false },
     { label: 'Backup no Drive', done: false },
     { label: 'Notificações', done: false }
   ]);
   const [progressPercent, setProgressPercent] = useState(0);
   const [memberLocalPatch, setMemberLocalPatch] = useState({});
-  const [analyzingOnly, setAnalyzingOnly] = useState(false);
+  const [analyzingOnly] = useState(false);
 
   const [form, setForm] = useState({
     competencia: '',
@@ -227,6 +187,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
       { label: 'Upload do PDF', done: false },
       { label: 'Upload do XML', done: false },
       { label: 'Análise com IA', done: false },
+      { label: 'Validações de negócio', done: false },
       { label: 'Registro no sistema', done: false },
       { label: 'Backup no Drive', done: false },
       { label: 'Notificações', done: false }
@@ -235,20 +196,30 @@ export default function TeamPaymentSubmit({ userEmail }) {
   }
 
   function markStepDone(index, percent) {
-    setSubmissionSteps((prev) => prev.map((s, i) => i === index ? { ...s, done: true } : s));
+    setSubmissionSteps((prev) =>
+      prev.map((s, i) => (i === index ? { ...s, done: true } : s))
+    );
     setProgressPercent(percent);
   }
 
   function handleSelectPDF(file) {
     if (!file) return;
     setPdfFile(file);
-    setForm((prev) => ({ ...prev, nota_fiscal_file_name: file.name, nota_fiscal_url: '' }));
+    setForm((prev) => ({
+      ...prev,
+      nota_fiscal_file_name: file.name,
+      nota_fiscal_url: ''
+    }));
   }
 
   function handleSelectXML(file) {
     if (!file) return;
     setXmlFile(file);
-    setForm((prev) => ({ ...prev, xml_file_name: file.name, xml_url: '' }));
+    setForm((prev) => ({
+      ...prev,
+      xml_file_name: file.name,
+      xml_url: ''
+    }));
   }
 
   function setMemberField(field, value) {
@@ -329,9 +300,18 @@ export default function TeamPaymentSubmit({ userEmail }) {
   }), [member, memberLocalPatch]);
 
   const valorParcela = useMemo(() => getValorParcela(effectiveMember), [effectiveMember]);
-  const memberStatus = useMemo(() => getMemberDataStatus(effectiveMember, currentUser), [effectiveMember, currentUser]);
-  const resolvedFuncao = useMemo(() => resolveMemberFuncao(effectiveMember, currentUser), [effectiveMember, currentUser]);
-  const resolvedName = useMemo(() => resolveMemberName(effectiveMember, currentUser), [effectiveMember, currentUser]);
+  const memberStatus = useMemo(
+    () => getMemberDataStatus(effectiveMember, currentUser),
+    [effectiveMember, currentUser]
+  );
+  const resolvedFuncao = useMemo(
+    () => resolveMemberFuncao(effectiveMember, currentUser),
+    [effectiveMember, currentUser]
+  );
+  const resolvedName = useMemo(
+    () => resolveMemberName(effectiveMember, currentUser),
+    [effectiveMember, currentUser]
+  );
   const descricaoModelo = useMemo(() => {
     if (!effectiveMember || !selectedComp) return '';
     return buildDescricaoModelo(effectiveMember, currentUser, selectedComp.mes, selectedComp.ano);
@@ -355,12 +335,31 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!effectiveMember) { toast.error('Perfil não encontrado.'); return; }
-    if (!selectedComp) { toast.error('Selecione o mês.'); return; }
-    if (!form.numero_nf) { toast.error('Informe o número da nota.'); return; }
-    if (!resolvedFuncao) { toast.error('Informe o cargo / função para continuar.'); return; }
-    if (!pdfFile && !form.nota_fiscal_url) { toast.error('Selecione o arquivo PDF da nota fiscal.'); return; }
-    if (!xmlFile && !form.xml_url) { toast.error('Selecione o arquivo XML da nota fiscal.'); return; }
+
+    if (!effectiveMember) {
+      toast.error('Perfil não encontrado.');
+      return;
+    }
+    if (!selectedComp) {
+      toast.error('Selecione o mês.');
+      return;
+    }
+    if (!form.numero_nf) {
+      toast.error('Informe o número da nota.');
+      return;
+    }
+    if (!resolvedFuncao) {
+      toast.error('Informe o cargo / função para continuar.');
+      return;
+    }
+    if (!pdfFile && !form.nota_fiscal_url) {
+      toast.error('Selecione o arquivo PDF da nota fiscal.');
+      return;
+    }
+    if (!xmlFile && !form.xml_url) {
+      toast.error('Selecione o arquivo XML da nota fiscal.');
+      return;
+    }
 
     setSubmitting(true);
     setAnalysis(null);
@@ -387,9 +386,13 @@ export default function TeamPaymentSubmit({ userEmail }) {
         const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
         pdfUrl = file_url;
         pdfName = renamed.name;
-        setForm((prev) => ({ ...prev, nota_fiscal_url: file_url, nota_fiscal_file_name: renamed.name }));
+        setForm((prev) => ({
+          ...prev,
+          nota_fiscal_url: file_url,
+          nota_fiscal_file_name: renamed.name
+        }));
       }
-      markStepDone(0, 20);
+      markStepDone(0, 15);
 
       if (xmlFile && !xmlUrl) {
         setAnalysisStep('Gravando XML da nota fiscal...');
@@ -406,9 +409,13 @@ export default function TeamPaymentSubmit({ userEmail }) {
         const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
         xmlUrl = file_url;
         xmlName = renamed.name;
-        setForm((prev) => ({ ...prev, xml_url: file_url, xml_file_name: renamed.name }));
+        setForm((prev) => ({
+          ...prev,
+          xml_url: file_url,
+          xml_file_name: renamed.name
+        }));
       }
-      markStepDone(1, 35);
+      markStepDone(1, 30);
 
       setAnalysisStep('Lendo nota fiscal com IA...');
       const analysisResult = await base44.functions.invoke('validateTeamPaymentInvoice', {
@@ -436,7 +443,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
       const ar = analysisResult?.data || analysisResult || {};
       setAnalysis(ar);
-      markStepDone(2, 55);
+      markStepDone(2, 45);
 
       if (ar?.can_submit === false) {
         toast.error('A IA identificou inconsistências críticas. Revise antes de enviar.');
@@ -444,6 +451,52 @@ export default function TeamPaymentSubmit({ userEmail }) {
         setAnalysisStep('');
         return;
       }
+
+      setAnalysisStep('Validando regras do envio...');
+
+      const existing = await base44.entities.TeamPayment.filter({
+        team_member_id: effectiveMember.id,
+        numero_nf: form.numero_nf,
+        mes_referencia: selectedComp.mes,
+        ano: selectedComp.ano
+      });
+
+      if (Array.isArray(existing) && existing.length > 0) {
+        toast.error('Já existe uma nota fiscal enviada para essa competência com esse número.');
+        setSubmitting(false);
+        setAnalysisStep('');
+        return;
+      }
+
+      try {
+        const budgetCheck = await base44.functions.invoke('check_budget', {
+          valor: toNumber(form.valor_nf || valorParcela),
+          user_email: effectiveMember.user_email,
+          contexto: 'TEAM_PAYMENT',
+          mes: selectedComp.mes,
+          ano: selectedComp.ano
+        });
+
+        const bc = budgetCheck?.data || budgetCheck || {};
+
+        if (bc?.blocked_by_rubrica) {
+          toast.error('Envio bloqueado: rubrica inválida ou não permitida.');
+          setSubmitting(false);
+          setAnalysisStep('');
+          return;
+        }
+
+        if (bc?.saldo_insuficiente) {
+          toast.error('Saldo insuficiente para envio desta nota fiscal.');
+          setSubmitting(false);
+          setAnalysisStep('');
+          return;
+        }
+      } catch (e) {
+        console.warn('Falha ao validar saldo/rubrica', e);
+      }
+
+      markStepDone(3, 60);
 
       await saveManualMemberFields();
 
@@ -472,7 +525,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
         resultado_validacao: JSON.stringify(ar || {}),
         status: 'AGUARDANDO_APROVACAO'
       });
-      markStepDone(3, 72);
+      markStepDone(4, 75);
 
       try {
         setAnalysisStep('Salvando arquivos conforme as regras...');
@@ -486,7 +539,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
       } catch (e) {
         console.warn('Falha no backup do Drive (não bloqueante)', e);
       }
-      markStepDone(4, 87);
+      markStepDone(5, 88);
 
       setAnalysisStep('Notificando e-mails...');
       await base44.functions.invoke('notifyTeamPaymentSubmitted', {
@@ -502,7 +555,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
         xml_url: xmlUrl,
         nota_fiscal_file_name: pdfName,
         xml_file_name: xmlName,
-        app_link: window.location.origin + '/Compras'
+        app_link: `${window.location.origin}/Compras`
       });
 
       await notifyCoordinators({
@@ -512,7 +565,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
         action_url: `${window.location.origin}/Compras`
       });
 
-      markStepDone(5, 100);
+      markStepDone(6, 100);
 
       setTimeout(() => {
         toast.success(`✅ Nota fiscal de ${selectedComp.mes}/${selectedComp.ano} enviada com sucesso!`);
@@ -542,17 +595,21 @@ export default function TeamPaymentSubmit({ userEmail }) {
     }
   }
 
-  if (loadingMember) return (
-    <div className="rounded-xl border p-4 text-sm text-gray-500 flex items-center gap-2">
-      <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
-    </div>
-  );
+  if (loadingMember) {
+    return (
+      <div className="rounded-xl border p-4 text-sm text-gray-500 flex items-center gap-2">
+        <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
+      </div>
+    );
+  }
 
-  if (!effectiveMember) return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-      Perfil de equipe não localizado. Peça ao coordenador para cadastrá-lo.
-    </div>
-  );
+  if (!effectiveMember) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        Perfil de equipe não localizado. Peça ao coordenador para cadastrá-lo.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -560,13 +617,14 @@ export default function TeamPaymentSubmit({ userEmail }) {
         <Plus className="w-4 h-4 mr-2" /> Novo envio
       </Button>
 
-      {!memberStatus.ok &&
+      {!memberStatus.ok && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 space-y-1">
           <div className="font-medium flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" /> ⚠ Dados incompletos: {memberStatus.missing.join(', ')} — você pode preenchê-los manualmente abaixo.
+            <AlertCircle className="w-4 h-4" />
+            ⚠ Dados incompletos: {memberStatus.missing.join(', ')} — você pode preenchê-los manualmente abaixo.
           </div>
         </div>
-      }
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
@@ -580,11 +638,16 @@ export default function TeamPaymentSubmit({ userEmail }) {
                 <Label>Mês de envio *</Label>
                 <Select
                   value={form.competencia}
-                  onValueChange={(v) => { setForm((prev) => ({ ...prev, competencia: v })); setAnalysis(null); }}
+                  onValueChange={(v) => {
+                    setForm((prev) => ({ ...prev, competencia: v }));
+                    setAnalysis(null);
+                  }}
                 >
                   <SelectTrigger><SelectValue placeholder="Selecione o mês" /></SelectTrigger>
                   <SelectContent>
-                    {monthOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    {monthOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -687,57 +750,91 @@ export default function TeamPaymentSubmit({ userEmail }) {
                 )}
               </div>
 
-              {!memberStatus.ok &&
+              {!memberStatus.ok && (
                 <div className="mt-2 text-amber-600 text-xs font-medium">
                   💡 Campos faltantes: {memberStatus.missing.join(', ')} — você pode corrigi-los manualmente aqui ou em "Meus Dados".
                 </div>
-              }
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Escolher arquivo de nota fiscal (PDF) *</Label>
                 <label className="border-2 border-dashed rounded-xl p-4 block cursor-pointer hover:bg-gray-50 transition">
-                  <input type="file" accept=".pdf" className="hidden" onChange={(e) => handleSelectPDF(e.target.files?.[0])} disabled={submitting || analyzingOnly} />
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={(e) => handleSelectPDF(e.target.files?.[0])}
+                    disabled={submitting || analyzingOnly}
+                  />
                   <div className="flex items-center gap-2 text-sm text-gray-700">
                     <Upload className="w-4 h-4" />
-                    {pdfFile ? <span className="text-green-700 font-medium">{pdfFile.name}</span> : 'Selecionar arquivo PDF'}
+                    {pdfFile ? (
+                      <span className="text-green-700 font-medium">{pdfFile.name}</span>
+                    ) : 'Selecionar arquivo PDF'}
                   </div>
                 </label>
-                {pdfFile &&
+
+                {pdfFile && (
                   <div className="text-xs text-green-700 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> Arquivo selecionado — será enviado ao confirmar
                   </div>
-                }
-                {form.nota_fiscal_url &&
+                )}
+
+                {form.nota_fiscal_url && (
                   <div className="space-y-2">
-                    <a href={form.nota_fiscal_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
+                    <a
+                      href={form.nota_fiscal_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline"
+                    >
                       <Eye className="w-4 h-4" /> Visualizar PDF gravado
                     </a>
-                    <iframe src={form.nota_fiscal_url} title="Preview NF" className="w-full h-64 rounded-lg border" />
+                    <iframe
+                      src={form.nota_fiscal_url}
+                      title="Preview NF"
+                      className="w-full h-64 rounded-lg border"
+                    />
                   </div>
-                }
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label>Escolher arquivo XML *</Label>
                 <label className="border-2 border-dashed rounded-xl p-4 block cursor-pointer hover:bg-gray-50 transition">
-                  <input type="file" accept=".xml,text/xml,application/xml" className="hidden" onChange={(e) => handleSelectXML(e.target.files?.[0])} disabled={submitting || analyzingOnly} />
+                  <input
+                    type="file"
+                    accept=".xml,text/xml,application/xml"
+                    className="hidden"
+                    onChange={(e) => handleSelectXML(e.target.files?.[0])}
+                    disabled={submitting || analyzingOnly}
+                  />
                   <div className="flex items-center gap-2 text-sm text-gray-700">
                     <FileText className="w-4 h-4" />
-                    {xmlFile ? <span className="text-green-700 font-medium">{xmlFile.name}</span> : 'Selecionar arquivo XML'}
+                    {xmlFile ? (
+                      <span className="text-green-700 font-medium">{xmlFile.name}</span>
+                    ) : 'Selecionar arquivo XML'}
                   </div>
                 </label>
-                {xmlFile &&
+
+                {xmlFile && (
                   <div className="text-xs text-green-700 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> Arquivo selecionado — será enviado ao confirmar
                   </div>
-                }
-                {form.xml_url &&
-                  <a href={form.xml_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
+                )}
+
+                {form.xml_url && (
+                  <a
+                    href={form.xml_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline"
+                  >
                     <Eye className="w-4 h-4" /> Visualizar XML gravado
                   </a>
-                }
+                )}
               </div>
             </div>
 
@@ -746,6 +843,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
                 <AlertCircle className="w-4 h-4" />
                 O que deve constar na Nota Fiscal
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-amber-800">
                 <div className="space-y-1.5">
                   <p className="font-semibold text-amber-900">Dados do Tomador (quem paga)</p>
@@ -758,6 +856,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
                     <p><span className="font-medium">E-mail:</span> {VIADUTO_EMISSAO.email}</p>
                   </div>
                 </div>
+
                 <div className="space-y-1.5">
                   <p className="font-semibold text-amber-900">Descrição do Serviço</p>
                   <div className="bg-white/70 rounded-lg p-2 border border-amber-100 space-y-1">
@@ -776,10 +875,12 @@ export default function TeamPaymentSubmit({ userEmail }) {
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
               <span className="font-medium text-gray-800">Padrão de nome dos arquivos: </span>
               NF [Número da NF] CARGO - SEU NOME - MUSEUS CENTRO - R$ VALOR DA NOTA
-              <span className="block text-gray-400 mt-0.5">Os arquivos são renomeados automaticamente nesse padrão ao fazer upload.</span>
+              <span className="block text-gray-400 mt-0.5">
+                Os arquivos são renomeados automaticamente nesse padrão ao fazer upload.
+              </span>
             </div>
 
-            {submitting &&
+            {submitting && (
               <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 space-y-3">
                 <div className="flex items-center gap-3 text-sm text-purple-800">
                   <Brain className="w-5 h-5 animate-pulse" />
@@ -804,32 +905,41 @@ export default function TeamPaymentSubmit({ userEmail }) {
                   ))}
                 </div>
               </div>
-            }
+            )}
 
-            {analysis &&
+            {analysis && (
               <div className={`rounded-xl border p-4 space-y-2 text-sm ${analysis.can_submit === false ? 'border-red-200 bg-red-50 text-red-800' : 'border-green-200 bg-green-50 text-green-800'}`}>
                 <div className="font-semibold flex items-center gap-2">
                   {analysis.can_submit === false ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
                   Resultado da análise automática
                 </div>
+
                 {analysis.summary && <div>{analysis.summary}</div>}
-                {Array.isArray(analysis.critical_issues) && analysis.critical_issues.length > 0 &&
+
+                {Array.isArray(analysis.critical_issues) && analysis.critical_issues.length > 0 && (
                   <div>
                     <div className="font-medium">Pontos críticos</div>
-                    <ul className="list-disc pl-5">{analysis.critical_issues.map((i, idx) => <li key={idx}>{i}</li>)}</ul>
+                    <ul className="list-disc pl-5">
+                      {analysis.critical_issues.map((i, idx) => <li key={idx}>{i}</li>)}
+                    </ul>
                   </div>
-                }
-                {Array.isArray(analysis.warnings) && analysis.warnings.length > 0 &&
+                )}
+
+                {Array.isArray(analysis.warnings) && analysis.warnings.length > 0 && (
                   <div>
                     <div className="font-medium">Alertas</div>
-                    <ul className="list-disc pl-5">{analysis.warnings.map((i, idx) => <li key={idx}>{i}</li>)}</ul>
+                    <ul className="list-disc pl-5">
+                      {analysis.warnings.map((i, idx) => <li key={idx}>{i}</li>)}
+                    </ul>
                   </div>
-                }
+                )}
               </div>
-            }
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                Cancelar
+              </Button>
               <Button type="submit" disabled={submitting || analyzingOnly}>
                 {submitting ? (
                   <>
