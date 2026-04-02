@@ -20,8 +20,15 @@ export default function AtividadesSection({
   reportId = null,
 }) {
 
+  // Mapear nome do mês para número
+  const MES_MAP = {
+    Janeiro: 1, Fevereiro: 2, Março: 3, Abril: 4, Maio: 5, Junho: 6,
+    Julho: 7, Agosto: 8, Setembro: 9, Outubro: 10, Novembro: 11, Dezembro: 12,
+  };
+  const mesNumero = MES_MAP[mesReferencia] || null;
+
   // 🔥 BUSCAR PROGRAMAÇÃO REAL (ProgramacaoEspelho)
-  const { data: programacaoItems = [] } = useQuery({
+  const { data: programacaoItemsRaw = [] } = useQuery({
     queryKey: ['programacao-espelho'],
     queryFn: async () => {
       const res = await base44.entities.Programacao.list('-data_inicio', 1000);
@@ -29,6 +36,15 @@ export default function AtividadesSection({
     },
     staleTime: 60000,
   });
+
+  // Filtrar pelo mês/ano de referência do relatório
+  const programacaoItems = mesNumero
+    ? programacaoItemsRaw.filter(p => {
+        if (!p.data_inicio) return false;
+        const d = new Date(p.data_inicio);
+        return d.getMonth() + 1 === mesNumero && d.getFullYear() === Number(ano);
+      })
+    : programacaoItemsRaw;
 
   // 🔥 BUSCAR EQUIPE
   const { data: equipe = [] } = useQuery({
