@@ -183,11 +183,26 @@ export default function ReportEditor() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = buildPayload(form?.status || 'DRAFT');
-      return base44.entities.Report.update(reportId, payload);
+      await base44.entities.Report.update(reportId, payload);
+      // Backup no Drive após salvar
+      try {
+        const backupRes = await base44.functions.invoke('backupReportToDrive', { reportId });
+        return backupRes?.data;
+      } catch (backupErr) {
+        console.warn('Backup Drive falhou (silencioso):', backupErr?.message);
+        return null;
+      }
     },
-    onSuccess: async () => {
-      toast.success('Relatório salvo');
-      await refetch();
+    onSuccess: (backupData) => {
+      if (backupData?.success) {
+        toast.success(
+          `✅ Relatório salvo e sincronizado no Drive!\n📁 ${backupData.pasta_drive} — ${backupData.contagens?.atividades || 0} atividade(s) e ${backupData.contagens?.documentos || 0} documento(s) salvos.`,
+          { duration: 5000 }
+        );
+      } else {
+        toast.success('Relatório salvo com sucesso!');
+      }
+      refetch();
     },
     onError: (e) => toast.error(e?.message || 'Erro ao salvar relatório'),
   });
@@ -197,15 +212,26 @@ export default function ReportEditor() {
       const payload = buildPayload('SUBMITTED');
       payload.submitted_at = new Date().toISOString();
       payload.review_status = 'aguardando_revisao';
-      return base44.entities.Report.update(reportId, payload);
+      await base44.entities.Report.update(reportId, payload);
+      // Backup no Drive ao enviar
+      try {
+        return await base44.functions.invoke('backupReportToDrive', { reportId });
+      } catch (e) {
+        console.warn('Backup Drive ao enviar falhou:', e?.message);
+        return null;
+      }
     },
-    onSuccess: async () => {
-      toast.success('Relatório enviado para revisão');
-      setForm((prev) => ({
-        ...prev,
-        status: 'SUBMITTED',
-        review_status: 'aguardando_revisao',
-      }));
+    onSuccess: async (backupRes) => {
+      const bd = backupRes?.data;
+      if (bd?.success) {
+        toast.success(
+          `📨 Relatório enviado para revisão e backup feito!\n📁 ${bd.pasta_drive} — ${bd.contagens?.atividades || 0} atividade(s) salvas no Drive.`,
+          { duration: 6000 }
+        );
+      } else {
+        toast.success('Relatório enviado para revisão!');
+      }
+      setForm((prev) => ({ ...prev, status: 'SUBMITTED', review_status: 'aguardando_revisao' }));
       await refetch();
     },
     onError: (e) => toast.error(e?.message || 'Erro ao enviar relatório'),
