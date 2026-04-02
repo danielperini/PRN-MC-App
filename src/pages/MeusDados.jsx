@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
 import ContractAutoFill, { applyAiSuggestions } from '@/components/users/ContractAutoFill';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Users, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,166 +12,224 @@ import { toast } from 'sonner';
 import { isCoordGeral } from '@/components/auth/permissions';
 
 const FORM_FIELDS = [
-{ name: 'email_pessoal', label: 'Email Pessoal', type: 'email' },
-{ name: 'telefone', label: 'Telefone de Contato', type: 'tel' },
-{ name: 'cpf', label: 'CPF', type: 'text' }];
-
+  { name: 'email_pessoal', label: 'Email Pessoal', type: 'email' },
+  { name: 'telefone', label: 'Telefone de Contato', type: 'tel' },
+  { name: 'cpf', label: 'CPF', type: 'text' },
+];
 
 const EMPRESA_FIELDS = [
-{ name: 'empresa_nome', label: 'Razão Social / Nome da Empresa', type: 'text' },
-{ name: 'empresa_endereco', label: 'Endereço', type: 'text' },
-{ name: 'representante_legal_nome', label: 'Nome do Representante Legal', type: 'text' },
-{ name: 'representante_legal_cpf', label: 'CPF do Representante', type: 'text' }];
-
+  { name: 'empresa_nome', label: 'Razão Social / Nome da Empresa', type: 'text' },
+  { name: 'empresa_endereco', label: 'Endereço', type: 'text' },
+  { name: 'representante_legal_nome', label: 'Nome do Representante Legal', type: 'text' },
+  { name: 'representante_legal_cpf', label: 'CPF do Representante', type: 'text' },
+];
 
 const BANKING_FIELDS = [
-{ name: 'banco', label: 'Banco', type: 'text' },
-{ name: 'agencia', label: 'Agência', type: 'text' },
-{ name: 'conta', label: 'Conta', type: 'text' },
-{ name: 'pix_key', label: 'Chave PIX (opcional)', type: 'text' }];
+  { name: 'banco', label: 'Banco', type: 'text' },
+  { name: 'agencia', label: 'Agência', type: 'text' },
+  { name: 'conta', label: 'Conta', type: 'text' },
+  { name: 'pix_key', label: 'Chave PIX (opcional)', type: 'text' },
+];
 
+const EMPTY_FORM = {
+  email_pessoal: '',
+  telefone: '',
+  cpf: '',
+  tipo_pessoa: 'PF',
+  cnpj: '',
+  empresa_nome: '',
+  empresa_endereco: '',
+  representante_legal_nome: '',
+  representante_legal_cpf: '',
+  cargo_representante: '',
+  banco: '',
+  agencia: '',
+  conta: '',
+  tipo_conta: 'Corrente',
+  pix_key: '',
+};
+
+function mergeWithoutOverwrite(current, incoming) {
+  return {
+    ...current,
+    email_pessoal: current.email_pessoal || incoming.email_pessoal || '',
+    telefone: current.telefone || incoming.telefone || '',
+    cpf: current.cpf || incoming.cpf || '',
+    tipo_pessoa: current.tipo_pessoa || incoming.tipo_pessoa || 'PF',
+    cnpj: current.cnpj || incoming.cnpj || '',
+    empresa_nome: current.empresa_nome || incoming.empresa_nome || '',
+    empresa_endereco: current.empresa_endereco || incoming.empresa_endereco || '',
+    representante_legal_nome: current.representante_legal_nome || incoming.representante_legal_nome || '',
+    representante_legal_cpf: current.representante_legal_cpf || incoming.representante_legal_cpf || '',
+    cargo_representante: current.cargo_representante || incoming.cargo_representante || '',
+    banco: current.banco || incoming.banco || '',
+    agencia: current.agencia || incoming.agencia || '',
+    conta: current.conta || incoming.conta || '',
+    tipo_conta: current.tipo_conta || incoming.tipo_conta || 'Corrente',
+    pix_key: current.pix_key || incoming.pix_key || '',
+  };
+}
+
+function mapUserToForm(u) {
+  return {
+    email_pessoal: u?.email_pessoal || '',
+    telefone: u?.telefone || '',
+    cpf: u?.cpf || '',
+    tipo_pessoa: u?.tipo_pessoa || 'PF',
+    cnpj: u?.cnpj || '',
+    empresa_nome: u?.empresa_nome || '',
+    empresa_endereco: u?.empresa_endereco || '',
+    representante_legal_nome: u?.representante_legal_nome || '',
+    representante_legal_cpf: u?.representante_legal_cpf || '',
+    cargo_representante: u?.cargo_representante || '',
+    banco: u?.banco || '',
+    agencia: u?.agencia || '',
+    conta: u?.conta || '',
+    tipo_conta: u?.tipo_conta || 'Corrente',
+    pix_key: u?.pix_key || '',
+  };
+}
+
+function mapMemberToForm(member) {
+  return {
+    email_pessoal: member?.email_pessoal || '',
+    telefone: member?.telefone || '',
+    cpf: member?.cpf || '',
+    tipo_pessoa: member?.tipo_pessoa || 'PF',
+    cnpj: member?.cnpj || '',
+    empresa_nome: member?.empresa_nome || '',
+    empresa_endereco: member?.empresa_endereco || '',
+    representante_legal_nome: member?.representante_legal_nome || '',
+    representante_legal_cpf: member?.representante_legal_cpf || '',
+    cargo_representante: member?.cargo_representante || '',
+    banco: member?.banco || '',
+    agencia: member?.agencia || '',
+    conta: member?.conta || '',
+    tipo_conta: member?.tipo_conta || 'Corrente',
+    pix_key: member?.pix_key || '',
+  };
+}
 
 function MeusDadosInner() {
   const [user, setUser] = useState(null);
   const [coordGeral, setCoordGeral] = useState(false);
   const [isSponsor, setIsSponsor] = useState(false);
-  const [selectedUserEmail, setSelectedUserEmail] = useState(null); // null = próprio usuário
-  // Tracking: campos editados manualmente pelo utilizador (nunca sobrescrever com IA)
+  const [selectedUserEmail, setSelectedUserEmail] = useState(null);
   const manualFields = useRef(new Set());
-  // Campos preenchidos pela IA (para exibir badge e appliedFields)
   const [aiApplied, setAiApplied] = useState({});
-  const [formData, setFormData] = useState({
-    email_pessoal: '',
-    telefone: '',
-    cpf: '',
-    tipo_pessoa: 'PF',
-    cnpj: '',
-    empresa_nome: '',
-    empresa_endereco: '',
-    representante_legal_nome: '',
-    representante_legal_cpf: '',
-    cargo_representante: '',
-    banco: '',
-    agencia: '',
-    conta: '',
-    tipo_conta: 'Corrente',
-    pix_key: ''
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [autoFillLoading, setAutoFillLoading] = useState(false);
 
   useEffect(() => {
     base44.auth.me().then((u) => {
-      if (!u) {setUser(null);return;}
+      if (!u) {
+        setUser(null);
+        return;
+      }
       setUser(u);
       setCoordGeral(isCoordGeral(u));
       setIsSponsor(u.role === 'PATROCINADOR');
-      loadUserData(u);
+      setFormData(mapUserToForm(u));
     }).catch(() => setUser(null));
   }, []);
-
-  const loadUserData = (u) => {
-    setFormData({
-      email_pessoal: u.email_pessoal || '',
-      telefone: u.telefone || '',
-      cpf: u.cpf || '',
-      tipo_pessoa: u.tipo_pessoa || 'PF',
-      cnpj: u.cnpj || '',
-      empresa_nome: u.empresa_nome || '',
-      empresa_endereco: u.empresa_endereco || '',
-      representante_legal_nome: u.representante_legal_nome || '',
-      representante_legal_cpf: u.representante_legal_cpf || '',
-      cargo_representante: u.cargo_representante || '',
-      banco: u.banco || '',
-      agencia: u.agencia || '',
-      conta: u.conta || '',
-      tipo_conta: u.tipo_conta || 'Corrente',
-      pix_key: u.pix_key || ''
-    });
-  };
 
   const { data: teamData = [] } = useQuery({
     queryKey: ['team-members', user?.email],
     queryFn: () => base44.entities.TeamMember.list(),
-    enabled: !!user?.email
+    enabled: !!user?.email,
   });
 
   const { data: allUsers = [] } = useQuery({
     queryKey: ['all-users-meudados'],
     queryFn: () => base44.entities.User.list(),
-    enabled: coordGeral
+    enabled: coordGeral,
   });
 
-  // Quando coordGeral troca de usuário selecionado, carrega dados do TeamMember
-  useEffect(() => {
-    if (!selectedUserEmail || !teamData.length) return;
-    const member = teamData.find((m) => m.user_email === selectedUserEmail);
-    if (member) {
-      setFormData({
-        email_pessoal: member.email_pessoal || '',
-        telefone: member.telefone || '',
-        cpf: member.cpf || '',
-        tipo_pessoa: member.tipo_pessoa || 'PF',
-        cnpj: member.cnpj || '',
-        empresa_nome: member.empresa_nome || '',
-        empresa_endereco: member.empresa_endereco || '',
-        representante_legal_nome: member.representante_legal_nome || '',
-        representante_legal_cpf: member.representante_legal_cpf || '',
-        cargo_representante: member.cargo_representante || '',
-        banco: member.banco || '',
-        agencia: member.agencia || '',
-        conta: member.conta || '',
-        tipo_conta: member.tipo_conta || 'Corrente',
-        pix_key: member.pix_key || ''
-      });
-    }
-  }, [selectedUserEmail, teamData]);
+  const targetEmail = selectedUserEmail || user?.email;
+  const targetUser = selectedUserEmail ? allUsers.find((u) => u.email === selectedUserEmail) : user;
 
   useEffect(() => {
-    if (teamData && user?.email && !selectedUserEmail) {
+    if (!user?.email) return;
+
+    if (!selectedUserEmail) {
+      setFormData((prev) => mergeWithoutOverwrite(prev, mapUserToForm(user)));
+    }
+  }, [user?.email, selectedUserEmail]);
+
+  useEffect(() => {
+    if (!teamData?.length || !user?.email) return;
+
+    if (!selectedUserEmail) {
       const currentMember = teamData.find((m) => m.user_email === user.email);
       if (currentMember) {
-        setFormData((prev) => ({
-          email_pessoal: prev.email_pessoal || currentMember.email_pessoal || '',
-          telefone: prev.telefone || currentMember.telefone || '',
-          cpf: prev.cpf || currentMember.cpf || '',
-          tipo_pessoa: prev.tipo_pessoa || currentMember.tipo_pessoa || 'PF',
-          cnpj: prev.cnpj || currentMember.cnpj || '',
-          empresa_nome: prev.empresa_nome || currentMember.empresa_nome || '',
-          empresa_endereco: prev.empresa_endereco || currentMember.empresa_endereco || '',
-          representante_legal_nome: prev.representante_legal_nome || currentMember.representante_legal_nome || '',
-          representante_legal_cpf: prev.representante_legal_cpf || currentMember.representante_legal_cpf || '',
-          cargo_representante: prev.cargo_representante || currentMember.cargo_representante || '',
-          banco: prev.banco || currentMember.banco || '',
-          agencia: prev.agencia || currentMember.agencia || '',
-          conta: prev.conta || currentMember.conta || '',
-          tipo_conta: prev.tipo_conta || currentMember.tipo_conta || 'Corrente',
-          pix_key: prev.pix_key || currentMember.pix_key || ''
-        }));
+        setFormData((prev) => mergeWithoutOverwrite(prev, mapMemberToForm(currentMember)));
       }
+
       if (user?.equipe) {
         const teamColeagues = teamData.filter((m) => m.tipo_equipe === user.equipe && m.user_email !== user.email);
         setTeamMembers(teamColeagues);
       }
     }
-  }, [teamData, user?.email, selectedUserEmail]);
+  }, [teamData, user?.email, user?.equipe, selectedUserEmail]);
 
-  const targetEmail = selectedUserEmail || user?.email;
-  const targetUser = selectedUserEmail ? allUsers.find((u) => u.email === selectedUserEmail) : user;
+  useEffect(() => {
+    if (!selectedUserEmail || !teamData.length) return;
+    const member = teamData.find((m) => m.user_email === selectedUserEmail);
+    if (member) {
+      setFormData(mapMemberToForm(member));
+    } else {
+      setFormData(EMPTY_FORM);
+    }
+  }, [selectedUserEmail, teamData]);
 
-  const isComplete = isSponsor ?
-  formData.email_pessoal && formData.telefone :
-  formData.email_pessoal && formData.telefone && formData.cpf &&
-  formData.banco && formData.agencia && formData.conta && (
-  formData.tipo_pessoa === 'PF' || formData.cnpj && formData.empresa_nome);
+  useEffect(() => {
+    if (!targetEmail || isSponsor) return;
+
+    let active = true;
+
+    const runAutoComplete = async () => {
+      try {
+        setAutoFillLoading(true);
+        const existingMember = teamData.find((m) => m.user_email === targetEmail);
+        const res = await base44.functions.invoke('ensureTeamMemberDataComplete', {
+          team_member_id: existingMember?.id,
+          user_email: targetEmail,
+        });
+
+        const member = res?.data?.member || null;
+        if (!active || !member) return;
+
+        setFormData((prev) => mergeWithoutOverwrite(prev, mapMemberToForm(member)));
+      } catch (e) {
+        console.warn('Erro auto-complete (não bloqueante)', e);
+      } finally {
+        if (active) setAutoFillLoading(false);
+      }
+    };
+
+    runAutoComplete();
+    return () => { active = false; };
+  }, [targetEmail, isSponsor, teamData]);
+
+  const isComplete = isSponsor
+    ? !!(formData.email_pessoal && formData.telefone)
+    : !!(
+        formData.email_pessoal &&
+        formData.telefone &&
+        formData.cpf &&
+        formData.banco &&
+        formData.agencia &&
+        formData.conta &&
+        (formData.tipo_pessoa === 'PF' || (formData.cnpj && formData.empresa_nome))
+      );
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      // Só atualiza via auth.updateMe se for o próprio usuário
       if (!selectedUserEmail) {
         await base44.auth.updateMe(formData);
       }
 
-      // Sincronizar dados com TeamMember vinculado (cria se não existir)
       const currentMember = teamData.find((m) => m.user_email === targetEmail);
       const teamPayload = {
         user_email: targetEmail,
@@ -192,8 +250,9 @@ function MeusDadosInner() {
         agencia: formData.agencia,
         conta: formData.conta,
         tipo_conta: formData.tipo_conta,
-        pix_key: formData.pix_key
+        pix_key: formData.pix_key,
       };
+
       if (currentMember) {
         await base44.entities.TeamMember.update(currentMember.id, teamPayload).catch(() => null);
       } else {
@@ -201,28 +260,28 @@ function MeusDadosInner() {
       }
 
       if (teamMembers.length > 0) {
-        await Promise.all(teamMembers.map((member) =>
-        base44.entities.Notification.create({
-          user_email: member.user_email,
-          type: 'TEAM_DATA_REMINDER',
-          title: `${user.full_name} atualizou seus dados`,
-          message: `Seus colegas estão preenchendo os dados pessoais e bancários. Complete seus dados para manter a equipe sincronizada.`,
-          action_url: '/MeusDados'
-        }).catch(() => null)
-        ));
+        await Promise.all(
+          teamMembers.map((member) =>
+            base44.entities.Notification.create({
+              user_email: member.user_email,
+              type: 'TEAM_DATA_REMINDER',
+              title: `${user.full_name} atualizou seus dados`,
+              message: 'Seus colegas estão preenchendo os dados pessoais e bancários. Complete seus dados para manter a equipe sincronizada.',
+              action_url: '/MeusDados',
+            }).catch(() => null)
+          )
+        );
       }
     },
     onSuccess: () => toast.success('Dados salvos com sucesso!'),
-    onError: () => toast.error('Erro ao salvar dados.')
+    onError: () => toast.error('Erro ao salvar dados.'),
   });
 
-  // set manual: marca campo como editado manualmente
   const set = (key, value) => {
     manualFields.current.add(key);
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
-  // Quando coordGeral muda de utilizador, resetar tracking manual e IA
   const resetAiTracking = () => {
     manualFields.current = new Set();
     setAiApplied({});
@@ -237,116 +296,98 @@ function MeusDadosInner() {
     return (
       <div className="min-h-screen flex items-center justify-center text-gray-400">
         Carregando...
-      </div>);
-
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-white pb-20">
       <div className="max-w-2xl mx-auto px-6 py-12">
-
-        {/* Header */}
         <div className="mb-10">
-         <h1 className="text-3xl font-semibold text-black mb-2">
-           {selectedUserEmail ? `Informações de ${targetUser?.full_name || selectedUserEmail}` : 'Informações'}
-         </h1>
-         <p className="text-gray-600">{isSponsor ? 'Atualize seus dados pessoais' : 'Preencha suas informações pessoais e bancárias para a equipe'}</p>
+          <h1 className="text-3xl font-semibold text-black mb-2">
+            {selectedUserEmail ? `Informações de ${targetUser?.full_name || selectedUserEmail}` : 'Informações'}
+          </h1>
+          <p className="text-gray-600">
+            {isSponsor ? 'Atualize seus dados pessoais' : 'Preencha suas informações pessoais e bancárias para a equipe'}
+          </p>
         </div>
 
-        {/* Seletor de usuário — apenas Coordenador Geral */}
-        {coordGeral &&
-        <div className="mb-8 p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+        {coordGeral && (
+          <div className="mb-8 p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
             <Label className="text-sm font-semibold text-slate-700">Editar dados de outro usuário</Label>
             <Select
-            value={selectedUserEmail || '__own__'}
-            onValueChange={(v) => {setSelectedUserEmail(v === '__own__' ? null : v);resetAiTracking();}}>
-            
+              value={selectedUserEmail || '__own__'}
+              onValueChange={(v) => {
+                setSelectedUserEmail(v === '__own__' ? null : v);
+                resetAiTracking();
+              }}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__own__">— Meus próprios dados —</SelectItem>
-                {allUsers.filter((u) => u.email !== user?.email).map((u) =>
-              <SelectItem key={u.email} value={u.email}>{u.full_name} ({u.email})</SelectItem>
-              )}
+                {allUsers.filter((u) => u.email !== user?.email).map((u) => (
+                  <SelectItem key={u.email} value={u.email}>
+                    {u.full_name} ({u.email})
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
-        }
+        )}
 
-        {/* Autopreenchimento por contrato IA */}
-        {!isSponsor &&
-        <ContractAutoFill
-          userEmail={targetEmail}
-          onApply={handleAiApply}
-          appliedFields={aiApplied} />
+        {!isSponsor && (
+          <ContractAutoFill
+            userEmail={targetEmail}
+            onApply={handleAiApply}
+            appliedFields={aiApplied}
+          />
+        )}
 
-        }
+        {autoFillLoading && !isSponsor && (
+          <div className="mb-6 p-3 rounded-lg border border-blue-200 bg-blue-50 text-blue-800 text-sm flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Buscando dados de contratação na base e preenchendo apenas campos vazios.
+          </div>
+        )}
 
-        {/* Equipe Info */}
-        
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
-
-        {/* Completion Status */}
         <div className={`mb-8 p-4 border rounded-lg flex items-start gap-3 ${isComplete ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-          {isComplete ?
-          <>
+          {isComplete ? (
+            <>
               <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-green-900">Informações Completas</p>
                 <p className="text-xs text-green-700 mt-0.5">Todas as informações foram preenchidas</p>
               </div>
-            </> :
-
-          <>
+            </>
+          ) : (
+            <>
               <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-amber-900">Informações Incompletas</p>
-                <p className="text-xs text-amber-700 mt-0.5">Preencha todos os campos obrigatórios</p>
+                <p className="text-xs text-amber-700 mt-0.5">Você pode preencher manualmente qualquer campo abaixo.</p>
               </div>
             </>
-          }
+          )}
         </div>
 
-        {/* Form */}
-        <form onSubmit={(e) => {e.preventDefault();saveMutation.mutate();}} className="space-y-8">
-
-          {/* Dados Pessoais */}
+        <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-8">
           <Section title="Dados Pessoais">
-            {FORM_FIELDS.map((field) =>
-            <div key={field.name} className="space-y-1.5">
-                <Label>{field.label} *</Label>
+            {FORM_FIELDS.map((field) => (
+              <div key={field.name} className="space-y-1.5">
+                <Label>{field.label}</Label>
                 <Input
-                type={field.type}
-                value={formData[field.name]}
-                onChange={(e) => set(field.name, e.target.value)}
-                placeholder={field.label}
-                required />
-              
+                  type={field.type}
+                  value={formData[field.name] || ''}
+                  onChange={(e) => set(field.name, e.target.value)}
+                  placeholder={field.label}
+                />
               </div>
-            )}
+            ))}
 
             <div className="space-y-1.5">
-              <Label>Tipo de Pessoa *</Label>
+              <Label>Tipo de Pessoa</Label>
               <Select value={formData.tipo_pessoa} onValueChange={(v) => set('tipo_pessoa', v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -357,37 +398,34 @@ function MeusDadosInner() {
               </Select>
             </div>
 
-            {formData.tipo_pessoa !== 'PF' &&
-            <div>
-                <Label>CNPJ *</Label>
+            {formData.tipo_pessoa !== 'PF' && (
+              <div className="space-y-1.5">
+                <Label>CNPJ</Label>
                 <Input
-                value={formData.cnpj}
-                onChange={(e) => set('cnpj', e.target.value)}
-                placeholder="00.000.000/0001-00"
-                required={formData.tipo_pessoa !== 'PF'} />
-              
+                  value={formData.cnpj}
+                  onChange={(e) => set('cnpj', e.target.value)}
+                  placeholder="00.000.000/0001-00"
+                />
               </div>
-            }
+            )}
           </Section>
 
-          {/* Dados da Empresa */}
-          {formData.tipo_pessoa !== 'PF' &&
-          <Section title="Dados da Empresa">
-              {EMPRESA_FIELDS.map((field) =>
-            <div key={field.name} className="space-y-1.5">
-                  <Label>{field.label} {field.name !== 'empresa_endereco' ? '*' : ''}</Label>
+          {formData.tipo_pessoa !== 'PF' && (
+            <Section title="Dados da Empresa">
+              {EMPRESA_FIELDS.map((field) => (
+                <div key={field.name} className="space-y-1.5">
+                  <Label>{field.label}</Label>
                   <Input
-                type={field.type}
-                value={formData[field.name]}
-                onChange={(e) => set(field.name, e.target.value)}
-                placeholder={field.label}
-                required={field.name !== 'empresa_endereco'} />
-              
+                    type={field.type}
+                    value={formData[field.name] || ''}
+                    onChange={(e) => set(field.name, e.target.value)}
+                    placeholder={field.label}
+                  />
                 </div>
-            )}
+              ))}
 
               <div className="space-y-1.5">
-                <Label>Cargo do Representante *</Label>
+                <Label>Cargo do Representante</Label>
                 <Select value={formData.cargo_representante} onValueChange={(v) => set('cargo_representante', v)}>
                   <SelectTrigger><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
                   <SelectContent>
@@ -400,27 +438,25 @@ function MeusDadosInner() {
                 </Select>
               </div>
             </Section>
-          }
+          )}
 
-          {/* Dados Bancários — Não mostrar para patrocinadores */}
-          {!isSponsor &&
-          <Section title="Dados Bancários">
+          {!isSponsor && (
+            <Section title="Dados Bancários">
               <div className="space-y-4">
-                {BANKING_FIELDS.map((field) =>
-              <div key={field.name} className="space-y-1.5">
-                    <Label>{field.label} {field.name !== 'pix_key' ? '*' : ''}</Label>
+                {BANKING_FIELDS.map((field) => (
+                  <div key={field.name} className="space-y-1.5">
+                    <Label>{field.label}</Label>
                     <Input
-                  type={field.type}
-                  value={formData[field.name]}
-                  onChange={(e) => set(field.name, e.target.value)}
-                  placeholder={field.label}
-                  required={field.name !== 'pix_key'} />
-                
+                      type={field.type}
+                      value={formData[field.name] || ''}
+                      onChange={(e) => set(field.name, e.target.value)}
+                      placeholder={field.label}
+                    />
                   </div>
-              )}
+                ))}
 
                 <div className="space-y-1.5">
-                  <Label>Tipo de Conta *</Label>
+                  <Label>Tipo de Conta</Label>
                   <Select value={formData.tipo_conta} onValueChange={(v) => set('tipo_conta', v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -431,27 +467,27 @@ function MeusDadosInner() {
                 </div>
               </div>
             </Section>
-          }
+          )}
 
-          {/* Ações */}
           <div className="flex gap-2 justify-end pt-6 border-t">
             <Button
               type="submit"
               className="bg-black hover:bg-gray-800 text-white"
-              disabled={saveMutation.isPending}>
-              
-              {saveMutation.isPending ?
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</> :
-
-              'Salvar Dados'
-              }
+              disabled={saveMutation.isPending}
+            >
+              {saveMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...
+                </>
+              ) : (
+                'Salvar Dados'
+              )}
             </Button>
           </div>
         </form>
-
       </div>
-    </div>);
-
+    </div>
+  );
 }
 
 function Section({ title, children }) {
@@ -459,10 +495,14 @@ function Section({ title, children }) {
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-black border-b pb-2">{title}</h2>
       {children}
-    </div>);
-
+    </div>
+  );
 }
 
 export default function MeusDados() {
-  return <MeusDadosInner />;
+  return (
+    <RequireAuth>
+      <MeusDadosInner />
+    </RequireAuth>
+  );
 }
