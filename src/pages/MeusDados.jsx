@@ -12,24 +12,24 @@ import { toast } from 'sonner';
 import { isCoordGeral } from '@/components/auth/permissions';
 
 const FORM_FIELDS = [
-  { name: 'email_pessoal', label: 'Email Pessoal', type: 'email' },
-  { name: 'telefone', label: 'Telefone de Contato', type: 'tel' },
-  { name: 'cpf', label: 'CPF', type: 'text' },
-];
+{ name: 'email_pessoal', label: 'Email Pessoal', type: 'email' },
+{ name: 'telefone', label: 'Telefone de Contato', type: 'tel' },
+{ name: 'cpf', label: 'CPF', type: 'text' }];
+
 
 const EMPRESA_FIELDS = [
-  { name: 'empresa_nome', label: 'Razão Social / Nome da Empresa', type: 'text' },
-  { name: 'empresa_endereco', label: 'Endereço', type: 'text' },
-  { name: 'representante_legal_nome', label: 'Nome do Representante Legal', type: 'text' },
-  { name: 'representante_legal_cpf', label: 'CPF do Representante', type: 'text' },
-];
+{ name: 'empresa_nome', label: 'Razão Social / Nome da Empresa', type: 'text' },
+{ name: 'empresa_endereco', label: 'Endereço', type: 'text' },
+{ name: 'representante_legal_nome', label: 'Nome do Representante Legal', type: 'text' },
+{ name: 'representante_legal_cpf', label: 'CPF do Representante', type: 'text' }];
+
 
 const BANKING_FIELDS = [
-  { name: 'banco', label: 'Banco', type: 'text' },
-  { name: 'agencia', label: 'Agência', type: 'text' },
-  { name: 'conta', label: 'Conta', type: 'text' },
-  { name: 'pix_key', label: 'Chave PIX (opcional)', type: 'text' },
-];
+{ name: 'banco', label: 'Banco', type: 'text' },
+{ name: 'agencia', label: 'Agência', type: 'text' },
+{ name: 'conta', label: 'Conta', type: 'text' },
+{ name: 'pix_key', label: 'Chave PIX (opcional)', type: 'text' }];
+
 
 function MeusDadosInner() {
   const [user, setUser] = useState(null);
@@ -55,13 +55,13 @@ function MeusDadosInner() {
     agencia: '',
     conta: '',
     tipo_conta: 'Corrente',
-    pix_key: '',
+    pix_key: ''
   });
   const [teamMembers, setTeamMembers] = useState([]);
 
   useEffect(() => {
-    base44.auth.me().then(u => {
-      if (!u) { setUser(null); return; }
+    base44.auth.me().then((u) => {
+      if (!u) {setUser(null);return;}
       setUser(u);
       setCoordGeral(isCoordGeral(u));
       setIsSponsor(u.role === 'PATROCINADOR');
@@ -85,26 +85,26 @@ function MeusDadosInner() {
       agencia: u.agencia || '',
       conta: u.conta || '',
       tipo_conta: u.tipo_conta || 'Corrente',
-      pix_key: u.pix_key || '',
+      pix_key: u.pix_key || ''
     });
   };
 
   const { data: teamData = [] } = useQuery({
     queryKey: ['team-members', user?.email],
     queryFn: () => base44.entities.TeamMember.list(),
-    enabled: !!user?.email,
+    enabled: !!user?.email
   });
 
   const { data: allUsers = [] } = useQuery({
     queryKey: ['all-users-meudados'],
     queryFn: () => base44.entities.User.list(),
-    enabled: coordGeral,
+    enabled: coordGeral
   });
 
   // Quando coordGeral troca de usuário selecionado, carrega dados do TeamMember
   useEffect(() => {
     if (!selectedUserEmail || !teamData.length) return;
-    const member = teamData.find(m => m.user_email === selectedUserEmail);
+    const member = teamData.find((m) => m.user_email === selectedUserEmail);
     if (member) {
       setFormData({
         email_pessoal: member.email_pessoal || '',
@@ -121,16 +121,16 @@ function MeusDadosInner() {
         agencia: member.agencia || '',
         conta: member.conta || '',
         tipo_conta: member.tipo_conta || 'Corrente',
-        pix_key: member.pix_key || '',
+        pix_key: member.pix_key || ''
       });
     }
   }, [selectedUserEmail, teamData]);
 
   useEffect(() => {
     if (teamData && user?.email && !selectedUserEmail) {
-      const currentMember = teamData.find(m => m.user_email === user.email);
+      const currentMember = teamData.find((m) => m.user_email === user.email);
       if (currentMember) {
-        setFormData(prev => ({
+        setFormData((prev) => ({
           email_pessoal: prev.email_pessoal || currentMember.email_pessoal || '',
           telefone: prev.telefone || currentMember.telefone || '',
           cpf: prev.cpf || currentMember.cpf || '',
@@ -145,24 +145,24 @@ function MeusDadosInner() {
           agencia: prev.agencia || currentMember.agencia || '',
           conta: prev.conta || currentMember.conta || '',
           tipo_conta: prev.tipo_conta || currentMember.tipo_conta || 'Corrente',
-          pix_key: prev.pix_key || currentMember.pix_key || '',
+          pix_key: prev.pix_key || currentMember.pix_key || ''
         }));
       }
       if (user?.equipe) {
-        const teamColeagues = teamData.filter(m => m.tipo_equipe === user.equipe && m.user_email !== user.email);
+        const teamColeagues = teamData.filter((m) => m.tipo_equipe === user.equipe && m.user_email !== user.email);
         setTeamMembers(teamColeagues);
       }
     }
   }, [teamData, user?.email, selectedUserEmail]);
 
   const targetEmail = selectedUserEmail || user?.email;
-  const targetUser = selectedUserEmail ? allUsers.find(u => u.email === selectedUserEmail) : user;
+  const targetUser = selectedUserEmail ? allUsers.find((u) => u.email === selectedUserEmail) : user;
 
-  const isComplete = isSponsor
-    ? formData.email_pessoal && formData.telefone
-    : formData.email_pessoal && formData.telefone && formData.cpf && 
-      formData.banco && formData.agencia && formData.conta &&
-      (formData.tipo_pessoa === 'PF' || (formData.cnpj && formData.empresa_nome));
+  const isComplete = isSponsor ?
+  formData.email_pessoal && formData.telefone :
+  formData.email_pessoal && formData.telefone && formData.cpf &&
+  formData.banco && formData.agencia && formData.conta && (
+  formData.tipo_pessoa === 'PF' || formData.cnpj && formData.empresa_nome);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -172,7 +172,7 @@ function MeusDadosInner() {
       }
 
       // Sincronizar dados com TeamMember vinculado (cria se não existir)
-      const currentMember = teamData.find(m => m.user_email === targetEmail);
+      const currentMember = teamData.find((m) => m.user_email === targetEmail);
       const teamPayload = {
         user_email: targetEmail,
         user_name: targetUser?.full_name || '',
@@ -192,34 +192,34 @@ function MeusDadosInner() {
         agencia: formData.agencia,
         conta: formData.conta,
         tipo_conta: formData.tipo_conta,
-        pix_key: formData.pix_key,
+        pix_key: formData.pix_key
       };
       if (currentMember) {
         await base44.entities.TeamMember.update(currentMember.id, teamPayload).catch(() => null);
       } else {
         await base44.entities.TeamMember.create(teamPayload).catch(() => null);
       }
-      
+
       if (teamMembers.length > 0) {
-        await Promise.all(teamMembers.map(member =>
-          base44.entities.Notification.create({
-            user_email: member.user_email,
-            type: 'TEAM_DATA_REMINDER',
-            title: `${user.full_name} atualizou seus dados`,
-            message: `Seus colegas estão preenchendo os dados pessoais e bancários. Complete seus dados para manter a equipe sincronizada.`,
-            action_url: '/MeusDados'
-          }).catch(() => null)
+        await Promise.all(teamMembers.map((member) =>
+        base44.entities.Notification.create({
+          user_email: member.user_email,
+          type: 'TEAM_DATA_REMINDER',
+          title: `${user.full_name} atualizou seus dados`,
+          message: `Seus colegas estão preenchendo os dados pessoais e bancários. Complete seus dados para manter a equipe sincronizada.`,
+          action_url: '/MeusDados'
+        }).catch(() => null)
         ));
       }
     },
     onSuccess: () => toast.success('Dados salvos com sucesso!'),
-    onError: () => toast.error('Erro ao salvar dados.'),
+    onError: () => toast.error('Erro ao salvar dados.')
   });
 
   // set manual: marca campo como editado manualmente
   const set = (key, value) => {
     manualFields.current.add(key);
-    setFormData(prev => ({ ...prev, [key]: value }));
+    setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
   // Quando coordGeral muda de utilizador, resetar tracking manual e IA
@@ -229,7 +229,7 @@ function MeusDadosInner() {
   };
 
   const handleAiApply = useCallback((suggestions) => {
-    setFormData(prev => applyAiSuggestions(prev, suggestions, manualFields.current));
+    setFormData((prev) => applyAiSuggestions(prev, suggestions, manualFields.current));
     setAiApplied(suggestions);
   }, []);
 
@@ -237,8 +237,8 @@ function MeusDadosInner() {
     return (
       <div className="min-h-screen flex items-center justify-center text-gray-400">
         Carregando...
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -254,100 +254,100 @@ function MeusDadosInner() {
         </div>
 
         {/* Seletor de usuário — apenas Coordenador Geral */}
-        {coordGeral && (
-          <div className="mb-8 p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+        {coordGeral &&
+        <div className="mb-8 p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
             <Label className="text-sm font-semibold text-slate-700">Editar dados de outro usuário</Label>
             <Select
-              value={selectedUserEmail || '__own__'}
-              onValueChange={v => { setSelectedUserEmail(v === '__own__' ? null : v); resetAiTracking(); }}
-            >
+            value={selectedUserEmail || '__own__'}
+            onValueChange={(v) => {setSelectedUserEmail(v === '__own__' ? null : v);resetAiTracking();}}>
+            
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__own__">— Meus próprios dados —</SelectItem>
-                {allUsers.filter(u => u.email !== user?.email).map(u => (
-                  <SelectItem key={u.email} value={u.email}>{u.full_name} ({u.email})</SelectItem>
-                ))}
+                {allUsers.filter((u) => u.email !== user?.email).map((u) =>
+              <SelectItem key={u.email} value={u.email}>{u.full_name} ({u.email})</SelectItem>
+              )}
               </SelectContent>
             </Select>
           </div>
-        )}
+        }
 
         {/* Autopreenchimento por contrato IA */}
-        {!isSponsor && (
-          <ContractAutoFill
-            userEmail={targetEmail}
-            onApply={handleAiApply}
-            appliedFields={aiApplied}
-          />
-        )}
+        {!isSponsor &&
+        <ContractAutoFill
+          userEmail={targetEmail}
+          onApply={handleAiApply}
+          appliedFields={aiApplied} />
+
+        }
 
         {/* Equipe Info */}
-        {user.equipe && (
-          <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3">
-            <Users className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-blue-900">Equipe: {user.equipe}</p>
-              {teamMembers.length > 0 && (
-                <div className="text-xs text-blue-700 mt-2 space-y-1">
-                  <p>{teamMembers.length} colega(s) de equipe</p>
-                  <div className="space-y-1 mt-2">
-                    {teamMembers.map(member => (
-                      <div key={member.id} className="flex items-center justify-between p-2 bg-white rounded border border-blue-100 text-xs">
-                        <span className="font-medium">{member.user_name}</span>
-                        <span className="text-blue-600">{member.funcao}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
 
         {/* Completion Status */}
         <div className={`mb-8 p-4 border rounded-lg flex items-start gap-3 ${isComplete ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-          {isComplete ? (
-            <>
+          {isComplete ?
+          <>
               <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-green-900">Informações Completas</p>
                 <p className="text-xs text-green-700 mt-0.5">Todas as informações foram preenchidas</p>
               </div>
-            </>
-          ) : (
-            <>
+            </> :
+
+          <>
               <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-amber-900">Informações Incompletas</p>
                 <p className="text-xs text-amber-700 mt-0.5">Preencha todos os campos obrigatórios</p>
               </div>
             </>
-          )}
+          }
         </div>
 
         {/* Form */}
-        <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-8">
+        <form onSubmit={(e) => {e.preventDefault();saveMutation.mutate();}} className="space-y-8">
 
           {/* Dados Pessoais */}
           <Section title="Dados Pessoais">
-            {FORM_FIELDS.map(field => (
-              <div key={field.name} className="space-y-1.5">
+            {FORM_FIELDS.map((field) =>
+            <div key={field.name} className="space-y-1.5">
                 <Label>{field.label} *</Label>
                 <Input
-                  type={field.type}
-                  value={formData[field.name]}
-                  onChange={e => set(field.name, e.target.value)}
-                  placeholder={field.label}
-                  required
-                />
+                type={field.type}
+                value={formData[field.name]}
+                onChange={(e) => set(field.name, e.target.value)}
+                placeholder={field.label}
+                required />
+              
               </div>
-            ))}
+            )}
 
             <div className="space-y-1.5">
               <Label>Tipo de Pessoa *</Label>
-              <Select value={formData.tipo_pessoa} onValueChange={v => set('tipo_pessoa', v)}>
+              <Select value={formData.tipo_pessoa} onValueChange={(v) => set('tipo_pessoa', v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PF">Pessoa Física (PF)</SelectItem>
@@ -357,38 +357,38 @@ function MeusDadosInner() {
               </Select>
             </div>
 
-            {formData.tipo_pessoa !== 'PF' && (
-              <div>
+            {formData.tipo_pessoa !== 'PF' &&
+            <div>
                 <Label>CNPJ *</Label>
                 <Input
-                  value={formData.cnpj}
-                  onChange={e => set('cnpj', e.target.value)}
-                  placeholder="00.000.000/0001-00"
-                  required={formData.tipo_pessoa !== 'PF'}
-                />
+                value={formData.cnpj}
+                onChange={(e) => set('cnpj', e.target.value)}
+                placeholder="00.000.000/0001-00"
+                required={formData.tipo_pessoa !== 'PF'} />
+              
               </div>
-            )}
+            }
           </Section>
 
           {/* Dados da Empresa */}
-          {formData.tipo_pessoa !== 'PF' && (
-            <Section title="Dados da Empresa">
-              {EMPRESA_FIELDS.map(field => (
-                <div key={field.name} className="space-y-1.5">
+          {formData.tipo_pessoa !== 'PF' &&
+          <Section title="Dados da Empresa">
+              {EMPRESA_FIELDS.map((field) =>
+            <div key={field.name} className="space-y-1.5">
                   <Label>{field.label} {field.name !== 'empresa_endereco' ? '*' : ''}</Label>
                   <Input
-                    type={field.type}
-                    value={formData[field.name]}
-                    onChange={e => set(field.name, e.target.value)}
-                    placeholder={field.label}
-                    required={field.name !== 'empresa_endereco'}
-                  />
+                type={field.type}
+                value={formData[field.name]}
+                onChange={(e) => set(field.name, e.target.value)}
+                placeholder={field.label}
+                required={field.name !== 'empresa_endereco'} />
+              
                 </div>
-              ))}
+            )}
 
               <div className="space-y-1.5">
                 <Label>Cargo do Representante *</Label>
-                <Select value={formData.cargo_representante} onValueChange={v => set('cargo_representante', v)}>
+                <Select value={formData.cargo_representante} onValueChange={(v) => set('cargo_representante', v)}>
                   <SelectTrigger><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Sócio-Gerente">Sócio-Gerente</SelectItem>
@@ -400,28 +400,28 @@ function MeusDadosInner() {
                 </Select>
               </div>
             </Section>
-          )}
+          }
 
           {/* Dados Bancários — Não mostrar para patrocinadores */}
-          {!isSponsor && (
-            <Section title="Dados Bancários">
+          {!isSponsor &&
+          <Section title="Dados Bancários">
               <div className="space-y-4">
-                {BANKING_FIELDS.map(field => (
-                  <div key={field.name} className="space-y-1.5">
+                {BANKING_FIELDS.map((field) =>
+              <div key={field.name} className="space-y-1.5">
                     <Label>{field.label} {field.name !== 'pix_key' ? '*' : ''}</Label>
                     <Input
-                      type={field.type}
-                      value={formData[field.name]}
-                      onChange={e => set(field.name, e.target.value)}
-                      placeholder={field.label}
-                      required={field.name !== 'pix_key'}
-                    />
+                  type={field.type}
+                  value={formData[field.name]}
+                  onChange={(e) => set(field.name, e.target.value)}
+                  placeholder={field.label}
+                  required={field.name !== 'pix_key'} />
+                
                   </div>
-                ))}
+              )}
 
                 <div className="space-y-1.5">
                   <Label>Tipo de Conta *</Label>
-                  <Select value={formData.tipo_conta} onValueChange={v => set('tipo_conta', v)}>
+                  <Select value={formData.tipo_conta} onValueChange={(v) => set('tipo_conta', v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Corrente">Corrente</SelectItem>
@@ -431,27 +431,27 @@ function MeusDadosInner() {
                 </div>
               </div>
             </Section>
-          )}
+          }
 
           {/* Ações */}
           <div className="flex gap-2 justify-end pt-6 border-t">
             <Button
               type="submit"
               className="bg-black hover:bg-gray-800 text-white"
-              disabled={saveMutation.isPending}
-            >
-              {saveMutation.isPending ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</>
-              ) : (
-                'Salvar Dados'
-              )}
+              disabled={saveMutation.isPending}>
+              
+              {saveMutation.isPending ?
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</> :
+
+              'Salvar Dados'
+              }
             </Button>
           </div>
         </form>
 
       </div>
-    </div>
-  );
+    </div>);
+
 }
 
 function Section({ title, children }) {
@@ -459,8 +459,8 @@ function Section({ title, children }) {
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-black border-b pb-2">{title}</h2>
       {children}
-    </div>
-  );
+    </div>);
+
 }
 
 export default function MeusDados() {
