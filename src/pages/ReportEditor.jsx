@@ -767,18 +767,22 @@ ${currentValue}`,
             )}
 
             {currentTab === 'avaliacao' && (
-          <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
-          {['avaliacao_pontos_positivos', 'avaliacao_desafios', 'avaliacao_sugestoes'].map((key) => (
-            <Field key={key} label={key.replace('avaliacao_', '').replace(/_/g, ' ').charAt(0).toUpperCase() + key.slice(1)}>
-              <Textarea
-                value={toInputValue(form?.[key], '')}
-                onChange={(e) => updateField(key, e.target.value)}
-                rows={5}
-                disabled={isApproved}
-              />
-            </Field>
-          ))}
-          {!isApproved && (
+              <div className="rounded-lg border bg-white p-4 shadow-sm space-y-4">
+                {[
+                  { key: 'avaliacao_pontos_positivos', label: 'Pontos positivos' },
+                  { key: 'avaliacao_desafios', label: 'Desafios' },
+                  { key: 'avaliacao_sugestoes', label: 'Sugestões' }
+                ].map(({ key, label }) => (
+                  <Field key={key} label={label}>
+                    <Textarea
+                      value={toInputValue(form?.[key], '')}
+                      onChange={(e) => updateField(key, e.target.value)}
+                      rows={5}
+                      disabled={isApproved}
+                    />
+                  </Field>
+                ))}
+                {!isApproved && (
             <button
               type="button"
               onClick={() => saveMutation.mutate()}
