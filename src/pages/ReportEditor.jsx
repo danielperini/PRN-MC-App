@@ -156,28 +156,29 @@ export default function ReportEditor() {
   });
 
   useEffect(() => {
-    if (!report) return;
-    setForm({
-      ...report,
-      atividades: Array.isArray(report.atividades)
-        ? report.atividades.map((atividade) => ({
-            ...atividade,
-            id: atividade?.id || crypto.randomUUID(),
-            quantidade_ocorrencias: atividade?.quantidade_ocorrencias ?? '',
-            quantidade_produtos_gerados: atividade?.quantidade_produtos_gerados ?? '',
-            publico_estimado: atividade?.publico_estimado ?? '',
-            total_atividades: atividade?.total_atividades ?? '',
-          }))
-        : [],
-      oportunidades: normalizeOportunidades(report.oportunidades),
-      fotos: Array.isArray(report.fotos) ? report.fotos : [],
-      comentarios_coordenacao: report?.comentarios_coordenacao ?? '',
-      comentarios_gerais: report?.comentarios_gerais ?? '',
-      avaliacao_pontos_positivos: report?.avaliacao_pontos_positivos ?? '',
-      avaliacao_desafios: report?.avaliacao_desafios ?? '',
-      avaliacao_sugestoes: report?.avaliacao_sugestoes ?? '',
-      historico_observacoes: report?.historico_observacoes ?? '',
-    });
+   if (!report) return;
+   setForm({
+     ...report,
+     resumo_periodo: report?.resumo_periodo ?? '',
+     atividades: Array.isArray(report.atividades)
+       ? report.atividades.map((atividade) => ({
+           ...atividade,
+           id: atividade?.id || crypto.randomUUID(),
+           quantidade_ocorrencias: atividade?.quantidade_ocorrencias ?? '',
+           quantidade_produtos_gerados: atividade?.quantidade_produtos_gerados ?? '',
+           publico_estimado: atividade?.publico_estimado ?? '',
+           total_atividades: atividade?.total_atividades ?? '',
+         }))
+       : [],
+     oportunidades: normalizeOportunidades(report.oportunidades),
+     fotos: Array.isArray(report.fotos) ? report.fotos : [],
+     comentarios_coordenacao: report?.comentarios_coordenacao ?? '',
+     comentarios_gerais: report?.comentarios_gerais ?? '',
+     avaliacao_pontos_positivos: report?.avaliacao_pontos_positivos ?? '',
+     avaliacao_desafios: report?.avaliacao_desafios ?? '',
+     avaliacao_sugestoes: report?.avaliacao_sugestoes ?? '',
+     historico_observacoes: report?.historico_observacoes ?? '',
+   });
   }, [report]);
 
   const museusOptions = useMemo(() => {
