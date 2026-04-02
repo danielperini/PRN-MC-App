@@ -95,6 +95,7 @@ export default function ReportEditor() {
     resumo_periodo: '',
     atividades: [],
     oportunidades: [''],
+    oportunidades_resumo: '',
     comentarios_coordenacao: '',
     comentarios_gerais: '',
     avaliacao_pontos_positivos: '',
@@ -136,6 +137,7 @@ export default function ReportEditor() {
       ...prev,
       ...report,
       resumo_periodo: report?.resumo_periodo ?? '',
+      oportunidades_resumo: report?.oportunidades_resumo ?? '',
       atividades: Array.isArray(report.atividades)
         ? report.atividades.map((atividade) => ({
             ...atividade,
@@ -250,6 +252,7 @@ ${currentValue}`,
       avaliacao_pontos_positivos: form?.avaliacao_pontos_positivos ?? '',
       avaliacao_desafios: form?.avaliacao_desafios ?? '',
       avaliacao_sugestoes: form?.avaliacao_sugestoes ?? '',
+      oportunidades_resumo: form?.oportunidades_resumo ?? '',
       historico_observacoes: form?.historico_observacoes ?? '',
       oportunidades: (form.oportunidades || []).map((item) => String(item || '').trim()).filter(Boolean),
       atividades: (form.atividades || []).map((a) => ({
@@ -427,6 +430,7 @@ ${currentValue}`,
     form.avaliacao_pontos_positivos,
     form.avaliacao_desafios,
     form.avaliacao_sugestoes,
+    form.oportunidades_resumo,
     form.comentarios_gerais,
     form.comentarios_coordenacao,
     form.historico_observacoes,
@@ -657,6 +661,21 @@ ${currentValue}`,
                   />
                 </Field>
               ))}
+            </div>
+          </div>
+
+          <div className="border-t pt-6 mt-6">
+            <h3 className="text-sm font-semibold text-gray-800 mb-4">Oportunidades identificadas</h3>
+            <div className="space-y-4">
+              <Field label="Resumo de oportunidades">
+                <Textarea
+                  value={toInputValue(form?.oportunidades_resumo, '')}
+                  onChange={(e) => updateField('oportunidades_resumo', e.target.value)}
+                  rows={4}
+                  disabled={isApproved}
+                  placeholder="Descreva as oportunidades identificadas no período"
+                />
+              </Field>
             </div>
           </div>
 
