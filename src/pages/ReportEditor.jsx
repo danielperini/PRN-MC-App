@@ -117,7 +117,13 @@ export default function ReportEditor() {
 
       if (report?.id) {
         await base44.entities.Report.update(report.id, payload);
-        toast.success('Relatório salvo com sucesso!');
+        
+        if (nextStatus === 'SUBMITTED') {
+          toast.success('Relatório enviado para revisão com sucesso!');
+        } else {
+          toast.success('Relatório salvo em rascunho com sucesso!');
+        }
+        
         setForm((prev) => ({ ...prev, status: nextStatus || prev.status }));
         if (report) setReport({ ...report, ...payload });
       }
