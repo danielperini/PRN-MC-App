@@ -275,22 +275,26 @@ ${currentValue}`,
   }
 
   const [localReportId, setLocalReportId] = useState(reportId);
+  const effectiveReportId = localReportId || reportId;
+  const isEdit = Boolean(effectiveReportId);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = buildPayload(form?.status || 'DRAFT');
-      const idParaSalvar = localReportId || reportId;
 
-      // Validar campos obrigatórios SEMPRE (tanto na criação quanto na edição)
-      if (!payload.museu) throw new Error('Selecione um Museu / Área antes de salvar');
-      if (!payload.mes_referencia) throw new Error('Selecione um Mês de referência antes de salvar');
-      if (!payload.author_name) throw new Error('Preencha o Nome do autor');
-      if (!payload.ano) throw new Error('Selecione um Ano');
+      // Para CRIAR: não valida; aceita dados parciais
+      // Para EDITAR: valida campos obrigatórios
+      if (isEdit) {
+        if (!payload.museu) throw new Error('Selecione um Museu / Área antes de salvar');
+        if (!payload.mes_referencia) throw new Error('Selecione um Mês de referência antes de salvar');
+        if (!payload.author_name) throw new Error('Preencha o Nome do autor');
+        if (!payload.ano) throw new Error('Selecione um Ano');
+      }
 
       let saved;
 
-      if (!idParaSalvar) {
-        // Novo relatório — criar com dados mínimos
+      if (!isEdit) {
+        // Novo relatório — criar com dados mínimos (sem validação)
         saved = await base44.entities.Report.create({ ...payload, status: 'DRAFT' });
         if (saved?.id) {
           setLocalReportId(saved.id);
@@ -298,12 +302,12 @@ ${currentValue}`,
           window.history.replaceState(null, '', `/ReportEditor?id=${saved.id}`);
         }
       } else {
-        saved = await base44.entities.Report.update(idParaSalvar, payload);
+        saved = await base44.entities.Report.update(effectiveReportId, payload);
       }
 
       if (!saved) throw new Error('Servidor não confirmou a gravação. Tente novamente.');
       try {
-        const backupRes = await base44.functions.invoke('backupReportToDrive', { reportId: saved.id || idParaSalvar });
+        const backupRes = await base44.functions.invoke('backupReportToDrive', { reportId: saved.id || effectiveReportId });
         return backupRes?.data;
       } catch (backupErr) {
         console.warn('Backup Drive falhou (silencioso):', backupErr?.message);
@@ -326,18 +330,19 @@ ${currentValue}`,
 
   const submitMutation = useMutation({
     mutationFn: async () => {
+      if (!isEdit) throw new Error('Salve o relatório antes de enviar para revisão.');
+      
       const payload = buildPayload('SUBMITTED');
       payload.submitted_at = new Date().toISOString();
       payload.review_status = 'aguardando_revisao';
-      const idParaSalvar = localReportId || reportId;
-      if (!idParaSalvar) throw new Error('Salve o relatório antes de enviar para revisão.');
       
-      // Validar campos obrigatórios antes de enviar
+      // Validar campos obrigatórios antes de ENVIAR
       if (!payload.museu) throw new Error('Selecione um Museu / Área antes de enviar');
       if (!payload.mes_referencia) throw new Error('Selecione um Mês de referência antes de enviar');
       if (!payload.author_name) throw new Error('Preencha o Nome do autor antes de enviar');
       if (!payload.ano) throw new Error('Selecione um Ano antes de enviar');
-      const saved = await base44.entities.Report.update(idParaSalvar, payload);
+      
+      const saved = await base44.entities.Report.update(effectiveReportId, payload);
       if (!saved) throw new Error('Servidor não confirmou o envio. Tente novamente.');
       
       // Notificar coordenadores
@@ -351,7 +356,7 @@ ${currentValue}`,
       }
       
       try {
-        return await base44.functions.invoke('backupReportToDrive', { reportId: idParaSalvar });
+        return await base44.functions.invoke('backupReportToDrive', { reportId: effectiveReportId });
       } catch (e) {
         console.warn('Backup Drive ao enviar falhou:', e?.message);
         return null;
@@ -372,33 +377,31 @@ ${currentValue}`,
   });
 
   // Auto-save com debounce de 1s em qualquer mudança de campo
+  // APENAS para relatórios já salvos (isEdit = true)
   const isFirstRender = useRef(true);
   const autoSaveTimer = useRef(null);
 
   useEffect(() => {
-    // Ignora na carga inicial (quando o report é carregado do banco)
+    // Ignora na carga inicial
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
     
-    // Só auto-salva se houver ID e o relatório não estiver aprovado
-    const idAutoSave = localReportId || reportId;
-    if (!idAutoSave || isApproved) return;
+    // Auto-save APENAS se já existe relatório e não está aprovado
+    if (!isEdit || isApproved) return;
 
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     
     autoSaveTimer.current = setTimeout(async () => {
       try {
         const payload = buildPayload(form?.status || 'DRAFT');
-        await base44.entities.Report.update(idAutoSave, payload);
-        // Silent save - apenas log, sem toast a menos que seja erro
+        await base44.entities.Report.update(effectiveReportId, payload);
         console.log('[AutoSave] Relatório salvo automaticamente');
       } catch (err) {
         console.error('[AutoSave] Erro ao salvar:', err?.message);
-        // Mostra erro apenas se houver problema
         if (err?.message) {
-          toast.error('⚠️ Erro ao salvar automaticamente: ' + err.message, { duration: 3000 });
+          toast.error('⚠️ Erro ao salvar: ' + err.message, { duration: 3000 });
         }
       }
     }, 1000);
@@ -406,6 +409,8 @@ ${currentValue}`,
     return () => clearTimeout(autoSaveTimer.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    isEdit,
+    effectiveReportId,
     form.museu,
     form.mes_referencia,
     form.ano,
@@ -634,26 +639,25 @@ ${currentValue}`,
           mesReferencia={form?.mes_referencia || report?.mes_referencia || ''}
           ano={Number(form?.ano || report?.ano || new Date().getFullYear())}
           museu={form?.museu || ''}
-          reportId={localReportId || reportId}
+          reportId={effectiveReportId}
           onSave={async () => {
+            if (!isEdit) throw new Error('Salve o relatório primeiro antes de salvar atividades.');
             const payload = buildPayload(form?.status || 'DRAFT');
-            const idParaSalvar = localReportId || reportId;
-            if (!idParaSalvar) throw new Error('Salve o relatório primeiro antes de salvar atividades.');
-            const saved = await base44.entities.Report.update(idParaSalvar, payload);
+            const saved = await base44.entities.Report.update(effectiveReportId, payload);
             if (!saved) throw new Error('Servidor não confirmou a gravação.');
             refetch();
           }}
         />
       )}
 
-      {currentTab === 'fotos' && reportId && (
+      {currentTab === 'fotos' && effectiveReportId && (
         <div className="space-y-6">
           {/* Vínculos de fotos já enviadas da galeria */}
           <div className="rounded-lg border bg-white p-4 shadow-sm">
             <h2 className="text-sm font-semibold text-gray-800 mb-4">📎 Fotos vinculadas ao relatório</h2>
             <ReportPhotoSection
               photos={form.fotos || []}
-              reportId={reportId}
+              reportId={effectiveReportId}
               onAddPhoto={(photo) => {
                 setForm(prev => ({
                   ...prev,
@@ -680,7 +684,7 @@ ${currentValue}`,
 
           {/* Upload de novos arquivos e fotos */}
           <AttachmentsSection
-            reportId={reportId}
+           reportId={effectiveReportId}
             canEdit={!isApproved}
             reportData={form}
           />
