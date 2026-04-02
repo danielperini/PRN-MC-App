@@ -1,11 +1,11 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-function formatBRL(v) {
+function formatBRL(v: unknown) {
   const n = Number(v) || 0;
   return `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function getStatusLabel(status) {
+function getStatusLabel(status: unknown) {
   const s = String(status || '').toUpperCase();
   if (s === 'PAGO') return 'Pagamento realizado ✓';
   if (s === 'APROVADO_COORD') return 'Aprovado pela coordenação ✓';
@@ -28,15 +28,26 @@ Deno.serve(async (req) => {
 
     const payload = await req.json().catch(() => ({}));
     const {
-      payment_id, status, requester_email, team_member_name,
-      mes, ano, valor, observacoes,
-      nota_fiscal_url, xml_url, app_link,
+      payment_id,
+      status,
+      requester_email,
+      team_member_name,
+      mes,
+      ano,
+      valor,
+      observacoes,
+      nota_fiscal_url,
+      xml_url,
+      app_link,
     } = payload || {};
 
-    if (!requester_email) return Response.json({ error: 'requester_email obrigatório' }, { status: 400 });
+    if (!requester_email) {
+      return Response.json({ error: 'requester_email obrigatório' }, { status: 400 });
+    }
 
+    const normalizedStatus = String(status || '').toUpperCase();
     const appUrl = app_link || 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app/Compras';
-    const statusLabel = getStatusLabel(status);
+    const statusLabel = getStatusLabel(normalizedStatus);
     const competencia = `${mes || '-'}/${ano || '-'}`;
     const valorFmt = formatBRL(valor);
 
@@ -50,6 +61,7 @@ Solicitante: ${team_member_name || '-'}
 Competência: ${competencia}
 Valor: ${valorFmt}
 Novo status: ${statusLabel}
+ID do registro: ${payment_id || '-'}
 ${observacoes ? `\nObservações: ${observacoes}` : ''}
 
 Links:
@@ -60,7 +72,6 @@ ${xml_url ? `• XML: ${xml_url}` : ''}
 Atenciosamente,
 Museus Centro`;
 
-    // Notificar o solicitante
     await base44.asServiceRole.integrations.Core.SendEmail({
       to: requester_email,
       subject,
@@ -68,8 +79,9 @@ Museus Centro`;
       from_name: 'Museus Centro',
     });
 
-    // Se for pagamento realizado, também notifica admins
-    if (String(status || '').toUpperCase() === 'PAGO') {
+    const notifyAdminsStatuses = ['APROVADO_COORD', 'DEVOLVIDO_REVISAO', 'RECUSADO', 'PAGO'];
+
+    if (notifyAdminsStatuses.includes(normalizedStatus)) {
       for (const email of NOTIFY_ADMIN_EMAILS) {
         if (email !== requester_email) {
           await base44.asServiceRole.integrations.Core.SendEmail({
@@ -82,8 +94,12 @@ Museus Centro`;
       }
     }
 
-    return Response.json({ success: true });
-  } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({
+      success: true,
+      payment_id: payment_id || null,
+      status: normalizedStatus || null,
+    });
+  } catch (error: any) {
+    return Response.json({ error: error?.message || 'Erro interno' }, { status: 500 });
   }
 });
