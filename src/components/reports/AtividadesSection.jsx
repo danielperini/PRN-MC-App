@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+srimport React, { useCallback, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -17,9 +17,8 @@ function createActivityId() {
 }
 
 export default function AtividadesSection({
-  atividades: atividadesInitial = [],
-  setAtividades: setAtividadesFromParent = null,
-  onAtividadesChange = null,
+  atividades = [],
+  setAtividades,
   canEdit = true,
   museusOptions = [],
   tiposAcaoOptions = [],
@@ -29,31 +28,10 @@ export default function AtividadesSection({
   reportId = null,
   onSave = null,
 }) {
-  const [atividades, setAtividadesLocal] = useState(Array.isArray(atividadesInitial) ? atividadesInitial : []);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    setAtividadesLocal(Array.isArray(atividadesInitial) ? atividadesInitial : []);
-  }, [atividadesInitial]);
-
-  function syncAtividades(next) {
-    setAtividadesLocal(next);
-
-    if (typeof setAtividadesFromParent === 'function') {
-      setAtividadesFromParent(next);
-    }
-
-    if (typeof onAtividadesChange === 'function') {
-      onAtividadesChange(next);
-    }
-  }
-
   async function handleSaveAtividades() {
-    if (!onSave) {
-      toast.error('Função de salvar atividades não definida.');
-      return;
-    }
-
+    if (!onSave) return;
     setSaving(true);
     try {
       await onSave();
@@ -115,17 +93,21 @@ export default function AtividadesSection({
     },
   });
 
-  function updateAtividade(index, field, value) {
-    syncAtividades(
-      atividades.map((atividade, i) =>
-        i === index ? { ...atividade, [field]: value } : atividade
-      )
-    );
-  }
+  const updateAtividade = useCallback((index, field, value) => {
+    if (typeof setAtividades !== 'function') return;
 
-  function addAtividade() {
-    syncAtividades([
-      ...atividades,
+    setAtividades((prev) => {
+      const list = Array.isArray(prev) ? [...prev] : [];
+      list[index] = { ...(list[index] || {}), [field]: value };
+      return list;
+    });
+  }, [setAtividades]);
+
+  const addAtividade = useCallback(() => {
+    if (typeof setAtividades !== 'function') return;
+
+    setAtividades((prev) => [
+      ...(Array.isArray(prev) ? prev : []),
       {
         id: createActivityId(),
         classificacao: '',
@@ -137,18 +119,24 @@ export default function AtividadesSection({
         meta_vinculada_ids: [],
       },
     ]);
-  }
+  }, [setAtividades]);
 
-  function removeAtividade(index) {
-    syncAtividades(atividades.filter((_, i) => i !== index));
-  }
+  const removeAtividade = useCallback((index) => {
+    if (typeof setAtividades !== 'function') return;
 
-  function importarDaProgramacao(id) {
+    setAtividades((prev) => {
+      const list = Array.isArray(prev) ? [...prev] : [];
+      list.splice(index, 1);
+      return list;
+    });
+  }, [setAtividades]);
+
+  const importarDaProgramacao = useCallback((id) => {
     const item = programacaoItems.find((p) => p.id === id);
-    if (!item) return;
+    if (!item || typeof setAtividades !== 'function') return;
 
-    syncAtividades([
-      ...atividades,
+    setAtividades((prev) => [
+      ...(Array.isArray(prev) ? prev : []),
       {
         id: createActivityId(),
         classificacao: '',
@@ -161,10 +149,29 @@ export default function AtividadesSection({
         programacao_id: item.id,
       },
     ]);
-  }
+  }, [programacaoItems, setAtividades]);
 
   return (
     <div className="space-y-6">
+      {canEdit && (
+        <div className="bg-blue-50 p-4 rounded border">
+          <Select onValueChange={importarDaProgramacao}>
+            <SelectTrigger>
+              <SelectValue placeholder="Importar da programação (últimos 45 dias)" />
+            </SelectTrigger>
+            <SelectContent>
+              {programacaoItems
+                .filter((p) => !museu || !p.museu || p.museu === museu)
+                .map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {(p.titulo || p.nome || 'Sem título')} {p.museu ? `(${p.museu})` : ''}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {(atividades || []).map((atividade, index) => (
         <div key={atividade?.id || index} className="border p-4 rounded space-y-4">
           <div className="flex justify-between items-center">
