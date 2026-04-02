@@ -22,7 +22,7 @@ async function extractPdfText(file_url: string) {
 }
 
 function toNumber(value: unknown) {
-  if (value === null || value === undefined || value === '') return 0;
+  if (!value) return 0;
   const n = Number(
     String(value)
       .replace(/\./g, '')
@@ -42,11 +42,13 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const file_url = body?.file_url;
+
+    // 🔥 ACEITA AMBOS (FRONT NOVO + ANTIGO)
+    const file_url = body?.file_url || body?.contrato_url;
 
     if (!file_url) {
       return Response.json(
-        { success: false, error: 'file_url é obrigatório' },
+        { success: false, error: 'file_url ou contrato_url é obrigatório' },
         { status: 400 }
       );
     }
@@ -55,50 +57,32 @@ Deno.serve(async (req) => {
 
     if (!texto) {
       return Response.json(
-        { success: false, error: 'Não foi possível extrair o texto do contrato' },
+        { success: false, error: 'Não foi possível extrair texto do contrato' },
         { status: 400 }
       );
     }
 
     const result = await base44.integrations.Core.InvokeLLM({
       prompt: `
-Você está lendo um contrato de prestação de serviços ou documento equivalente.
+Você está lendo um contrato.
 
-Extraia apenas o que estiver claramente presente no documento.
-
-Retorne em JSON os campos:
-- nome
-- cargo
-- cpf
-- cnpj
-- tipo_pessoa (PF ou PJ)
-- empresa_nome
-- representante_legal_nome
-- representante_legal_cpf
-- valor_parcela
-- numero_parcelas
-- vigencia_inicio
-- vigencia_fim
-- data_assinatura
-- objeto_resumo
-- banco
-- agencia
-- conta
-- pix_key
-- contrato_valido
-- campos_com_baixa_confianca
-- trechos_base
+Extraia os dados abaixo em JSON.
 
 Regras:
 - não inventar
-- se não achar, retornar string vazia, 0 ou false
-- tipo_pessoa deve ser PF ou PJ
-- valor_parcela deve ser numérico
-- numero_parcelas deve ser numérico
-- contrato_valido deve considerar a vigência final, se estiver clara
-- campos_com_baixa_confianca deve listar nomes dos campos duvidosos
-- trechos_base deve trazer pequenos trechos que sustentam cada campo encontrado
-- responder em português do Brasil
+- se não achar: vazio ou 0
+- valores numéricos reais
+
+Campos:
+nome, cargo, cpf, cnpj, tipo_pessoa,
+empresa_nome, representante_legal_nome, representante_legal_cpf,
+valor_parcela, numero_parcelas,
+vigencia_inicio, vigencia_fim,
+data_assinatura,
+objeto_resumo,
+banco, agencia, conta, pix_key,
+contrato_valido,
+campos_com_baixa_confianca
 `,
       input: texto,
       response_json_schema: {
@@ -127,16 +111,13 @@ Regras:
             type: 'array',
             items: { type: 'string' },
           },
-          trechos_base: {
-            type: 'object',
-            additionalProperties: { type: 'string' },
-          },
         },
       },
     });
 
-    const vigenciaFim = String(result?.vigencia_fim || '').trim();
+    // 🔥 VALIDAÇÃO DE VIGÊNCIA
     let contratoValido = Boolean(result?.contrato_valido);
+    const vigenciaFim = String(result?.vigencia_fim || '');
 
     if (vigenciaFim) {
       const d = new Date(vigenciaFim);
@@ -148,46 +129,42 @@ Regras:
       }
     }
 
-    const payload = {
-      nome: String(result?.nome || '').trim(),
-      cargo: String(result?.cargo || '').trim(),
-      cpf: String(result?.cpf || '').trim(),
-      cnpj: String(result?.cnpj || '').trim(),
-      tipo_pessoa: String(result?.tipo_pessoa || '').trim() === 'PJ' ? 'PJ' : 'PF',
-      empresa_nome: String(result?.empresa_nome || '').trim(),
-      representante_legal_nome: String(result?.representante_legal_nome || '').trim(),
-      representante_legal_cpf: String(result?.representante_legal_cpf || '').trim(),
+    // 🔥 PADRÃO COMPATÍVEL COM FRONT
+    const dados = {
+      nome: result?.nome || '',
+      cargo: result?.cargo || '',
+      cpf: result?.cpf || '',
+      cnpj: result?.cnpj || '',
+      tipo_pessoa: result?.tipo_pessoa === 'PJ' ? 'PJ' : 'PF',
+      empresa_nome: result?.empresa_nome || '',
+      representante_legal_nome: result?.representante_legal_nome || '',
+      representante_legal_cpf: result?.representante_legal_cpf || '',
       valor_parcela: toNumber(result?.valor_parcela),
       numero_parcelas: toNumber(result?.numero_parcelas),
-      vigencia_inicio: String(result?.vigencia_inicio || '').trim(),
+      vigencia_inicio: result?.vigencia_inicio || '',
       vigencia_fim: vigenciaFim,
-      data_assinatura: String(result?.data_assinatura || '').trim(),
-      objeto_resumo: String(result?.objeto_resumo || '').trim(),
-      banco: String(result?.banco || '').trim(),
-      agencia: String(result?.agencia || '').trim(),
-      conta: String(result?.conta || '').trim(),
-      pix_key: String(result?.pix_key || '').trim(),
+      data_assinatura: result?.data_assinatura || '',
+      objeto_resumo: result?.objeto_resumo || '',
+      banco: result?.banco || '',
+      agencia: result?.agencia || '',
+      conta: result?.conta || '',
+      pix_key: result?.pix_key || '',
       contrato_valido: contratoValido,
-      campos_com_baixa_confianca: Array.isArray(result?.campos_com_baixa_confianca)
-        ? result.campos_com_baixa_confianca.map((v: unknown) => String(v || '').trim()).filter(Boolean)
-        : [],
-      trechos_base:
-        result?.trechos_base && typeof result.trechos_base === 'object'
-          ? result.trechos_base
-          : {},
-      texto_extraido: texto,
+      campos_com_baixa_confianca: result?.campos_com_baixa_confianca || [],
     };
 
     return Response.json({
       success: true,
-      ...payload,
+      dados, // 🔥 IMPORTANTE (FRONT USA ISSO)
     });
+
   } catch (error: any) {
     console.error('extractTeamContractData error:', error);
+
     return Response.json(
       {
         success: false,
-        error: error?.message || 'Erro interno ao processar contrato',
+        error: error?.message || 'Erro ao processar contrato',
       },
       { status: 500 }
     );
