@@ -58,6 +58,10 @@
       "default": 2026,
       "description": "Ano de refer\u00eancia"
     },
+    "resumo_periodo": {
+      "type": "string",
+      "description": "Resumo ou apresenta\u00e7\u00e3o do per\u00edodo"
+    },
     "resumo_executivo": {
       "type": "string",
       "description": "Resumo executivo do m\u00eas"
@@ -73,6 +77,18 @@
     "avaliacao_sugestoes": {
       "type": "string",
       "description": "Sugest\u00f5es de melhoria"
+    },
+    "comentarios_gerais": {
+      "type": "string",
+      "description": "Coment\u00e1rios gerais do relat\u00f3rio"
+    },
+    "comentarios_coordenacao": {
+      "type": "string",
+      "description": "Coment\u00e1rios para a coordena\u00e7\u00e3o"
+    },
+    "historico_observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es de hist\u00f3rico"
     },
     "status": {
       "type": "string",
@@ -117,6 +133,11 @@
       "type": "string",
       "description": "Nome do coordenador para o qual a revis\u00e3o foi delegada"
     },
+    "submitted_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora do envio para revis\u00e3o"
+    },
     "atividades": {
       "type": "array",
       "description": "Lista de atividades executadas no m\u00eas",
@@ -127,6 +148,13 @@
     "oportunidades": {
       "type": "array",
       "description": "Oportunidades identificadas no m\u00eas",
+      "items": {
+        "type": "object"
+      }
+    },
+    "fotos": {
+      "type": "array",
+      "description": "Fotos vinculadas ao relat\u00f3rio",
       "items": {
         "type": "object"
       }

@@ -348,7 +348,7 @@ ${currentValue}`,
       // Notificar coordenadores
       try {
         await base44.functions.invoke('notifyCoordinatorOnSubmit', {
-          reportId: idParaSalvar,
+          reportId: effectiveReportId,
           reportData: saved,
         });
       } catch (notifErr) {
