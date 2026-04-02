@@ -149,6 +149,107 @@ export default function ReportEditor() {
   };
 
   if (loading) {
+    return <div className="flex items-center justify-center h-96">Carregando...</div>;
+  }
+
+  if (!report?.id) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <p>Nenhum relatório selecionado</p>
+        <Button onClick={() => navigate('/Relatorios')}>Voltar aos Relatórios</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Navigation Tabs */}
+      <ReportTabsNavigation currentTab={activeTab} formData={form} onTabChange={setActiveTab} />
+
+      {/* Content Area */}
+      <Card className="p-6">
+        {/* Resumo Tab */}
+        {activeTab === 'resumo' && (
+          <div className="space-y-6">
+            <div>
+              <Label htmlFor="resumo_periodo">Resumo do Período</Label>
+              <Textarea
+                id="resumo_periodo"
+                value={form.resumo_periodo}
+                onChange={(e) => setForm({ ...form, resumo_periodo: e.target.value })}
+                placeholder="Descreva o resumo do período"
+                className="min-h-[150px] text-base p-4"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="oportunidades_resumo">Resumo de Oportunidades</Label>
+              <Textarea
+                id="oportunidades_resumo"
+                value={form.oportunidades_resumo}
+                onChange={(e) => setForm({ ...form, oportunidades_resumo: e.target.value })}
+                placeholder="Descreva as oportunidades identificadas"
+                className="min-h-[150px] text-base p-4"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="avaliacao_pontos_positivos">Pontos Positivos</Label>
+              <Textarea
+                id="avaliacao_pontos_positivos"
+                value={form.avaliacao_pontos_positivos}
+                onChange={(e) => setForm({ ...form, avaliacao_pontos_positivos: e.target.value })}
+                placeholder="Descreva os pontos positivos"
+                className="min-h-[120px] text-base p-4"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="avaliacao_desafios">Desafios</Label>
+              <Textarea
+                id="avaliacao_desafios"
+                value={form.avaliacao_desafios}
+                onChange={(e) => setForm({ ...form, avaliacao_desafios: e.target.value })}
+                placeholder="Descreva os desafios enfrentados"
+                className="min-h-[120px] text-base p-4"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="avaliacao_sugestoes">Sugestões de Melhoria</Label>
+              <Textarea
+                id="avaliacao_sugestoes"
+                value={form.avaliacao_sugestoes}
+                onChange={(e) => setForm({ ...form, avaliacao_sugestoes: e.target.value })}
+                placeholder="Descreva sugestões de melhoria"
+                className="min-h-[120px] text-base p-4"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Atividades Tab */}
+        {activeTab === 'atividades' && (
+          <AtividadesSection
+            reportId={report.id}
+            formData={form}
+            onActivitiesUpdate={(atividades) => setForm({ ...form, atividades })}
+          />
+        )}
+
+        {/* Fotos Tab */}
+        {activeTab === 'fotos' && (
+          <ReportPhotoSection
+            reportId={report.id}
+            photos={form.fotos || []}
+            onAddPhoto={async (photo) => {
+              const normalizedPhoto = {
+                id: photo?.id || photo?._id || photo?.file_id || crypto.randomUUID(),
+                url: photo?.url || photo?.file_url || '',
+                fileName: photo?.fileName || photo?.file_name || photo?.name || 'Foto',
+                author: photo?.author || photo?.uploaded_by || photo?.author_name || '',
+                caption: photo?.caption || '',
+              };
               const nextPhotos = [...(form.fotos || []), normalizedPhoto];
               setForm((prev) => ({ ...prev, fotos: nextPhotos }));
               await persistReportPhotos(nextPhotos);
