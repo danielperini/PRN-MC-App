@@ -1,0 +1,264 @@
+{
+  "name": "Activity",
+  "type": "object",
+  "properties": {
+    "report_id": {
+      "type": "string",
+      "description": "ID do relat\u00f3rio pai (FK \u2192 Report)"
+    },
+    "meta_id": {
+      "type": "string",
+      "description": "ID da meta relacionada (FK \u2192 ProjectMeta, opcional)"
+    },
+    "rubrica_id": {
+      "type": "string",
+      "description": "ID da rubrica or\u00e7ament\u00e1ria relacionada (FK \u2192 Rubrica, opcional)"
+    },
+    "usuario_responsavel_id": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio respons\u00e1vel (FK \u2192 User)"
+    },
+    "tipo_equipe": {
+      "type": "string",
+      "enum": [
+        "EDUCATIVO",
+        "PRODUCAO",
+        "COMUNICACAO",
+        "ADMINISTRACAO"
+      ],
+      "description": "Tipo de equipe respons\u00e1vel"
+    },
+    "titulo": {
+      "type": "string",
+      "description": "T\u00edtulo da atividade"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o da atividade"
+    },
+    "data_inicio": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de in\u00edcio da atividade"
+    },
+    "data_fim": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de t\u00e9rmino da atividade"
+    },
+    "data_realizacao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de realiza\u00e7\u00e3o"
+    },
+    "publico_estimado": {
+      "type": "number",
+      "default": 0,
+      "description": "P\u00fablico estimado por ocorr\u00eancia"
+    },
+    "quantas_repeticoes": {
+      "type": "number",
+      "default": 1,
+      "description": "Quantas vezes a atividade se repetiu no m\u00eas"
+    },
+    "publico_total": {
+      "type": "number",
+      "default": 0,
+      "description": "P\u00fablico total (p\u00fablico_estimado \u00d7 quantas_repeticoes)"
+    },
+    "classificacao": {
+      "type": "string",
+      "enum": [
+        "META",
+        "ROTINA",
+        "EXTRA"
+      ],
+      "description": "Classifica\u00e7\u00e3o da atividade (obrigat\u00f3rio)"
+    },
+    "meta_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo da meta do 3\u00ba Aditivo (obrigat\u00f3rio se classificacao=META)"
+    },
+    "indicador_previsto": {
+      "type": "string",
+      "description": "Indicador previsto da meta"
+    },
+    "meta_quantitativa": {
+      "type": "string",
+      "description": "Meta quantitativa, ex: 30 a\u00e7\u00f5es, 300 exemplares (opcional)"
+    },
+    "resultado_alcancado": {
+      "type": "string",
+      "description": "Resultado alcan\u00e7ado, ex: 12 a\u00e7\u00f5es executadas (opcional)"
+    },
+    "status_meta": {
+      "type": "string",
+      "enum": [
+        "Em andamento",
+        "Parcial",
+        "Cumprida",
+        "Superada"
+      ],
+      "description": "Status de cumprimento da meta"
+    },
+    "justificativa_tecnica": {
+      "type": "string",
+      "description": "Justificativa t\u00e9cnica"
+    },
+    "equipe_responsavel": {
+      "type": "string",
+      "description": "Equipe respons\u00e1vel pela atividade"
+    },
+    "acessibilidade": {
+      "type": "string",
+      "enum": [
+        "N\u00e3o",
+        "Parcial",
+        "Total"
+      ],
+      "default": "N\u00e3o",
+      "description": "N\u00edvel de acessibilidade"
+    },
+    "parceria": {
+      "type": "string",
+      "enum": [
+        "Sim",
+        "N\u00e3o"
+      ],
+      "default": "N\u00e3o",
+      "description": "Envolve parceria externa?"
+    },
+    "parceiro_nome": {
+      "type": "string",
+      "description": "Nome do parceiro (se houver)"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es adicionais"
+    },
+    "quantidade_produtos": {
+      "type": "number",
+      "default": 1,
+      "description": "Quantidade de produtos gerados (ex: 10 posts, 5 oficinas)"
+    },
+    "produtos_entregues": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "Cobertura Fotogr\u00e1fica",
+          "Cobertura de V\u00eddeo",
+          "Texto",
+          "Revis\u00e3o",
+          "Identidade Visual",
+          "Logomarca",
+          "Post",
+          "Tradu\u00e7\u00e3o",
+          "Expografia",
+          "Cat\u00e1logo",
+          "Cartaz",
+          "Reuni\u00e3o",
+          "Visita",
+          "Relat\u00f3rio",
+          "Gest\u00e3o",
+          "Apresenta\u00e7\u00e3o de Contas",
+          "Planejamento",
+          "Programa\u00e7\u00e3o",
+          "Roda de Conversa"
+        ]
+      },
+      "description": "Produtos/entregas gerados nesta atividade"
+    },
+    "eh_mobilizacao": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u00c9 uma atividade de mobiliza\u00e7\u00e3o/divulga\u00e7\u00e3o?"
+    },
+    "tipo_mobilizacao": {
+      "type": "string",
+      "enum": [
+        "Visita a Escolas",
+        "Visita a Institui\u00e7\u00f5es",
+        "Panfletagem",
+        "Reuni\u00e3o Comunit\u00e1ria",
+        "Ativa\u00e7\u00e3o de Redes Sociais",
+        "Envio em Grupos de WhatsApp",
+        "Contatos Telef\u00f4nicos",
+        "Chat",
+        "Outro"
+      ],
+      "description": "Tipo de atividade de mobiliza\u00e7\u00e3o"
+    },
+    "descricao_mobilizacao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o detalhada da a\u00e7\u00e3o de mobiliza\u00e7\u00e3o/divulga\u00e7\u00e3o"
+    },
+    "houve_contratacoes": {
+      "type": "boolean",
+      "default": false,
+      "description": "Houve contrata\u00e7\u00f5es de profissionais da cadeia da cultura?"
+    },
+    "numero_trabalhadores": {
+      "type": "number",
+      "description": "N\u00famero de trabalhadores da cadeia da cultura envolvidos"
+    },
+    "numero_empresas": {
+      "type": "number",
+      "description": "N\u00famero de empresas envolvidas"
+    },
+    "valor_aproximado": {
+      "type": "number",
+      "description": "Valor aproximado gasto com contrata\u00e7\u00f5es"
+    },
+    "eh_programacao": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u00c9 uma programa\u00e7\u00e3o/evento que ser\u00e1 cadastrado na agenda?"
+    },
+    "programacao_id": {
+      "type": "string",
+      "description": "ID da programa\u00e7\u00e3o vinculada (FK \u2192 Programacao, se aplic\u00e1vel)"
+    },
+    "necessita_compras": {
+      "type": "boolean",
+      "default": false,
+      "description": "Esta atividade necessita de compras?"
+    },
+    "permite_vincular_compras": {
+      "type": "boolean",
+      "default": false,
+      "description": "Permite vincular solicita\u00e7\u00f5es de compra?"
+    },
+    "fotos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "attachment_id": {
+            "type": "string",
+            "description": "ID do attachment (FK \u2192 Attachment)"
+          }
+        }
+      },
+      "description": "Lista de fotos anexadas"
+    },
+    "documentos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "attachment_id": {
+            "type": "string",
+            "description": "ID do attachment (FK \u2192 Attachment)"
+          }
+        }
+      },
+      "description": "Lista de documentos anexados"
+    }
+  },
+  "required": [
+    "report_id",
+    "titulo",
+    "classificacao"
+  ]
+}
