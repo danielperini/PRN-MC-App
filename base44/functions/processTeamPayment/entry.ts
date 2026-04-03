@@ -14,9 +14,6 @@ function computeSaldo(rubrica: any) {
 function pickRubricaId(payment: any, member: any) {
   return (
     payment?.rubrica_id ||
-    payment?.rubricaId ||
-    payment?.budget_rubrica_id ||
-    payment?.linha_rubrica_id ||
     member?.rubrica_id ||
     null
   );
@@ -25,11 +22,42 @@ function pickRubricaId(payment: any, member: any) {
 function pickRubricaNome(payment: any, rubrica: any) {
   return (
     payment?.rubrica_nome ||
-    payment?.rubrica ||
     rubrica?.nome ||
-    rubrica?.rubrica ||
     ''
   );
+}
+
+async function removeDuplicados(base44: any, payment: any) {
+  const duplicates = await base44.entities.TeamPayment.filter({
+    user_email: payment.user_email,
+    mes_referencia: payment.mes_referencia,
+    ano: payment.ano
+  });
+
+  if (!duplicates || duplicates.length <= 1) return;
+
+  // 🔥 ordena: mantém o melhor
+  const sorted = duplicates.sort((a: any, b: any) => {
+    const va = toNumber(a.valor_nf || a.valor_parcela_previsto);
+    const vb = toNumber(b.valor_nf || b.valor_parcela_previsto);
+
+    if (vb !== va) return vb - va;
+
+    return new Date(b.created_date || 0).getTime() - new Date(a.created_date || 0).getTime();
+  });
+
+  const keep = sorted[0];
+  const toDelete = sorted.slice(1);
+
+  for (const d of toDelete) {
+    try {
+      await base44.entities.TeamPayment.delete(d.id);
+    } catch (e) {
+      console.error('Erro ao deletar duplicado:', d.id);
+    }
+  }
+
+  return keep.id === payment.id;
 }
 
 Deno.serve(async (req) => {
@@ -43,10 +71,20 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'payment_id e action obrigatórios' }, { status: 400 });
     }
 
-    const payment = await base44.entities.TeamPayment.get(payment_id);
+    let payment = await base44.entities.TeamPayment.get(payment_id);
 
     if (!payment) {
       return Response.json({ error: 'Pagamento não encontrado' }, { status: 404 });
+    }
+
+    // 🔥 REMOVE DUPLICADOS
+    const stillValid = await removeDuplicados(base44, payment);
+
+    if (!stillValid) {
+      return Response.json({
+        error: 'Pagamento duplicado removido automaticamente',
+        removed_duplicate: true
+      }, { status: 409 });
     }
 
     const member = (await base44.entities.TeamMember.filter({
@@ -64,115 +102,75 @@ Deno.serve(async (req) => {
 
     const rubrica = await base44.entities.Rubrica.get(rubricaId);
 
-    if (!rubrica?.id) {
-      return Response.json({
-        error: 'Rubrica vinculada não encontrada',
-        blocked_by_rubrica: true
-      }, { status: 404 });
-    }
-
     const valor = toNumber(payment?.valor_nf || payment?.valor_parcela_previsto);
     const rubricaNome = pickRubricaNome(payment, rubrica);
 
+    // ========================
+    // APROVAR
+    // ========================
     if (action === 'approve') {
       if (payment.status !== 'AGUARDANDO_APROVACAO') {
-        return Response.json({ error: 'Status inválido para aprovação' }, { status: 400 });
+        return Response.json({ error: 'Status inválido' }, { status: 400 });
       }
 
       const saldo = computeSaldo(rubrica);
 
       if (saldo < valor) {
-        return Response.json({
-          error: 'Saldo insuficiente',
-          saldo_insuficiente: true
-        }, { status: 400 });
+        return Response.json({ error: 'Saldo insuficiente' }, { status: 400 });
       }
 
       await base44.entities.Rubrica.update(rubrica.id, {
-        saldo_comprometido: toNumber(rubrica?.saldo_comprometido) + valor
+        saldo_comprometido: toNumber(rubrica.saldo_comprometido) + valor
       });
 
       await base44.entities.TeamPayment.update(payment.id, {
         status: 'APROVADO_COORD',
-        aprov_coord_data: new Date().toISOString(),
         rubrica_id: rubrica.id,
         rubrica_nome: rubricaNome
       });
 
-      return Response.json({
-        ok: true,
-        action: 'approved',
-        rubrica_id: rubrica.id,
-        rubrica_nome: rubricaNome
-      });
+      return Response.json({ ok: true });
     }
 
+    // ========================
+    // PAGAR
+    // ========================
     if (action === 'pay') {
       if (payment.status !== 'APROVADO_COORD') {
-        return Response.json({ error: 'Pagamento só permitido após aprovação' }, { status: 400 });
-      }
-
-      const comprometido = toNumber(rubrica?.saldo_comprometido);
-
-      if (comprometido < valor) {
-        const saldo = computeSaldo(rubrica);
-
-        if (saldo < valor) {
-          return Response.json({
-            error: 'Saldo insuficiente para pagamento',
-            saldo_insuficiente: true
-          }, { status: 400 });
-        }
+        return Response.json({ error: 'Pagamento só após aprovação' }, { status: 400 });
       }
 
       await base44.entities.Rubrica.update(rubrica.id, {
-        valor_utilizado: toNumber(rubrica?.valor_utilizado) + valor,
-        saldo_comprometido: Math.max(0, comprometido - valor)
+        valor_utilizado: toNumber(rubrica.valor_utilizado) + valor,
+        saldo_comprometido: Math.max(0, toNumber(rubrica.saldo_comprometido) - valor)
       });
 
       await base44.entities.TeamPayment.update(payment.id, {
         status: 'PAGO',
         valor_pago: valor,
-        data_pagamento: new Date().toISOString(),
         rubrica_id: rubrica.id,
         rubrica_nome: rubricaNome
       });
 
-      return Response.json({
-        ok: true,
-        action: 'paid',
-        rubrica_id: rubrica.id,
-        rubrica_nome: rubricaNome
-      });
+      return Response.json({ ok: true });
     }
 
+    // ========================
+    // DEVOLVER
+    // ========================
     if (action === 'return') {
-      if (!['AGUARDANDO_APROVACAO', 'APROVADO_COORD'].includes(String(payment.status || ''))) {
-        return Response.json({ error: 'Status inválido para devolução' }, { status: 400 });
-      }
-
-      if (String(payment.status || '') === 'APROVADO_COORD') {
-        await base44.entities.Rubrica.update(rubrica.id, {
-          saldo_comprometido: Math.max(0, toNumber(rubrica?.saldo_comprometido) - valor)
-        });
-      }
-
       await base44.entities.TeamPayment.update(payment.id, {
         status: 'DEVOLVIDO_REVISAO',
         rubrica_id: rubrica.id,
         rubrica_nome: rubricaNome
       });
 
-      return Response.json({
-        ok: true,
-        action: 'returned',
-        rubrica_id: rubrica.id,
-        rubrica_nome: rubricaNome
-      });
+      return Response.json({ ok: true });
     }
 
     return Response.json({ error: 'Ação inválida' }, { status: 400 });
+
   } catch (e: any) {
-    return Response.json({ error: e?.message || 'Erro interno' }, { status: 500 });
+    return Response.json({ error: e.message }, { status: 500 });
   }
 });
