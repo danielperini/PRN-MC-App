@@ -18,163 +18,100 @@ export default function ReportEditor() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('relatorio');
-  const lastLoadedReportIdRef = useRef(null);
 
   const [form, setForm] = useState({
-    numero_protocolo: '',
-    author_name: '',
-    funcao: '',
-    museu: '',
-    equipe: '',
-    mes_referencia: '',
-    ano: new Date().getFullYear(),
-    resumo_periodo: '',
-    resumo_executivo: '',
-    avaliacao_pontos_positivos: '',
-    avaliacao_desafios: '',
-    avaliacao_sugestoes: '',
-    comentarios_gerais: '',
-    comentarios_coordenacao: '',
-    historico_observacoes: '',
-    oportunidades_resumo: '',
-    status: 'DRAFT',
     atividades: [],
-    oportunidades: [],
     fotos: [],
     depoimentos: [],
     attachments: [],
   });
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const reportId = urlParams.get('id');
-
-    const init = async () => {
+    async function init() {
       try {
-        if (!reportId) {
-          // 🔥 CRIAR NOVO RELATÓRIO AUTOMATICAMENTE
-          const newReport = await base44.entities.Report.create({
-            status: 'DRAFT',
-            ano: new Date().getFullYear(),
-            atividades: [],
-            oportunidades: [],
-            fotos: [],
-            depoimentos: [],
-            attachments: [],
-          });
+        const urlParams = new URLSearchParams(window.location.search);
+        const reportId = urlParams.get('id');
 
-          setReport(newReport);
+        if (reportId) {
+          const data = await base44.entities.Report.get(reportId);
+          setReport(data);
+          setForm(prev => ({ ...prev, ...data }));
           return;
         }
 
-        const data = await base44.entities.Report.get(reportId);
-        setReport(data);
+        const newReport = await base44.entities.Report.create({
+          status: 'DRAFT',
+          atividades: [],
+          fotos: [],
+          depoimentos: [],
+          attachments: [],
+        });
+
+        setReport(newReport);
+
+        window.history.replaceState({}, '', `/ReportEditor?id=${newReport.id}`);
       } catch (error) {
         toast.error('Erro ao carregar relatório');
-        console.error(error);
       } finally {
         setLoading(false);
       }
-    };
+    }
 
     init();
   }, []);
 
-  useEffect(() => {
+  const handleSave = async () => {
     if (!report?.id) return;
-    if (lastLoadedReportIdRef.current === report.id) return;
 
-    setForm((prev) => ({
-      ...prev,
-      ...report,
-      resumo_periodo: report?.resumo_periodo ?? '',
-      resumo_executivo: report?.resumo_executivo ?? '',
-      avaliacao_pontos_positivos: report?.avaliacao_pontos_positivos ?? '',
-      avaliacao_desafios: report?.avaliacao_desafios ?? '',
-      avaliacao_sugestoes: report?.avaliacao_sugestoes ?? '',
-      comentarios_gerais: report?.comentarios_gerais ?? '',
-      comentarios_coordenacao: report?.comentarios_coordenacao ?? '',
-      historico_observacoes: report?.historico_observacoes ?? '',
-      oportunidades_resumo: report?.oportunidades_resumo ?? '',
-      atividades: Array.isArray(report?.atividades) ? report.atividades : [],
-      oportunidades: Array.isArray(report?.oportunidades) ? report.oportunidades : [],
-      fotos: Array.isArray(report?.fotos) ? report.fotos : [],
-      depoimentos: Array.isArray(report?.depoimentos) ? report.depoimentos : [],
-      attachments: Array.isArray(report?.attachments) ? report.attachments : [],
-    }));
-
-    lastLoadedReportIdRef.current = report.id;
-  }, [report]);
-
-  const buildPayload = (nextStatus = null) => {
-    return {
-      numero_protocolo: form.numero_protocolo,
-      author_name: form.author_name,
-      funcao: form.funcao,
-      museu: form.museu,
-      equipe: form.equipe,
-      mes_referencia: form.mes_referencia,
-      ano: form.ano,
-      resumo_periodo: form.resumo_periodo ?? '',
-      resumo_executivo: form.resumo_executivo ?? '',
-      avaliacao_pontos_positivos: form.avaliacao_pontos_positivos ?? '',
-      avaliacao_desafios: form.avaliacao_desafios ?? '',
-      avaliacao_sugestoes: form.avaliacao_sugestoes ?? '',
-      comentarios_gerais: form.comentarios_gerais ?? '',
-      comentarios_coordenacao: form.comentarios_coordenacao ?? '',
-      historico_observacoes: form.historico_observacoes ?? '',
-      oportunidades_resumo: form.oportunidades_resumo ?? '',
-      status: nextStatus || form.status,
-      atividades: form.atividades || [],
-      oportunidades: form.oportunidades || [],
-      fotos: form.fotos || [],
-      depoimentos: form.depoimentos || [],
-      attachments: form.attachments || [],
-    };
-  };
-
-  const handleSave = async (nextStatus = null) => {
     setSaving(true);
     try {
-      const payload = buildPayload(nextStatus);
-
-      if (report?.id) {
-        await base44.entities.Report.update(report.id, payload);
-
-        if (nextStatus === 'SUBMITTED') {
-          toast.success('Relatório enviado para revisão com sucesso!');
-        } else {
-          toast.success('Relatório salvo com sucesso!');
-        }
-
-        setForm((prev) => ({ ...prev, status: nextStatus || prev.status }));
-        setReport((prev) => (prev ? { ...prev, ...payload } : prev));
-      }
-    } catch (error) {
-      toast.error('Erro ao salvar relatório');
-      console.error(error);
-      throw error;
+      await base44.entities.Report.update(report.id, form);
+      toast.success('Relatório salvo');
+    } catch {
+      toast.error('Erro ao salvar');
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-96">Carregando...</div>;
+    return <div className="p-10 text-center">Carregando...</div>;
+  }
+
+  if (!report?.id) {
+    return <div className="p-10 text-center">Erro ao carregar relatório</div>;
   }
 
   return (
     <div className="space-y-6">
-      <ReportTabsNavigation currentTab={activeTab} formData={form} onTabChange={setActiveTab} />
+
+      <ReportTabsNavigation
+        currentTab={activeTab}
+        formData={form}
+        onTabChange={setActiveTab}
+      />
 
       <Card className="p-6">
+
         {activeTab === 'relatorio' && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div>
-              <Label>Resumo do Período</Label>
+              <Label>Resumo do período</Label>
               <Textarea
-                value={form.resumo_periodo}
-                onChange={(e) => setForm((prev) => ({ ...prev, resumo_periodo: e.target.value }))}
+                value={form.resumo_periodo || ''}
+                onChange={(e) =>
+                  setForm(prev => ({ ...prev, resumo_periodo: e.target.value }))
+                }
+              />
+            </div>
+
+            <div>
+              <Label>Resumo executivo</Label>
+              <Textarea
+                value={form.resumo_executivo || ''}
+                onChange={(e) =>
+                  setForm(prev => ({ ...prev, resumo_executivo: e.target.value }))
+                }
               />
             </div>
           </div>
@@ -183,40 +120,64 @@ export default function ReportEditor() {
         {activeTab === 'atividades' && (
           <AtividadesSection
             reportId={report.id}
-            atividades={form.atividades || []}
-            setAtividades={(v) => setForm((prev) => ({ ...prev, atividades: v }))}
-            canEdit={true}
+            atividades={form.atividades}
+            setAtividades={(v) => setForm(prev => ({ ...prev, atividades: v }))}
+            mesReferencia={form.mes_referencia}
+            ano={form.ano}
+            museu={form.museu}
+            onSave={handleSave}
           />
         )}
 
         {activeTab === 'fotos' && (
-          <ReportPhotoSection reportId={report.id} photos={form.fotos || []} />
+          <ReportPhotoSection
+            reportId={report.id}
+            activityId={null}
+            photos={form.fotos}
+            onAddPhoto={(p) =>
+              setForm(prev => ({ ...prev, fotos: [...prev.fotos, p] }))
+            }
+            onUpdatePhoto={(id, caption) =>
+              setForm(prev => ({
+                ...prev,
+                fotos: prev.fotos.map(f => f.id === id ? { ...f, caption } : f)
+              }))
+            }
+            onDeletePhoto={(id) =>
+              setForm(prev => ({
+                ...prev,
+                fotos: prev.fotos.filter(f => f.id !== id)
+              }))
+            }
+          />
         )}
 
         {activeTab === 'attachments' && (
-          <AttachmentsSection reportId={report.id} attachments={form.attachments || []} />
+          <AttachmentsSection
+            reportId={report.id}
+            reportData={form}
+            canEdit
+          />
         )}
 
         {activeTab === 'depoimentos' && (
           <DepoimentosSection
-            reportId={report.id}
-            depoimentos={form.depoimentos || []}
-            onChange={(v) => setForm((prev) => ({ ...prev, depoimentos: v }))}
+            depoimentos={form.depoimentos}
+            onChange={(v) => setForm(prev => ({ ...prev, depoimentos: v }))}
+            canEdit
+            museu={form.museu}
           />
         )}
+
       </Card>
 
-      <div className="flex gap-3 justify-end">
-        <Button onClick={() => navigate('/Relatorios')} variant="outline">
+      <div className="flex justify-end gap-3">
+        <Button variant="outline" onClick={() => navigate('/Relatorios')}>
           Cancelar
         </Button>
 
-        <Button onClick={() => handleSave('DRAFT')} disabled={saving}>
-          Salvar
-        </Button>
-
-        <Button onClick={() => handleSave('SUBMITTED')} disabled={saving}>
-          Enviar
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? 'Salvando...' : 'Salvar'}
         </Button>
       </div>
     </div>
