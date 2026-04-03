@@ -1,15 +1,17 @@
 import React from 'react';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, AlertCircle } from 'lucide-react';
 
 const TABS_INFO = [
   { value: 'relatorio', label: 'Relatório', icon: '📋' },
   { value: 'atividades', label: 'Atividades', icon: '📝' },
+  { value: 'fotos', label: 'Fotos', icon: '📸' },
 ];
 
 export default function ReportTabsNavigation({ currentTab, formData, onTabChange }) {
   const tabProgress = {
     relatorio: !!(formData.mes_referencia && formData.author_name && formData.museu),
     atividades: (formData.atividades || []).length > 0,
+    fotos: (formData.fotos || []).length > 0,
   };
 
   const totalTabs = TABS_INFO.length;
