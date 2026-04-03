@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { toastMessages } from '@/lib/toastMessages';
 import { toast } from 'sonner';
 
 function toNumber(value) {
@@ -27,7 +26,6 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
   const [editValue, setEditValue] = useState('');
   const [savingId, setSavingId] = useState(null);
 
-  // 🔒 PERMITIR APENAS EDITAR VALOR TOTAL (NÃO UTILIZADO)
   async function handleEditValor(rubricaId, currentValue) {
     setEditingId(rubricaId);
     setEditValue(String(currentValue));
@@ -38,6 +36,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
 
     try {
       const newValue = parseMoneda(editValue);
+
       if (!Number.isFinite(newValue) || newValue < 0) {
         toast.error('Informe um valor válido');
         return;
@@ -51,6 +50,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
 
       setEditingId(null);
       if (onRefresh) onRefresh();
+
     } catch (e) {
       toast.error('Erro ao salvar');
     } finally {
@@ -65,15 +65,41 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
     });
   }, [rubricas, search]);
 
+  // 🔥 RECOMPUTAR VALORES (NÃO confiar no backend)
+  const dadosProcessados = useMemo(() => {
+    return filtradas.map((r) => {
+      const valor = toNumber(r?.valor_rubrica || r?.valor_total);
+      const utilizado = toNumber(r?.valor_utilizado);
+
+      // 🔥 fallback seguro caso backend esteja inconsistente
+      const comprometido = toNumber(r?.saldo_comprometido || r?.valor_comprometido);
+
+      const saldo = valor - utilizado - comprometido;
+
+      const perc = valor > 0
+        ? ((utilizado + comprometido) / valor) * 100
+        : 0;
+
+      return {
+        ...r,
+        valor,
+        utilizado,
+        comprometido,
+        saldo,
+        perc
+      };
+    });
+  }, [filtradas]);
+
   const totais = useMemo(() => {
     let previsto = 0;
     let utilizado = 0;
     let comprometido = 0;
 
-    for (const r of filtradas) {
-      previsto += toNumber(r?.valor_rubrica);
-      utilizado += toNumber(r?.valor_utilizado);
-      comprometido += toNumber(r?.saldo_comprometido);
+    for (const r of dadosProcessados) {
+      previsto += r.valor;
+      utilizado += r.utilizado;
+      comprometido += r.comprometido;
     }
 
     return {
@@ -82,7 +108,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
       comprometido,
       saldo: previsto - utilizado - comprometido
     };
-  }, [filtradas]);
+  }, [dadosProcessados]);
 
   return (
     <div className="space-y-4">
@@ -109,62 +135,47 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
           </thead>
 
           <tbody>
-            {filtradas.map((r) => {
-              const valor = toNumber(r?.valor_rubrica);
-              const utilizado = toNumber(r?.valor_utilizado);
-              const comprometido = toNumber(r?.saldo_comprometido);
+            {dadosProcessados.map((r) => (
+              <tr key={r.id} className="border-t">
 
-              const saldo = valor - utilizado - comprometido;
+                <td className="p-2">{r?.grupo}</td>
+                <td className="p-2">{r?.rubrica}</td>
 
-              const perc = valor > 0
-                ? ((utilizado + comprometido) / valor) * 100
-                : 0;
+                <td
+                  className="p-2 cursor-pointer hover:bg-yellow-100"
+                  onClick={() => handleEditValor(r.id, r.valor)}
+                >
+                  {editingId === r.id ? (
+                    <input
+                      autoFocus
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={() => handleSaveValor(r.id)}
+                      className="w-full border rounded px-1"
+                      disabled={savingId === r.id}
+                    />
+                  ) : (
+                    `R$ ${moeda(r.valor)}`
+                  )}
+                </td>
 
-              return (
-                <tr key={r.id} className="border-t">
+                <td className="p-2 text-blue-700">
+                  R$ {moeda(r.utilizado)}
+                </td>
 
-                  <td className="p-2">{r?.grupo}</td>
-                  <td className="p-2">{r?.rubrica}</td>
+                <td className="p-2 text-orange-700">
+                  R$ {moeda(r.comprometido)}
+                </td>
 
-                  {/* ✔ EDITÁVEL */}
-                  <td
-                    className="p-2 cursor-pointer hover:bg-yellow-100"
-                    onClick={() => handleEditValor(r.id, valor)}
-                  >
-                    {editingId === r.id ? (
-                      <input
-                        autoFocus
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={() => handleSaveValor(r.id)}
-                        className="w-full border rounded px-1"
-                        disabled={savingId === r.id}
-                      />
-                    ) : (
-                      `R$ ${moeda(valor)}`
-                    )}
-                  </td>
+                <td className={`p-2 font-medium ${r.saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
+                  R$ {moeda(r.saldo)}
+                </td>
 
-                  {/* 🔒 BLOQUEADO */}
-                  <td className="p-2 text-blue-700">
-                    R$ {moeda(utilizado)}
-                  </td>
-
-                  {/* 🔒 BLOQUEADO */}
-                  <td className="p-2 text-orange-700">
-                    R$ {moeda(comprometido)}
-                  </td>
-
-                  <td className={`p-2 font-medium ${saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
-                    R$ {moeda(saldo)}
-                  </td>
-
-                  <td className="p-2">
-                    {perc.toFixed(1)}%
-                  </td>
-                </tr>
-              );
-            })}
+                <td className="p-2">
+                  {r.perc.toFixed(1)}%
+                </td>
+              </tr>
+            ))}
           </tbody>
 
           <tfoot className="bg-gray-50 font-bold">
