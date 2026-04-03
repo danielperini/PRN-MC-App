@@ -293,7 +293,7 @@ function RelatoriosInner() {
           </div>
 
           <div className="flex gap-2 flex-wrap">
-            <Link to="/ReportEditor">
+            <Link to="/ReportEditor?novo=true">
               <Button className="bg-black hover:bg-gray-800 text-white gap-2">
                 <FileText className="w-4 h-4" />
                 Novo Relatório
