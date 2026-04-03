@@ -207,24 +207,32 @@ async function renameFile(file, fileName) {
   });
 }
 
-function fmtStatus(s) {
-  const map = {
-    AGUARDANDO_APROVACAO: { label: 'Aguardando aprovação', cls: 'bg-amber-100 text-amber-800' },
-    APROVADO_COORD: { label: 'Aprovado', cls: 'bg-blue-100 text-blue-700' },
-    DEVOLVIDO_REVISAO: { label: 'Devolvido', cls: 'bg-orange-100 text-orange-800' },
-    PAGO: { label: 'Pago', cls: 'bg-emerald-100 text-emerald-700' },
-  };
-  return map[s] || { label: s || '—', cls: 'bg-gray-100 text-gray-700' };
-}
-
 export default function TeamPaymentSubmit({ userEmail }) {
   const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [pdfFile, setPdfFile] = useState(null);
+  const [xmlFile, setXmlFile] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
+  const [analysisStep, setAnalysisStep] = useState('');
+  const [submissionSteps, setSubmissionSteps] = useState([
+    { label: 'Upload do PDF', done: false },
+    { label: 'Upload do XML', done: false },
+    { label: 'Análise com IA', done: false },
+    { label: 'Validações de negócio', done: false },
+    { label: 'Registro no sistema', done: false },
+    { label: 'Backup no Drive', done: false },
+    { label: 'Notificações', done: false }
+  ]);
+  const [progressPercent, setProgressPercent] = useState(0);
 
-  const { data: myPayments = [], isLoading: loadingMyPayments } = useQuery({
-    queryKey: ['my-team-payments', userEmail],
-    queryFn: () => base44.entities.TeamPayment.filter({ user_email: userEmail }, '-created_date', 50),
-    enabled: !!userEmail
-  });
+  // CORREÇÃO DO ERRO
+  const [memberLocalPatch, setMemberLocalPatch] = useState({});
+
+  const [analyzingOnly] = useState(false);
+  const [submitErrorMessage, setSubmitErrorMessage] = useState('');
+  const [submitErrorDetails, setSubmitErrorDetails] = useState('');
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
 
   const [form, setForm] = useState({
     competencia: '',
@@ -711,42 +719,6 @@ export default function TeamPaymentSubmit({ userEmail }) {
           </div>
         </div>
       )}
-
-      {/* Lista de envios anteriores */}
-      <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-gray-700">Meus envios</h3>
-        {loadingMyPayments ? (
-          <div className="text-sm text-gray-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Carregando...</div>
-        ) : myPayments.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-400">Nenhum envio encontrado.</div>
-        ) : (
-          <div className="space-y-2">
-            {myPayments.map(p => {
-              const st = fmtStatus(p.status);
-              return (
-                <div key={p.id} className="rounded-xl border border-gray-200 bg-white p-3 flex flex-wrap items-start justify-between gap-2 text-sm">
-                  <div className="space-y-0.5">
-                    <div className="font-medium text-gray-900">{p.mes_referencia}/{p.ano} — NF {p.numero_nf}</div>
-                    <div className="text-xs text-gray-500">
-                      {p.nota_fiscal_file_name && <span className="mr-2">PDF: {p.nota_fiscal_file_name}</span>}
-                      {p.xml_file_name && <span>XML: {p.xml_file_name}</span>}
-                    </div>
-                    {p.nota_fiscal_url && (
-                      <a href={p.nota_fiscal_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                        <Eye className="w-3 h-3" /> Ver PDF
-                      </a>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-800">{formatBRL(p.valor_nf)}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.cls}`}>{st.label}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
 
       <Dialog open={open} onOpenChange={(value) => {
         setOpen(value);
