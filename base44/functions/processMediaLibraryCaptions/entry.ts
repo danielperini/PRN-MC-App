@@ -14,8 +14,9 @@ function needsProcessing(item: any) {
   const legenda = String(item?.legenda || '').trim();
   const descricao = String(item?.descricao || '').trim();
   const museu = String(item?.museu || '').trim();
+  const localizacao = String(item?.localizacao || '').trim();
 
-  return !legenda || !descricao || !museu;
+  return !legenda || !descricao || !museu || !localizacao;
 }
 
 Deno.serve(async (req) => {
@@ -23,7 +24,6 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
 
     const mediaItems = await base44.entities.MediaLibrary.list?.('-created_date', 1000);
-
     const list = Array.isArray(mediaItems) ? mediaItems : [];
 
     const candidates = list.filter((item) => {
@@ -48,12 +48,14 @@ Deno.serve(async (req) => {
         const legenda = String(data?.caption || '').trim();
         const descricao = String(data?.description || '').trim();
         const museu = String(data?.museum || '').trim();
+        const localizacao = String(data?.location || '').trim();
 
         const payload: Record<string, any> = {};
 
         if (legenda) payload.legenda = legenda;
         if (descricao) payload.descricao = descricao;
         if (museu) payload.museu = museu;
+        if (localizacao) payload.localizacao = localizacao;
 
         payload.ia_processada_em = new Date().toISOString();
         payload.ia_status = 'PROCESSADO';
@@ -68,6 +70,7 @@ Deno.serve(async (req) => {
           legenda,
           descricao,
           museu,
+          localizacao,
         });
       } catch (error) {
         console.error(`Erro ao processar mídia ${item?.id}:`, error?.message || error);
