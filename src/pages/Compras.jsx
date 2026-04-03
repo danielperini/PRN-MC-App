@@ -165,6 +165,13 @@ function TabelaSolicitacoes({
             };
 
             const rubrica = p.rubrica_id ? rubricaById[p.rubrica_id] : null;
+            const rubricaNome =
+            p?.rubrica_nome ||
+            p?.rubrica ||
+            rubrica?.rubrica ||
+            rubrica?.nome ||
+            '—';
+
             const valor = getPurchaseValue(p);
 
             const inconsistente =
@@ -215,13 +222,9 @@ function TabelaSolicitacoes({
                 </td>
 
                 <td className="max-w-[160px] px-3 py-2.5">
-                  {rubrica ?
                   <span className="text-gray-700 text-xs text-left truncate">
-                      {rubrica.rubrica || rubrica.nome || '—'}
-                    </span> :
-
-                  <span className="text-xs text-gray-400">—</span>
-                  }
+                    {rubricaNome}
+                  </span>
                 </td>
 
                 <td className="px-3 py-2.5">
