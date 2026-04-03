@@ -1,40 +1,45 @@
-// ADICIONE ESTES IMPORTS NO TOPO (não remova os existentes)
-import { useQuery } from '@tanstack/react-query';
-import { Badge } from '@/components/ui/badge';
+{/* 🔥 LISTA DE ENVIOS */}
+<div className="space-y-3">
+  <div className="font-semibold text-gray-800">📄 Meus envios</div>
 
-// ADICIONE ESTE BLOCO ANTES DO RETURN PRINCIPAL
-const { data: meusPagamentos = [] } = useQuery({
-  queryKey: ['meus-pagamentos', effectiveMember?.user_email],
-  enabled: !!effectiveMember?.user_email,
-  queryFn: async () => {
-    const res = await base44.entities.TeamPayment.list({
-      filter: {
-        user_email: effectiveMember.user_email
-      },
-      sort: { created_at: -1 }
-    });
-    return res?.items || [];
-  }
-});
+  {meusPagamentos.length === 0 && (
+    <div className="text-sm text-gray-500 border rounded-xl p-4">
+      Nenhum envio realizado ainda.
+    </div>
+  )}
 
-function getStatusLabel(status) {
-  if (!status) return 'Enviado';
+  {meusPagamentos.map((p) => (
+    <div key={p.id} className="border rounded-xl p-4 bg-white shadow-sm space-y-2">
+      
+      <div className="flex justify-between items-center">
+        <div className="font-medium text-gray-900">
+          {p.nota_fiscal_file_name || 'Nota fiscal'}
+        </div>
 
-  const s = String(status).toUpperCase();
+        <Badge className={getStatusColor(p.status)}>
+          {getStatusLabel(p.status)}
+        </Badge>
+      </div>
 
-  if (s.includes('APROV')) return 'Aprovado';
-  if (s.includes('DEVOL')) return 'Devolvido';
-  if (s.includes('RECUS')) return 'Recusado';
+      <div className="text-sm text-gray-600 grid grid-cols-2 gap-2">
+        <div>📅 {p.mes_referencia}/{p.ano}</div>
+        <div>💰 {formatBRL(p.valor_nf)}</div>
+      </div>
 
-  return 'Enviado';
-}
+      <div className="flex gap-3 text-sm">
+        {p.nota_fiscal_url && (
+          <a href={p.nota_fiscal_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+            📄 Ver PDF
+          </a>
+        )}
 
-function getStatusColor(status) {
-  const s = String(status || '').toUpperCase();
+        {p.xml_url && (
+          <a href={p.xml_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+            📦 Ver XML
+          </a>
+        )}
+      </div>
 
-  if (s.includes('APROV')) return 'bg-green-100 text-green-700';
-  if (s.includes('DEVOL')) return 'bg-amber-100 text-amber-700';
-  if (s.includes('RECUS')) return 'bg-red-100 text-red-700';
-
-  return 'bg-blue-100 text-blue-700';
-}
+    </div>
+  ))}
+</div>
