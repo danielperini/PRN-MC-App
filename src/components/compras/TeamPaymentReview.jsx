@@ -4,6 +4,7 @@ import { notifyUser } from '@/lib/notifyHelpers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
@@ -325,7 +326,7 @@ export default function TeamPaymentReview() {
             </div>
 
             <div>Valor: <b>{formatBRL(valor)}</b></div>
-            <div>Rubrica: <b>{selectedRubricaNome || '—'}</b></div>
+            <div>Rubrica: <b>{selectedRubricaNome || getRubricaNome(payment)}</b></div>
 
             {status === 'AGUARDANDO_APROVACAO' && (
               <div className="space-y-2">
