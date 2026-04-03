@@ -80,6 +80,12 @@ export default function TeamPaymentReview() {
     queryFn: () => base44.entities.TeamPayment.list('-created_date', 500),
   });
 
+  /* 🔥 NOVO: buscar membros */
+  const { data: members = [] } = useQuery({
+    queryKey: ['team-members'],
+    queryFn: () => base44.entities.TeamMember.list(),
+  });
+
   const ordered = useMemo(() => {
     const unique = pickBestPayments(payments || []);
     return [...unique].sort(
@@ -109,11 +115,44 @@ export default function TeamPaymentReview() {
     ]);
   }
 
+  /* 🔥 RESOLVE RUBRICA AUTOMATICAMENTE */
+  function resolveRubrica(payment) {
+    const member = members.find(m => m.user_email === payment.user_email);
+    if (!member) return null;
+
+    return {
+      rubrica_id: member?.rubrica_id || null,
+      rubrica_nome: member?.rubrica_nome || ''
+    };
+  }
+
   async function approve(payment) {
     if (saving) return;
     setSaving(true);
 
     try {
+      let rubricaId = payment.rubrica_id;
+      let rubricaNome = payment.rubrica_nome;
+
+      /* 🔥 SE NÃO TEM RUBRICA → RESOLVE */
+      if (!rubricaId) {
+        const resolved = resolveRubrica(payment);
+
+        if (!resolved || !resolved.rubrica_id) {
+          toast.error('Rubrica não vinculada e não foi possível resolver automaticamente');
+          return;
+        }
+
+        rubricaId = resolved.rubrica_id;
+        rubricaNome = resolved.rubrica_nome;
+
+        /* 🔥 SALVA ANTES DE APROVAR */
+        await base44.entities.TeamPayment.update(payment.id, {
+          rubrica_id: rubricaId,
+          rubrica_nome: rubricaNome
+        });
+      }
+
       const res = await base44.functions.invoke('processTeamPayment', {
         payment_id: payment.id,
         action: 'approve'
