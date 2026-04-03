@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-function formatBRL(v) {
+function formatBRL(v: unknown) {
   const n = Number(v) || 0;
   return `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -10,6 +10,19 @@ const NOTIFY_EMAILS = [
   'adm@viadutodasartes.org.br',
   'danielperini.mc@viadutodasartes.org.br',
 ];
+
+function normalizeEmail(value: unknown) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isInternalAppEmail(email: string) {
+  if (!email) return false;
+
+  return (
+    email.endsWith('@viadutodasartes.org.br') ||
+    email.endsWith('@periniprojetos.com.br')
+  );
+}
 
 Deno.serve(async (req) => {
   try {
@@ -51,23 +64,37 @@ ${appUrl}
 Atenciosamente,
 Museus Centro`;
 
-    // Notificar emails fixos
+    const sentFixed: string[] = [];
+    const failedFixed: Array<{ email: string; error: string }> = [];
+
     for (const email of NOTIFY_EMAILS) {
-      await base44.asServiceRole.integrations.Core.SendEmail({
-        to: email,
-        subject,
-        body,
-        from_name: 'Museus Centro',
-      });
+      try {
+        await base44.asServiceRole.integrations.Core.SendEmail({
+          to: email,
+          subject,
+          body,
+          from_name: 'Museus Centro',
+        });
+        sentFixed.push(email);
+      } catch (error: any) {
+        failedFixed.push({
+          email,
+          error: error?.message || 'erro ao enviar'
+        });
+      }
     }
 
-    // Notificar o solicitante (confirmação)
-    const emailSolicitante = requester_email || user_email;
+    const emailSolicitante = normalizeEmail(requester_email || user_email);
+    let requesterNotification = 'skipped';
+    let requesterReason = '';
+
     if (emailSolicitante && !NOTIFY_EMAILS.includes(emailSolicitante)) {
-      await base44.asServiceRole.integrations.Core.SendEmail({
-        to: emailSolicitante,
-        subject: `[Museus Centro] Seu envio foi recebido — ${competencia}`,
-        body: `Olá, ${team_member_name || 'Membro'}!
+      if (isInternalAppEmail(emailSolicitante)) {
+        try {
+          await base44.asServiceRole.integrations.Core.SendEmail({
+            to: emailSolicitante,
+            subject: `[Museus Centro] Seu envio foi recebido — ${competencia}`,
+            body: `Olá, ${team_member_name || 'Membro'}!
 
 Seu envio de nota fiscal foi recebido com sucesso e está aguardando aprovação da coordenação.
 
@@ -81,12 +108,30 @@ ${appUrl}
 
 Atenciosamente,
 Museus Centro`,
-        from_name: 'Museus Centro',
-      });
+            from_name: 'Museus Centro',
+          });
+          requesterNotification = 'sent';
+        } catch (error: any) {
+          requesterNotification = 'failed';
+          requesterReason = error?.message || 'erro ao enviar';
+        }
+      } else {
+        requesterNotification = 'skipped';
+        requesterReason = 'Cannot send emails to users outside the app';
+      }
     }
 
-    return Response.json({ success: true, notified: NOTIFY_EMAILS.length + 1 });
-  } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({
+      success: true,
+      fixed_recipients_sent: sentFixed,
+      fixed_recipients_failed: failedFixed,
+      requester_notification: requesterNotification,
+      requester_reason: requesterReason,
+      notified_count: sentFixed.length + (requesterNotification === 'sent' ? 1 : 0),
+    });
+  } catch (error: any) {
+    return Response.json({
+      error: error?.message || 'Erro interno ao enviar notificações'
+    }, { status: 500 });
   }
 });
