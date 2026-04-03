@@ -89,13 +89,23 @@ export default function TeamPaymentReview() {
     );
   }, [payments]);
 
+  async function recalculateRubricas() {
+    try {
+      await base44.functions.invoke('recalculateAllRubricas', {});
+    } catch (err) {
+      console.warn('Falha ao recalcular rubricas', err);
+    }
+  }
+
   async function refresh() {
     await Promise.all([
+      recalculateRubricas(),
       queryClient.invalidateQueries({ queryKey: ['team-payments-review'] }),
       queryClient.invalidateQueries({ queryKey: ['team-payments'] }),
       queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
       queryClient.invalidateQueries({ queryKey: ['rubricas-total-utilizado'] }),
       queryClient.invalidateQueries({ queryKey: ['purchases'] }),
+      queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
     ]);
   }
 
