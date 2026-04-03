@@ -32,6 +32,26 @@ function pickRubricaNome(payment: any, rubrica: any) {
   );
 }
 
+function buildComprasLink(req: Request, paymentId: string) {
+  const url = new URL(req.url);
+  return `${url.origin}/Compras?payment_id=${paymentId}`;
+}
+
+function addBusinessDays(start: Date, days: number) {
+  const d = new Date(start);
+  let added = 0;
+  while (added < days) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) added += 1;
+  }
+  return d;
+}
+
+function formatDateBR(date: Date) {
+  return date.toLocaleDateString('pt-BR');
+}
+
 async function logMovimentacao(base44: any, data: any) {
   try {
     await base44.entities.RubricaMovimentacao.create({
@@ -68,7 +88,7 @@ async function removeDuplicados(base44: any, payment: any) {
     if (vb !== va) return vb - va;
 
     return new Date(b.created_date || b.created_at || 0).getTime() -
-           new Date(a.created_date || a.created_at || 0).getTime();
+      new Date(a.created_date || a.created_at || 0).getTime();
   });
 
   const keep = sorted[0];
@@ -83,6 +103,60 @@ async function removeDuplicados(base44: any, payment: any) {
   }
 
   return keep.id === payment.id;
+}
+
+async function sendApprovalEmails(base44: any, req: Request, payment: any, rubricaNome: string) {
+  const appLink = buildComprasLink(req, payment.id);
+  const pagamentoPrevisto = addBusinessDays(new Date(), 5);
+
+  const subject = `Nota fiscal aprovada • ${payment.user_name || payment.user_email} • ${payment.mes_referencia}/${payment.ano}`;
+
+  const body = `
+<p>Olá,</p>
+
+<p>A nota fiscal abaixo foi <strong>aprovada</strong> no módulo de Compras.</p>
+
+<table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
+  <tr><td><strong>Profissional</strong></td><td>${payment.user_name || payment.user_email || '-'}</td></tr>
+  <tr><td><strong>E-mail</strong></td><td>${payment.user_email || '-'}</td></tr>
+  <tr><td><strong>Competência</strong></td><td>${payment.mes_referencia || '-'}/${payment.ano || '-'}</td></tr>
+  <tr><td><strong>Valor</strong></td><td>R$ ${toNumber(payment.valor_nf || payment.valor_parcela_previsto).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr>
+  <tr><td><strong>Rubrica</strong></td><td>${rubricaNome || '-'}</td></tr>
+  <tr><td><strong>Número da NF</strong></td><td>${payment.numero_nf || '-'}</td></tr>
+</table>
+
+<p>O pagamento será efetuado em prazo máximo de <strong>5 dias úteis</strong>, com previsão até <strong>${formatDateBR(pagamentoPrevisto)}</strong>.</p>
+
+<p>
+  <a href="${appLink}">Acessar pedido no sistema</a>
+</p>
+
+<p>Arquivos:</p>
+<ul>
+  ${payment.nota_fiscal_url ? `<li><a href="${payment.nota_fiscal_url}">Nota fiscal (PDF)</a></li>` : ''}
+  ${payment.xml_url ? `<li><a href="${payment.xml_url}">XML da nota fiscal</a></li>` : ''}
+</ul>
+
+<p>Atenciosamente,<br/>Projeto Museus Centro</p>
+  `.trim();
+
+  const recipients = [
+    'notasfiscais@viadutodasartes.org.br',
+    'danielperini.mc@viadutodasartes.org.br',
+    payment.user_email
+  ].filter(Boolean);
+
+  for (const to of recipients) {
+    try {
+      await base44.integrations.Core.SendEmail({
+        to,
+        subject,
+        html: body
+      });
+    } catch (e) {
+      console.error('Erro ao enviar e-mail para', to, e);
+    }
+  }
 }
 
 Deno.serve(async (req) => {
@@ -190,6 +264,8 @@ Deno.serve(async (req) => {
         rubrica_id: rubrica.id,
         rubrica_nome: rubricaNome
       });
+
+      await sendApprovalEmails(base44, req, payment, rubricaNome);
 
       return Response.json({
         ok: true,
