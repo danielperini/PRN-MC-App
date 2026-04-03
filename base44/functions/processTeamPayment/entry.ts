@@ -35,20 +35,12 @@ function isAfterApril2026(mes: string, ano: number) {
   return idx >= 3; // abril = index 3
 }
 
-function pickRubricaId(payment: any, member: any) {
-  return (
-    payment?.rubrica_id ||
-    member?.rubrica_id ||
-    null
-  );
-}
-
-function pickRubricaNome(payment: any, rubrica: any) {
-  return (
-    payment?.rubrica_nome ||
-    rubrica?.nome ||
-    ''
-  );
+/* 🔥 NOVO: RESOLVE RUBRICA COM FALLBACK */
+function resolveRubrica(payment: any, member: any) {
+  return {
+    rubrica_id: payment?.rubrica_id || member?.rubrica_id || null,
+    rubrica_nome: payment?.rubrica_nome || member?.rubrica_nome || ''
+  };
 }
 
 async function logMovimentacao(base44: any, data: any) {
@@ -76,7 +68,7 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const body = await req.json();
 
-    const { payment_id, action, comment } = body;
+    const { payment_id, action } = body;
 
     if (!payment_id || !action) {
       return Response.json({ error: 'payment_id e action obrigatórios' }, { status: 400 });
@@ -98,19 +90,20 @@ Deno.serve(async (req) => {
       user_email: payment?.user_email
     }))?.[0] || null;
 
-    const rubricaId = pickRubricaId(payment, member);
+    /* 🔥 NOVO: RESOLVE RUBRICA AUTOMATICAMENTE */
+    const resolved = resolveRubrica(payment, member);
 
-    if (!rubricaId) {
+    if (!resolved.rubrica_id) {
       return Response.json({ error: 'Pagamento sem rubrica vinculada' }, { status: 400 });
     }
 
-    const rubrica = await base44.entities.Rubrica.get(rubricaId);
+    const rubrica = await base44.entities.Rubrica.get(resolved.rubrica_id);
 
     if (!rubrica?.id) {
       return Response.json({ error: 'Rubrica não encontrada' }, { status: 404 });
     }
 
-    const rubricaNome = pickRubricaNome(payment, rubrica);
+    const rubricaNome = resolved.rubrica_nome || rubrica?.nome || '';
     const currentStatus = normalizeStatus(payment.status);
     const requestedAction = String(action || '').trim().toLowerCase();
 
