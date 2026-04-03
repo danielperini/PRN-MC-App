@@ -83,6 +83,26 @@ function sanitize(value) {
     .toUpperCase();
 }
 
+function normalizeString(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function normalizeRubricaId(value) {
+  if (!value) return null;
+  const v = String(value).trim();
+  return v || null;
+}
+
+function normalizeRubricaNome(value) {
+  if (!value) return '';
+  return String(value).trim();
+}
+
 function getValorParcela(member) {
   const vp = toNumber(member?.valor_parcela);
   if (vp > 0) return vp;
@@ -109,17 +129,6 @@ function resolveMemberName(member, currentUser) {
     currentUser?.name ||
     ''
   ).trim();
-}
-
-function normalizeRubricaId(value) {
-  if (!value) return null;
-  const v = String(value).trim();
-  return v || null;
-}
-
-function normalizeRubricaNome(value) {
-  if (!value) return '';
-  return String(value).trim();
 }
 
 function resolveRubricaId(member) {
@@ -253,6 +262,43 @@ function pickBestExistingPayment(items = []) {
   })[0];
 }
 
+function isEquipeGestaoRubrica(rubrica) {
+  const grupo = normalizeString(rubrica?.grupo || '');
+  const nome = normalizeString(rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '');
+  const texto = `${grupo} ${nome}`;
+
+  const terms = [
+    'equipe',
+    'gestao',
+    'gestão',
+    'assistente de producao',
+    'assistentes de producao',
+    'assistente producao',
+    'assistentes producao',
+    'producao',
+    'produção',
+    'educador',
+    'educadores',
+    'diaria',
+    'diárias',
+    'diarias',
+    'publicacao',
+    'publicação'
+  ];
+
+  return terms.some((term) => texto.includes(normalizeString(term)));
+}
+
+function getRubricaDisplayName(rubrica) {
+  return (
+    rubrica?.rubrica ||
+    rubrica?.nome ||
+    rubrica?.descricao ||
+    rubrica?.titulo ||
+    'Rubrica sem nome'
+  );
+}
+
 export default function TeamPaymentSubmit({ userEmail }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -346,6 +392,19 @@ export default function TeamPaymentSubmit({ userEmail }) {
     setMemberLocalPatch((prev) => ({ ...prev, [field]: value }));
   }
 
+  function handleRubricaChange(value) {
+    clearSubmitError();
+
+    const selectedId = normalizeRubricaId(value);
+    const selected = rubricasEquipeGestao.find((item) => item.id === selectedId);
+
+    setMemberLocalPatch((prev) => ({
+      ...prev,
+      rubrica_id: selectedId || '',
+      rubrica_nome: selected ? getRubricaDisplayName(selected) : ''
+    }));
+  }
+
   const monthOptions = useMemo(() => buildMonthOptions(), []);
 
   const selectedComp = useMemo(
@@ -365,6 +424,14 @@ export default function TeamPaymentSubmit({ userEmail }) {
       return Array.isArray(rows) ? rows[0] || null : null;
     },
     enabled: !!userEmail
+  });
+
+  const { data: rubricas = [], isLoading: loadingRubricas } = useQuery({
+    queryKey: ['rubricas-team-payment-submit'],
+    queryFn: async () => {
+      const rows = await base44.entities.Rubrica.list('ordem_exibicao', 500);
+      return Array.isArray(rows) ? rows : [];
+    }
   });
 
   useEffect(() => {
@@ -416,6 +483,16 @@ export default function TeamPaymentSubmit({ userEmail }) {
     return () => { cancelled = true; };
   }, [member?.id, member?.user_email, member?.funcao, member?.role, member?.banco, member?.agencia, member?.conta, member?.pix_key, member?.cpf, member?.cnpj, member?.valor_parcela, member?.numero_parcelas, member?.vigencia_inicio, member?.vigencia_fim, member?.rubrica_id, member?.rubrica_nome]);
 
+  const rubricasEquipeGestao = useMemo(() => {
+    const filtered = (rubricas || []).filter(isEquipeGestaoRubrica);
+
+    return [...filtered].sort((a, b) => {
+      const nomeA = getRubricaDisplayName(a);
+      const nomeB = getRubricaDisplayName(b);
+      return nomeA.localeCompare(nomeB, 'pt-BR');
+    });
+  }, [rubricas]);
+
   const effectiveMember = useMemo(() => ({
     ...(member || {}),
     ...(memberLocalPatch || {})
@@ -444,12 +521,11 @@ export default function TeamPaymentSubmit({ userEmail }) {
     const memberRubricaNome = normalizeRubricaNome(resolveRubricaNome(effectiveMember));
     if (memberRubricaNome) return memberRubricaNome;
 
-    if (selectedRubricaId) {
-      return 'Rubrica vinculada automaticamente';
-    }
+    const selected = rubricasEquipeGestao.find((item) => item.id === selectedRubricaId);
+    if (selected) return getRubricaDisplayName(selected);
 
     return '';
-  }, [effectiveMember, selectedRubricaId]);
+  }, [effectiveMember, rubricasEquipeGestao, selectedRubricaId]);
 
   const descricaoModelo = useMemo(() => {
     if (!effectiveMember || !selectedComp) return '';
@@ -500,7 +576,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
       return;
     }
     if (!rubricaIdFinal) {
-      toast.error('Envio bloqueado: rubrica obrigatória.');
+      toast.error('Envio bloqueado: selecione uma rubrica de equipe/gestão.');
       return;
     }
     if (!rubricaNomeFinal) {
@@ -811,6 +887,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
         queryClient.invalidateQueries({ queryKey: ['team-payments-review'] }),
         queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
         queryClient.invalidateQueries({ queryKey: ['rubricas-total-utilizado'] }),
+        queryClient.invalidateQueries({ queryKey: ['team-submit-own-member'] }),
       ]);
     } catch (e) {
       const message = extractErrorMessage(e);
@@ -993,19 +1070,39 @@ export default function TeamPaymentSubmit({ userEmail }) {
                 )}
               </div>
 
+              <div className="mt-4 space-y-2">
+                <Label>Rubrica *</Label>
+                <Select
+                  value={selectedRubricaId || ''}
+                  onValueChange={handleRubricaChange}
+                  disabled={loadingRubricas}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingRubricas ? 'Carregando rubricas...' : 'Selecione a rubrica'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rubricasEquipeGestao.map((rubrica) => (
+                      <SelectItem key={rubrica.id} value={rubrica.id}>
+                        {getRubricaDisplayName(rubrica)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="mt-3 text-xs text-gray-700">
                 Rubrica vinculada ao envio: <b>{selectedRubricaNome || '—'}</b>
               </div>
 
-              {selectedRubricaId && !resolveRubricaNome(member) && (
+              {!!selectedRubricaId && (
                 <div className="mt-2 text-emerald-700 text-xs font-medium">
-                  ✅ Rubrica sugerida automaticamente a partir do vínculo do membro.
+                  ✅ Rubrica definida para o envio e salva junto com o pagamento.
                 </div>
               )}
 
               {!selectedRubricaId && (
                 <div className="mt-2 text-red-600 text-xs font-medium">
-                  ⛔ Envio bloqueado até que o membro tenha uma rubrica vinculada.
+                  ⛔ Envio bloqueado até que uma rubrica de equipe/gestão seja selecionada.
                 </div>
               )}
 
