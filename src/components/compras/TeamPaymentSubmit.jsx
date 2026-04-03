@@ -143,6 +143,43 @@ function buildDescricaoModelo(member, currentUser, mes, ano) {
   ].join('\n');
 }
 
+function safeStringify(value) {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value || '');
+  }
+}
+
+function extractErrorMessage(error) {
+  if (!error) return 'Erro ao enviar.';
+  if (typeof error === 'string') return error;
+
+  return (
+    error?.message ||
+    error?.data?.error ||
+    error?.error ||
+    error?.details ||
+    'Erro ao enviar.'
+  );
+}
+
+function extractErrorDetails(error) {
+  if (!error) return '';
+  if (typeof error === 'string') return error;
+
+  const detailSource = {
+    message: error?.message || '',
+    error: error?.error || error?.data?.error || '',
+    details: error?.details || error?.data?.details || '',
+    status: error?.status || error?.response?.status || '',
+    data: error?.data || error?.response?.data || null,
+    stack: error?.stack || ''
+  };
+
+  return safeStringify(detailSource);
+}
+
 async function renameFile(file, fileName) {
   const buffer = await file.arrayBuffer();
   return new File([buffer], fileName, {
@@ -171,6 +208,9 @@ export default function TeamPaymentSubmit({ userEmail }) {
   const [progressPercent, setProgressPercent] = useState(0);
   const [memberLocalPatch, setMemberLocalPatch] = useState({});
   const [analyzingOnly] = useState(false);
+  const [submitErrorMessage, setSubmitErrorMessage] = useState('');
+  const [submitErrorDetails, setSubmitErrorDetails] = useState('');
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
 
   const [form, setForm] = useState({
     competencia: '',
@@ -202,9 +242,16 @@ export default function TeamPaymentSubmit({ userEmail }) {
     setProgressPercent(percent);
   }
 
+  function clearSubmitError() {
+    setSubmitErrorMessage('');
+    setSubmitErrorDetails('');
+    setShowErrorDetails(false);
+  }
+
   function handleSelectPDF(file) {
     if (!file) return;
     setPdfFile(file);
+    clearSubmitError();
     setForm((prev) => ({
       ...prev,
       nota_fiscal_file_name: file.name,
@@ -215,6 +262,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
   function handleSelectXML(file) {
     if (!file) return;
     setXmlFile(file);
+    clearSubmitError();
     setForm((prev) => ({
       ...prev,
       xml_file_name: file.name,
@@ -223,6 +271,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
   }
 
   function setMemberField(field, value) {
+    clearSubmitError();
     setMemberLocalPatch((prev) => ({ ...prev, [field]: value }));
   }
 
@@ -335,6 +384,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    clearSubmitError();
 
     if (!effectiveMember) {
       toast.error('Perfil não encontrado.');
@@ -418,30 +468,44 @@ export default function TeamPaymentSubmit({ userEmail }) {
       markStepDone(1, 30);
 
       setAnalysisStep('Lendo nota fiscal com IA...');
-      const analysisResult = await base44.functions.invoke('validateTeamPaymentInvoice', {
-        file_url: pdfUrl,
-        xml_url: xmlUrl,
-        mes_referencia: selectedComp.mes,
-        ano: selectedComp.ano,
-        numero_nf: form.numero_nf,
-        valor_esperado: toNumber(form.valor_nf || valorParcela),
-        member_snapshot: {
-          user_name: resolvedName || '',
-          funcao: resolvedFuncao,
-          role: resolvedFuncao,
-          tipo_pessoa: effectiveMember.tipo_pessoa || 'PF',
-          cpf: effectiveMember.cpf || '',
-          cnpj: effectiveMember.cnpj || '',
-          banco: effectiveMember.banco || '',
-          agencia: effectiveMember.agencia || '',
-          conta: effectiveMember.conta || '',
-          pix_key: effectiveMember.pix_key || '',
-          contrato_url: effectiveMember.contrato_url || effectiveMember.file_url || ''
-        },
-        descricao_modelo: descricaoModelo
-      });
+      let ar = {};
 
-      const ar = analysisResult?.data || analysisResult || {};
+      try {
+        const analysisResult = await base44.functions.invoke('validateTeamPaymentInvoice', {
+          file_url: pdfUrl,
+          xml_url: xmlUrl,
+          mes_referencia: selectedComp.mes,
+          ano: selectedComp.ano,
+          numero_nf: form.numero_nf,
+          valor_esperado: toNumber(form.valor_nf || valorParcela),
+          member_snapshot: {
+            user_name: resolvedName || '',
+            funcao: resolvedFuncao,
+            role: resolvedFuncao,
+            tipo_pessoa: effectiveMember.tipo_pessoa || 'PF',
+            cpf: effectiveMember.cpf || '',
+            cnpj: effectiveMember.cnpj || '',
+            banco: effectiveMember.banco || '',
+            agencia: effectiveMember.agencia || '',
+            conta: effectiveMember.conta || '',
+            pix_key: effectiveMember.pix_key || '',
+            contrato_url: effectiveMember.contrato_url || effectiveMember.file_url || ''
+          },
+          descricao_modelo: descricaoModelo
+        });
+
+        ar = analysisResult?.data || analysisResult || {};
+      } catch (analysisError) {
+        console.error('ERRO IA:', analysisError);
+        ar = {
+          can_submit: true,
+          status: 'ATENCAO',
+          summary: 'IA indisponível - envio permitido',
+          warnings: ['Análise automática falhou'],
+          critical_issues: []
+        };
+      }
+
       setAnalysis(ar);
       markStepDone(2, 45);
 
@@ -492,8 +556,8 @@ export default function TeamPaymentSubmit({ userEmail }) {
           setAnalysisStep('');
           return;
         }
-      } catch (e) {
-        console.warn('Falha ao validar saldo/rubrica', e);
+      } catch (budgetError) {
+        console.warn('Falha ao validar saldo/rubrica', budgetError);
       }
 
       markStepDone(3, 60);
@@ -583,12 +647,20 @@ export default function TeamPaymentSubmit({ userEmail }) {
         });
         setAnalysis(null);
         setAnalysisStep('');
+        clearSubmitError();
         resetSubmissionProgress();
       }, 500);
 
       await queryClient.invalidateQueries();
     } catch (e) {
-      toast.error(e?.message || 'Erro ao enviar.');
+      const message = extractErrorMessage(e);
+      const details = extractErrorDetails(e);
+
+      setSubmitErrorMessage(message);
+      setSubmitErrorDetails(details);
+      setShowErrorDetails(true);
+
+      toast.error(message);
     } finally {
       setSubmitting(false);
       setAnalysisStep('');
@@ -613,7 +685,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
   return (
     <div className="space-y-4">
-      <Button onClick={() => setOpen(true)}>
+      <Button onClick={() => { clearSubmitError(); setOpen(true); }}>
         <Plus className="w-4 h-4 mr-2" /> Novo envio
       </Button>
 
@@ -626,7 +698,12 @@ export default function TeamPaymentSubmit({ userEmail }) {
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(value) => {
+        setOpen(value);
+        if (!value) {
+          setShowErrorDetails(false);
+        }
+      }}>
         <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Envio mensal de nota fiscal</DialogTitle>
@@ -639,6 +716,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
                 <Select
                   value={form.competencia}
                   onValueChange={(v) => {
+                    clearSubmitError();
                     setForm((prev) => ({ ...prev, competencia: v }));
                     setAnalysis(null);
                   }}
@@ -656,7 +734,10 @@ export default function TeamPaymentSubmit({ userEmail }) {
                 <Label>Número da nota fiscal *</Label>
                 <Input
                   value={form.numero_nf}
-                  onChange={(e) => setForm((prev) => ({ ...prev, numero_nf: e.target.value }))}
+                  onChange={(e) => {
+                    clearSubmitError();
+                    setForm((prev) => ({ ...prev, numero_nf: e.target.value }));
+                  }}
                   placeholder="Ex.: NF 1"
                 />
               </div>
@@ -665,7 +746,10 @@ export default function TeamPaymentSubmit({ userEmail }) {
                 <Label>Valor da nota</Label>
                 <Input
                   value={form.valor_nf}
-                  onChange={(e) => setForm((prev) => ({ ...prev, valor_nf: e.target.value }))}
+                  onChange={(e) => {
+                    clearSubmitError();
+                    setForm((prev) => ({ ...prev, valor_nf: e.target.value }));
+                  }}
                   placeholder={formatBRL(valorParcela)}
                 />
               </div>
@@ -685,6 +769,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
                   <Input
                     value={resolvedFuncao}
                     onChange={(e) => {
+                      clearSubmitError();
                       const value = e.target.value;
                       setMemberField('funcao', value);
                       setMemberField('role', value);
@@ -932,6 +1017,44 @@ export default function TeamPaymentSubmit({ userEmail }) {
                       {analysis.warnings.map((i, idx) => <li key={idx}>{i}</li>)}
                     </ul>
                   </div>
+                )}
+              </div>
+            )}
+
+            {submitErrorMessage && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 space-y-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <div className="space-y-1">
+                    <div className="font-semibold">Falha no envio</div>
+                    <div>{submitErrorMessage}</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowErrorDetails((prev) => !prev)}
+                    className="h-8"
+                  >
+                    {showErrorDetails ? 'Ocultar detalhes' : 'Ver detalhes do erro'}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={clearSubmitError}
+                    className="h-8"
+                  >
+                    Limpar erro
+                  </Button>
+                </div>
+
+                {showErrorDetails && (
+                  <pre className="whitespace-pre-wrap break-words rounded-lg border border-red-200 bg-white p-3 text-xs text-red-900 overflow-x-auto">
+                    {submitErrorDetails || submitErrorMessage}
+                  </pre>
                 )}
               </div>
             )}
