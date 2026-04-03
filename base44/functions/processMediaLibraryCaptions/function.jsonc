@@ -1,1 +1,15 @@
-
+{
+  "name": "processMediaLibraryCaptions",
+  "description": "Processa automaticamente as imagens da MediaLibrary às 2h, gerando legenda, descrição e museu com IA.",
+  "timeout_seconds": 300,
+  "memory_mb": 512,
+  "triggers": [
+    {
+      "type": "cron",
+      "cron_expression": "0 5 * * *"
+    },
+    {
+      "type": "http"
+    }
+  ]
+}
