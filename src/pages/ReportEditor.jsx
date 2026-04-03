@@ -49,13 +49,24 @@ export default function ReportEditor() {
     const urlParams = new URLSearchParams(window.location.search);
     const reportId = urlParams.get('id');
 
-    if (!reportId) {
-      setLoading(false);
-      return;
-    }
-
-    const loadReport = async () => {
+    const init = async () => {
       try {
+        if (!reportId) {
+          // 🔥 CRIAR NOVO RELATÓRIO AUTOMATICAMENTE
+          const newReport = await base44.entities.Report.create({
+            status: 'DRAFT',
+            ano: new Date().getFullYear(),
+            atividades: [],
+            oportunidades: [],
+            fotos: [],
+            depoimentos: [],
+            attachments: [],
+          });
+
+          setReport(newReport);
+          return;
+        }
+
         const data = await base44.entities.Report.get(reportId);
         setReport(data);
       } catch (error) {
@@ -66,7 +77,7 @@ export default function ReportEditor() {
       }
     };
 
-    loadReport();
+    init();
   }, []);
 
   useEffect(() => {
@@ -122,19 +133,6 @@ export default function ReportEditor() {
     };
   };
 
-  const persistReportPhotos = async (nextPhotos) => {
-    try {
-      if (!report?.id) {
-        toast.error('Relatório não carregado corretamente');
-        return;
-      }
-      await base44.entities.Report.update(report.id, { fotos: nextPhotos });
-    } catch (error) {
-      toast.error('Erro ao salvar fotos');
-      console.error(error);
-    }
-  };
-
   const handleSave = async (nextStatus = null) => {
     setSaving(true);
     try {
@@ -161,57 +159,8 @@ export default function ReportEditor() {
     }
   };
 
-  const openHtmlForPrint = (html, title = 'Relatório para assinatura') => {
-    const printWindow = window.open('', '_blank', 'width=1100,height=800');
-
-    if (!printWindow) {
-      toast.error('Não foi possível abrir a janela de impressão. Verifique o bloqueador de pop-up.');
-      return;
-    }
-
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.document.title = title;
-    printWindow.focus();
-  };
-
-  const handleExportPdf = async () => {
-    try {
-      await handleSave('DRAFT');
-
-      const response = await base44.functions.invoke('generateSingleReportPDF', {
-        reportId: report?.id,
-        mode: 'assinatura',
-      });
-
-      const html = response?.data?.html || response?.html;
-      const fileName = response?.data?.file_name || response?.file_name || 'relatorio_assinatura';
-
-      if (!html) {
-        toast.error('Não foi possível gerar o conteúdo do PDF.');
-        return;
-      }
-
-      openHtmlForPrint(html, fileName);
-      toast.success('Layout de assinatura aberto. Use “Salvar como PDF” na impressão.');
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao gerar PDF para assinatura');
-    }
-  };
-
   if (loading) {
     return <div className="flex items-center justify-center h-96">Carregando...</div>;
-  }
-
-  if (!report?.id) {
-    return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <p>Nenhum relatório selecionado</p>
-        <Button onClick={() => navigate('/Relatorios')}>Voltar aos Relatórios</Button>
-      </div>
-    );
   }
 
   return (
@@ -222,57 +171,10 @@ export default function ReportEditor() {
         {activeTab === 'relatorio' && (
           <div className="space-y-6">
             <div>
-              <Label htmlFor="resumo_periodo">Resumo do Período</Label>
+              <Label>Resumo do Período</Label>
               <Textarea
-                id="resumo_periodo"
                 value={form.resumo_periodo}
                 onChange={(e) => setForm((prev) => ({ ...prev, resumo_periodo: e.target.value }))}
-                placeholder="Descreva o resumo do período"
-                className="min-h-[150px] text-base p-4"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="oportunidades_resumo">Resumo de Oportunidades</Label>
-              <Textarea
-                id="oportunidades_resumo"
-                value={form.oportunidades_resumo}
-                onChange={(e) => setForm((prev) => ({ ...prev, oportunidades_resumo: e.target.value }))}
-                placeholder="Descreva as oportunidades identificadas"
-                className="min-h-[150px] text-base p-4"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="avaliacao_pontos_positivos">Pontos Positivos</Label>
-              <Textarea
-                id="avaliacao_pontos_positivos"
-                value={form.avaliacao_pontos_positivos}
-                onChange={(e) => setForm((prev) => ({ ...prev, avaliacao_pontos_positivos: e.target.value }))}
-                placeholder="Descreva os pontos positivos"
-                className="min-h-[120px] text-base p-4"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="avaliacao_desafios">Desafios</Label>
-              <Textarea
-                id="avaliacao_desafios"
-                value={form.avaliacao_desafios}
-                onChange={(e) => setForm((prev) => ({ ...prev, avaliacao_desafios: e.target.value }))}
-                placeholder="Descreva os desafios enfrentados"
-                className="min-h-[120px] text-base p-4"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="avaliacao_sugestoes">Sugestões de Melhoria</Label>
-              <Textarea
-                id="avaliacao_sugestoes"
-                value={form.avaliacao_sugestoes}
-                onChange={(e) => setForm((prev) => ({ ...prev, avaliacao_sugestoes: e.target.value }))}
-                placeholder="Descreva sugestões de melhoria"
-                className="min-h-[120px] text-base p-4"
               />
             </div>
           </div>
@@ -282,90 +184,39 @@ export default function ReportEditor() {
           <AtividadesSection
             reportId={report.id}
             atividades={form.atividades || []}
-            setAtividades={(updater) => {
-              if (typeof updater === 'function') {
-                setForm((prev) => ({
-                  ...prev,
-                  atividades: updater(prev.atividades || []),
-                }));
-                return;
-              }
-
-              setForm((prev) => ({
-                ...prev,
-                atividades: Array.isArray(updater) ? updater : [],
-              }));
-            }}
-            mesReferencia={form.mes_referencia}
-            ano={form.ano}
-            museu={form.museu}
-            onSave={() => handleSave('DRAFT')}
-            onExportPdf={handleExportPdf}
-            onBackToReport={() => setActiveTab('relatorio')}
+            setAtividades={(v) => setForm((prev) => ({ ...prev, atividades: v }))}
             canEdit={true}
           />
         )}
 
         {activeTab === 'fotos' && (
-          <ReportPhotoSection
-            reportId={report.id}
-            photos={form.fotos || []}
-            onAddPhoto={async (photo) => {
-              const normalizedPhoto = {
-                id: photo?.id || photo?._id || photo?.file_id || crypto.randomUUID(),
-                url: photo?.url || photo?.file_url || '',
-                fileName: photo?.fileName || photo?.file_name || photo?.name || 'Foto',
-                author: photo?.author || photo?.uploaded_by || photo?.author_name || '',
-                caption: photo?.caption || '',
-              };
-              const nextPhotos = [...(form.fotos || []), normalizedPhoto];
-              setForm((prev) => ({ ...prev, fotos: nextPhotos }));
-              await persistReportPhotos(nextPhotos);
-            }}
-            onUpdatePhoto={async (photoId, caption) => {
-              const nextPhotos = (form.fotos || []).map((p) =>
-                p.id === photoId ? { ...p, caption } : p
-              );
-              setForm((prev) => ({ ...prev, fotos: nextPhotos }));
-              await persistReportPhotos(nextPhotos);
-            }}
-            onDeletePhoto={async (photoId) => {
-              const nextPhotos = (form.fotos || []).filter((p) => p.id !== photoId);
-              setForm((prev) => ({ ...prev, fotos: nextPhotos }));
-              await persistReportPhotos(nextPhotos);
-            }}
-          />
+          <ReportPhotoSection reportId={report.id} photos={form.fotos || []} />
         )}
 
         {activeTab === 'attachments' && (
-          <AttachmentsSection
-            reportId={report.id}
-            attachments={form.attachments || []}
-          />
+          <AttachmentsSection reportId={report.id} attachments={form.attachments || []} />
         )}
 
         {activeTab === 'depoimentos' && (
           <DepoimentosSection
             reportId={report.id}
             depoimentos={form.depoimentos || []}
-            onChange={(nextDepoimentos) =>
-              setForm((prev) => ({ ...prev, depoimentos: nextDepoimentos }))
-            }
+            onChange={(v) => setForm((prev) => ({ ...prev, depoimentos: v }))}
           />
         )}
       </Card>
 
       <div className="flex gap-3 justify-end">
-        <Button variant="outline" onClick={() => navigate('/Relatorios')}>
+        <Button onClick={() => navigate('/Relatorios')} variant="outline">
           Cancelar
         </Button>
 
-        <Button onClick={() => handleSave('DRAFT')} disabled={saving} variant="secondary">
-          {saving ? 'Salvando...' : 'Salvar Rascunho'}
+        <Button onClick={() => handleSave('DRAFT')} disabled={saving}>
+          Salvar
         </Button>
 
         <Button onClick={() => handleSave('SUBMITTED')} disabled={saving}>
-          {saving ? 'Enviando...' : 'Enviar para Revisão'}
+          Enviar
         </Button>
       </div>
     </div>
