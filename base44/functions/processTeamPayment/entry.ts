@@ -4,10 +4,18 @@ function toNumber(v: any) {
   return Number(v) || 0;
 }
 
+function normalizeStatus(value: any) {
+  return String(value || '').trim().toUpperCase();
+}
+
 function computeSaldo(rubrica: any) {
-  const total = toNumber(rubrica?.valor_total);
+  const total =
+    toNumber(rubrica?.valor_total) ||
+    toNumber(rubrica?.valor_rubrica);
+
   const utilizado = toNumber(rubrica?.valor_utilizado);
   const comprometido = toNumber(rubrica?.saldo_comprometido);
+
   return total - utilizado - comprometido;
 }
 
@@ -226,9 +234,11 @@ Deno.serve(async (req) => {
     }
 
     const rubricaNome = pickRubricaNome(payment, rubrica);
+    const currentStatus = normalizeStatus(payment.status);
+    const requestedAction = String(action || '').trim().toLowerCase();
 
-    if (action === 'approve') {
-      if (String(payment.status || '') !== 'AGUARDANDO_APROVACAO') {
+    if (requestedAction === 'approve') {
+      if (currentStatus !== 'AGUARDANDO_APROVACAO') {
         return Response.json({ error: 'Status inválido para aprovação' }, { status: 400 });
       }
 
@@ -265,7 +275,14 @@ Deno.serve(async (req) => {
         rubrica_nome: rubricaNome
       });
 
-      await sendApprovalEmails(base44, req, payment, rubricaNome);
+      const updatedPayment = {
+        ...payment,
+        status: 'APROVADO_COORD',
+        rubrica_id: rubrica.id,
+        rubrica_nome: rubricaNome
+      };
+
+      await sendApprovalEmails(base44, req, updatedPayment, rubricaNome);
 
       return Response.json({
         ok: true,
@@ -275,8 +292,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (action === 'pay') {
-      if (String(payment.status || '') !== 'APROVADO_COORD') {
+    if (requestedAction === 'pay') {
+      if (currentStatus !== 'APROVADO_COORD') {
         return Response.json({ error: 'Pagamento só permitido após aprovação' }, { status: 400 });
       }
 
@@ -327,9 +344,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (action === 'return') {
-      const currentStatus = String(payment.status || '');
-
+    if (requestedAction === 'return') {
       if (!['AGUARDANDO_APROVACAO', 'APROVADO_COORD'].includes(currentStatus)) {
         return Response.json({ error: 'Status inválido para devolução' }, { status: 400 });
       }
