@@ -34,6 +34,20 @@ function getRubricaNome(payment) {
   return payment?.rubrica_nome || payment?.rubrica || '—';
 }
 
+function extractEffectiveErrorMessage(error) {
+  const message =
+    error?.message ||
+    error?.data?.error ||
+    error?.error ||
+    'Erro ao processar.';
+
+  if (String(message).includes('Pagamento duplicado removido automaticamente')) {
+    return 'Havia um pagamento duplicado. O sistema limpou o registro e você pode tentar novamente.';
+  }
+
+  return message;
+}
+
 export default function TeamPaymentReview({ members = [] }) {
   const queryClient = useQueryClient();
   const [reviewing, setReviewing] = useState(null);
@@ -47,13 +61,11 @@ export default function TeamPaymentReview({ members = [] }) {
     queryFn: () => base44.entities.TeamPayment.list('-created_date', 500),
   });
 
-  // ✅ DEDUPLICAÇÃO REAL (user + mês + ano)
   const uniquePayments = useMemo(() => {
     const map = new Map();
 
     for (const p of payments) {
       const key = `${p.user_email}_${p.mes_referencia}_${p.ano}`;
-
       const existing = map.get(key);
 
       if (!existing) {
@@ -61,7 +73,6 @@ export default function TeamPaymentReview({ members = [] }) {
         continue;
       }
 
-      // 🔥 prioriza o com valor maior ou mais recente
       const currentValue = toNumber(p.valor_nf || p.valor_parcela_previsto);
       const existingValue = toNumber(existing.valor_nf || existing.valor_parcela_previsto);
 
@@ -85,54 +96,164 @@ export default function TeamPaymentReview({ members = [] }) {
   }
 
   async function sendStatusNotif(payment, status, obs) {
-    await base44.functions.invoke('processTeamPayment', {
-      payment_id: payment?.id,
-      status,
-      observacoes: obs || ''
-    });
+    try {
+      await base44.functions.invoke('notifyTeamPaymentStatusChange', {
+        payment_id: payment?.id,
+        status,
+        requester_email: payment?.user_email || '',
+        team_member_name: payment?.user_name || '',
+        mes: payment?.mes_referencia || '',
+        ano: payment?.ano || '',
+        valor: payment?.valor_nf || payment?.valor_parcela_previsto || 0,
+        observacoes: obs || '',
+        nota_fiscal_url: payment?.nota_fiscal_url || '',
+        xml_url: payment?.xml_url || '',
+        app_link: buildAppUrl(),
+      });
+    } catch (e) {
+      console.warn('Falha na notificação de status do pagamento:', e);
+    }
+  }
+
+  async function notifyRequesterSafely(payment, type, message, title) {
+    try {
+      await notifyUser(payment.user_email, {
+        title,
+        message,
+        type,
+        action_url: `${window.location.origin}/Compras`,
+      });
+    } catch (e) {
+      console.warn('Falha na notificação ao usuário:', e);
+    }
+  }
+
+  async function refreshPayments() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['team-payments-review'] }),
+      queryClient.invalidateQueries({ queryKey: ['team-payments'] }),
+      queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
+      queryClient.invalidateQueries({ queryKey: ['rubricas-total-utilizado'] }),
+      queryClient.invalidateQueries({ queryKey: ['purchases'] }),
+    ]);
   }
 
   async function handleConfirm() {
-    if (!reviewing || !action) return;
+    if (!reviewing || !action || saving) return;
 
     setSaving(true);
 
     try {
-      await base44.functions.invoke('processTeamPayment', {
+      const response = await base44.functions.invoke('processTeamPayment', {
         payment_id: reviewing.id,
         action: action === 'approve' ? 'approve' : 'return'
       });
 
-      toast.success(action === 'approve' ? 'Aprovado.' : 'Devolvido.');
+      const result = response?.data || response || {};
+
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+
+      if (action === 'approve') {
+        await sendStatusNotif(reviewing, 'APROVADO_COORD', comment);
+        await notifyRequesterSafely(
+          reviewing,
+          'PAYMENT_APPROVED',
+          'Sua nota fiscal foi aprovada.',
+          '✅ Nota fiscal aprovada'
+        );
+        toast.success('Pagamento aprovado com sucesso.');
+      }
+
+      if (action === 'return') {
+        await sendStatusNotif(reviewing, 'DEVOLVIDO_REVISAO', comment);
+        await notifyRequesterSafely(
+          reviewing,
+          'PAYMENT_RETURNED',
+          `Sua NF foi devolvida. Motivo: ${comment || 'Revisão necessária.'}`,
+          '⚠️ Nota devolvida'
+        );
+        toast.success('Pagamento devolvido com sucesso.');
+      }
 
       setReviewing(null);
       setAction(null);
       setComment('');
 
-      await queryClient.invalidateQueries();
-
+      await refreshPayments();
     } catch (e) {
-      toast.error(e?.message || 'Erro ao processar.');
+      toast.error(extractEffectiveErrorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleApproveDirect(payment) {
+    if (!payment || saving) return;
+
+    setSaving(true);
+
+    try {
+      const response = await base44.functions.invoke('processTeamPayment', {
+        payment_id: payment.id,
+        action: 'approve'
+      });
+
+      const result = response?.data || response || {};
+
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+
+      await sendStatusNotif(payment, 'APROVADO_COORD', '');
+      await notifyRequesterSafely(
+        payment,
+        'PAYMENT_APPROVED',
+        'Sua nota fiscal foi aprovada.',
+        '✅ Nota fiscal aprovada'
+      );
+
+      toast.success('Pagamento aprovado com sucesso.');
+
+      await refreshPayments();
+    } catch (e) {
+      toast.error(extractEffectiveErrorMessage(e));
     } finally {
       setSaving(false);
     }
   }
 
   async function marcarComoPago(payment) {
+    if (markingPaid[payment.id]) return;
+
     setMarkingPaid(m => ({ ...m, [payment.id]: true }));
 
     try {
-      await base44.functions.invoke('processTeamPayment', {
+      const response = await base44.functions.invoke('processTeamPayment', {
         payment_id: payment.id,
         action: 'pay'
       });
 
-      toast.success('Pagamento realizado.');
+      const result = response?.data || response || {};
 
-      await queryClient.invalidateQueries();
+      if (result?.error) {
+        throw new Error(result.error);
+      }
 
+      await sendStatusNotif(payment, 'PAGO', 'Pagamento realizado.');
+      await notifyRequesterSafely(
+        payment,
+        'PAYMENT_DONE',
+        'Pagamento confirmado.',
+        '💰 Pagamento realizado'
+      );
+
+      toast.success('Pagamento realizado com sucesso.');
+
+      await refreshPayments();
     } catch (e) {
-      toast.error(e?.message || 'Erro ao pagar.');
+      toast.error(extractEffectiveErrorMessage(e));
     } finally {
       setMarkingPaid(m => ({ ...m, [payment.id]: false }));
     }
@@ -140,6 +261,12 @@ export default function TeamPaymentReview({ members = [] }) {
 
   return (
     <div className="space-y-4">
+      {orderedPayments.length === 0 && (
+        <div className="rounded-xl border p-4 text-sm text-gray-500">
+          Nenhum envio encontrado.
+        </div>
+      )}
+
       {orderedPayments.map(payment => {
         const member = getMember(payment);
         const badge = getStatusBadge(payment?.status);
@@ -147,7 +274,6 @@ export default function TeamPaymentReview({ members = [] }) {
 
         return (
           <div key={payment.id} className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">
-
             <div className="flex items-start justify-between">
               <div>
                 <div className="font-semibold">
@@ -161,7 +287,7 @@ export default function TeamPaymentReview({ members = [] }) {
             </div>
 
             <div className="text-sm">
-              Valor: <b>{formatBRL(payment?.valor_nf)}</b>
+              Valor: <b>{formatBRL(payment?.valor_nf || payment?.valor_parcela_previsto)}</b>
             </div>
 
             <div className="text-xs text-gray-600">
@@ -171,25 +297,86 @@ export default function TeamPaymentReview({ members = [] }) {
             <div className="flex gap-2">
               {status === 'AGUARDANDO_APROVACAO' && (
                 <>
-                  <Button onClick={() => { setReviewing(payment); setAction('approve'); }}>
-                    Aprovar
+                  <Button
+                    onClick={() => handleApproveDirect(payment)}
+                    disabled={saving}
+                  >
+                    {saving ? 'Processando...' : 'Aprovar'}
                   </Button>
-                  <Button variant="outline" onClick={() => { setReviewing(payment); setAction('return'); }}>
+
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setReviewing(payment);
+                      setAction('return');
+                    }}
+                    disabled={saving}
+                  >
                     Devolver
                   </Button>
                 </>
               )}
 
               {status === 'APROVADO_COORD' && (
-                <Button onClick={() => marcarComoPago(payment)} disabled={!!markingPaid[payment.id]}>
+                <Button onClick={() => marcarComoPago(payment)} disabled={!!markingPaid[payment.id] || saving}>
                   {markingPaid[payment.id] ? 'Processando...' : 'Marcar como pago'}
                 </Button>
               )}
             </div>
-
           </div>
         );
       })}
+
+      {reviewing && (
+        <Dialog open onOpenChange={() => {
+          if (!saving) {
+            setReviewing(null);
+            setAction(null);
+            setComment('');
+          }
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {action === 'approve' ? 'Aprovar pagamento' : 'Devolver pagamento'}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600">
+                <div><b>{reviewing?.user_name || reviewing?.user_email}</b></div>
+                <div>{reviewing?.mes_referencia}/{reviewing?.ano}</div>
+                <div>Valor: <b>{formatBRL(reviewing?.valor_nf || reviewing?.valor_parcela_previsto)}</b></div>
+                <div>Rubrica: <b>{getRubricaNome(reviewing)}</b></div>
+              </div>
+
+              <Textarea
+                value={comment}
+                onChange={e => setComment(e.target.value)}
+                placeholder="Comentário"
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setReviewing(null);
+                  setAction(null);
+                  setComment('');
+                }}
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
+
+              <Button onClick={handleConfirm} disabled={saving}>
+                {saving ? 'Salvando...' : 'Confirmar'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
