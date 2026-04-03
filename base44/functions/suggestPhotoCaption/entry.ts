@@ -26,6 +26,7 @@ Data de Realização: ${activity.data_realizacao || activity.data_inicio || ''}
 Público Estimado: ${activity.publico_estimado || 0}
 Classificação: ${activity.classificacao || ''}
 Museu: ${activity.museu || ''}
+Localização informada: ${activity.localizacao || activity.local || ''}
 `;
         }
       } catch (error) {
@@ -68,18 +69,22 @@ Retorne:
    - MHAB
    - MUMO
    - Atuação Geral
+4. "location": a localização mais provável visível ou inferível pela imagem/contexto
+   - exemplo: "auditório", "sala educativa", "galeria expositiva", "área externa", "recepção", "Atuação Geral"
 
 Regras:
 - Use tom profissional e descritivo
 - Considere o contexto acima quando ele existir
 - Se não der para afirmar um museu com segurança, use "Atuação Geral"
+- Se não der para afirmar a localização com segurança, use "Atuação Geral"
 - Responda somente em JSON válido
 
 Formato obrigatório:
 {
   "caption": "texto",
   "description": "texto",
-  "museum": "MIS | MHAB | MUMO | Atuação Geral"
+  "museum": "MIS | MHAB | MUMO | Atuação Geral",
+  "location": "texto"
 }`;
 
     const result = await base44.integrations.Core.InvokeLLM({
@@ -101,8 +106,12 @@ Formato obrigatório:
             description: 'Museu provável: MIS, MHAB, MUMO ou Atuação Geral',
             enum: ['MIS', 'MHAB', 'MUMO', 'Atuação Geral'],
           },
+          location: {
+            type: 'string',
+            description: 'Localização provável da cena na imagem',
+          },
         },
-        required: ['caption', 'description', 'museum'],
+        required: ['caption', 'description', 'museum', 'location'],
       },
       model: 'claude_sonnet_4_6',
     });
@@ -112,6 +121,7 @@ Formato obrigatório:
       caption: result?.caption || '',
       description: result?.description || '',
       museum: result?.museum || 'Atuação Geral',
+      location: result?.location || 'Atuação Geral',
     });
   } catch (error) {
     console.error('Erro ao sugerir legenda:', error?.message || error);
