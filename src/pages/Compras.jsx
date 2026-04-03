@@ -30,6 +30,7 @@ import AprovacoesFila from '@/components/compras/AprovacoesFila';
 import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
 import TeamManager from '@/components/compras/TeamManager';
 import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
+import TeamPaymentReview from '@/components/compras/TeamPaymentReview';
 import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
 import { useBudgetLines } from '@/components/compras/useBudgetLines';
 import GestaoDocumental from '@/pages/GestaoDocumental';
@@ -863,9 +864,11 @@ function ComprasInner() {
         <TeamManager budgetLines={budgetLines} />
         }
 
-        {tab === 'pagamentos' &&
-        <TeamPaymentSubmit userEmail={currentUser?.email} />
-        }
+        {tab === 'pagamentos' && (
+          isCoordenador
+            ? <TeamPaymentReview members={[]} budgetLines={budgetLines} />
+            : <TeamPaymentSubmit userEmail={currentUser?.email} />
+        )}
 
         {tab === 'aprovacoes' && (podeAprovarSolicitacoes || hasGestaoCompras) &&
         <AprovacoesFila
