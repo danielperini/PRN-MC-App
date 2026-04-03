@@ -12,19 +12,28 @@ function computeSaldo(rubrica: any) {
 }
 
 function pickRubricaId(payment: any, member: any) {
-  return (
-    payment?.rubrica_id ||
-    member?.rubrica_id ||
-    null
-  );
+  return payment?.rubrica_id || member?.rubrica_id || null;
 }
 
 function pickRubricaNome(payment: any, rubrica: any) {
-  return (
-    payment?.rubrica_nome ||
-    rubrica?.nome ||
-    ''
-  );
+  return payment?.rubrica_nome || rubrica?.nome || '';
+}
+
+async function logMovimentacao(base44: any, data: any) {
+  try {
+    await base44.entities.RubricaMovimentacao.create({
+      tipo: data.tipo,
+      valor: data.valor,
+      rubrica_id: data.rubrica_id,
+      payment_id: data.payment_id,
+      user_email: data.user_email,
+      mes: data.mes,
+      ano: data.ano,
+      created_at: new Date().toISOString()
+    });
+  } catch (e) {
+    console.error('Erro ao registrar log financeiro', e);
+  }
 }
 
 async function removeDuplicados(base44: any, payment: any) {
@@ -34,16 +43,16 @@ async function removeDuplicados(base44: any, payment: any) {
     ano: payment.ano
   });
 
-  if (!duplicates || duplicates.length <= 1) return;
+  if (!duplicates || duplicates.length <= 1) return true;
 
-  // 🔥 ordena: mantém o melhor
   const sorted = duplicates.sort((a: any, b: any) => {
     const va = toNumber(a.valor_nf || a.valor_parcela_previsto);
     const vb = toNumber(b.valor_nf || b.valor_parcela_previsto);
 
     if (vb !== va) return vb - va;
 
-    return new Date(b.created_date || 0).getTime() - new Date(a.created_date || 0).getTime();
+    return new Date(b.created_date || 0).getTime() -
+           new Date(a.created_date || 0).getTime();
   });
 
   const keep = sorted[0];
@@ -52,7 +61,7 @@ async function removeDuplicados(base44: any, payment: any) {
   for (const d of toDelete) {
     try {
       await base44.entities.TeamPayment.delete(d.id);
-    } catch (e) {
+    } catch {
       console.error('Erro ao deletar duplicado:', d.id);
     }
   }
@@ -68,7 +77,7 @@ Deno.serve(async (req) => {
     const { payment_id, action } = body;
 
     if (!payment_id || !action) {
-      return Response.json({ error: 'payment_id e action obrigatórios' }, { status: 400 });
+      return Response.json({ error: 'Parâmetros inválidos' }, { status: 400 });
     }
 
     let payment = await base44.entities.TeamPayment.get(payment_id);
@@ -82,22 +91,18 @@ Deno.serve(async (req) => {
 
     if (!stillValid) {
       return Response.json({
-        error: 'Pagamento duplicado removido automaticamente',
-        removed_duplicate: true
+        error: 'Pagamento duplicado removido automaticamente'
       }, { status: 409 });
     }
 
     const member = (await base44.entities.TeamMember.filter({
-      user_email: payment?.user_email
+      user_email: payment.user_email
     }))?.[0] || null;
 
     const rubricaId = pickRubricaId(payment, member);
 
     if (!rubricaId) {
-      return Response.json({
-        error: 'Pagamento sem rubrica vinculada',
-        blocked_by_rubrica: true
-      }, { status: 400 });
+      return Response.json({ error: 'Sem rubrica vinculada' }, { status: 400 });
     }
 
     const rubrica = await base44.entities.Rubrica.get(rubricaId);
@@ -123,6 +128,16 @@ Deno.serve(async (req) => {
         saldo_comprometido: toNumber(rubrica.saldo_comprometido) + valor
       });
 
+      await logMovimentacao(base44, {
+        tipo: 'COMPROMETIDO',
+        valor,
+        rubrica_id: rubrica.id,
+        payment_id: payment.id,
+        user_email: payment.user_email,
+        mes: payment.mes_referencia,
+        ano: payment.ano
+      });
+
       await base44.entities.TeamPayment.update(payment.id, {
         status: 'APROVADO_COORD',
         rubrica_id: rubrica.id,
@@ -145,6 +160,16 @@ Deno.serve(async (req) => {
         saldo_comprometido: Math.max(0, toNumber(rubrica.saldo_comprometido) - valor)
       });
 
+      await logMovimentacao(base44, {
+        tipo: 'PAGO',
+        valor,
+        rubrica_id: rubrica.id,
+        payment_id: payment.id,
+        user_email: payment.user_email,
+        mes: payment.mes_referencia,
+        ano: payment.ano
+      });
+
       await base44.entities.TeamPayment.update(payment.id, {
         status: 'PAGO',
         valor_pago: valor,
@@ -159,6 +184,16 @@ Deno.serve(async (req) => {
     // DEVOLVER
     // ========================
     if (action === 'return') {
+      await logMovimentacao(base44, {
+        tipo: 'ESTORNO',
+        valor,
+        rubrica_id: rubrica.id,
+        payment_id: payment.id,
+        user_email: payment.user_email,
+        mes: payment.mes_referencia,
+        ano: payment.ano
+      });
+
       await base44.entities.TeamPayment.update(payment.id, {
         status: 'DEVOLVIDO_REVISAO',
         rubrica_id: rubrica.id,
