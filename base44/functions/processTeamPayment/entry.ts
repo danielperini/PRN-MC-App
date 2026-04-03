@@ -8,6 +8,10 @@ function normalizeStatus(value: any) {
   return String(value || '').trim().toUpperCase();
 }
 
+function normalizeEmail(v: any) {
+  return String(v || '').trim().toLowerCase();
+}
+
 function computeSaldo(rubrica: any) {
   const total =
     toNumber(rubrica?.valor_total) ||
@@ -34,14 +38,31 @@ function isAfterApril2026(mes: string, ano: number) {
   return idx >= 3;
 }
 
-/* 🔥 FORÇA RUBRICA REAL NO PAYMENT */
-async function ensureRubricaPersistida(base44: any, payment: any, member: any) {
-  const rubrica_id = payment?.rubrica_id || member?.rubrica_id;
+/* 🔥 FORÇA RUBRICA REAL (COM FALLBACK + DEBUG) */
+async function resolveRubrica(base44: any, payment: any, member: any) {
 
-  if (!rubrica_id) return null;
+  const rubrica_id =
+    payment?.rubrica_id ||
+    member?.rubrica_id;
+
+  if (!rubrica_id) {
+    return {
+      error: 'Sem rubrica',
+      debug: {
+        payment_rubrica: payment?.rubrica_id,
+        member_rubrica: member?.rubrica_id
+      }
+    };
+  }
 
   const rubrica = await base44.entities.Rubrica.get(rubrica_id);
-  if (!rubrica?.id) return null;
+
+  if (!rubrica?.id) {
+    return {
+      error: 'Rubrica não encontrada',
+      debug: { rubrica_id }
+    };
+  }
 
   const rubrica_nome =
     payment?.rubrica_nome ||
@@ -49,7 +70,7 @@ async function ensureRubricaPersistida(base44: any, payment: any, member: any) {
     rubrica?.nome ||
     '';
 
-  // 🔥 garante persistência no payment
+  // 🔥 GARANTE persistência
   if (!payment?.rubrica_id) {
     await base44.entities.TeamPayment.update(payment.id, {
       rubrica_id,
@@ -91,23 +112,27 @@ Deno.serve(async (req) => {
     const valor = toNumber(payment?.valor_nf || payment?.valor_parcela_previsto);
 
     if (valor <= 0) {
-      return Response.json({ error: 'Pagamento com valor inválido' }, { status: 400 });
+      return Response.json({ error: 'Valor inválido' }, { status: 400 });
     }
 
-    const member = (await base44.entities.TeamMember.filter({
-      user_email: payment?.user_email
-    }))?.[0] || null;
+    /* 🔥 MEMBER COM NORMALIZAÇÃO */
+    const allMembers = await base44.entities.TeamMember.list();
+    const member = allMembers.find(
+      (m: any) =>
+        normalizeEmail(m.user_email) === normalizeEmail(payment.user_email)
+    ) || null;
 
-    /* 🔥 GARANTE RUBRICA */
-    const resolved = await ensureRubricaPersistida(base44, payment, member);
+    /* 🔥 RUBRICA */
+    const resolved = await resolveRubrica(base44, payment, member);
 
-    if (!resolved) {
+    if ((resolved as any)?.error) {
       return Response.json({
-        error: 'Pagamento sem rubrica vinculada (nem no membro nem selecionada)'
+        error: resolved.error,
+        debug: resolved.debug
       }, { status: 400 });
     }
 
-    const { rubrica, rubrica_id, rubrica_nome } = resolved;
+    const { rubrica, rubrica_id, rubrica_nome } = resolved as any;
 
     const currentStatus = normalizeStatus(payment.status);
     const requestedAction = String(action || '').toLowerCase();
@@ -121,7 +146,8 @@ Deno.serve(async (req) => {
 
       if (currentStatus !== 'AGUARDANDO_APROVACAO') {
         return Response.json({
-          error: `Status inválido: ${payment.status}`
+          error: 'Status inválido',
+          debug: { status: payment.status }
         }, { status: 400 });
       }
 
@@ -130,7 +156,12 @@ Deno.serve(async (req) => {
 
         if (saldo < valor) {
           return Response.json({
-            error: `Saldo insuficiente na rubrica "${rubrica_nome}". Saldo atual: ${saldo}, valor solicitado: ${valor}`
+            error: 'Saldo insuficiente',
+            debug: {
+              rubrica: rubrica_nome,
+              saldo,
+              valor
+            }
           }, { status: 400 });
         }
 
@@ -145,9 +176,6 @@ Deno.serve(async (req) => {
           rubrica_nome,
           payment_id: payment.id,
           user_email: payment.user_email,
-          user_name: payment.user_name,
-          mes: payment.mes_referencia,
-          ano: payment.ano
         });
       }
 
@@ -170,7 +198,8 @@ Deno.serve(async (req) => {
 
       if (currentStatus !== 'APROVADO_COORD') {
         return Response.json({
-          error: 'Pagamento só permitido após aprovação'
+          error: 'Precisa estar aprovado',
+          debug: { status: payment.status }
         }, { status: 400 });
       }
 
@@ -186,10 +215,6 @@ Deno.serve(async (req) => {
           rubrica_id,
           rubrica_nome,
           payment_id: payment.id,
-          user_email: payment.user_email,
-          user_name: payment.user_name,
-          mes: payment.mes_referencia,
-          ano: payment.ano
         });
       }
 
@@ -211,7 +236,8 @@ Deno.serve(async (req) => {
 
   } catch (e: any) {
     return Response.json({
-      error: e?.message || 'Erro interno'
+      error: e?.message || 'Erro interno',
+      stack: e?.stack
     }, { status: 500 });
   }
 });
