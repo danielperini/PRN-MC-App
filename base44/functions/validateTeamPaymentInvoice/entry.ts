@@ -38,6 +38,70 @@ function buildErrorMessage(error: any) {
   return truncateText(parts.join(' | '), 800);
 }
 
+function parseMonthYear(value: unknown) {
+  const text = String(value || '').trim();
+
+  const numeric = text.match(/\b(0?[1-9]|1[0-2])\/(\d{4})\b/);
+  if (numeric) {
+    return {
+      month: Number(numeric[1]),
+      year: Number(numeric[2]),
+      raw: numeric[0],
+    };
+  }
+
+  const normalized = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  const months: Record<string, number> = {
+    janeiro: 1,
+    fevereiro: 2,
+    marco: 3,
+    abril: 4,
+    maio: 5,
+    junho: 6,
+    julho: 7,
+    agosto: 8,
+    setembro: 9,
+    outubro: 10,
+    novembro: 11,
+    dezembro: 12,
+  };
+
+  for (const [name, month] of Object.entries(months)) {
+    const regex = new RegExp(`\\b${name}\\s*\\/\\s*(\\d{4})\\b`, 'i');
+    const match = normalized.match(regex);
+    if (match) {
+      return {
+        month,
+        year: Number(match[1]),
+        raw: `${name}/${match[1]}`,
+      };
+    }
+  }
+
+  return null;
+}
+
+function isPreviousMonthAllowed(descricaoCompetencia: unknown, expectedMes: unknown, expectedAno: unknown) {
+  const desc = parseMonthYear(descricaoCompetencia);
+  const expected = parseMonthYear(`${expectedMes || ''}/${expectedAno || ''}`);
+
+  if (!desc || !expected) return false;
+
+  let prevMonth = expected.month - 1;
+  let prevYear = expected.year;
+
+  if (prevMonth === 0) {
+    prevMonth = 12;
+    prevYear -= 1;
+  }
+
+  return desc.month === prevMonth && desc.year === prevYear;
+}
+
 async function tryReadContractData(base44: any, member: any) {
   const contractUrl = member?.contrato_url || member?.file_url || null;
   if (!contractUrl) {
@@ -140,6 +204,29 @@ Analise a NOTA FISCAL em PDF. O XML pode existir como arquivo de apoio, mas não
 
 Faça também o CRUZAMENTO AUTOMÁTICO entre NF e CONTRATO.
 
+=== REGRA FIXA DAS NOTAS DA EQUIPE ===
+Para notas fiscais da equipe deste projeto, a descrição do serviço normalmente menciona o mês ANTERIOR ao mês/competência formal da nota.
+Exemplo válido:
+- competência formal da nota: abril/2026
+- descrição do serviço: março/2026
+
+ISSO É CORRETO E NÃO DEVE SER TRATADO COMO DIVERGÊNCIA CRÍTICA NEM COMO ALERTA.
+
+=== REGRA CRÍTICA DE LEITURA FISCAL ===
+Ao analisar competência e número da nota, PRIORIZE os CAMPOS FISCAIS EXPLÍCITOS da NFS-e, como por exemplo:
+- Número da NFS-e
+- Competência da NFS-e
+- Data de emissão da NFS-e
+- Número da DPS
+- Série da DPS
+
+Se o corpo da descrição do serviço mencionar outro mês, isso NÃO deve prevalecer sobre os campos fiscais formais.
+Se houver conflito entre:
+1. campos fiscais explícitos da NFS-e
+2. descrição livre do serviço
+
+considere os CAMPOS FISCAIS EXPLÍCITOS como verdade principal.
+
 === DADOS DO PROJETO ===
 Projeto: Museus Centro — Termo de Colaboração 01-031.069/24-80
 Contratante (OSC): Viaduto das Artes — CNPJ 23.843.648/0001-25
@@ -178,19 +265,21 @@ ${descricao_modelo || 'Não fornecido'}
 === CHECKLIST OBRIGATÓRIO ===
 1. O valor encontrado na NF bate com o valor esperado e com o valor do contrato? Tolerância máxima: R$ 1,00.
 2. O emitente da NF corresponde ao documento do cadastro/contrato?
-3. A descrição menciona Museus Centro e/ou Termo de Colaboração 01-031.069/24-80?
-4. Os dados bancários encontrados na NF são compatíveis com os dados do cadastro/contrato?
-5. A NF tem número, data de emissão e código/elementos de verificação?
-6. A competência está dentro da vigência do contrato?
-7. Não trate diferença entre nome completo da pessoa e descrição simplificada do cadastro como erro.
-8. Não trate diferença entre número informado e número identificado como erro ou alerta.
-9. Não trate XML não lido diretamente como erro ou alerta.
-10. Não tratar falha na leitura do contrato como alerta ao usuário final.
+3. Priorize a competência formal da NFS-e. NÃO usar texto da descrição do serviço como base principal para bloquear competência.
+4. A descrição do serviço pode trazer o mês anterior à competência formal da nota. Isso é válido e não deve gerar crítica.
+5. Os dados bancários encontrados na NF são compatíveis com os dados do cadastro/contrato?
+6. A NF tem número, data de emissão e código/elementos de verificação?
+7. A competência formal da nota está dentro da vigência do contrato?
+8. Não trate diferença entre nome completo da pessoa e descrição simplificada do cadastro como erro.
+9. Não trate diferença entre número informado e número identificado como erro ou alerta.
+10. Não trate XML não lido diretamente como erro ou alerta.
+11. Não tratar falha na leitura do contrato como alerta ao usuário final.
 
 === REGRAS DE DECISÃO ===
 - Divergência de valor acima da tolerância = problema crítico
 - CPF/CNPJ incompatível = problema crítico
-- Competência fora da vigência do contrato = problema crítico
+- Competência fora da vigência do contrato = problema crítico SOMENTE se baseada na competência formal da NFS-e
+- Competência do mês anterior na descrição do serviço = permitido
 - Nome parecido, mas não idêntico = ignorar
 - Ausência de dados bancários na NF = alerta
 - Contrato vencido = problema crítico
@@ -309,8 +398,8 @@ Retorne JSON válido, objetivo e direto, com:
     const emitenteEncontrado = String(result?.emitente_encontrado || '').trim();
     const competenciaEncontrada = String(result?.competencia_encontrada || '').trim();
 
-    const warnings = Array.isArray(result?.warnings) ? [...result.warnings] : [];
-    const critical = Array.isArray(result?.critical_issues) ? [...result.critical_issues] : [];
+    let warnings = Array.isArray(result?.warnings) ? [...result.warnings] : [];
+    let critical = Array.isArray(result?.critical_issues) ? [...result.critical_issues] : [];
 
     if (contractValor > 0 && valorEncontrado > 0 && Math.abs(contractValor - valorEncontrado) > 1) {
       critical.push(`Valor da NF (${formatBRL(valorEncontrado)}) diferente do contrato (${formatBRL(contractValor)}).`);
@@ -325,6 +414,24 @@ Retorne JSON válido, objetivo e direto, com:
 
     if (contractValido === false) {
       critical.push('Contrato vencido ou fora da vigência.');
+    }
+
+    const allowedPreviousMonth = isPreviousMonthAllowed(
+      competenciaEncontrada,
+      mes_referencia,
+      ano
+    );
+
+    if (allowedPreviousMonth) {
+      warnings = warnings.filter((item) => {
+        const text = String(item || '').toLowerCase();
+        return !text.includes('compet') && !text.includes('março') && !text.includes('marco');
+      });
+
+      critical = critical.filter((item) => {
+        const text = String(item || '').toLowerCase();
+        return !text.includes('compet') && !text.includes('março') && !text.includes('marco');
+      });
     }
 
     const canSubmit = critical.length === 0 && result?.can_submit !== false;
@@ -363,6 +470,7 @@ Retorne JSON válido, objetivo e direto, com:
         file_urls: [file_url],
         xml_url: xml_url || '',
         payload: payloadSnapshot,
+        allowed_previous_month_rule_applied: allowedPreviousMonth,
       },
       ok: true,
     };
