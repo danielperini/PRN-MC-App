@@ -30,6 +30,14 @@ function buildAppUrl() {
   return 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app/Compras';
 }
 
+function getRubricaNome(payment) {
+  return (
+    payment?.rubrica_nome ||
+    payment?.rubrica ||
+    '—'
+  );
+}
+
 export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
   const queryClient = useQueryClient();
   const [reviewing, setReviewing] = useState(null);
@@ -43,9 +51,20 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
     queryFn: () => base44.entities.TeamPayment.list('-created_date', 500),
   });
 
+  // 🔥 ANTI-DUPLICAÇÃO VISUAL (garante lista limpa)
+  const uniquePayments = useMemo(() => {
+    const map = new Map();
+    for (const p of payments) {
+      if (!map.has(p.id)) {
+        map.set(p.id, p);
+      }
+    }
+    return Array.from(map.values());
+  }, [payments]);
+
   const orderedPayments = useMemo(() =>
-    [...payments].sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0)),
-    [payments]
+    [...uniquePayments].sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0)),
+    [uniquePayments]
   );
 
   function getMember(p) {
@@ -74,7 +93,6 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
     setSaving(true);
 
     try {
-      // 🔥 AGORA TUDO PASSA PELO BACKEND
       await base44.functions.invoke('processTeamPayment', {
         payment_id: reviewing.id,
         action: action === 'approve' ? 'approve' : 'return'
@@ -123,7 +141,6 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
     setMarkingPaid(m => ({ ...m, [payment.id]: true }));
 
     try {
-      // 🔥 BACKEND FAZ TUDO
       await base44.functions.invoke('processTeamPayment', {
         payment_id: payment.id,
         action: 'pay'
@@ -179,6 +196,11 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
 
             <div className="text-sm">
               Valor: <b>{formatBRL(payment?.valor_nf)}</b>
+            </div>
+
+            {/* 🔥 NOVO — RUBRICA VISÍVEL */}
+            <div className="text-xs text-gray-600">
+              Rubrica: <b>{getRubricaNome(payment)}</b>
             </div>
 
             <div className="flex gap-2">
