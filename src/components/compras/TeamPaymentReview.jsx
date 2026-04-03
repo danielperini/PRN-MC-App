@@ -52,7 +52,32 @@ function getStatusBadge(status) {
 }
 
 function extractErrorMessage(err) {
-  return err?.data?.error || err?.error || err?.message || 'Erro ao processar';
+  return (
+    err?.response?.data?.error ||
+    err?.response?.data?.message ||
+    err?.data?.error ||
+    err?.data?.message ||
+    err?.error ||
+    err?.message ||
+    'Erro ao processar'
+  );
+}
+
+function extractErrorDetails(err) {
+  const debug =
+    err?.response?.data?.debug ||
+    err?.data?.debug ||
+    err?.response?.data?.details ||
+    err?.data?.details ||
+    null;
+
+  if (!debug) return '';
+
+  try {
+    return JSON.stringify(debug, null, 2);
+  } catch {
+    return String(debug);
+  }
 }
 
 function getRubricaNome(payment) {
@@ -128,6 +153,7 @@ export default function TeamPaymentReview() {
   const [loadingPay, setLoadingPay] = useState({});
   const [rubricaDraftByPayment, setRubricaDraftByPayment] = useState({});
   const [errorByPayment, setErrorByPayment] = useState({});
+  const [errorDebugByPayment, setErrorDebugByPayment] = useState({});
   const [successByPayment, setSuccessByPayment] = useState({});
 
   const { data: payments = [] } = useQuery({
@@ -184,6 +210,7 @@ export default function TeamPaymentReview() {
 
   function clearCardMessages(paymentId) {
     setErrorByPayment((prev) => ({ ...prev, [paymentId]: '' }));
+    setErrorDebugByPayment((prev) => ({ ...prev, [paymentId]: '' }));
     setSuccessByPayment((prev) => ({ ...prev, [paymentId]: '' }));
   }
 
@@ -323,15 +350,17 @@ export default function TeamPaymentReview() {
       const res = await base44.functions.invoke('processTeamPayment', {
         payment_id: payment.id,
         action: 'approve',
+        rubrica_id: selectedRubricaId,
+        rubrica_nome: rubricaNomeFinal || '',
       });
 
       const result = res?.data || res || {};
 
       if (result?.error) {
-        throw new Error(result.error);
+        throw { response: { data: result } };
       }
 
-      const successMessage = `Pagamento aprovado com sucesso. Rubrica vinculada: ${rubricaNomeFinal || selectedRubricaId}.`;
+      const successMessage = result?.message || `Pagamento aprovado com sucesso. Rubrica vinculada: ${rubricaNomeFinal || selectedRubricaId}.`;
       setSuccessByPayment((prev) => ({ ...prev, [payment.id]: successMessage }));
       toast.success(successMessage);
 
@@ -349,7 +378,10 @@ export default function TeamPaymentReview() {
       await refresh();
     } catch (e) {
       const message = extractErrorMessage(e);
+      const debug = extractErrorDetails(e);
+
       setErrorByPayment((prev) => ({ ...prev, [payment.id]: message }));
+      setErrorDebugByPayment((prev) => ({ ...prev, [payment.id]: debug }));
       toast.error(message);
     } finally {
       setSavingByPayment((prev) => ({ ...prev, [payment.id]: false }));
@@ -363,25 +395,33 @@ export default function TeamPaymentReview() {
     setLoadingPay((prev) => ({ ...prev, [payment.id]: true }));
 
     try {
+      const selectedRubricaId = getSelectedRubricaId(payment);
+      const rubricaNomeFinal = getSelectedRubricaNome(payment);
+
       const res = await base44.functions.invoke('processTeamPayment', {
         payment_id: payment.id,
         action: 'pay',
+        rubrica_id: selectedRubricaId || '',
+        rubrica_nome: rubricaNomeFinal || '',
       });
 
       const result = res?.data || res || {};
 
       if (result?.error) {
-        throw new Error(result.error);
+        throw { response: { data: result } };
       }
 
-      const successMessage = 'Pagamento realizado com sucesso.';
+      const successMessage = result?.message || 'Pagamento realizado com sucesso.';
       setSuccessByPayment((prev) => ({ ...prev, [payment.id]: successMessage }));
       toast.success(successMessage);
 
       await refresh();
     } catch (e) {
       const message = extractErrorMessage(e);
+      const debug = extractErrorDetails(e);
+
       setErrorByPayment((prev) => ({ ...prev, [payment.id]: message }));
+      setErrorDebugByPayment((prev) => ({ ...prev, [payment.id]: debug }));
       toast.error(message);
     } finally {
       setLoadingPay((prev) => ({ ...prev, [payment.id]: false }));
@@ -404,6 +444,7 @@ export default function TeamPaymentReview() {
         const selectedRubricaNome = getSelectedRubricaNome(payment);
         const checklist = buildApproveChecklist(payment);
         const cardError = errorByPayment[payment.id] || '';
+        const cardDebug = errorDebugByPayment[payment.id] || '';
         const cardSuccess = successByPayment[payment.id] || '';
         const saving = !!savingByPayment[payment.id];
 
@@ -476,9 +517,14 @@ export default function TeamPaymentReview() {
             )}
 
             {cardError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 space-y-2">
                 <div className="font-medium">Erro</div>
                 <div>{cardError}</div>
+                {cardDebug && (
+                  <pre className="whitespace-pre-wrap break-words rounded border border-red-200 bg-white p-2 text-xs text-red-900 overflow-x-auto">
+                    {cardDebug}
+                  </pre>
+                )}
               </div>
             )}
 
