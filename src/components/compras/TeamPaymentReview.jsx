@@ -26,33 +26,19 @@ function getStatusBadge(status) {
 }
 
 function buildAppUrl() {
-  if (typeof window !== 'undefined' && window.location?.origin) return `${window.location.origin}/Compras`;
-  return 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app/Compras';
+  return `${window.location.origin}/Compras`;
 }
 
 function getRubricaNome(payment) {
   return payment?.rubrica_nome || payment?.rubrica || '—';
 }
 
-function extractEffectiveErrorMessage(error) {
-  const message =
-    error?.message ||
-    error?.data?.error ||
-    error?.error ||
-    'Erro ao processar.';
-
-  if (String(message).includes('Pagamento duplicado removido automaticamente')) {
-    return 'Havia um pagamento duplicado. O sistema limpou o registro e você pode tentar novamente.';
-  }
-
-  return message;
+function extractError(e) {
+  return e?.message || e?.data?.error || 'Erro ao processar.';
 }
 
 export default function TeamPaymentReview({ members = [] }) {
   const queryClient = useQueryClient();
-  const [reviewing, setReviewing] = useState(null);
-  const [action, setAction] = useState(null);
-  const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [markingPaid, setMarkingPaid] = useState({});
 
@@ -61,199 +47,68 @@ export default function TeamPaymentReview({ members = [] }) {
     queryFn: () => base44.entities.TeamPayment.list('-created_date', 500),
   });
 
-  const uniquePayments = useMemo(() => {
-    const map = new Map();
-
-    for (const p of payments) {
-      const key = `${p.user_email}_${p.mes_referencia}_${p.ano}`;
-      const existing = map.get(key);
-
-      if (!existing) {
-        map.set(key, p);
-        continue;
-      }
-
-      const currentValue = toNumber(p.valor_nf || p.valor_parcela_previsto);
-      const existingValue = toNumber(existing.valor_nf || existing.valor_parcela_previsto);
-
-      if (currentValue > existingValue) {
-        map.set(key, p);
-      } else if (new Date(p.created_date || 0) > new Date(existing.created_date || 0)) {
-        map.set(key, p);
-      }
-    }
-
-    return Array.from(map.values());
-  }, [payments]);
-
   const orderedPayments = useMemo(() =>
-    [...uniquePayments].sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0)),
-    [uniquePayments]
+    [...payments].sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0)),
+    [payments]
   );
 
-  function getMember(p) {
-    return members.find(m => m.id === p?.team_member_id) || null;
-  }
-
-  async function sendStatusNotif(payment, status, obs) {
-    try {
-      await base44.functions.invoke('notifyTeamPaymentStatusChange', {
-        payment_id: payment?.id,
-        status,
-        requester_email: payment?.user_email || '',
-        team_member_name: payment?.user_name || '',
-        mes: payment?.mes_referencia || '',
-        ano: payment?.ano || '',
-        valor: payment?.valor_nf || payment?.valor_parcela_previsto || 0,
-        observacoes: obs || '',
-        nota_fiscal_url: payment?.nota_fiscal_url || '',
-        xml_url: payment?.xml_url || '',
-        app_link: buildAppUrl(),
-      });
-    } catch (e) {
-      console.warn('Falha na notificação de status do pagamento:', e);
-    }
-  }
-
-  async function notifyRequesterSafely(payment, type, message, title) {
-    try {
-      await notifyUser(payment.user_email, {
-        title,
-        message,
-        type,
-        action_url: `${window.location.origin}/Compras`,
-      });
-    } catch (e) {
-      console.warn('Falha na notificação ao usuário:', e);
-    }
-  }
-
-  async function refreshPayments() {
+  async function refresh() {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['team-payments-review'] }),
-      queryClient.invalidateQueries({ queryKey: ['team-payments'] }),
-      queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
-      queryClient.invalidateQueries({ queryKey: ['rubricas-total-utilizado'] }),
-      queryClient.invalidateQueries({ queryKey: ['purchases'] }),
+      queryClient.invalidateQueries(['team-payments-review']),
+      queryClient.invalidateQueries(['team-payments']),
+      queryClient.invalidateQueries(['rubricas']),
     ]);
   }
 
-  async function handleConfirm() {
-    if (!reviewing || !action || saving) return;
-
+  async function approve(payment) {
+    if (saving) return;
     setSaving(true);
 
     try {
-      const response = await base44.functions.invoke('processTeamPayment', {
-        payment_id: reviewing.id,
-        action: action === 'approve' ? 'approve' : 'return'
-      });
-
-      const result = response?.data || response || {};
-
-      if (result?.error) {
-        throw new Error(result.error);
-      }
-
-      if (action === 'approve') {
-        await sendStatusNotif(reviewing, 'APROVADO_COORD', comment);
-        await notifyRequesterSafely(
-          reviewing,
-          'PAYMENT_APPROVED',
-          'Sua nota fiscal foi aprovada.',
-          '✅ Nota fiscal aprovada'
-        );
-        toast.success('Pagamento aprovado com sucesso.');
-      }
-
-      if (action === 'return') {
-        await sendStatusNotif(reviewing, 'DEVOLVIDO_REVISAO', comment);
-        await notifyRequesterSafely(
-          reviewing,
-          'PAYMENT_RETURNED',
-          `Sua NF foi devolvida. Motivo: ${comment || 'Revisão necessária.'}`,
-          '⚠️ Nota devolvida'
-        );
-        toast.success('Pagamento devolvido com sucesso.');
-      }
-
-      setReviewing(null);
-      setAction(null);
-      setComment('');
-
-      await refreshPayments();
-    } catch (e) {
-      toast.error(extractEffectiveErrorMessage(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleApproveDirect(payment) {
-    if (!payment || saving) return;
-
-    setSaving(true);
-
-    try {
-      const response = await base44.functions.invoke('processTeamPayment', {
+      const res = await base44.functions.invoke('processTeamPayment', {
         payment_id: payment.id,
         action: 'approve'
       });
 
-      const result = response?.data || response || {};
+      if (res?.data?.error) throw new Error(res.data.error);
 
-      if (result?.error) {
-        throw new Error(result.error);
-      }
+      toast.success('Pagamento aprovado com sucesso');
 
-      await sendStatusNotif(payment, 'APROVADO_COORD', '');
-      await notifyRequesterSafely(
-        payment,
-        'PAYMENT_APPROVED',
-        'Sua nota fiscal foi aprovada.',
-        '✅ Nota fiscal aprovada'
-      );
+      await notifyUser(payment.user_email, {
+        title: 'Pagamento aprovado',
+        message: 'Sua nota fiscal foi aprovada',
+        type: 'success',
+        action_url: buildAppUrl()
+      });
 
-      toast.success('Pagamento aprovado com sucesso.');
+      await refresh();
 
-      await refreshPayments();
     } catch (e) {
-      toast.error(extractEffectiveErrorMessage(e));
+      toast.error(extractError(e));
     } finally {
       setSaving(false);
     }
   }
 
-  async function marcarComoPago(payment) {
+  async function pay(payment) {
     if (markingPaid[payment.id]) return;
 
     setMarkingPaid(m => ({ ...m, [payment.id]: true }));
 
     try {
-      const response = await base44.functions.invoke('processTeamPayment', {
+      const res = await base44.functions.invoke('processTeamPayment', {
         payment_id: payment.id,
         action: 'pay'
       });
 
-      const result = response?.data || response || {};
+      if (res?.data?.error) throw new Error(res.data.error);
 
-      if (result?.error) {
-        throw new Error(result.error);
-      }
+      toast.success('Pagamento realizado');
 
-      await sendStatusNotif(payment, 'PAGO', 'Pagamento realizado.');
-      await notifyRequesterSafely(
-        payment,
-        'PAYMENT_DONE',
-        'Pagamento confirmado.',
-        '💰 Pagamento realizado'
-      );
+      await refresh();
 
-      toast.success('Pagamento realizado com sucesso.');
-
-      await refreshPayments();
     } catch (e) {
-      toast.error(extractEffectiveErrorMessage(e));
+      toast.error(extractError(e));
     } finally {
       setMarkingPaid(m => ({ ...m, [payment.id]: false }));
     }
@@ -261,64 +116,32 @@ export default function TeamPaymentReview({ members = [] }) {
 
   return (
     <div className="space-y-4">
-      {orderedPayments.length === 0 && (
-        <div className="rounded-xl border p-4 text-sm text-gray-500">
-          Nenhum envio encontrado.
-        </div>
-      )}
-
       {orderedPayments.map(payment => {
-        const member = getMember(payment);
-        const badge = getStatusBadge(payment?.status);
-        const status = String(payment?.status || '').toUpperCase();
+        const badge = getStatusBadge(payment.status);
+        const status = String(payment.status || '').toUpperCase();
 
         return (
-          <div key={payment.id} className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">
-            <div className="flex items-start justify-between">
+          <div key={payment.id} className="border p-4 rounded-xl space-y-3">
+            <div className="flex justify-between">
               <div>
-                <div className="font-semibold">
-                  {member?.user_name || payment?.user_name || payment?.user_email}
-                </div>
-                <div className="text-xs text-gray-500">
-                  {payment?.mes_referencia}/{payment?.ano}
-                </div>
+                <div className="font-semibold">{payment.user_name}</div>
+                <div className="text-xs">{payment.mes_referencia}/{payment.ano}</div>
               </div>
               <Badge className={badge.className}>{badge.label}</Badge>
             </div>
 
-            <div className="text-sm">
-              Valor: <b>{formatBRL(payment?.valor_nf || payment?.valor_parcela_previsto)}</b>
-            </div>
-
-            <div className="text-xs text-gray-600">
-              Rubrica: <b>{getRubricaNome(payment)}</b>
-            </div>
+            <div>Valor: <b>{formatBRL(payment.valor_nf)}</b></div>
+            <div>Rubrica: <b>{getRubricaNome(payment)}</b></div>
 
             <div className="flex gap-2">
               {status === 'AGUARDANDO_APROVACAO' && (
-                <>
-                  <Button
-                    onClick={() => handleApproveDirect(payment)}
-                    disabled={saving}
-                  >
-                    {saving ? 'Processando...' : 'Aprovar'}
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setReviewing(payment);
-                      setAction('return');
-                    }}
-                    disabled={saving}
-                  >
-                    Devolver
-                  </Button>
-                </>
+                <Button onClick={() => approve(payment)} disabled={saving}>
+                  {saving ? 'Processando...' : 'Aprovar'}
+                </Button>
               )}
 
               {status === 'APROVADO_COORD' && (
-                <Button onClick={() => marcarComoPago(payment)} disabled={!!markingPaid[payment.id] || saving}>
+                <Button onClick={() => pay(payment)} disabled={markingPaid[payment.id]}>
                   {markingPaid[payment.id] ? 'Processando...' : 'Marcar como pago'}
                 </Button>
               )}
@@ -326,57 +149,6 @@ export default function TeamPaymentReview({ members = [] }) {
           </div>
         );
       })}
-
-      {reviewing && (
-        <Dialog open onOpenChange={() => {
-          if (!saving) {
-            setReviewing(null);
-            setAction(null);
-            setComment('');
-          }
-        }}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {action === 'approve' ? 'Aprovar pagamento' : 'Devolver pagamento'}
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-3">
-              <div className="text-sm text-gray-600">
-                <div><b>{reviewing?.user_name || reviewing?.user_email}</b></div>
-                <div>{reviewing?.mes_referencia}/{reviewing?.ano}</div>
-                <div>Valor: <b>{formatBRL(reviewing?.valor_nf || reviewing?.valor_parcela_previsto)}</b></div>
-                <div>Rubrica: <b>{getRubricaNome(reviewing)}</b></div>
-              </div>
-
-              <Textarea
-                value={comment}
-                onChange={e => setComment(e.target.value)}
-                placeholder="Comentário"
-              />
-            </div>
-
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setReviewing(null);
-                  setAction(null);
-                  setComment('');
-                }}
-                disabled={saving}
-              >
-                Cancelar
-              </Button>
-
-              <Button onClick={handleConfirm} disabled={saving}>
-                {saving ? 'Salvando...' : 'Confirmar'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }
