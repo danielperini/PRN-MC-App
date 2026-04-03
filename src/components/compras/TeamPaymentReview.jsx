@@ -8,7 +8,6 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 function toNumber(v) { return Number(v) || 0; }
@@ -49,10 +48,8 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
     [payments]
   );
 
-  function getMember(p) { return members.find(m => m.id === p?.team_member_id) || null; }
-  function getBudgetLine(m) {
-    const id = m?.budgetline_id || m?.budget_line_id || '';
-    return budgetLines.find(b => b.id === id) || null;
+  function getMember(p) {
+    return members.find(m => m.id === p?.team_member_id) || null;
   }
 
   async function sendStatusNotif(payment, status, obs) {
@@ -74,87 +71,29 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
   async function handleConfirm() {
     if (!reviewing || !action) return;
 
-    const member = getMember(reviewing);
-    const budgetLine = getBudgetLine(member);
-
     setSaving(true);
 
     try {
-      const user = await base44.auth.me();
+      // 🔥 AGORA TUDO PASSA PELO BACKEND
+      await base44.functions.invoke('processTeamPayment', {
+        payment_id: reviewing.id,
+        action: action === 'approve' ? 'approve' : 'return'
+      });
 
       if (action === 'approve') {
-        let budgetCheckData = null;
-
-        try {
-          const budgetCheck = await base44.functions.invoke('check_budget', {
-            valor: toNumber(reviewing?.valor_nf),
-            contexto: 'TEAM_PAYMENT_APPROVAL',
-            user_email: reviewing?.user_email,
-            mes: reviewing?.mes_referencia,
-            ano: reviewing?.ano
-          });
-
-          budgetCheckData = budgetCheck?.data || {};
-
-          if (budgetCheckData?.blocked_by_rubrica) {
-            toast.error('Aprovação bloqueada: rubrica inválida.');
-            setSaving(false);
-            return;
-          }
-
-          if (budgetCheckData?.saldo_insuficiente) {
-            toast.error('Saldo insuficiente para aprovação.');
-            setSaving(false);
-            return;
-          }
-        } catch (e) {
-          console.warn('Falha ao validar saldo na aprovação', e);
-          toast.error('Falha ao validar saldo/rubrica na aprovação.');
-          setSaving(false);
-          return;
-        }
-
-        const rubricaId = String(budgetCheckData?.rubrica_id || '');
-        const saldoComprometidoAtual = toNumber(budgetCheckData?.detalhamento?.saldo_comprometido);
-
-        if (rubricaId) {
-          await base44.entities.Rubrica.update(rubricaId, {
-            saldo_comprometido: saldoComprometidoAtual + toNumber(reviewing?.valor_nf),
-          });
-        }
-
-        if (budgetLine?.id) {
-          await base44.entities.BudgetLine.update(budgetLine.id, {
-            saldo_comprometido: toNumber(budgetLine?.saldo_comprometido) + toNumber(reviewing?.valor_nf),
-          }).catch(() => null);
-        }
-
-        await base44.entities.TeamPayment.update(reviewing.id, {
-          status: 'APROVADO_COORD',
-          aprov_coord_nome: user?.full_name || '',
-          aprov_coord_email: user?.email || '',
-          aprov_coord_data: new Date().toISOString(),
-          observacoes: comment || '',
-        });
-
         await sendStatusNotif(reviewing, 'APROVADO_COORD', comment);
 
         await notifyUser(reviewing.user_email, {
           title: '✅ Nota fiscal aprovada',
-          message: `Sua nota fiscal de ${reviewing.mes_referencia}/${reviewing.ano} foi aprovada.`,
+          message: `Sua nota fiscal foi aprovada.`,
           type: 'PAYMENT_APPROVED',
           action_url: `${window.location.origin}/Compras`,
         });
 
-        toast.success('Envio aprovado e encaminhado corretamente.');
+        toast.success('Aprovado com segurança.');
       }
 
       if (action === 'return') {
-        await base44.entities.TeamPayment.update(reviewing.id, {
-          status: 'DEVOLVIDO_REVISAO',
-          observacoes: comment || '',
-        });
-
         await sendStatusNotif(reviewing, 'DEVOLVIDO_REVISAO', comment);
 
         await notifyUser(reviewing.user_email, {
@@ -164,7 +103,7 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
           action_url: `${window.location.origin}/Compras`,
         });
 
-        toast.success('Envio devolvido.');
+        toast.success('Devolvido.');
       }
 
       setReviewing(null);
@@ -184,76 +123,11 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
     setMarkingPaid(m => ({ ...m, [payment.id]: true }));
 
     try {
-      if (String(payment?.status).toUpperCase() !== 'APROVADO_COORD') {
-        toast.error('Só é possível pagar após aprovação.');
-        setMarkingPaid(m => ({ ...m, [payment.id]: false }));
-        return;
-      }
-
-      const member = getMember(payment);
-      const budgetLine = getBudgetLine(member);
-
-      let budgetCheckData = null;
-
-      try {
-        const budgetCheck = await base44.functions.invoke('check_budget', {
-          valor: toNumber(payment?.valor_nf),
-          contexto: 'TEAM_PAYMENT_PAYMENT',
-          user_email: payment?.user_email,
-          mes: payment?.mes_referencia,
-          ano: payment?.ano
-        });
-
-        budgetCheckData = budgetCheck?.data || {};
-
-        if (budgetCheckData?.blocked_by_rubrica) {
-          toast.error('Pagamento bloqueado: rubrica inválida.');
-          setMarkingPaid(m => ({ ...m, [payment.id]: false }));
-          return;
-        }
-
-        if (budgetCheckData?.saldo_insuficiente) {
-          toast.error('Saldo insuficiente para pagamento.');
-          setMarkingPaid(m => ({ ...m, [payment.id]: false }));
-          return;
-        }
-      } catch (e) {
-        console.warn('Falha ao validar saldo no pagamento', e);
-        toast.error('Falha ao validar saldo/rubrica no pagamento.');
-        setMarkingPaid(m => ({ ...m, [payment.id]: false }));
-        return;
-      }
-
-      const rubricaId = String(budgetCheckData?.rubrica_id || '');
-      const valorAtualUtilizado = toNumber(budgetCheckData?.detalhamento?.valor_utilizado);
-      const saldoComprometidoAtual = toNumber(budgetCheckData?.detalhamento?.saldo_comprometido);
-      const valorPagamento = toNumber(payment?.valor_nf || payment?.valor_parcela_previsto || 0);
-
-      if (rubricaId) {
-        await base44.entities.Rubrica.update(rubricaId, {
-          valor_utilizado: valorAtualUtilizado + valorPagamento,
-          saldo_comprometido: Math.max(0, saldoComprometidoAtual - valorPagamento),
-        });
-      }
-
-      if (budgetLine?.id) {
-        await base44.entities.BudgetLine.update(budgetLine.id, {
-          saldo_comprometido: Math.max(0, toNumber(budgetLine?.saldo_comprometido) - valorPagamento),
-          valor_utilizado: toNumber(budgetLine?.valor_utilizado) + valorPagamento,
-        }).catch(() => null);
-      }
-
-      await base44.entities.TeamPayment.update(payment.id, {
-        status: 'PAGO',
-        valor_pago: valorPagamento,
-        data_pagamento: new Date().toISOString(),
+      // 🔥 BACKEND FAZ TUDO
+      await base44.functions.invoke('processTeamPayment', {
+        payment_id: payment.id,
+        action: 'pay'
       });
-
-      if (member?.id) {
-        await base44.entities.TeamMember.update(member.id, {
-          parcelas_pagas: toNumber(member?.parcelas_pagas) + 1,
-        });
-      }
 
       await sendStatusNotif(payment, 'PAGO', 'Pagamento realizado.');
 
@@ -264,12 +138,12 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
         action_url: `${window.location.origin}/Compras`,
       });
 
-      toast.success('Pagamento realizado e rubrica atualizada.');
+      toast.success('Pagamento realizado com segurança.');
 
       await queryClient.invalidateQueries();
 
     } catch (e) {
-      toast.error(e?.message || 'Erro ao marcar pagamento.');
+      toast.error(e?.message || 'Erro ao pagar.');
     } finally {
       setMarkingPaid(m => ({ ...m, [payment.id]: false }));
     }
@@ -286,11 +160,11 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
       {orderedPayments.map(payment => {
         const member = getMember(payment);
         const badge = getStatusBadge(payment?.status);
-        const critical = Array.isArray(payment?.analysis_critical_issues) ? payment.analysis_critical_issues : [];
         const status = String(payment?.status || '').toUpperCase();
 
         return (
           <div key={payment.id} className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">
+
             <div className="flex items-start justify-between">
               <div>
                 <div className="font-semibold">
@@ -307,21 +181,15 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
               Valor: <b>{formatBRL(payment?.valor_nf)}</b>
             </div>
 
-            <div className="rounded border p-3 text-sm">
-              {payment?.analysis_summary || 'Sem análise de IA'}
-
-              {critical.length > 0 && (
-                <div className="text-red-600 text-xs mt-2">
-                  {critical.map((i, idx) => <div key={idx}>• {i}</div>)}
-                </div>
-              )}
-            </div>
-
             <div className="flex gap-2">
               {status === 'AGUARDANDO_APROVACAO' && (
                 <>
-                  <Button onClick={() => { setReviewing(payment); setAction('approve'); }}>Aprovar</Button>
-                  <Button variant="outline" onClick={() => { setReviewing(payment); setAction('return'); }}>Devolver</Button>
+                  <Button onClick={() => { setReviewing(payment); setAction('approve'); }}>
+                    Aprovar
+                  </Button>
+                  <Button variant="outline" onClick={() => { setReviewing(payment); setAction('return'); }}>
+                    Devolver
+                  </Button>
                 </>
               )}
 
@@ -331,6 +199,7 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
                 </Button>
               )}
             </div>
+
           </div>
         );
       })}
