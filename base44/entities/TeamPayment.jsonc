@@ -4,22 +4,34 @@
   "properties": {
     "team_member_id": {
       "type": "string",
-      "description": "ID do membro da equipe (FK \u2192 TeamMember)"
+      "description": "ID do membro da equipe (FK → TeamMember)"
     },
     "user_email": {
       "type": "string",
-      "description": "Email do usu\u00e1rio (desnormalizado para queries)"
+      "description": "Email do usuário (desnormalizado para queries)"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Nome do usuário/membro da equipe"
+    },
+    "funcao": {
+      "type": "string",
+      "description": "Função/cargo do membro no período do envio"
+    },
+    "role": {
+      "type": "string",
+      "description": "Campo legado/espelho da função para compatibilidade"
     },
     "report_id": {
       "type": "string",
-      "description": "ID do relat\u00f3rio mensal aprovado vinculado (FK \u2192 Report)"
+      "description": "ID do relatório mensal aprovado vinculado (FK → Report)"
     },
     "mes_referencia": {
       "type": "string",
       "enum": [
         "Janeiro",
         "Fevereiro",
-        "Mar\u00e7o",
+        "Março",
         "Abril",
         "Maio",
         "Junho",
@@ -30,27 +42,47 @@
         "Novembro",
         "Dezembro"
       ],
-      "description": "M\u00eas refer\u00eancia"
+      "description": "Mês referência"
     },
     "ano": {
       "type": "number",
-      "description": "Ano refer\u00eancia"
+      "description": "Ano referência"
+    },
+    "rubrica_id": {
+      "type": "string",
+      "description": "ID da rubrica vinculada ao pagamento. Fonte da verdade orçamentária."
+    },
+    "rubrica_nome": {
+      "type": "string",
+      "description": "Nome da rubrica vinculada ao pagamento"
     },
     "nota_fiscal_url": {
       "type": "string",
       "description": "URL da nota fiscal em PDF"
     },
+    "nota_fiscal_file_name": {
+      "type": "string",
+      "description": "Nome final do arquivo PDF da nota fiscal"
+    },
+    "xml_url": {
+      "type": "string",
+      "description": "URL do XML da nota fiscal"
+    },
+    "xml_file_name": {
+      "type": "string",
+      "description": "Nome final do arquivo XML da nota fiscal"
+    },
     "xlsx_url": {
       "type": "string",
-      "description": "URL do arquivo XLSX (planilha de confer\u00eancia)"
+      "description": "URL do arquivo XLSX (planilha de conferência)"
     },
     "contract_url": {
       "type": "string",
-      "description": "URL do contrato anexado pelo coordenador para este per\u00edodo"
+      "description": "URL do contrato anexado pelo coordenador para este período"
     },
     "numero_nf": {
       "type": "string",
-      "description": "N\u00famero da nota fiscal"
+      "description": "Número da nota fiscal"
     },
     "valor_nf": {
       "type": "number",
@@ -64,29 +96,37 @@
       "type": "number",
       "description": "Valor previsto da parcela"
     },
+    "valor_pago": {
+      "type": "number",
+      "description": "Valor efetivamente pago quando o status for PAGO"
+    },
+    "descricao_nf_modelo": {
+      "type": "string",
+      "description": "Descrição modelo/orientação usada para conferência da nota"
+    },
     "nf_numero_extraido": {
       "type": "string",
-      "description": "N\u00famero da NF extra\u00eddo automaticamente via IA"
+      "description": "Número da NF extraído automaticamente via IA"
     },
     "nf_valor_extraido": {
       "type": "number",
-      "description": "Valor total extra\u00eddo da NF via IA"
+      "description": "Valor total extraído da NF via IA"
     },
     "nf_cnpj_emitente": {
       "type": "string",
-      "description": "CNPJ do emitente extra\u00eddo via IA"
+      "description": "CNPJ do emitente extraído via IA"
     },
     "nf_razao_social": {
       "type": "string",
-      "description": "Raz\u00e3o social do emitente extra\u00edda via IA"
+      "description": "Razão social do emitente extraída via IA"
     },
     "nf_data_emissao": {
       "type": "string",
-      "description": "Data de emiss\u00e3o da NF extra\u00edda via IA"
+      "description": "Data de emissão da NF extraída via IA"
     },
     "nf_competencia": {
       "type": "string",
-      "description": "Compet\u00eancia/m\u00eas identificado na NF via IA"
+      "description": "Competência/mês identificado na NF via IA"
     },
     "conformidade_percentual": {
       "type": "number",
@@ -99,24 +139,44 @@
         "ATENCAO",
         "CRITICO"
       ],
-      "description": "Status geral da an\u00e1lise de conformidade"
+      "description": "Status geral da análise de conformidade"
     },
     "conformidade_resumo": {
       "type": "string",
-      "description": "Resumo da an\u00e1lise IA para o aprovador"
+      "description": "Resumo da análise IA para o aprovador"
     },
     "conformidade_checklist": {
       "type": "string",
-      "description": "JSON com checklist detalhado da an\u00e1lise"
+      "description": "JSON com checklist detalhado da análise"
     },
     "conformidade_duvidas": {
       "type": "string",
-      "description": "JSON com lista de d\u00favidas apontadas pela IA"
+      "description": "JSON com lista de dúvidas apontadas pela IA"
+    },
+    "analysis_status": {
+      "type": "string",
+      "description": "Status resumido da análise automática"
+    },
+    "analysis_summary": {
+      "type": "string",
+      "description": "Resumo da análise automática"
+    },
+    "analysis_warnings": {
+      "type": "string",
+      "description": "JSON com alertas da análise automática"
+    },
+    "analysis_critical_issues": {
+      "type": "string",
+      "description": "JSON com inconsistências críticas da análise automática"
+    },
+    "resultado_validacao": {
+      "type": "string",
+      "description": "JSON bruto do resultado da validação/análise"
     },
     "aprovador_ciente_duvidas": {
       "type": "boolean",
       "default": false,
-      "description": "Aprovador confirmou ci\u00eancia das d\u00favidas antes de aprovar"
+      "description": "Aprovador confirmou ciência das dúvidas antes de aprovar"
     },
     "status": {
       "type": "string",
@@ -137,30 +197,42 @@
       "description": "Status do pagamento no fluxo"
     },
     "aprov_coord_email": {
-      "type": "string"
+      "type": "string",
+      "description": "Email do aprovador coordenador"
     },
     "aprov_coord_nome": {
-      "type": "string"
+      "type": "string",
+      "description": "Nome do aprovador coordenador"
     },
     "aprov_coord_data": {
       "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "description": "Data/hora da aprovação da coordenação"
     },
     "aprov_admin_email": {
-      "type": "string"
+      "type": "string",
+      "description": "Email do aprovador administrativo"
     },
     "aprov_admin_nome": {
-      "type": "string"
+      "type": "string",
+      "description": "Nome do aprovador administrativo"
     },
     "data_pagamento": {
       "type": "string",
-      "format": "date"
+      "format": "date-time",
+      "description": "Data/hora do pagamento"
     },
     "comprovante_url": {
-      "type": "string"
+      "type": "string",
+      "description": "URL do comprovante de pagamento"
     },
     "observacoes": {
-      "type": "string"
+      "type": "string",
+      "description": "Observações gerais do fluxo"
+    },
+    "unique_key": {
+      "type": "string",
+      "description": "Chave única lógica por usuário + competência"
     }
   },
   "required": [
@@ -168,6 +240,8 @@
     "user_email",
     "mes_referencia",
     "ano",
-    "nota_fiscal_url"
+    "nota_fiscal_url",
+    "rubrica_id",
+    "rubrica_nome"
   ]
 }
