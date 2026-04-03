@@ -7,10 +7,36 @@ import ReportPhotoSection from '@/components/reports/ReportPhotoSection';
 import DepoimentosSection from '@/components/reports/DepoimentosSection';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+
+const MESES = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
+
+const MUSEUS = ['MIS', 'MHAB', 'MUMO', 'Atuação Geral'];
+const EQUIPES = ['Comunicação', 'Coordenação', 'Administração', 'Educativo', 'Produção'];
 
 export default function ReportEditor() {
   const navigate = useNavigate();
@@ -46,27 +72,71 @@ export default function ReportEditor() {
   });
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const reportId = urlParams.get('id');
+    let isMounted = true;
 
-    if (!reportId) {
-      setLoading(false);
-      return;
-    }
-
-    const loadReport = async () => {
+    const init = async () => {
       try {
-        const data = await base44.entities.Report.get(reportId);
-        setReport(data);
+        const urlParams = new URLSearchParams(window.location.search);
+        const reportId = urlParams.get('id');
+
+        if (reportId) {
+          const data = await base44.entities.Report.get(reportId);
+          if (!isMounted) return;
+          setReport(data || null);
+          return;
+        }
+
+        const currentUser = await base44.auth.me().catch(() => null);
+
+        const novoRelatorio = await base44.entities.Report.create({
+          numero_protocolo: '',
+          author_name:
+            currentUser?.full_name ||
+            currentUser?.name ||
+            currentUser?.user_name ||
+            '',
+          funcao: currentUser?.funcao || currentUser?.role || '',
+          museu: '',
+          equipe: '',
+          mes_referencia: '',
+          ano: new Date().getFullYear(),
+          resumo_periodo: '',
+          resumo_executivo: '',
+          avaliacao_pontos_positivos: '',
+          avaliacao_desafios: '',
+          avaliacao_sugestoes: '',
+          comentarios_gerais: '',
+          comentarios_coordenacao: '',
+          historico_observacoes: '',
+          oportunidades_resumo: '',
+          status: 'DRAFT',
+          atividades: [],
+          oportunidades: [],
+          fotos: [],
+          depoimentos: [],
+          attachments: [],
+        });
+
+        if (!isMounted) return;
+
+        setReport(novoRelatorio || null);
+
+        if (novoRelatorio?.id) {
+          window.history.replaceState({}, '', `/ReportEditor?id=${novoRelatorio.id}`);
+        }
       } catch (error) {
         toast.error('Erro ao carregar relatório');
         console.error(error);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    loadReport();
+    init();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -76,6 +146,13 @@ export default function ReportEditor() {
     setForm((prev) => ({
       ...prev,
       ...report,
+      numero_protocolo: report?.numero_protocolo ?? '',
+      author_name: report?.author_name ?? '',
+      funcao: report?.funcao ?? '',
+      museu: report?.museu ?? '',
+      equipe: report?.equipe ?? '',
+      mes_referencia: report?.mes_referencia ?? '',
+      ano: report?.ano ?? new Date().getFullYear(),
       resumo_periodo: report?.resumo_periodo ?? '',
       resumo_executivo: report?.resumo_executivo ?? '',
       avaliacao_pontos_positivos: report?.avaliacao_pontos_positivos ?? '',
@@ -97,13 +174,13 @@ export default function ReportEditor() {
 
   const buildPayload = (nextStatus = null) => {
     return {
-      numero_protocolo: form.numero_protocolo,
-      author_name: form.author_name,
-      funcao: form.funcao,
-      museu: form.museu,
-      equipe: form.equipe,
-      mes_referencia: form.mes_referencia,
-      ano: form.ano,
+      numero_protocolo: form.numero_protocolo ?? '',
+      author_name: form.author_name ?? '',
+      funcao: form.funcao ?? '',
+      museu: form.museu ?? '',
+      equipe: form.equipe ?? '',
+      mes_referencia: form.mes_referencia ?? '',
+      ano: Number(form.ano) || new Date().getFullYear(),
       resumo_periodo: form.resumo_periodo ?? '',
       resumo_executivo: form.resumo_executivo ?? '',
       avaliacao_pontos_positivos: form.avaliacao_pontos_positivos ?? '',
@@ -136,22 +213,25 @@ export default function ReportEditor() {
   };
 
   const handleSave = async (nextStatus = null) => {
+    if (!report?.id) {
+      toast.error('Relatório não carregado corretamente');
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = buildPayload(nextStatus);
 
-      if (report?.id) {
-        await base44.entities.Report.update(report.id, payload);
+      await base44.entities.Report.update(report.id, payload);
 
-        if (nextStatus === 'SUBMITTED') {
-          toast.success('Relatório enviado para revisão com sucesso!');
-        } else {
-          toast.success('Relatório salvo com sucesso!');
-        }
-
-        setForm((prev) => ({ ...prev, status: nextStatus || prev.status }));
-        setReport((prev) => (prev ? { ...prev, ...payload } : prev));
+      if (nextStatus === 'SUBMITTED') {
+        toast.success('Relatório enviado para revisão com sucesso!');
+      } else {
+        toast.success('Relatório salvo com sucesso!');
       }
+
+      setForm((prev) => ({ ...prev, status: nextStatus || prev.status }));
+      setReport((prev) => (prev ? { ...prev, ...payload } : prev));
     } catch (error) {
       toast.error('Erro ao salvar relatório');
       console.error(error);
@@ -178,10 +258,15 @@ export default function ReportEditor() {
 
   const handleExportPdf = async () => {
     try {
+      if (!report?.id) {
+        toast.error('Relatório não carregado corretamente');
+        return;
+      }
+
       await handleSave('DRAFT');
 
       const response = await base44.functions.invoke('generateSingleReportPDF', {
-        reportId: report?.id,
+        reportId: report.id,
         mode: 'assinatura',
       });
 
@@ -221,6 +306,118 @@ export default function ReportEditor() {
       <Card className="p-6">
         {activeTab === 'relatorio' && (
           <div className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="author_name">Nome do profissional</Label>
+                <Input
+                  id="author_name"
+                  value={form.author_name}
+                  onChange={(e) => setForm((prev) => ({ ...prev, author_name: e.target.value }))}
+                  placeholder="Nome do responsável pelo relatório"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="funcao">Função / Cargo</Label>
+                <Input
+                  id="funcao"
+                  value={form.funcao}
+                  onChange={(e) => setForm((prev) => ({ ...prev, funcao: e.target.value }))}
+                  placeholder="Função exercida"
+                />
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <Label>Museu</Label>
+                <Select
+                  value={form.museu || ''}
+                  onValueChange={(value) => setForm((prev) => ({ ...prev, museu: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o museu" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MUSEUS.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Equipe / Área</Label>
+                <Select
+                  value={form.equipe || ''}
+                  onValueChange={(value) => setForm((prev) => ({ ...prev, equipe: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a equipe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EQUIPES.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Mês de referência</Label>
+                <Select
+                  value={form.mes_referencia || ''}
+                  onValueChange={(value) =>
+                    setForm((prev) => ({ ...prev, mes_referencia: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o mês" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MESES.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="ano">Ano</Label>
+                <Input
+                  id="ano"
+                  type="number"
+                  value={form.ano}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      ano: Number(e.target.value) || new Date().getFullYear(),
+                    }))
+                  }
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="numero_protocolo">Número de protocolo</Label>
+                <Input
+                  id="numero_protocolo"
+                  value={form.numero_protocolo}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, numero_protocolo: e.target.value }))
+                  }
+                  placeholder="Opcional"
+                />
+              </div>
+            </div>
+
             <div>
               <Label htmlFor="resumo_periodo">Resumo do Período</Label>
               <Textarea
@@ -233,11 +430,26 @@ export default function ReportEditor() {
             </div>
 
             <div>
+              <Label htmlFor="resumo_executivo">Resumo Executivo</Label>
+              <Textarea
+                id="resumo_executivo"
+                value={form.resumo_executivo}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, resumo_executivo: e.target.value }))
+                }
+                placeholder="Descreva o resumo executivo"
+                className="min-h-[150px] text-base p-4"
+              />
+            </div>
+
+            <div>
               <Label htmlFor="oportunidades_resumo">Resumo de Oportunidades</Label>
               <Textarea
                 id="oportunidades_resumo"
                 value={form.oportunidades_resumo}
-                onChange={(e) => setForm((prev) => ({ ...prev, oportunidades_resumo: e.target.value }))}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, oportunidades_resumo: e.target.value }))
+                }
                 placeholder="Descreva as oportunidades identificadas"
                 className="min-h-[150px] text-base p-4"
               />
@@ -248,7 +460,12 @@ export default function ReportEditor() {
               <Textarea
                 id="avaliacao_pontos_positivos"
                 value={form.avaliacao_pontos_positivos}
-                onChange={(e) => setForm((prev) => ({ ...prev, avaliacao_pontos_positivos: e.target.value }))}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    avaliacao_pontos_positivos: e.target.value,
+                  }))
+                }
                 placeholder="Descreva os pontos positivos"
                 className="min-h-[120px] text-base p-4"
               />
@@ -259,7 +476,9 @@ export default function ReportEditor() {
               <Textarea
                 id="avaliacao_desafios"
                 value={form.avaliacao_desafios}
-                onChange={(e) => setForm((prev) => ({ ...prev, avaliacao_desafios: e.target.value }))}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, avaliacao_desafios: e.target.value }))
+                }
                 placeholder="Descreva os desafios enfrentados"
                 className="min-h-[120px] text-base p-4"
               />
@@ -270,8 +489,55 @@ export default function ReportEditor() {
               <Textarea
                 id="avaliacao_sugestoes"
                 value={form.avaliacao_sugestoes}
-                onChange={(e) => setForm((prev) => ({ ...prev, avaliacao_sugestoes: e.target.value }))}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, avaliacao_sugestoes: e.target.value }))
+                }
                 placeholder="Descreva sugestões de melhoria"
+                className="min-h-[120px] text-base p-4"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="comentarios_gerais">Comentários Gerais</Label>
+              <Textarea
+                id="comentarios_gerais"
+                value={form.comentarios_gerais}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, comentarios_gerais: e.target.value }))
+                }
+                placeholder="Comentários gerais"
+                className="min-h-[120px] text-base p-4"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="comentarios_coordenacao">Comentários da Coordenação</Label>
+              <Textarea
+                id="comentarios_coordenacao"
+                value={form.comentarios_coordenacao}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    comentarios_coordenacao: e.target.value,
+                  }))
+                }
+                placeholder="Comentários da coordenação"
+                className="min-h-[120px] text-base p-4"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="historico_observacoes">Histórico / Observações</Label>
+              <Textarea
+                id="historico_observacoes"
+                value={form.historico_observacoes}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    historico_observacoes: e.target.value,
+                  }))
+                }
+                placeholder="Observações relevantes"
                 className="min-h-[120px] text-base p-4"
               />
             </div>
@@ -340,17 +606,19 @@ export default function ReportEditor() {
         {activeTab === 'attachments' && (
           <AttachmentsSection
             reportId={report.id}
-            attachments={form.attachments || []}
+            canEdit={true}
+            reportData={form}
           />
         )}
 
         {activeTab === 'depoimentos' && (
           <DepoimentosSection
-            reportId={report.id}
             depoimentos={form.depoimentos || []}
             onChange={(nextDepoimentos) =>
               setForm((prev) => ({ ...prev, depoimentos: nextDepoimentos }))
             }
+            canEdit={true}
+            museu={form.museu}
           />
         )}
       </Card>
