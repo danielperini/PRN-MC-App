@@ -15,8 +15,48 @@ function moeda(value) {
   });
 }
 
+function parseMoneda(str) {
+  const cleaned = String(str || '').replace(/\./g, '').replace(',', '.');
+  const num = parseFloat(cleaned);
+  return Number.isFinite(num) ? num : 0;
+}
+
 export default function RubricasGrid({ rubricas = [], onRefresh }) {
   const [search, setSearch] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const [savingId, setSavingId] = useState(null);
+
+  // 🔒 PERMITIR APENAS EDITAR VALOR TOTAL (NÃO UTILIZADO)
+  async function handleEditValor(rubricaId, currentValue) {
+    setEditingId(rubricaId);
+    setEditValue(String(currentValue));
+  }
+
+  async function handleSaveValor(rubricaId) {
+    setSavingId(rubricaId);
+
+    try {
+      const newValue = parseMoneda(editValue);
+      if (!Number.isFinite(newValue) || newValue < 0) {
+        toast.error('Informe um valor válido');
+        return;
+      }
+
+      await base44.entities.Rubrica.update(rubricaId, {
+        valor_rubrica: newValue
+      });
+
+      toast.success('Valor atualizado');
+
+      setEditingId(null);
+      if (onRefresh) onRefresh();
+    } catch (e) {
+      toast.error('Erro ao salvar');
+    } finally {
+      setSavingId(null);
+    }
+  }
 
   const filtradas = useMemo(() => {
     return rubricas.filter((r) => {
@@ -46,18 +86,17 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <input
-          placeholder="Buscar rubrica..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 border rounded p-2 text-sm"
-        />
-      </div>
+
+      <input
+        placeholder="Buscar rubrica..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="w-full border rounded p-2 text-sm"
+      />
 
       <div className="overflow-auto border rounded">
         <table className="w-full text-sm">
-          <thead className="bg-gray-100 text-left">
+          <thead className="bg-gray-100">
             <tr>
               <th className="p-2">Grupo</th>
               <th className="p-2">Rubrica</th>
@@ -74,6 +113,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
               const valor = toNumber(r?.valor_rubrica);
               const utilizado = toNumber(r?.valor_utilizado);
               const comprometido = toNumber(r?.saldo_comprometido);
+
               const saldo = valor - utilizado - comprometido;
 
               const perc = valor > 0
@@ -81,18 +121,36 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
                 : 0;
 
               return (
-                <tr key={r.id} className="border-t hover:bg-blue-50">
+                <tr key={r.id} className="border-t">
+
                   <td className="p-2">{r?.grupo}</td>
                   <td className="p-2">{r?.rubrica}</td>
 
-                  <td className="p-2">
-                    R$ {moeda(valor)}
+                  {/* ✔ EDITÁVEL */}
+                  <td
+                    className="p-2 cursor-pointer hover:bg-yellow-100"
+                    onClick={() => handleEditValor(r.id, valor)}
+                  >
+                    {editingId === r.id ? (
+                      <input
+                        autoFocus
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={() => handleSaveValor(r.id)}
+                        className="w-full border rounded px-1"
+                        disabled={savingId === r.id}
+                      />
+                    ) : (
+                      `R$ ${moeda(valor)}`
+                    )}
                   </td>
 
+                  {/* 🔒 BLOQUEADO */}
                   <td className="p-2 text-blue-700">
                     R$ {moeda(utilizado)}
                   </td>
 
+                  {/* 🔒 BLOQUEADO */}
                   <td className="p-2 text-orange-700">
                     R$ {moeda(comprometido)}
                   </td>
@@ -119,6 +177,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
               <td></td>
             </tr>
           </tfoot>
+
         </table>
       </div>
     </div>
