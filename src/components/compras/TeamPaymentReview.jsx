@@ -4,10 +4,6 @@ import { notifyUser } from '@/lib/notifyHelpers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
 function toNumber(v) { return Number(v) || 0; }
@@ -21,34 +17,21 @@ function getStatusBadge(status) {
   if (s === 'PAGO') return { label: 'Pago', className: 'bg-emerald-100 text-emerald-700' };
   if (s === 'APROVADO_COORD') return { label: 'Aprovado', className: 'bg-blue-100 text-blue-700' };
   if (s === 'AGUARDANDO_APROVACAO') return { label: 'Aguardando aprovação', className: 'bg-amber-100 text-amber-800' };
-  if (s === 'DEVOLVIDO_REVISAO') return { label: 'Devolvido', className: 'bg-orange-100 text-orange-800' };
   return { label: status || '—', className: 'bg-gray-100 text-gray-700' };
 }
 
-function buildAppUrl() {
-  return `${window.location.origin}/Compras`;
-}
-
-function getRubricaNome(payment) {
-  return payment?.rubrica_nome || payment?.rubrica || '—';
-}
-
-function extractError(e) {
-  return e?.message || e?.data?.error || 'Erro ao processar.';
-}
-
-export default function TeamPaymentReview({ members = [] }) {
+export default function TeamPaymentReview() {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
-  const [markingPaid, setMarkingPaid] = useState({});
+  const [loadingPay, setLoadingPay] = useState({});
 
   const { data: payments = [] } = useQuery({
     queryKey: ['team-payments-review'],
     queryFn: () => base44.entities.TeamPayment.list('-created_date', 500),
   });
 
-  const orderedPayments = useMemo(() =>
-    [...payments].sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0)),
+  const ordered = useMemo(() =>
+    [...payments].sort((a, b) => new Date(b.created_date) - new Date(a.created_date)),
     [payments]
   );
 
@@ -78,22 +61,22 @@ export default function TeamPaymentReview({ members = [] }) {
         title: 'Pagamento aprovado',
         message: 'Sua nota fiscal foi aprovada',
         type: 'success',
-        action_url: buildAppUrl()
+        action_url: `${window.location.origin}/Compras`
       });
 
       await refresh();
 
     } catch (e) {
-      toast.error(extractError(e));
+      toast.error(e.message || 'Erro ao aprovar');
     } finally {
       setSaving(false);
     }
   }
 
   async function pay(payment) {
-    if (markingPaid[payment.id]) return;
+    if (loadingPay[payment.id]) return;
 
-    setMarkingPaid(m => ({ ...m, [payment.id]: true }));
+    setLoadingPay(p => ({ ...p, [payment.id]: true }));
 
     try {
       const res = await base44.functions.invoke('processTeamPayment', {
@@ -108,20 +91,20 @@ export default function TeamPaymentReview({ members = [] }) {
       await refresh();
 
     } catch (e) {
-      toast.error(extractError(e));
+      toast.error(e.message || 'Erro ao pagar');
     } finally {
-      setMarkingPaid(m => ({ ...m, [payment.id]: false }));
+      setLoadingPay(p => ({ ...p, [payment.id]: false }));
     }
   }
 
   return (
     <div className="space-y-4">
-      {orderedPayments.map(payment => {
-        const badge = getStatusBadge(payment.status);
+      {ordered.map(payment => {
         const status = String(payment.status || '').toUpperCase();
+        const badge = getStatusBadge(status);
 
         return (
-          <div key={payment.id} className="border p-4 rounded-xl space-y-3">
+          <div key={payment.id} className="border rounded-xl p-4 space-y-3">
             <div className="flex justify-between">
               <div>
                 <div className="font-semibold">{payment.user_name}</div>
@@ -131,7 +114,7 @@ export default function TeamPaymentReview({ members = [] }) {
             </div>
 
             <div>Valor: <b>{formatBRL(payment.valor_nf)}</b></div>
-            <div>Rubrica: <b>{getRubricaNome(payment)}</b></div>
+            <div>Rubrica: <b>{payment.rubrica_nome || '-'}</b></div>
 
             <div className="flex gap-2">
               {status === 'AGUARDANDO_APROVACAO' && (
@@ -141,8 +124,8 @@ export default function TeamPaymentReview({ members = [] }) {
               )}
 
               {status === 'APROVADO_COORD' && (
-                <Button onClick={() => pay(payment)} disabled={markingPaid[payment.id]}>
-                  {markingPaid[payment.id] ? 'Processando...' : 'Marcar como pago'}
+                <Button onClick={() => pay(payment)} disabled={loadingPay[payment.id]}>
+                  {loadingPay[payment.id] ? 'Processando...' : 'Marcar como pago'}
                 </Button>
               )}
             </div>
