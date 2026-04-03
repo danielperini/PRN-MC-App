@@ -34,12 +34,31 @@ const VIADUTO_EMISSAO = {
 
 function toNumber(v) {
   if (v === null || v === undefined || v === '') return 0;
-  const n = Number(String(v).replace(/\./g, '').replace(',', '.'));
+  const raw = String(v).trim();
+  if (!raw) return 0;
+
+  const hasComma = raw.includes(',');
+  let normalized = raw.replace(/[^\d,.-]/g, '');
+
+  if (hasComma) {
+    normalized = normalized.replace(/\./g, '').replace(',', '.');
+  }
+
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : 0;
 }
 
 function formatBRL(v) {
   return `R$ ${toNumber(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function currencyInputMask(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  const cents = Number(digits || '0') / 100;
+  return cents.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function buildMonthOptions() {
@@ -748,9 +767,9 @@ export default function TeamPaymentSubmit({ userEmail }) {
                   value={form.valor_nf}
                   onChange={(e) => {
                     clearSubmitError();
-                    setForm((prev) => ({ ...prev, valor_nf: e.target.value }));
+                    setForm((prev) => ({ ...prev, valor_nf: currencyInputMask(e.target.value) }));
                   }}
-                  placeholder={formatBRL(valorParcela)}
+                  placeholder={currencyInputMask(String(Math.round(valorParcela * 100)))}
                 />
               </div>
 
