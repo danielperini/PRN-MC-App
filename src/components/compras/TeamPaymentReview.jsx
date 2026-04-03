@@ -4,6 +4,9 @@ import { notifyUser } from '@/lib/notifyHelpers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 
 function toNumber(v) {
@@ -15,6 +18,15 @@ function formatBRL(v) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })}`;
+}
+
+function normalizeString(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 function getStatusBadge(status) {
@@ -70,21 +82,71 @@ function pickBestPayments(payments = []) {
   return Array.from(map.values());
 }
 
+function isEquipeGestaoRubrica(rubrica) {
+  const grupo = normalizeString(rubrica?.grupo || '');
+  const nome = normalizeString(rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '');
+  const texto = `${grupo} ${nome}`;
+
+  const termos = [
+    'equipe',
+    'gestao',
+    'gestão',
+    'assistente de producao',
+    'assistentes de producao',
+    'assistente producao',
+    'assistentes producao',
+    'producao',
+    'produção',
+    'educador',
+    'educadores',
+    'diaria',
+    'diarias',
+    'diárias',
+    'publicacao',
+    'publicação'
+  ];
+
+  return termos.some((termo) => texto.includes(normalizeString(termo)));
+}
+
+function getRubricaDisplayName(rubrica) {
+  return (
+    rubrica?.rubrica ||
+    rubrica?.nome ||
+    rubrica?.descricao ||
+    rubrica?.titulo ||
+    'Rubrica sem nome'
+  );
+}
+
 export default function TeamPaymentReview() {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [loadingPay, setLoadingPay] = useState({});
+  const [rubricaDraftByPayment, setRubricaDraftByPayment] = useState({});
 
   const { data: payments = [] } = useQuery({
     queryKey: ['team-payments-review'],
     queryFn: () => base44.entities.TeamPayment.list('-created_date', 500),
   });
 
-  /* 🔥 NOVO: buscar membros */
   const { data: members = [] } = useQuery({
     queryKey: ['team-members'],
     queryFn: () => base44.entities.TeamMember.list(),
   });
+
+  const { data: rubricas = [] } = useQuery({
+    queryKey: ['rubricas-team-payment-review'],
+    queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 500),
+  });
+
+  const rubricasEquipeGestao = useMemo(() => {
+    const filtered = (rubricas || []).filter(isEquipeGestaoRubrica);
+
+    return [...filtered].sort((a, b) =>
+      getRubricaDisplayName(a).localeCompare(getRubricaDisplayName(b), 'pt-BR')
+    );
+  }, [rubricas]);
 
   const ordered = useMemo(() => {
     const unique = pickBestPayments(payments || []);
@@ -112,18 +174,49 @@ export default function TeamPaymentReview() {
       queryClient.invalidateQueries({ queryKey: ['rubricas-total-utilizado'] }),
       queryClient.invalidateQueries({ queryKey: ['purchases'] }),
       queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
+      queryClient.invalidateQueries({ queryKey: ['team-members'] }),
     ]);
   }
 
-  /* 🔥 RESOLVE RUBRICA AUTOMATICAMENTE */
-  function resolveRubrica(payment) {
-    const member = members.find(m => m.user_email === payment.user_email);
+  function resolveRubricaFromMember(payment) {
+    const member = members.find((m) => m.user_email === payment.user_email);
     if (!member) return null;
 
+    if (!member?.rubrica_id) return null;
+
     return {
-      rubrica_id: member?.rubrica_id || null,
-      rubrica_nome: member?.rubrica_nome || ''
+      rubrica_id: member.rubrica_id,
+      rubrica_nome: member.rubrica_nome || ''
     };
+  }
+
+  function getSelectedRubricaId(payment) {
+    return (
+      rubricaDraftByPayment[payment.id] ||
+      payment?.rubrica_id ||
+      resolveRubricaFromMember(payment)?.rubrica_id ||
+      ''
+    );
+  }
+
+  function getSelectedRubricaNome(payment) {
+    const draftId = rubricaDraftByPayment[payment.id];
+    if (draftId) {
+      const selected = rubricasEquipeGestao.find((r) => r.id === draftId);
+      if (selected) return getRubricaDisplayName(selected);
+    }
+
+    if (payment?.rubrica_nome) return payment.rubrica_nome;
+
+    const fromMember = resolveRubricaFromMember(payment);
+    if (fromMember?.rubrica_nome) return fromMember.rubrica_nome;
+
+    if (fromMember?.rubrica_id) {
+      const selected = rubricasEquipeGestao.find((r) => r.id === fromMember.rubrica_id);
+      if (selected) return getRubricaDisplayName(selected);
+    }
+
+    return '';
   }
 
   async function approve(payment) {
@@ -131,27 +224,21 @@ export default function TeamPaymentReview() {
     setSaving(true);
 
     try {
-      let rubricaId = payment.rubrica_id;
-      let rubricaNome = payment.rubrica_nome;
+      const selectedRubricaId = getSelectedRubricaId(payment);
+      const selectedRubrica = rubricasEquipeGestao.find((r) => r.id === selectedRubricaId);
+      const rubricaNomeFinal =
+        (selectedRubrica && getRubricaDisplayName(selectedRubrica)) ||
+        getSelectedRubricaNome(payment);
 
-      /* 🔥 SE NÃO TEM RUBRICA → RESOLVE */
-      if (!rubricaId) {
-        const resolved = resolveRubrica(payment);
-
-        if (!resolved || !resolved.rubrica_id) {
-          toast.error('Rubrica não vinculada e não foi possível resolver automaticamente');
-          return;
-        }
-
-        rubricaId = resolved.rubrica_id;
-        rubricaNome = resolved.rubrica_nome;
-
-        /* 🔥 SALVA ANTES DE APROVAR */
-        await base44.entities.TeamPayment.update(payment.id, {
-          rubrica_id: rubricaId,
-          rubrica_nome: rubricaNome
-        });
+      if (!selectedRubricaId) {
+        toast.error('Selecione uma rubrica antes de aprovar.');
+        return;
       }
+
+      await base44.entities.TeamPayment.update(payment.id, {
+        rubrica_id: selectedRubricaId,
+        rubrica_nome: rubricaNomeFinal || ''
+      });
 
       const res = await base44.functions.invoke('processTeamPayment', {
         payment_id: payment.id,
@@ -224,6 +311,8 @@ export default function TeamPaymentReview() {
         const status = String(payment?.status || '').toUpperCase();
         const badge = getStatusBadge(status);
         const valor = payment?.valor_nf || payment?.valor_parcela_previsto || 0;
+        const selectedRubricaId = getSelectedRubricaId(payment);
+        const selectedRubricaNome = getSelectedRubricaNome(payment);
 
         return (
           <div key={payment.id} className="border rounded-xl p-4 space-y-3">
@@ -236,11 +325,37 @@ export default function TeamPaymentReview() {
             </div>
 
             <div>Valor: <b>{formatBRL(valor)}</b></div>
-            <div>Rubrica: <b>{getRubricaNome(payment)}</b></div>
+            <div>Rubrica: <b>{selectedRubricaNome || '—'}</b></div>
+
+            {status === 'AGUARDANDO_APROVACAO' && (
+              <div className="space-y-2">
+                <Label>Selecionar rubrica</Label>
+                <Select
+                  value={selectedRubricaId}
+                  onValueChange={(value) => {
+                    setRubricaDraftByPayment((prev) => ({
+                      ...prev,
+                      [payment.id]: value
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a rubrica" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rubricasEquipeGestao.map((rubrica) => (
+                      <SelectItem key={rubrica.id} value={rubrica.id}>
+                        {getRubricaDisplayName(rubrica)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="flex gap-2">
               {status === 'AGUARDANDO_APROVACAO' && (
-                <Button onClick={() => approve(payment)} disabled={saving}>
+                <Button onClick={() => approve(payment)} disabled={saving || !selectedRubricaId}>
                   {saving ? 'Processando...' : 'Aprovar'}
                 </Button>
               )}
