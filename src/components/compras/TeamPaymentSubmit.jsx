@@ -216,19 +216,16 @@ export default function TeamPaymentSubmit({ userEmail }) {
   const [analysis, setAnalysis] = useState(null);
   const [analysisStep, setAnalysisStep] = useState('');
   const [submissionSteps, setSubmissionSteps] = useState([
-    { label: 'Upload do PDF', done: false },
-    { label: 'Upload do XML', done: false },
-    { label: 'Análise com IA', done: false },
-    { label: 'Validações de negócio', done: false },
-    { label: 'Registro no sistema', done: false },
-    { label: 'Backup no Drive', done: false },
-    { label: 'Notificações', done: false }
+    { label: 'Upload do PDF', done: false, failed: false },
+    { label: 'Upload do XML', done: false, failed: false },
+    { label: 'Análise com IA', done: false, failed: false },
+    { label: 'Validações de negócio', done: false, failed: false },
+    { label: 'Registro no sistema', done: false, failed: false },
+    { label: 'Backup no Drive', done: false, failed: false },
+    { label: 'Notificações', done: false, failed: false }
   ]);
   const [progressPercent, setProgressPercent] = useState(0);
-
-  // CORREÇÃO DO ERRO
   const [memberLocalPatch, setMemberLocalPatch] = useState({});
-
   const [analyzingOnly] = useState(false);
   const [submitErrorMessage, setSubmitErrorMessage] = useState('');
   const [submitErrorDetails, setSubmitErrorDetails] = useState('');
@@ -246,22 +243,28 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
   function resetSubmissionProgress() {
     setSubmissionSteps([
-      { label: 'Upload do PDF', done: false },
-      { label: 'Upload do XML', done: false },
-      { label: 'Análise com IA', done: false },
-      { label: 'Validações de negócio', done: false },
-      { label: 'Registro no sistema', done: false },
-      { label: 'Backup no Drive', done: false },
-      { label: 'Notificações', done: false }
+      { label: 'Upload do PDF', done: false, failed: false },
+      { label: 'Upload do XML', done: false, failed: false },
+      { label: 'Análise com IA', done: false, failed: false },
+      { label: 'Validações de negócio', done: false, failed: false },
+      { label: 'Registro no sistema', done: false, failed: false },
+      { label: 'Backup no Drive', done: false, failed: false },
+      { label: 'Notificações', done: false, failed: false }
     ]);
     setProgressPercent(0);
   }
 
   function markStepDone(index, percent) {
     setSubmissionSteps((prev) =>
-      prev.map((s, i) => (i === index ? { ...s, done: true } : s))
+      prev.map((s, i) => (i === index ? { ...s, done: true, failed: false } : s))
     );
     setProgressPercent(percent);
+  }
+
+  function markStepFailed(index) {
+    setSubmissionSteps((prev) =>
+      prev.map((s, i) => (i === index ? { ...s, failed: true } : s))
+    );
   }
 
   function clearSubmitError() {
@@ -442,52 +445,67 @@ export default function TeamPaymentSubmit({ userEmail }) {
       let pdfName = form.nota_fiscal_file_name;
       let xmlUrl = form.xml_url;
       let xmlName = form.xml_file_name;
+      let created = null;
 
       if (pdfFile && !pdfUrl) {
-        setAnalysisStep('Gravando PDF da nota fiscal...');
-        const renamed = await renameFile(
-          pdfFile,
-          buildFileName({
-            numeroNF: form.numero_nf || 'NF',
-            member: effectiveMember,
-            currentUser,
-            valor: form.valor_nf || valorParcela,
-            extension: 'pdf'
-          })
-        );
-        const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
-        pdfUrl = file_url;
-        pdfName = renamed.name;
-        setForm((prev) => ({
-          ...prev,
-          nota_fiscal_url: file_url,
-          nota_fiscal_file_name: renamed.name
-        }));
+        try {
+          setAnalysisStep('Gravando PDF da nota fiscal...');
+          const renamed = await renameFile(
+            pdfFile,
+            buildFileName({
+              numeroNF: form.numero_nf || 'NF',
+              member: effectiveMember,
+              currentUser,
+              valor: form.valor_nf || valorParcela,
+              extension: 'pdf'
+            })
+          );
+          const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
+          pdfUrl = file_url;
+          pdfName = renamed.name;
+          setForm((prev) => ({
+            ...prev,
+            nota_fiscal_url: file_url,
+            nota_fiscal_file_name: renamed.name
+          }));
+          markStepDone(0, 15);
+        } catch (err) {
+          markStepFailed(0);
+          throw err;
+        }
+      } else {
+        markStepDone(0, 15);
       }
-      markStepDone(0, 15);
 
       if (xmlFile && !xmlUrl) {
-        setAnalysisStep('Gravando XML da nota fiscal...');
-        const renamed = await renameFile(
-          xmlFile,
-          buildFileName({
-            numeroNF: form.numero_nf || 'NF',
-            member: effectiveMember,
-            currentUser,
-            valor: form.valor_nf || valorParcela,
-            extension: 'xml'
-          })
-        );
-        const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
-        xmlUrl = file_url;
-        xmlName = renamed.name;
-        setForm((prev) => ({
-          ...prev,
-          xml_url: file_url,
-          xml_file_name: renamed.name
-        }));
+        try {
+          setAnalysisStep('Gravando XML da nota fiscal...');
+          const renamed = await renameFile(
+            xmlFile,
+            buildFileName({
+              numeroNF: form.numero_nf || 'NF',
+              member: effectiveMember,
+              currentUser,
+              valor: form.valor_nf || valorParcela,
+              extension: 'xml'
+            })
+          );
+          const { file_url } = await base44.integrations.Core.UploadFile({ file: renamed });
+          xmlUrl = file_url;
+          xmlName = renamed.name;
+          setForm((prev) => ({
+            ...prev,
+            xml_url: file_url,
+            xml_file_name: renamed.name
+          }));
+          markStepDone(1, 30);
+        } catch (err) {
+          markStepFailed(1);
+          throw err;
+        }
+      } else {
+        markStepDone(1, 30);
       }
-      markStepDone(1, 30);
 
       setAnalysisStep('Lendo nota fiscal com IA...');
       let ar = {};
@@ -538,83 +556,86 @@ export default function TeamPaymentSubmit({ userEmail }) {
         return;
       }
 
-      setAnalysisStep('Validando regras do envio...');
-
-      const existing = await base44.entities.TeamPayment.filter({
-        team_member_id: effectiveMember.id,
-        numero_nf: form.numero_nf,
-        mes_referencia: selectedComp.mes,
-        ano: selectedComp.ano
-      });
-
-      if (Array.isArray(existing) && existing.length > 0) {
-        toast.error('Já existe uma nota fiscal enviada para essa competência com esse número.');
-        setSubmitting(false);
-        setAnalysisStep('');
-        return;
-      }
-
       try {
-        const budgetCheck = await base44.functions.invoke('check_budget', {
-          valor: toNumber(form.valor_nf || valorParcela),
-          user_email: effectiveMember.user_email,
-          contexto: 'TEAM_PAYMENT',
-          mes: selectedComp.mes,
+        setAnalysisStep('Executando validações de negócio...');
+
+        const existing = await base44.entities.TeamPayment.filter({
+          team_member_id: effectiveMember.id,
+          numero_nf: form.numero_nf,
+          mes_referencia: selectedComp.mes,
           ano: selectedComp.ano
         });
 
-        const bc = budgetCheck?.data || budgetCheck || {};
-
-        if (bc?.blocked_by_rubrica) {
-          toast.error('Envio bloqueado: rubrica inválida ou não permitida.');
-          setSubmitting(false);
-          setAnalysisStep('');
-          return;
+        if (Array.isArray(existing) && existing.length > 0) {
+          throw new Error('Já existe uma nota fiscal enviada para essa competência com esse número.');
         }
 
-        if (bc?.saldo_insuficiente) {
-          toast.error('Saldo insuficiente para envio desta nota fiscal.');
-          setSubmitting(false);
-          setAnalysisStep('');
-          return;
+        try {
+          const budgetCheck = await base44.functions.invoke('check_budget', {
+            valor: toNumber(form.valor_nf || valorParcela),
+            user_email: effectiveMember.user_email,
+            contexto: 'TEAM_PAYMENT',
+            mes: selectedComp.mes,
+            ano: selectedComp.ano
+          });
+
+          const bc = budgetCheck?.data || budgetCheck || {};
+
+          if (bc?.blocked_by_rubrica) {
+            throw new Error('Envio bloqueado: rubrica inválida ou não permitida.');
+          }
+
+          if (bc?.saldo_insuficiente) {
+            throw new Error('Saldo insuficiente para envio desta nota fiscal.');
+          }
+        } catch (budgetError) {
+          if (budgetError instanceof Error) throw budgetError;
+          throw new Error(extractErrorMessage(budgetError));
         }
-      } catch (budgetError) {
-        console.warn('Falha ao validar saldo/rubrica', budgetError);
+
+        markStepDone(3, 60);
+      } catch (err) {
+        markStepFailed(3);
+        throw err;
       }
 
-      markStepDone(3, 60);
+      try {
+        setAnalysisStep('Registrando envio no sistema...');
+        await saveManualMemberFields();
 
-      await saveManualMemberFields();
+        created = await base44.entities.TeamPayment.create({
+          team_member_id: effectiveMember.id,
+          user_email: effectiveMember.user_email,
+          user_name: resolvedName || '',
+          funcao: resolvedFuncao,
+          role: resolvedFuncao,
+          mes_referencia: selectedComp.mes,
+          ano: selectedComp.ano,
+          numero_nf: form.numero_nf,
+          valor_nf: toNumber(form.valor_nf || valorParcela),
+          valor_parcela_previsto: valorParcela,
+          numero_parcela: (toNumber(effectiveMember.parcelas_pagas) || 0) + 1,
+          nota_fiscal_url: pdfUrl,
+          xml_url: xmlUrl,
+          nota_fiscal_file_name: pdfName,
+          xml_file_name: xmlName,
+          descricao_nf_modelo: descricaoModelo,
+          analysis_status: ar?.status || 'ANALISADO',
+          analysis_summary: ar?.summary || '',
+          analysis_warnings: Array.isArray(ar?.warnings) ? ar.warnings : [],
+          analysis_critical_issues: Array.isArray(ar?.critical_issues) ? ar.critical_issues : [],
+          resultado_validacao: JSON.stringify(ar || {}),
+          status: 'AGUARDANDO_APROVACAO'
+        });
 
-      setAnalysisStep('Registrando envio...');
-      const created = await base44.entities.TeamPayment.create({
-        team_member_id: effectiveMember.id,
-        user_email: effectiveMember.user_email,
-        user_name: resolvedName || '',
-        funcao: resolvedFuncao,
-        role: resolvedFuncao,
-        mes_referencia: selectedComp.mes,
-        ano: selectedComp.ano,
-        numero_nf: form.numero_nf,
-        valor_nf: toNumber(form.valor_nf || valorParcela),
-        valor_parcela_previsto: valorParcela,
-        numero_parcela: (toNumber(effectiveMember.parcelas_pagas) || 0) + 1,
-        nota_fiscal_url: pdfUrl,
-        xml_url: xmlUrl,
-        nota_fiscal_file_name: pdfName,
-        xml_file_name: xmlName,
-        descricao_nf_modelo: descricaoModelo,
-        analysis_status: ar?.status || 'ANALISADO',
-        analysis_summary: ar?.summary || '',
-        analysis_warnings: Array.isArray(ar?.warnings) ? ar.warnings : [],
-        analysis_critical_issues: Array.isArray(ar?.critical_issues) ? ar.critical_issues : [],
-        resultado_validacao: JSON.stringify(ar || {}),
-        status: 'AGUARDANDO_APROVACAO'
-      });
-      markStepDone(4, 75);
+        markStepDone(4, 75);
+      } catch (err) {
+        markStepFailed(4);
+        throw err;
+      }
 
       try {
-        setAnalysisStep('Salvando arquivos conforme as regras...');
+        setAnalysisStep('Executando backup no Drive...');
         await base44.functions.invoke('backupNotasFiscaisToDrive', {
           file_url: pdfUrl,
           file_name: pdfName,
@@ -622,39 +643,46 @@ export default function TeamPaymentSubmit({ userEmail }) {
           xml_file_name: xmlName,
           team_payment_id: created?.id
         });
-      } catch (e) {
-        console.warn('Falha no backup do Drive (não bloqueante)', e);
+        markStepDone(5, 88);
+      } catch (err) {
+        console.warn('Falha no backup do Drive (não bloqueante)', err);
+        markStepFailed(5);
       }
-      markStepDone(5, 88);
 
-      setAnalysisStep('Notificando e-mails...');
-      await base44.functions.invoke('notifyTeamPaymentSubmitted', {
-        payment_id: created?.id,
-        team_member_name: resolvedName || '',
-        cargo: resolvedFuncao,
-        mes: selectedComp.mes,
-        ano: selectedComp.ano,
-        valor: toNumber(form.valor_nf || valorParcela),
-        user_email: effectiveMember.user_email,
-        requester_email: currentUser?.email || effectiveMember.user_email || '',
-        nota_fiscal_url: pdfUrl,
-        xml_url: xmlUrl,
-        nota_fiscal_file_name: pdfName,
-        xml_file_name: xmlName,
-        app_link: `${window.location.origin}/Compras`
-      });
+      try {
+        setAnalysisStep('Enviando notificações...');
+        await base44.functions.invoke('notifyTeamPaymentSubmitted', {
+          payment_id: created?.id,
+          team_member_name: resolvedName || '',
+          cargo: resolvedFuncao,
+          mes: selectedComp.mes,
+          ano: selectedComp.ano,
+          valor: toNumber(form.valor_nf || valorParcela),
+          user_email: effectiveMember.user_email,
+          requester_email: currentUser?.email || effectiveMember.user_email || '',
+          nota_fiscal_url: pdfUrl,
+          xml_url: xmlUrl,
+          nota_fiscal_file_name: pdfName,
+          xml_file_name: xmlName,
+          app_link: `${window.location.origin}/Compras`
+        });
 
-      await notifyCoordinators({
-        title: '💰 Nova nota fiscal para aprovação',
-        message: `${resolvedName || effectiveMember.user_email} enviou nota fiscal de ${selectedComp.mes}/${selectedComp.ano} (${formatBRL(toNumber(form.valor_nf || valorParcela))}) para aprovação.`,
-        type: 'PAYMENT_SUBMITTED',
-        action_url: `${window.location.origin}/Compras`
-      });
+        await notifyCoordinators({
+          title: '💰 Nova nota fiscal para aprovação',
+          message: `${resolvedName || effectiveMember.user_email} enviou nota fiscal de ${selectedComp.mes}/${selectedComp.ano} (${formatBRL(toNumber(form.valor_nf || valorParcela))}) para aprovação.`,
+          type: 'PAYMENT_SUBMITTED',
+          action_url: `${window.location.origin}/Compras`
+        });
 
-      markStepDone(6, 100);
+        markStepDone(6, 100);
+      } catch (err) {
+        console.warn('Falha nas notificações (não bloqueante)', err);
+        markStepFailed(6);
+      }
+
+      toast.success(`✅ Nota fiscal de ${selectedComp.mes}/${selectedComp.ano} enviada com sucesso!`);
 
       setTimeout(() => {
-        toast.success(`✅ Nota fiscal de ${selectedComp.mes}/${selectedComp.ano} enviada com sucesso!`);
         setOpen(false);
         setPdfFile(null);
         setXmlFile(null);
@@ -722,9 +750,7 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
       <Dialog open={open} onOpenChange={(value) => {
         setOpen(value);
-        if (!value) {
-          setShowErrorDetails(false);
-        }
+        if (!value) setShowErrorDetails(false);
       }}>
         <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
@@ -1001,6 +1027,11 @@ export default function TeamPaymentSubmit({ userEmail }) {
                         <>
                           <CheckCircle2 className="w-4 h-4 text-green-600" />
                           <span className="font-medium text-green-700">{step.label}</span>
+                        </>
+                      ) : step.failed ? (
+                        <>
+                          <AlertCircle className="w-4 h-4 text-red-600" />
+                          <span className="font-medium text-red-700">{step.label}</span>
                         </>
                       ) : (
                         <>
