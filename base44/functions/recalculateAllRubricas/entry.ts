@@ -277,10 +277,27 @@ function isFromApril2026Onward(tp: any) {
   return monthIndex >= TEAM_PAYMENT_START_MONTH_INDEX;
 }
 
-// DEDUP por pessoa + competência
+function getTeamPaymentKey(tp: any) {
+  const teamMemberId = String(tp?.team_member_id || '').trim();
+  const userEmail = String(tp?.user_email || '').trim().toLowerCase();
+  const identidade = teamMemberId || userEmail;
+  const mes = String(tp?.mes_referencia || '').trim().toLowerCase();
+  const ano = String(tp?.ano || '').trim();
+  return `${identidade}__${mes}__${ano}`;
+}
+
+function getTeamPaymentSortValue(tp: any) {
+  return new Date(
+    tp?.updated_date ||
+    tp?.updated_at ||
+    tp?.created_date ||
+    tp?.created_at ||
+    0
+  ).getTime();
+}
+
+// DEDUP por pessoa + competência, preservando o registro mais recente
 function buildTeamPaymentDeduped(allTeamPayments: any[]) {
-  const seen = new Set<string>();
-  const deduped: any[] = [];
   const ALLOWED_STATUSES = new Set([
     'APROVADO',
     'PAGO',
@@ -290,14 +307,21 @@ function buildTeamPaymentDeduped(allTeamPayments: any[]) {
     'FINALIZADO',
   ]);
 
-  for (const tp of allTeamPayments) {
-    const status = normalizeStatus(tp.status);
-    if (!ALLOWED_STATUSES.has(status)) continue;
-    if (!isFromApril2026Onward(tp)) continue;
+  const filtered = (allTeamPayments || [])
+    .filter((tp) => {
+      const status = normalizeStatus(tp.status);
+      if (!ALLOWED_STATUSES.has(status)) return false;
+      if (!isFromApril2026Onward(tp)) return false;
+      return true;
+    })
+    .sort((a, b) => getTeamPaymentSortValue(b) - getTeamPaymentSortValue(a));
 
-    const key = `${tp.team_member_id}__${String(tp.mes_referencia || '').toLowerCase()}__${tp.ano}`;
+  const seen = new Set<string>();
+  const deduped: any[] = [];
+
+  for (const tp of filtered) {
+    const key = getTeamPaymentKey(tp);
     if (seen.has(key)) continue;
-
     seen.add(key);
     deduped.push(tp);
   }
@@ -316,6 +340,7 @@ function buildTeamPaymentByRubrica(dedupedPayments: any[], teamMemberById: Recor
     if (!byRubrica[rubricaId]) byRubrica[rubricaId] = [];
 
     const valor =
+      toNumber(tp.valor_pago) ||
       toNumber(tp.valor_nf) ||
       toNumber(tp.valor_parcela_previsto) ||
       toNumber(tp.nf_valor_extraido) ||
@@ -325,6 +350,7 @@ function buildTeamPaymentByRubrica(dedupedPayments: any[], teamMemberById: Recor
       team_payment_id: tp.id,
       valor,
       member_id: tp.team_member_id,
+      user_email: tp.user_email || '',
       status: normalizeStatus(tp.status),
       mes_referencia: tp.mes_referencia,
       ano: tp.ano,
@@ -512,14 +538,14 @@ Deno.serve(async (req) => {
 
       const valorPagoEquipe = Number(
         teamPayments
-          .filter((tp) => tp.status === 'PAGO')
+          .filter((tp) => tp.status === 'PAGO' || tp.status === 'FINALIZADO')
           .reduce((s, tp) => s + toNumber(tp.valor), 0)
           .toFixed(2)
       );
 
       const valorComprometidoEquipe = Number(
         teamPayments
-          .filter((tp) => tp.status === 'APROVADO_COORD' || tp.status === 'APROVADO_ADMIN' || tp.status === 'APROVADO')
+          .filter((tp) => tp.status === 'APROVADO_COORD' || tp.status === 'APROVADO_ADMIN' || tp.status === 'APROVADO' || tp.status === 'ENCAMINHADO_COORD_ADMIN')
           .reduce((s, tp) => s + toNumber(tp.valor), 0)
           .toFixed(2)
       );
@@ -527,7 +553,7 @@ Deno.serve(async (req) => {
       const valorPago = Number((valorPagoCompras + valorPagoEquipe).toFixed(2));
       const valorComprometido = Number((valorComprometidoCompras + valorComprometidoEquipe).toFixed(2));
 
-      // Mantém lançamentos manuais já inseridos + soma pagamentos a partir de abril
+      // Mantém lançamentos manuais já inseridos + soma pagamentos reais
       const valorUtilizado = Number((valorPago + valorLancamentos).toFixed(2));
 
       const valorRubrica = toNumber(rubrica.valor_rubrica);
