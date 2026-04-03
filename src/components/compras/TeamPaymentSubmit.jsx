@@ -32,6 +32,20 @@ const VIADUTO_EMISSAO = {
   termo: '01-031.069/24-80'
 };
 
+const PAYMENT_STATUS_META = {
+  RASCUNHO: { label: 'Rascunho', className: 'bg-gray-100 text-gray-700' },
+  AGUARDANDO_APROVACAO: { label: 'Aguardando aprovação', className: 'bg-amber-100 text-amber-800' },
+  EM_ANALISE_COORD: { label: 'Em análise', className: 'bg-blue-100 text-blue-800' },
+  DEVOLVIDO_REVISAO: { label: 'Devolvido para revisão', className: 'bg-orange-100 text-orange-800' },
+  APROVADO_COORD: { label: 'Aprovado coord.', className: 'bg-emerald-100 text-emerald-800' },
+  ENCAMINHADO_COORD_ADMIN: { label: 'Encaminhado', className: 'bg-cyan-100 text-cyan-800' },
+  APROVADO: { label: 'Aprovado', className: 'bg-green-100 text-green-800' },
+  REVISAO: { label: 'Em revisão', className: 'bg-yellow-100 text-yellow-800' },
+  PAGO: { label: 'Pago', className: 'bg-lime-100 text-lime-800' },
+  RECUSADO: { label: 'Recusado', className: 'bg-red-100 text-red-800' },
+  FINALIZADO: { label: 'Finalizado', className: 'bg-slate-100 text-slate-700' }
+};
+
 function toNumber(v) {
   if (v === null || v === undefined || v === '') return 0;
   const raw = String(v).trim();
@@ -71,6 +85,47 @@ function buildMonthOptions() {
     out.push({ value: `${mes}|${ano}`, label: `${mes}/${ano}`, mes, ano });
   }
   return out;
+}
+
+function getPaymentStatusMeta(status) {
+  return PAYMENT_STATUS_META[status] || {
+    label: String(status || 'Sem status'),
+    className: 'bg-gray-100 text-gray-700'
+  };
+}
+
+function getMonthIndex(monthLabel) {
+  return MONTHS.findIndex((month) => month === monthLabel);
+}
+
+function getPreviousReferenceFromMonth(monthLabel, yearValue) {
+  const year = Number(yearValue);
+  const monthIndex = getMonthIndex(monthLabel);
+
+  if (monthIndex < 0 || !Number.isFinite(year)) return '';
+
+  const date = new Date(year, monthIndex, 1);
+  date.setMonth(date.getMonth() - 1);
+
+  return `${MONTHS[date.getMonth()]}/${date.getFullYear()}`;
+}
+
+function getPreviousReferenceFromDate(dateValue) {
+  if (!dateValue) return '';
+
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return '';
+
+  date.setMonth(date.getMonth() - 1);
+  return `${MONTHS[date.getMonth()]}/${date.getFullYear()}`;
+}
+
+function getPaymentReferenceLabel(payment) {
+  return (
+    getPreviousReferenceFromDate(payment?.nf_data_emissao) ||
+    getPreviousReferenceFromMonth(payment?.mes_referencia, payment?.ano) ||
+    (payment?.mes_referencia && payment?.ano ? `${payment.mes_referencia}/${payment.ano}` : '—')
+  );
 }
 
 function sanitize(value) {
@@ -317,6 +372,20 @@ export default function TeamPaymentSubmit({ userEmail }) {
     queryFn: async () => {
       const rows = await base44.entities.TeamMember.filter({ user_email: userEmail });
       return Array.isArray(rows) ? rows[0] || null : null;
+    },
+    enabled: !!userEmail
+  });
+
+  const { data: submittedPayments = [], isLoading: loadingSubmittedPayments } = useQuery({
+    queryKey: ['team-submit-own-payments', userEmail],
+    queryFn: async () => {
+      const rows = await base44.entities.TeamPayment.filter({ user_email: userEmail });
+      if (!Array.isArray(rows)) return [];
+      return [...rows].sort((a, b) => {
+        const dateA = new Date(a?.created_date || a?.updated_date || 0).getTime();
+        const dateB = new Date(b?.created_date || b?.updated_date || 0).getTime();
+        return dateB - dateA;
+      });
     },
     enabled: !!userEmail
   });
@@ -735,6 +804,77 @@ export default function TeamPaymentSubmit({ userEmail }) {
 
   return (
     <div className="space-y-4">
+      <div className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Meus pagamentos</h3>
+          <p className="text-xs text-gray-500">
+            Histórico de envios realizados, com mês de referência exibido como o mês anterior ao da nota fiscal.
+          </p>
+        </div>
+
+        {loadingSubmittedPayments ? (
+          <div className="rounded-xl border p-4 text-sm text-gray-500 flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" /> Carregando envios realizados...
+          </div>
+        ) : submittedPayments.length > 0 ? (
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50 text-left">
+                  <th className="px-3 py-3 font-medium text-gray-600">Mês de referência</th>
+                  <th className="px-3 py-3 font-medium text-gray-600">Valor</th>
+                  <th className="px-3 py-3 font-medium text-gray-600">Status</th>
+                  <th className="px-3 py-3 font-medium text-gray-600">Nota fiscal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {submittedPayments.map((payment) => {
+                  const statusMeta = getPaymentStatusMeta(payment?.status);
+                  const notaFiscalUrl = payment?.nota_fiscal_url || '';
+                  const notaFiscalLabel = payment?.numero_nf
+                    ? `NF ${payment.numero_nf}`
+                    : (payment?.nota_fiscal_file_name || 'Abrir nota fiscal');
+
+                  return (
+                    <tr key={payment.id} className="border-b border-gray-100 bg-white last:border-b-0 hover:bg-gray-50">
+                      <td className="px-3 py-2.5 font-medium text-gray-900">
+                        {getPaymentReferenceLabel(payment)}
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-700">
+                        {formatBRL(payment?.valor_nf || payment?.valor_parcela_previsto || 0)}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusMeta.className}`}>
+                          {statusMeta.label}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {notaFiscalUrl ? (
+                          <a
+                            href={notaFiscalUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline"
+                          >
+                            <Eye className="w-4 h-4" /> {notaFiscalLabel}
+                          </a>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500">
+            Nenhum envio realizado até o momento.
+          </div>
+        )}
+      </div>
+
       <Button onClick={() => { clearSubmitError(); setOpen(true); }}>
         <Plus className="w-4 h-4 mr-2" /> Novo envio
       </Button>
@@ -978,67 +1118,61 @@ export default function TeamPaymentSubmit({ userEmail }) {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-amber-800">
-                <div className="space-y-1.5">
-                  <p className="font-semibold text-amber-900">Dados do Tomador (quem paga)</p>
-                  <div className="bg-white/70 rounded-lg p-2 border border-amber-100 space-y-0.5">
-                    <p><span className="font-medium">Razão Social:</span> {VIADUTO_EMISSAO.razao_social}</p>
-                    <p><span className="font-medium">CNPJ:</span> {VIADUTO_EMISSAO.cnpj}</p>
-                    <p><span className="font-medium">Insc. Municipal:</span> {VIADUTO_EMISSAO.inscricao_municipal}</p>
-                    <p><span className="font-medium">Endereço:</span> {VIADUTO_EMISSAO.endereco}</p>
-                    <p><span className="font-medium">Telefone:</span> {VIADUTO_EMISSAO.telefone}</p>
-                    <p><span className="font-medium">E-mail:</span> {VIADUTO_EMISSAO.email}</p>
-                  </div>
+                <div className="space-y-1">
+                  <div><strong>Razão Social:</strong> {VIADUTO_EMISSAO.razao_social}</div>
+                  <div><strong>CNPJ:</strong> {VIADUTO_EMISSAO.cnpj}</div>
+                  <div><strong>Inscrição Municipal:</strong> {VIADUTO_EMISSAO.inscricao_municipal}</div>
+                  <div><strong>Telefone:</strong> {VIADUTO_EMISSAO.telefone}</div>
+                  <div><strong>Email:</strong> {VIADUTO_EMISSAO.email}</div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <p className="font-semibold text-amber-900">Descrição do Serviço</p>
-                  <div className="bg-white/70 rounded-lg p-2 border border-amber-100 space-y-1">
-                    <p>Prestação de serviço ({resolvedFuncao || 'sua função'}) ao Projeto Museus Centro</p>
-                    <p>Termo de Colaboração <span className="font-medium">{VIADUTO_EMISSAO.termo}</span></p>
-                    <p>Parceria com SMC/FMC — referente ao mês selecionado</p>
-                  </div>
-                  <p className="font-semibold text-amber-900 mt-2">Valor</p>
-                  <div className="bg-white/70 rounded-lg p-2 border border-amber-100">
-                    <p>O valor deve ser exatamente o valor da parcela prevista.</p>
-                  </div>
+                <div className="space-y-1">
+                  <div><strong>Endereço:</strong> {VIADUTO_EMISSAO.endereco}</div>
+                  <div><strong>Termo:</strong> {VIADUTO_EMISSAO.termo}</div>
+                  <div><strong>Competência:</strong> {selectedComp ? `${selectedComp.mes}/${selectedComp.ano}` : 'Selecione o mês'}</div>
+                  <div><strong>Função:</strong> {resolvedFuncao || 'Informe sua função'}</div>
+                  <div><strong>Valor previsto:</strong> {formatBRL(valorParcela)}</div>
                 </div>
+              </div>
+
+              <div className="rounded-lg border border-amber-200 bg-white p-3">
+                <div className="font-medium text-amber-900 mb-2">Modelo sugerido para descrição</div>
+                <pre className="whitespace-pre-wrap text-xs text-amber-900">{descricaoModelo}</pre>
               </div>
             </div>
 
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
-              <span className="font-medium text-gray-800">Padrão de nome dos arquivos: </span>
-              NF [Número da NF] CARGO - SEU NOME - MUSEUS CENTRO - R$ VALOR DA NOTA
-              <span className="block text-gray-400 mt-0.5">
-                Os arquivos são renomeados automaticamente nesse padrão ao fazer upload.
-              </span>
-            </div>
-
-            {submitting && (
-              <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 space-y-3">
-                <div className="flex items-center gap-3 text-sm text-purple-800">
-                  <Brain className="w-5 h-5 animate-pulse" />
-                  <span className="font-medium">{analysisStep}</span>
+            {(submitting || progressPercent > 0) && (
+              <div className="rounded-xl border p-4 space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="font-medium flex items-center gap-2">
+                    <Brain className="w-4 h-4" />
+                    {analysisStep || 'Processando envio...'}
+                  </div>
+                  <div className="text-gray-500">{progressPercent}%</div>
                 </div>
-                <Progress value={progressPercent} className="h-2" />
-                <div className="space-y-2 text-xs text-purple-700">
-                  {submissionSteps.map((step, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      {step.done ? (
-                        <>
-                          <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          <span className="font-medium text-green-700">{step.label}</span>
-                        </>
-                      ) : step.failed ? (
-                        <>
-                          <AlertCircle className="w-4 h-4 text-red-600" />
-                          <span className="font-medium text-red-700">{step.label}</span>
-                        </>
+
+                <Progress value={progressPercent} />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                  {submissionSteps.map((step, index) => (
+                    <div
+                      key={index}
+                      className={`rounded-lg border px-3 py-2 flex items-center gap-2 ${
+                        step.failed
+                          ? 'border-red-200 bg-red-50 text-red-700'
+                          : step.done
+                            ? 'border-green-200 bg-green-50 text-green-700'
+                            : 'border-gray-200 bg-gray-50 text-gray-600'
+                      }`}
+                    >
+                      {step.failed ? (
+                        <AlertCircle className="w-3.5 h-3.5" />
+                      ) : step.done ? (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
                       ) : (
-                        <>
-                          <div className="w-4 h-4 border-2 border-purple-300 rounded-full" />
-                          <span className="text-purple-600">{step.label}</span>
-                        </>
+                        <Loader2 className={`w-3.5 h-3.5 ${submitting ? 'animate-spin' : ''}`} />
                       )}
+                      <span>{step.label}</span>
                     </div>
                   ))}
                 </div>
@@ -1046,11 +1180,14 @@ export default function TeamPaymentSubmit({ userEmail }) {
             )}
 
             {analysis && (
-              <div className={`rounded-xl border p-4 space-y-2 text-sm ${analysis.can_submit === false ? 'border-red-200 bg-red-50 text-red-800' : 'border-green-200 bg-green-50 text-green-800'}`}>
-                <div className="font-semibold flex items-center gap-2">
-                  {analysis.can_submit === false ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-                  Resultado da análise automática
-                </div>
+              <div className={`rounded-xl border p-4 text-sm space-y-3 ${
+                analysis?.status === 'CONFORME'
+                  ? 'border-green-200 bg-green-50 text-green-900'
+                  : analysis?.status === 'CRITICO'
+                    ? 'border-red-200 bg-red-50 text-red-900'
+                    : 'border-amber-200 bg-amber-50 text-amber-900'
+              }`}>
+                <div className="font-semibold">Resultado da análise automática</div>
 
                 {analysis.summary && <div>{analysis.summary}</div>}
 
