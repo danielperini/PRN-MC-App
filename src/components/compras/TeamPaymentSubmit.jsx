@@ -1,134 +1,98 @@
-import React, { useMemo, useState } from 'react';
-import { base44 } from '@/api/base44Client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+the following errors happened in the app:
 
-function toNumber(v) {
-  return Number(v) || 0;
-}
 
-export default function TeamPaymentSubmit({
-  effectiveMember,
-  selectedComp,
-  selectedRubricaId,
-  selectedRubricaNome,
-  form,
-  valorParcela,
-  pdfUrl,
-  xmlUrl,
-  pdfName,
-  xmlName,
-  descricaoModelo,
-  resolvedName,
-  resolvedFuncao,
-}) {
-  const queryClient = useQueryClient();
-  const [loading, setLoading] = useState(false);
+<error title="/app/src/components/compras/TeamPaymentSubmit.jsx: Unexpected token (5:0)
 
-  async function handleSubmit() {
-    if (loading) return;
-    setLoading(true);
+  3 | // (mantive TODO seu código intacto, só alterei o bloco crítico)
+  4 |
+&gt; 5 | ...
+    | ^
+  6 |
+  7 | // 🔥 SUBSTITUIR APENAS ESTE BLOCO ↓↓↓
+  8 |" details="    at constructor (/app/node_modules/@babel/parser/lib/index.js:365:19)
+    at JSXParserMixin.raise (/app/node_modules/@babel/parser/lib/index.js:6599:19)
+    at JSXParserMixin.unexpected (/app/node_modules/@babel/parser/lib/index.js:6619:16)
+    at JSXParserMixin.parseExprAtom (/app/node_modules/@babel/parser/lib/index.js:11442:22)
+    at JSXParserMixin.parseExprAtom (/app/node_modules/@babel/parser/lib/index.js:4764:20)
+    at JSXParserMixin.parseExprSubscripts (/app/node_modules/@babel/parser/lib/index.js:11081:23)
+    at JSXParserMixin.parseUpdate (/app/node_modules/@babel/parser/lib/index.js:11066:21)
+    at JSXParserMixin.parseMaybeUnary (/app/node_modules/@babel/parser/lib/index.js:11046:23)
+    at JSXParserMixin.parseMaybeUnaryOrPrivate (/app/node_modules/@babel/parser/lib/index.js:10899:61)
+    at JSXParserMixin.parseExprOps (/app/node_modules/@babel/parser/lib/index.js:10904:23)
+    at JSXParserMixin.parseMaybeConditional (/app/node_modules/@babel/parser/lib/index.js:10881:23)
+    at JSXParserMixin.parseMaybeAssign (/app/node_modules/@babel/parser/lib/index.js:10831:21)
+    at JSXParserMixin.parseExpressionBase (/app/node_modules/@babel/parser/lib/index.js:10784:23)
+    at /app/node_modules/@babel/parser/lib/index.js:10780:39
+    at JSXParserMixin.allowInAnd (/app/node_modules/@babel/parser/lib/index.js:12421:16)
+    at JSXParserMixin.parseExpression (/app/node_modules/@babel/parser/lib/index.js:10780:17)
+    at JSXParserMixin.parseStatementContent (/app/node_modules/@babel/parser/lib/index.js:12895:23)
+    at JSXParserMixin.parseStatementLike (/app/node_modules/@babel/parser/lib/index.js:12767:17)
+    at JSXParserMixin.parseModuleItem (/app/node_modules/@babel/parser/lib/index.js:12744:17)
+    at JSXParserMixin.parseBlockOrModuleBlockBody (/app/node_modules/@babel/parser/lib/index.js:13316:36)
+    at JSXParserMixin.parseBlockBody (/app/node_modules/@babel/parser/lib/index.js:13309:10)
+    at JSXParserMixin.parseProgram (/app/node_modules/@babel/parser/lib/index.js:12622:10)
+    at JSXParserMixin.parseTopLevel (/app/node_modules/@babel/parser/lib/index.js:12612:25)
+    at JSXParserMixin.parse (/app/node_modules/@babel/parser/lib/index.js:14488:25)
+    at parse (/app/node_modules/@babel/parser/lib/index.js:14522:38)
+    at parser (/app/node_modules/@babel/core/lib/parser/index.js:41:34)
+    at parser.next (&lt;anonymous&gt;)
+    at normalizeFile (/app/node_modules/@babel/core/lib/transformation/normalize-file.js:64:37)
+    at normalizeFile.next (&lt;anonymous&gt;)
+    at run (/app/node_modules/@babel/core/lib/transformation/index.js:22:50)
+    at run.next (&lt;anonymous&gt;)
+    at transform (/app/node_modules/@babel/core/lib/transform.js:22:33)
+    at transform.next (&lt;anonymous&gt;)
+    at step (/app/node_modules/gensync/index.js:261:32)
+    at /app/node_modules/gensync/index.js:273:13
+    at async.call.result.err.err (/app/node_modules/gensync/index.js:223:11)
+    at /app/node_modules/gensync/index.js:189:28
+    at /app/node_modules/@babel/core/lib/gensync-utils/async.js:67:7
+    at /app/node_modules/gensync/index.js:113:33
+    at step (/app/node_modules/gensync/index.js:287:14)
+    at /app/node_modules/gensync/index.js:273:13
+    at async.call.result.err.err (/app/node_modules/gensync/index.js:223:11)" stack="    at constructor (/app/node_modules/@babel/parser/lib/index.js:365:19)
+    at JSXParserMixin.raise (/app/node_modules/@babel/parser/lib/index.js:6599:19)
+    at JSXParserMixin.unexpected (/app/node_modules/@babel/parser/lib/index.js:6619:16)
+    at JSXParserMixin.parseExprAtom (/app/node_modules/@babel/parser/lib/index.js:11442:22)
+    at JSXParserMixin.parseExprAtom (/app/node_modules/@babel/parser/lib/index.js:4764:20)
+    at JSXParserMixin.parseExprSubscripts (/app/node_modules/@babel/parser/lib/index.js:11081:23)
+    at JSXParserMixin.parseUpdate (/app/node_modules/@babel/parser/lib/index.js:11066:21)
+    at JSXParserMixin.parseMaybeUnary (/app/node_modules/@babel/parser/lib/index.js:11046:23)
+    at JSXParserMixin.parseMaybeUnaryOrPrivate (/app/node_modules/@babel/parser/lib/index.js:10899:61)
+    at JSXParserMixin.parseExprOps (/app/node_modules/@babel/parser/lib/index.js:10904:23)
+    at JSXParserMixin.parseMaybeConditional (/app/node_modules/@babel/parser/lib/index.js:10881:23)
+    at JSXParserMixin.parseMaybeAssign (/app/node_modules/@babel/parser/lib/index.js:10831:21)
+    at JSXParserMixin.parseExpressionBase (/app/node_modules/@babel/parser/lib/index.js:10784:23)
+    at /app/node_modules/@babel/parser/lib/index.js:10780:39
+    at JSXParserMixin.allowInAnd (/app/node_modules/@babel/parser/lib/index.js:12421:16)
+    at JSXParserMixin.parseExpression (/app/node_modules/@babel/parser/lib/index.js:10780:17)
+    at JSXParserMixin.parseStatementContent (/app/node_modules/@babel/parser/lib/index.js:12895:23)
+    at JSXParserMixin.parseStatementLike (/app/node_modules/@babel/parser/lib/index.js:12767:17)
+    at JSXParserMixin.parseModuleItem (/app/node_modules/@babel/parser/lib/index.js:12744:17)
+    at JSXParserMixin.parseBlockOrModuleBlockBody (/app/node_modules/@babel/parser/lib/index.js:13316:36)
+    at JSXParserMixin.parseBlockBody (/app/node_modules/@babel/parser/lib/index.js:13309:10)
+    at JSXParserMixin.parseProgram (/app/node_modules/@babel/parser/lib/index.js:12622:10)
+    at JSXParserMixin.parseTopLevel (/app/node_modules/@babel/parser/lib/index.js:12612:25)
+    at JSXParserMixin.parse (/app/node_modules/@babel/parser/lib/index.js:14488:25)
+    at parse (/app/node_modules/@babel/parser/lib/index.js:14522:38)
+    at parser (/app/node_modules/@babel/core/lib/parser/index.js:41:34)
+    at parser.next (&lt;anonymous&gt;)
+    at normalizeFile (/app/node_modules/@babel/core/lib/transformation/normalize-file.js:64:37)
+    at normalizeFile.next (&lt;anonymous&gt;)
+    at run (/app/node_modules/@babel/core/lib/transformation/index.js:22:50)
+    at run.next (&lt;anonymous&gt;)
+    at transform (/app/node_modules/@babel/core/lib/transform.js:22:33)
+    at transform.next (&lt;anonymous&gt;)
+    at step (/app/node_modules/gensync/index.js:261:32)
+    at /app/node_modules/gensync/index.js:273:13
+    at async.call.result.err.err (/app/node_modules/gensync/index.js:223:11)
+    at /app/node_modules/gensync/index.js:189:28
+    at /app/node_modules/@babel/core/lib/gensync-utils/async.js:67:7
+    at /app/node_modules/gensync/index.js:113:33
+    at step (/app/node_modules/gensync/index.js:287:14)
+    at /app/node_modules/gensync/index.js:273:13
+    at async.call.result.err.err (/app/node_modules/gensync/index.js:223:11)"></error>
 
-    try {
-      // 🔒 BUSCAR EXISTENTES
-      const existing = await base44.entities.TeamPayment.filter({
-        user_email: effectiveMember.user_email,
-        mes_referencia: selectedComp.mes,
-        ano: selectedComp.ano
-      });
 
-      // 🔒 BLOQUEIO DE DUPLICAÇÃO
-      const existeAtivo = (existing || []).some(p =>
-        ['PAGO', 'APROVADO_COORD', 'AGUARDANDO_APROVACAO'].includes(
-          String(p.status || '').toUpperCase()
-        )
-      );
-
-      if (existeAtivo) {
-        throw new Error('Já existe uma nota fiscal enviada para essa competência.');
-      }
-
-      // 🔒 VALIDA RUBRICA
-      if (!selectedRubricaId) {
-        throw new Error('Rubrica obrigatória.');
-      }
-
-      // 🔒 VALIDA VALOR
-      const valorFinal = toNumber(form.valor_nf || valorParcela);
-      if (valorFinal <= 0) {
-        throw new Error('Valor inválido.');
-      }
-
-      // 🔒 CHECK ORÇAMENTO
-      const budgetCheck = await base44.functions.invoke('check_budget', {
-        valor: valorFinal,
-        user_email: effectiveMember.user_email,
-        contexto: 'TEAM_PAYMENT',
-        mes: selectedComp.mes,
-        ano: selectedComp.ano,
-        rubrica_id: selectedRubricaId
-      });
-
-      const bc = budgetCheck?.data || budgetCheck || {};
-
-      if (bc?.blocked_by_rubrica) {
-        throw new Error('Rubrica inválida.');
-      }
-
-      if (bc?.saldo_insuficiente) {
-        throw new Error('Saldo insuficiente na rubrica.');
-      }
-
-      // 🔥 CREATE
-      const payload = {
-        team_member_id: effectiveMember.id,
-        user_email: effectiveMember.user_email,
-        user_name: resolvedName || '',
-        funcao: resolvedFuncao,
-        role: resolvedFuncao,
-        mes_referencia: selectedComp.mes,
-        ano: selectedComp.ano,
-        numero_nf: form.numero_nf,
-        valor_nf: valorFinal,
-        valor_parcela_previsto: valorParcela,
-        numero_parcela: (toNumber(effectiveMember.parcelas_pagas) || 0) + 1,
-        nota_fiscal_url: pdfUrl,
-        xml_url: xmlUrl,
-        nota_fiscal_file_name: pdfName,
-        xml_file_name: xmlName,
-        descricao_nf_modelo: descricaoModelo,
-        status: 'AGUARDANDO_APROVACAO',
-
-        // 🔥 CRÍTICO
-        rubrica_id: selectedRubricaId,
-        rubrica_nome: selectedRubricaNome,
-
-        // 🔒 anti duplicação
-        unique_key: `${effectiveMember.user_email}_${selectedComp.mes}_${selectedComp.ano}`
-      };
-
-      await base44.entities.TeamPayment.create(payload);
-
-      toast.success('Nota fiscal enviada com sucesso');
-
-      // 🔄 REFRESH
-      await Promise.all([
-        queryClient.invalidateQueries(['team-payments']),
-        queryClient.invalidateQueries(['team-payments-review']),
-        queryClient.invalidateQueries(['rubricas'])
-      ]);
-
-    } catch (e) {
-      toast.error(e.message || 'Erro ao enviar');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <Button onClick={handleSubmit} disabled={loading}>
-      {loading ? 'Enviando...' : 'Enviar nota fiscal'}
-    </Button>
-  );
-}
+---
+please help me fix these errors
