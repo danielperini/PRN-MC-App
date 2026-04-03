@@ -146,7 +146,9 @@ Deno.serve(async (req) => {
 
     const prompt = `Você é um auditor especializado em conformidade de notas fiscais de projetos culturais públicos.
 
-Analise a NOTA FISCAL em PDF e, quando houver, o XML da mesma nota. Faça também o CRUZAMENTO AUTOMÁTICO entre NF e CONTRATO.
+Analise a NOTA FISCAL em PDF. O XML pode existir como arquivo de apoio, mas não está disponível para leitura direta nesta chamada. Se houver informação de XML no contexto, trate apenas como referência complementar indireta.
+
+Faça também o CRUZAMENTO AUTOMÁTICO entre NF e CONTRATO.
 
 === DADOS DO PROJETO ===
 Projeto: Museus Centro — Termo de Colaboração 01-031.069/24-80
@@ -176,6 +178,10 @@ Conta no contrato: ${contractConta || '-'}
 PIX no contrato: ${contractPix || '-'}
 Objeto do contrato: ${contractData?.objeto_resumo || '-'}
 
+=== ARQUIVOS RECEBIDOS ===
+PDF da NF: ${file_url || '-'}
+XML informado: ${xml_url || 'não enviado'}
+
 === MODELO DE DESCRIÇÃO ESPERADO ===
 ${descricao_modelo || 'Não fornecido'}
 
@@ -184,10 +190,10 @@ ${descricao_modelo || 'Não fornecido'}
 2. O emitente da NF corresponde ao prestador cadastrado e ao documento do contrato?
 3. A competência da NF bate com ${mes_referencia || '-'}/${ano || '-'}?
 4. A descrição menciona Museus Centro e/ou Termo de Colaboração 01-031.069/24-80?
-5. Os dados bancários encontrados na NF/XML são compatíveis com os dados do cadastro/contrato?
+5. Os dados bancários encontrados na NF são compatíveis com os dados do cadastro/contrato?
 6. A NF tem número, data de emissão e código/elementos de verificação?
 7. A competência está dentro da vigência do contrato?
-8. Se houver XML, usar o XML como apoio para confirmar número, valor, emitente e data.
+8. Se o XML não puder ser lido diretamente, não trate isso como erro crítico.
 
 === REGRAS DE DECISÃO ===
 - Divergência de valor acima da tolerância = problema crítico
@@ -218,15 +224,12 @@ Retorne JSON válido, objetivo e direto, com:
   objeto_confere
 }`;
 
-    const fileUrls = [file_url];
-    if (xml_url) fileUrls.push(xml_url);
-
     let result: any = null;
 
     try {
       result = await base44.asServiceRole.integrations.Core.InvokeLLM({
         prompt,
-        file_urls: fileUrls,
+        file_urls: [file_url],
         response_json_schema: {
           type: 'object',
           properties: {
@@ -289,7 +292,8 @@ Retorne JSON válido, objetivo e direto, com:
         debug: {
           source: 'InvokeLLM',
           started_at: startedAt,
-          file_urls: fileUrls,
+          file_urls: [file_url],
+          xml_url: xml_url || '',
           payload: payloadSnapshot,
           contract_error: contractError,
           llm_error: llmMessage,
@@ -317,6 +321,10 @@ Retorne JSON válido, objetivo e direto, com:
 
     const warnings = Array.isArray(result?.warnings) ? [...result.warnings] : [];
     const critical = Array.isArray(result?.critical_issues) ? [...result.critical_issues] : [];
+
+    if (xml_url) {
+      warnings.push('XML recebido como apoio, mas não enviado para leitura da IA nesta etapa.');
+    }
 
     if (contractError) {
       warnings.push(contractError);
@@ -374,7 +382,8 @@ Retorne JSON válido, objetivo e direto, com:
       debug: {
         source: 'InvokeLLM_OK',
         started_at: startedAt,
-        file_urls: fileUrls,
+        file_urls: [file_url],
+        xml_url: xml_url || '',
         payload: payloadSnapshot,
         contract_error: contractError,
       },
