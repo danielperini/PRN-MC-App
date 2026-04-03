@@ -28,7 +28,7 @@ export default function AtividadesSection({
   reportId = null,
   onSave = null,
   onExportPdf = null,
-  onBackToReport = null
+  onBackToReport = null,
 }) {
   const [saving, setSaving] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -72,7 +72,7 @@ export default function AtividadesSection({
       const res = await base44.entities.Programacao.list('-data_inicio', 1000);
       return Array.isArray(res) ? res : [];
     },
-    staleTime: 60000
+    staleTime: 60000,
   });
 
   const programacaoItems = useMemo(() => {
@@ -97,23 +97,23 @@ export default function AtividadesSection({
       const res = await base44.entities.UserPermission.list('user_name', 1000);
       return (Array.isArray(res) ? res : []).map((u) => ({
         id: u.user_email,
-        label: u.user_name || u.user_email
+        label: u.user_name || u.user_email,
       }));
-    }
+    },
   });
 
   const { data: metas = [] } = useQuery({
     queryKey: ['project-metas'],
     queryFn: async () => {
       const res = await base44.entities.ProjectMeta.list('nome', 1000);
-      return (Array.isArray(res) ? res : []).
-      filter((m) => m.ativo !== false).
-      map((m) => ({
-        id: m.id,
-        label: m.nome,
-        nome: m.nome
-      }));
-    }
+      return (Array.isArray(res) ? res : [])
+        .filter((m) => m.ativo !== false)
+        .map((m) => ({
+          id: m.id,
+          label: m.nome,
+          nome: m.nome,
+        }));
+    },
   });
 
   const updateAtividade = useCallback((index, field, value) => {
@@ -130,18 +130,18 @@ export default function AtividadesSection({
     if (typeof setAtividades !== 'function') return;
 
     setAtividades((prev) => [
-    ...(Array.isArray(prev) ? prev : []),
-    {
-      id: createActivityId(),
-      classificacao: '',
-      nome: '',
-      descricao: '',
-      museu_lista: [],
-      tipo_acao_lista: [],
-      equipe_participante_ids: [],
-      meta_vinculada_ids: []
-    }]
-    );
+      ...(Array.isArray(prev) ? prev : []),
+      {
+        id: createActivityId(),
+        classificacao: '',
+        nome: '',
+        descricao: '',
+        museu_lista: [],
+        tipo_acao_lista: [],
+        equipe_participante_ids: [],
+        meta_vinculada_ids: [],
+      },
+    ]);
   }, [setAtividades]);
 
   const removeAtividade = useCallback((index) => {
@@ -159,123 +159,123 @@ export default function AtividadesSection({
     if (!item || typeof setAtividades !== 'function') return;
 
     setAtividades((prev) => [
-    ...(Array.isArray(prev) ? prev : []),
-    {
-      id: createActivityId(),
-      classificacao: '',
-      nome: item.titulo || item.nome || '',
-      descricao: item.sinopse || item.descricao || '',
-      museu_lista: item.museu ? [item.museu] : [],
-      tipo_acao_lista: item.tipo ? [item.tipo] : [],
-      equipe_participante_ids: [],
-      meta_vinculada_ids: [],
-      programacao_id: item.id
-    }]
-    );
+      ...(Array.isArray(prev) ? prev : []),
+      {
+        id: createActivityId(),
+        classificacao: '',
+        nome: item.titulo || item.nome || '',
+        descricao: item.sinopse || item.descricao || '',
+        museu_lista: item.museu ? [item.museu] : [],
+        tipo_acao_lista: item.tipo ? [item.tipo] : [],
+        equipe_participante_ids: [],
+        meta_vinculada_ids: [],
+        programacao_id: item.id,
+      },
+    ]);
   }, [programacaoItems, setAtividades]);
 
   return (
     <div className="space-y-6">
-      {onBackToReport &&
-      <div className="flex items-center justify-start">
+      {onBackToReport && (
+        <div className="flex items-center justify-start">
           <Button type="button" variant="outline" onClick={onBackToReport}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Retornar para relatório
           </Button>
         </div>
-      }
+      )}
 
-      
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      
-
-      {(atividades || []).map((atividade, index) =>
-      <div key={atividade?.id || index} className="border p-4 rounded space-y-4">
-          <div className="flex justify-between items-center">
-            <b>Atividade {index + 1}</b>
-
-            {canEdit &&
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={() => removeAtividade(index)}>
-            
-                <Trash2 className="text-red-500 w-4 h-4" />
-              </Button>
-          }
-          </div>
-
-          <AtividadeCamposBasicos
-          atividade={atividade}
-          onChange={(field, value) => updateAtividade(index, field, value)}
-          museus={museusOptions}
-          tiposAcao={tiposAcaoOptions}
-          teamOptions={equipe}
-          metaOptions={metas}
-          programacaoOptions={programacaoItems}
-          canEdit={canEdit}
-          mesReferencia={mesReferencia}
-          ano={ano} />
-        
-
-          {reportId &&
-        <ActivityAttachments
-          reportId={reportId}
-          activityIndex={index}
-          activityId={atividade?.id || atividade?._id}
-          activityName={atividade?.nome || atividade?.titulo || `Atividade ${index + 1}`}
-          canEdit={canEdit} />
-
-        }
-
-          {atividade?.id &&
-        <ActivityPhotoLinker
-          activityId={atividade.id}
-          onPhotosChange={(fotos) => updateAtividade(index, 'fotos', fotos)}
-          disabled={!canEdit} />
-
-        }
+      {canEdit && (
+        <div className="bg-blue-50 p-4 rounded border">
+          <Select onValueChange={importarDaProgramacao}>
+            <SelectTrigger>
+              <SelectValue placeholder="Importar da programação (últimos 45 dias)" />
+            </SelectTrigger>
+            <SelectContent>
+              {programacaoItems
+                .filter((p) => !museu || !p.museu || p.museu === museu)
+                .map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {(p.titulo || p.nome || 'Sem título')} {p.museu ? `(${p.museu})` : ''}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
+      {(atividades || []).map((atividade, index) => (
+        <div key={atividade?.id || index} className="border p-4 rounded space-y-4">
+          <div className="flex justify-between items-center">
+            <b>Atividade {index + 1}</b>
+
+            {canEdit && (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={() => removeAtividade(index)}
+              >
+                <Trash2 className="text-red-500 w-4 h-4" />
+              </Button>
+            )}
+          </div>
+
+          <AtividadeCamposBasicos
+            atividade={atividade}
+            onChange={(field, value) => updateAtividade(index, field, value)}
+            museus={museusOptions}
+            tiposAcao={tiposAcaoOptions}
+            teamOptions={equipe}
+            metaOptions={metas}
+            programacaoOptions={programacaoItems}
+            canEdit={canEdit}
+            mesReferencia={mesReferencia}
+            ano={ano}
+          />
+
+          {reportId && (
+            <ActivityAttachments
+              reportId={reportId}
+              activityIndex={index}
+              activityId={atividade?.id || atividade?._id}
+              activityName={atividade?.nome || atividade?.titulo || `Atividade ${index + 1}`}
+              canEdit={canEdit}
+            />
+          )}
+
+          {atividade?.id && (
+            <ActivityPhotoLinker
+              activityId={atividade.id}
+              onPhotosChange={(fotos) => updateAtividade(index, 'fotos', fotos)}
+              disabled={!canEdit}
+            />
+          )}
+        </div>
+      ))}
+
       <div className="flex gap-2 flex-wrap">
-        {canEdit &&
-        <Button type="button" onClick={addAtividade} variant="outline">
+        {canEdit && (
+          <Button type="button" onClick={addAtividade} variant="outline">
             <Plus className="w-4 h-4 mr-2" />
             Adicionar atividade
           </Button>
-        }
+        )}
 
-        {canEdit && onSave &&
-        <Button type="button" onClick={handleSaveAtividades} disabled={saving}>
+        {canEdit && onSave && (
+          <Button type="button" onClick={handleSaveAtividades} disabled={saving}>
             <Save className="w-4 h-4 mr-2" />
             {saving ? 'Salvando...' : 'Salvar atividades'}
           </Button>
-        }
+        )}
 
-        {onExportPdf &&
-        <Button type="button" variant="outline" onClick={handleExportPdf} disabled={exportingPdf}>
+        {onExportPdf && (
+          <Button type="button" variant="outline" onClick={handleExportPdf} disabled={exportingPdf}>
             <FileDown className="w-4 h-4 mr-2" />
             {exportingPdf ? 'Gerando PDF...' : 'Exportar PDF para assinatura'}
           </Button>
-        }
+        )}
       </div>
-    </div>);
-
+    </div>
+  );
 }
