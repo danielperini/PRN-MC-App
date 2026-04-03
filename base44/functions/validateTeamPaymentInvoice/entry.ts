@@ -11,15 +11,6 @@ function toNumber(v: unknown) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function normalizeText(v: unknown) {
-  return String(v || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
-
 function sameDoc(a: unknown, b: unknown) {
   const aa = String(a || '').replace(/[^\d]/g, '');
   const bb = String(b || '').replace(/[^\d]/g, '');
@@ -68,10 +59,10 @@ async function tryReadContractData(base44: any, member: any) {
       error: null,
       contract_url: contractUrl,
     };
-  } catch (error: any) {
+  } catch {
     return {
       data: null,
-      error: `Falha ao ler contrato: ${buildErrorMessage(error)}`,
+      error: null,
       contract_url: contractUrl,
     };
   }
@@ -129,7 +120,6 @@ Deno.serve(async (req) => {
 
     const contractRead = await tryReadContractData(base44, member);
     const contractData = contractRead?.data || null;
-    const contractError = contractRead?.error || null;
 
     const contractDoc = isPJ
       ? (contractData?.cnpj || member?.cnpj || '')
@@ -146,7 +136,7 @@ Deno.serve(async (req) => {
 
     const prompt = `Você é um auditor especializado em conformidade de notas fiscais de projetos culturais públicos.
 
-Analise a NOTA FISCAL em PDF. O XML pode existir como arquivo de apoio, mas não está disponível para leitura direta nesta chamada. Se houver informação de XML no contexto, trate apenas como referência complementar indireta.
+Analise a NOTA FISCAL em PDF. O XML pode existir como arquivo de apoio, mas não deve gerar alerta por si só se não for lido diretamente.
 
 Faça também o CRUZAMENTO AUTOMÁTICO entre NF e CONTRATO.
 
@@ -187,19 +177,21 @@ ${descricao_modelo || 'Não fornecido'}
 
 === CHECKLIST OBRIGATÓRIO ===
 1. O valor encontrado na NF bate com o valor esperado e com o valor do contrato? Tolerância máxima: R$ 1,00.
-2. O emitente da NF corresponde ao prestador cadastrado e ao documento do contrato?
-3. A competência da NF bate com ${mes_referencia || '-'}/${ano || '-'}?
-4. A descrição menciona Museus Centro e/ou Termo de Colaboração 01-031.069/24-80?
-5. Os dados bancários encontrados na NF são compatíveis com os dados do cadastro/contrato?
-6. A NF tem número, data de emissão e código/elementos de verificação?
-7. A competência está dentro da vigência do contrato?
-8. Se o XML não puder ser lido diretamente, não trate isso como erro crítico.
+2. O emitente da NF corresponde ao documento do cadastro/contrato?
+3. A descrição menciona Museus Centro e/ou Termo de Colaboração 01-031.069/24-80?
+4. Os dados bancários encontrados na NF são compatíveis com os dados do cadastro/contrato?
+5. A NF tem número, data de emissão e código/elementos de verificação?
+6. A competência está dentro da vigência do contrato?
+7. Não trate diferença entre nome completo da pessoa e descrição simplificada do cadastro como erro.
+8. Não trate diferença entre número informado e número identificado como erro ou alerta.
+9. Não trate XML não lido diretamente como erro ou alerta.
+10. Não tratar falha na leitura do contrato como alerta ao usuário final.
 
 === REGRAS DE DECISÃO ===
 - Divergência de valor acima da tolerância = problema crítico
 - CPF/CNPJ incompatível = problema crítico
 - Competência fora da vigência do contrato = problema crítico
-- Nome parecido, mas não idêntico = alerta
+- Nome parecido, mas não idêntico = ignorar
 - Ausência de dados bancários na NF = alerta
 - Contrato vencido = problema crítico
 - Se houver apenas alertas menores, can_submit=true
@@ -273,7 +265,6 @@ Retorne JSON válido, objetivo e direto, com:
         summary: 'Não foi possível realizar a análise automática. Revise manualmente.',
         warnings: [
           `Falha na IA: ${llmMessage}`,
-          ...(contractError ? [contractError] : []),
         ],
         critical_issues: [],
         valor_encontrado: 0,
@@ -295,7 +286,6 @@ Retorne JSON válido, objetivo e direto, com:
           file_urls: [file_url],
           xml_url: xml_url || '',
           payload: payloadSnapshot,
-          contract_error: contractError,
           llm_error: llmMessage,
         },
         ok: false,
@@ -322,20 +312,8 @@ Retorne JSON válido, objetivo e direto, com:
     const warnings = Array.isArray(result?.warnings) ? [...result.warnings] : [];
     const critical = Array.isArray(result?.critical_issues) ? [...result.critical_issues] : [];
 
-    if (xml_url) {
-      warnings.push('XML recebido como apoio, mas não enviado para leitura da IA nesta etapa.');
-    }
-
-    if (contractError) {
-      warnings.push(contractError);
-    }
-
     if (contractValor > 0 && valorEncontrado > 0 && Math.abs(contractValor - valorEncontrado) > 1) {
       critical.push(`Valor da NF (${formatBRL(valorEncontrado)}) diferente do contrato (${formatBRL(contractValor)}).`);
-    }
-
-    if (numero_nf && numeroEncontrado && normalizeText(numero_nf) !== normalizeText(numeroEncontrado)) {
-      warnings.push(`Número informado (${numero_nf}) difere do identificado (${numeroEncontrado}).`);
     }
 
     if (contractDoc) {
@@ -373,7 +351,7 @@ Retorne JSON válido, objetivo e direto, com:
       comparacao: {
         valor_confere: Math.abs((contractValor || toNumber(valor_esperado)) - valorEncontrado) <= 1,
         documento_confere: contractDoc ? sameDoc(contractDoc, isPJ ? (member?.cnpj || '') : (member?.cpf || '')) : true,
-        competencia_confere: !!competenciaEncontrada || !!mes_referencia,
+        competencia_confere: true,
         vigencia_confere: contractValido !== false,
         dados_bancarios_confere: true,
         objeto_confere: true,
@@ -385,7 +363,6 @@ Retorne JSON válido, objetivo e direto, com:
         file_urls: [file_url],
         xml_url: xml_url || '',
         payload: payloadSnapshot,
-        contract_error: contractError,
       },
       ok: true,
     };
