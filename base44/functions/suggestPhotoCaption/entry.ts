@@ -3,19 +3,14 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
 
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { photoUrl, activityId, reportId } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { photoUrl, activityId, reportId } = body || {};
 
     if (!photoUrl) {
       return Response.json({ error: 'photoUrl é obrigatório' }, { status: 400 });
     }
 
-    // Buscar contexto da atividade e relatório
     let activityContext = '';
     let reportContext = '';
 
@@ -24,16 +19,17 @@ Deno.serve(async (req) => {
         const activity = await base44.entities.Activity.get(activityId);
         if (activity) {
           activityContext = `
-Tipo de Atividade: ${activity.tipo_equipe || ''}
-Título: ${activity.titulo || ''}
+Tipo de Atividade: ${activity.tipo_equipe || activity.tipo_acao || ''}
+Título: ${activity.titulo || activity.nome || ''}
 Descrição: ${activity.descricao || ''}
-Data de Realização: ${activity.data_realizacao || ''}
+Data de Realização: ${activity.data_realizacao || activity.data_inicio || ''}
 Público Estimado: ${activity.publico_estimado || 0}
 Classificação: ${activity.classificacao || ''}
+Museu: ${activity.museu || ''}
 `;
         }
       } catch (error) {
-        console.error('Erro ao buscar atividade:', error.message);
+        console.error('Erro ao buscar atividade:', error?.message || error);
       }
     }
 
@@ -50,12 +46,11 @@ Equipe: ${report.equipe || ''}
 `;
         }
       } catch (error) {
-        console.error('Erro ao buscar relatório:', error.message);
+        console.error('Erro ao buscar relatório:', error?.message || error);
       }
     }
 
-    // Construir prompt para Claude analisar a imagem
-    const prompt = `Analise esta fotografia de um relatório de atividades em museus e sugira uma legenda descritiva e profissional.
+    const prompt = `Analise esta fotografia de atividades ligadas ao projeto Museus Centro.
 
 Contexto da Atividade:
 ${activityContext}
@@ -63,18 +58,30 @@ ${activityContext}
 Contexto do Relatório:
 ${reportContext}
 
-Baseado na imagem, forneça:
-1. Uma legenda breve (máximo 15 palavras) que descreva o conteúdo visual e a atividade
-2. Mantenha um tom profissional e descritivo
-3. Considere o contexto da atividade se disponível
-4. Responda APENAS com a legenda, sem explicações adicionais
+Sua tarefa é identificar visualmente o conteúdo da imagem e responder em JSON.
 
-Responda em JSON com este formato:
+Retorne:
+1. "caption": uma legenda curta e profissional, com no máximo 15 palavras
+2. "description": uma descrição objetiva do que aparece na imagem, em até 2 frases
+3. "museum": o museu mais provável entre:
+   - MIS
+   - MHAB
+   - MUMO
+   - Atuação Geral
+
+Regras:
+- Use tom profissional e descritivo
+- Considere o contexto acima quando ele existir
+- Se não der para afirmar um museu com segurança, use "Atuação Geral"
+- Responda somente em JSON válido
+
+Formato obrigatório:
 {
-  "caption": "sua legenda aqui"
+  "caption": "texto",
+  "description": "texto",
+  "museum": "MIS | MHAB | MUMO | Atuação Geral"
 }`;
 
-    // Usar Claude com visão para analisar a imagem
     const result = await base44.integrations.Core.InvokeLLM({
       prompt,
       file_urls: [photoUrl],
@@ -83,22 +90,33 @@ Responda em JSON com este formato:
         properties: {
           caption: {
             type: 'string',
-            description: 'Legenda sugerida para a foto'
-          }
+            description: 'Legenda breve e profissional para a foto',
+          },
+          description: {
+            type: 'string',
+            description: 'Descrição objetiva do conteúdo visual da imagem',
+          },
+          museum: {
+            type: 'string',
+            description: 'Museu provável: MIS, MHAB, MUMO ou Atuação Geral',
+            enum: ['MIS', 'MHAB', 'MUMO', 'Atuação Geral'],
+          },
         },
-        required: ['caption']
+        required: ['caption', 'description', 'museum'],
       },
-      model: 'claude_sonnet_4_6'
+      model: 'claude_sonnet_4_6',
     });
 
     return Response.json({
       success: true,
-      caption: result.caption
+      caption: result?.caption || '',
+      description: result?.description || '',
+      museum: result?.museum || 'Atuação Geral',
     });
   } catch (error) {
-    console.error('Erro ao sugerir legenda:', error.message);
+    console.error('Erro ao sugerir legenda:', error?.message || error);
     return Response.json(
-      { error: error.message || 'Erro ao processar sugestão' },
+      { error: error?.message || 'Erro ao processar sugestão' },
       { status: 500 }
     );
   }
