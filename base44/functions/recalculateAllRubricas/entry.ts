@@ -1,18 +1,20 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const DEFAULT_MUSEUS = ['MIS', 'MHAB', 'MUMO'];
+const TEAM_PAYMENT_START_YEAR = 2026;
+const TEAM_PAYMENT_START_MONTH_INDEX = 3; // Abril = 3
 
-function toNumber(value) {
+function toNumber(value: any) {
   if (value === null || value === undefined || value === '') return 0;
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
 
-function normalizeStatus(value) {
+function normalizeStatus(value: any) {
   return String(value || '').trim().toUpperCase();
 }
 
-function normalizeString(value) {
+function normalizeString(value: any) {
   return String(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -22,7 +24,7 @@ function normalizeString(value) {
     .toLowerCase();
 }
 
-function normalizeMuseu(value) {
+function normalizeMuseu(value: any) {
   const raw = normalizeString(value);
   if (!raw) return '';
   if (raw === 'mis') return 'MIS';
@@ -34,18 +36,18 @@ function normalizeMuseu(value) {
   return String(value || '').trim().toUpperCase();
 }
 
-function buildRubricaKey(rubrica) {
+function buildRubricaKey(rubrica: any) {
   const grupo = normalizeString(rubrica?.grupo || '');
   const nome = normalizeString(rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '');
   const museu = normalizeMuseu(rubrica?.centro_custo || rubrica?.museu || rubrica?.museu_codigo || '');
   return `${grupo}__${nome}__${museu || 'GLOBAL'}`;
 }
 
-function buildRubricaMuseuKey(rubricaId, museu) {
+function buildRubricaMuseuKey(rubricaId: string, museu: string) {
   return `${rubricaId}__${normalizeMuseu(museu) || 'SEM_MUSEU'}`;
 }
 
-function getPurchaseValue(purchase) {
+function getPurchaseValue(purchase: any) {
   return (
     toNumber(purchase?.valor_pago) ||
     toNumber(purchase?.valor_aprovado_admin) ||
@@ -56,29 +58,29 @@ function getPurchaseValue(purchase) {
   );
 }
 
-function getPurchaseCentroCusto(purchase) {
+function getPurchaseCentroCusto(purchase: any) {
   return normalizeMuseu(purchase?.centro_custo || purchase?.museu || purchase?.museu_codigo || purchase?.unidade || '');
 }
 
-function getRubricaCentroCusto(rubrica) {
+function getRubricaCentroCusto(rubrica: any) {
   return normalizeMuseu(rubrica?.centro_custo || rubrica?.museu || rubrica?.museu_codigo || rubrica?.unidade || '');
 }
 
-function getBudgetLineCentroCusto(bl) {
+function getBudgetLineCentroCusto(bl: any) {
   return normalizeMuseu(bl?.centro_custo || bl?.museu || bl?.museu_codigo || bl?.unidade || '');
 }
 
-function getLancamentoCentroCusto(l) {
+function getLancamentoCentroCusto(l: any) {
   return normalizeMuseu(l?.centro_custo || l?.museu || l?.museu_codigo || l?.unidade || '');
 }
 
-function sameMuseuOrGlobal(entityMuseu, itemMuseu) {
+function sameMuseuOrGlobal(entityMuseu: string, itemMuseu: string) {
   if (!itemMuseu) return true;
   if (!entityMuseu) return true;
   return entityMuseu === itemMuseu;
 }
 
-function safeJsonParse(value) {
+function safeJsonParse(value: any) {
   if (!value || typeof value !== 'string') return null;
   try {
     const parsed = JSON.parse(value);
@@ -88,7 +90,7 @@ function safeJsonParse(value) {
   }
 }
 
-function extractPlanValueFromObject(obj, museu) {
+function extractPlanValueFromObject(obj: any, museu: string) {
   if (!obj) return 0;
   const nm = normalizeMuseu(museu);
   for (const key of [nm, nm.toLowerCase(), nm.toUpperCase()]) {
@@ -97,18 +99,18 @@ function extractPlanValueFromObject(obj, museu) {
   return 0;
 }
 
-function isEquipeEGestao(rubrica) {
+function isEquipeEGestao(rubrica: any) {
   const grupo = normalizeString(rubrica?.grupo || '');
   return grupo.includes('equipe') || grupo.includes('gestao') || grupo.includes('gestão');
 }
 
-function getRubricaPlannedDistribution(rubrica, options) {
+function getRubricaPlannedDistribution(rubrica: any, options: any) {
   const museusBase = Array.from(
-    new Set((options?.museusConsiderados || DEFAULT_MUSEUS).map((m) => normalizeMuseu(m)).filter(Boolean))
+    new Set((options?.museusConsiderados || DEFAULT_MUSEUS).map((m: string) => normalizeMuseu(m)).filter(Boolean))
   );
   const totalRubrica = toNumber(rubrica?.valor_rubrica);
 
-  const explicitMap = {
+  const explicitMap: Record<string, number> = {
     MIS: toNumber(rubrica?.valor_mis ?? rubrica?.orcado_mis ?? rubrica?.planejado_mis),
     MHAB: toNumber(rubrica?.valor_mhab ?? rubrica?.orcado_mhab ?? rubrica?.planejado_mhab),
     MUMO: toNumber(rubrica?.valor_mumo ?? rubrica?.orcado_mumo ?? rubrica?.planejado_mumo),
@@ -120,34 +122,50 @@ function getRubricaPlannedDistribution(rubrica, options) {
     safeJsonParse(rubrica?.orcamento_por_museu_json) ||
     safeJsonParse(rubrica?.saldo_por_museu_json);
 
-  const distribuicao = {};
+  const distribuicao: Record<string, number> = {};
   let hasExplicit = false;
+
   for (const museu of museusBase) {
     const v = explicitMap[museu] || extractPlanValueFromObject(jsonDistribuicao, museu);
-    if (v > 0) { distribuicao[museu] = v; hasExplicit = true; }
+    if (v > 0) {
+      distribuicao[museu] = v;
+      hasExplicit = true;
+    }
   }
-  if (hasExplicit) return { mode: 'explicit', total: totalRubrica, byMuseu: distribuicao };
+
+  if (hasExplicit) {
+    return { mode: 'explicit', total: totalRubrica, byMuseu: distribuicao };
+  }
 
   const rubricaMuseu = getRubricaCentroCusto(rubrica);
-  if (rubricaMuseu) return { mode: 'single_museu', total: totalRubrica, byMuseu: { [rubricaMuseu]: totalRubrica } };
+  if (rubricaMuseu) {
+    return { mode: 'single_museu', total: totalRubrica, byMuseu: { [rubricaMuseu]: totalRubrica } };
+  }
 
   if (options?.splitEvenlyByMuseu && museusBase.length > 0) {
     const valorBase = Number((totalRubrica / museusBase.length).toFixed(2));
-    const dist = {};
+    const dist: Record<string, number> = {};
     let acc = 0;
+
     museusBase.forEach((museu, i) => {
-      if (i === museusBase.length - 1) { dist[museu] = Number((totalRubrica - acc).toFixed(2)); }
-      else { dist[museu] = valorBase; acc += valorBase; }
+      if (i === museusBase.length - 1) {
+        dist[museu] = Number((totalRubrica - acc).toFixed(2));
+      } else {
+        dist[museu] = valorBase;
+        acc += valorBase;
+      }
     });
+
     return { mode: 'equal_split', total: totalRubrica, byMuseu: dist };
   }
 
   return { mode: 'global_only', total: totalRubrica, byMuseu: {} };
 }
 
-async function listAll(entityApi, orderBy, pageSize = 500) {
-  let all = [];
+async function listAll(entityApi: any, orderBy: string, pageSize = 500) {
+  let all: any[] = [];
   let page = 0;
+
   while (true) {
     const batch = await entityApi.list(orderBy, pageSize, page * pageSize);
     if (!batch || batch.length === 0) break;
@@ -155,10 +173,11 @@ async function listAll(entityApi, orderBy, pageSize = 500) {
     if (batch.length < pageSize) break;
     page++;
   }
+
   return all;
 }
 
-function resolveRubricaFromPurchase(purchase, rubricas, budgetLineById) {
+function resolveRubricaFromPurchase(purchase: any, rubricas: any[], budgetLineById: Record<string, any>) {
   const purchaseMuseu = getPurchaseCentroCusto(purchase);
 
   if (purchase?.rubrica_id) {
@@ -166,7 +185,13 @@ function resolveRubricaFromPurchase(purchase, rubricas, budgetLineById) {
     if (rubrica) {
       const rubricaMuseu = getRubricaCentroCusto(rubrica);
       if (!sameMuseuOrGlobal(rubricaMuseu, purchaseMuseu)) {
-        return { rubricaId: null, rubricaMuseu: null, purchaseMuseu, origem: 'rubrica_id_incompativel_museu', motivo: `Rubrica no museu ${rubricaMuseu}, compra em ${purchaseMuseu}` };
+        return {
+          rubricaId: null,
+          rubricaMuseu: null,
+          purchaseMuseu,
+          origem: 'rubrica_id_incompativel_museu',
+          motivo: `Rubrica no museu ${rubricaMuseu}, compra em ${purchaseMuseu}`
+        };
       }
       return { rubricaId: rubrica.id, rubricaMuseu, purchaseMuseu, origem: 'rubrica_id', motivo: null };
     }
@@ -175,45 +200,103 @@ function resolveRubricaFromPurchase(purchase, rubricas, budgetLineById) {
   const blId = purchase?.budgetline_id || purchase?.budget_line_id || purchase?.linha_orcamentaria_id;
   if (blId) {
     const bl = budgetLineById[blId];
-    if (!bl) return { rubricaId: null, rubricaMuseu: null, purchaseMuseu, origem: 'budgetline_nao_encontrada', motivo: 'BudgetLine não encontrada' };
+    if (!bl) {
+      return {
+        rubricaId: null,
+        rubricaMuseu: null,
+        purchaseMuseu,
+        origem: 'budgetline_nao_encontrada',
+        motivo: 'BudgetLine não encontrada'
+      };
+    }
+
     const budgetMuseu = getBudgetLineCentroCusto(bl);
     if (!sameMuseuOrGlobal(budgetMuseu, purchaseMuseu)) {
-      return { rubricaId: null, rubricaMuseu: null, purchaseMuseu, origem: 'budgetline_incompativel_museu', motivo: `BudgetLine no museu ${budgetMuseu}, compra em ${purchaseMuseu}` };
+      return {
+        rubricaId: null,
+        rubricaMuseu: null,
+        purchaseMuseu,
+        origem: 'budgetline_incompativel_museu',
+        motivo: `BudgetLine no museu ${budgetMuseu}, compra em ${purchaseMuseu}`
+      };
     }
+
     if (bl?.rubrica_id) {
       const rubrica = rubricas.find((r) => r.id === bl.rubrica_id);
       if (rubrica) {
         const rubricaMuseu = getRubricaCentroCusto(rubrica);
         if (!sameMuseuOrGlobal(rubricaMuseu, purchaseMuseu)) {
-          return { rubricaId: null, rubricaMuseu: null, purchaseMuseu, origem: 'budgetline_rubrica_incompativel_museu', motivo: `Rubrica da BudgetLine no museu ${rubricaMuseu}` };
+          return {
+            rubricaId: null,
+            rubricaMuseu: null,
+            purchaseMuseu,
+            origem: 'budgetline_rubrica_incompativel_museu',
+            motivo: `Rubrica da BudgetLine no museu ${rubricaMuseu}`
+          };
         }
         return { rubricaId: rubrica.id, rubricaMuseu, purchaseMuseu, origem: 'budgetline_id', motivo: null };
       }
     }
   }
 
-  return { rubricaId: null, rubricaMuseu: null, purchaseMuseu, origem: 'nao_encontrada', motivo: 'Rubrica não resolvida' };
+  return {
+    rubricaId: null,
+    rubricaMuseu: null,
+    purchaseMuseu,
+    origem: 'nao_encontrada',
+    motivo: 'Rubrica não resolvida'
+  };
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// DEDUP de TeamPayment para rubricas de Equipe e Gestão
-// Chave única: team_member_id + mes_referencia + ano
-// Impede que a mesma parcela seja somada duas vezes para o mesmo profissional
-// ──────────────────────────────────────────────────────────────────────────────
-function buildTeamPaymentDeduped(allTeamPayments) {
-  const seen = new Set();
-  const deduped = [];
-  const APPROVED_STATUSES = new Set([
-    'APROVADO', 'PAGO', 'APROVADO_COORD',
-    'ENCAMINHADO_COORD_ADMIN', 'APROVADO_ADMIN', 'FINALIZADO',
+function monthNameToIndex(monthName: any) {
+  const raw = normalizeString(monthName);
+  const months = [
+    'janeiro',
+    'fevereiro',
+    'marco',
+    'abril',
+    'maio',
+    'junho',
+    'julho',
+    'agosto',
+    'setembro',
+    'outubro',
+    'novembro',
+    'dezembro'
+  ];
+  return months.indexOf(raw);
+}
+
+function isFromApril2026Onward(tp: any) {
+  const year = Number(tp?.ano || 0);
+  const monthIndex = monthNameToIndex(tp?.mes_referencia);
+
+  if (!Number.isFinite(year) || year <= 0 || monthIndex < 0) return false;
+  if (year > TEAM_PAYMENT_START_YEAR) return true;
+  if (year < TEAM_PAYMENT_START_YEAR) return false;
+  return monthIndex >= TEAM_PAYMENT_START_MONTH_INDEX;
+}
+
+// DEDUP por pessoa + competência
+function buildTeamPaymentDeduped(allTeamPayments: any[]) {
+  const seen = new Set<string>();
+  const deduped: any[] = [];
+  const ALLOWED_STATUSES = new Set([
+    'APROVADO',
+    'PAGO',
+    'APROVADO_COORD',
+    'ENCAMINHADO_COORD_ADMIN',
+    'APROVADO_ADMIN',
+    'FINALIZADO',
   ]);
 
   for (const tp of allTeamPayments) {
     const status = normalizeStatus(tp.status);
-    if (!APPROVED_STATUSES.has(status)) continue;
+    if (!ALLOWED_STATUSES.has(status)) continue;
+    if (!isFromApril2026Onward(tp)) continue;
 
     const key = `${tp.team_member_id}__${String(tp.mes_referencia || '').toLowerCase()}__${tp.ano}`;
-    if (seen.has(key)) continue; // duplicata: mesma pessoa, mesmo período
+    if (seen.has(key)) continue;
 
     seen.add(key);
     deduped.push(tp);
@@ -222,14 +305,12 @@ function buildTeamPaymentDeduped(allTeamPayments) {
   return deduped;
 }
 
-// Mapeia team_member_id → rubrica_id via TeamMember.rubrica_id ou por correspondência de função
-function buildTeamPaymentByRubrica(dedupedPayments, teamMemberById) {
-  const byRubrica = {};
+function buildTeamPaymentByRubrica(dedupedPayments: any[], teamMemberById: Record<string, any>) {
+  const byRubrica: Record<string, any[]> = {};
 
   for (const tp of dedupedPayments) {
     const member = teamMemberById[tp.team_member_id];
     const rubricaId = tp.rubrica_id || member?.rubrica_id || null;
-
     if (!rubricaId) continue;
 
     if (!byRubrica[rubricaId]) byRubrica[rubricaId] = [];
@@ -240,7 +321,14 @@ function buildTeamPaymentByRubrica(dedupedPayments, teamMemberById) {
       toNumber(tp.nf_valor_extraido) ||
       0;
 
-    byRubrica[rubricaId].push({ team_payment_id: tp.id, valor, member_id: tp.team_member_id });
+    byRubrica[rubricaId].push({
+      team_payment_id: tp.id,
+      valor,
+      member_id: tp.team_member_id,
+      status: normalizeStatus(tp.status),
+      mes_referencia: tp.mes_referencia,
+      ano: tp.ano,
+    });
   }
 
   return byRubrica;
@@ -262,58 +350,77 @@ Deno.serve(async (req) => {
         listAll(base44.asServiceRole.entities.TeamMember, 'nome', 500),
       ]);
 
-    // Dedup de rubricas
     const rubricasMap = new Map();
-    const rubricasDuplicadas = [];
+    const rubricasDuplicadas: any[] = [];
+
     for (const r of rubricasRaw) {
       const key = r?.rubrica_key || buildRubricaKey(r);
       if (!rubricasMap.has(key)) rubricasMap.set(key, r);
       else rubricasDuplicadas.push(r);
     }
+
     const rubricas = Array.from(rubricasMap.values());
 
-    const rubricaById = {};
-    for (const r of rubricas) { if (r?.id) rubricaById[r.id] = r; }
+    const rubricaById: Record<string, any> = {};
+    for (const r of rubricas) {
+      if (r?.id) rubricaById[r.id] = r;
+    }
 
-    const budgetLineById = {};
-    for (const bl of allBudgetLines) { if (bl?.id) budgetLineById[bl.id] = bl; }
+    const budgetLineById: Record<string, any> = {};
+    for (const bl of allBudgetLines) {
+      if (bl?.id) budgetLineById[bl.id] = bl;
+    }
 
-    const teamMemberById = {};
-    for (const tm of allTeamMembers) { if (tm?.id) teamMemberById[tm.id] = tm; }
+    const teamMemberById: Record<string, any> = {};
+    for (const tm of allTeamMembers) {
+      if (tm?.id) teamMemberById[tm.id] = tm;
+    }
 
-    // TeamPayments dedupados por pessoa+período (máx 1 por profissional por competência)
     const dedupedTeamPayments = buildTeamPaymentDeduped(allTeamPayments);
     const teamPaymentsByRubrica = buildTeamPaymentByRubrica(dedupedTeamPayments, teamMemberById);
 
-    // Museus detectados
     const museusDetectados = new Set(DEFAULT_MUSEUS);
-    for (const p of allPurchases) { const m = getPurchaseCentroCusto(p); if (m) museusDetectados.add(m); }
-    for (const r of rubricas) { const m = getRubricaCentroCusto(r); if (m) museusDetectados.add(m); }
-    for (const bl of allBudgetLines) { const m = getBudgetLineCentroCusto(bl); if (m) museusDetectados.add(m); }
-    const allMuseus = Array.from(museusDetectados).filter(Boolean);
+    for (const p of allPurchases) {
+      const m = getPurchaseCentroCusto(p);
+      if (m) museusDetectados.add(m);
+    }
+    for (const r of rubricas) {
+      const m = getRubricaCentroCusto(r);
+      if (m) museusDetectados.add(m);
+    }
+    for (const bl of allBudgetLines) {
+      const m = getBudgetLineCentroCusto(bl);
+      if (m) museusDetectados.add(m);
+    }
 
-    // Lançamentos por rubrica
-    const lancamentosPorRubrica = {};
-    const lancamentosPorRubricaMuseu = {};
-    const lancamentosSemRubrica = [];
-    const lancamentosInconsistentesMuseu = [];
+    const allMuseus = Array.from(museusDetectados).filter(Boolean) as string[];
+
+    const lancamentosPorRubrica: Record<string, any[]> = {};
+    const lancamentosPorRubricaMuseu: Record<string, any[]> = {};
+    const lancamentosSemRubrica: any[] = [];
+    const lancamentosInconsistentesMuseu: any[] = [];
 
     for (const l of allLancamentos) {
-      if (!l?.rubrica_id) { lancamentosSemRubrica.push(l); continue; }
-      const rubrica = rubricaById[l.rubrica_id];
-      if (!rubrica) { lancamentosSemRubrica.push(l); continue; }
-
-      const lancMuseu = getLancamentoCentroCusto(l);
-      const rubMuseu = getRubricaCentroCusto(rubrica);
-      if (lancMuseu && rubMuseu && lancMuseu !== rubMuseu) { lancamentosInconsistentesMuseu.push(l); continue; }
-
-      // Para rubricas de Equipe e Gestão, NÃO somar lançamentos que já estão
-      // cobertos pelos TeamPayments dedupados (evita dupla contagem)
-      if (isEquipeEGestao(rubrica) && teamPaymentsByRubrica[l.rubrica_id]?.length > 0) {
-        // Lançamento referente a equipe já contabilizado via TeamPayment — ignorar
+      if (!l?.rubrica_id) {
+        lancamentosSemRubrica.push(l);
         continue;
       }
 
+      const rubrica = rubricaById[l.rubrica_id];
+      if (!rubrica) {
+        lancamentosSemRubrica.push(l);
+        continue;
+      }
+
+      const lancMuseu = getLancamentoCentroCusto(l);
+      const rubMuseu = getRubricaCentroCusto(rubrica);
+
+      if (lancMuseu && rubMuseu && lancMuseu !== rubMuseu) {
+        lancamentosInconsistentesMuseu.push(l);
+        continue;
+      }
+
+      // Mantém TODOS os lançamentos manuais já inseridos
       if (!lancamentosPorRubrica[l.rubrica_id]) lancamentosPorRubrica[l.rubrica_id] = [];
       lancamentosPorRubrica[l.rubrica_id].push(l);
 
@@ -324,59 +431,70 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Compras por rubrica
-    const comprasPagasPorRubrica = {};
-    const comprasAprovadasPorRubrica = {};
-    const comprasPagasPorRubricaMuseu = {};
-    const comprasAprovadasPorRubricaMuseu = {};
-    const unmatchedPaidPurchases = [];
-    const inconsistentMuseuPurchases = [];
+    const comprasPagasPorRubrica: Record<string, any[]> = {};
+    const comprasAprovadasPorRubrica: Record<string, any[]> = {};
+    const comprasPagasPorRubricaMuseu: Record<string, any[]> = {};
+    const comprasAprovadasPorRubricaMuseu: Record<string, any[]> = {};
+    const unmatchedPaidPurchases: any[] = [];
+    const inconsistentMuseuPurchases: any[] = [];
 
     for (const purchase of allPurchases) {
       const status = normalizeStatus(purchase.status);
       const resolved = resolveRubricaFromPurchase(purchase, rubricas, budgetLineById);
 
       if (!resolved.rubricaId) {
-        const issue = { purchase_id: purchase.id, titulo: purchase.titulo || '', valor: getPurchaseValue(purchase), status: purchase.status, motivo: resolved.motivo, origem: resolved.origem };
+        const issue = {
+          purchase_id: purchase.id,
+          titulo: purchase.titulo || '',
+          valor: getPurchaseValue(purchase),
+          status: purchase.status,
+          motivo: resolved.motivo,
+          origem: resolved.origem
+        };
+
         if (status === 'PAGO') unmatchedPaidPurchases.push(issue);
         else inconsistentMuseuPurchases.push(issue);
         continue;
       }
 
       const rubricaId = resolved.rubricaId;
-      const rubrica = rubricaById[rubricaId];
       const purchaseMuseu = resolved.purchaseMuseu || '';
       const ck = purchaseMuseu ? buildRubricaMuseuKey(rubricaId, purchaseMuseu) : '';
 
-      // Para rubricas de Equipe e Gestão, compras também podem representar pagamentos de equipe —
-      // só soma se já não há TeamPayments dedupados cobrindo essa rubrica
-      const skipEquipe = isEquipeEGestao(rubrica) && (teamPaymentsByRubrica[rubricaId]?.length > 0);
+      if (status === 'PAGO') {
+        if (!comprasPagasPorRubrica[rubricaId]) comprasPagasPorRubrica[rubricaId] = [];
+        comprasPagasPorRubrica[rubricaId].push(purchase);
 
-      if (!skipEquipe) {
-        if (status === 'PAGO') {
-          if (!comprasPagasPorRubrica[rubricaId]) comprasPagasPorRubrica[rubricaId] = [];
-          comprasPagasPorRubrica[rubricaId].push(purchase);
-          if (ck) {
-            if (!comprasPagasPorRubricaMuseu[ck]) comprasPagasPorRubricaMuseu[ck] = [];
-            comprasPagasPorRubricaMuseu[ck].push(purchase);
-          }
+        if (ck) {
+          if (!comprasPagasPorRubricaMuseu[ck]) comprasPagasPorRubricaMuseu[ck] = [];
+          comprasPagasPorRubricaMuseu[ck].push(purchase);
         }
-        if (status === 'APROVADO_ADMIN' || status === 'APROVADO_COORD') {
-          if (!comprasAprovadasPorRubrica[rubricaId]) comprasAprovadasPorRubrica[rubricaId] = [];
-          comprasAprovadasPorRubrica[rubricaId].push(purchase);
-          if (ck) {
-            if (!comprasAprovadasPorRubricaMuseu[ck]) comprasAprovadasPorRubricaMuseu[ck] = [];
-            comprasAprovadasPorRubricaMuseu[ck].push(purchase);
-          }
+      }
+
+      if (status === 'APROVADO_ADMIN' || status === 'APROVADO_COORD') {
+        if (!comprasAprovadasPorRubrica[rubricaId]) comprasAprovadasPorRubrica[rubricaId] = [];
+        comprasAprovadasPorRubrica[rubricaId].push(purchase);
+
+        if (ck) {
+          if (!comprasAprovadasPorRubricaMuseu[ck]) comprasAprovadasPorRubricaMuseu[ck] = [];
+          comprasAprovadasPorRubricaMuseu[ck].push(purchase);
         }
       }
     }
 
-    // Cálculo por rubrica
-    const results = [];
-    const overviewByMuseu = {};
+    const results: any[] = [];
+    const overviewByMuseu: Record<string, any> = {};
+
     for (const museu of allMuseus) {
-      overviewByMuseu[museu] = { valor_orcado: 0, valor_pago: 0, valor_comprometido: 0, valor_lancamentos: 0, valor_utilizado: 0, saldo: 0, total_rubricas: 0 };
+      overviewByMuseu[museu] = {
+        valor_orcado: 0,
+        valor_pago: 0,
+        valor_comprometido: 0,
+        valor_lancamentos: 0,
+        valor_utilizado: 0,
+        saldo: 0,
+        total_rubricas: 0
+      };
     }
 
     for (const rubrica of rubricas) {
@@ -386,31 +504,42 @@ Deno.serve(async (req) => {
       const lans = lancamentosPorRubrica[rubricaId] || [];
       const comprasPagas = comprasPagasPorRubrica[rubricaId] || [];
       const comprasAprovadas = comprasAprovadasPorRubrica[rubricaId] || [];
-
-      // Para Equipe e Gestão: valor vem dos TeamPayments dedupados (1 por pessoa por período)
-      // Para demais grupos: valor vem de compras + lançamentos normalmente
-      let valorEquipe = 0;
-      if (isEquipeEGestao(rubrica) && teamPaymentsByRubrica[rubricaId]?.length > 0) {
-        valorEquipe = Number(
-          teamPaymentsByRubrica[rubricaId].reduce((s, tp) => s + tp.valor, 0).toFixed(2)
-        );
-      }
+      const teamPayments = teamPaymentsByRubrica[rubricaId] || [];
 
       const valorLancamentos = Number(lans.reduce((s, l) => s + toNumber(l.valor), 0).toFixed(2));
-      const valorPago = Number(comprasPagas.reduce((s, p) => s + getPurchaseValue(p), 0).toFixed(2));
-      const valorComprometido = Number(comprasAprovadas.reduce((s, p) => s + getPurchaseValue(p), 0).toFixed(2));
+      const valorPagoCompras = Number(comprasPagas.reduce((s, p) => s + getPurchaseValue(p), 0).toFixed(2));
+      const valorComprometidoCompras = Number(comprasAprovadas.reduce((s, p) => s + getPurchaseValue(p), 0).toFixed(2));
 
-      // REGRA CRÍTICA: Para Equipe e Gestão, APENAS TeamPayments PAGO (máx 1 por pessoa/período)
-      // Não soma compras + lançamentos + comprometido nessas rubricas
-      const valorUtilizado = isEquipeEGestao(rubrica)
-        ? valorEquipe
-        : Number((valorEquipe + valorPago + valorComprometido + valorLancamentos).toFixed(2));
+      const valorPagoEquipe = Number(
+        teamPayments
+          .filter((tp) => tp.status === 'PAGO')
+          .reduce((s, tp) => s + toNumber(tp.valor), 0)
+          .toFixed(2)
+      );
+
+      const valorComprometidoEquipe = Number(
+        teamPayments
+          .filter((tp) => tp.status === 'APROVADO_COORD' || tp.status === 'APROVADO_ADMIN' || tp.status === 'APROVADO')
+          .reduce((s, tp) => s + toNumber(tp.valor), 0)
+          .toFixed(2)
+      );
+
+      const valorPago = Number((valorPagoCompras + valorPagoEquipe).toFixed(2));
+      const valorComprometido = Number((valorComprometidoCompras + valorComprometidoEquipe).toFixed(2));
+
+      // Mantém lançamentos manuais já inseridos + soma pagamentos a partir de abril
+      const valorUtilizado = Number((valorPago + valorLancamentos).toFixed(2));
 
       const valorRubrica = toNumber(rubrica.valor_rubrica);
-      const saldo = Number((valorRubrica - valorUtilizado).toFixed(2));
-      const percentualUtilizado = valorRubrica > 0 ? Number(((valorUtilizado / valorRubrica) * 100).toFixed(2)) : 0;
+      const saldo = Number((valorRubrica - valorUtilizado - valorComprometido).toFixed(2));
+      const percentualUtilizado = valorRubrica > 0
+        ? Number((((valorUtilizado + valorComprometido) / valorRubrica) * 100).toFixed(2))
+        : 0;
 
-      const distribution = getRubricaPlannedDistribution(rubrica, { splitEvenlyByMuseu, museusConsiderados: allMuseus });
+      const distribution = getRubricaPlannedDistribution(rubrica, {
+        splitEvenlyByMuseu,
+        museusConsiderados: allMuseus
+      });
 
       const detalhamentoPorMuseu = allMuseus.map((museu) => {
         const ck = buildRubricaMuseuKey(rubricaId, museu);
@@ -421,14 +550,27 @@ Deno.serve(async (req) => {
         const vlMuseu = Number(lansMuseu.reduce((s, l) => s + toNumber(l.valor), 0).toFixed(2));
         const vpMuseu = Number(cpMuseu.reduce((s, p) => s + getPurchaseValue(p), 0).toFixed(2));
         const vcMuseu = Number(caMuseu.reduce((s, p) => s + getPurchaseValue(p), 0).toFixed(2));
-        const vuMuseu = Number((vpMuseu + vcMuseu + vlMuseu).toFixed(2));
+        const vuMuseu = Number((vpMuseu + vlMuseu).toFixed(2));
 
         const vpPlanejado = Number(toNumber(distribution.byMuseu[museu] ?? 0).toFixed(2));
-        const saldoMuseu = vpPlanejado > 0 ? Number((vpPlanejado - vuMuseu).toFixed(2)) : null;
-        const percMuseu = vpPlanejado > 0 ? Number(((vuMuseu / vpPlanejado) * 100).toFixed(2)) : null;
+        const saldoMuseu = vpPlanejado > 0 ? Number((vpPlanejado - vuMuseu - vcMuseu).toFixed(2)) : null;
+        const percMuseu = vpPlanejado > 0
+          ? Number((((vuMuseu + vcMuseu) / vpPlanejado) * 100).toFixed(2))
+          : null;
 
-        if (vpPlanejado > 0 || vuMuseu > 0) {
-          if (!overviewByMuseu[museu]) overviewByMuseu[museu] = { valor_orcado: 0, valor_pago: 0, valor_comprometido: 0, valor_lancamentos: 0, valor_utilizado: 0, saldo: 0, total_rubricas: 0 };
+        if (vpPlanejado > 0 || vuMuseu > 0 || vcMuseu > 0) {
+          if (!overviewByMuseu[museu]) {
+            overviewByMuseu[museu] = {
+              valor_orcado: 0,
+              valor_pago: 0,
+              valor_comprometido: 0,
+              valor_lancamentos: 0,
+              valor_utilizado: 0,
+              saldo: 0,
+              total_rubricas: 0
+            };
+          }
+
           overviewByMuseu[museu].valor_orcado = Number((overviewByMuseu[museu].valor_orcado + vpPlanejado).toFixed(2));
           overviewByMuseu[museu].valor_pago = Number((overviewByMuseu[museu].valor_pago + vpMuseu).toFixed(2));
           overviewByMuseu[museu].valor_comprometido = Number((overviewByMuseu[museu].valor_comprometido + vcMuseu).toFixed(2));
@@ -438,7 +580,17 @@ Deno.serve(async (req) => {
           overviewByMuseu[museu].total_rubricas += 1;
         }
 
-        return { museu, valor_planejado: vpPlanejado, valor_pago: vpMuseu, valor_comprometido: vcMuseu, valor_lancamentos: vlMuseu, valor_utilizado: vuMuseu, saldo: saldoMuseu, percentual_utilizado: percMuseu, distribuicao_mode: distribution.mode };
+        return {
+          museu,
+          valor_planejado: vpPlanejado,
+          valor_pago: vpMuseu,
+          valor_comprometido: vcMuseu,
+          valor_lancamentos: vlMuseu,
+          valor_utilizado: vuMuseu,
+          saldo: saldoMuseu,
+          percentual_utilizado: percMuseu,
+          distribuicao_mode: distribution.mode
+        };
       });
 
       results.push({
@@ -448,8 +600,9 @@ Deno.serve(async (req) => {
         rubrica_key: rubricaKey,
         centro_custo: getRubricaCentroCusto(rubrica) || null,
         eh_equipe_gestao: isEquipeEGestao(rubrica),
-        num_team_payments_deduped: (teamPaymentsByRubrica[rubricaId] || []).length,
-        valor_equipe_deduped: isEquipeEGestao(rubrica) ? valorEquipe : null,
+        num_team_payments_deduped: teamPayments.length,
+        valor_pago_equipe: valorPagoEquipe,
+        valor_comprometido_equipe: valorComprometidoEquipe,
         num_compras_pagas: comprasPagas.length,
         num_compras_aprovadas: comprasAprovadas.length,
         num_lancamentos: lans.length,
@@ -462,25 +615,36 @@ Deno.serve(async (req) => {
         percentual_utilizado: percentualUtilizado,
         distribuicao_mode: distribution.mode,
         detalhamento_por_museu: detalhamentoPorMuseu,
-        _update: { valor_utilizado: valorUtilizado, saldo, percentual_utilizado: percentualUtilizado, rubrica_key: rubricaKey },
+        _update: {
+          valor_utilizado: valorUtilizado,
+          saldo_comprometido: valorComprometido,
+          saldo,
+          percentual_utilizado: percentualUtilizado,
+          rubrica_key: rubricaKey
+        },
       });
     }
 
-    // Persistir
     const BATCH = 5;
     let updated = 0;
+
     for (let i = 0; i < results.length; i += BATCH) {
       const lote = results.slice(i, i + BATCH);
       try {
-        await Promise.all(lote.map((r) => base44.asServiceRole.entities.Rubrica.update(r.rubrica_id, r._update)));
+        await Promise.all(
+          lote.map((r) =>
+            base44.asServiceRole.entities.Rubrica.update(r.rubrica_id, r._update)
+          )
+        );
         updated += lote.length;
-      } catch (e) {
+      } catch (e: any) {
         console.error('Erro ao atualizar lote:', e?.message || e);
       }
     }
 
     const valor_total_orcado = Number(results.reduce((s, r) => s + toNumber(r.valor_rubrica), 0).toFixed(2));
     const valor_total_utilizado = Number(results.reduce((s, r) => s + toNumber(r.valor_utilizado), 0).toFixed(2));
+    const valor_total_comprometido = Number(results.reduce((s, r) => s + toNumber(r.valor_comprometido), 0).toFixed(2));
     const valor_total_saldo = Number(results.reduce((s, r) => s + toNumber(r.saldo), 0).toFixed(2));
 
     const TETO_CORRETO = 1320000;
@@ -500,6 +664,7 @@ Deno.serve(async (req) => {
         total_team_payments_deduped: dedupedTeamPayments.length,
         valor_total_orcado,
         valor_total_utilizado,
+        valor_total_comprometido,
         valor_total_saldo,
         teto_correto: TETO_CORRETO,
         diferenca_total,
@@ -509,8 +674,12 @@ Deno.serve(async (req) => {
         lancamentos_sem_rubrica: lancamentosSemRubrica.length,
         lancamentos_inconsistentes_museu: lancamentosInconsistentesMuseu.length,
         museus_detectados: allMuseus,
-        sumario_por_museu: Object.entries(overviewByMuseu).map(([museu, d]) => ({ museu, ...d })).sort((a, b) => a.museu.localeCompare(b.museu)),
+        sumario_por_museu: Object.entries(overviewByMuseu)
+          .map(([museu, d]) => ({ museu, ...d }))
+          .sort((a: any, b: any) => a.museu.localeCompare(b.museu)),
         split_evenly_by_museu: splitEvenlyByMuseu,
+        team_payment_start_year: TEAM_PAYMENT_START_YEAR,
+        team_payment_start_month_index: TEAM_PAYMENT_START_MONTH_INDEX
       },
       inconsistencias: {
         compras_pagas_nao_vinculadas: unmatchedPaidPurchases,
@@ -518,10 +687,15 @@ Deno.serve(async (req) => {
         lancamentos_sem_rubrica: lancamentosSemRubrica,
         lancamentos_inconsistentes_museu: lancamentosInconsistentesMuseu,
       },
-      duplicadas: rubricasDuplicadas.map((r) => ({ id: r.id, grupo: r.grupo || null, rubrica: r.rubrica || r.nome || null, rubrica_key: r.rubrica_key || buildRubricaKey(r) })),
+      duplicadas: rubricasDuplicadas.map((r) => ({
+        id: r.id,
+        grupo: r.grupo || null,
+        rubrica: r.rubrica || r.nome || null,
+        rubrica_key: r.rubrica_key || buildRubricaKey(r)
+      })),
       results,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('recalculateAllRubricas error:', error);
     return Response.json({ error: error?.message || String(error), success: false }, { status: 500 });
   }
