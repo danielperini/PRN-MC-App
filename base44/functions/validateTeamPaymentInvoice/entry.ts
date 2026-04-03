@@ -27,26 +27,68 @@ function sameDoc(a: unknown, b: unknown) {
   return aa === bb;
 }
 
+function truncateText(value: unknown, max = 500) {
+  const text = String(value || '').trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}...`;
+}
+
+function buildErrorMessage(error: any) {
+  const parts = [
+    error?.message,
+    error?.error,
+    error?.details,
+    error?.cause?.message,
+    error?.data?.error,
+    error?.data?.details,
+  ].filter(Boolean);
+
+  if (parts.length === 0) return 'erro desconhecido';
+  return truncateText(parts.join(' | '), 800);
+}
+
 async function tryReadContractData(base44: any, member: any) {
   const contractUrl = member?.contrato_url || member?.file_url || null;
-  if (!contractUrl) return null;
+  if (!contractUrl) {
+    return {
+      data: null,
+      error: null,
+      contract_url: null,
+    };
+  }
 
   try {
     const res = await base44.asServiceRole.functions.invoke('extractTeamContractData', {
       file_url: contractUrl,
       contrato_url: contractUrl,
     });
-    return res?.data?.dados || res?.data || null;
-  } catch {
-    return null;
+
+    return {
+      data: res?.data?.dados || res?.data || null,
+      error: null,
+      contract_url: contractUrl,
+    };
+  } catch (error: any) {
+    return {
+      data: null,
+      error: `Falha ao ler contrato: ${buildErrorMessage(error)}`,
+      contract_url: contractUrl,
+    };
   }
 }
 
 Deno.serve(async (req) => {
+  const startedAt = new Date().toISOString();
+  let base44: any = null;
+  let teamPaymentId = '';
+  let payloadSnapshot: Record<string, any> = {};
+
   try {
-    const base44 = createClientFromRequest(req);
+    base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const payload = await req.json().catch(() => ({}));
     const {
@@ -61,17 +103,33 @@ Deno.serve(async (req) => {
       team_payment_id,
     } = payload || {};
 
+    teamPaymentId = String(team_payment_id || '').trim();
+
+    payloadSnapshot = {
+      file_url: file_url || '',
+      xml_url: xml_url || '',
+      mes_referencia: mes_referencia || '',
+      ano: ano || '',
+      numero_nf: numero_nf || '',
+      team_payment_id: teamPaymentId || '',
+      has_member_snapshot: !!member_snapshot,
+      has_descricao_modelo: !!descricao_modelo,
+    };
+
     if (!file_url) {
       return Response.json({ error: 'file_url obrigatório' }, { status: 400 });
     }
 
     const member = member_snapshot || {};
-    const isPJ = String(member.tipo_pessoa || 'PF').toUpperCase() === 'PJ';
+    const tipoPessoa = String(member?.tipo_pessoa || 'PF').toUpperCase();
+    const isPJ = tipoPessoa === 'PJ' || tipoPessoa === 'MEI' || tipoPessoa === 'ME';
     const docLabel = isPJ
-      ? `CNPJ: ${member.cnpj || 'não informado'}`
-      : `CPF: ${member.cpf || 'não informado'}`;
+      ? `CNPJ: ${member?.cnpj || 'não informado'}`
+      : `CPF: ${member?.cpf || 'não informado'}`;
 
-    const contractData = await tryReadContractData(base44, member);
+    const contractRead = await tryReadContractData(base44, member);
+    const contractData = contractRead?.data || null;
+    const contractError = contractRead?.error || null;
 
     const contractDoc = isPJ
       ? (contractData?.cnpj || member?.cnpj || '')
@@ -163,51 +221,106 @@ Retorne JSON válido, objetivo e direto, com:
     const fileUrls = [file_url];
     if (xml_url) fileUrls.push(xml_url);
 
-    const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
-      prompt,
-      file_urls: fileUrls,
-      response_json_schema: {
-        type: 'object',
-        properties: {
-          can_submit: { type: 'boolean' },
-          status: { type: 'string', enum: ['OK', 'ATENCAO', 'CRITICO'] },
-          summary: { type: 'string' },
-          warnings: { type: 'array', items: { type: 'string' } },
-          critical_issues: { type: 'array', items: { type: 'string' } },
-          valor_encontrado: { type: 'number' },
-          numero_nf_encontrado: { type: 'string' },
-          emitente_encontrado: { type: 'string' },
-          competencia_encontrada: { type: 'string' },
-          comparacao: {
-            type: 'object',
-            properties: {
-              valor_confere: { type: 'boolean' },
-              documento_confere: { type: 'boolean' },
-              competencia_confere: { type: 'boolean' },
-              vigencia_confere: { type: 'boolean' },
-              dados_bancarios_confere: { type: 'boolean' },
-              objeto_confere: { type: 'boolean' },
+    let result: any = null;
+
+    try {
+      result = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        prompt,
+        file_urls: fileUrls,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            can_submit: { type: 'boolean' },
+            status: { type: 'string', enum: ['OK', 'ATENCAO', 'CRITICO'] },
+            summary: { type: 'string' },
+            warnings: { type: 'array', items: { type: 'string' } },
+            critical_issues: { type: 'array', items: { type: 'string' } },
+            valor_encontrado: { type: 'number' },
+            numero_nf_encontrado: { type: 'string' },
+            emitente_encontrado: { type: 'string' },
+            competencia_encontrada: { type: 'string' },
+            comparacao: {
+              type: 'object',
+              properties: {
+                valor_confere: { type: 'boolean' },
+                documento_confere: { type: 'boolean' },
+                competencia_confere: { type: 'boolean' },
+                vigencia_confere: { type: 'boolean' },
+                dados_bancarios_confere: { type: 'boolean' },
+                objeto_confere: { type: 'boolean' },
+              },
+              additionalProperties: false,
             },
-            additionalProperties: false,
           },
+          required: [
+            'can_submit',
+            'status',
+            'summary',
+            'warnings',
+            'critical_issues',
+          ],
         },
-        required: [
-          'can_submit',
-          'status',
-          'summary',
-          'warnings',
-          'critical_issues',
+      });
+    } catch (llmError: any) {
+      const llmMessage = buildErrorMessage(llmError);
+
+      const fallbackPayload = {
+        can_submit: true,
+        status: 'ATENCAO',
+        summary: 'Não foi possível realizar a análise automática. Revise manualmente.',
+        warnings: [
+          `Falha na IA: ${llmMessage}`,
+          ...(contractError ? [contractError] : []),
         ],
-      },
-    });
+        critical_issues: [],
+        valor_encontrado: 0,
+        numero_nf_encontrado: '',
+        emitente_encontrado: '',
+        competencia_encontrada: '',
+        comparacao: {
+          valor_confere: true,
+          documento_confere: true,
+          competencia_confere: true,
+          vigencia_confere: true,
+          dados_bancarios_confere: true,
+          objeto_confere: true,
+        },
+        contract_snapshot: contractData || null,
+        debug: {
+          source: 'InvokeLLM',
+          started_at: startedAt,
+          file_urls: fileUrls,
+          payload: payloadSnapshot,
+          contract_error: contractError,
+          llm_error: llmMessage,
+        },
+        ok: false,
+      };
+
+      if (teamPaymentId) {
+        await base44.asServiceRole.entities.TeamPayment.update(teamPaymentId, {
+          resultado_validacao: JSON.stringify(fallbackPayload),
+          analysis_status: fallbackPayload.status,
+          analysis_summary: fallbackPayload.summary,
+          analysis_warnings: fallbackPayload.warnings,
+          analysis_critical_issues: fallbackPayload.critical_issues,
+        }).catch(() => null);
+      }
+
+      return Response.json(fallbackPayload);
+    }
 
     const valorEncontrado = toNumber(result?.valor_encontrado);
     const numeroEncontrado = String(result?.numero_nf_encontrado || '').trim();
     const emitenteEncontrado = String(result?.emitente_encontrado || '').trim();
     const competenciaEncontrada = String(result?.competencia_encontrada || '').trim();
 
-    const warnings = Array.isArray(result?.warnings) ? result.warnings : [];
-    const critical = Array.isArray(result?.critical_issues) ? result.critical_issues : [];
+    const warnings = Array.isArray(result?.warnings) ? [...result.warnings] : [];
+    const critical = Array.isArray(result?.critical_issues) ? [...result.critical_issues] : [];
+
+    if (contractError) {
+      warnings.push(contractError);
+    }
 
     if (contractValor > 0 && valorEncontrado > 0 && Math.abs(contractValor - valorEncontrado) > 1) {
       critical.push(`Valor da NF (${formatBRL(valorEncontrado)}) diferente do contrato (${formatBRL(contractValor)}).`);
@@ -258,11 +371,18 @@ Retorne JSON válido, objetivo e direto, com:
         objeto_confere: true,
       },
       contract_snapshot: contractData || null,
+      debug: {
+        source: 'InvokeLLM_OK',
+        started_at: startedAt,
+        file_urls: fileUrls,
+        payload: payloadSnapshot,
+        contract_error: contractError,
+      },
       ok: true,
     };
 
-    if (team_payment_id) {
-      await base44.asServiceRole.entities.TeamPayment.update(team_payment_id, {
+    if (teamPaymentId) {
+      await base44.asServiceRole.entities.TeamPayment.update(teamPaymentId, {
         resultado_validacao: JSON.stringify(finalPayload),
         analysis_status: finalPayload.status,
         analysis_summary: finalPayload.summary,
@@ -273,12 +393,18 @@ Retorne JSON válido, objetivo e direto, com:
 
     return Response.json(finalPayload);
   } catch (error: any) {
-    return Response.json({
+    const errorMessage = buildErrorMessage(error);
+
+    const fallbackPayload = {
       can_submit: true,
       status: 'ATENCAO',
       summary: 'Não foi possível realizar a análise automática. Revise manualmente.',
-      warnings: ['Análise automática indisponível: ' + (error?.message || 'erro desconhecido')],
+      warnings: [`Falha geral na análise automática: ${errorMessage}`],
       critical_issues: [],
+      valor_encontrado: 0,
+      numero_nf_encontrado: '',
+      emitente_encontrado: '',
+      competencia_encontrada: '',
       comparacao: {
         valor_confere: true,
         documento_confere: true,
@@ -287,7 +413,25 @@ Retorne JSON válido, objetivo e direto, com:
         dados_bancarios_confere: true,
         objeto_confere: true,
       },
+      debug: {
+        source: 'GENERAL_CATCH',
+        started_at: startedAt,
+        payload: payloadSnapshot,
+        error: errorMessage,
+      },
       ok: false,
-    });
+    };
+
+    if (base44 && teamPaymentId) {
+      await base44.asServiceRole.entities.TeamPayment.update(teamPaymentId, {
+        resultado_validacao: JSON.stringify(fallbackPayload),
+        analysis_status: fallbackPayload.status,
+        analysis_summary: fallbackPayload.summary,
+        analysis_warnings: fallbackPayload.warnings,
+        analysis_critical_issues: fallbackPayload.critical_issues,
+      }).catch(() => null);
+    }
+
+    return Response.json(fallbackPayload);
   }
-}
+});
