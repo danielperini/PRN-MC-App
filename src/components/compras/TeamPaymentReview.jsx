@@ -201,6 +201,7 @@ export default function TeamPaymentReview() {
       queryClient.invalidateQueries({ queryKey: ['team-payments-review'] }),
       queryClient.invalidateQueries({ queryKey: ['team-payments'] }),
       queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
+      queryClient.invalidateQueries({ queryKey: ['rubricas-team-payment-review'] }),
       queryClient.invalidateQueries({ queryKey: ['rubricas-total-utilizado'] }),
       queryClient.invalidateQueries({ queryKey: ['purchases'] }),
       queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
@@ -257,6 +258,32 @@ export default function TeamPaymentReview() {
     }
 
     return '';
+  }
+
+  async function ensureRubricaPersistida(payment) {
+    const selectedRubricaId = getSelectedRubricaId(payment);
+    const selectedRubricaNome = getSelectedRubricaNome(payment);
+
+    if (!selectedRubricaId) {
+      throw new Error('Pagamento sem rubrica vinculada. Selecione ou vincule uma rubrica antes de continuar.');
+    }
+
+    const payload = {
+      rubrica_id: selectedRubricaId,
+      rubrica_nome: selectedRubricaNome || '',
+    };
+
+    const paymentRubricaId = String(payment?.rubrica_id || '').trim();
+    const paymentRubricaNome = String(payment?.rubrica_nome || '').trim();
+
+    if (
+      paymentRubricaId !== payload.rubrica_id ||
+      paymentRubricaNome !== payload.rubrica_nome
+    ) {
+      await base44.entities.TeamPayment.update(payment.id, payload);
+    }
+
+    return payload;
   }
 
   function buildApproveChecklist(payment) {
@@ -319,6 +346,42 @@ export default function TeamPaymentReview() {
     };
   }
 
+  function buildPayChecklist(payment) {
+    const status = normalizeStatus(payment?.status);
+    const valor = toNumber(payment?.valor_nf || payment?.valor_parcela_previsto || payment?.valor_pago || 0);
+    const selectedRubricaId = getSelectedRubricaId(payment);
+    const selectedRubricaNome = getSelectedRubricaNome(payment);
+
+    const checks = [
+      {
+        key: 'status',
+        label: 'Status está em Aprovado',
+        ok: status === 'APROVADO_COORD',
+        detailOk: 'Status válido para pagamento.',
+        detailError: `Status atual: ${payment?.status || '—'}.`,
+      },
+      {
+        key: 'valor',
+        label: 'Valor do pagamento é válido',
+        ok: valor > 0,
+        detailOk: `Valor identificado: ${formatBRL(valor)}.`,
+        detailError: 'Valor zerado ou inválido.',
+      },
+      {
+        key: 'rubrica',
+        label: 'Rubrica está vinculada antes do pagamento',
+        ok: !!selectedRubricaId,
+        detailOk: `Rubrica final: ${selectedRubricaNome || selectedRubricaId}.`,
+        detailError: 'Pagamento bloqueado: a rubrica está vazia.',
+      },
+    ];
+
+    return {
+      checks,
+      canPay: checks.every((item) => item.ok),
+    };
+  }
+
   async function approve(payment) {
     if (savingByPayment[payment.id]) return;
 
@@ -336,22 +399,13 @@ export default function TeamPaymentReview() {
         return;
       }
 
-      const selectedRubricaId = getSelectedRubricaId(payment);
-      const selectedRubrica = rubricasEquipeGestao.find((r) => r.id === selectedRubricaId);
-      const rubricaNomeFinal =
-        (selectedRubrica && getRubricaDisplayName(selectedRubrica)) ||
-        getSelectedRubricaNome(payment);
-
-      await base44.entities.TeamPayment.update(payment.id, {
-        rubrica_id: selectedRubricaId,
-        rubrica_nome: rubricaNomeFinal || '',
-      });
+      const rubricaPayload = await ensureRubricaPersistida(payment);
 
       const res = await base44.functions.invoke('processTeamPayment', {
         payment_id: payment.id,
         action: 'approve',
-        rubrica_id: selectedRubricaId,
-        rubrica_nome: rubricaNomeFinal || '',
+        rubrica_id: rubricaPayload.rubrica_id,
+        rubrica_nome: rubricaPayload.rubrica_nome,
       });
 
       const result = res?.data || res || {};
@@ -360,7 +414,7 @@ export default function TeamPaymentReview() {
         throw { response: { data: result } };
       }
 
-      const successMessage = result?.message || `Pagamento aprovado com sucesso. Rubrica vinculada: ${rubricaNomeFinal || selectedRubricaId}.`;
+      const successMessage = result?.message || `Pagamento aprovado com sucesso. Rubrica vinculada: ${rubricaPayload.rubrica_nome || rubricaPayload.rubrica_id}.`;
       setSuccessByPayment((prev) => ({ ...prev, [payment.id]: successMessage }));
       toast.success(successMessage);
 
@@ -395,14 +449,23 @@ export default function TeamPaymentReview() {
     setLoadingPay((prev) => ({ ...prev, [payment.id]: true }));
 
     try {
-      const selectedRubricaId = getSelectedRubricaId(payment);
-      const rubricaNomeFinal = getSelectedRubricaNome(payment);
+      const checklist = buildPayChecklist(payment);
+
+      if (!checklist.canPay) {
+        const failed = checklist.checks.filter((item) => !item.ok);
+        const message = `Pagamento bloqueado. Verifique: ${failed.map((item) => item.label).join(' | ')}`;
+        setErrorByPayment((prev) => ({ ...prev, [payment.id]: message }));
+        toast.error(message);
+        return;
+      }
+
+      const rubricaPayload = await ensureRubricaPersistida(payment);
 
       const res = await base44.functions.invoke('processTeamPayment', {
         payment_id: payment.id,
         action: 'pay',
-        rubrica_id: selectedRubricaId || '',
-        rubrica_nome: rubricaNomeFinal || '',
+        rubrica_id: rubricaPayload.rubrica_id,
+        rubrica_nome: rubricaPayload.rubrica_nome,
       });
 
       const result = res?.data || res || {};
@@ -443,6 +506,7 @@ export default function TeamPaymentReview() {
         const selectedRubricaId = getSelectedRubricaId(payment);
         const selectedRubricaNome = getSelectedRubricaNome(payment);
         const checklist = buildApproveChecklist(payment);
+        const payChecklist = buildPayChecklist(payment);
         const cardError = errorByPayment[payment.id] || '';
         const cardDebug = errorDebugByPayment[payment.id] || '';
         const cardSuccess = successByPayment[payment.id] || '';
@@ -543,7 +607,7 @@ export default function TeamPaymentReview() {
               )}
 
               {status === 'APROVADO_COORD' && (
-                <Button onClick={() => pay(payment)} disabled={!!loadingPay[payment.id]}>
+                <Button onClick={() => pay(payment)} disabled={!!loadingPay[payment.id] || !payChecklist.canPay}>
                   {loadingPay[payment.id] ? 'Processando...' : 'Marcar como pago'}
                 </Button>
               )}
