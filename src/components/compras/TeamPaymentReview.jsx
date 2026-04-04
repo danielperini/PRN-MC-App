@@ -554,9 +554,10 @@ export default function TeamPaymentReview() {
         const saving = !!savingByPayment[payment.id];
         const savingRubrica = !!savingRubricaByPayment[payment.id];
         const showRubricaSelector =
-          status === 'AGUARDANDO_APROVACAO' ||
           hasRubricaVazia(payment) ||
-          hasRubricaDraftChanged(payment);
+          hasRubricaDraftChanged(payment) ||
+          status === 'AGUARDANDO_APROVACAO' ||
+          status === 'APROVADO_COORD';
 
         return (
           <div key={payment.id} className="border rounded-xl p-4 space-y-3">
