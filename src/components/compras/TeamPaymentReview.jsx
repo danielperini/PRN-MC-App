@@ -115,33 +115,6 @@ function pickBestPayments(payments = []) {
   return Array.from(map.values());
 }
 
-function isEquipeGestaoRubrica(rubrica) {
-  const grupo = normalizeString(rubrica?.grupo || '');
-  const nome = normalizeString(rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '');
-  const texto = `${grupo} ${nome}`;
-
-  const termos = [
-    'equipe',
-    'gestao',
-    'gestão',
-    'assistente de producao',
-    'assistentes de producao',
-    'assistente producao',
-    'assistentes producao',
-    'producao',
-    'produção',
-    'educador',
-    'educadores',
-    'diaria',
-    'diarias',
-    'diárias',
-    'publicacao',
-    'publicação',
-  ];
-
-  return termos.some((termo) => texto.includes(normalizeString(termo)));
-}
-
 function getRubricaDisplayName(rubrica) {
   return rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || rubrica?.titulo || 'Rubrica sem nome';
 }
@@ -172,9 +145,8 @@ export default function TeamPaymentReview() {
     queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 500),
   });
 
-  const rubricasEquipeGestao = useMemo(() => {
-    const filtered = (rubricas || []).filter(isEquipeGestaoRubrica);
-    return [...filtered].sort((a, b) =>
+  const allRubricas = useMemo(() => {
+    return [...(rubricas || [])].sort((a, b) =>
       getRubricaDisplayName(a).localeCompare(getRubricaDisplayName(b), 'pt-BR')
     );
   }, [rubricas]);
@@ -216,12 +188,16 @@ export default function TeamPaymentReview() {
     setSuccessByPayment((prev) => ({ ...prev, [paymentId]: '' }));
   }
 
-  function resolveRubricaFromMember(payment) {
-    const member = members.find(
+  function resolveMember(payment) {
+    return members.find(
       (m) =>
         String(m.user_email || '').trim().toLowerCase() ===
         String(payment.user_email || '').trim().toLowerCase()
-    );
+    ) || null;
+  }
+
+  function resolveRubricaFromMember(payment) {
+    const member = resolveMember(payment);
 
     if (!member || !member?.rubrica_id) return null;
 
@@ -229,6 +205,27 @@ export default function TeamPaymentReview() {
       rubrica_id: member.rubrica_id,
       rubrica_nome: member.rubrica_nome || '',
     };
+  }
+
+  function getSuggestedRubrica(payment) {
+    const memberRubrica = resolveRubricaFromMember(payment);
+    if (memberRubrica?.rubrica_id) {
+      const selected = allRubricas.find((r) => r.id === memberRubrica.rubrica_id);
+      return {
+        rubrica_id: memberRubrica.rubrica_id,
+        rubrica_nome: memberRubrica.rubrica_nome || (selected ? getRubricaDisplayName(selected) : ''),
+      };
+    }
+
+    if (payment?.rubrica_id) {
+      const selected = allRubricas.find((r) => r.id === payment.rubrica_id);
+      return {
+        rubrica_id: payment.rubrica_id,
+        rubrica_nome: payment.rubrica_nome || (selected ? getRubricaDisplayName(selected) : ''),
+      };
+    }
+
+    return null;
   }
 
   function getSelectedRubricaId(payment) {
@@ -244,7 +241,7 @@ export default function TeamPaymentReview() {
     const draftId = rubricaDraftByPayment[payment.id];
 
     if (draftId) {
-      const selected = rubricasEquipeGestao.find((r) => r.id === draftId);
+      const selected = allRubricas.find((r) => r.id === draftId);
       if (selected) return getRubricaDisplayName(selected);
     }
 
@@ -254,7 +251,7 @@ export default function TeamPaymentReview() {
     if (fromMember?.rubrica_nome) return fromMember.rubrica_nome;
 
     if (fromMember?.rubrica_id) {
-      const selected = rubricasEquipeGestao.find((r) => r.id === fromMember.rubrica_id);
+      const selected = allRubricas.find((r) => r.id === fromMember.rubrica_id);
       if (selected) return getRubricaDisplayName(selected);
     }
 
@@ -332,7 +329,7 @@ export default function TeamPaymentReview() {
     const valor = toNumber(payment?.valor_nf || payment?.valor_parcela_previsto || 0);
     const selectedRubricaId = getSelectedRubricaId(payment);
     const selectedRubricaNome = getSelectedRubricaNome(payment);
-    const rubricaOption = rubricasEquipeGestao.find((r) => r.id === selectedRubricaId);
+    const rubricaOption = allRubricas.find((r) => r.id === selectedRubricaId);
     const memberMatch = members.find(
       (m) =>
         String(m.user_email || '').trim().toLowerCase() ===
@@ -370,7 +367,7 @@ export default function TeamPaymentReview() {
       },
       {
         key: 'rubrica_lista',
-        label: 'Rubrica existe na lista de equipe/gestão',
+        label: 'Rubrica existe na lista',
         ok: !!rubricaOption || !!selectedRubricaId,
         detailOk: rubricaOption
           ? `Rubrica encontrada na lista: ${getRubricaDisplayName(rubricaOption)}.`
@@ -546,6 +543,7 @@ export default function TeamPaymentReview() {
         const valor = payment?.valor_nf || payment?.valor_parcela_previsto || 0;
         const selectedRubricaId = getSelectedRubricaId(payment);
         const selectedRubricaNome = getSelectedRubricaNome(payment);
+        const suggestedRubrica = getSuggestedRubrica(payment);
         const checklist = buildApproveChecklist(payment);
         const payChecklist = buildPayChecklist(payment);
         const cardError = errorByPayment[payment.id] || '';
@@ -575,6 +573,13 @@ export default function TeamPaymentReview() {
             {showRubricaSelector && (
               <div className="space-y-2">
                 <Label>Selecionar rubrica</Label>
+
+                {suggestedRubrica?.rubrica_id && (
+                  <div className="text-xs text-blue-700 font-medium">
+                    Sugestão automática: <b>{suggestedRubrica.rubrica_nome || suggestedRubrica.rubrica_id}</b>
+                  </div>
+                )}
+
                 <Select
                   value={selectedRubricaId}
                   onValueChange={(value) => {
@@ -589,7 +594,7 @@ export default function TeamPaymentReview() {
                     <SelectValue placeholder="Selecione a rubrica" />
                   </SelectTrigger>
                   <SelectContent>
-                    {rubricasEquipeGestao.map((rubrica) => (
+                    {allRubricas.map((rubrica) => (
                       <SelectItem key={rubrica.id} value={rubrica.id}>
                         {getRubricaDisplayName(rubrica)}
                       </SelectItem>
