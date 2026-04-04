@@ -153,9 +153,26 @@ async function resolveRubrica(base44: any, payment: any, member: any, body: any)
   };
 }
 
+async function recalculateRubrica(base44: any, rubricaId: string) {
+  try {
+    await base44.functions.invoke('recalculateRubrica', { rubrica_id: rubricaId });
+  } catch (e) {
+    console.warn('Falha ao recalcular rubrica individual', e);
+  }
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me().catch(() => null);
+
+    if (!user) {
+      return Response.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
 
     const paymentId = body?.payment_id || body?.paymentId || null;
@@ -210,6 +227,20 @@ Deno.serve(async (req) => {
     const rubricaId = resolved.rubrica_id;
     const rubricaNome = resolved.rubrica_nome;
 
+    if (!rubricaId) {
+      return Response.json(
+        {
+          error: 'Pagamento sem rubrica vinculada',
+          debug: {
+            payment_id: payment.id,
+            rubrica_id: rubricaId || '',
+            rubrica_nome: rubricaNome || ''
+          }
+        },
+        { status: 400 }
+      );
+    }
+
     const currentStatus = normalizeStatus(payment.status);
     const shouldAffectBudget = isAfterApril2026(payment.mes_referencia, Number(payment.ano || 0));
 
@@ -255,8 +286,10 @@ Deno.serve(async (req) => {
           user_name: payment.user_name,
           mes: payment.mes_referencia,
           ano: payment.ano,
-          observacao: 'Aprovação de TeamPayment'
+          observacao: `Aprovação de TeamPayment por ${user.email || 'usuário autenticado'}`
         });
+
+        await recalculateRubrica(base44, rubrica.id);
       }
 
       await base44.asServiceRole.entities.TeamPayment.update(payment.id, {
@@ -277,10 +310,37 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'pay') {
+      if (currentStatus === 'PAGO') {
+        return Response.json(
+          {
+            error: 'Pagamento já está marcado como pago',
+            debug: {
+              payment_id: payment.id,
+              status: payment.status
+            }
+          },
+          { status: 400 }
+        );
+      }
+
       if (currentStatus !== 'APROVADO_COORD') {
         return Response.json(
           {
             error: `Pagamento só é permitido após aprovação. Status atual: ${payment.status || '—'}`
+          },
+          { status: 400 }
+        );
+      }
+
+      if (!rubrica?.id) {
+        return Response.json(
+          {
+            error: 'Pagamento bloqueado: rubrica obrigatória para marcar como pago',
+            debug: {
+              payment_id: payment.id,
+              rubrica_id: rubricaId || '',
+              rubrica_nome: rubricaNome || ''
+            }
           },
           { status: 400 }
         );
@@ -304,8 +364,10 @@ Deno.serve(async (req) => {
           user_name: payment.user_name,
           mes: payment.mes_referencia,
           ano: payment.ano,
-          observacao: 'Pagamento de TeamPayment'
+          observacao: `Pagamento de TeamPayment por ${user.email || 'usuário autenticado'}`
         });
+
+        await recalculateRubrica(base44, rubrica.id);
       }
 
       await base44.asServiceRole.entities.TeamPayment.update(payment.id, {
