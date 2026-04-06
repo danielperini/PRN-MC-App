@@ -125,6 +125,103 @@ function fmtBRL(v) {
   }).format(v);
 }
 
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getPurchaseOwnerEmails(purchase) {
+  return [
+    purchase?.created_by,
+    purchase?.user_email,
+    purchase?.requester_email,
+    purchase?.solicitante_email,
+    purchase?.email_solicitante,
+    purchase?.author_email,
+    purchase?.owner_email
+  ]
+    .map(normalizeEmail)
+    .filter(Boolean);
+}
+
+function purchaseBelongsToUser(purchase, email) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return false;
+  return getPurchaseOwnerEmails(purchase).includes(normalizedEmail);
+}
+
+async function carregarSolicitacoes({ isCoordenador, currentUser }) {
+  if (!currentUser) return [];
+
+  if (isCoordenador) {
+    return await base44.entities.PurchaseRequest.list('-created_date', 500);
+  }
+
+  const email = normalizeEmail(currentUser?.email);
+  const resultados = [];
+
+  const pushArray = (items) => {
+    if (Array.isArray(items)) resultados.push(...items);
+  };
+
+  try {
+    pushArray(
+      await base44.entities.PurchaseRequest.filter(
+        { created_by: currentUser?.email },
+        '-created_date',
+        300
+      )
+    );
+  } catch (error) {
+    console.error('Erro ao buscar PurchaseRequest por created_by:', error);
+  }
+
+  try {
+    pushArray(
+      await base44.entities.PurchaseRequest.filter(
+        { user_email: currentUser?.email },
+        '-created_date',
+        300
+      )
+    );
+  } catch (error) {
+    console.error('Erro ao buscar PurchaseRequest por user_email:', error);
+  }
+
+  try {
+    pushArray(
+      await base44.entities.PurchaseRequest.filter(
+        { requester_email: currentUser?.email },
+        '-created_date',
+        300
+      )
+    );
+  } catch (error) {
+    console.error('Erro ao buscar PurchaseRequest por requester_email:', error);
+  }
+
+  try {
+    const listaGeral = await base44.entities.PurchaseRequest.list('-created_date', 500);
+    pushArray(listaGeral.filter((purchase) => purchaseBelongsToUser(purchase, email)));
+  } catch (error) {
+    console.error('Erro ao buscar lista geral de PurchaseRequest:', error);
+  }
+
+  const dedup = new Map();
+  resultados
+    .filter(Boolean)
+    .forEach((purchase) => {
+      if (purchase?.id && purchaseBelongsToUser(purchase, email)) {
+        dedup.set(purchase.id, purchase);
+      }
+    });
+
+  return Array.from(dedup.values()).sort((a, b) => {
+    const da = new Date(a?.created_date || 0).getTime();
+    const db = new Date(b?.created_date || 0).getTime();
+    return db - da;
+  });
+}
+
 function TabelaSolicitacoes({
   purchases,
   rubricas,
@@ -180,7 +277,7 @@ function TabelaSolicitacoes({
               (!p._has_orcamento_vinculado || p._sem_centro_custo);
 
             const podeEditar =
-              isCoordenador || p.created_by === currentUser?.email;
+              isCoordenador || purchaseBelongsToUser(p, currentUser?.email);
 
             return (
               <tr
@@ -330,13 +427,10 @@ function ComprasInner() {
   const { data: purchases = [], isLoading } = useQuery({
     queryKey: ['purchases', isCoordenador, currentUser?.email],
     queryFn: () =>
-      isCoordenador
-        ? base44.entities.PurchaseRequest.list('-created_date', 500)
-        : base44.entities.PurchaseRequest.filter(
-            { created_by: currentUser?.email },
-            '-created_date',
-            100
-          ),
+      carregarSolicitacoes({
+        isCoordenador,
+        currentUser
+      }),
     enabled: !!currentUser
   });
 
