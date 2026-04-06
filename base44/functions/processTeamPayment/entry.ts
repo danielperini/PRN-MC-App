@@ -87,12 +87,14 @@ async function findMemberByEmail(base44: any, email: string) {
   return null;
 }
 
-/* 🔥 GARANTE RUBRICA OBRIGATÓRIA */
 async function resolveRubrica(base44: any, payment: any, member: any, body: any) {
-
   const bodyRubricaId =
     normalizeString(body?.rubrica_id) ||
     normalizeString(body?.rubricaId);
+
+  const bodyRubricaNome =
+    normalizeString(body?.rubrica_nome) ||
+    normalizeString(body?.rubricaNome);
 
   const paymentRubricaId = normalizeString(payment?.rubrica_id);
   const memberRubricaId = normalizeString(member?.rubrica_id);
@@ -104,8 +106,11 @@ async function resolveRubrica(base44: any, payment: any, member: any, body: any)
       ok: false,
       error: 'Sem rubrica',
       debug: {
-        payment_id: payment?.id,
-        user_email: payment?.user_email
+        body_rubrica_id: bodyRubricaId || '',
+        payment_rubrica_id: paymentRubricaId || '',
+        member_rubrica_id: memberRubricaId || '',
+        payment_id: payment?.id || '',
+        user_email: payment?.user_email || ''
       }
     };
   }
@@ -115,29 +120,36 @@ async function resolveRubrica(base44: any, payment: any, member: any, body: any)
   if (!rubrica?.id) {
     return {
       ok: false,
-      error: 'Rubrica não encontrada'
+      error: 'Rubrica não encontrada',
+      debug: {
+        rubrica_id: rubricaIdFinal
+      }
     };
   }
 
-  /* 🔥 FORÇA PERSISTÊNCIA SEMPRE */
-  await base44.asServiceRole.entities.TeamPayment.update(payment.id, {
-    rubrica_id: rubrica.id,
-    rubrica_nome:
-      rubrica?.rubrica ||
-      rubrica?.nome ||
-      rubrica?.descricao ||
-      ''
-  });
+  const rubricaNomeFinal =
+    bodyRubricaNome ||
+    normalizeString(payment?.rubrica_nome) ||
+    normalizeString(member?.rubrica_nome) ||
+    normalizeString(rubrica?.rubrica) ||
+    normalizeString(rubrica?.nome) ||
+    normalizeString(rubrica?.descricao);
+
+  if (
+    bodyRubricaId !== paymentRubricaId ||
+    (rubricaNomeFinal && rubricaNomeFinal !== normalizeString(payment?.rubrica_nome))
+  ) {
+    await base44.asServiceRole.entities.TeamPayment.update(payment.id, {
+      rubrica_id: rubrica.id,
+      rubrica_nome: rubricaNomeFinal || ''
+    });
+  }
 
   return {
     ok: true,
     rubrica,
     rubrica_id: rubrica.id,
-    rubrica_nome:
-      rubrica?.rubrica ||
-      rubrica?.nome ||
-      rubrica?.descricao ||
-      ''
+    rubrica_nome: rubricaNomeFinal || ''
   };
 }
 
@@ -145,7 +157,7 @@ async function recalculateRubrica(base44: any, rubricaId: string) {
   try {
     await base44.functions.invoke('recalculateRubrica', { rubrica_id: rubricaId });
   } catch (e) {
-    console.warn('Falha ao recalcular rubrica', e);
+    console.warn('Falha ao recalcular rubrica individual', e);
   }
 }
 
@@ -155,100 +167,238 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me().catch(() => null);
 
     if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      return Response.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
     const body = await req.json().catch(() => ({}));
 
-    const paymentId = body?.payment_id;
-    const action = String(body?.action || '').toLowerCase();
+    const paymentId = body?.payment_id || body?.paymentId || null;
+    const action = String(body?.action || '').trim().toLowerCase();
+
+    if (!paymentId || !action) {
+      return Response.json(
+        { error: 'payment_id e action obrigatórios' },
+        { status: 400 }
+      );
+    }
 
     const payment = await base44.asServiceRole.entities.TeamPayment.get(paymentId);
 
-    const valor = toNumber(payment?.valor_nf || payment?.valor_parcela_previsto);
+    if (!payment?.id) {
+      return Response.json(
+        { error: 'Pagamento não encontrado' },
+        { status: 404 }
+      );
+    }
+
+    const valor = toNumber(payment?.valor_nf || payment?.valor_parcela_previsto || payment?.valor_pago);
+
+    if (valor <= 0) {
+      return Response.json(
+        {
+          error: 'Pagamento com valor inválido',
+          debug: {
+            valor_nf: payment?.valor_nf || 0,
+            valor_parcela_previsto: payment?.valor_parcela_previsto || 0
+          }
+        },
+        { status: 400 }
+      );
+    }
 
     const member = await findMemberByEmail(base44, payment?.user_email || '');
 
     const resolved = await resolveRubrica(base44, payment, member, body);
 
     if (!resolved.ok) {
-      return Response.json({ error: resolved.error }, { status: 400 });
+      return Response.json(
+        {
+          error: resolved.error,
+          debug: resolved.debug || {}
+        },
+        { status: 400 }
+      );
     }
 
     const rubrica = resolved.rubrica;
+    const rubricaId = resolved.rubrica_id;
+    const rubricaNome = resolved.rubrica_nome;
 
-    const currentStatus = normalizeStatus(payment.status);
-
-    /* =========================
-       APROVAR
-    ========================= */
-    if (action === 'approve') {
-
-      if (currentStatus !== 'AGUARDANDO_APROVACAO') {
-        return Response.json({ error: 'Status inválido' }, { status: 400 });
-      }
-
-      const saldoAtual = computeSaldo(rubrica);
-
-      if (saldoAtual < valor) {
-        return Response.json({ error: 'Saldo insuficiente' }, { status: 400 });
-      }
-
-      await base44.asServiceRole.entities.Rubrica.update(rubrica.id, {
-        saldo_comprometido: toNumber(rubrica.saldo_comprometido) + valor
-      });
-
-      await logMovimentacao(base44, {
-        tipo: 'COMPROMETIDO',
-        valor,
-        rubrica_id: rubrica.id,
-        payment_id: payment.id
-      });
-
-      await recalculateRubrica(base44, rubrica.id);
-
-      await base44.asServiceRole.entities.TeamPayment.update(payment.id, {
-        status: 'APROVADO_COORD'
-      });
-
-      return Response.json({ ok: true });
+    if (!rubricaId) {
+      return Response.json(
+        {
+          error: 'Pagamento sem rubrica vinculada',
+          debug: {
+            payment_id: payment.id,
+            rubrica_id: rubricaId || '',
+            rubrica_nome: rubricaNome || ''
+          }
+        },
+        { status: 400 }
+      );
     }
 
-    /* =========================
-       PAGAR
-    ========================= */
-    if (action === 'pay') {
+    const currentStatus = normalizeStatus(payment.status);
+    const shouldAffectBudget = isAfterApril2026(payment.mes_referencia, Number(payment.ano || 0));
 
-      if (currentStatus !== 'APROVADO_COORD') {
-        return Response.json({ error: 'Precisa estar aprovado' }, { status: 400 });
+    if (action === 'approve') {
+      if (currentStatus !== 'AGUARDANDO_APROVACAO') {
+        return Response.json(
+          {
+            error: `Status inválido para aprovação: ${payment.status || '—'}`
+          },
+          { status: 400 }
+        );
       }
 
-      await base44.asServiceRole.entities.Rubrica.update(rubrica.id, {
-        valor_utilizado: toNumber(rubrica.valor_utilizado) + valor,
-        saldo_comprometido: Math.max(0, toNumber(rubrica.saldo_comprometido) - valor)
-      });
+      if (shouldAffectBudget) {
+        const saldoAtual = computeSaldo(rubrica);
 
-      await logMovimentacao(base44, {
-        tipo: 'PAGO',
-        valor,
+        if (saldoAtual < valor) {
+          return Response.json(
+            {
+              error: `Saldo insuficiente na rubrica "${rubricaNome || rubricaId}".`,
+              debug: {
+                rubrica_id: rubricaId,
+                rubrica_nome: rubricaNome,
+                saldo_atual: saldoAtual,
+                valor_pagamento: valor
+              }
+            },
+            { status: 400 }
+          );
+        }
+
+        await base44.asServiceRole.entities.Rubrica.update(rubrica.id, {
+          saldo_comprometido: toNumber(rubrica?.saldo_comprometido) + valor
+        });
+
+        await logMovimentacao(base44, {
+          tipo: 'COMPROMETIDO',
+          valor,
+          rubrica_id: rubrica.id,
+          rubrica_nome: rubricaNome,
+          payment_id: payment.id,
+          user_email: payment.user_email,
+          user_name: payment.user_name,
+          mes: payment.mes_referencia,
+          ano: payment.ano,
+          observacao: `Aprovação de TeamPayment por ${user.email || 'usuário autenticado'}`
+        });
+
+        await recalculateRubrica(base44, rubrica.id);
+      }
+
+      await base44.asServiceRole.entities.TeamPayment.update(payment.id, {
+        status: 'APROVADO_COORD',
         rubrica_id: rubrica.id,
-        payment_id: payment.id
+        rubrica_nome: rubricaNome,
+        aprov_coord_data: new Date().toISOString()
       });
 
-      await recalculateRubrica(base44, rubrica.id);
+      return Response.json({
+        ok: true,
+        action: 'approved',
+        message: 'Pagamento aprovado com sucesso.',
+        payment_id: payment.id,
+        rubrica_id: rubrica.id,
+        rubrica_nome: rubricaNome
+      });
+    }
+
+    if (action === 'pay') {
+      if (currentStatus === 'PAGO') {
+        return Response.json(
+          {
+            error: 'Pagamento já está marcado como pago',
+            debug: {
+              payment_id: payment.id,
+              status: payment.status
+            }
+          },
+          { status: 400 }
+        );
+      }
+
+      if (currentStatus !== 'APROVADO_COORD') {
+        return Response.json(
+          {
+            error: `Pagamento só é permitido após aprovação. Status atual: ${payment.status || '—'}`
+          },
+          { status: 400 }
+        );
+      }
+
+      if (!rubrica?.id) {
+        return Response.json(
+          {
+            error: 'Pagamento bloqueado: rubrica obrigatória para marcar como pago',
+            debug: {
+              payment_id: payment.id,
+              rubrica_id: rubricaId || '',
+              rubrica_nome: rubricaNome || ''
+            }
+          },
+          { status: 400 }
+        );
+      }
+
+      if (shouldAffectBudget) {
+        const comprometidoAtual = toNumber(rubrica?.saldo_comprometido);
+
+        await base44.asServiceRole.entities.Rubrica.update(rubrica.id, {
+          valor_utilizado: toNumber(rubrica?.valor_utilizado) + valor,
+          saldo_comprometido: Math.max(0, comprometidoAtual - valor)
+        });
+
+        await logMovimentacao(base44, {
+          tipo: 'PAGO',
+          valor,
+          rubrica_id: rubrica.id,
+          rubrica_nome: rubricaNome,
+          payment_id: payment.id,
+          user_email: payment.user_email,
+          user_name: payment.user_name,
+          mes: payment.mes_referencia,
+          ano: payment.ano,
+          observacao: `Pagamento de TeamPayment por ${user.email || 'usuário autenticado'}`
+        });
+
+        await recalculateRubrica(base44, rubrica.id);
+      }
 
       await base44.asServiceRole.entities.TeamPayment.update(payment.id, {
         status: 'PAGO',
         valor_pago: valor,
-        data_pagamento: new Date().toISOString()
+        data_pagamento: new Date().toISOString(),
+        rubrica_id: rubrica.id,
+        rubrica_nome: rubricaNome
       });
 
-      return Response.json({ ok: true });
+      return Response.json({
+        ok: true,
+        action: 'paid',
+        message: 'Pagamento marcado como pago com sucesso.',
+        payment_id: payment.id,
+        rubrica_id: rubrica.id,
+        rubrica_nome: rubricaNome
+      });
     }
 
-    return Response.json({ error: 'Ação inválida' }, { status: 400 });
-
+    return Response.json(
+      { error: 'Ação inválida' },
+      { status: 400 }
+    );
   } catch (e: any) {
-    return Response.json({ error: e.message }, { status: 500 });
+    console.error('processTeamPayment error:', e);
+    return Response.json(
+      {
+        error: e?.message || 'Erro interno no processamento do pagamento'
+      },
+      { status: 500 }
+    );
   }
 });

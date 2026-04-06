@@ -65,17 +65,16 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
     });
   }, [rubricas, search]);
 
-  // ✅ USAR BACKEND COMO FONTE DA VERDADE
+  // 🔥 RECOMPUTAR VALORES (NÃO confiar no backend)
   const dadosProcessados = useMemo(() => {
     return filtradas.map((r) => {
       const valor = toNumber(r?.valor_rubrica || r?.valor_total);
       const utilizado = toNumber(r?.valor_utilizado);
-      const comprometido = toNumber(r?.saldo_comprometido);
 
-      const saldo =
-        toNumber(r?.saldo_real) ||
-        toNumber(r?.saldo) ||
-        (valor - utilizado - comprometido);
+      // 🔥 fallback seguro caso backend esteja inconsistente
+      const comprometido = toNumber(r?.saldo_comprometido || r?.valor_comprometido);
+
+      const saldo = valor - utilizado - comprometido;
 
       const perc = valor > 0
         ? ((utilizado + comprometido) / valor) * 100
