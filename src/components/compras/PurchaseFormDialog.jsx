@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, X, Upload, FileCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
 const CENTROS = ['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Publicações', 'Geral'];
@@ -39,46 +39,12 @@ function moeda(value) {
   });
 }
 
-function normalizeCentroCusto(value) {
-  const raw = String(value || '').toLowerCase();
-
-  if (!raw) return '';
-  if (raw.includes('mis')) return 'MIS';
-  if (raw.includes('mhab')) return 'MHAB';
-  if (raw.includes('mumo')) return 'MUMO';
-  if (raw.includes('noturno')) return 'NOTURNO NOS MUSEUS 2026';
-  if (raw.includes('publica')) return 'PUBLICAÇÕES';
-  if (raw.includes('geral') || raw.includes('global')) return 'GLOBAL';
-
-  return String(value || '').toUpperCase();
+function getRubricaTitulo(r) {
+  return String(r?.rubrica || r?.nome || 'Sem nome').trim();
 }
 
-function sameCentroOrGlobal(entityCentro, selectedCentro) {
-  const entity = normalizeCentroCusto(entityCentro);
-  const selected = normalizeCentroCusto(selectedCentro);
-
-  if (!selected) return true;
-  if (!entity) return true;
-  if (entity === 'GLOBAL') return true;
-
-  return entity === selected;
-}
-
-function getRubricaCentroCusto(rubrica) {
-  return normalizeCentroCusto(
-    rubrica?.centro_custo ||
-      rubrica?.museu ||
-      rubrica?.unidade ||
-      ''
-  );
-}
-
-function getRubricaTitulo(rubrica) {
-  return String(rubrica?.rubrica || rubrica?.nome || 'Sem nome').trim();
-}
-
-function getRubricaGrupo(rubrica) {
-  return String(rubrica?.grupo || 'Sem grupo').trim();
+function getRubricaGrupo(r) {
+  return String(r?.grupo || 'Sem grupo').trim();
 }
 
 export default function PurchaseFormDialog({
@@ -92,60 +58,70 @@ export default function PurchaseFormDialog({
     queryFn: () => base44.entities.Rubrica.list('-created_date', 5000),
   });
 
-  const [form, setForm] = useState(() =>
-    prefill ? { ...EMPTY, ...prefill } : EMPTY
-  );
+  const [form, setForm] = useState(prefill ? { ...EMPTY, ...prefill } : EMPTY);
   const [saving, setSaving] = useState(false);
-
-  // 🔥 NOVO ESTADO
   const [saved, setSaved] = useState(false);
 
-  const rubricasProcessadas = useMemo(() => {
-    return (rubricas || [])
-      .filter((r) => !!r?.id)
-      .map((r) => {
-        const valor = toNumber(r?.valor_rubrica || r?.valor_total || r?.valor);
-        const utilizado = toNumber(r?.valor_utilizado || r?.utilizado);
-        const comprometido = toNumber(
-          r?.saldo_comprometido || r?.valor_comprometido || r?.comprometido
-        );
-        const saldo = valor - utilizado - comprometido;
+  // 🔥 NOVOS ESTADOS
+  const [pdfFile, setPdfFile] = useState(null);
+  const [xmlFile, setXmlFile] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [aiScore, setAiScore] = useState(null);
+  const [aiResumo, setAiResumo] = useState('');
 
-        return {
-          ...r,
-          valor,
-          utilizado,
-          comprometido,
-          saldo,
-        };
-      });
+  const rubricasProcessadas = useMemo(() => {
+    return (rubricas || []).map((r) => {
+      const valor = toNumber(r?.valor_rubrica || r?.valor_total);
+      const utilizado = toNumber(r?.valor_utilizado);
+      const comprometido = toNumber(r?.saldo_comprometido);
+      const saldo = valor - utilizado - comprometido;
+
+      return { ...r, saldo };
+    });
   }, [rubricas]);
 
-  const selectedRubrica = useMemo(() => {
-    return rubricasProcessadas.find((r) => r.id === form.rubrica_id) || null;
-  }, [rubricasProcessadas, form.rubrica_id]);
+  const handleUpload = async (file) => {
+    if (!file) return null;
 
-  const validateFinanceiro = () => {
-    if (!form.centro_custo) return 'Selecione o centro de custo.';
-    if (!form.rubrica_id) return 'Selecione a rubrica.';
-    if (!selectedRubrica) return 'Rubrica inválida.';
+    const res = await base44.storage.upload({
+      file,
+      path: `notas_fiscais/${file.name}`,
+    });
 
-    const rubricaCentro = getRubricaCentroCusto(selectedRubrica);
-
-    if (!sameCentroOrGlobal(rubricaCentro, form.centro_custo)) {
-      return `Rubrica incompatível com centro ${form.centro_custo}`;
-    }
-
-    return null;
+    return res?.file_url || null;
   };
 
-  const handleSave = async () => {
-    const erro = validateFinanceiro();
-    if (erro) {
-      toastMessages.validationError(erro);
+  const handleAnalisarNF = async () => {
+    if (!pdfFile) {
+      toastMessages.validationError('PDF obrigatório');
       return;
     }
 
+    setAnalyzing(true);
+
+    try {
+      const pdfUrl = await handleUpload(pdfFile);
+      const xmlUrl = xmlFile ? await handleUpload(xmlFile) : null;
+
+      const response = await base44.functions.invoke('purchaseActions', {
+        action: 'attach_invoice',
+        purchaseId: prefill?.id,
+        pdf_url: pdfUrl,
+        xml_url: xmlUrl,
+      });
+
+      setAiScore(response?.ai_score || null);
+      setAiResumo(response?.ai_resumo || '');
+
+      toastMessages.createSuccess('Nota analisada com sucesso');
+    } catch (e) {
+      toastMessages.saveFailed(e.message);
+    }
+
+    setAnalyzing(false);
+  };
+
+  const handleSave = async () => {
     setSaving(true);
 
     try {
@@ -162,7 +138,7 @@ export default function PurchaseFormDialog({
       }
 
       toastMessages.createSuccess();
-      setSaved(true); // 🔥 MARCA COMO SALVO
+      setSaved(true);
       onSuccess();
     } catch (e) {
       toastMessages.saveFailed(e?.message);
@@ -171,19 +147,17 @@ export default function PurchaseFormDialog({
     setSaving(false);
   };
 
-  const financeiroError = validateFinanceiro();
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-2xl rounded-xl bg-white">
+
         <div className="flex justify-between border-b p-4">
           <h2>{prefill?.id ? 'Editar compra' : 'Nova compra'}</h2>
-          <Button variant="ghost" onClick={onClose}>
-            <X />
-          </Button>
+          <Button variant="ghost" onClick={onClose}><X /></Button>
         </div>
 
         <div className="space-y-4 p-4">
+
           <Textarea
             placeholder="Descrição do item"
             value={form.descricao_item}
@@ -203,22 +177,6 @@ export default function PurchaseFormDialog({
           />
 
           <Select
-            value={form.centro_custo}
-            onValueChange={(v) => setForm({ ...form, centro_custo: v, rubrica_id: '' })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Centro de custo" />
-            </SelectTrigger>
-            <SelectContent>
-              {CENTROS.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
             value={form.rubrica_id || ''}
             onValueChange={(v) => setForm({ ...form, rubrica_id: v })}
           >
@@ -234,37 +192,45 @@ export default function PurchaseFormDialog({
             </SelectContent>
           </Select>
 
-          <Input
-            type="number"
-            placeholder="Valor"
-            value={form.valor_solicitado}
-            onChange={(e) => setForm({ ...form, valor_solicitado: e.target.value })}
-          />
+          {/* 🔥 UPLOAD NF */}
+          <div className="space-y-2 border rounded p-3">
+            <div className="text-sm font-semibold">Nota Fiscal</div>
 
-          <Textarea
-            placeholder="Observações"
-            value={form.observacoes}
-            onChange={(e) => setForm({ ...form, observacoes: e.target.value })}
-          />
+            <Input type="file" accept="application/pdf"
+              onChange={(e) => setPdfFile(e.target.files?.[0])}
+            />
 
-          {financeiroError && (
-            <div className="text-xs text-red-600">{financeiroError}</div>
-          )}
+            <Input type="file" accept=".xml"
+              onChange={(e) => setXmlFile(e.target.files?.[0])}
+            />
+
+            <Button
+              onClick={handleAnalisarNF}
+              disabled={analyzing}
+              className="w-full"
+            >
+              {analyzing
+                ? <Loader2 className="animate-spin w-4 h-4" />
+                : <><FileCheck className="w-4 h-4 mr-2" /> Analisar Nota com IA</>}
+            </Button>
+
+            {aiScore && (
+              <div className="text-sm bg-gray-100 p-2 rounded">
+                <div><strong>Score IA:</strong> {aiScore}/10</div>
+                <div className="text-xs mt-1">{aiResumo}</div>
+              </div>
+            )}
+          </div>
+
         </div>
 
         <div className="flex justify-end gap-2 border-t p-4">
-          <Button variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
 
           <Button
             onClick={handleSave}
-            disabled={saving || !!financeiroError || saved}
-            className={
-              saved
-                ? 'bg-green-600 text-white hover:bg-green-600 cursor-not-allowed'
-                : ''
-            }
+            disabled={saving || saved}
+            className={saved ? 'bg-green-600 text-white' : ''}
           >
             {saving
               ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -273,6 +239,7 @@ export default function PurchaseFormDialog({
                 : 'Salvar'}
           </Button>
         </div>
+
       </div>
     </div>
   );
