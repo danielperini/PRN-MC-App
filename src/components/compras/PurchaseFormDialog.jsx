@@ -74,11 +74,11 @@ function getRubricaCentroCusto(rubrica) {
 }
 
 function getRubricaTitulo(rubrica) {
-  return rubrica?.rubrica || rubrica?.nome || 'Sem nome';
+  return String(rubrica?.rubrica || rubrica?.nome || 'Sem nome').trim();
 }
 
 function getRubricaGrupo(rubrica) {
-  return rubrica?.grupo || 'Sem grupo';
+  return String(rubrica?.grupo || 'Sem grupo').trim();
 }
 
 export default function PurchaseFormDialog({
@@ -89,70 +89,40 @@ export default function PurchaseFormDialog({
 }) {
   const { data: rubricas = [] } = useQuery({
     queryKey: ['rubricas'],
-    queryFn: () => base44.entities.Rubrica.list('-created_date', 999),
+    queryFn: () => base44.entities.Rubrica.list('-created_date', 5000),
   });
 
   const [form, setForm] = useState(() =>
     prefill ? { ...EMPTY, ...prefill } : EMPTY
   );
   const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState('');
-
-  const rubricasAtivas = useMemo(() => {
-    return (rubricas || []).filter((r) => r?.ativo !== false);
-  }, [rubricas]);
 
   const rubricasProcessadas = useMemo(() => {
-    return rubricasAtivas.map((r) => {
-      const valor = toNumber(r?.valor_rubrica || r?.valor_total || r?.valor);
-      const utilizado = toNumber(r?.valor_utilizado || r?.utilizado);
-      const comprometido = toNumber(r?.saldo_comprometido || r?.valor_comprometido || r?.comprometido);
-      const saldo = valor - utilizado - comprometido;
-      const perc = valor > 0 ? ((utilizado + comprometido) / valor) * 100 : 0;
-      const centroMatch = sameCentroOrGlobal(getRubricaCentroCusto(r), form.centro_custo);
+    return (rubricas || [])
+      .filter((r) => !!r?.id)
+      .map((r) => {
+        const valor = toNumber(r?.valor_rubrica || r?.valor_total || r?.valor);
+        const utilizado = toNumber(r?.valor_utilizado || r?.utilizado);
+        const comprometido = toNumber(
+          r?.saldo_comprometido || r?.valor_comprometido || r?.comprometido
+        );
+        const saldo = valor - utilizado - comprometido;
 
-      return {
-        ...r,
-        valor,
-        utilizado,
-        comprometido,
-        saldo,
-        perc,
-        centroMatch,
-      };
-    });
-  }, [rubricasAtivas, form.centro_custo]);
-
-  const filteredRubricas = useMemo(() => {
-    const termo = String(search || '').trim().toLowerCase();
-
-    return rubricasProcessadas
-      .filter((r) => {
-        if (!termo) return true;
-
-        const texto = [
-          getRubricaGrupo(r),
-          getRubricaTitulo(r),
-          r?.centro_custo,
-          r?.museu,
-          r?.unidade,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-
-        return texto.includes(termo);
+        return {
+          ...r,
+          valor,
+          utilizado,
+          comprometido,
+          saldo,
+        };
       })
       .sort((a, b) => {
-        if (a.centroMatch && !b.centroMatch) return -1;
-        if (!a.centroMatch && b.centroMatch) return 1;
-
-        const grupoA = getRubricaGrupo(a).localeCompare(getRubricaGrupo(b), 'pt-BR');
-        if (grupoA !== 0) return grupoA;
+        const grupoCompare = getRubricaGrupo(a).localeCompare(getRubricaGrupo(b), 'pt-BR');
+        if (grupoCompare !== 0) return grupoCompare;
 
         return getRubricaTitulo(a).localeCompare(getRubricaTitulo(b), 'pt-BR');
       });
-  }, [rubricasProcessadas, search]);
+  }, [rubricas]);
 
   const selectedRubrica = useMemo(() => {
     return rubricasProcessadas.find((r) => r.id === form.rubrica_id) || null;
@@ -250,58 +220,27 @@ export default function PurchaseFormDialog({
             </SelectContent>
           </Select>
 
-          <div className="space-y-2">
-            <Input
-              placeholder="Buscar rubrica..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-
-            <Select
-              value={form.rubrica_id || ''}
-              onValueChange={(v) => setForm({ ...form, rubrica_id: v })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Rubrica" />
-              </SelectTrigger>
-              <SelectContent>
-                {rubricasProcessadas.length > 0 ? (
-                  rubricasProcessadas.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {`${getRubricaGrupo(r)} | ${getRubricaTitulo(r)}`}
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="__sem_resultado__" disabled>
-                    Nenhuma rubrica encontrada
+          <Select
+            value={form.rubrica_id || ''}
+            onValueChange={(v) => setForm({ ...form, rubrica_id: v })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Rubrica" />
+            </SelectTrigger>
+            <SelectContent className="max-h-96">
+              {rubricasProcessadas.length > 0 ? (
+                rubricasProcessadas.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {`${getRubricaGrupo(r)} | ${getRubricaTitulo(r)} | Saldo R$ ${moeda(r.saldo)}`}
                   </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-
-            {selectedRubrica && (
-              <div className="rounded border bg-gray-50 p-2 text-xs text-gray-700">
-                <div>
-                  <strong>Grupo:</strong> {getRubricaGrupo(selectedRubrica)}
-                </div>
-                <div>
-                  <strong>Rubrica:</strong> {getRubricaTitulo(selectedRubrica)}
-                </div>
-                <div>
-                  <strong>Valor:</strong> R$ {moeda(selectedRubrica.valor)}
-                </div>
-                <div>
-                  <strong>Utilizado:</strong> R$ {moeda(selectedRubrica.utilizado)}
-                </div>
-                <div>
-                  <strong>Comprometido:</strong> R$ {moeda(selectedRubrica.comprometido)}
-                </div>
-                <div>
-                  <strong>Saldo real:</strong> R$ {moeda(selectedRubrica.saldo)}
-                </div>
-              </div>
-            )}
-          </div>
+                ))
+              ) : (
+                <SelectItem value="__sem_resultado__" disabled>
+                  Nenhuma rubrica encontrada
+                </SelectItem>
+              )}
+            </SelectContent>
+          </Select>
 
           <Input
             type="number"
