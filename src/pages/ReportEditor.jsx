@@ -632,8 +632,20 @@ export default function ReportEditor() {
           {saving ? 'Salvando...' : 'Salvar Rascunho'}
         </Button>
 
-        <Button onClick={() => handleSave('SUBMITTED')} disabled={saving}>
-          {saving ? 'Enviando...' : 'Enviar para Revisão'}
+        <Button
+          onClick={() => handleSave('SUBMITTED')}
+          disabled={saving || form.status === 'SUBMITTED'}
+          className={
+            form.status === 'SUBMITTED'
+              ? 'bg-green-600 text-white hover:bg-green-600 cursor-not-allowed'
+              : ''
+          }
+        >
+          {saving
+            ? 'Enviando...'
+            : form.status === 'SUBMITTED'
+              ? 'Enviado com Sucesso!'
+              : 'Enviar para Revisão'}
         </Button>
       </div>
     </div>);
