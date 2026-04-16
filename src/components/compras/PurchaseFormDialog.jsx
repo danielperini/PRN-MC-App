@@ -97,6 +97,9 @@ export default function PurchaseFormDialog({
   );
   const [saving, setSaving] = useState(false);
 
+  // 🔥 NOVO ESTADO
+  const [saved, setSaved] = useState(false);
+
   const rubricasProcessadas = useMemo(() => {
     return (rubricas || [])
       .filter((r) => !!r?.id)
@@ -115,12 +118,6 @@ export default function PurchaseFormDialog({
           comprometido,
           saldo,
         };
-      })
-      .sort((a, b) => {
-        const grupoCompare = getRubricaGrupo(a).localeCompare(getRubricaGrupo(b), 'pt-BR');
-        if (grupoCompare !== 0) return grupoCompare;
-
-        return getRubricaTitulo(a).localeCompare(getRubricaTitulo(b), 'pt-BR');
       });
   }, [rubricas]);
 
@@ -165,6 +162,7 @@ export default function PurchaseFormDialog({
       }
 
       toastMessages.createSuccess();
+      setSaved(true); // 🔥 MARCA COMO SALVO
       onSuccess();
     } catch (e) {
       toastMessages.saveFailed(e?.message);
@@ -228,17 +226,11 @@ export default function PurchaseFormDialog({
               <SelectValue placeholder="Rubrica" />
             </SelectTrigger>
             <SelectContent className="max-h-96">
-              {rubricasProcessadas.length > 0 ? (
-                rubricasProcessadas.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {`${getRubricaGrupo(r)} | ${getRubricaTitulo(r)} | Saldo R$ ${moeda(r.saldo)}`}
-                  </SelectItem>
-                ))
-              ) : (
-                <SelectItem value="__sem_resultado__" disabled>
-                  Nenhuma rubrica encontrada
+              {rubricasProcessadas.map((r) => (
+                <SelectItem key={r.id} value={r.id}>
+                  {`${getRubricaGrupo(r)} | ${getRubricaTitulo(r)} | Saldo R$ ${moeda(r.saldo)}`}
                 </SelectItem>
-              )}
+              ))}
             </SelectContent>
           </Select>
 
@@ -264,8 +256,21 @@ export default function PurchaseFormDialog({
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={saving || !!financeiroError}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+
+          <Button
+            onClick={handleSave}
+            disabled={saving || !!financeiroError || saved}
+            className={
+              saved
+                ? 'bg-green-600 text-white hover:bg-green-600 cursor-not-allowed'
+                : ''
+            }
+          >
+            {saving
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : saved
+                ? 'Salvo com Sucesso!'
+                : 'Salvar'}
           </Button>
         </div>
       </div>
