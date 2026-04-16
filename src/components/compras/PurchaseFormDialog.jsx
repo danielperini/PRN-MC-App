@@ -265,10 +265,10 @@ export default function PurchaseFormDialog({
                 <SelectValue placeholder="Rubrica" />
               </SelectTrigger>
               <SelectContent>
-                {filteredRubricas.length > 0 ? (
-                  filteredRubricas.map((r) => (
+                {rubricasProcessadas.length > 0 ? (
+                  rubricasProcessadas.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
-                      {`${getRubricaGrupo(r)} | ${getRubricaTitulo(r)} | Saldo R$ ${moeda(r.saldo)}`}
+                      {`${getRubricaGrupo(r)} | ${getRubricaTitulo(r)}`}
                     </SelectItem>
                   ))
                 ) : (
