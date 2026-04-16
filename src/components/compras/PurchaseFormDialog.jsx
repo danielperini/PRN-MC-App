@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, X, Upload, FileCheck } from 'lucide-react';
+import { Loader2, X, FileCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
 const CENTROS = ['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Publicações', 'Geral'];
@@ -61,8 +61,8 @@ export default function PurchaseFormDialog({
   const [form, setForm] = useState(prefill ? { ...EMPTY, ...prefill } : EMPTY);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
-  // 🔥 NOVOS ESTADOS
   const [pdfFile, setPdfFile] = useState(null);
   const [xmlFile, setXmlFile] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -97,6 +97,11 @@ export default function PurchaseFormDialog({
       return;
     }
 
+    if (!prefill?.id) {
+      toastMessages.validationError('Salve a solicitação antes de anexar e analisar a nota fiscal.');
+      return;
+    }
+
     setAnalyzing(true);
 
     try {
@@ -110,12 +115,14 @@ export default function PurchaseFormDialog({
         xml_url: xmlUrl,
       });
 
-      setAiScore(response?.ai_score || null);
-      setAiResumo(response?.ai_resumo || '');
+      const data = response?.data || response || {};
+
+      setAiScore(data?.ai_score || null);
+      setAiResumo(data?.ai_resumo || '');
 
       toastMessages.createSuccess('Nota analisada com sucesso');
     } catch (e) {
-      toastMessages.saveFailed(e.message);
+      toastMessages.saveFailed(e?.message);
     }
 
     setAnalyzing(false);
@@ -123,6 +130,7 @@ export default function PurchaseFormDialog({
 
   const handleSave = async () => {
     setSaving(true);
+    setSuccessMessage('');
 
     try {
       const payload = {
@@ -139,6 +147,7 @@ export default function PurchaseFormDialog({
 
       toastMessages.createSuccess();
       setSaved(true);
+      setSuccessMessage('Solicitação salva com sucesso!');
       onSuccess();
     } catch (e) {
       toastMessages.saveFailed(e?.message);
@@ -150,14 +159,14 @@ export default function PurchaseFormDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-2xl rounded-xl bg-white">
-
         <div className="flex justify-between border-b p-4">
           <h2>{prefill?.id ? 'Editar compra' : 'Nova compra'}</h2>
-          <Button variant="ghost" onClick={onClose}><X /></Button>
+          <Button variant="ghost" onClick={onClose}>
+            <X />
+          </Button>
         </div>
 
         <div className="space-y-4 p-4">
-
           <Textarea
             placeholder="Descrição do item"
             value={form.descricao_item}
@@ -192,54 +201,88 @@ export default function PurchaseFormDialog({
             </SelectContent>
           </Select>
 
-          {/* 🔥 UPLOAD NF */}
-          <div className="space-y-2 border rounded p-3">
+          <Input
+            type="number"
+            placeholder="Valor"
+            value={form.valor_solicitado}
+            onChange={(e) => setForm({ ...form, valor_solicitado: e.target.value })}
+          />
+
+          <Textarea
+            placeholder="Observações"
+            value={form.observacoes}
+            onChange={(e) => setForm({ ...form, observacoes: e.target.value })}
+          />
+
+          <div className="space-y-2 rounded border p-3">
             <div className="text-sm font-semibold">Nota Fiscal</div>
 
-            <Input type="file" accept="application/pdf"
-              onChange={(e) => setPdfFile(e.target.files?.[0])}
+            <Input
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
             />
 
-            <Input type="file" accept=".xml"
-              onChange={(e) => setXmlFile(e.target.files?.[0])}
+            <Input
+              type="file"
+              accept=".xml"
+              onChange={(e) => setXmlFile(e.target.files?.[0] || null)}
             />
 
             <Button
               onClick={handleAnalisarNF}
               disabled={analyzing}
               className="w-full"
+              variant="outline"
             >
-              {analyzing
-                ? <Loader2 className="animate-spin w-4 h-4" />
-                : <><FileCheck className="w-4 h-4 mr-2" /> Analisar Nota com IA</>}
+              {analyzing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <FileCheck className="mr-2 h-4 w-4" />
+                  Analisar Nota com IA
+                </>
+              )}
             </Button>
 
             {aiScore && (
-              <div className="text-sm bg-gray-100 p-2 rounded">
+              <div className="rounded bg-gray-100 p-2 text-sm">
                 <div><strong>Score IA:</strong> {aiScore}/10</div>
-                <div className="text-xs mt-1">{aiResumo}</div>
+                <div className="mt-1 text-xs">{aiResumo}</div>
               </div>
             )}
           </div>
 
+          {successMessage && (
+            <div className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+              {successMessage}
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 border-t p-4">
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
 
           <Button
             onClick={handleSave}
             disabled={saving || saved}
-            className={saved ? 'bg-green-600 text-white' : ''}
+            className={
+              saved
+                ? 'cursor-not-allowed bg-green-600 text-white hover:bg-green-600'
+                : ''
+            }
           >
-            {saving
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : saved
-                ? 'Salvo com Sucesso!'
-                : 'Salvar'}
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : saved ? (
+              'Salvo com Sucesso!'
+            ) : (
+              'Salvar'
+            )}
           </Button>
         </div>
-
       </div>
     </div>
   );
