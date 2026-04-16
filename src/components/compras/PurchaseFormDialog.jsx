@@ -73,6 +73,14 @@ function getRubricaCentroCusto(rubrica) {
   );
 }
 
+function getRubricaTitulo(rubrica) {
+  return rubrica?.rubrica || rubrica?.nome || 'Sem nome';
+}
+
+function getRubricaGrupo(rubrica) {
+  return rubrica?.grupo || 'Sem grupo';
+}
+
 export default function PurchaseFormDialog({
   currentUser,
   onClose,
@@ -96,11 +104,12 @@ export default function PurchaseFormDialog({
 
   const rubricasProcessadas = useMemo(() => {
     return rubricasAtivas.map((r) => {
-      const valor = toNumber(r?.valor_rubrica || r?.valor_total);
-      const utilizado = toNumber(r?.valor_utilizado);
-      const comprometido = toNumber(r?.saldo_comprometido || r?.valor_comprometido);
+      const valor = toNumber(r?.valor_rubrica || r?.valor_total || r?.valor);
+      const utilizado = toNumber(r?.valor_utilizado || r?.utilizado);
+      const comprometido = toNumber(r?.saldo_comprometido || r?.valor_comprometido || r?.comprometido);
       const saldo = valor - utilizado - comprometido;
       const perc = valor > 0 ? ((utilizado + comprometido) / valor) * 100 : 0;
+      const centroMatch = sameCentroOrGlobal(getRubricaCentroCusto(r), form.centro_custo);
 
       return {
         ...r,
@@ -109,35 +118,41 @@ export default function PurchaseFormDialog({
         comprometido,
         saldo,
         perc,
+        centroMatch,
       };
     });
-  }, [rubricasAtivas]);
+  }, [rubricasAtivas, form.centro_custo]);
 
   const filteredRubricas = useMemo(() => {
-    const termo = search.trim().toLowerCase();
+    const termo = String(search || '').trim().toLowerCase();
 
-    return rubricasProcessadas.filter((r) => {
-      const centroOk = sameCentroOrGlobal(getRubricaCentroCusto(r), form.centro_custo);
+    return rubricasProcessadas
+      .filter((r) => {
+        if (!termo) return true;
 
-      if (!centroOk) return false;
+        const texto = [
+          getRubricaGrupo(r),
+          getRubricaTitulo(r),
+          r?.centro_custo,
+          r?.museu,
+          r?.unidade,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
 
-      if (!termo) return true;
+        return texto.includes(termo);
+      })
+      .sort((a, b) => {
+        if (a.centroMatch && !b.centroMatch) return -1;
+        if (!a.centroMatch && b.centroMatch) return 1;
 
-      const texto = [
-        r?.grupo,
-        r?.rubrica,
-        r?.nome,
-        r?.centro_custo,
-        r?.museu,
-        r?.unidade,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
+        const grupoA = getRubricaGrupo(a).localeCompare(getRubricaGrupo(b), 'pt-BR');
+        if (grupoA !== 0) return grupoA;
 
-      return texto.includes(termo);
-    });
-  }, [rubricasProcessadas, form.centro_custo, search]);
+        return getRubricaTitulo(a).localeCompare(getRubricaTitulo(b), 'pt-BR');
+      });
+  }, [rubricasProcessadas, search]);
 
   const selectedRubrica = useMemo(() => {
     return rubricasProcessadas.find((r) => r.id === form.rubrica_id) || null;
@@ -191,16 +206,16 @@ export default function PurchaseFormDialog({
   const financeiroError = validateFinanceiro();
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl w-full max-w-2xl">
-        <div className="p-4 border-b flex justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-2xl rounded-xl bg-white">
+        <div className="flex justify-between border-b p-4">
           <h2>{prefill?.id ? 'Editar compra' : 'Nova compra'}</h2>
           <Button variant="ghost" onClick={onClose}>
             <X />
           </Button>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="space-y-4 p-4">
           <Textarea
             placeholder="Descrição do item"
             value={form.descricao_item}
@@ -221,9 +236,7 @@ export default function PurchaseFormDialog({
 
           <Select
             value={form.centro_custo}
-            onValueChange={(v) =>
-              setForm({ ...form, centro_custo: v, rubrica_id: '' })
-            }
+            onValueChange={(v) => setForm({ ...form, centro_custo: v, rubrica_id: '' })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Centro de custo" />
@@ -242,13 +255,11 @@ export default function PurchaseFormDialog({
               placeholder="Buscar rubrica..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              disabled={!form.centro_custo}
             />
 
             <Select
               value={form.rubrica_id || ''}
               onValueChange={(v) => setForm({ ...form, rubrica_id: v })}
-              disabled={!form.centro_custo}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Rubrica" />
@@ -257,7 +268,7 @@ export default function PurchaseFormDialog({
                 {filteredRubricas.length > 0 ? (
                   filteredRubricas.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
-                      {`${r?.grupo ? `${r.grupo} | ` : ''}${r?.rubrica || r?.nome || 'Sem nome'} | Saldo R$ ${moeda(r.saldo)}`}
+                      {`${getRubricaGrupo(r)} | ${getRubricaTitulo(r)} | Saldo R$ ${moeda(r.saldo)}`}
                     </SelectItem>
                   ))
                 ) : (
@@ -267,6 +278,29 @@ export default function PurchaseFormDialog({
                 )}
               </SelectContent>
             </Select>
+
+            {selectedRubrica && (
+              <div className="rounded border bg-gray-50 p-2 text-xs text-gray-700">
+                <div>
+                  <strong>Grupo:</strong> {getRubricaGrupo(selectedRubrica)}
+                </div>
+                <div>
+                  <strong>Rubrica:</strong> {getRubricaTitulo(selectedRubrica)}
+                </div>
+                <div>
+                  <strong>Valor:</strong> R$ {moeda(selectedRubrica.valor)}
+                </div>
+                <div>
+                  <strong>Utilizado:</strong> R$ {moeda(selectedRubrica.utilizado)}
+                </div>
+                <div>
+                  <strong>Comprometido:</strong> R$ {moeda(selectedRubrica.comprometido)}
+                </div>
+                <div>
+                  <strong>Saldo real:</strong> R$ {moeda(selectedRubrica.saldo)}
+                </div>
+              </div>
+            )}
           </div>
 
           <Input
@@ -287,12 +321,12 @@ export default function PurchaseFormDialog({
           )}
         </div>
 
-        <div className="p-4 border-t flex justify-end gap-2">
+        <div className="flex justify-end gap-2 border-t p-4">
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
           <Button onClick={handleSave} disabled={saving || !!financeiroError}>
-            {saving ? <Loader2 className="animate-spin w-4 h-4" /> : 'Salvar'}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
           </Button>
         </div>
       </div>
