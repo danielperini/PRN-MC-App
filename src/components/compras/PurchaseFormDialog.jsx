@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, X, FileCheck } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
 const CENTROS = ['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Publicações', 'Geral'];
@@ -32,19 +32,38 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function moeda(value) {
-  return toNumber(value).toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+function normalizeCentroCusto(value) {
+  const raw = String(value || '').toLowerCase();
+
+  if (!raw) return '';
+  if (raw.includes('mis')) return 'MIS';
+  if (raw.includes('mhab')) return 'MHAB';
+  if (raw.includes('mumo')) return 'MUMO';
+  if (raw.includes('noturno')) return 'NOTURNO NOS MUSEUS 2026';
+  if (raw.includes('publica')) return 'PUBLICAÇÕES';
+  if (raw.includes('geral')) return 'GLOBAL';
+
+  return String(value || '').toUpperCase();
 }
 
-function getRubricaTitulo(r) {
-  return String(r?.rubrica || r?.nome || 'Sem nome').trim();
+function sameCentroOrGlobal(entityCentro, selectedCentro) {
+  const entity = normalizeCentroCusto(entityCentro);
+  const selected = normalizeCentroCusto(selectedCentro);
+
+  if (!selected) return true;
+  if (!entity) return true;
+  if (entity === 'GLOBAL') return true;
+
+  return entity === selected;
 }
 
-function getRubricaGrupo(r) {
-  return String(r?.grupo || 'Sem grupo').trim();
+function getRubricaCentroCusto(rubrica) {
+  return normalizeCentroCusto(
+    rubrica?.centro_custo ||
+    rubrica?.museu ||
+    rubrica?.unidade ||
+    ''
+  );
 }
 
 export default function PurchaseFormDialog({
@@ -53,84 +72,54 @@ export default function PurchaseFormDialog({
   onSuccess,
   prefill,
 }) {
+
   const { data: rubricas = [] } = useQuery({
     queryKey: ['rubricas'],
-    queryFn: () => base44.entities.Rubrica.list('-created_date', 5000),
+    queryFn: () => base44.entities.Rubrica.list('-created_date', 999),
   });
 
-  const [form, setForm] = useState(prefill ? { ...EMPTY, ...prefill } : EMPTY);
+  const [form, setForm] = useState(() =>
+    prefill ? { ...EMPTY, ...prefill } : EMPTY
+  );
+
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
 
-  const [pdfFile, setPdfFile] = useState(null);
-  const [xmlFile, setXmlFile] = useState(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [aiScore, setAiScore] = useState(null);
-  const [aiResumo, setAiResumo] = useState('');
-
-  const rubricasProcessadas = useMemo(() => {
-    return (rubricas || []).map((r) => {
-      const valor = toNumber(r?.valor_rubrica || r?.valor_total);
-      const utilizado = toNumber(r?.valor_utilizado);
-      const comprometido = toNumber(r?.saldo_comprometido);
-      const saldo = valor - utilizado - comprometido;
-
-      return { ...r, saldo };
-    });
+  const rubricasAtivas = useMemo(() => {
+    return (rubricas || []).filter((r) => r?.ativo !== false);
   }, [rubricas]);
 
-  const handleUpload = async (file) => {
-    if (!file) return null;
+  const filteredRubricas = useMemo(() => {
+    return rubricasAtivas.filter((r) =>
+      sameCentroOrGlobal(getRubricaCentroCusto(r), form.centro_custo)
+    );
+  }, [rubricasAtivas, form.centro_custo]);
 
-    const res = await base44.storage.upload({
-      file,
-      path: `notas_fiscais/${file.name}`,
-    });
+  const selectedRubrica = useMemo(() => {
+    return rubricasAtivas.find((r) => r.id === form.rubrica_id) || null;
+  }, [rubricasAtivas, form.rubrica_id]);
 
-    return res?.file_url || null;
-  };
+  const validateFinanceiro = () => {
+    if (!form.centro_custo) return 'Selecione o centro de custo.';
+    if (!form.rubrica_id) return 'Selecione a rubrica.';
+    if (!selectedRubrica) return 'Rubrica inválida.';
 
-  const handleAnalisarNF = async () => {
-    if (!pdfFile) {
-      toastMessages.validationError('PDF obrigatório');
-      return;
+    const rubricaCentro = getRubricaCentroCusto(selectedRubrica);
+
+    if (!sameCentroOrGlobal(rubricaCentro, form.centro_custo)) {
+      return `Rubrica incompatível com centro ${form.centro_custo}`;
     }
 
-    if (!prefill?.id) {
-      toastMessages.validationError('Salve a solicitação antes de anexar e analisar a nota fiscal.');
-      return;
-    }
-
-    setAnalyzing(true);
-
-    try {
-      const pdfUrl = await handleUpload(pdfFile);
-      const xmlUrl = xmlFile ? await handleUpload(xmlFile) : null;
-
-      const response = await base44.functions.invoke('purchaseActions', {
-        action: 'attach_invoice',
-        purchaseId: prefill?.id,
-        pdf_url: pdfUrl,
-        xml_url: xmlUrl,
-      });
-
-      const data = response?.data || response || {};
-
-      setAiScore(data?.ai_score || null);
-      setAiResumo(data?.ai_resumo || '');
-
-      toastMessages.createSuccess('Nota analisada com sucesso');
-    } catch (e) {
-      toastMessages.saveFailed(e?.message);
-    }
-
-    setAnalyzing(false);
+    return null;
   };
 
   const handleSave = async () => {
+    const erro = validateFinanceiro();
+    if (erro) {
+      toastMessages.validationError(erro);
+      return;
+    }
+
     setSaving(true);
-    setSuccessMessage('');
 
     try {
       const payload = {
@@ -146,9 +135,8 @@ export default function PurchaseFormDialog({
       }
 
       toastMessages.createSuccess();
-      setSaved(true);
-      setSuccessMessage('Solicitação salva com sucesso!');
       onSuccess();
+
     } catch (e) {
       toastMessages.saveFailed(e?.message);
     }
@@ -156,17 +144,19 @@ export default function PurchaseFormDialog({
     setSaving(false);
   };
 
+  const financeiroError = validateFinanceiro();
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-2xl rounded-xl bg-white">
-        <div className="flex justify-between border-b p-4">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl w-full max-w-2xl">
+
+        <div className="p-4 border-b flex justify-between">
           <h2>{prefill?.id ? 'Editar compra' : 'Nova compra'}</h2>
-          <Button variant="ghost" onClick={onClose}>
-            <X />
-          </Button>
+          <Button variant="ghost" onClick={onClose}><X /></Button>
         </div>
 
-        <div className="space-y-4 p-4">
+        <div className="p-4 space-y-4">
+
           <Textarea
             placeholder="Descrição do item"
             value={form.descricao_item}
@@ -186,16 +176,27 @@ export default function PurchaseFormDialog({
           />
 
           <Select
+            value={form.centro_custo}
+            onValueChange={(v) => setForm({ ...form, centro_custo: v, rubrica_id: '' })}
+          >
+            <SelectTrigger><SelectValue placeholder="Centro de custo" /></SelectTrigger>
+            <SelectContent>
+              {CENTROS.map(c => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
             value={form.rubrica_id || ''}
             onValueChange={(v) => setForm({ ...form, rubrica_id: v })}
+            disabled={!form.centro_custo}
           >
-            <SelectTrigger>
-              <SelectValue placeholder="Rubrica" />
-            </SelectTrigger>
-            <SelectContent className="max-h-96">
-              {rubricasProcessadas.map((r) => (
+            <SelectTrigger><SelectValue placeholder="Rubrica" /></SelectTrigger>
+            <SelectContent>
+              {filteredRubricas.map(r => (
                 <SelectItem key={r.id} value={r.id}>
-                  {`${getRubricaGrupo(r)} | ${getRubricaTitulo(r)} | Saldo R$ ${moeda(r.saldo)}`}
+                  {r.rubrica || r.nome}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -214,75 +215,19 @@ export default function PurchaseFormDialog({
             onChange={(e) => setForm({ ...form, observacoes: e.target.value })}
           />
 
-          <div className="space-y-2 rounded border p-3">
-            <div className="text-sm font-semibold">Nota Fiscal</div>
-
-            <Input
-              type="file"
-              accept="application/pdf"
-              onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
-            />
-
-            <Input
-              type="file"
-              accept=".xml"
-              onChange={(e) => setXmlFile(e.target.files?.[0] || null)}
-            />
-
-            <Button
-              onClick={handleAnalisarNF}
-              disabled={analyzing}
-              className="w-full"
-              variant="outline"
-            >
-              {analyzing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <FileCheck className="mr-2 h-4 w-4" />
-                  Analisar Nota com IA
-                </>
-              )}
-            </Button>
-
-            {aiScore && (
-              <div className="rounded bg-gray-100 p-2 text-sm">
-                <div><strong>Score IA:</strong> {aiScore}/10</div>
-                <div className="mt-1 text-xs">{aiResumo}</div>
-              </div>
-            )}
-          </div>
-
-          {successMessage && (
-            <div className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-              {successMessage}
-            </div>
+          {financeiroError && (
+            <div className="text-xs text-red-600">{financeiroError}</div>
           )}
+
         </div>
 
-        <div className="flex justify-end gap-2 border-t p-4">
-          <Button variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-
-          <Button
-            onClick={handleSave}
-            disabled={saving || saved}
-            className={
-              saved
-                ? 'cursor-not-allowed bg-green-600 text-white hover:bg-green-600'
-                : ''
-            }
-          >
-            {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : saved ? (
-              'Salvo com Sucesso!'
-            ) : (
-              'Salvar'
-            )}
+        <div className="p-4 border-t flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={saving || !!financeiroError}>
+            {saving ? <Loader2 className="animate-spin w-4 h-4" /> : 'Salvar'}
           </Button>
         </div>
+
       </div>
     </div>
   );
