@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
     }
 
     // Domínios permitidos para aprovação automática
-    const allowedDomains = ['@viadutodasartes.org.br', '@periniprojetos.com.br'];
+    const allowedDomains = ['@viadutodasartes.org.br', '@periniprojetos.com.br', '@pbh.gov.br'];
     const userEmail = registration.email.toLowerCase();
     const isAllowedDomain = allowedDomains.some(domain => userEmail.endsWith(domain));
 
