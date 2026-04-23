@@ -51,6 +51,9 @@ function AuthenticatedApp() {
       navigateToLogin();
       return null;
     }
+
+    // Qualquer outro erro (unknown, etc.) — mostra tela de acesso restrito
+    return <UserNotRegisteredError />;
   }
 
   return (
