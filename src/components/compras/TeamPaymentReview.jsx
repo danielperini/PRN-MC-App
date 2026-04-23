@@ -1,172 +1,313 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import React, { useState, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  Search,
+  Eye,
+  DollarSign,
+  User,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
 
-function isAllowedAutoApproveEmail(email: string) {
-  const normalized = String(email || '').trim().toLowerCase();
+const STATUS_CONFIG = {
+  PENDENTE: { label: 'Pendente', color: 'bg-yellow-100 text-yellow-700', icon: Clock },
+  EM_ANALISE: { label: 'Em Análise', color: 'bg-blue-100 text-blue-700', icon: Clock },
+  APROVADO: { label: 'Aprovado', color: 'bg-green-100 text-green-700', icon: CheckCircle },
+  RECUSADO: { label: 'Recusado', color: 'bg-red-100 text-red-700', icon: XCircle },
+  PAGO: { label: 'Pago', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle }
+};
 
-  if (!normalized) return false;
-
-  const allowedDomains = [
-    '@viadutodasartes.org.br',
-    '@periniprojetos.com.br',
-    '@pbh.gov.br',
-  ];
-
-  return allowedDomains.some((domain) => normalized.endsWith(domain));
+function fmtBRL(v) {
+  if (!v && v !== 0) return '—';
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 }
 
-Deno.serve(async (req) => {
-  try {
-    const base44 = createClientFromRequest(req);
-    const { event } = await req.json();
+function PaymentDetailModal({ payment, onClose, onStatusChange, isCoordinator }) {
+  const [comment, setComment] = useState('');
+  const [loading, setLoading] = useState(false);
 
-    if (!event || event.type !== 'create') {
-      return Response.json({ success: true });
-    }
+  if (!payment) return null;
 
-    const registration = event.data;
-    if (!registration || !registration.email || !registration.id) {
-      return Response.json({ success: true });
-    }
+  const handleAction = async (newStatus) => {
+    setLoading(true);
+    await onStatusChange(payment.id, newStatus, comment);
+    setLoading(false);
+    onClose();
+  };
 
-    const userEmail = String(registration.email || '').trim().toLowerCase();
-    const isAllowedDomain = isAllowedAutoApproveEmail(userEmail);
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Detalhes do Pagamento</DialogTitle>
+        </DialogHeader>
 
-    console.log('[AUTO-APPROVE] email:', registration.email);
-    console.log('[AUTO-APPROVE] isAllowedDomain:', isAllowedDomain);
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-gray-500">Profissional</p>
+              <p className="font-medium">{payment.member_name || payment.user_name || '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Mês de Referência</p>
+              <p className="font-medium">{payment.mes_referencia || '—'} / {payment.ano || '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Valor</p>
+              <p className="font-medium text-lg">{fmtBRL(payment.valor_total || payment.valor)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Status</p>
+              <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CONFIG[payment.status]?.color || 'bg-gray-100 text-gray-600'}`}>
+                {STATUS_CONFIG[payment.status]?.label || payment.status}
+              </span>
+            </div>
+          </div>
 
-    if (!isAllowedDomain) {
-      console.log('[PENDING-APPROVAL] entrou no fluxo de pendência');
+          {payment.nota_fiscal_url && (
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Nota Fiscal</p>
+              <a
+                href={payment.nota_fiscal_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-600 hover:underline"
+              >
+                Ver documento
+              </a>
+            </div>
+          )}
 
-      const allPermissions = await base44.asServiceRole.entities.UserPermission.list();
-      console.log('[PENDING-APPROVAL] total UserPermission:', allPermissions.length);
+          {payment.observacoes && (
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Observações</p>
+              <p className="text-sm text-gray-700 rounded-lg bg-gray-50 p-3">{payment.observacoes}</p>
+            </div>
+          )}
 
-      const approvers = allPermissions.filter((user) =>
-        user.can_manage_users === true ||
-        user.base_role === 'ADMIN' ||
-        user.base_role === 'admin' ||
-        user.base_role === 'COORDENADOR'
-      );
+          {isCoordinator && (payment.status === 'PENDENTE' || payment.status === 'EM_ANALISE') && (
+            <div className="space-y-3 border-t pt-4">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Comentário (opcional)</label>
+                <Input
+                  placeholder="Comentário para o profissional..."
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  className="border-red-300 text-red-600 hover:bg-red-50"
+                  onClick={() => handleAction('RECUSADO')}
+                  disabled={loading}
+                >
+                  <XCircle className="h-4 w-4 mr-1" />
+                  Recusar
+                </Button>
+                <Button
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => handleAction('APROVADO')}
+                  disabled={loading}
+                >
+                  <CheckCircle className="h-4 w-4 mr-1" />
+                  Aprovar
+                </Button>
+              </div>
+            </div>
+          )}
 
-      console.log('[PENDING-APPROVAL] total approvers:', approvers.length);
+          {isCoordinator && payment.status === 'APROVADO' && (
+            <div className="border-t pt-4 flex justify-end">
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => handleAction('PAGO')}
+                disabled={loading}
+              >
+                <DollarSign className="h-4 w-4 mr-1" />
+                Marcar como Pago
+              </Button>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
-      for (const approver of approvers) {
-        if (!approver.user_email) continue;
+export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const queryClient = useQueryClient();
 
-        console.log('[PENDING-APPROVAL] enviando email para:', approver.user_email);
+  useEffect(() => {
+    base44.auth.me().then(setCurrentUser).catch(() => setCurrentUser(null));
+  }, []);
 
-        try {
-          await base44.asServiceRole.integrations.Core.SendEmail({
-            to: approver.user_email,
-            subject: 'Novo usuário aguardando aprovação',
-            body: `
-<h2>Novo cadastro pendente de aprovação</h2>
-<p>Um novo usuário realizou cadastro na plataforma e aguarda análise.</p>
-<p><strong>Nome:</strong> ${registration.full_name || 'Não informado'}</p>
-<p><strong>Email:</strong> ${registration.email}</p>
-<p><strong>Função:</strong> ${registration.funcao || 'Não informado'}</p>
-<p><strong>Museu:</strong> ${registration.museu || 'Não informado'}</p>
-<p>Acesse a aba de usuários da plataforma para aprovar ou rejeitar este cadastro.</p>
-            `,
-            from_name: 'Plataforma de Relatórios',
-          });
+  const isCoordinator = ['admin', 'ADMIN', 'COORDENADOR'].includes(currentUser?.role);
 
-          console.log('[PENDING-APPROVAL] email enviado para:', approver.user_email);
-        } catch (sendError) {
-          console.error(
-            '[PENDING-APPROVAL] erro ao enviar para:',
-            approver.user_email,
-            sendError
-          );
-        }
-      }
+  const { data: payments = [], isLoading } = useQuery({
+    queryKey: ['team-payments'],
+    queryFn: () => base44.entities.TeamPayment.list('-created_date', 300),
+    enabled: !!currentUser
+  });
 
-      console.log('[PENDING-APPROVAL] fluxo concluído para:', registration.email);
-
-      return Response.json({
-        success: true,
-        message: 'Domínio não permitido para aprovação automática; coordenadores notificados',
-        autoApproved: false,
-      });
-    }
-
-    const existingPermissions = await base44.asServiceRole.entities.UserPermission.filter({
-      user_email: registration.email,
+  const handleStatusChange = async (paymentId, newStatus, comment) => {
+    await base44.entities.TeamPayment.update(paymentId, {
+      status: newStatus,
+      ...(comment ? { comentario_coordenacao: comment } : {})
     });
+    queryClient.invalidateQueries({ queryKey: ['team-payments'] });
+  };
 
-    if (existingPermissions && existingPermissions.length > 0) {
-      await base44.asServiceRole.entities.UserRegistration.update(registration.id, {
-        status: 'APROVADO',
-        reviewer_note: 'Aprovado automaticamente pelo domínio permitido; permissões já existiam',
-      });
+  const filtered = payments.filter((p) => {
+    const matchStatus = statusFilter === 'all' || p.status === statusFilter;
+    const busca = search.trim().toLowerCase();
+    const matchSearch =
+      !busca ||
+      String(p.member_name || p.user_name || '').toLowerCase().includes(busca) ||
+      String(p.mes_referencia || '').toLowerCase().includes(busca);
+    return matchStatus && matchSearch;
+  });
 
-      return Response.json({
-        success: true,
-        message: 'Usuário já possuía permissões e foi marcado como aprovado',
-        autoApproved: true,
-        existingPermissions: existingPermissions[0],
-      });
-    }
+  const pendentes = payments.filter((p) => p.status === 'PENDENTE' || p.status === 'EM_ANALISE').length;
+  const totalAprovado = payments
+    .filter((p) => p.status === 'APROVADO' || p.status === 'PAGO')
+    .reduce((s, p) => s + (p.valor_total || p.valor || 0), 0);
 
-    const newUser = await base44.users.inviteUser(registration.email, 'user');
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <p className="text-xs font-medium text-gray-500">Pendentes de Análise</p>
+          <p className="mt-1 text-2xl font-bold text-yellow-600">{pendentes}</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <p className="text-xs font-medium text-gray-500">Total de Pagamentos</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900">{payments.length}</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <p className="text-xs font-medium text-gray-500">Total Aprovado / Pago</p>
+          <p className="mt-1 text-2xl font-bold text-green-700">{fmtBRL(totalAprovado)}</p>
+        </div>
+      </div>
 
-    await base44.asServiceRole.entities.UserPermission.create({
-      user_email: registration.email,
-      user_name: registration.full_name,
-      base_role: 'PROFISSIONAL',
-      can_view_all_reports: false,
-      can_review_reports: false,
-      can_manage_users: false,
-      can_manage_files: false,
-      can_manage_museus: false,
-      can_manage_equipes: false,
-      can_view_audit_log: false,
-      can_manage_platform: false,
-      must_submit_monthly_report: true,
-    });
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-48">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Buscar por profissional ou mês..."
+            className="pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os status</SelectItem>
+            {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-    await base44.asServiceRole.entities.UserRegistration.update(registration.id, {
-      status: 'APROVADO',
-      reviewer_note: 'Aprovado automaticamente pelo domínio permitido',
-    });
+      {isLoading ? (
+        <div className="py-16 text-center text-gray-400">Carregando pagamentos...</div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center">
+          <DollarSign className="mx-auto mb-3 h-12 w-12 text-gray-300" />
+          <p className="font-medium text-gray-400">Nenhum pagamento encontrado</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-gray-200">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50 text-left">
+                <th className="px-3 py-3 font-medium text-gray-600">Profissional</th>
+                <th className="px-3 py-3 font-medium text-gray-600">Referência</th>
+                <th className="px-3 py-3 font-medium text-gray-600">Status</th>
+                <th className="px-3 py-3 text-right font-medium text-gray-600">Valor</th>
+                <th className="px-3 py-3 text-center font-medium text-gray-600">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((p, i) => {
+                const status = STATUS_CONFIG[p.status] || { label: p.status, color: 'bg-gray-100 text-gray-600' };
+                const StatusIcon = status.icon || Clock;
+                return (
+                  <tr
+                    key={p.id}
+                    className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}
+                  >
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-gray-400" />
+                        <span className="font-medium text-gray-900">{p.member_name || p.user_name || p.created_by || '—'}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-600">
+                      {p.mes_referencia || '—'}{p.ano ? ` / ${p.ano}` : ''}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>
+                        <StatusIcon className="h-3 w-3" />
+                        {status.label}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-medium tabular-nums text-gray-900">
+                      {fmtBRL(p.valor_total || p.valor)}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <button
+                        onClick={() => setSelectedPayment(p)}
+                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-black"
+                        title="Ver detalhes"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-    await base44.asServiceRole.integrations.Core.SendEmail({
-      to: registration.email,
-      subject: 'Bem-vindo à Plataforma de Relatórios! 🎉',
-      body: `
-<h2>Acesso Aprovado!</h2>
-<p>Olá ${registration.full_name || 'usuário'},</p>
-
-<p>Sua solicitação de acesso à plataforma foi <strong>aprovada automaticamente</strong>!</p>
-
-<div style="background: #f0f9ff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2563eb;">
-  <p><strong>Seus dados:</strong></p>
-  <p>Email: ${registration.email}</p>
-  <p>Função: ${registration.funcao || 'Não informado'}</p>
-  <p>Museu: ${registration.museu || 'Não informado'}</p>
-</div>
-
-<p>Você já pode acessar a plataforma agora. Bem-vindo!</p>
-
-<p style="color: #666; font-size: 14px;">
-  Se tiver dúvidas, entre em contato com um coordenador.
-</p>
-      `,
-      from_name: 'Plataforma de Relatórios',
-    });
-
-    console.log('[AUTO-APPROVE] usuário aprovado automaticamente:', registration.email);
-
-    return Response.json({
-      success: true,
-      message: 'Usuário aprovado automaticamente',
-      autoApproved: true,
-      user: newUser,
-    });
-  } catch (error) {
-    console.error('Erro ao auto-aprovar usuário:', error);
-    return Response.json(
-      { error: error?.message || String(error) },
-      { status: 500 }
-    );
-  }
-});
+      {selectedPayment && (
+        <PaymentDetailModal
+          payment={selectedPayment}
+          onClose={() => setSelectedPayment(null)}
+          onStatusChange={handleStatusChange}
+          isCoordinator={isCoordinator}
+        />
+      )}
+    </div>
+  );
+}
