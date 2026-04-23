@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Search, UserPlus, Save, Users, KeyRound, Pencil } from 'lucide-react';
+import { Search, UserPlus, Save, Users, KeyRound, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import InviteDialog from '@/components/users/InviteDialog';
 
@@ -203,7 +203,7 @@ function PermissionsDialog({ user, permissions, onClose }) {
   );
 }
 
-function UserCard({ user, onEdit, onPassword, onPermissions, onRoleChange }) {
+function UserCard({ user, onEdit, onPassword, onPermissions, onRoleChange, onDelete }) {
   const role = user.permissions?.base_role || user.role || 'user';
   const initials = (user.full_name || user.email || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
   const funcao = user.funcao || null;
@@ -256,6 +256,15 @@ function UserCard({ user, onEdit, onPassword, onPermissions, onRoleChange }) {
         <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => onPermissions(user)}>
           Permissões
         </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5 text-xs h-8 border-red-200 text-red-600 hover:bg-red-50"
+          onClick={() => onDelete(user)}
+        >
+          <Trash2 className="w-3 h-3" />
+          Excluir
+        </Button>
       </div>
     </div>
   );
@@ -267,6 +276,7 @@ export default function UserManagement() {
   const [passwordUser, setPasswordUser] = useState(null);
   const [permissionsUser, setPermissionsUser] = useState(null);
   const [showInvite, setShowInvite] = useState(false);
+  const [deletingUser, setDeletingUser] = useState(null);
   const queryClient = useQueryClient();
 
   const { data = [], isLoading } = useQuery({
@@ -282,6 +292,18 @@ export default function UserManagement() {
       }));
     },
   });
+
+  async function handleDelete(user) {
+    if (!window.confirm(`Tem certeza que deseja excluir o usuário "${user.full_name || user.email}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      if (user.permissions?.id) {
+        await base44.entities.UserPermission.delete(user.permissions.id);
+      }
+      await base44.entities.User.delete(user.id);
+      toast.success('Usuário excluído com sucesso.');
+      queryClient.invalidateQueries(['user-management']);
+    } catch (e) { toast.error('Erro ao excluir: ' + e.message); }
+  }
 
   async function handleRoleChange(user, newRole) {
     try {
@@ -348,6 +370,7 @@ export default function UserManagement() {
                 onPassword={setPasswordUser}
                 onPermissions={setPermissionsUser}
                 onRoleChange={handleRoleChange}
+                onDelete={handleDelete}
               />
             ))}
           </div>
