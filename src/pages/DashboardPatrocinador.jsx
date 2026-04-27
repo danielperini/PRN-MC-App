@@ -205,7 +205,7 @@ export default function DashboardPatrocinador() {
 
       const totalOrcado = rubricasData.reduce((sum, r) => sum + r.previsto, 0);
       const totalUtilizado = rubricasData.reduce((sum, r) => sum + r.utilizado, 0);
-      const saldoTotalCalc = rubricasData.reduce((sum, r) => sum + r.saldo, 0);
+      const saldoTotalCalc = totalOrcado - totalUtilizado;
       const percentualExecucao = totalOrcado > 0 ? Number((totalUtilizado / totalOrcado * 100).toFixed(1)) : 0;
 
       const statusProjeto = reportsRaw?.length > 0 ? 'Relatórios aprovados' : 'Em andamento';
