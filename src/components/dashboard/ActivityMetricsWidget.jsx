@@ -10,6 +10,7 @@ export default function ActivityMetricsWidget({ reports = [] }) {
     let totalExtra = 0;
     let totalPublico = 0;
     const atividadesPorMuseu = {};
+    const publicoPorMuseu = {};
 
     // Apenas relatórios APROVADOS
     const approvedReports = reports.filter(r => r.status === 'APPROVED');
@@ -24,6 +25,9 @@ export default function ActivityMetricsWidget({ reports = [] }) {
         const museu = report.museu || 'Sem Museu';
         if (!atividadesPorMuseu[museu]) atividadesPorMuseu[museu] = 0;
         atividadesPorMuseu[museu]++;
+        
+        if (!publicoPorMuseu[museu]) publicoPorMuseu[museu] = 0;
+        publicoPorMuseu[museu] += a.publico_total || 0;
       });
     });
 
@@ -31,6 +35,7 @@ export default function ActivityMetricsWidget({ reports = [] }) {
       name: museu.substring(0, 10),
       full: museu,
       atividades: count,
+      publico: publicoPorMuseu[museu] || 0,
     }));
 
     const classData = [
@@ -80,7 +85,7 @@ export default function ActivityMetricsWidget({ reports = [] }) {
         </Card>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-3 gap-4">
         {metrics.chartData.length > 0 && (
           <Card className="p-4 border-gray-200">
             <p className="text-sm font-semibold text-black mb-4">Atividades por Museu</p>
@@ -96,8 +101,23 @@ export default function ActivityMetricsWidget({ reports = [] }) {
           </Card>
         )}
 
-        {metrics.classData.length > 0 && (
+        {metrics.chartData.length > 0 && (
           <Card className="p-4 border-gray-200">
+            <p className="text-sm font-semibold text-black mb-4">Público por Museu</p>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={metrics.chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb' }} />
+                <Bar dataKey="publico" fill="#6b7280" />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+        )}
+
+        {metrics.classData.length > 0 && (
+          <Card className="p-4 border-gray-200 md:col-span-3">
             <p className="text-sm font-semibold text-black mb-4">Classificação de Atividades</p>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
