@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { isCoordenador, canManageUsers } from '@/components/auth/permissions';
+import SidebarTooltip from './SidebarTooltip';
 
 const NAV_GROUPS = [
   {
@@ -88,35 +89,37 @@ function NavItem({ item, currentPageName, collapsed }) {
   const isActive = currentPageName === item.path;
 
   return (
-    <Link
-      to={`/${item.path}`}
-      title={collapsed ? item.label : undefined}
-      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors group ${
-        isActive
-          ? 'bg-white text-slate-900'
-          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-      }`}
-    >
-      <Icon
-        className={`w-4 h-4 flex-shrink-0 ${
-          isActive ? 'text-slate-900' : 'text-slate-500 group-hover:text-white'
+    <SidebarTooltip label={item.label} collapsed={collapsed}>
+      <Link
+        to={`/${item.path}`}
+        title={collapsed ? item.label : undefined}
+        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors group ${
+          isActive
+            ? 'bg-white text-slate-900'
+            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
         }`}
-      />
-      {!collapsed && (
-        <div className="min-w-0">
-          <span className="truncate block leading-tight">{item.label}</span>
-          {item.subtitle && (
-            <span
-              className={`text-[10px] truncate block leading-tight mt-0.5 ${
-                isActive ? 'text-slate-500' : 'text-slate-500'
-              }`}
-            >
-              {item.subtitle}
-            </span>
-          )}
-        </div>
-      )}
-    </Link>
+      >
+        <Icon
+          className={`w-4 h-4 flex-shrink-0 ${
+            isActive ? 'text-slate-900' : 'text-slate-500 group-hover:text-white'
+          }`}
+        />
+        {!collapsed && (
+          <div className="min-w-0">
+            <span className="truncate block leading-tight">{item.label}</span>
+            {item.subtitle && (
+              <span
+                className={`text-[10px] truncate block leading-tight mt-0.5 ${
+                  isActive ? 'text-slate-500' : 'text-slate-500'
+                }`}
+              >
+                {item.subtitle}
+              </span>
+            )}
+          </div>
+        )}
+      </Link>
+    </SidebarTooltip>
   );
 }
 
