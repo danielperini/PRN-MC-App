@@ -138,19 +138,35 @@ function PaymentDetailModal({ payment, onClose, onStatusChange, isCoordinator, q
             </div>
           )}
 
-          {isCoordinator && payment.status === 'PENDENTE' && (
-            <div className="border-t pt-4 flex justify-end gap-2">
-              <Button
-                className="bg-green-600 text-white hover:bg-green-700"
-                onClick={async () => {
-                  setLoading(true);
-                  await handleAction('APROVADO', comment, true);
-                }}
-                disabled={loading}
-              >
-                {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />}
-                {loading ? 'Aprovando e debitando...' : 'Aprovar + Debitar'}
-              </Button>
+          {isCoordinator && payment.status === 'APROVADO' && (
+            <div className="border-t pt-4 space-y-3">
+              <p className="text-xs text-gray-600 font-medium">Próximo passo: Debitar da rubrica e marcar como pago</p>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  className="bg-green-600 text-white hover:bg-green-700"
+                  onClick={async () => {
+                    setLoading(true);
+                    if (payment?.rubrica_id && payment?.valor_total) {
+                      try {
+                        const rubrica = await base44.entities.Rubrica.filter({ id: payment.rubrica_id });
+                        if (rubrica?.[0]) {
+                          const novoUtilizado = (rubrica[0].valor_utilizado || 0) + payment.valor_total;
+                          await base44.entities.Rubrica.update(payment.rubrica_id, {
+                            valor_utilizado: novoUtilizado
+                          });
+                        }
+                      } catch (err) {
+                        console.warn('Não foi possível debitar:', err);
+                      }
+                    }
+                    await handleAction('PAGO');
+                  }}
+                  disabled={loading}
+                >
+                  {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <DollarSign className="h-4 w-4 mr-1" />}
+                  {loading ? 'Debitando e marcando...' : 'Debitar + Pagar'}
+                </Button>
+              </div>
             </div>
           )}
 
