@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2, Eye, Send, ChevronDown, FolderOpen, RefreshCw, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2, Eye, Send, FolderOpen, RefreshCw, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -45,25 +45,45 @@ const DESTINO_LABEL = {
 
 export default function DocumentIntakeCard({ intake, onReview }) {
   const { toast } = useToast();
-  const [reclassifying, setReclassifying] = useState(false);
-  const [reanalysing, setReanalysing] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [localTipo, setLocalTipo] = useState(intake.tipo_detectado);
+  const [loading, setLoading] = useState(false);
+
+  // Sincronizar quando intake muda
+  useEffect(() => {
+    setLocalTipo(intake.tipo_detectado);
+  }, [intake.id, intake.tipo_detectado]);
 
   const status = STATUS_CONFIG[intake.status_processamento] || STATUS_CONFIG.ENVIADO;
   const Icon = status.icon;
   const isImage = localTipo === 'FOTO_ATIVIDADE';
-  const podeRevisar = intake.status_processamento === 'AGUARDANDO_REVISAO' || intake.status_processamento === 'RASCUNHO';
-  const isAnalisando = intake.status_processamento === 'ANALISANDO_IA' || intake.status_processamento === 'ENVIADO';
-  const isErro = intake.status_processamento === 'ERRO_PROCESSAMENTO';
-  const tipoIdentificado = localTipo && localTipo !== 'PENDENTE';
+
+  // Estados condicionais simplificados
+  const isProcessing = intake.status_processamento === 'ANALISANDO_IA' || intake.status_processamento === 'ENVIADO';
+  const canReview = intake.status_processamento === 'AGUARDANDO_REVISAO' || intake.status_processamento === 'RASCUNHO';
+  const hasError = intake.status_processamento === 'ERRO_PROCESSAMENTO';
+  const hasType = localTipo && localTipo !== 'PENDENTE';
+  const isNF = localTipo === 'NOTA_FISCAL_PDF' || localTipo === 'NOTA_FISCAL_XML';
+
   const destinoInfo = intake.entidade_destino && intake.entidade_destino !== 'Attachment'
     ? DESTINO_LABEL[intake.entidade_destino]
     : null;
 
-  async function handleReclassify(novoTipo) {
+  // Filtrar erros relevantes (remover datas futuras já passadas)
+  const relevantErrors = (intake.erros_validacao || []).filter(e => {
+    const txt = String(e).toLowerCase();
+    if (txt.includes('futura') || txt.includes('future')) {
+      const match = txt.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if (match) {
+        const dataDoc = new Date(`${match[3]}-${match[2]}-${match[1]}`);
+        if (dataDoc <= new Date()) return false;
+      }
+    }
+    return true;
+  });
+
+  async function handleClassification(novoTipo) {
     if (novoTipo === localTipo) return;
-    setReclassifying(true);
+    setLoading(true);
     try {
       await base44.entities.DocumentIntake.update(intake.id, {
         tipo_detectado: novoTipo,
@@ -73,14 +93,14 @@ export default function DocumentIntakeCard({ intake, onReview }) {
       setLocalTipo(novoTipo);
       toast({ title: 'Categoria atualizada com sucesso.' });
     } catch (e) {
-      toast({ title: 'Erro ao reclassificar', description: e.message, variant: 'destructive' });
+      toast({ title: 'Erro ao atualizar categoria', description: e.message, variant: 'destructive' });
     } finally {
-      setReclassifying(false);
+      setLoading(false);
     }
   }
 
   async function handleReanalyse() {
-    setReanalysing(true);
+    setLoading(true);
     try {
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'ENVIADO',
@@ -91,31 +111,11 @@ export default function DocumentIntakeCard({ intake, onReview }) {
     } catch (e) {
       toast({ title: 'Erro ao reenviar', description: e.message, variant: 'destructive' });
     } finally {
-      setReanalysing(false);
-    }
-  }
-
-  async function handleCancelAnalysis(novoTipo) {
-    setReclassifying(true);
-    try {
-      await base44.entities.DocumentIntake.update(intake.id, {
-        tipo_detectado: novoTipo,
-        status_processamento: 'AGUARDANDO_REVISAO',
-        revisado_pelo_usuario: true,
-      });
-      setLocalTipo(novoTipo);
-      // Abre o formulário correspondente
-      onReview({ ...intake, tipo_detectado: novoTipo });
-      toast({ title: 'Análise cancelada. Abra o formulário para salvar.' });
-    } catch (e) {
-      toast({ title: 'Erro ao cancelar análise', description: e.message, variant: 'destructive' });
-    } finally {
-      setReclassifying(false);
+      setLoading(false);
     }
   }
 
   async function handleDelete() {
-    // Validação: não permite deletar se vinculado a processo
     const statusProtegidos = ['ENVIADO_APROVACAO', 'APROVADO', 'REJEITADO', 'VINCULADO'];
     if (statusProtegidos.includes(intake.status_processamento) || intake.grupo_status === 'VINCULADO' || intake.grupo_status === 'ENVIADO_APROVACAO') {
       toast({
@@ -127,9 +127,8 @@ export default function DocumentIntakeCard({ intake, onReview }) {
     }
 
     if (!window.confirm('Tem certeza que deseja deletar este arquivo?')) return;
-    setDeleting(true);
+    setLoading(true);
     try {
-      // Soft delete — marcar como REMOVIDO ao invés de deletar fisicamente
       await base44.entities.DocumentIntake.update(intake.id, {
         status_registro: 'REMOVIDO'
       });
@@ -137,12 +136,13 @@ export default function DocumentIntakeCard({ intake, onReview }) {
     } catch (e) {
       toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
     } finally {
-      setDeleting(false);
+      setLoading(false);
     }
   }
 
   return (
     <div className="border border-slate-200 rounded-xl p-4 bg-white hover:shadow-sm transition-shadow space-y-3">
+      {/* Header com ícone, nome, data e status */}
       <div className="flex items-start gap-4">
         <div className={cn(
           'w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0',
@@ -171,83 +171,51 @@ export default function DocumentIntakeCard({ intake, onReview }) {
               {status.label}
             </span>
 
-            {(() => {
-              const hoje = new Date();
-              const errosFiltrados = (intake.erros_validacao || []).filter(e => {
-                const txt = String(e).toLowerCase();
-                if (txt.includes('futura') || txt.includes('future')) {
-                  const match = txt.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-                  if (match) {
-                    const dataDoc = new Date(`${match[3]}-${match[2]}-${match[1]}`);
-                    if (dataDoc <= hoje) return false;
-                  }
-                }
-                return true;
-              });
-              return errosFiltrados.length > 0 ? (
-                <span className="text-xs text-red-500 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  {errosFiltrados.length} inconsistência(s)
-                </span>
-              ) : null;
-            })()}
+            {relevantErrors.length > 0 && (
+              <span className="text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {relevantErrors.length} inconsistência(s)
+              </span>
+            )}
           </div>
         </div>
 
-        <div className="flex-shrink-0 flex flex-col items-end gap-1">
-          {podeRevisar && (
+        {/* Botões de ação à direita */}
+        <div className="flex-shrink-0 flex items-center gap-1">
+          {canReview && (
             <Button size="sm" onClick={() => onReview({ ...intake, tipo_detectado: localTipo })}>
               Revisar
             </Button>
           )}
-          {isAnalisando && (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 text-xs text-yellow-600">
-                <Loader2 className="w-4 h-4 animate-spin" />
-              </div>
-              <div className="flex gap-1">
-                <Select onValueChange={handleCancelAnalysis} disabled={reclassifying}>
-                  <SelectTrigger className="h-7 text-xs w-32">
-                    <SelectValue placeholder="Cancelar análise" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIPO_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="h-7 w-7 p-0"
-                  title="Deletar arquivo"
-                >
-                  {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
-                </Button>
-              </div>
-            </div>
+          {isProcessing && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={loading}
+              className="h-7 w-7 p-0"
+              title="Deletar arquivo"
+            >
+              {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+            </Button>
           )}
-          {isErro && (
+          {hasError && (
             <Button
               size="sm"
               variant="outline"
               onClick={handleReanalyse}
-              disabled={reanalysing}
+              disabled={loading}
               className="text-xs h-7"
             >
-              {reanalysing ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+              {loading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
               Reanalisar
             </Button>
           )}
         </div>
       </div>
 
-      {/* Categoria identificada pela IA — visível após análise */}
-      {tipoIdentificado && !isAnalisando && (
+      {/* Seção: Classificação da IA + Reclassificação */}
+      {hasType && !isProcessing && (
         <div className="border-t border-slate-100 pt-3 space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500 font-medium">Categoria identificada pela IA:</span>
@@ -261,8 +229,8 @@ export default function DocumentIntakeCard({ intake, onReview }) {
             <div className="flex-1 max-w-[280px]">
               <Select
                 value={localTipo}
-                onValueChange={handleReclassify}
-                disabled={reclassifying}
+                onValueChange={handleClassification}
+                disabled={loading}
               >
                 <SelectTrigger className="h-7 text-xs">
                   <SelectValue />
@@ -276,7 +244,7 @@ export default function DocumentIntakeCard({ intake, onReview }) {
                 </SelectContent>
               </Select>
             </div>
-            {reclassifying && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
+            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
           </div>
 
           {intake.rubrica_nome_sugerida && (
@@ -287,8 +255,8 @@ export default function DocumentIntakeCard({ intake, onReview }) {
         </div>
       )}
 
-      {/* Agrupamento PDF+XML — visível para notas fiscais */}
-      {(localTipo === 'NOTA_FISCAL_PDF' || localTipo === 'NOTA_FISCAL_XML') && intake.grupo_status && (
+      {/* Seção: Agrupamento PDF+XML */}
+      {isNF && intake.grupo_status && (
         <div className="border-t border-slate-100 pt-3">
           {intake.grupo_status === 'COMPLETO' ? (
             <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 px-2 py-1.5 rounded">
@@ -304,7 +272,7 @@ export default function DocumentIntakeCard({ intake, onReview }) {
         </div>
       )}
 
-      {/* Área de destino — visível após vinculação */}
+      {/* Seção: Destino do documento */}
       {destinoInfo && (
         <div className="border-t border-slate-100 pt-3 flex items-center gap-2">
           <FolderOpen className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
@@ -318,8 +286,8 @@ export default function DocumentIntakeCard({ intake, onReview }) {
         </div>
       )}
 
-      {/* Fallback: erro de IA — arquivado mas aguardando classificação manual */}
-      {isErro && (
+      {/* Seção: Erro na análise — permite reclassificação manual */}
+      {hasError && (
         <div className="border-t border-slate-100 pt-3 space-y-2">
           <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
             <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
@@ -328,7 +296,7 @@ export default function DocumentIntakeCard({ intake, onReview }) {
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500">Classificar como:</span>
             <div className="flex-1 max-w-[280px]">
-              <Select value={localTipo} onValueChange={handleReclassify} disabled={reclassifying}>
+              <Select value={localTipo} onValueChange={handleClassification} disabled={loading}>
                 <SelectTrigger className="h-7 text-xs">
                   <SelectValue />
                 </SelectTrigger>
