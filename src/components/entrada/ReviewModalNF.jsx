@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { base44 } from '@/api/base44Client';
-import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Plus, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck } from 'lucide-react';
+import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Plus, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
@@ -745,16 +745,14 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           <div className="flex justify-end gap-2 pt-2 flex-wrap">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
 
-            {(intake.erros_validacao || []).length > 0 && (
-              <>
-                <Button variant="destructive" onClick={handleDeletarDocumento}>
-                  🗑️ Deletar
-                </Button>
-                <Button variant="outline" onClick={handleRereprocessar}>
-                  🔄 Rereprocessar
-                </Button>
-              </>
-            )}
+            <Button variant="destructive" size="sm" onClick={handleDeletarDocumento}>
+              <Trash2 className="w-4 h-4 mr-1" />
+              Deletar
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleRereprocessar}>
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Rereprocessar
+            </Button>
 
             <Button variant="outline" onClick={handleSalvarRascunho} disabled={saving}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
