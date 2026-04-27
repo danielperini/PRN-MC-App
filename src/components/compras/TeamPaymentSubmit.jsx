@@ -715,23 +715,28 @@ export default function TeamPaymentSubmit({ userEmail }) {
       }
 
       try {
-        setAnalysisStep('Executando validações de negócio...');
+        setAnalysisStep('Verificando duplicação de pagamentos...');
 
-        const existing = await base44.entities.TeamPayment.filter({
+        // VALIDAÇÃO CRÍTICA: BLOQUEAR DUPLICAÇÃO COM BACKEND ROBUSTO
+        const dupCheck = await base44.functions.invoke('checkTeamPaymentDuplication', {
           user_email: effectiveMember.user_email,
           mes_referencia: selectedComp.mes,
-          ano: selectedComp.ano
+          ano: selectedComp.ano,
+          numero_nf: form.numero_nf
         });
 
-        const bestExisting = pickBestExistingPayment(existing || []);
-        const existeAtivo = (existing || []).some((p) =>
-          ['PAGO', 'APROVADO_COORD', 'AGUARDANDO_APROVACAO'].includes(
-            String(p.status || '').toUpperCase()
-          )
-        );
+        const dupCheckData = dupCheck?.data || dupCheck || {};
 
-        if (existeAtivo && bestExisting) {
-          throw new Error('Já existe uma nota fiscal enviada para essa competência.');
+        if (!dupCheckData.ok || !dupCheckData.can_create) {
+          const existingPaymentId = dupCheckData.existing_payment?.id;
+          const existingNF = dupCheckData.existing_payment?.numero_nf;
+          const existingStatus = dupCheckData.existing_payment?.status;
+
+          const detailMsg = existingPaymentId
+            ? `\n\nPagamento existente: ${existingNF} (ID: ${existingPaymentId}, Status: ${existingStatus})`
+            : '';
+
+          throw new Error(`${dupCheckData.message || dupCheckData.error}${detailMsg}`);
         }
 
         const valorFinal = toNumber(form.valor_nf || valorParcela);
@@ -805,7 +810,15 @@ export default function TeamPaymentSubmit({ userEmail }) {
           throw new Error('Falha crítica: rubrica_id ausente no payload.');
         }
 
-        created = await base44.entities.TeamPayment.create(payload);
+        // USAR FUNÇÃO IDEMPOTENT PARA CRIAR (BLOQUEIA CLIQUE DUPLO)
+        const createResult = await base44.functions.invoke('createTeamPaymentIdempotent', payload);
+        const createData = createResult?.data || createResult || {};
+
+        if (!createData.ok || !createData.payment_id) {
+          throw new Error(createData.error || 'Falha ao criar pagamento');
+        }
+
+        created = { id: createData.payment_id, ...createData };
 
         markStepDone(4, 75);
       } catch (err) {
