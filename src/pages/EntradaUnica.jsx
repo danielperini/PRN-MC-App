@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
-import { Loader2, Inbox, RefreshCw } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, Activity } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DocumentUploadZone from '@/components/entrada/DocumentUploadZone';
 import DocumentIntakeCard from '@/components/entrada/DocumentIntakeCard';
 import ReviewModalNF from '@/components/entrada/ReviewModalNF';
@@ -10,6 +11,7 @@ import ReviewModalFoto from '@/components/entrada/ReviewModalFoto';
 import ReviewModalDocAdmin from '@/components/entrada/ReviewModalDocAdmin';
 import ReviewModalOutro from '@/components/entrada/ReviewModalOutro';
 import CoordBulkImportPanel from '@/components/entrada/CoordBulkImportPanel';
+import DocumentMonitoringDashboard from '@/components/entrada/DocumentMonitoringDashboard';
 
 const COORD_EMAILS = [
   'danielperini.mc@viadutodasartes.org.br',
@@ -160,61 +162,82 @@ export default function EntradaUnica() {
   const isOutro = modalTipo === 'OUTRO' || modalTipo === 'PENDENTE';
 
   return (
-    <div className="max-w-3xl mx-auto py-8 px-4 space-y-6">
+    <div className="w-full py-8 px-4 space-y-6">
       {/* Cabeçalho */}
-      <div>
+      <div className="max-w-7xl mx-auto">
         <h1 className="text-2xl font-bold text-slate-900">Entrada Única de Documentos</h1>
         <p className="text-slate-500 text-sm mt-1">
           Envie qualquer documento. A IA identifica o tipo e direciona automaticamente para o banco correto.
         </p>
       </div>
 
-      {/* Painel coordenador — visível apenas para e-mails autorizados */}
-      {user && COORD_EMAILS.includes((user.email || '').toLowerCase().trim()) && (
-        <CoordBulkImportPanel />
-      )}
+      {/* Abas */}
+      <div className="max-w-7xl mx-auto">
+        <Tabs defaultValue="upload" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="upload">📤 Envio & Lista</TabsTrigger>
+            <TabsTrigger value="monitoring">
+              <Activity className="w-4 h-4 mr-2" />
+              Monitoramento
+            </TabsTrigger>
+          </TabsList>
 
-      {/* Zona de upload */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <DocumentUploadZone onFilesSelected={handleFilesSelected} disabled={uploading} />
-        {uploading && (
-          <div className="flex items-center gap-2 mt-4 text-sm text-blue-600">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Enviando e iniciando análise pela IA...
-          </div>
-        )}
-      </div>
+          {/* Aba 1: Upload e Lista */}
+          <TabsContent value="upload" className="space-y-6 max-w-3xl mx-auto">
+            {/* Painel coordenador — visível apenas para e-mails autorizados */}
+            {user && COORD_EMAILS.includes((user.email || '').toLowerCase().trim()) && (
+              <CoordBulkImportPanel />
+            )}
 
-      {/* Lista de documentos enviados */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-slate-700">Documentos Enviados</h2>
-          <Button variant="ghost" size="sm" onClick={loadIntakes} disabled={loadingIntakes}>
-            <RefreshCw className={`w-4 h-4 ${loadingIntakes ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
+            {/* Zona de upload */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+              <DocumentUploadZone onFilesSelected={handleFilesSelected} disabled={uploading} />
+              {uploading && (
+                <div className="flex items-center gap-2 mt-4 text-sm text-blue-600">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Enviando e iniciando análise pela IA...
+                </div>
+              )}
+            </div>
 
-        {loadingIntakes && intakes.length === 0 ? (
-          <div className="text-center py-12 text-slate-400">
-            <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-            Carregando...
-          </div>
-        ) : intakes.length === 0 ? (
-          <div className="text-center py-12 text-slate-400 border border-dashed border-slate-200 rounded-xl">
-            <Inbox className="w-8 h-8 mx-auto mb-2 opacity-40" />
-            <p className="text-sm">Nenhum documento enviado ainda.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {intakes.map(intake => (
-              <DocumentIntakeCard
-                key={intake.id}
-                intake={intake}
-                onReview={handleReview}
-              />
-            ))}
-          </div>
-        )}
+            {/* Lista de documentos enviados */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-semibold text-slate-700">Documentos Enviados</h2>
+                <Button variant="ghost" size="sm" onClick={loadIntakes} disabled={loadingIntakes}>
+                  <RefreshCw className={`w-4 h-4 ${loadingIntakes ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+
+              {loadingIntakes && intakes.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                  Carregando...
+                </div>
+              ) : intakes.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                  <Inbox className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">Nenhum documento enviado ainda.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {intakes.map(intake => (
+                    <DocumentIntakeCard
+                      key={intake.id}
+                      intake={intake}
+                      onReview={handleReview}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Aba 2: Monitoramento */}
+          <TabsContent value="monitoring" className="w-full">
+            <DocumentMonitoringDashboard />
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Modais de revisão */}
