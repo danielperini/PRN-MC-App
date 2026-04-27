@@ -700,6 +700,12 @@ function GestorArquivosInner() {
   );
 }
 
-export default function GestorArquivos() {
-  return <RequireAuth><GestorArquivosInner /></RequireAuth>;
+function GestorArquivos() {
+  return (
+    <RequireAuth>
+      <GestorArquivosInner />
+    </RequireAuth>
+  );
 }
+
+export default GestorArquivos;
