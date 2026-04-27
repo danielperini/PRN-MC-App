@@ -52,8 +52,35 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     loadRubricas();
   }, []);
 
+  // Converter valor (suporta pt-BR "1.234,56" e US "1234.56")
+  function parseValorBR(v) {
+    const s = String(v || '0').trim().replace(/\s/g, '');
+    if (/^\d{1,3}(\.\d{3})*(,\d+)?$/.test(s)) {
+      return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+    }
+    return parseFloat(s.replace(',', '.')) || 0;
+  }
+
+  // Reconstruir nome padronizado com valores atuais
+  function buildNomePadronizado() {
+    const numero = (form.nf_numero || 'SEM-NUM').trim();
+    const fornecedor = (form.nf_emitente_nome || 'FORNECEDOR').trim().substring(0, 40).toUpperCase();
+    const valorNum = parseValorBR(form.nf_valor_total);
+    const valorFormatado = valorNum > 0
+      ? valorNum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+      : '0,00';
+    const extAtual = (intake.file_name_original || 'arquivo.pdf').split('.').pop()?.toLowerCase() || 'pdf';
+    return `${numero} - ${fornecedor} - MUSEUS CENTRO - R$ ${valorFormatado}.${extAtual}`;
+  }
+
+  // Atualiza nome automaticamente ao editar número, fornecedor ou valor
+  useEffect(() => {
+    setForm(f => ({ ...f, file_name_final: buildNomePadronizado() }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.nf_numero, form.nf_emitente_nome, form.nf_valor_total]);
+
   // Calcular totais do rateio
-  const valorTotal = parseFloat(form.nf_valor_total) || 0;
+  const valorTotal = parseValorBR(form.nf_valor_total);
   const totalRateado = rateio.reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
   const diferencaRateio = Math.abs(valorTotal - totalRateado);
   const rateioValido = dividirEntreMuseus ? diferencaRateio < 0.01 && rateio.some(r => parseFloat(r.valor) > 0) : true;

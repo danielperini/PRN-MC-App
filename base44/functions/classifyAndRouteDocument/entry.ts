@@ -21,10 +21,22 @@ function detectMimeType(mimeType, fileName) {
   return 'OUTRO';
 }
 
+function parseValor(v) {
+  if (!v && v !== 0) return 0;
+  const s = String(v).trim().replace(/\s/g, '');
+  // Se tem vírgula como separador decimal (pt-BR: 1.234,56)
+  if (/^\d{1,3}(\.\d{3})*(,\d+)?$/.test(s)) {
+    return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+  // Padrão numérico (1234.56 ou "1234,56" sem separador de milhar)
+  return parseFloat(s.replace(',', '.')) || 0;
+}
+
 function buildRenamedNF(params) {
   const numero = safeStr(params.nf_numero) || 'SEM-NUM';
   const fornecedor = safeStr(params.nf_emitente_nome || params.fornecedor).substring(0, 40).toUpperCase() || 'FORNECEDOR';
-  const valor = params.nf_valor_total ? Number(params.nf_valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00';
+  const valorNum = parseValor(params.nf_valor_total);
+  const valor = valorNum > 0 ? valorNum.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00';
   const ext = safeStr(params.extension) || 'pdf';
   return `${numero} - ${fornecedor} - MUSEUS CENTRO - R$ ${valor}.${ext}`;
 }
