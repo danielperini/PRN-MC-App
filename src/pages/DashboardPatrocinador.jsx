@@ -33,7 +33,7 @@ export default function DashboardPatrocinador() {
     dadosMensais: [],
     dadosClassificacao: []
   });
-  const [syncMetrics, setSyncMetrics] = useState(null);
+
 
   useEffect(() => {
     loadDashboardData();
@@ -197,16 +197,6 @@ export default function DashboardPatrocinador() {
         allActivitiesRaw: activitiesRaw || []
       });
       setLastUpdate(new Date());
-
-      // Carregar métricas da sincronização
-      try {
-        const syncResponse = await base44.functions.invoke('syncDashboardDataFromReports', {});
-        if (syncResponse.data) {
-          setSyncMetrics(syncResponse.data);
-        }
-      } catch (syncError) {
-        console.error('Erro ao carregar métricas de sincronização:', syncError);
-      }
     } catch (error) {
       console.error('Erro ao carregar dashboard patrocinador:', error);
     } finally {
@@ -307,17 +297,8 @@ export default function DashboardPatrocinador() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">
-              {syncMetrics?.consolidated_by_museum 
-                ? Object.values(syncMetrics.consolidated_by_museum).reduce((sum, periodos) => 
-                    sum + Object.values(periodos).reduce((psum, p) => psum + (p.publico_mes || 0), 0), 0
-                  ).toLocaleString()
-                : data.totalPublico.toLocaleString()
-              }
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              {syncMetrics?.total_unique_reports ? `${syncMetrics.total_unique_reports} relatórios sincronizados` : `${data.publicoMes.toLocaleString()} este mês`}
-            </p>
+            <div className="text-2xl font-bold text-slate-900">{data.totalPublico.toLocaleString()}</div>
+            <p className="text-xs text-slate-500 mt-1">{data.publicoMes.toLocaleString()} este mês</p>
           </CardContent>
         </Card>
 
