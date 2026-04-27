@@ -19,6 +19,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Loader2, Sparkles, Paperclip, FileCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import InactiveMembersPanel from './InactiveMembersPanel';
 
 const CARGOS_FUNCOES = [
   // ── Coordenação ──────────────────────────────────────────
@@ -213,8 +214,10 @@ export default function TeamMemberForm({
   });
 
   const availableUsers = useMemo(() => {
+    // Usuários que ainda NÃO foram adicionados como TeamMembers
     const existingEmails = new Set(
       teamMembers
+        .filter((m) => m?.status === 'ATIVO') // Apenas ativos
         .map((m) => String(m?.user_email || '').trim().toLowerCase())
         .filter(Boolean)
     );
@@ -504,6 +507,8 @@ Responda SOMENTE com os dados extraídos.`,
 
         {mode === 'select' && !editingMember && (
           <div className="space-y-4">
+            <InactiveMembersPanel />
+
             <div className="space-y-2">
               <Label>Selecionar usuário</Label>
               <Select
