@@ -160,6 +160,7 @@ Deno.serve(async (req) => {
     });
 
     const fileUrl = safeString(uploadResponse?.file_url);
+    const grupoUploadId = `grupo_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     if (!fileUrl) {
       return Response.json(

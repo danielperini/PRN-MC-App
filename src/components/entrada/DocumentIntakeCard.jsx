@@ -115,14 +115,25 @@ export default function DocumentIntakeCard({ intake, onReview }) {
   }
 
   async function handleDelete() {
+    // Validação: não permite deletar se vinculado a processo
+    const statusProtegidos = ['ENVIADO_APROVACAO', 'APROVADO', 'REJEITADO', 'VINCULADO'];
+    if (statusProtegidos.includes(intake.status_processamento) || intake.grupo_status === 'VINCULADO' || intake.grupo_status === 'ENVIADO_APROVACAO') {
+      toast({
+        title: 'Não é possível deletar',
+        description: 'Este arquivo já está vinculado a um processo e não pode ser excluído.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     if (!window.confirm('Tem certeza que deseja deletar este arquivo?')) return;
     setDeleting(true);
     try {
-      await base44.entities.DocumentIntake.delete(intake.id);
-      if (intake.entidade_destino_id) {
-        await base44.entities.Attachment.delete(intake.entidade_destino_id);
-      }
-      toast({ title: 'Arquivo deletado com sucesso.' });
+      // Soft delete — marcar como REMOVIDO ao invés de deletar fisicamente
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_registro: 'REMOVIDO'
+      });
+      toast({ title: 'Arquivo removido com sucesso.' });
     } catch (e) {
       toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
     } finally {
@@ -273,6 +284,23 @@ export default function DocumentIntakeCard({ intake, onReview }) {
               💡 Rubrica sugerida: <span className="font-medium text-slate-700">{intake.rubrica_nome_sugerida}</span>
             </p>
           )}
+        </div>
+      )}
+
+      {/* Agrupamento PDF+XML — visível para notas fiscais */}
+      {(localTipo === 'NOTA_FISCAL_PDF' || localTipo === 'NOTA_FISCAL_XML') && intake.grupo_status && (
+        <div className="border-t border-slate-100 pt-3">
+          {intake.grupo_status === 'COMPLETO' ? (
+            <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 px-2 py-1.5 rounded">
+              <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>PDF e XML associados — pronto para processar</span>
+            </div>
+          ) : intake.grupo_status === 'INCOMPLETO' ? (
+            <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-2 py-1.5 rounded">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>Envie PDF + XML da mesma nota para completar</span>
+            </div>
+          ) : null}
         </div>
       )}
 

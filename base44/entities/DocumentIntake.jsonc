@@ -109,6 +109,30 @@
       "type": "boolean",
       "default": false,
       "description": "Se o usu\u00e1rio j\u00e1 revisou os dados da IA"
+    },
+    "grupo_upload_id": {
+      "type": "string",
+      "description": "ID \u00fanico do grupo de upload (formato: grupo_${timestamp})"
+    },
+    "grupo_status": {
+      "type": "string",
+      "enum": [
+        "INCOMPLETO",
+        "COMPLETO",
+        "VINCULADO",
+        "ENVIADO_APROVACAO"
+      ],
+      "default": "INCOMPLETO",
+      "description": "Status do agrupamento (PDF+XML)"
+    },
+    "status_registro": {
+      "type": "string",
+      "enum": [
+        "ATIVO",
+        "REMOVIDO"
+      ],
+      "default": "ATIVO",
+      "description": "Status l\u00f3gico do registro (soft delete)"
     }
   },
   "required": [

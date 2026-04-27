@@ -123,6 +123,28 @@ Responda SOMENTE em JSON válido:
       return Response.json({ ok: true, tipo: 'FOTO_ATIVIDADE', resultado_ia: resultadoIa });
     }
 
+    // --- VALIDAÇÃO DE AGRUPAMENTO PDF+XML ---
+    // Busca outros intakes do mesmo grupo
+    let grupoStatus = intake.grupo_status || 'INCOMPLETO';
+    if (intake.grupo_upload_id) {
+      try {
+        const outrosDoGrupo = await base44.asServiceRole.entities.DocumentIntake.filter({
+          grupo_upload_id: intake.grupo_upload_id,
+          status_registro: 'ATIVO'
+        });
+        
+        if (Array.isArray(outrosDoGrupo) && outrosDoGrupo.length > 1) {
+          const temPDF = outrosDoGrupo.some(d => d.tipo_detectado === 'NOTA_FISCAL_PDF');
+          const temXML = outrosDoGrupo.some(d => d.tipo_detectado === 'NOTA_FISCAL_XML');
+          if (temPDF && temXML) {
+            grupoStatus = 'COMPLETO';
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao validar grupo:', e.message);
+      }
+    }
+
     // --- XML DE NOTA FISCAL ---
     if (tipoDetectado === 'NOTA_FISCAL_XML') {
       try {
@@ -227,7 +249,8 @@ Procure por:
         rubrica_nome_sugerida: rubricaSugerida?.rubrica_nome || '',
         rubrica_justificativa: rubricaSugerida?.justificativa || '',
         erros_validacao: erros,
-        revisado_pelo_usuario: false
+        revisado_pelo_usuario: false,
+        grupo_status: grupoStatus
       });
 
       return Response.json({ ok: true, tipo: 'NOTA_FISCAL_XML', resultado_ia: resultadoIa, rubrica: rubricaSugerida });
@@ -407,7 +430,8 @@ Procure por:
         rubrica_nome_sugerida: rubricaSugerida?.rubrica_nome || '',
         rubrica_justificativa: rubricaSugerida?.justificativa || '',
         erros_validacao: erros,
-        revisado_pelo_usuario: false
+        revisado_pelo_usuario: false,
+        grupo_status: grupoStatus
       });
 
       return Response.json({ ok: true, tipo: tipoDetectado, resultado_ia: resultadoIa, rubrica: rubricaSugerida });
@@ -419,7 +443,8 @@ Procure por:
       status_processamento: 'AGUARDANDO_REVISAO',
       resultado_ia: {},
       erros_validacao: [],
-      revisado_pelo_usuario: false
+      revisado_pelo_usuario: false,
+      grupo_status: grupoStatus
     });
 
     return Response.json({ ok: true, tipo: 'OUTRO' });

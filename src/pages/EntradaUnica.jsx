@@ -35,7 +35,7 @@ export default function EntradaUnica() {
     setLoadingIntakes(true);
     try {
       const list = await base44.entities.DocumentIntake.filter(
-        { user_email: user.email },
+        { user_email: user.email, status_registro: 'ATIVO' },
         '-created_date',
         50
       );
@@ -67,6 +67,7 @@ export default function EntradaUnica() {
     setUploading(true);
 
     const createdIntakes = [];
+    const grupoUploadId = `grupo_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     try {
       for (const file of files) {
@@ -96,6 +97,9 @@ export default function EntradaUnica() {
           entidade_destino: 'Attachment',
           entidade_destino_id: attachmentGuarda.id,
           resultado_ia: orientacoes ? { orientacoes_usuario: orientacoes } : undefined,
+          grupo_upload_id: grupoUploadId,
+          grupo_status: files.length > 1 ? 'INCOMPLETO' : 'COMPLETO',
+          status_registro: 'ATIVO',
         });
 
         createdIntakes.push({ intake, attachmentId: attachmentGuarda.id });
