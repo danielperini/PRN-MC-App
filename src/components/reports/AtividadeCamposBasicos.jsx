@@ -208,6 +208,10 @@ export default function AtividadeCamposBasicos({
     onChange('meta_vinculada_titulos', titulos.join(', '));
   }
 
+  function handleMetaDescricaoChange(value) {
+    onChange('meta_codigo', value);
+  }
+
   function handleProgramacaoChange(value) {
     const selected = programacoes.find((item) => item.id === value);
 
@@ -483,21 +487,44 @@ export default function AtividadeCamposBasicos({
         </Field>
 
         <Field label={atividade?.classificacao === 'Meta' ? 'Metas vinculadas *' : 'Metas vinculadas'}>
-          {atividade?.classificacao === 'Meta' && metasLista.length === 0 && (
-            <p className="text-xs text-red-500 mb-1">Selecione ao menos uma meta para esta atividade.</p>
-          )}
-          <FilterMultiSelect
-            options={metasOptions.map((item) => item.label)}
-            values={removeDuplicatesString(
-              metasOptions
-                .filter((item) => metasLista.includes(item.id))
-                .map((item) => item.label)
+            {atividade?.classificacao === 'Meta' && metasLista.length === 0 && (
+              <p className="text-xs text-red-500 mb-1">Selecione ao menos uma meta para esta atividade.</p>
             )}
-            onChange={handleMetasChange}
-            disabled={!canEdit}
-            placeholder={metasOptions.length === 0 ? 'Carregando metas...' : 'Selecione metas...'}
-          />
-        </Field>
+            <FilterMultiSelect
+              options={metasOptions.map((item) => item.label)}
+              values={removeDuplicatesString(
+                metasOptions
+                  .filter((item) => metasLista.includes(item.id))
+                  .map((item) => item.label)
+              )}
+              onChange={handleMetasChange}
+              disabled={!canEdit}
+              placeholder={metasOptions.length === 0 ? 'Carregando metas...' : 'Selecione metas...'}
+            />
+          </Field>
+
+          {atividade?.classificacao === 'Meta' && metasLista.length > 0 && (
+            <Field label="Meta do 3º Aditivo">
+              <Select
+                value={toInputValue(atividade?.meta_codigo, '')}
+                onValueChange={handleMetaDescricaoChange}
+                disabled={!canEdit}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a meta do 3º Aditivo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {metasOptions
+                    .filter((item) => metasLista.includes(item.id))
+                    .map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.descricao || item.label}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
       </div>
 
       <div className="grid md:grid-cols-3 gap-4">
