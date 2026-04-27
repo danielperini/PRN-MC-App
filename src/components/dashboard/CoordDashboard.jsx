@@ -463,10 +463,10 @@ export default function CoordDashboard({ reports = [], isLoading }) {
         }
       </div>
 
-      {/* Tendências Públicos por Mês (Linha) */}
+      {/* Público por Mês (Linha) */}
       {porMes.length > 2 &&
       <div className="border border-gray-100 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-black mb-4">Tendência de Público Estimado</h3>
+          <h3 className="text-sm font-semibold text-black mb-4">Público por Mês</h3>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={porMes}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
