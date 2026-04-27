@@ -21,6 +21,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const ROOT_FOLDER_ID = '1lUvhkeMp-yZ4nNnS33jDw3eekhbpp1R7';
 const CACHE_KEY_PREFIX = 'drive_folder_id__';
+const MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
