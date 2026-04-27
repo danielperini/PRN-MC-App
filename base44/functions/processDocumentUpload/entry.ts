@@ -2,6 +2,33 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 const MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
 
+// Security utilities (inline — backend functions don't support imports)
+const BLOCKED_EXTENSIONS = ['exe', 'bat', 'cmd', 'js', 'sh', 'php', 'html', 'htm', 'asp', 'aspx', 'jsp'];
+
+function validateFileSize(bytes) {
+  if (bytes > MAX_UPLOAD_SIZE_BYTES) {
+    return { valid: false, error: 'Arquivo muito grande. O limite máximo permitido é de 25 MB.' };
+  }
+  return { valid: true };
+}
+
+function getFileExtension(fileName) {
+  const parts = String(fileName).split('.');
+  return parts.length > 1 ? parts.pop().toLowerCase() : '';
+}
+
+function validateFileExtension(fileName) {
+  const ext = getFileExtension(fileName);
+  if (!ext) return { valid: false, error: 'Arquivo sem extensão confiável.' };
+  if (BLOCKED_EXTENSIONS.includes(ext)) return { valid: false, error: 'Arquivo inválido ou não permitido.' };
+  return { valid: true, extension: ext };
+}
+
+function sanitizeString(value, maxLength = 5000) {
+  if (!value) return '';
+  return String(value).trim().substring(0, maxLength);
+}
+
 function safeString(value: unknown): string {
   return String(value ?? '').trim();
 }
@@ -84,7 +111,7 @@ Deno.serve(async (req) => {
     const fileName = safeString(args.file_name);
     const contentBase64 = safeString(args.content_base64);
     const titulo = buildTitulo(fileName, args.titulo);
-    const descricao = safeString(args.descricao);
+    const descricao = sanitizeString(safeString(args.descricao), 1000);
     const versao = safeString(args.versao);
     const categoria = normalizeCategoria(
       safeString(args.categoria) || inferCategoria(fileName)
@@ -106,11 +133,22 @@ Deno.serve(async (req) => {
 
     const bytes = base64ToUint8Array(contentBase64);
     
-    // Validar tamanho do arquivo
-    if (bytes.length > MAX_UPLOAD_SIZE_BYTES) {
-      console.warn(`Arquivo rejeitado por exceder tamanho máximo: ${fileName} (${bytes.length} bytes)`);
+    // 1. VALIDAR TAMANHO
+    const sizeValidation = validateFileSize(bytes.length);
+    if (!sizeValidation.valid) {
+      console.warn(`Arquivo rejeitado: ${fileName} (${bytes.length} bytes)`);
       return Response.json(
-        { ok: false, saved: false, error: 'Arquivo muito grande. O limite máximo permitido é de 25 MB.' },
+        { ok: false, saved: false, error: sizeValidation.error },
+        { status: 400 }
+      );
+    }
+    
+    // 2. VALIDAR EXTENSÃO
+    const extValidation = validateFileExtension(fileName);
+    if (!extValidation.valid) {
+      console.warn(`Extensão bloqueada: ${fileName}`);
+      return Response.json(
+        { ok: false, saved: false, error: extValidation.error },
         { status: 400 }
       );
     }
@@ -130,9 +168,10 @@ Deno.serve(async (req) => {
       );
     }
 
+    // 3. CRIAR REGISTRO NO BANCO
     const created = await base44.asServiceRole.entities.KnowledgeDocument.create({
       titulo,
-      descricao,
+      descricao: sanitizeString(descricao, 1000),
       categoria,
       conteudo_extraido: '',
       file_url: fileUrl,
@@ -141,6 +180,22 @@ Deno.serve(async (req) => {
       versao,
       created_by_email: user.email,
     });
+
+    // 4. REGISTRAR LOG DE AUDITORIA
+    try {
+      await base44.asServiceRole.entities.AuditLog.create({
+        action: 'UPLOAD',
+        entity_type: 'KNOWLEDGE_DOCUMENT',
+        entity_id: created.id || '',
+        actor_email: user.email,
+        actor_name: user.full_name || user.name || '',
+        details: `Documento salvo: ${fileName} (${bytes.length} bytes)`,
+        created_at: new Date().toISOString()
+      });
+    } catch (logError) {
+      console.error('Erro ao registrar log de auditoria:', logError);
+      // Não bloquear upload se log falhar
+    }
 
     return Response.json({
       ok: true,

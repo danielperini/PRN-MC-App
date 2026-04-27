@@ -42,27 +42,32 @@ function isAfterApril2026(mes: string, ano: number) {
 
 async function logMovimentacao(base44: any, data: any) {
   try {
-    const entity =
-      base44?.asServiceRole?.entities?.RubricaMovimentacao ||
-      base44?.entities?.RubricaMovimentacao;
+    // Log de auditoria financeira
+    const entity = base44?.asServiceRole?.entities?.RubricaMovimentacao;
+    if (!entity) {
+      console.warn('RubricaMovimentacao entity não disponível para log');
+      return;
+    }
 
-    if (!entity) return;
-
-    await entity.create({
-      tipo: data.tipo,
-      valor: data.valor,
-      rubrica_id: data.rubrica_id,
-      rubrica_nome: data.rubrica_nome || '',
-      payment_id: data.payment_id,
-      user_email: data.user_email || '',
-      user_name: data.user_name || '',
-      mes: data.mes,
-      ano: data.ano,
-      observacao: data.observacao || '',
+    // Sanitizar valores antes de gravar
+    const logData = {
+      tipo: String(data.tipo || '').trim().toUpperCase(),
+      valor: Number(data.valor) || 0,
+      rubrica_id: String(data.rubrica_id || '').trim(),
+      rubrica_nome: String(data.rubrica_nome || '').trim().substring(0, 255),
+      payment_id: String(data.payment_id || '').trim(),
+      user_email: String(data.user_email || '').trim().toLowerCase(),
+      user_name: String(data.user_name || '').trim().substring(0, 255),
+      mes: String(data.mes || '').trim(),
+      ano: Number(data.ano) || 0,
+      observacao: String(data.observacao || '').trim().substring(0, 1000),
       created_at: new Date().toISOString()
-    });
+    };
+
+    await entity.create(logData);
   } catch (e) {
-    console.error('Erro ao registrar log financeiro', e);
+    console.error('Erro ao registrar log financeiro:', e);
+    // Não bloquear operação se log falhar
   }
 }
 
@@ -166,21 +171,30 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me().catch(() => null);
 
-    if (!user) {
+    if (!user || !user.email) {
       return Response.json(
-        { error: 'Unauthorized' },
+        { error: 'Não autenticado.' },
         { status: 401 }
       );
     }
 
     const body = await req.json().catch(() => ({}));
 
-    const paymentId = body?.payment_id || body?.paymentId || null;
+    // Sanitizar entrada
+    const paymentId = String(body?.payment_id || body?.paymentId || '').trim() || null;
     const action = String(body?.action || '').trim().toLowerCase();
 
     if (!paymentId || !action) {
       return Response.json(
         { error: 'payment_id e action obrigatórios' },
+        { status: 400 }
+      );
+    }
+    
+    // Validar action
+    if (!['approve', 'pay'].includes(action)) {
+      return Response.json(
+        { error: 'Ação inválida. Permitidas: approve, pay' },
         { status: 400 }
       );
     }
@@ -299,6 +313,23 @@ Deno.serve(async (req) => {
         aprov_coord_data: new Date().toISOString()
       });
 
+      // Log de auditoria
+      try {
+        await base44.asServiceRole.entities.AuditLog.create({
+          action: 'APPROVE',
+          entity_type: 'TEAM_PAYMENT',
+          entity_id: payment.id,
+          actor_email: user.email,
+          actor_name: user.full_name || user.name || '',
+          previous_status: payment.status,
+          new_status: 'APROVADO_COORD',
+          details: `Pagamento aprovado por ${user.email}. Rubrica: ${rubricaNome} (ID: ${rubrica.id}). Valor: R$ ${valor.toFixed(2)}`,
+          created_at: new Date().toISOString()
+        });
+      } catch (logErr) {
+        console.error('Erro ao registrar auditoria de aprovação:', logErr);
+      }
+
       return Response.json({
         ok: true,
         action: 'approved',
@@ -378,6 +409,23 @@ Deno.serve(async (req) => {
         rubrica_nome: rubricaNome
       });
 
+      // Log de auditoria
+      try {
+        await base44.asServiceRole.entities.AuditLog.create({
+          action: 'PAY',
+          entity_type: 'TEAM_PAYMENT',
+          entity_id: payment.id,
+          actor_email: user.email,
+          actor_name: user.full_name || user.name || '',
+          previous_status: 'APROVADO_COORD',
+          new_status: 'PAGO',
+          details: `Pagamento marcado como pago por ${user.email}. Rubrica: ${rubricaNome} (ID: ${rubrica.id}). Valor: R$ ${valor.toFixed(2)}. Data: ${new Date().toISOString()}`,
+          created_at: new Date().toISOString()
+        });
+      } catch (logErr) {
+        console.error('Erro ao registrar auditoria de pagamento:', logErr);
+      }
+
       return Response.json({
         ok: true,
         action: 'paid',
@@ -389,7 +437,7 @@ Deno.serve(async (req) => {
     }
 
     return Response.json(
-      { error: 'Ação inválida' },
+      { error: 'Ação inválida. Permitidas: approve, pay' },
       { status: 400 }
     );
   } catch (e: any) {

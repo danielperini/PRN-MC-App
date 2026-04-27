@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
 const MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
+const BLOCKED_EXTENSIONS = ['exe', 'bat', 'cmd', 'js', 'sh', 'php', 'html'];
 
 type NFStatus = 'lido_com_sucesso' | 'leitura_parcial' | 'leitura_falhou';
 
@@ -271,6 +272,13 @@ async function countExistingNF(base44: any, reportId: string, ownerEmail: string
   }
 }
 
+function validateFileExtension(fileName) {
+  const parts = String(fileName || '').split('.');
+  const ext = parts.length > 1 ? parts.pop().toLowerCase() : '';
+  if (BLOCKED_EXTENSIONS.includes(ext)) return false;
+  return true;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -298,8 +306,17 @@ Deno.serve(async (req) => {
         { status: 404 }
       );
     }
-
+    
+    // VALIDAR EXTENSÃO
     const fileName = safeString(attachment.file_name || attachment.name);
+    if (!validateFileExtension(fileName)) {
+      console.warn(`Extensão bloqueada para NF: ${fileName}`);
+      return Response.json(
+        { ok: false, error: 'Tipo de arquivo não permitido.' },
+        { status: 400 }
+      );
+    }
+
     const fileUrl = safeString(attachment.file_url);
     const extension = detectExtension(fileName);
 
