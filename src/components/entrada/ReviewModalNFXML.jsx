@@ -233,7 +233,7 @@ export default function ReviewModalNFXML({ intake, onClose, onSaved }) {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl w-full">
         <DialogHeader>
           <DialogTitle>Vincular XML à Nota Fiscal em PDF</DialogTitle>
         </DialogHeader>
