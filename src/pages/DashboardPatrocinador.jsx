@@ -6,6 +6,7 @@ import { Calendar, Users, FileText, TrendingUp, Target, Award, RotateCw, Filter,
 import { Button } from '@/components/ui/button';
 import NewsCarousel from '@/components/dashboard/NewsCarousel';
 import RubricaSelectorPanel from '@/components/patrocinador/RubricaSelectorPanel';
+import DataSyncAuditPanel from '@/components/dashboard/DataSyncAuditPanel';
 import {
   Select,
   SelectContent,
@@ -567,6 +568,9 @@ export default function DashboardPatrocinador() {
           </CardContent>
         </Card>
       }
+
+      {/* Painel de Sincronização e Auditoria */}
+      <DataSyncAuditPanel />
 
       {/* Painel de Análise de Rubrica Individual */}
       <RubricaSelectorPanel />
