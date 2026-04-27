@@ -129,7 +129,14 @@ export default function DocumentIntakeCard({ intake, onReview }) {
       }
       
       // Deleta DocumentIntake completamente (não apenas marca como removido)
-      await base44.entities.DocumentIntake.delete(intake.id);
+      try {
+        await base44.entities.DocumentIntake.delete(intake.id);
+      } catch (e) {
+        // Se não encontrar, significa que já foi deletado — tudo bem
+        if (!e.message?.includes('not found')) {
+          throw e;
+        }
+      }
       toast({ title: 'Arquivo deletado permanentemente.' });
     } catch (e) {
       toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
