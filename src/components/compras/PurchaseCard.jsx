@@ -117,19 +117,19 @@ export default function PurchaseCard({
   };
 
   return (
-    <div className="border rounded-xl p-4 space-y-3">
+    <div className="border-2 border-black rounded-xl p-4 space-y-3 bg-white">
 
       <div className="flex justify-between">
 
         <div>
           <div className="flex gap-2 items-center">
 
-            <span className={`text-xs px-2 py-1 rounded ${statusInfo.color}`}>
+            <span className={`text-xs px-2 py-1 rounded border-2 border-black ${statusInfo.color === 'bg-gray-100 text-gray-700' ? 'bg-white text-black' : 'bg-black text-white'}`}>
               {statusInfo.label}
             </span>
 
             {isTeamPayment && (
-              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+              <span className="text-xs bg-white border-2 border-black text-black px-2 py-1 rounded font-medium">
                 👤 Equipe
               </span>
             )}
@@ -139,7 +139,7 @@ export default function PurchaseCard({
           <p className="font-semibold mt-1">{purchase.descricao_item}</p>
 
           {isTeamPayment && teamPayment && (
-            <div className="text-xs text-purple-700 mt-2 bg-purple-50 p-2 rounded">
+            <div className="text-xs text-black mt-2 bg-white border border-gray-300 p-2 rounded">
               Parcela {teamPayment.numero_parcela} • {teamPayment.mes_referencia}/{teamPayment.ano}
               <br />
               Previsto: {formatBRL(teamPayment.valor_parcela_previsto)}
@@ -155,9 +155,9 @@ export default function PurchaseCard({
       </div>
 
       {!hasRubricaVinculada && (
-        <div className="text-xs bg-red-50 text-red-700 p-2 rounded flex items-center gap-2">
+        <div className="text-xs bg-white border-2 border-black text-black p-2 rounded flex items-center gap-2">
           <AlertCircle className="w-3 h-3"/>
-          Sem rubrica vinculada — não é possível pagar
+          ⚠️ Sem rubrica vinculada — não é possível pagar
         </div>
       )}
 
@@ -166,16 +166,21 @@ export default function PurchaseCard({
         {canMarkAsPaidBase && (
           <Button
             size="sm"
-            className="bg-emerald-600 text-white"
+            className={`font-medium gap-1 ${actionLoading || !canMarkAsPaid ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}`}
             onClick={handleMarkAsPaid}
             disabled={actionLoading || !canMarkAsPaid}
           >
             {actionLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {isTeamPayment ? 'Pagando...' : 'Salvando...'}
+              </>
             ) : (
-              <CheckCircle className="w-4 h-4 mr-1" />
+              <>
+                <CheckCircle className="w-4 h-4" />
+                {isTeamPayment ? 'Pagar equipe' : 'Marcar pago'}
+              </>
             )}
-            {isTeamPayment ? 'Pagar equipe' : 'Marcar pago'}
           </Button>
         )}
 

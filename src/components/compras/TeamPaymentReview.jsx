@@ -26,15 +26,16 @@ import {
   DollarSign,
   User,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Loader2
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
-  PENDENTE: { label: 'Pendente', color: 'bg-yellow-100 text-yellow-700', icon: Clock },
-  EM_ANALISE: { label: 'Em Análise', color: 'bg-blue-100 text-blue-700', icon: Clock },
-  APROVADO: { label: 'Aprovado', color: 'bg-green-100 text-green-700', icon: CheckCircle },
-  RECUSADO: { label: 'Recusado', color: 'bg-red-100 text-red-700', icon: XCircle },
-  PAGO: { label: 'Pago', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle }
+  PENDENTE: { label: 'Pendente', color: 'bg-white border-2 border-black text-black', icon: Clock },
+  EM_ANALISE: { label: 'Em Análise', color: 'bg-white border-2 border-black text-black', icon: Clock },
+  APROVADO: { label: 'Aprovado', color: 'bg-black text-white', icon: CheckCircle },
+  RECUSADO: { label: 'Recusado', color: 'bg-black text-white', icon: XCircle },
+  PAGO: { label: 'Pago', color: 'bg-black text-white', icon: CheckCircle }
 };
 
 function fmtBRL(v) {
@@ -118,20 +119,20 @@ function PaymentDetailModal({ payment, onClose, onStatusChange, isCoordinator })
               <div className="flex gap-2 justify-end">
                 <Button
                   variant="outline"
-                  className="border-red-300 text-red-600 hover:bg-red-50"
+                  className="border-2 border-black text-black hover:bg-black hover:text-white"
                   onClick={() => handleAction('RECUSADO')}
                   disabled={loading}
                 >
-                  <XCircle className="h-4 w-4 mr-1" />
-                  Recusar
+                  {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <XCircle className="h-4 w-4 mr-1" />}
+                  {loading ? 'Recusando...' : 'Recusar'}
                 </Button>
                 <Button
-                  className="bg-green-600 hover:bg-green-700 text-white"
+                  className="bg-black text-white hover:bg-gray-900"
                   onClick={() => handleAction('APROVADO')}
                   disabled={loading}
                 >
-                  <CheckCircle className="h-4 w-4 mr-1" />
-                  Aprovar
+                  {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />}
+                  {loading ? 'Aprovando...' : 'Aprovar'}
                 </Button>
               </div>
             </div>
@@ -140,12 +141,12 @@ function PaymentDetailModal({ payment, onClose, onStatusChange, isCoordinator })
           {isCoordinator && payment.status === 'APROVADO' && (
             <div className="border-t pt-4 flex justify-end">
               <Button
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-black text-white hover:bg-gray-900"
                 onClick={() => handleAction('PAGO')}
                 disabled={loading}
               >
-                <DollarSign className="h-4 w-4 mr-1" />
-                Marcar como Pago
+                {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <DollarSign className="h-4 w-4 mr-1" />}
+                {loading ? 'Processando...' : 'Marcar como Pago'}
               </Button>
             </div>
           )}
@@ -175,11 +176,17 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
   });
 
   const handleStatusChange = async (paymentId, newStatus, comment) => {
-    await base44.entities.TeamPayment.update(paymentId, {
-      status: newStatus,
-      ...(comment ? { comentario_coordenacao: comment } : {})
-    });
-    queryClient.invalidateQueries({ queryKey: ['team-payments'] });
+    try {
+      await base44.entities.TeamPayment.update(paymentId, {
+        status: newStatus,
+        ...(comment ? { comentario_coordenacao: comment } : {})
+      });
+      queryClient.invalidateQueries({ queryKey: ['team-payments'] });
+      // Toast feedback will be handled by the modal
+    } catch (error) {
+      console.error('Erro ao alterar status:', error);
+      throw error;
+    }
   };
 
   const filtered = payments.filter((p) => {
@@ -200,17 +207,17 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-          <p className="text-xs font-medium text-gray-500">Pendentes de Análise</p>
-          <p className="mt-1 text-2xl font-bold text-yellow-600">{pendentes}</p>
+        <div className="rounded-xl border-2 border-black bg-white p-4">
+          <p className="text-xs font-medium text-gray-600">Pendentes de Análise</p>
+          <p className="mt-1 text-2xl font-bold text-black">{pendentes}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-          <p className="text-xs font-medium text-gray-500">Total de Pagamentos</p>
-          <p className="mt-1 text-2xl font-bold text-gray-900">{payments.length}</p>
+        <div className="rounded-xl border-2 border-black bg-white p-4">
+          <p className="text-xs font-medium text-gray-600">Total de Pagamentos</p>
+          <p className="mt-1 text-2xl font-bold text-black">{payments.length}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-          <p className="text-xs font-medium text-gray-500">Total Aprovado / Pago</p>
-          <p className="mt-1 text-2xl font-bold text-green-700">{fmtBRL(totalAprovado)}</p>
+        <div className="rounded-xl border-2 border-black bg-white p-4">
+          <p className="text-xs font-medium text-gray-600">Total Aprovado / Pago</p>
+          <p className="mt-1 text-2xl font-bold text-black">{fmtBRL(totalAprovado)}</p>
         </div>
       </div>
 
@@ -245,25 +252,25 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
           <p className="font-medium text-gray-400">Nenhum pagamento encontrado</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50 text-left">
-                <th className="px-3 py-3 font-medium text-gray-600">Profissional</th>
-                <th className="px-3 py-3 font-medium text-gray-600">Referência</th>
-                <th className="px-3 py-3 font-medium text-gray-600">Status</th>
-                <th className="px-3 py-3 text-right font-medium text-gray-600">Valor</th>
-                <th className="px-3 py-3 text-center font-medium text-gray-600">Ações</th>
-              </tr>
-            </thead>
+        <div className="overflow-x-auto rounded-xl border-2 border-black">
+           <table className="w-full border-collapse text-sm">
+             <thead>
+               <tr className="border-b-2 border-black bg-black text-white text-left">
+                 <th className="px-3 py-3 font-medium">Profissional</th>
+                 <th className="px-3 py-3 font-medium">Referência</th>
+                 <th className="px-3 py-3 font-medium">Status</th>
+                 <th className="px-3 py-3 text-right font-medium">Valor</th>
+                 <th className="px-3 py-3 text-center font-medium">Ações</th>
+               </tr>
+             </thead>
             <tbody>
               {filtered.map((p, i) => {
-                const status = STATUS_CONFIG[p.status] || { label: p.status, color: 'bg-gray-100 text-gray-600' };
+                const status = STATUS_CONFIG[p.status] || { label: p.status, color: 'bg-white border-2 border-black text-black' };
                 const StatusIcon = status.icon || Clock;
                 return (
                   <tr
                     key={p.id}
-                    className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}
+                    className={`border-b border-gray-200 transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-white'}`}
                   >
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2">

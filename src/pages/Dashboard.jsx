@@ -110,6 +110,9 @@ function DashboardInner() {
       } else {
         await refetchMy();
       }
+      // Force toast feedback
+      const event = new CustomEvent('dashboardRefreshed');
+      window.dispatchEvent(event);
     } finally {
       setIsRefreshing(false);
     }
@@ -222,31 +225,31 @@ function DashboardInner() {
         </div>
 
         {/* Aviso fixo - Atualizar Dados */}
-        {!dadosCompletos && !showSponsorView && !dismissedDataWarning && (
-          <div className="mb-4 p-4 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-amber-900">Atualize seus dados</h3>
-                <p className="text-amber-800 text-xs mt-0.5">
-                  Preencha seus dados pessoais e bancários no formulário de cadastro.
-                </p>
-              </div>
-              <Link to={createPageUrl('MeusDados')} className="flex-shrink-0">
-                <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white text-xs">
-                  Preencher meus dados →
-                </Button>
-              </Link>
-            </div>
-            <button
-              onClick={() => setDismissedDataWarning(true)}
-              className="flex-shrink-0 text-amber-600 hover:text-amber-900 transition-colors ml-1"
-              title="Dispensar aviso"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+         {!dadosCompletos && !showSponsorView && !dismissedDataWarning && (
+           <div className="mb-4 p-4 bg-white border-2 border-black rounded-xl flex items-start gap-3">
+             <AlertTriangle className="w-5 h-5 text-black flex-shrink-0 mt-0.5" />
+             <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+               <div>
+                 <h3 className="text-sm font-semibold text-black">⚠️ Atualize seus dados</h3>
+                 <p className="text-gray-700 text-xs mt-0.5">
+                   Preencha seus dados pessoais e bancários no formulário de cadastro.
+                 </p>
+               </div>
+               <Link to={createPageUrl('MeusDados')} className="flex-shrink-0">
+                 <Button size="sm" className="bg-black hover:bg-gray-900 text-white text-xs font-medium">
+                   Preencher meus dados →
+                 </Button>
+               </Link>
+             </div>
+             <button
+               onClick={() => setDismissedDataWarning(true)}
+               className="flex-shrink-0 text-black hover:text-gray-700 transition-colors ml-1"
+               title="Dispensar aviso"
+             >
+               <X className="w-4 h-4" />
+             </button>
+           </div>
+         )}
 
         {/* Botão buscar duplicados - só coordenadores */}
         {isCoordenador && !showSponsorView && (
@@ -327,9 +330,10 @@ function DashboardInner() {
                   {isLoading ? (
                     <div className="col-span-full text-center py-20 text-gray-400">Carregando...</div>
                   ) : recentReports.length === 0 ? (
-                    <div className="col-span-full text-center py-16 border border-dashed border-gray-200 rounded-2xl">
-                      <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-500">Nenhum relatório encontrado</p>
+                    <div className="col-span-full text-center py-16 border-2 border-dashed border-black rounded-2xl bg-white">
+                      <FileText className="w-12 h-12 text-black mx-auto mb-4 opacity-50" />
+                      <p className="text-black font-medium">Sem dados disponíveis</p>
+                      <p className="text-gray-600 text-sm mt-1">Crie um novo relatório para começar</p>
                     </div>
                   ) : (
                     recentReports.map(report => {
