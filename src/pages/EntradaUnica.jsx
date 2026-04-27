@@ -14,9 +14,9 @@ import CoordBulkImportPanel from '@/components/entrada/CoordBulkImportPanel';
 import DocumentMonitoringDashboard from '@/components/entrada/DocumentMonitoringDashboard';
 
 const COORD_EMAILS = [
-  'danielperini.mc@viadutodasartes.org.br',
-  'danie@periniprojetos.com.br',
-];
+'danielperini.mc@viadutodasartes.org.br',
+'danie@periniprojetos.com.br'];
+
 
 export default function EntradaUnica() {
   const { toast } = useToast();
@@ -53,8 +53,8 @@ export default function EntradaUnica() {
 
   // Polling para atualizar cards em processamento
   useEffect(() => {
-    const hasProcessing = intakes.some(i =>
-      i.status_processamento === 'ANALISANDO_IA' || i.status_processamento === 'ENVIADO'
+    const hasProcessing = intakes.some((i) =>
+    i.status_processamento === 'ANALISANDO_IA' || i.status_processamento === 'ENVIADO'
     );
     if (!hasProcessing) return;
     const timer = setInterval(loadIntakes, 4000);
@@ -83,7 +83,7 @@ export default function EntradaUnica() {
           file_size: file.size,
           file_url: file_url,
           description: `Enviado via Entrada Única — aguardando classificação`,
-          backup_done: false,
+          backup_done: false
         });
 
         const intake = await base44.entities.DocumentIntake.create({
@@ -99,17 +99,17 @@ export default function EntradaUnica() {
           resultado_ia: orientacoes ? { orientacoes_usuario: orientacoes } : undefined,
           grupo_upload_id: grupoUploadId,
           grupo_status: files.length > 1 ? 'INCOMPLETO' : 'COMPLETO',
-          status_registro: 'ATIVO',
+          status_registro: 'ATIVO'
         });
 
         createdIntakes.push({ intake, attachmentId: attachmentGuarda.id });
-        setIntakes(prev => [intake, ...prev]);
+        setIntakes((prev) => [intake, ...prev]);
       }
 
       // PASSO 3: Confirma ao usuário que está salvo
       toast({
         title: `${files.length > 1 ? `${files.length} documentos recebidos` : 'Documento recebido'} e salvo com sucesso.`,
-        description: 'Iniciando análise pela IA. O arquivo está seguro mesmo que a análise falhe.',
+        description: 'Iniciando análise pela IA. O arquivo está seguro mesmo que a análise falhe.'
       });
 
       // PASSO 4: Dispara análise da IA em background (não bloqueia, não perde dados)
@@ -117,17 +117,17 @@ export default function EntradaUnica() {
         base44.functions.invoke('classifyAndRouteDocument', {
           intake_id: intake.id,
           orientacoes_usuario: intake.resultado_ia?.orientacoes_usuario || ''
-        })
-          .then(() => loadIntakes())
-          .catch((e) => {
-            console.error('Erro na análise IA:', e);
-            // Arquivo já está salvo — apenas marca erro de processamento para classificação manual
-            base44.entities.DocumentIntake.update(intake.id, {
-              status_processamento: 'ERRO_PROCESSAMENTO',
-              erros_validacao: ['Erro na análise automática. Você pode classificar manualmente.'],
-            });
-            loadIntakes();
+        }).
+        then(() => loadIntakes()).
+        catch((e) => {
+          console.error('Erro na análise IA:', e);
+          // Arquivo já está salvo — apenas marca erro de processamento para classificação manual
+          base44.entities.DocumentIntake.update(intake.id, {
+            status_processamento: 'ERRO_PROCESSAMENTO',
+            erros_validacao: ['Erro na análise automática. Você pode classificar manualmente.']
           });
+          loadIntakes();
+        });
       }
 
     } catch (e) {
@@ -153,8 +153,8 @@ export default function EntradaUnica() {
 
   function handleReclassified(novoTipo) {
     loadIntakes().then(() => {
-      setReviewIntake(prev =>
-        prev ? { ...prev, tipo_detectado: novoTipo, status_processamento: 'AGUARDANDO_REVISAO' } : null
+      setReviewIntake((prev) =>
+      prev ? { ...prev, tipo_detectado: novoTipo, status_processamento: 'AGUARDANDO_REVISAO' } : null
       );
     });
   }
@@ -189,19 +189,19 @@ export default function EntradaUnica() {
           {/* Aba 1: Upload e Lista */}
           <TabsContent value="upload" className="space-y-6 max-w-3xl mx-auto">
             {/* Painel coordenador — visível apenas para e-mails autorizados */}
-            {user && COORD_EMAILS.includes((user.email || '').toLowerCase().trim()) && (
-              <CoordBulkImportPanel />
-            )}
+            {user && COORD_EMAILS.includes((user.email || '').toLowerCase().trim()) &&
+            <CoordBulkImportPanel />
+            }
 
             {/* Zona de upload */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hidden">
               <DocumentUploadZone onFilesSelected={handleFilesSelected} disabled={uploading} />
-              {uploading && (
-                <div className="flex items-center gap-2 mt-4 text-sm text-blue-600">
+              {uploading &&
+              <div className="flex items-center gap-2 mt-4 text-sm text-blue-600">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Enviando e iniciando análise pela IA...
                 </div>
-              )}
+              }
             </div>
 
             {/* Lista de documentos enviados */}
@@ -213,27 +213,27 @@ export default function EntradaUnica() {
                 </Button>
               </div>
 
-              {loadingIntakes && intakes.length === 0 ? (
-                <div className="text-center py-12 text-slate-400">
+              {loadingIntakes && intakes.length === 0 ?
+              <div className="text-center py-12 text-slate-400">
                   <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                   Carregando...
-                </div>
-              ) : intakes.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                </div> :
+              intakes.length === 0 ?
+              <div className="text-center py-12 text-slate-400 border border-dashed border-slate-200 rounded-xl">
                   <Inbox className="w-8 h-8 mx-auto mb-2 opacity-40" />
                   <p className="text-sm">Nenhum documento enviado ainda.</p>
+                </div> :
+
+              <div className="space-y-2">
+                  {intakes.map((intake) =>
+                <DocumentIntakeCard
+                  key={intake.id}
+                  intake={intake}
+                  onReview={handleReview} />
+
+                )}
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  {intakes.map(intake => (
-                    <DocumentIntakeCard
-                      key={intake.id}
-                      intake={intake}
-                      onReview={handleReview}
-                    />
-                  ))}
-                </div>
-              )}
+              }
             </div>
           </TabsContent>
 
@@ -245,18 +245,18 @@ export default function EntradaUnica() {
       </div>
 
       {/* Modais de revisão */}
-      {reviewIntake && isNF && (
-        <ReviewModalNF intake={reviewIntake} onClose={handleModalClose} onSaved={handleSaved} />
-      )}
-      {reviewIntake && isFoto && (
-        <ReviewModalFoto intake={reviewIntake} onClose={handleModalClose} onSaved={handleSaved} />
-      )}
-      {reviewIntake && isDocAdmin && (
-        <ReviewModalDocAdmin intake={reviewIntake} onClose={handleModalClose} onSaved={handleSaved} />
-      )}
-      {reviewIntake && isOutro && (
-        <ReviewModalOutro intake={reviewIntake} onClose={handleModalClose} onReclassified={handleReclassified} />
-      )}
-    </div>
-  );
+      {reviewIntake && isNF &&
+      <ReviewModalNF intake={reviewIntake} onClose={handleModalClose} onSaved={handleSaved} />
+      }
+      {reviewIntake && isFoto &&
+      <ReviewModalFoto intake={reviewIntake} onClose={handleModalClose} onSaved={handleSaved} />
+      }
+      {reviewIntake && isDocAdmin &&
+      <ReviewModalDocAdmin intake={reviewIntake} onClose={handleModalClose} onSaved={handleSaved} />
+      }
+      {reviewIntake && isOutro &&
+      <ReviewModalOutro intake={reviewIntake} onClose={handleModalClose} onReclassified={handleReclassified} />
+      }
+    </div>);
+
 }
