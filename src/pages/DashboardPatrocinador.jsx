@@ -36,6 +36,39 @@ export default function DashboardPatrocinador() {
 
   useEffect(() => {
     loadDashboardData();
+    
+    // Atualizar a cada 60 segundos automaticamente
+    const interval = setInterval(() => {
+      loadDashboardData();
+    }, 60000);
+
+    // Subscrever a mudanças em relatórios aprovados
+    const unsubscribeReports = base44.entities.Report.subscribe((event) => {
+      if (event.type === 'update' && event.data?.status === 'APPROVED') {
+        loadDashboardData();
+      }
+    });
+
+    // Subscrever a mudanças em atividades
+    const unsubscribeActivities = base44.entities.Activity.subscribe((event) => {
+      if (event.type === 'create' || event.type === 'update') {
+        loadDashboardData();
+      }
+    });
+
+    // Subscrever a mudanças em rubricas
+    const unsubscribeRubricas = base44.entities.Rubrica.subscribe((event) => {
+      if (event.type === 'update') {
+        loadDashboardData();
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribeReports();
+      unsubscribeActivities();
+      unsubscribeRubricas();
+    };
   }, []);
 
   async function loadDashboardData() {
