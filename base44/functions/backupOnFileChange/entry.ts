@@ -36,7 +36,17 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'attachment_id não encontrado no payload' }, { status: 400 });
     }
 
-    const attachment = await base44.asServiceRole.entities.Attachment.get(attachmentId).catch(() => null);
+    // Verificar se attachment ainda existe (pode ter sido deletado)
+    let attachment;
+    try {
+      attachment = await base44.asServiceRole.entities.Attachment.get(attachmentId);
+    } catch (err) {
+      if (err?.status === 404 || err?.message?.includes('not found')) {
+        return Response.json({ skipped: true, reason: 'Attachment foi deletado', attachment_id: attachmentId });
+      }
+      throw err;
+    }
+
     if (!attachment) {
       return Response.json({ skipped: true, reason: 'Attachment não encontrado' });
     }
