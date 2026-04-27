@@ -6,6 +6,7 @@ import AssistantChat from '@/components/chat/AssistantChat';
 import MobileBottomTab from '@/components/mobile/MobileBottomTab';
 import MobileHeader from '@/components/mobile/MobileHeader';
 import { HelpContextProvider } from '@/components/help/HelpContextProvider';
+import GlobalAnnouncementBanner from '@/components/common/GlobalAnnouncementBanner';
 
 const PAGE_TITLES = {
   Dashboard: 'Painel',
@@ -74,6 +75,7 @@ export default function Layout({ children, currentPageName }) {
   return (
     <HelpContextProvider pageName={currentPageName}>
       <div className="min-h-screen bg-slate-50 text-slate-900">
+        <GlobalAnnouncementBanner />
         <div className="hidden lg:flex min-h-screen items-stretch">
           <Sidebar
             currentPageName={currentPageName}

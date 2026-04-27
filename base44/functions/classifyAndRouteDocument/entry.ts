@@ -40,6 +40,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const intakeId = safeStr(body.intake_id);
+    const orientacoesUsuario = safeStr(body.orientacoes_usuario);
 
     if (!intakeId) {
       return Response.json({ ok: false, error: 'intake_id obrigatório' }, { status: 400 });
@@ -179,7 +180,7 @@ Responda SOMENTE em JSON válido:
           prompt: `Analise este documento PDF e determine:
 1. Se é uma NOTA FISCAL (NF, NFS-e, RPA, fatura) ou um DOCUMENTO ADMINISTRATIVO comum
 2. Se for nota fiscal, extraia os dados principais
-3. Liste possíveis inconsistências
+3. Liste possíveis inconsistências${orientacoesUsuario ? `\n\nOrientações do usuário: ${orientacoesUsuario}` : ''}
 
 Responda SOMENTE em JSON válido:
 {

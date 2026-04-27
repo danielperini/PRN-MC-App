@@ -14,7 +14,7 @@ import Agenda from './pages/Agenda';
 import RubricasPorMuseu from './pages/RubricasPorMuseu';
 import BaseConhecimento from './pages/BaseConhecimento';
 import DashboardPatrocinador from './pages/DashboardPatrocinador';
-import EntradaUnica from './pages/EntradaUnica';
+import EntradaUnica from './pages/EntradaUnica.jsx';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];

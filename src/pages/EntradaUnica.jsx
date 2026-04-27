@@ -44,41 +44,58 @@ export default function EntradaUnica() {
 
   // Polling para atualizar cards em processamento
   useEffect(() => {
-    const hasProcessing = intakes.some(i => i.status_processamento === 'ANALISANDO_IA' || i.status_processamento === 'ENVIADO');
+    const hasProcessing = intakes.some(i =>
+      i.status_processamento === 'ANALISANDO_IA' || i.status_processamento === 'ENVIADO'
+    );
     if (!hasProcessing) return;
     const timer = setInterval(loadIntakes, 4000);
     return () => clearInterval(timer);
   }, [intakes, loadIntakes]);
 
-  async function handleFileSelected(file) {
-    if (!user) return;
+  // Suporte a múltiplos arquivos com orientações para IA
+  async function handleFilesSelected(files, orientacoes) {
+    if (!user || !files || files.length === 0) return;
     setUploading(true);
+
+    const createdIntakes = [];
+
     try {
-      // 1. Upload do arquivo
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      for (const file of files) {
+        // 1. Upload do arquivo
+        const { file_url } = await base44.integrations.Core.UploadFile({ file });
 
-      // 2. Cria o DocumentIntake
-      const intake = await base44.entities.DocumentIntake.create({
-        user_email: user.email,
-        user_name: user.full_name || user.email,
-        arquivo_original_url: file_url,
-        file_name_original: file.name,
-        mime_type: file.type,
-        status_processamento: 'ENVIADO',
-        tipo_detectado: 'PENDENTE',
-      });
-
-      toast({ title: 'Documento recebido com sucesso.' });
-      setIntakes(prev => [intake, ...prev]);
-
-      // 3. Dispara análise da IA em background
-      base44.functions.invoke('classifyAndRouteDocument', { intake_id: intake.id })
-        .then(() => loadIntakes())
-        .catch((e) => {
-          console.error('Erro na análise IA:', e);
-          base44.entities.DocumentIntake.update(intake.id, { status_processamento: 'ERRO_PROCESSAMENTO' });
-          loadIntakes();
+        // 2. Cria o DocumentIntake
+        const intake = await base44.entities.DocumentIntake.create({
+          user_email: user.email,
+          user_name: user.full_name || user.email,
+          arquivo_original_url: file_url,
+          file_name_original: file.name,
+          mime_type: file.type,
+          status_processamento: 'ENVIADO',
+          tipo_detectado: 'PENDENTE',
+          // Orientações para a IA salvas no resultado_ia para uso posterior
+          resultado_ia: orientacoes ? { orientacoes_usuario: orientacoes } : undefined,
         });
+
+        createdIntakes.push(intake);
+        setIntakes(prev => [intake, ...prev]);
+      }
+
+      toast({ title: `${files.length > 1 ? `${files.length} documentos recebidos` : 'Documento recebido'} com sucesso.` });
+
+      // 3. Dispara análise da IA em background para cada intake
+      for (const intake of createdIntakes) {
+        base44.functions.invoke('classifyAndRouteDocument', {
+          intake_id: intake.id,
+          orientacoes_usuario: intake.resultado_ia?.orientacoes_usuario || ''
+        })
+          .then(() => loadIntakes())
+          .catch((e) => {
+            console.error('Erro na análise IA:', e);
+            base44.entities.DocumentIntake.update(intake.id, { status_processamento: 'ERRO_PROCESSAMENTO' });
+            loadIntakes();
+          });
+      }
 
     } catch (e) {
       toast({ title: 'Erro no upload', description: e.message, variant: 'destructive' });
@@ -98,12 +115,14 @@ export default function EntradaUnica() {
   function handleSaved() {
     setReviewIntake(null);
     loadIntakes();
+    toast({ title: 'Salvo com sucesso.' });
   }
 
   function handleReclassified(novoTipo) {
-    // Recarrega e reabre modal correto
     loadIntakes().then(() => {
-      setReviewIntake(prev => prev ? { ...prev, tipo_detectado: novoTipo, status_processamento: 'AGUARDANDO_REVISAO' } : null);
+      setReviewIntake(prev =>
+        prev ? { ...prev, tipo_detectado: novoTipo, status_processamento: 'AGUARDANDO_REVISAO' } : null
+      );
     });
   }
 
@@ -124,11 +143,11 @@ export default function EntradaUnica() {
 
       {/* Zona de upload */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <DocumentUploadZone onFileSelected={handleFileSelected} disabled={uploading} />
+        <DocumentUploadZone onFilesSelected={handleFilesSelected} disabled={uploading} />
         {uploading && (
           <div className="flex items-center gap-2 mt-4 text-sm text-blue-600">
             <Loader2 className="w-4 h-4 animate-spin" />
-            Enviando e iniciando análise...
+            Enviando e iniciando análise pela IA...
           </div>
         )}
       </div>
