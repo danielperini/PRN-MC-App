@@ -194,11 +194,7 @@ export default function EntradaUnica() {
             }
 
             {/* Zona de upload */}
-            
-
-
-
-
+            <DocumentUploadZone onFilesSelected={handleFilesSelected} uploading={uploading} />
 
 
 
