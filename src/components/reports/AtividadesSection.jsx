@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import AtividadeCamposBasicos from './AtividadeCamposBasicos';
 import ActivityPhotoLinker from './ActivityPhotoLinker';
 import ActivityAttachments from './ActivityAttachments';
+import { removeDuplicatesById } from '@/lib/arrayUtils';
 
 function createActivityId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -129,19 +130,20 @@ export default function AtividadesSection({
   const addAtividade = useCallback(() => {
     if (typeof setAtividades !== 'function') return;
 
-    setAtividades((prev) => [
-    ...(Array.isArray(prev) ? prev : []),
-    {
-      id: createActivityId(),
-      classificacao: '',
-      nome: '',
-      descricao: '',
-      museu_lista: [],
-      tipo_acao_lista: [],
-      equipe_participante_ids: [],
-      meta_vinculada_ids: []
-    }]
-    );
+    setAtividades((prev) => {
+      const lista = Array.isArray(prev) ? prev : [];
+      const novaAtividade = {
+        id: createActivityId(),
+        classificacao: '',
+        nome: '',
+        descricao: '',
+        museu_lista: [],
+        tipo_acao_lista: [],
+        equipe_participante_ids: [],
+        meta_vinculada_ids: []
+      };
+      return removeDuplicatesById([...lista, novaAtividade], 'id');
+    });
   }, [setAtividades]);
 
   const removeAtividade = useCallback((index) => {
@@ -158,20 +160,21 @@ export default function AtividadesSection({
     const item = programacaoItems.find((p) => p.id === id);
     if (!item || typeof setAtividades !== 'function') return;
 
-    setAtividades((prev) => [
-    ...(Array.isArray(prev) ? prev : []),
-    {
-      id: createActivityId(),
-      classificacao: '',
-      nome: item.titulo || item.nome || '',
-      descricao: item.sinopse || item.descricao || '',
-      museu_lista: item.museu ? [item.museu] : [],
-      tipo_acao_lista: item.tipo ? [item.tipo] : [],
-      equipe_participante_ids: [],
-      meta_vinculada_ids: [],
-      programacao_id: item.id
-    }]
-    );
+    setAtividades((prev) => {
+      const lista = Array.isArray(prev) ? prev : [];
+      const novaAtividade = {
+        id: createActivityId(),
+        classificacao: '',
+        nome: item.titulo || item.nome || '',
+        descricao: item.sinopse || item.descricao || '',
+        museu_lista: item.museu ? [item.museu] : [],
+        tipo_acao_lista: item.tipo ? [item.tipo] : [],
+        equipe_participante_ids: [],
+        meta_vinculada_ids: [],
+        programacao_id: item.id
+      };
+      return removeDuplicatesById([...lista, novaAtividade], 'id');
+    });
   }, [programacaoItems, setAtividades]);
 
   return (

@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import FilterMultiSelect from '@/components/ui/filter-multi-select';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { removeDuplicatesString } from '@/lib/arrayUtils';
 
 function Field({ label, children }) {
   return (
@@ -158,13 +159,13 @@ export default function AtividadeCamposBasicos({
     }
 
     // Remover duplicados dos labels
-    const uniqueLabels = Array.from(new Set(selectedLabels.filter(Boolean)));
+    const uniqueLabels = removeDuplicatesString(selectedLabels);
     
     // Mapear labels para IDs usando equipeOptions
     const selecionados = equipeOptions.filter((item) => uniqueLabels.includes(item.label));
     
     // Remover duplicados de IDs
-    const uniqueIds = Array.from(new Set(selecionados.map((item) => item.id)));
+    const uniqueIds = removeDuplicatesString(selecionados.map((item) => item.id));
     const nomes = selecionados.map((item) => item.label);
 
     onChange('equipe_participante_ids', uniqueIds);
@@ -179,13 +180,13 @@ export default function AtividadeCamposBasicos({
     }
 
     // Remover duplicados dos labels
-    const uniqueLabels = Array.from(new Set(selectedLabels.filter(Boolean)));
+    const uniqueLabels = removeDuplicatesString(selectedLabels);
     
     // Mapear labels para IDs usando metasOptions
     const selecionados = metasOptions.filter((item) => uniqueLabels.includes(item.label));
     
     // Remover duplicados de IDs
-    const uniqueIds = Array.from(new Set(selecionados.map((item) => item.id)));
+    const uniqueIds = removeDuplicatesString(selecionados.map((item) => item.id));
     const titulos = selecionados.map((item) => item.label);
 
     onChange('meta_vinculada_ids', uniqueIds);
@@ -456,12 +457,11 @@ export default function AtividadeCamposBasicos({
         <Field label="Membros da equipe participantes">
           <FilterMultiSelect
             options={equipeOptions.map((item) => item.label)}
-            values={Array.from(new Set(
+            values={removeDuplicatesString(
               equipeOptions
                 .filter((item) => equipeLista.includes(item.id))
                 .map((item) => item.label)
-                .filter(Boolean)
-            ))}
+            )}
             onChange={handleEquipeChange}
             disabled={!canEdit}
           />
@@ -473,12 +473,11 @@ export default function AtividadeCamposBasicos({
           )}
           <FilterMultiSelect
             options={metasOptions.map((item) => item.label)}
-            values={Array.from(new Set(
+            values={removeDuplicatesString(
               metasOptions
                 .filter((item) => metasLista.includes(item.id))
                 .map((item) => item.label)
-                .filter(Boolean)
-            ))}
+            )}
             onChange={handleMetasChange}
             disabled={!canEdit}
             placeholder={metasOptions.length === 0 ? 'Carregando metas...' : 'Selecione metas...'}
