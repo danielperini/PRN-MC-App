@@ -31,12 +31,14 @@ const MESES_ORDER = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
 
 const PIE_COLORS = ['#000000', '#404040', '#737373', '#a3a3a3', '#d4d4d4', '#e5e5e5'];
 
-// Deduplicar atividades por nome+data_inicio+museu para evitar contagem dupla
+// Deduplicar atividades por titulo+data_realizacao para evitar contagem dupla
 function deduplicarAtividades(atividades) {
   const seen = new Set();
   return atividades.filter((a) => {
-    const key = `${(a.nome || '').trim().toLowerCase()}|${a.data_inicio || ''}|${a.museu || ''}`;
-    if (!a.nome && !a.data_inicio) return true; // sem chave, manter
+    const titulo = (a.titulo || a.nome || '').trim().toLowerCase();
+    const data = a.data_realizacao || a.data_inicio || '';
+    if (!titulo && !data) return true; // sem chave identificável, manter
+    const key = `${titulo}|${data}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -85,7 +87,8 @@ export default function CoordDashboard({ reports = [], isLoading }) {
   const pendentes = reportsFiltrados.filter((r) => ['SUBMITTED', 'IN_REVIEW'].includes(r.status)).length;
   const aprovados = reportsFiltrados.filter((r) => r.status === 'APPROVED').length;
   const totalAtiv = allAtiv.length;
-  const publicoTotal = allAtiv.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0);
+  // Usa publico_total (estimado × repetições) quando disponível, senão publico_estimado
+  const publicoTotal = allAtiv.reduce((s, a) => s + (Number(a.publico_total) || Number(a.publico_estimado) || 0), 0);
   const metas = allAtiv.filter((a) => a.classificacao === 'META').length;
   const rotinas = allAtiv.filter((a) => a.classificacao === 'ROTINA').length;
   const extras = allAtiv.filter((a) => a.classificacao === 'EXTRA').length;
@@ -106,7 +109,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
         return true;
       });
       map[m].atividades += ativs.length;
-      map[m].publico += ativs.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0);
+      map[m].publico += ativs.reduce((s, a) => s + (Number(a.publico_total) || Number(a.publico_estimado) || 0), 0);
     });
     return Object.values(map).sort((a, b) => b.relatorios - a.relatorios);
   }, [reportsFiltrados, filterMuseu, filterClasse, filterTipoAtiv]);
@@ -126,7 +129,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
         return true;
       });
       map[mes].atividades += ativs.length;
-      map[mes].publico += ativs.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0);
+      map[mes].publico += ativs.reduce((s, a) => s + (Number(a.publico_total) || Number(a.publico_estimado) || 0), 0);
     });
     return MESES_ORDER.filter((m) => map[m]).map((m) => map[m]);
   }, [reportsFiltrados, filterMuseu, filterClasse, filterTipoAtiv]);
@@ -194,7 +197,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
       r.ano || '',
       r.status || '',
       ativs.length,
-      ativs.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0),
+      ativs.reduce((s, a) => s + (Number(a.publico_total) || Number(a.publico_estimado) || 0), 0),
       ativs.filter((a) => a.classificacao === 'META').length,
       ativs.filter((a) => a.classificacao === 'ROTINA').length,
       ativs.filter((a) => a.classificacao === 'EXTRA').length];
