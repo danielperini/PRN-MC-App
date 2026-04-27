@@ -11,7 +11,6 @@ import EquipeManager from '../components/admin/EquipeManager';
 import UserPermissionsManager from '../components/admin/UserPermissionsManager';
 import AuditSystemPanel from '../components/admin/AuditSystemPanel';
 import HardeningPanel from '../components/admin/HardeningPanel';
-import { useState } from 'react';
 import {
   Users, FileText, History, Settings,
   CheckCircle, ChevronRight,
