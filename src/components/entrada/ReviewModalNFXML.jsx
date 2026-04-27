@@ -15,15 +15,29 @@ export default function ReviewModalNFXML({ intake, onClose, onSaved }) {
     async function autoLinkXML() {
       setLinking(true);
       try {
-        // Busca PDF correspondente
-        const allAttachments = await base44.entities.Attachment.filter(
-          { nf_numero: ia.nf_numero || '' },
-          '-created_date',
-          50
-        );
-        const pdfs = (allAttachments || []).filter(a => 
-          a.nf_tipo_documento === 'pdf_nf' && a.nf_emitente_cpf_cnpj === ia.nf_emitente_cpf_cnpj
-        );
+        // Busca PDF correspondente pelo número da NF (mais flexível)
+        let pdfs = [];
+        if (ia.nf_numero) {
+          const allAttachments = await base44.entities.Attachment.filter(
+            { nf_numero: ia.nf_numero },
+            '-created_date',
+            50
+          );
+          pdfs = (allAttachments || []).filter(a => a.nf_tipo_documento === 'pdf_nf');
+        }
+        
+        // Se não encontrou, tenta buscar o attachment mais recente do DocumentIntake do PDF
+        if (pdfs.length === 0) {
+          const docIntakes = await base44.entities.DocumentIntake.filter(
+            { tipo_detectado: 'NOTA_FISCAL_PDF' },
+            '-created_date',
+            1
+          );
+          if (docIntakes && docIntakes.length > 0 && docIntakes[0].entidade_destino_id) {
+            const pdfAttachment = await base44.entities.Attachment.get(docIntakes[0].entidade_destino_id);
+            if (pdfAttachment) pdfs = [pdfAttachment];
+          }
+        }
 
         if (pdfs.length === 0) {
           toast({ title: 'Nenhum PDF correspondente encontrado.', variant: 'destructive' });
