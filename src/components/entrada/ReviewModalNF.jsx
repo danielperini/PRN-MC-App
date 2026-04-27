@@ -318,9 +318,26 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         await debitarRubricaSimples(valorTotal);
       }
 
+      // Notificar coordenação e usuário
+      try {
+        await base44.functions.invoke('notifyDocumentSubmissionForApproval', {
+          documentIntakeId: intake.id,
+          tipoDocumento: 'Nota Fiscal',
+          categoriaIdentificada: form.categoria,
+          nfNumero: form.nf_numero,
+          valor: valorTotal,
+          rubricaSugerida: form.rubrica_id ? (rubricas.find(r => r.id === form.rubrica_id)?.rubrica || form.rubrica_id) : null,
+          centroCusto: dividirEntreMuseus ? 'Rateado entre museus' : form.centro_custo,
+          nomeArquivo: form.file_name_final,
+        });
+      } catch (e) {
+        console.error('Erro ao notificar:', e);
+        // Não quebra o fluxo, documento já foi salvo
+      }
+
       toast({
-        title: 'Documento enviado e rubrica atualizada.',
-        description: observacoesRateio || `R$ ${valorTotal.toFixed(2)} debitado da rubrica selecionada.`,
+        title: 'Documento enviado para aprovação com sucesso.',
+        description: 'A coordenação foi notificada por e-mail. ' + (observacoesRateio || `R$ ${valorTotal.toFixed(2)} debitado da rubrica selecionada.`),
       });
       onSaved();
     } catch (e) {

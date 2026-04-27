@@ -7,6 +7,7 @@ import DocumentUploadZone from '@/components/entrada/DocumentUploadZone';
 import DocumentIntakeCard from '@/components/entrada/DocumentIntakeCard';
 import ReviewModalNF from '@/components/entrada/ReviewModalNF';
 import ReviewModalFoto from '@/components/entrada/ReviewModalFoto';
+import ReviewModalDocAdmin from '@/components/entrada/ReviewModalDocAdmin';
 import ReviewModalOutro from '@/components/entrada/ReviewModalOutro';
 import CoordBulkImportPanel from '@/components/entrada/CoordBulkImportPanel';
 
@@ -155,7 +156,8 @@ export default function EntradaUnica() {
   const modalTipo = reviewIntake?.tipo_detectado;
   const isNF = modalTipo === 'NOTA_FISCAL_PDF' || modalTipo === 'NOTA_FISCAL_XML';
   const isFoto = modalTipo === 'FOTO_ATIVIDADE';
-  const isOutro = modalTipo === 'OUTRO' || modalTipo === 'PENDENTE' || modalTipo === 'DOCUMENTO_ADMINISTRATIVO';
+  const isDocAdmin = modalTipo === 'DOCUMENTO_ADMINISTRATIVO';
+  const isOutro = modalTipo === 'OUTRO' || modalTipo === 'PENDENTE';
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 space-y-6">
@@ -221,6 +223,9 @@ export default function EntradaUnica() {
       )}
       {reviewIntake && isFoto && (
         <ReviewModalFoto intake={reviewIntake} onClose={handleModalClose} onSaved={handleSaved} />
+      )}
+      {reviewIntake && isDocAdmin && (
+        <ReviewModalDocAdmin intake={reviewIntake} onClose={handleModalClose} onSaved={handleSaved} />
       )}
       {reviewIntake && isOutro && (
         <ReviewModalOutro intake={reviewIntake} onClose={handleModalClose} onReclassified={handleReclassified} />
