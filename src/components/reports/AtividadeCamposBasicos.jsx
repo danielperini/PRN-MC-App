@@ -517,7 +517,7 @@ export default function AtividadeCamposBasicos({
                   {metasOptions
                     .filter((item) => metasLista.includes(item.id))
                     .map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
+                      <SelectItem key={item.id} value={item.label}>
                         {item.descricao || item.label}
                       </SelectItem>
                     ))}
