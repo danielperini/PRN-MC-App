@@ -102,7 +102,7 @@ export default function AprovacoesFila({
 
       await base44.functions.invoke('purchaseActions', {
         purchaseId: purchase.id,
-        action: action === 'approve' ? 'aprovar' : 'reject',
+        action: action === 'approve' ? 'aprovar' : 'rejeitar',
       });
 
       // 🔒 GARANTIA: NÃO DEBITAR RUBRICA AQUI

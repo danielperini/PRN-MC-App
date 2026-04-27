@@ -8,6 +8,16 @@ function normalize(value: any) {
   return String(value || '').trim().toLowerCase();
 }
 
+function normalizeText(value: any) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s@.-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 function computeSaldo(rubrica: any) {
   const total =
     toNumber(rubrica?.valor_total) ||
@@ -27,6 +37,42 @@ function getPurchaseValue(p: any) {
     toNumber(p?.valor_solicitado)
   );
 }
+
+/* =========================
+   TEAM PAYMENT AUTO (mantido)
+========================= */
+
+async function ensureTeamPaymentFromNF(base44: any, purchase: any, purchaseId: string, rubrica: any, valor: number, userEmail: string) {
+  try {
+    const existing = await base44.asServiceRole.entities.TeamPayment.filter({
+      purchase_request_id: purchaseId,
+    });
+
+    if (existing && existing.length > 0) return existing[0];
+
+    return await base44.asServiceRole.entities.TeamPayment.create({
+      purchase_request_id: purchaseId,
+      user_name: purchase?.fornecedor_nome || '',
+      valor_nf: valor,
+      numero_nf: purchase?.observacoes || '',
+      rubrica_id: purchase.rubrica_id,
+      rubrica_nome: purchase.rubrica_nome,
+      status: 'APROVADO_COORD',
+      origem_automatica: true,
+      criado_por_aprovacao_nf: true,
+      aprovado_por: userEmail,
+      aprovado_em: new Date().toISOString(),
+    });
+
+  } catch (e) {
+    console.warn('Erro TeamPayment:', e?.message);
+    return null;
+  }
+}
+
+/* =========================
+   SERVER
+========================= */
 
 Deno.serve(async (req) => {
   try {
@@ -52,10 +98,7 @@ Deno.serve(async (req) => {
     const valor = getPurchaseValue(purchase);
 
     if (valor <= 0) {
-      return Response.json({
-        error: 'Valor inválido',
-        debug: { valor }
-      }, { status: 400 });
+      return Response.json({ error: 'Valor inválido' }, { status: 400 });
     }
 
     const rubrica = purchase?.rubrica_id
@@ -63,13 +106,7 @@ Deno.serve(async (req) => {
       : null;
 
     if (!rubrica) {
-      return Response.json({
-        error: 'Compra sem rubrica vinculada',
-        debug: {
-          purchase_id: purchaseId,
-          rubrica_id: purchase?.rubrica_id
-        }
-      }, { status: 400 });
+      return Response.json({ error: 'Compra sem rubrica' }, { status: 400 });
     }
 
     const saldo = computeSaldo(rubrica);
@@ -77,24 +114,15 @@ Deno.serve(async (req) => {
     /* =========================
        APROVAR
     ========================= */
+
     if (action === 'approve_coord' || action === 'aprovar') {
 
       if (normalize(purchase.status) !== 'solicitado') {
-        return Response.json({
-          error: 'Status inválido',
-          debug: { status: purchase.status }
-        }, { status: 400 });
+        return Response.json({ error: 'Status inválido' }, { status: 400 });
       }
 
       if (saldo < valor) {
-        return Response.json({
-          error: 'Saldo insuficiente',
-          debug: {
-            rubrica: rubrica?.nome,
-            saldo,
-            valor
-          }
-        }, { status: 400 });
+        return Response.json({ error: 'Saldo insuficiente' }, { status: 400 });
       }
 
       await base44.asServiceRole.entities.Rubrica.update(rubrica.id, {
@@ -109,37 +137,58 @@ Deno.serve(async (req) => {
         approved_at: new Date().toISOString()
       });
 
-      // Atualizar DocumentIntake vinculado para APROVADO (se existir)
+      let teamPayment = null;
+
       try {
-        const intakes = await base44.asServiceRole.entities.DocumentIntake.filter({
-          entidade_destino: 'PurchaseRequest',
-          entidade_destino_id: purchaseId,
-        });
-        if (intakes && intakes.length > 0) {
-          await base44.asServiceRole.entities.DocumentIntake.update(intakes[0].id, {
-            status_processamento: 'APROVADO',
-          });
-        }
-      } catch (e) {
-        console.warn('Aviso: não foi possível atualizar DocumentIntake:', e?.message);
-      }
+        teamPayment = await ensureTeamPaymentFromNF(
+          base44,
+          purchase,
+          purchaseId,
+          rubrica,
+          valor,
+          user.email
+        );
+      } catch {}
 
       return Response.json({
         success: true,
-        message: 'Compra aprovada com sucesso'
+        team_payment_id: teamPayment?.id || null,
+      });
+    }
+
+    /* =========================
+       RECUSAR (NOVO)
+    ========================= */
+
+    if (action === 'reject' || action === 'rejeitar') {
+
+      if (normalize(purchase.status) !== 'solicitado') {
+        return Response.json({
+          error: 'Só é possível recusar solicitações pendentes'
+        }, { status: 400 });
+      }
+
+      await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, {
+        status: 'RECUSADO',
+        comentario_recusa: comentario || null,
+        rejected_by: user.email,
+        rejected_at: new Date().toISOString()
+      });
+
+      return Response.json({
+        success: true,
+        message: 'Solicitação recusada com sucesso'
       });
     }
 
     /* =========================
        PAGAR
     ========================= */
+
     if (action === 'mark_paid') {
 
       if (normalize(purchase.status) !== 'aprovado_coord') {
-        return Response.json({
-          error: 'Compra precisa estar aprovada',
-          debug: { status: purchase.status }
-        }, { status: 400 });
+        return Response.json({ error: 'Precisa estar aprovado' }, { status: 400 });
       }
 
       await base44.asServiceRole.entities.Rubrica.update(rubrica.id, {
@@ -156,7 +205,7 @@ Deno.serve(async (req) => {
 
       return Response.json({
         success: true,
-        message: 'Pagamento realizado com sucesso'
+        message: 'Pagamento realizado'
       });
     }
 
