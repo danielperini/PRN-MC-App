@@ -423,9 +423,6 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
     setSending(true);
     try {
       const rateioPayload = getRateioPayload();
-      const observacoesRateio = rateioPayload
-        ? `Rateio entre museus: ${rateioPayload.map(r => `${r.museu}: R$ ${r.valor.toFixed(2)}`).join(', ')}.`
-        : '';
 
       const pr = await base44.entities.PurchaseRequest.create({
         descricao_item: form.descricao_servico || form.nf_emitente_nome,
@@ -439,7 +436,7 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
         centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
         rubrica_id: form.rubrica_id,
         status: 'SOLICITADO',
-        observacoes: `Criado via Entrada Única de Documentos. NF ${form.nf_numero} - ${form.nf_emitente_nome}. Arquivo: ${form.file_name_final}. ${observacoesRateio}`.trim(),
+        observacoes: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
       });
 
       await base44.entities.Attachment.create({
@@ -447,7 +444,7 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
         file_name: form.file_name_final,
         file_type: intake.mime_type,
         file_url: intake.arquivo_original_url,
-        description: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
+        nf_categoria: 'nota_fiscal',
         nf_numero: form.nf_numero,
         nf_valor_total: valorTotal,
         nf_data_emissao: form.nf_data_emissao,
@@ -464,40 +461,11 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
         status_processamento: 'ENVIADO_APROVACAO',
         entidade_destino: 'PurchaseRequest',
         entidade_destino_id: pr.id,
-        centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
-        rubrica_id_sugerida: form.rubrica_id,
-        file_name_final: form.file_name_final,
-        resultado_ia: { ...ia, ...form, rateio_museus: rateioPayload, dividir_entre_museus: dividirEntreMuseus },
-        revisado_pelo_usuario: true,
       });
 
-      // Debitar valores na(s) rubrica(s) correspondente(s)
-      if (dividirEntreMuseus && rateioPayload && rateioPayload.length > 0) {
-        await debitarRubricas(rateioPayload);
-      } else {
-        await debitarRubricaSimples(valorTotal);
-      }
-
-      // Notificar coordenação e usuário
-      try {
-        await base44.functions.invoke('notifyDocumentSubmissionForApproval', {
-          documentIntakeId: intake.id,
-          tipoDocumento: 'Nota Fiscal',
-          categoriaIdentificada: form.categoria,
-          nfNumero: form.nf_numero,
-          valor: valorTotal,
-          rubricaSugerida: form.rubrica_id ? (rubricas.find(r => r.id === form.rubrica_id)?.rubrica || form.rubrica_id) : null,
-          centroCusto: dividirEntreMuseus ? 'Rateado entre museus' : form.centro_custo,
-          nomeArquivo: form.file_name_final,
-        });
-      } catch (e) {
-        console.error('Erro ao notificar:', e);
-        // Não quebra o fluxo, documento já foi salvo
-      }
-
       toast({
-        title: 'Documento enviado para aprovação com sucesso.',
-        description: 'A coordenação foi notificada por e-mail. ' + (observacoesRateio || `R$ ${valorTotal.toFixed(2)} debitado da rubrica selecionada.`),
+        title: 'Enviado com sucesso',
+        description: 'Documento enviado para aprovação.',
       });
       onSaved();
     } catch (e) {
