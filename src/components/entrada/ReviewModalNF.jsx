@@ -442,16 +442,47 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     }
   }
 
+  const temXMLVinculado =
+    !!selectedXmlId ||
+    xmlCandidates.length > 0 ||
+    !!intake?.nf_xml_attachment_id ||
+    !!intake?.resultado_ia?.nf_xml_attachment_id ||
+    !!intake?.resultado_ia?.xml_url;
+
   const errosFiltrados = (intake.erros_validacao || []).filter((e) => {
-    const txt = String(e).toLowerCase();
+    const txt = String(e || '').toLowerCase();
+
+    if (temXMLVinculado && txt.includes('xml')) {
+      return false;
+    }
+
+    if (txt.includes('cnpj') || txt.includes('empresa') || txt.includes('registrada')) {
+      return false;
+    }
+
+    if (
+      form.nf_valor_total &&
+      (txt.includes('valor da nf') ||
+        txt.includes('valor') ||
+        txt.includes('destinatário') ||
+        txt.includes('destinatario'))
+    ) {
+      return false;
+    }
+
     if (txt.includes('futura') || txt.includes('future')) {
       const match = txt.match(/(\d{2})\/(\d{2})\/(\d{4})/);
       if (match) {
         const hoje = new Date();
-        const dataDoc = new Date(`${match[3]}-${match[2]}-${match[1]}`);
+        hoje.setHours(0, 0, 0, 0);
+
+        const dataDoc = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+        dataDoc.setHours(0, 0, 0, 0);
+
         if (dataDoc <= hoje) return false;
       }
     }
+
     return true;
   });
 
