@@ -56,9 +56,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     rubrica_id: intake.rubrica_id_sugerida || '',
     file_name_final: intake.file_name_final || intake.file_name_original,
     meta_id: '',
-    categoria: ia.categoria_sugerida || '',
     tipo_gasto: ia.tipo_gasto || 'Serviço',
-    budgetline_id: '',
   });
 
   const [budgetLines, setBudgetLines] = useState([]);
@@ -115,37 +113,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     return `${numero} - ${fornecedor} - MUSEUS CENTRO - R$ ${valorFormatado}.${extAtual}`;
   }
 
-  useEffect(() => {
-    const sugerirMeta = async () => {
-      if (!form.categoria || form.meta_id) return;
 
-      try {
-        const metaSugestion = await base44.asServiceRole.integrations.Core.InvokeLLM({
-          prompt: `Baseado na categoria "${form.categoria}" e descrição "${form.descricao_servico}", qual meta do 3º Aditivo é mais adequada?
-
-Opções: MC3A-20, MC3A-21, MC3A-22, MC3A-23, MC3A-24, MC3A-25, MC3A-EXTRA
-
-Responda SOMENTE com o código da meta (ex: MC3A-22)`,
-          response_json_schema: {
-            type: 'object',
-            properties: { meta: { type: 'string' } },
-          },
-        });
-
-        const metaSug = metaSugestion?.meta?.trim();
-        if (
-          metaSug &&
-          ['MC3A-20', 'MC3A-21', 'MC3A-22', 'MC3A-23', 'MC3A-24', 'MC3A-25', 'MC3A-EXTRA'].includes(metaSug)
-        ) {
-          setForm((f) => ({ ...f, meta_id: metaSug }));
-        }
-      } catch (e) {
-        console.warn('Erro ao sugerir meta:', e);
-      }
-    };
-
-    sugerirMeta();
-  }, [form.categoria, form.descricao_servico]);
 
   useEffect(() => {
     setForm((f) => ({ ...f, file_name_final: buildNomePadronizado() }));
@@ -383,16 +351,8 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
   }
 
   async function handleAprovacaoDireta() {
-    if (!form.meta_id) {
-      toast({ title: 'Selecione a meta antes de aprovar.', variant: 'destructive', duration: 3000 });
-      return;
-    }
-    if (!form.categoria) {
-      toast({ title: 'Selecione a categoria antes de aprovar.', variant: 'destructive', duration: 3000 });
-      return;
-    }
-    if (!form.budgetline_id) {
-      toast({ title: 'Selecione a linha orçamentária antes de aprovar.', variant: 'destructive', duration: 3000 });
+    if (!form.rubrica_id) {
+      toast({ title: 'Selecione a rubrica antes de aprovar.', variant: 'destructive', duration: 3000 });
       return;
     }
     if (!form.centro_custo && !dividirEntreMuseus) {
@@ -418,9 +378,8 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
         fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
         valor_solicitado: valorTotal,
         meta_id: form.meta_id,
-        categoria: form.categoria,
+        categoria: 'Nota Fiscal',
         tipo_gasto: form.tipo_gasto,
-        budgetline_id: form.budgetline_id,
         centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
         rubrica_id: form.rubrica_id,
         status: 'APROVADO',
@@ -499,16 +458,8 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
 
   async function handleEnviarAprovacao(forcarEnvio = false) {
     if (!forcarEnvio) {
-      if (!form.meta_id) {
-        toast({ title: 'Selecione a meta antes de enviar.', variant: 'destructive', duration: 3000 });
-        return;
-      }
-      if (!form.categoria) {
-        toast({ title: 'Selecione a categoria antes de enviar.', variant: 'destructive', duration: 3000 });
-        return;
-      }
-      if (!form.budgetline_id) {
-        toast({ title: 'Selecione a linha orçamentária antes de enviar.', variant: 'destructive', duration: 3000 });
+      if (!form.rubrica_id) {
+        toast({ title: 'Selecione a rubrica antes de enviar.', variant: 'destructive', duration: 3000 });
         return;
       }
       if (!form.centro_custo && !dividirEntreMuseus) {
@@ -533,9 +484,8 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
         fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
         valor_solicitado: valorTotal,
         meta_id: form.meta_id,
-        categoria: form.categoria,
+        categoria: 'Nota Fiscal',
         tipo_gasto: form.tipo_gasto,
-        budgetline_id: form.budgetline_id,
         centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
         rubrica_id: form.rubrica_id,
         status: 'SOLICITADO',
@@ -698,34 +648,7 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
             </Select>
           </div>
 
-          <div className="space-y-1">
-            <Label>
-              Categoria <span className="text-red-500">*</span>
-            </Label>
-            <Select value={form.categoria} onValueChange={(v) => setForm((f) => ({ ...f, categoria: v }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecionar categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                {[
-                  'Serviços (equipe/coordenação)',
-                  'Serviços (comunicação: designer, foto, vídeo, imprensa, redes)',
-                  'Serviços (produção/infraestrutura/expografia)',
-                  'Serviços (eventos/atrações/artistas)',
-                  'Serviços (segurança/limpeza)',
-                  'Logística (transporte/vans)',
-                  'Alimentação (lanche/café/coffeebreak)',
-                  'Consultoria / Formação / Acessibilidade',
-                  'Materiais de consumo',
-                  'Outros',
-                ].map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+
 
           <div className="space-y-1">
             <Label>
@@ -738,24 +661,6 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
               <SelectContent>
                 <SelectItem value="Produto">Produto</SelectItem>
                 <SelectItem value="Serviço">Serviço</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <Label>
-              Rubrica Orçamentária <span className="text-red-500">*</span>
-            </Label>
-            <Select value={form.budgetline_id} onValueChange={(v) => setForm((f) => ({ ...f, budgetline_id: v }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecionar linha orçamentária" />
-              </SelectTrigger>
-              <SelectContent>
-                {budgetLines.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.nome || b.descricao}
-                  </SelectItem>
-                ))}
               </SelectContent>
             </Select>
           </div>
@@ -922,7 +827,7 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
             {user && COORD_EMAILS.includes((user.email || '').toLowerCase().trim()) && (
               <Button
                 onClick={handleAprovacaoDireta}
-                disabled={approvingDirect}
+                disabled={approvingDirect || !form.rubrica_id}
                 className="bg-green-600 hover:bg-green-700"
               >
                 {approvingDirect ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
@@ -932,7 +837,7 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
 
             <Button
               onClick={() => handleEnviarAprovacao(true)}
-              disabled={sending}
+              disabled={sending || !form.rubrica_id}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
@@ -941,7 +846,12 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
 
             <Button
               onClick={() => handleEnviarAprovacao(true)}
-              disabled={sending || !form.meta_id || !form.categoria || !form.budgetline_id || (!dividirEntreMuseus && !form.centro_custo) || (dividirEntreMuseus && !rateioValido)}
+              disabled={
+                sending ||
+                !form.rubrica_id ||
+                (!dividirEntreMuseus && !form.centro_custo) ||
+                (dividirEntreMuseus && !rateioValido)
+              }
             >
               {sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
               Enviar para Aprovação
