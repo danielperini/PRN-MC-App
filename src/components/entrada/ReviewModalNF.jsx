@@ -140,14 +140,19 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   async function atualizarRubrica(rubricaId, valorDebito) {
     const rubrica = await base44.entities.Rubrica.get(rubricaId);
     if (!rubrica) return;
-    const novoUtilizado = (rubrica.valor_utilizado || 0) + valorDebito;
-    const novoSaldo = (rubrica.valor_rubrica || 0) - novoUtilizado;
+    
+    // Usa valor_total primeiro, depois valor_rubrica como fallback
+    const valorTotal = rubrica.valor_total || rubrica.valor_rubrica || 0;
+    const utilizado = (rubrica.valor_utilizado || 0) + valorDebito;
+    const comprometido = rubrica.saldo_comprometido || 0;
+    const saldo = valorTotal - utilizado - comprometido;
+    const percentual = valorTotal > 0 ? (utilizado / valorTotal) * 100 : 0;
+    
     await base44.entities.Rubrica.update(rubricaId, {
-      valor_utilizado: novoUtilizado,
-      saldo: novoSaldo,
-      percentual_utilizado: rubrica.valor_rubrica > 0
-        ? (novoUtilizado / rubrica.valor_rubrica) * 100
-        : 0,
+      valor_utilizado: utilizado,
+      saldo_comprometido: comprometido,
+      saldo: saldo,
+      percentual_utilizado: percentual,
     });
   }
 
@@ -185,14 +190,17 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     try {
       const rubrica = await base44.entities.Rubrica.get(form.rubrica_id);
       if (rubrica) {
-        const novoUtilizado = (rubrica.valor_utilizado || 0) + valor;
-        const novoSaldo = (rubrica.valor_rubrica || 0) - novoUtilizado;
+        const valorTotal = rubrica.valor_total || rubrica.valor_rubrica || 0;
+        const utilizado = (rubrica.valor_utilizado || 0) + valor;
+        const comprometido = rubrica.saldo_comprometido || 0;
+        const saldo = valorTotal - utilizado - comprometido;
+        const percentual = valorTotal > 0 ? (utilizado / valorTotal) * 100 : 0;
+        
         await base44.entities.Rubrica.update(rubrica.id, {
-          valor_utilizado: novoUtilizado,
-          saldo: novoSaldo,
-          percentual_utilizado: rubrica.valor_rubrica > 0
-            ? (novoUtilizado / rubrica.valor_rubrica) * 100
-            : 0,
+          valor_utilizado: utilizado,
+          saldo_comprometido: comprometido,
+          saldo: saldo,
+          percentual_utilizado: percentual,
         });
       }
     } catch (e) {
