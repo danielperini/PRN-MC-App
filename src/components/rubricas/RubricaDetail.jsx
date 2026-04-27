@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import LancarValorDialog from './LancarValorDialog';
@@ -14,6 +14,13 @@ import {
   User,
   Loader2,
   Link2,
+  FileText,
+  Receipt,
+  BookOpen,
+  CreditCard,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -83,6 +90,38 @@ export default function RubricaDetail({ rubrica, onClose }) {
     },
     enabled: !!rubricaId,
   });
+
+  // NFs vinculadas via Attachment (nf_numero preenchido + compras com nota_fiscal_url)
+  const { data: notasFiscais = [] } = useQuery({
+    queryKey: ['nfs-by-rubrica', rubricaId],
+    queryFn: async () => {
+      const all = await base44.entities.Attachment.list('-created_date', 500);
+      return all.filter(a => a.nf_numero && a.nf_numero !== '');
+    },
+    enabled: !!rubricaId,
+  });
+
+  // Relatórios vinculados via report_id das compras
+  const { data: relatoriosVinculados = [] } = useQuery({
+    queryKey: ['reports-by-rubrica', rubricaId],
+    queryFn: async () => {
+      const reportIds = [...new Set(purchases.filter(p => p.report_id).map(p => p.report_id))];
+      if (reportIds.length === 0) return [];
+      const all = await base44.entities.Report.list('-created_date', 200);
+      return all.filter(r => reportIds.includes(r.id));
+    },
+    enabled: !!rubricaId && purchases.length > 0,
+  });
+
+  // Pagamentos realizados (compras pagas com comprovante)
+  const pagamentosRealizados = useMemo(
+    () => purchases.filter(p => p.status === 'PAGO' || (p.data_pagamento && p.valor_pago)),
+    [purchases]
+  );
+
+  const [showNFs, setShowNFs] = useState(true);
+  const [showRelatorios, setShowRelatorios] = useState(true);
+  const [showPagamentos, setShowPagamentos] = useState(true);
 
   const invalidateRubricaQueries = async () => {
     await Promise.all([
@@ -535,6 +574,185 @@ export default function RubricaDetail({ rubrica, onClose }) {
               </div>
             ))}
           </div>
+        )}
+      </div>
+
+      {/* ── NOTAS FISCAIS ── */}
+      <div className="space-y-3">
+        <button
+          onClick={() => setShowNFs(v => !v)}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <h3 className="text-lg font-semibold text-black flex items-center gap-2">
+            <Receipt className="w-5 h-5 text-blue-600" />
+            Notas Fiscais Vinculadas
+            <span className="text-sm font-normal text-gray-500 ml-1">
+              ({purchases.filter(p => p.nota_fiscal_url).length + notasFiscais.length})
+            </span>
+          </h3>
+          {showNFs ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+        </button>
+
+        {showNFs && (
+          <>
+            {/* NFs via nota_fiscal_url nas compras */}
+            {purchases.filter(p => p.nota_fiscal_url).length === 0 && notasFiscais.length === 0 ? (
+              <div className="border border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-400 text-sm">
+                Nenhuma nota fiscal vinculada
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {purchases.filter(p => p.nota_fiscal_url).map(p => (
+                  <div key={'nf-pr-' + p.id} className="border border-gray-200 rounded-lg p-3 flex items-center justify-between gap-3 hover:bg-gray-50">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-black truncate">
+                          {p.numero_nf ? `NF ${p.numero_nf}` : 'Nota Fiscal'} — {p.fornecedor_nome || p.descricao_item || '—'}
+                        </p>
+                        <div className="flex gap-3 text-xs text-gray-500 flex-wrap mt-0.5">
+                          {p.data_emissao && <span>{new Date(p.data_emissao).toLocaleDateString('pt-BR')}</span>}
+                          <span className={`font-medium px-1 rounded ${p.status === 'PAGO' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{p.status}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className="text-sm font-bold text-blue-700">R$ {formatMoney(p.valor_pago || p.valor_aprovado_admin || p.valor_solicitado)}</span>
+                      <a href={p.nota_fiscal_url} target="_blank" rel="noopener noreferrer" className="p-1 text-gray-400 hover:text-blue-600">
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </div>
+                  </div>
+                ))}
+                {notasFiscais.map(nf => (
+                  <div key={'nf-att-' + nf.id} className="border border-gray-200 rounded-lg p-3 flex items-center justify-between gap-3 hover:bg-gray-50">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <FileText className="w-4 h-4 text-green-500 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-black truncate">
+                          NF {nf.nf_numero} — {nf.nf_emitente_nome || nf.file_name}
+                        </p>
+                        <div className="flex gap-3 text-xs text-gray-500 flex-wrap mt-0.5">
+                          {nf.nf_data_emissao && <span>{new Date(nf.nf_data_emissao).toLocaleDateString('pt-BR')}</span>}
+                          {nf.nf_nome_renomeado && <span className="truncate max-w-xs">{nf.nf_nome_renomeado}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      {nf.nf_valor_total > 0 && <span className="text-sm font-bold text-blue-700">R$ {formatMoney(nf.nf_valor_total)}</span>}
+                      <a href={nf.file_url} target="_blank" rel="noopener noreferrer" className="p-1 text-gray-400 hover:text-blue-600">
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── RELATÓRIOS VINCULADOS ── */}
+      <div className="space-y-3">
+        <button
+          onClick={() => setShowRelatorios(v => !v)}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <h3 className="text-lg font-semibold text-black flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-purple-600" />
+            Relatórios Vinculados
+            <span className="text-sm font-normal text-gray-500 ml-1">({relatoriosVinculados.length})</span>
+          </h3>
+          {showRelatorios ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+        </button>
+
+        {showRelatorios && (
+          relatoriosVinculados.length === 0 ? (
+            <div className="border border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-400 text-sm">
+              Nenhum relatório vinculado às compras desta rubrica
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {relatoriosVinculados.map(r => (
+                <div key={r.id} className="border border-gray-200 rounded-lg p-3 flex items-center justify-between gap-3 hover:bg-gray-50">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <BookOpen className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-black">
+                        {r.author_name} — {r.mes_referencia} {r.ano}
+                      </p>
+                      <div className="flex gap-3 text-xs text-gray-500 flex-wrap mt-0.5">
+                        <span>{r.museu}</span>
+                        <span className={`font-medium px-1 rounded ${r.status === 'APPROVED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{r.status}</span>
+                        {r.numero_protocolo && <span>{r.numero_protocolo}</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
+
+      {/* ── PAGAMENTOS REALIZADOS ── */}
+      <div className="space-y-3">
+        <button
+          onClick={() => setShowPagamentos(v => !v)}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <h3 className="text-lg font-semibold text-black flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-green-600" />
+            Pagamentos Realizados
+            <span className="text-sm font-normal text-gray-500 ml-1">({pagamentosRealizados.length})</span>
+          </h3>
+          {showPagamentos ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+        </button>
+
+        {showPagamentos && (
+          pagamentosRealizados.length === 0 ? (
+            <div className="border border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-400 text-sm">
+              Nenhum pagamento realizado ainda
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {pagamentosRealizados.map(p => (
+                <div key={'pag-' + p.id} className="border border-green-200 bg-green-50 rounded-lg p-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <CreditCard className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-black truncate">
+                        {p.fornecedor_nome || p.descricao_item || '—'}
+                      </p>
+                      <div className="flex gap-3 text-xs text-gray-600 flex-wrap mt-0.5">
+                        {p.data_pagamento && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(p.data_pagamento).toLocaleDateString('pt-BR')}
+                          </span>
+                        )}
+                        {p.meio_pagamento && <span>{p.meio_pagamento}</span>}
+                        {p.aprov_admin_nome && <span>Aprovado por: {p.aprov_admin_nome}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-base font-bold text-green-700">R$ {formatMoney(p.valor_pago || p.valor_aprovado_admin || p.valor_solicitado)}</span>
+                    {p.comprovante_url && (
+                      <a href={p.comprovante_url} target="_blank" rel="noopener noreferrer" className="p-1 text-gray-400 hover:text-green-600">
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div className="flex justify-end pt-1">
+                <span className="text-sm font-bold text-green-800 bg-green-100 px-3 py-1 rounded-lg">
+                  Total pago: R$ {formatMoney(pagamentosRealizados.reduce((s, p) => s + (p.valor_pago || p.valor_aprovado_admin || p.valor_solicitado || 0), 0))}
+                </span>
+              </div>
+            </div>
+          )
         )}
       </div>
 
