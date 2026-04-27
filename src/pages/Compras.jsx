@@ -20,7 +20,8 @@ import {
   User,
   FileText,
   AlertTriangle,
-  Pencil
+  Pencil,
+  Trash2
 } from 'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
@@ -227,7 +228,8 @@ function TabelaSolicitacoes({
   rubricas,
   isCoordenador,
   currentUser,
-  onEdit
+  onEdit,
+  onDelete
 }) {
   const rubricaById = useMemo(() => {
     const m = {};
@@ -335,7 +337,7 @@ function TabelaSolicitacoes({
                   {fmtBRL(valor)}
                 </td>
 
-                <td className="px-3 py-2.5 text-center">
+                <td className="px-3 py-2.5 text-center flex items-center justify-center gap-2">
                   {podeEditar && (
                     <button
                       onClick={() => onEdit(p)}
@@ -343,6 +345,19 @@ function TabelaSolicitacoes({
                       title="Editar"
                     >
                       <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {isCoordenador && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Tem certeza que deseja deletar esta solicitação?')) {
+                          onDelete(p.id);
+                        }
+                      }}
+                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                      title="Deletar"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   )}
                 </td>
@@ -909,6 +924,15 @@ function ComprasInner() {
                 onEdit={(purchase) => {
                   setEditingPurchase(purchase);
                   setShowForm(true);
+                }}
+                onDelete={async (purchaseId) => {
+                  try {
+                    await base44.entities.PurchaseRequest.delete(purchaseId);
+                    await invalidateComprasQueries();
+                  } catch (error) {
+                    console.error('Erro ao deletar solicitação:', error);
+                    alert('Erro ao deletar solicitação');
+                  }
                 }}
               />
             )}
