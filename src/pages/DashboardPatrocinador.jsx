@@ -6,6 +6,7 @@ import { Calendar, Users, FileText, TrendingUp, Target, Award, RotateCw, Filter,
 import { Button } from '@/components/ui/button';
 import NewsCarousel from '@/components/dashboard/NewsCarousel';
 import RubricaSelectorPanel from '@/components/patrocinador/RubricaSelectorPanel';
+import AgendaCard from '@/components/patrocinador/AgendaCard';
 import DataSyncAuditPanel from '@/components/dashboard/DataSyncAuditPanel';
 import {
   Select,
@@ -188,17 +189,19 @@ export default function DashboardPatrocinador() {
         saldo: Number(r.saldo.toFixed(2))
       }));
 
-      // Atividades por tipo
+      // Atividades por tipo (só do mês atual, não vazio)
       const atividadesPorTipo = {};
       atividadesMes.forEach((a) => {
         const tipo = a?.tipo_atividade || a?.tipo_programacao || 'Outro';
         atividadesPorTipo[tipo] = (atividadesPorTipo[tipo] || 0) + 1;
       });
 
-      const atividades = Object.entries(atividadesPorTipo).map(([tipo, count]) => ({
-        tipo,
-        quantidade: count
-      }));
+      const atividades = Object.entries(atividadesPorTipo)
+        .filter(([, count]) => count > 0)
+        .map(([tipo, count]) => ({
+          tipo,
+          quantidade: count
+        }));
 
       const totalOrcado = rubricasData.reduce((sum, r) => sum + r.previsto, 0);
       const totalUtilizado = rubricasData.reduce((sum, r) => sum + r.utilizado, 0);
@@ -662,6 +665,9 @@ export default function DashboardPatrocinador() {
 
       {/* Painel de Análise de Rubrica Individual */}
       <RubricaSelectorPanel />
+
+      {/* Card de Agenda */}
+      <AgendaCard />
 
       {/* Painel de Notícias */}
       <NewsCarousel />
