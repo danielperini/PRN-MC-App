@@ -449,6 +449,19 @@ function ComprasInner() {
     enabled: !!currentUser
   });
 
+  const { data: anexosCompras = [] } = useQuery({
+    queryKey: ['attachments-compras'],
+    queryFn: async () => {
+      const list = await base44.entities.Attachment.list('-created_date', 300);
+      return list.filter(att =>
+        att.nf_categoria === 'nota_fiscal' ||
+        att.description?.toLowerCase().includes('entrada única') ||
+        att.description?.toLowerCase().includes('entrada unica')
+      );
+    },
+    enabled: !!currentUser
+  });
+
   useQuery({
     queryKey: ['purchase-documents-all', isCoordenador, currentUser?.email],
     queryFn: async () => {
@@ -977,7 +990,37 @@ function ComprasInner() {
         )}
 
         {tab === 'documentos' && (
-          <div className="max-w-7xl">
+          <div className="max-w-7xl space-y-6">
+            <div className="bg-white border border-gray-200 rounded-lg p-4">
+              <h3 className="font-semibold text-black mb-3">Documentos (Entrada Única)</h3>
+              {anexosCompras.length === 0 ? (
+                <p className="text-gray-500 text-sm">Nenhum documento vinculado</p>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {anexosCompras.map(doc => (
+                    <div key={doc.id} className="flex items-center justify-between border p-3 rounded hover:bg-gray-50 transition">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{doc.file_name}</p>
+                        <p className="text-xs text-gray-500">
+                          {doc.nf_emitente_nome || 'Documento'} • 
+                          {doc.nf_valor_total ? ` R$ ${Number(doc.nf_valor_total).toLocaleString('pt-BR')}` : ''}
+                          {doc.nf_numero ? ` • NF ${doc.nf_numero}` : ''}
+                        </p>
+                      </div>
+                      <a
+                        href={doc.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 px-3 py-1 bg-black text-white text-xs rounded hover:bg-gray-800 flex-shrink-0"
+                      >
+                        Ver
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <GestaoDocumental />
           </div>
         )}
