@@ -2,8 +2,13 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Activity, TrendingUp } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function ActivityMetricsWidget({ reports = [] }) {
+  const [periodo, setPeriodo] = React.useState('all');
+  const [classificacao, setClassificacao] = React.useState('all');
+  const [tipoAtividade, setTipoAtividade] = React.useState('all');
+
   const metrics = React.useMemo(() => {
     let totalMeta = 0;
     let totalRotina = 0;
@@ -17,6 +22,18 @@ export default function ActivityMetricsWidget({ reports = [] }) {
     approvedReports.forEach(report => {
       const atividades = Array.isArray(report.atividades) ? report.atividades : [];
       atividades.forEach(a => {
+        // Filtrar por classificação
+        if (classificacao !== 'all' && a.classificacao !== classificacao) return;
+        
+        // Filtrar por tipo de atividade
+        if (tipoAtividade !== 'all' && a.tipo_equipe !== tipoAtividade) return;
+        
+        // Filtrar por período (mês)
+        if (periodo !== 'all') {
+          const actDate = a.data_realizacao || report.mes_referencia;
+          if (!actDate || !actDate.includes(periodo)) return;
+        }
+
         if (a.classificacao === 'META') totalMeta++;
         if (a.classificacao === 'ROTINA') totalRotina++;
         if (a.classificacao === 'EXTRA') totalExtra++;
@@ -45,10 +62,58 @@ export default function ActivityMetricsWidget({ reports = [] }) {
     ].filter(d => d.value > 0);
 
     return { totalMeta, totalRotina, totalExtra, totalPublico, chartData, classData };
-  }, [reports]);
+  }, [reports, periodo, classificacao, tipoAtividade]);
 
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Select value={periodo} onValueChange={setPeriodo}>
+          <SelectTrigger className="text-xs">
+            <SelectValue placeholder="Período" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os meses</SelectItem>
+            <SelectItem value="Janeiro">Janeiro</SelectItem>
+            <SelectItem value="Fevereiro">Fevereiro</SelectItem>
+            <SelectItem value="Março">Março</SelectItem>
+            <SelectItem value="Abril">Abril</SelectItem>
+            <SelectItem value="Maio">Maio</SelectItem>
+            <SelectItem value="Junho">Junho</SelectItem>
+            <SelectItem value="Julho">Julho</SelectItem>
+            <SelectItem value="Agosto">Agosto</SelectItem>
+            <SelectItem value="Setembro">Setembro</SelectItem>
+            <SelectItem value="Outubro">Outubro</SelectItem>
+            <SelectItem value="Novembro">Novembro</SelectItem>
+            <SelectItem value="Dezembro">Dezembro</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={classificacao} onValueChange={setClassificacao}>
+          <SelectTrigger className="text-xs">
+            <SelectValue placeholder="Classificação" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as atividades</SelectItem>
+            <SelectItem value="META">Metas</SelectItem>
+            <SelectItem value="ROTINA">Rotina</SelectItem>
+            <SelectItem value="EXTRA">Extra</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={tipoAtividade} onValueChange={setTipoAtividade}>
+          <SelectTrigger className="text-xs">
+            <SelectValue placeholder="Tipo de Atividade" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            <SelectItem value="EDUCATIVO">Educativo</SelectItem>
+            <SelectItem value="PRODUCAO">Produção</SelectItem>
+            <SelectItem value="COMUNICACAO">Comunicação</SelectItem>
+            <SelectItem value="ADMINISTRACAO">Administração</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="p-4 border-gray-200">
           <div className="flex items-center justify-between">
