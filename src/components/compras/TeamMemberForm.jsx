@@ -126,6 +126,7 @@ const EMPTY_FORM = {
   valor_total: '',
   data_inicio_contrato: '',
   data_fim_contrato: '',
+  objeto_contrato: '',
   telefone: '',
   status: 'ATIVO',
 };
@@ -172,6 +173,7 @@ export default function TeamMemberForm({
         valor_total: editingMember?.valor_total || '',
         data_inicio_contrato: editingMember?.data_inicio_contrato || '',
         data_fim_contrato: editingMember?.data_fim_contrato || '',
+        objeto_contrato: editingMember?.objeto_contrato || '',
         telefone: editingMember?.telefone || '',
         status: editingMember?.status || 'ATIVO',
       });
@@ -434,6 +436,7 @@ Responda SOMENTE com os dados extraídos.`,
         valor_total: valorTotal,
         data_inicio_contrato: form.data_inicio_contrato || undefined,
         data_fim_contrato: form.data_fim_contrato || undefined,
+        objeto_contrato: String(form.objeto_contrato || '').trim() || undefined,
         status: String(form.status || 'ATIVO').trim() || 'ATIVO',
         ...(contractUrl ? { contrato_url: contractUrl } : {}),
       };
@@ -642,7 +645,7 @@ Responda SOMENTE com os dados extraídos.`,
             </div>
 
             <div className="space-y-2">
-              <Label>Contrato</Label>
+              <Label>Contrato (PDF)</Label>
               <div className="flex items-center gap-2">
                 <label
                   className={`flex items-center gap-2 px-3 py-2 rounded-md border text-sm cursor-pointer transition-colors ${
@@ -662,7 +665,7 @@ Responda SOMENTE com os dados extraídos.`,
                   ) : (
                     <>
                       <Paperclip className="w-4 h-4" />
-                      Anexar contrato (PDF)
+                      Anexar contrato
                     </>
                   )}
 
@@ -686,6 +689,20 @@ Responda SOMENTE com os dados extraídos.`,
                   </a>
                 )}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Escopo do contrato</Label>
+              <textarea
+                placeholder="Descrição do escopo/objetivo do trabalho extraída do contrato"
+                value={form.objeto_contrato || ''}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, objeto_contrato: e.target.value }))
+                }
+                disabled={saving}
+                className="w-full px-3 py-2 text-sm border rounded-md font-sans"
+                rows={3}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
