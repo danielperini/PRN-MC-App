@@ -154,13 +154,29 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             Documento analisado. Revise as informações antes de enviar.
           </div>
 
-          {/* Inconsistências */}
-          {intake.erros_validacao?.length > 0 && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-1">
-              <p className="font-medium flex items-center gap-1"><AlertCircle className="w-4 h-4" /> Inconsistências detectadas:</p>
-              {intake.erros_validacao.map((e, i) => <p key={i}>• {e}</p>)}
-            </div>
-          )}
+          {/* Inconsistências — remove falsos positivos de "data futura" */}
+          {(() => {
+            const hoje = new Date();
+            const errosFiltrados = (intake.erros_validacao || []).filter(e => {
+              const txt = String(e).toLowerCase();
+              // Remove qualquer aviso de "data futura" que seja na verdade data passada/presente
+              if (txt.includes('futura') || txt.includes('future')) {
+                const match = txt.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+                if (match) {
+                  const dataDoc = new Date(`${match[3]}-${match[2]}-${match[1]}`);
+                  if (dataDoc <= hoje) return false; // é passada/presente — falso positivo
+                }
+                // Sem data identificável — mantém por precaução
+              }
+              return true;
+            });
+            return errosFiltrados.length > 0 ? (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-1">
+                <p className="font-medium flex items-center gap-1"><AlertCircle className="w-4 h-4" /> Inconsistências detectadas:</p>
+                {errosFiltrados.map((e, i) => <p key={i}>• {e}</p>)}
+              </div>
+            ) : null;
+          })()}
 
           {/* Nome do arquivo */}
           <div className="space-y-1">

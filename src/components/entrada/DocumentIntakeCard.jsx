@@ -124,12 +124,26 @@ export default function DocumentIntakeCard({ intake, onReview }) {
               {status.label}
             </span>
 
-            {intake.erros_validacao?.length > 0 && (
-              <span className="text-xs text-red-500 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                {intake.erros_validacao.length} inconsistência(s)
-              </span>
-            )}
+            {(() => {
+              const hoje = new Date();
+              const errosFiltrados = (intake.erros_validacao || []).filter(e => {
+                const txt = String(e).toLowerCase();
+                if (txt.includes('futura') || txt.includes('future')) {
+                  const match = txt.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+                  if (match) {
+                    const dataDoc = new Date(`${match[3]}-${match[2]}-${match[1]}`);
+                    if (dataDoc <= hoje) return false;
+                  }
+                }
+                return true;
+              });
+              return errosFiltrados.length > 0 ? (
+                <span className="text-xs text-red-500 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {errosFiltrados.length} inconsistência(s)
+                </span>
+              ) : null;
+            })()}
           </div>
         </div>
 
