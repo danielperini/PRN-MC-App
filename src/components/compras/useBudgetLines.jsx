@@ -59,7 +59,7 @@ export function useBudgetLines() {
   const { data: budgetLines = [], isLoading, error } = useQuery({
     queryKey: ['budget-lines'],
     queryFn: async () => {
-      const allLines = await base44.entities.BudgetLine.list('codigo', 500);
+      const allLines = await base44.entities.BudgetLine.list('codigo', 5000);
 
       return (allLines || [])
         .filter((line) => line?.codigo?.startsWith('MC3A'))
