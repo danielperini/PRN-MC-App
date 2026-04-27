@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Upload, FileText, Image, X, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,6 +11,12 @@ export default function DocumentUploadZone({ onFilesSelected, disabled }) {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [orientacoes, setOrientacoes] = useState('');
   const [fileErrors, setFileErrors] = useState([]);
+
+  useEffect(() => {
+    if (fileErrors.length === 0) return;
+    const timer = setTimeout(() => setFileErrors([]), 10000);
+    return () => clearTimeout(timer);
+  }, [fileErrors]);
 
   function handleFiles(files) {
     if (!files || files.length === 0) return;
