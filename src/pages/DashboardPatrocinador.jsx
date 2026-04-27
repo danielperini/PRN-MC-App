@@ -64,11 +64,27 @@ export default function DashboardPatrocinador() {
       }
     });
 
+    // Subscrever a mudanças em pagamentos
+    const unsubscribePayments = base44.entities.TeamPayment.subscribe((event) => {
+      if ((event.type === 'update' || event.type === 'create') && event.data?.status === 'PAGO') {
+        loadDashboardData();
+      }
+    });
+
+    // Subscrever a mudanças em compras
+    const unsubscribePurchases = base44.entities.PurchaseRequest.subscribe((event) => {
+      if ((event.type === 'create' || event.type === 'update') && event.data?.status === 'APROVADO') {
+        loadDashboardData();
+      }
+    });
+
     return () => {
       clearInterval(interval);
       unsubscribeReports();
       unsubscribeActivities();
       unsubscribeRubricas();
+      unsubscribePayments();
+      unsubscribePurchases();
     };
   }, []);
 
@@ -76,21 +92,29 @@ export default function DashboardPatrocinador() {
     try {
       setLoading(true);
 
-      const [activitiesRaw, rubricasRaw, reportsRaw] = await Promise.all([
-      base44.entities.Activity.list('-data_realizacao', 200),
-      base44.entities.Rubrica.list('grupo', 100),
-      base44.entities.Report.filter({ status: 'APPROVED' })]
-      );
+      const [reportsRaw, programacaoRaw, rubricasRaw, purchasesRaw, paymentsRaw] = await Promise.all([
+        base44.entities.Report.filter({ status: 'APPROVED' }, '-updated_date', 200),
+        base44.entities.Programacao.list('-data_realizacao', 200) || [],
+        base44.entities.Rubrica.list('', 200),
+        base44.entities.PurchaseRequest.filter({ status: 'APROVADO' }, '', 200) || [],
+        base44.entities.TeamPayment.filter({ status: 'PAGO' }, '', 200) || []
+      ]);
 
       const now = new Date();
       const mesAtual = now.getMonth() + 1;
       const anoAtual = now.getFullYear();
 
-      // Atividades por mês
+      // Atividades por mês (combina Report + Programacao)
       const atividadesPorMes = {};
-      (activitiesRaw || []).forEach((a) => {
-        if (!a?.data_realizacao) return;
-        const data = new Date(a.data_realizacao);
+      const todasAsAtividades = [
+        ...(reportsRaw || []).filter(r => r.atividades).flatMap(r => r.atividades || []),
+        ...(programacaoRaw || [])
+      ];
+      
+      todasAsAtividades.forEach((a) => {
+        const dataField = a?.data_realizacao || a?.data_programacao;
+        if (!dataField) return;
+        const data = new Date(dataField);
         const mes = String(data.getMonth() + 1).padStart(2, '0');
         const ano = data.getFullYear();
         const chave = `${ano}-${mes}`;
@@ -98,7 +122,7 @@ export default function DashboardPatrocinador() {
           atividadesPorMes[chave] = { mes: chave, atividades: 0, publico: 0 };
         }
         atividadesPorMes[chave].atividades += 1;
-        atividadesPorMes[chave].publico += Number(a?.publico_total) || 0;
+        atividadesPorMes[chave].publico += Number(a?.publico_total || a?.publico_estimado) || 0;
       });
 
       const dadosMensais = Object.values(atividadesPorMes).
@@ -106,15 +130,16 @@ export default function DashboardPatrocinador() {
       slice(-12);
 
       // Atividades do mês atual
-      const atividadesMes = (activitiesRaw || []).filter((a) => {
-        if (!a?.data_realizacao) return false;
-        const data = new Date(a.data_realizacao);
+      const atividadesMes = todasAsAtividades.filter((a) => {
+        const dataField = a?.data_realizacao || a?.data_programacao;
+        if (!dataField) return false;
+        const data = new Date(dataField);
         return data.getMonth() + 1 === mesAtual && data.getFullYear() === anoAtual;
       });
 
       // Público do mês atual
       const publicoMes = atividadesMes.reduce((sum, a) => {
-        return sum + (Number(a?.publico_total) || 0);
+        return sum + (Number(a?.publico_total || a?.publico_estimado) || 0);
       }, 0);
 
       // Atividades por classificação
@@ -131,8 +156,8 @@ export default function DashboardPatrocinador() {
       }));
 
       // Total público
-      const totalPublico = (activitiesRaw || []).reduce((sum, a) => {
-        return sum + (Number(a?.publico_total) || 0);
+      const totalPublico = todasAsAtividades.reduce((sum, a) => {
+        return sum + (Number(a?.publico_total || a?.publico_estimado) || 0);
       }, 0);
 
       // Rubricas - agrupar por macro (Equipe, Manutenção, Consultorias, etc)
@@ -147,10 +172,12 @@ export default function DashboardPatrocinador() {
             saldo: 0
           };
         }
-        // Usa campos reais: valor_total, valor_utilizado_aprovado, saldo_disponivel
-        rubricasAgrupadas[grupo].previsto += Number(r?.valor_total) || 0;
-        rubricasAgrupadas[grupo].utilizado += Number(r?.valor_utilizado_aprovado) || 0;
-        rubricasAgrupadas[grupo].saldo += Number(r?.saldo_disponivel) || 0;
+        // Usa campos reais: valor_total, valor_utilizado, saldo
+        const previsto = Number(r?.valor_total || r?.valor_rubrica || 0);
+        const utilizado = Number(r?.valor_utilizado || 0);
+        rubricasAgrupadas[grupo].previsto += previsto;
+        rubricasAgrupadas[grupo].utilizado += utilizado;
+        rubricasAgrupadas[grupo].saldo += (previsto - utilizado);
       });
 
       const rubricasData = Object.values(rubricasAgrupadas).map((r) => ({
@@ -160,10 +187,10 @@ export default function DashboardPatrocinador() {
         saldo: Number(r.saldo.toFixed(2))
       }));
 
-      // Atividades por tipo (amostra últimas 10)
+      // Atividades por tipo
       const atividadesPorTipo = {};
-      atividadesMes.slice(0, 10).forEach((a) => {
-        const tipo = a?.tipo_atividade || 'Outro';
+      atividadesMes.forEach((a) => {
+        const tipo = a?.tipo_atividade || a?.tipo_programacao || 'Outro';
         atividadesPorTipo[tipo] = (atividadesPorTipo[tipo] || 0) + 1;
       });
 
@@ -182,7 +209,7 @@ export default function DashboardPatrocinador() {
         periodo: `${mesAtual}/${anoAtual}`,
         museus: ['MIS', 'MHAB', 'MUMO'],
         totalAtividadesMes: atividadesMes.length,
-        totalAtividadesAno: activitiesRaw?.length || 0,
+        totalAtividadesAno: todasAsAtividades?.length || 0,
         totalPublico,
         publicoMes,
         statusProjeto,
@@ -194,7 +221,7 @@ export default function DashboardPatrocinador() {
         saldoTotal: totalOrcado - totalUtilizado,
         dadosMensais,
         dadosClassificacao,
-        allActivitiesRaw: activitiesRaw || []
+        hasData: reportsRaw?.length > 0 || todasAsAtividades?.length > 0
       });
       setLastUpdate(new Date());
     } catch (error) {
@@ -274,6 +301,12 @@ export default function DashboardPatrocinador() {
         </div>
       </div>
 
+      {!data.hasData && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-4 text-sm text-amber-800">
+          ⚠️ <strong>Sem dados disponíveis</strong> para o período selecionado. Sincronize relatórios aprovados, atividades e pagamentos para visualizar métricas.
+        </div>
+      )}
+
       {/* KPIs Principais */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
@@ -286,6 +319,7 @@ export default function DashboardPatrocinador() {
           <CardContent>
             <div className="text-2xl font-bold text-slate-900">{data.totalAtividadesMes}</div>
             <p className="text-xs text-slate-500 mt-1">{data.totalAtividadesAno} no acumulado</p>
+            {data.totalAtividadesMes === 0 && <p className="text-xs text-amber-600 mt-2">Nenhuma atividade registrada</p>}
           </CardContent>
         </Card>
 
@@ -299,6 +333,7 @@ export default function DashboardPatrocinador() {
           <CardContent>
             <div className="text-2xl font-bold text-slate-900">{data.totalPublico.toLocaleString()}</div>
             <p className="text-xs text-slate-500 mt-1">{data.publicoMes.toLocaleString()} este mês</p>
+            {data.totalPublico === 0 && <p className="text-xs text-amber-600 mt-2">Sem registros de público</p>}
           </CardContent>
         </Card>
 
@@ -365,12 +400,23 @@ export default function DashboardPatrocinador() {
               }
               <Button
                 size="sm"
-                variant="ghost"
-                onClick={loadDashboardData}
+                variant="outline"
+                onClick={() => {
+                  loadDashboardData();
+                  // Mostrar feedback visual
+                  const btn = event?.currentTarget;
+                  if (btn) {
+                    const originalText = btn.textContent;
+                    btn.textContent = '✓ Sincronizado';
+                    setTimeout(() => {
+                      btn.textContent = originalText;
+                    }, 2000);
+                  }
+                }}
                 disabled={loading}
-                className="gap-1.5">
-                
+                className="gap-1.5 text-xs">
                 <RotateCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                {loading ? 'Sincronizando...' : 'Sincronizar'}
               </Button>
             </div>
           </div>
@@ -397,7 +443,7 @@ export default function DashboardPatrocinador() {
             </div>
           </div>
 
-          {data.rubricas.length > 0 &&
+          {data.rubricas.length > 0 ? (
           <div className="h-96 border-2 border-black rounded-lg p-4 bg-white">
               <ResponsiveContainer width="100%" height="100%">
                 {chartTypeOrcamento === 'bar' ?
@@ -458,10 +504,16 @@ export default function DashboardPatrocinador() {
                    </PieChart>
               }
               </ResponsiveContainer>
-            </div>
-          }
-        </CardContent>
-      </Card>
+              </div>
+              ) : (
+              <div className="h-96 flex items-center justify-center border-2 border-slate-200 rounded-lg bg-slate-50">
+              <p className="text-slate-500 text-center">
+               <span className="text-sm">Nenhuma rubrica com dados orçamentários</span>
+              </p>
+              </div>
+              )}
+              </CardContent>
+              </Card>
 
       {/* Atividades por Classificação */}
       {data.dadosClassificacao && data.dadosClassificacao.length > 0 &&
