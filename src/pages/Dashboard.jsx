@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import {
   FileText, Plus, Clock, CheckCircle, AlertCircle,
-  Send, Eye, Archive, ChevronRight, LayoutDashboard, User, RotateCw, AlertTriangle } from
+  Send, Eye, Archive, ChevronRight, LayoutDashboard, User, RotateCw, AlertTriangle, X, Copy } from
 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,7 @@ import { useWidgetPreferences } from '../components/dashboard/useWidgetPreferenc
 import ActivityMetricsWidget from '../components/dashboard/ActivityMetricsWidget';
 import OpportunityMetricsWidget from '../components/dashboard/OpportunityMetricsWidget';
 import NewsCarousel from '../components/dashboard/NewsCarousel';
+import DuplicateReportsModal from '../components/dashboard/DuplicateReportsModal';
 
 const STATUS_CONFIG = {
   DRAFT: { label: 'Rascunho', color: 'bg-white text-black border border-black', icon: Clock },
@@ -37,6 +38,8 @@ function DashboardInner() {
   const [showSponsorView, setShowSponsorView] = React.useState(false);
   const [filters, setFilters] = React.useState({ museu: '', status: '' });
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [showDuplicates, setShowDuplicates] = React.useState(false);
+  const [dismissedDataWarning, setDismissedDataWarning] = React.useState(false);
 
   // Current month/year for compliance stats
   const now = new Date();
@@ -219,7 +222,7 @@ function DashboardInner() {
         </div>
 
         {/* Aviso fixo - Atualizar Dados */}
-        {!dadosCompletos && !showSponsorView && (
+        {!dadosCompletos && !showSponsorView && !dismissedDataWarning && (
           <div className="mb-4 p-4 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -235,7 +238,32 @@ function DashboardInner() {
                 </Button>
               </Link>
             </div>
+            <button
+              onClick={() => setDismissedDataWarning(true)}
+              className="flex-shrink-0 text-amber-600 hover:text-amber-900 transition-colors ml-1"
+              title="Dispensar aviso"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
+        )}
+
+        {/* Botão buscar duplicados - só coordenadores */}
+        {isCoordenador && !showSponsorView && (
+          <>
+            <div className="flex justify-end mb-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDuplicates(true)}
+                className="gap-2 text-xs border-gray-200 text-gray-600 hover:text-orange-600 hover:border-orange-300"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                Verificar relatórios duplicados
+              </Button>
+            </div>
+            <DuplicateReportsModal open={showDuplicates} onClose={() => setShowDuplicates(false)} />
+          </>
         )}
 
         {/* Carrossel de Notícias */}
