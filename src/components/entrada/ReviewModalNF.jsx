@@ -45,13 +45,13 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     nf_destinatario_nome: ia.nf_destinatario_nome || '',
     descricao_servico: ia.descricao_servico || '',
     municipio: ia.municipio || '',
-    competencia: ia.competencia || '',
-    centro_custo: intake.centro_custo || '',
+    competencia: ia.competencia || ia.competencia_sugerida || '',
+    centro_custo: ia.centro_custo_sugerido || intake.centro_custo || '',
     rubrica_id: intake.rubrica_id_sugerida || '',
     file_name_final: intake.file_name_final || intake.file_name_original,
     meta_id: '',
-    categoria: '',
-    tipo_gasto: 'Serviço',
+    categoria: ia.categoria_sugerida || '',
+    tipo_gasto: ia.tipo_gasto || 'Serviço',
     budgetline_id: '',
   });
 
@@ -98,6 +98,36 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     const extAtual = (intake.file_name_original || 'arquivo.pdf').split('.').pop()?.toLowerCase() || 'pdf';
     return `${numero} - ${fornecedor} - MUSEUS CENTRO - R$ ${valorFormatado}.${extAtual}`;
   }
+
+  // Sugerir meta automaticamente baseado em categoria e descrição
+  useEffect(() => {
+    const sugerirMeta = async () => {
+      if (!form.categoria || form.meta_id) return; // Não sobrescrever se já preenchido
+      
+      try {
+        const metaSugestion = await base44.asServiceRole.integrations.Core.InvokeLLM({
+          prompt: `Baseado na categoria "${form.categoria}" e descrição "${form.descricao_servico}", qual meta do 3º Aditivo é mais adequada?
+
+Opções: MC3A-20, MC3A-21, MC3A-22, MC3A-23, MC3A-24, MC3A-25, MC3A-EXTRA
+
+Responda SOMENTE com o código da meta (ex: MC3A-22)`,
+          response_json_schema: {
+            type: "object",
+            properties: { meta: { type: "string" } }
+          }
+        });
+        
+        const metaSug = metaSugestion?.meta?.trim();
+        if (metaSug && ['MC3A-20', 'MC3A-21', 'MC3A-22', 'MC3A-23', 'MC3A-24', 'MC3A-25', 'MC3A-EXTRA'].includes(metaSug)) {
+          setForm(f => ({ ...f, meta_id: metaSug }));
+        }
+      } catch (e) {
+        console.warn('Erro ao sugerir meta:', e);
+      }
+    };
+    
+    sugerirMeta();
+  }, [form.categoria, form.descricao_servico]);
 
   // Atualiza nome automaticamente ao editar número, fornecedor ou valor
   useEffect(() => {
@@ -481,8 +511,16 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           {/* Status IA */}
           <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm text-blue-700">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-            Documento analisado. Revise as informações antes de enviar.
+            Documento analisado pela IA. Campos preenchidos automaticamente.
           </div>
+
+          {/* Justificativa da Classificação */}
+          {ia.classificacao_justificativa && (
+            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700">
+              <p className="font-medium mb-1">💡 Motivo da Classificação IA:</p>
+              <p className="italic">{ia.classificacao_justificativa}</p>
+            </div>
+          )}
 
           {/* Inconsistências — remove falsos positivos de "data futura" */}
           {(() => {

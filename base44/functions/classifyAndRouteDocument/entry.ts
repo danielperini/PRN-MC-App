@@ -287,7 +287,7 @@ Responda SOMENTE em JSON válido:
         if (ehNF) {
           nomeFinal = buildRenamedNF({ ...resultadoIa, extension: 'pdf' });
 
-          // Sugere rubrica
+          // Sugere rubrica e categoria com IA
           try {
             const rubResp = await base44.asServiceRole.functions.invoke('suggestRubrica', {
               descricao: resultadoIa.descricao_servico || resultadoIa.nf_emitente_nome || '',
@@ -296,7 +296,52 @@ Responda SOMENTE em JSON válido:
             });
             rubricaSugerida = rubResp?.data?.suggestion || null;
           } catch (e) {
-            erros.push(`Sugestão de rubrica falhou: ${e.message}`);
+            console.warn(`Sugestão de rubrica falhou: ${e.message}`);
+          }
+
+          // BUSCAR INFORMAÇÕES ADICIONAIS COM IA
+          try {
+            const infoAdicionais = await base44.asServiceRole.integrations.Core.InvokeLLM({
+              prompt: `Baseado nestes dados de nota fiscal, sugira informações complementares para classificação:
+
+Fornecedor: ${resultadoIa.nf_emitente_nome}
+Descrição: ${resultadoIa.descricao_servico}
+Valor: ${resultadoIa.nf_valor_total}
+Data: ${resultadoIa.nf_data_emissao}
+
+Responda em JSON:
+{
+  "categoria": "Serviços de comunicação|Serviços administrativos|Logística|Alimentação|Materiais|Outro",
+  "tipo_servico": "Serviço|Produto|Manutenção|Consultoria",
+  "tipo_gasto": "Serviço|Produto",
+  "centro_custo": "MHAB|MIS|MUMO|Atuação Geral",
+  "competencia": "Mês/Ano (ex: Abril/2026)",
+  "justificativa": "Breve motivo da classificação"
+}`,
+              response_json_schema: {
+                type: "object",
+                properties: {
+                  categoria: { type: "string" },
+                  tipo_servico: { type: "string" },
+                  tipo_gasto: { type: "string" },
+                  centro_custo: { type: "string" },
+                  competencia: { type: "string" },
+                  justificativa: { type: "string" }
+                }
+              }
+            });
+            
+            resultadoIa = {
+              ...resultadoIa,
+              categoria_sugerida: infoAdicionais.categoria,
+              tipo_servico: infoAdicionais.tipo_servico,
+              tipo_gasto: infoAdicionais.tipo_gasto,
+              centro_custo_sugerido: infoAdicionais.centro_custo,
+              competencia: infoAdicionais.competencia,
+              classificacao_justificativa: infoAdicionais.justificativa
+            };
+          } catch (e) {
+            console.warn(`Busca de informações adicionais falhou: ${e.message}`);
           }
 
           // Validação adicional com IA para PDF de NF
