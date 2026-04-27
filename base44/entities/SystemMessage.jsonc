@@ -1,0 +1,89 @@
+{
+  "name": "SystemMessage",
+  "type": "object",
+  "properties": {
+    "titulo": {
+      "type": "string",
+      "description": "T\u00edtulo da mensagem"
+    },
+    "assunto": {
+      "type": "string",
+      "description": "Assunto do e-mail"
+    },
+    "corpo": {
+      "type": "string",
+      "description": "Corpo da mensagem"
+    },
+    "remetente_email": {
+      "type": "string",
+      "description": "Email do remetente"
+    },
+    "remetente_nome": {
+      "type": "string",
+      "description": "Nome do remetente"
+    },
+    "destinatarios": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Lista de emails dos destinat\u00e1rios"
+    },
+    "filtros_destinatarios": {
+      "type": "object",
+      "description": "Filtros utilizados para selecionar destinat\u00e1rios"
+    },
+    "enviar_email": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se deve enviar e-mail"
+    },
+    "exibir_banner": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se deve exibir como aviso interno no sistema"
+    },
+    "data_expiracao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de expira\u00e7\u00e3o do banner interno"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "rascunho",
+        "enviado",
+        "erro",
+        "expirado"
+      ],
+      "default": "rascunho",
+      "description": "Status da mensagem"
+    },
+    "total_destinatarios": {
+      "type": "number",
+      "default": 0,
+      "description": "Total de destinat\u00e1rios"
+    },
+    "enviado_em": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora do envio"
+    },
+    "erro_detalhe": {
+      "type": "string",
+      "description": "Detalhe do erro, se houver"
+    },
+    "banner_dispensado_por": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Lista de emails que dispensaram o banner"
+    }
+  },
+  "required": [
+    "titulo",
+    "assunto",
+    "corpo"
+  ]
+}

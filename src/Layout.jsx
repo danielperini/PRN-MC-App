@@ -7,6 +7,7 @@ import MobileBottomTab from '@/components/mobile/MobileBottomTab';
 import MobileHeader from '@/components/mobile/MobileHeader';
 import { HelpContextProvider } from '@/components/help/HelpContextProvider';
 import GlobalAnnouncementBanner from '@/components/common/GlobalAnnouncementBanner';
+import SystemBannerDisplay from '@/components/mensagens/SystemBannerDisplay';
 
 const PAGE_TITLES = {
   Dashboard: 'Painel',
@@ -38,6 +39,7 @@ const PAGE_TITLES = {
   ProgramacaoEspelho: 'Programação — Espelho da Planilha',
   Agenda: 'Agenda Museu Centro',
   EntradaUnica: 'Entrada Única de Documentos',
+  Mensagens: 'Mensagens',
 };
 
 export default function Layout({ children, currentPageName }) {
@@ -76,6 +78,7 @@ export default function Layout({ children, currentPageName }) {
     <HelpContextProvider pageName={currentPageName}>
       <div className="min-h-screen bg-slate-50 text-slate-900">
         <GlobalAnnouncementBanner />
+        <SystemBannerDisplay />
         <div className="hidden lg:flex min-h-screen items-stretch">
           <Sidebar
             currentPageName={currentPageName}
