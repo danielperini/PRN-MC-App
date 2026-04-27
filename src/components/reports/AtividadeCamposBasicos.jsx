@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import FilterMultiSelect from '@/components/ui/filter-multi-select';
+import FilterMultiSelectAdvanced from '@/components/ui/filter-multi-select-advanced';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { removeDuplicatesString } from '@/lib/arrayUtils';
 
@@ -469,8 +470,8 @@ export default function AtividadeCamposBasicos({
 
       <div className="grid md:grid-cols-2 gap-4">
         <Field label="Membros da equipe participantes">
-          <FilterMultiSelect
-            options={equipeOptions.map((item) => item.label)}
+          <FilterMultiSelectAdvanced
+            options={equipeOptions}
             values={removeDuplicatesString(
               equipeOptions
                 .filter((item) => equipeLista.includes(item.id))
