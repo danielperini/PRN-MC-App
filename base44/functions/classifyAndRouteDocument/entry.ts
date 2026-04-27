@@ -276,41 +276,57 @@ Responda em JSON:
           }
 
           // Validação adicional com IA para PDF de NF
-          try {
-            const validacaoIA = await base44.asServiceRole.integrations.Core.InvokeLLM({
-              prompt: `Analise este PDF de nota fiscal e identifique problemas críticos. Responda em JSON:
-{
-  "requer_xml_obrigatorio": boolean,
-  "problemas": string[],
-  "avisos": string[],
-  "duplicada_suspeita": boolean
-}
+           try {
+             // Verificar se há XML correspondente no grupo ANTES de pedir XML
+             let temXMLCorrespondente = false;
+             if (intake.grupo_upload_id) {
+               try {
+                 const outrosDoGrupo = await base44.asServiceRole.entities.DocumentIntake.filter({
+                   grupo_upload_id: intake.grupo_upload_id,
+                   tipo_detectado: 'NOTA_FISCAL_XML',
+                   status_registro: 'ATIVO'
+                 });
+                 temXMLCorrespondente = Array.isArray(outrosDoGrupo) && outrosDoGrupo.length > 0;
+               } catch (e) {
+                 console.warn('Erro ao verificar XML correspondente:', e.message);
+               }
+             }
 
-Dados encontrados:
-- NF: ${resultadoIa.nf_numero}
-- Emitente: ${resultadoIa.nf_emitente_nome}
-- Valor: ${resultadoIa.nf_valor_total}
-- Data: ${resultadoIa.nf_data_emissao}
+             const validacaoIA = await base44.asServiceRole.integrations.Core.InvokeLLM({
+               prompt: `Analise este PDF de nota fiscal e identifique problemas críticos. Responda em JSON:
+          {
+          "requer_xml_obrigatorio": boolean,
+          "problemas": string[],
+          "avisos": string[],
+          "duplicada_suspeita": boolean
+          }
 
-Procure por:
-1. Se é PDF DE NF apenas (sem XML) = obrigatório solicitar XML
-2. Divergências internas DANFE (valor/destinatário)
-3. Suspeita de duplicação
-4. Dados faltando ou ilegíveis`,
-              response_json_schema: {
-                type: 'object',
-                properties: {
-                  requer_xml_obrigatorio: { type: 'boolean' },
-                  problemas: { type: 'array', items: { type: 'string' } },
-                  avisos: { type: 'array', items: { type: 'string' } },
-                  duplicada_suspeita: { type: 'boolean' }
-                }
-              }
-            });
-            
-            if (validacaoIA.requer_xml_obrigatorio) {
-              erros.push('❌ OBRIGATÓRIO: XML DA NF-e É NECESSÁRIO. PDF sozinho não é suficiente para validação fiscal. Solicitar ao fornecedor.');
-            }
+          Dados encontrados:
+          - NF: ${resultadoIa.nf_numero}
+          - Emitente: ${resultadoIa.nf_emitente_nome}
+          - Valor: ${resultadoIa.nf_valor_total}
+          - Data: ${resultadoIa.nf_data_emissao}
+
+          Procure por:
+          1. Se é PDF DE NF apenas (sem XML) = obrigatório solicitar XML
+          2. Divergências internas DANFE (valor/destinatário)
+          3. Suspeita de duplicação
+          4. Dados faltando ou ilegíveis`,
+               response_json_schema: {
+                 type: 'object',
+                 properties: {
+                   requer_xml_obrigatorio: { type: 'boolean' },
+                   problemas: { type: 'array', items: { type: 'string' } },
+                   avisos: { type: 'array', items: { type: 'string' } },
+                   duplicada_suspeita: { type: 'boolean' }
+                 }
+               }
+             });
+
+             // Só alerta sobre XML se não houver XML correspondente já anexado
+             if (validacaoIA.requer_xml_obrigatorio && !temXMLCorrespondente) {
+               erros.push('❌ OBRIGATÓRIO: XML DA NF-e É NECESSÁRIO. PDF sozinho não é suficiente para validação fiscal. Solicitar ao fornecedor.');
+             }
             if (validacaoIA.problemas?.length > 0) {
               erros.push(...validacaoIA.problemas);
             }
