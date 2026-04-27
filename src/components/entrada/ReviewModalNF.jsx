@@ -38,7 +38,13 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     centro_custo: intake.centro_custo || '',
     rubrica_id: intake.rubrica_id_sugerida || '',
     file_name_final: intake.file_name_final || intake.file_name_original,
+    meta_id: '',
+    categoria: '',
+    tipo_gasto: 'Serviço',
+    budgetline_id: '',
   });
+
+  const [budgetLines, setBudgetLines] = useState([]);
 
   useEffect(() => {
     async function loadRubricas() {
@@ -49,7 +55,16 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         console.error(e);
       }
     }
+    async function loadBudgetLines() {
+      try {
+        const list = await base44.entities.BudgetLine.list('', 200);
+        setBudgetLines((list || []).filter(b => b.ativo !== false));
+      } catch (e) {
+        console.error(e);
+      }
+    }
     loadRubricas();
+    loadBudgetLines();
   }, []);
 
   // Converter valor (suporta pt-BR "1.234,56" e US "1234.56")
@@ -186,8 +201,16 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   }
 
   async function handleEnviarAprovacao() {
-    if (!form.rubrica_id) {
-      toast({ title: 'Selecione uma rubrica antes de enviar.', variant: 'destructive' });
+    if (!form.meta_id) {
+      toast({ title: 'Selecione a meta antes de enviar.', variant: 'destructive' });
+      return;
+    }
+    if (!form.categoria) {
+      toast({ title: 'Selecione a categoria antes de enviar.', variant: 'destructive' });
+      return;
+    }
+    if (!form.budgetline_id) {
+      toast({ title: 'Selecione a linha orçamentária antes de enviar.', variant: 'destructive' });
       return;
     }
     if (!form.centro_custo && !dividirEntreMuseus) {
@@ -207,19 +230,18 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         : '';
 
       const pr = await base44.entities.PurchaseRequest.create({
-        descricao: form.descricao_servico || form.nf_emitente_nome,
+        descricao_item: form.descricao_servico || form.nf_emitente_nome,
         fornecedor_nome: form.nf_emitente_nome,
-        fornecedor_cpf_cnpj: form.nf_emitente_cpf_cnpj,
-        valor_total: valorTotal,
-        data_emissao: form.nf_data_emissao,
-        numero_nf: form.nf_numero,
+        fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
+        valor_solicitado: valorTotal,
+        meta_id: form.meta_id,
+        categoria: form.categoria,
+        tipo_gasto: form.tipo_gasto,
+        budgetline_id: form.budgetline_id,
         centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
         rubrica_id: form.rubrica_id,
-        municipio: form.municipio,
-        competencia: form.competencia,
-        status: 'PENDENTE',
-        rateio_museus: rateioPayload,
-        observacoes: `Criado via Entrada Única de Documentos. Arquivo: ${form.file_name_final}. ${observacoesRateio}`.trim(),
+        status: 'SOLICITADO',
+        observacoes: `Criado via Entrada Única de Documentos. NF ${form.nf_numero} - ${form.nf_emitente_nome}. Arquivo: ${form.file_name_final}. ${observacoesRateio}`.trim(),
       });
 
       await base44.entities.Attachment.create({
@@ -355,9 +377,62 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             <Input value={form.descricao_servico} onChange={e => setForm(f => ({ ...f, descricao_servico: e.target.value }))} />
           </div>
 
+          {/* Meta ID */}
+          <div className="space-y-1">
+            <Label>Meta do 3º Aditivo <span className="text-red-500">*</span></Label>
+            <Select value={form.meta_id} onValueChange={v => setForm(f => ({ ...f, meta_id: v }))}>
+              <SelectTrigger><SelectValue placeholder="Selecionar meta" /></SelectTrigger>
+              <SelectContent>
+                {['MC3A-20', 'MC3A-21', 'MC3A-22', 'MC3A-23', 'MC3A-24', 'MC3A-25', 'MC3A-EXTRA'].map(m => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Categoria */}
+          <div className="space-y-1">
+            <Label>Categoria <span className="text-red-500">*</span></Label>
+            <Select value={form.categoria} onValueChange={v => setForm(f => ({ ...f, categoria: v }))}>
+              <SelectTrigger><SelectValue placeholder="Selecionar categoria" /></SelectTrigger>
+              <SelectContent>
+                {['Serviços (equipe/coordenação)', 'Serviços (comunicação: designer, foto, vídeo, imprensa, redes)', 'Serviços (produção/infraestrutura/expografia)', 'Serviços (eventos/atrações/artistas)', 'Serviços (segurança/limpeza)', 'Logística (transporte/vans)', 'Alimentação (lanche/café/coffeebreak)', 'Consultoria / Formação / Acessibilidade', 'Materiais de consumo', 'Outros'].map(c => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Tipo de Gasto */}
+          <div className="space-y-1">
+            <Label>Tipo de Gasto <span className="text-red-500">*</span></Label>
+            <Select value={form.tipo_gasto} onValueChange={v => setForm(f => ({ ...f, tipo_gasto: v }))}>
+              <SelectTrigger><SelectValue placeholder="Selecionar tipo" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Produto">Produto</SelectItem>
+                <SelectItem value="Serviço">Serviço</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Rubrica */}
           <div className="space-y-1">
-            <Label>Rubrica <span className="text-red-500">*</span></Label>
+            <Label>Rubrica Orçamentária <span className="text-red-500">*</span></Label>
+            <Select value={form.budgetline_id} onValueChange={v => setForm(f => ({ ...f, budgetline_id: v }))}>
+              <SelectTrigger><SelectValue placeholder="Selecionar linha orçamentária" /></SelectTrigger>
+              <SelectContent>
+                {budgetLines.map(b => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.nome || b.descricao}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Rubrica Direta (alternativa) */}
+          <div className="space-y-1">
+            <Label>Rubrica Direta (opcional)</Label>
             <Select value={form.rubrica_id} onValueChange={v => setForm(f => ({ ...f, rubrica_id: v }))}>
               <SelectTrigger><SelectValue placeholder="Selecionar rubrica" /></SelectTrigger>
               <SelectContent>
@@ -485,7 +560,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             </Button>
             <Button
               onClick={handleEnviarAprovacao}
-              disabled={sending || !form.rubrica_id || (!dividirEntreMuseus && !form.centro_custo) || (dividirEntreMuseus && !rateioValido)}
+              disabled={sending || !form.meta_id || !form.categoria || !form.budgetline_id || (!dividirEntreMuseus && !form.centro_custo) || (dividirEntreMuseus && !rateioValido)}
             >
               {sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
               Enviar para Aprovação
