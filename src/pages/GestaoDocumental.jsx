@@ -18,19 +18,21 @@ import {
   AlertCircle,
   Clock,
   Search,
-  Filter,
+  HardDrive,
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import RequireAuth from '@/components/auth/RequireAuth';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import DriveBackupPanel from '@/components/backup/DriveBackupPanel';
 
 export default function GestaoDocumental() {
   const [search, setSearch] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('all');
   const [filtroStatus, setFiltroStatus] = useState('all');
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [activeTab, setActiveTab] = useState('documentos');
   const { user: currentUser } = useCurrentUser();
   const queryClient = useQueryClient();
 
@@ -99,13 +101,47 @@ export default function GestaoDocumental() {
       <div className="min-h-screen bg-white">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-8">
           {/* Header */}
-          <div className="mb-8">
+          <div className="mb-6">
             <h1 className="text-3xl font-bold text-black mb-2">Gestão Documental</h1>
             <p className="text-gray-600">Documentos vinculados a compras e rubricas para auditoria e controle</p>
           </div>
 
+          {/* Abas */}
+          <div className="flex border-b border-gray-200 mb-6 gap-1">
+            <button
+              onClick={() => setActiveTab('documentos')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'documentos'
+                  ? 'border-black text-black'
+                  : 'border-transparent text-gray-500 hover:text-black'
+              }`}
+            >
+              <FileText className="w-4 h-4 inline mr-1.5" />
+              Documentos
+            </button>
+            {['admin', 'ADMIN', 'COORDENADOR'].includes(currentUser?.role) && (
+              <button
+                onClick={() => setActiveTab('backup')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'backup'
+                    ? 'border-black text-black'
+                    : 'border-transparent text-gray-500 hover:text-black'
+                }`}
+              >
+                <HardDrive className="w-4 h-4 inline mr-1.5" />
+                Backup no Drive
+              </button>
+            )}
+          </div>
+
+          {/* Painel de Backup */}
+          {activeTab === 'backup' && (
+            <DriveBackupPanel currentUser={currentUser} />
+          )}
+
+          {activeTab === 'documentos' && <>
           {/* Texto de apoio */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <p className="text-sm text-blue-900">
               <strong>📋 Centralização de Documentos:</strong> Todos os orçamentos, contratos assinados, notas fiscais e recibos são centralizados aqui para fácil acesso, auditoria e controle de execução financeira do projeto.
             </p>
@@ -293,6 +329,7 @@ export default function GestaoDocumental() {
               </div>
             </AlertDialogContent>
           </AlertDialog>
+          </>}
           </div>
           </div>
           </RequireAuth>
