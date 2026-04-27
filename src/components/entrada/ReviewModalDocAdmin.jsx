@@ -72,7 +72,7 @@ export default function ReviewModalDocAdmin({ intake, onClose, onSaved }) {
         entidade_destino: 'Attachment',
       });
 
-      // Notificar coordenação
+      // Notificar coordenação e usuário
       try {
         await base44.functions.invoke('notifyDocumentSubmissionForApproval', {
           documentIntakeId: intake.id,
@@ -84,9 +84,9 @@ export default function ReviewModalDocAdmin({ intake, onClose, onSaved }) {
           centroCusto: null,
           nomeArquivo: intake.file_name_original,
         });
-      } catch (e) {
-        console.error('Erro ao notificar:', e);
-        // Não quebra o fluxo
+      } catch (notifyErr) {
+        console.error('Erro ao notificar:', notifyErr);
+        // Notificação é secundária, não quebra o fluxo
       }
 
       toast({

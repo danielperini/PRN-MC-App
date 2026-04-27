@@ -3,11 +3,19 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const { purchaseId, purchaseData, userEmail } = await req.json();
+    const { purchaseId, userEmail } = await req.json();
 
-    if (!purchaseId || !purchaseData) {
-      return Response.json({ error: 'purchaseId e purchaseData são obrigatórios' }, { status: 400 });
+    if (!purchaseId) {
+      return Response.json({ error: 'purchaseId é obrigatório' }, { status: 400 });
     }
+
+    // Buscar dados da compra
+    const purchase = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
+    if (!purchase) {
+      return Response.json({ error: 'PurchaseRequest não encontrado' }, { status: 404 });
+    }
+
+    const purchaseData = purchase;
 
     // Buscar coordenador geral para notificação
     const permissions = await base44.asServiceRole.entities.UserPermission.filter({ 

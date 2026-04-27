@@ -226,6 +226,16 @@ export default function ReportEditor() {
 
       if (nextStatus === 'SUBMITTED') {
         toast.success('Relatório enviado para revisão com sucesso!');
+        
+        // Notificar coordenadores e usuário
+        try {
+          await base44.functions.invoke('notifyReportSubmitted', {
+            reportId: report.id,
+          });
+        } catch (notifyErr) {
+          console.error('Erro ao notificar:', notifyErr);
+          // Notificação é secundária, não quebra o fluxo
+        }
       } else {
         toast.success('Relatório salvo com sucesso!');
       }
