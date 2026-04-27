@@ -208,26 +208,56 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     }
   }
 
-  async function handleEnviarAprovacao() {
-    if (!form.meta_id) {
-      toast({ title: 'Selecione a meta antes de enviar.', variant: 'destructive' });
-      return;
+  async function handleDeletarDocumento() {
+    if (!confirm('Tem certeza que deseja deletar este documento? Esta ação não pode ser desfeita.')) return;
+    try {
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'DELETADO',
+      });
+      toast({ title: 'Documento deletado com sucesso.' });
+      onSaved();
+    } catch (e) {
+      toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
     }
-    if (!form.categoria) {
-      toast({ title: 'Selecione a categoria antes de enviar.', variant: 'destructive' });
-      return;
+  }
+
+  async function handleRereprocessar() {
+    try {
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'ANALISANDO_IA',
+        resultado_ia: null,
+        erros_validacao: [],
+        revisado_pelo_usuario: false,
+      });
+      toast({ title: 'Documento enviado para reprocessamento.' });
+      onSaved();
+    } catch (e) {
+      toast({ title: 'Erro ao rereprocessar', description: e.message, variant: 'destructive' });
     }
-    if (!form.budgetline_id) {
-      toast({ title: 'Selecione a linha orçamentária antes de enviar.', variant: 'destructive' });
-      return;
-    }
-    if (!form.centro_custo && !dividirEntreMuseus) {
-      toast({ title: 'Selecione o centro de custo antes de enviar.', variant: 'destructive' });
-      return;
-    }
-    if (dividirEntreMuseus && !rateioValido) {
-      toast({ title: `A soma do rateio (R$ ${totalRateado.toFixed(2)}) deve ser igual ao valor total (R$ ${valorTotal.toFixed(2)}).`, variant: 'destructive' });
-      return;
+  }
+
+  async function handleEnviarAprovacao(forcarEnvio = false) {
+    if (!forcarEnvio) {
+      if (!form.meta_id) {
+        toast({ title: 'Selecione a meta antes de enviar.', variant: 'destructive' });
+        return;
+      }
+      if (!form.categoria) {
+        toast({ title: 'Selecione a categoria antes de enviar.', variant: 'destructive' });
+        return;
+      }
+      if (!form.budgetline_id) {
+        toast({ title: 'Selecione a linha orçamentária antes de enviar.', variant: 'destructive' });
+        return;
+      }
+      if (!form.centro_custo && !dividirEntreMuseus) {
+        toast({ title: 'Selecione o centro de custo antes de enviar.', variant: 'destructive' });
+        return;
+      }
+      if (dividirEntreMuseus && !rateioValido) {
+        toast({ title: `A soma do rateio (R$ ${totalRateado.toFixed(2)}) deve ser igual ao valor total (R$ ${valorTotal.toFixed(2)}).`, variant: 'destructive' });
+        return;
+      }
     }
 
     setSending(true);
@@ -568,14 +598,42 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             ⚡ Ao enviar, o valor será debitado imediatamente da(s) rubrica(s) correspondente(s), atualizando o valor realizado e o saldo disponível.
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          {/* Alertas de problemas */}
+          {(intake.erros_validacao || []).filter(e => {
+            const txt = String(e).toLowerCase();
+            return !(txt.includes('futura') || txt.includes('future'));
+          }).length > 0 && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 space-y-2">
+              <p className="font-medium">⚠️ Este documento tem inconsistências. Você pode:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Trocar o arquivo e reprocessar</li>
+                <li>Deletar este documento</li>
+                <li>Enviar mesmo assim (irá para revisão do coordenador)</li>
+              </ul>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2 flex-wrap">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
+
+            {(intake.erros_validacao || []).length > 0 && (
+              <>
+                <Button variant="destructive" onClick={handleDeletarDocumento}>
+                  🗑️ Deletar
+                </Button>
+                <Button variant="outline" onClick={handleRereprocessar}>
+                  🔄 Rereprocessar
+                </Button>
+              </>
+            )}
+
             <Button variant="outline" onClick={handleSalvarRascunho} disabled={saving}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Salvar Rascunho
             </Button>
+
             <Button
-              onClick={handleEnviarAprovacao}
+              onClick={() => handleEnviarAprovacao(true)}
               disabled={sending || !form.meta_id || !form.categoria || !form.budgetline_id || (!dividirEntreMuseus && !form.centro_custo) || (dividirEntreMuseus && !rateioValido)}
             >
               {sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
