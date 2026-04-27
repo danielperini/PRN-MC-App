@@ -10,7 +10,6 @@ import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
-
 const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }));
 
 const COORD_EMAILS = [
@@ -59,22 +58,11 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     tipo_gasto: ia.tipo_gasto || 'Serviço',
   });
 
-  const [budgetLines, setBudgetLines] = useState([]);
-
   useEffect(() => {
     async function loadRubricas() {
       try {
-        const list = await base44.entities.Rubrica.list('', 200);
+        const list = await base44.entities.Rubrica.list('', 500);
         setRubricas((list || []).filter((r) => r.ativo !== false));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    async function loadBudgetLines() {
-      try {
-        const list = await base44.entities.BudgetLine.list('', 200);
-        setBudgetLines((list || []).filter((b) => b.ativo !== false));
       } catch (e) {
         console.error(e);
       }
@@ -90,7 +78,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     }
 
     loadRubricas();
-    loadBudgetLines();
     loadMetas();
   }, []);
 
@@ -113,7 +100,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     return `${numero} - ${fornecedor} - MUSEUS CENTRO - R$ ${valorFormatado}.${extAtual}`;
   }
 
-
+  function getRubricaNome(rubricaId) {
+    const rubrica = rubricas.find((r) => r.id === rubricaId);
+    return rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '';
+  }
 
   useEffect(() => {
     setForm((f) => ({ ...f, file_name_final: buildNomePadronizado() }));
@@ -350,145 +340,40 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     }
   }
 
-  async function handleAprovacaoDireta() {
+  async function handleProcessarNota(aprovarDireto = false) {
     if (!form.rubrica_id) {
-      toast({ title: 'Selecione a rubrica antes de aprovar.', variant: 'destructive', duration: 3000 });
+      toast({ title: 'Selecione a rubrica antes de continuar.', variant: 'destructive', duration: 3000 });
       return;
     }
+
     if (!form.centro_custo && !dividirEntreMuseus) {
-      toast({ title: 'Selecione o centro de custo antes de aprovar.', variant: 'destructive', duration: 3000 });
+      toast({ title: 'Selecione o centro de custo.', variant: 'destructive', duration: 3000 });
       return;
     }
+
     if (dividirEntreMuseus && !rateioValido) {
-      toast({
-        title: `A soma do rateio (R$ ${totalRateado.toFixed(2)}) deve ser igual ao valor total (R$ ${valorTotal.toFixed(2)}).`,
-        variant: 'destructive',
-        duration: 3000,
-      });
+      toast({ title: 'Rateio inválido.', variant: 'destructive', duration: 3000 });
       return;
-    }
-
-    setApprovingDirect(true);
-    try {
-      const rateioPayload = getRateioPayload();
-
-      const pr = await base44.entities.PurchaseRequest.create({
-        descricao_item: form.descricao_servico || form.nf_emitente_nome,
-        fornecedor_nome: form.nf_emitente_nome,
-        fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
-        valor_solicitado: valorTotal,
-        meta_id: form.meta_id,
-        categoria: 'Nota Fiscal',
-        tipo_gasto: form.tipo_gasto,
-        centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
-        rubrica_id: form.rubrica_id,
-        status: 'APROVADO',
-        observacoes: `Aprovado direto via Entrada Única (Coordenador). NF ${form.nf_numero} - ${form.nf_emitente_nome}.`,
-      });
-
-      await base44.entities.Attachment.create({
-        report_id: '',
-        file_name: form.file_name_final,
-        file_type: intake.mime_type,
-        file_url: intake.arquivo_original_url,
-        description: 'Entrada Única - Nota Fiscal',
-        nf_categoria: 'nota_fiscal',
-        nf_numero: form.nf_numero,
-        nf_valor_total: valorTotal,
-        nf_data_emissao: form.nf_data_emissao,
-        nf_emitente_nome: form.nf_emitente_nome,
-        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
-        nf_tipo_documento: intake.tipo_detectado === 'NOTA_FISCAL_XML' ? 'xml_nf' : 'pdf_nf',
-        nf_nome_original: intake.file_name_original,
-        nf_nome_renomeado: form.file_name_final,
-        nf_status_leitura: 'lido_com_sucesso',
-        nf_revisado: true,
-      });
-
-      await base44.entities.DocumentIntake.update(intake.id, {
-        status_processamento: 'APROVADO',
-        entidade_destino: 'PurchaseRequest',
-        entidade_destino_id: pr.id,
-        centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
-        rubrica_id_sugerida: form.rubrica_id,
-        file_name_final: form.file_name_final,
-        resultado_ia: {
-          ...ia,
-          ...form,
-          rateio_museus: rateioPayload,
-          dividir_entre_museus: dividirEntreMuseus,
-        },
-        revisado_pelo_usuario: true,
-      });
-
-      if (dividirEntreMuseus && rateioPayload && rateioPayload.length > 0) {
-        await debitarRubricas(rateioPayload);
-      } else {
-        await debitarRubricaSimples(valorTotal);
-      }
-
-      try {
-        await base44.functions.invoke('notifyDocumentSubmissionForApproval', {
-          documentIntakeId: intake.id,
-          tipoDocumento: 'Nota Fiscal',
-          categoriaIdentificada: form.categoria,
-          nfNumero: form.nf_numero,
-          valor: valorTotal,
-          rubricaSugerida: form.rubrica_id ? (rubricas.find((r) => r.id === form.rubrica_id)?.rubrica || form.rubrica_id) : null,
-          centroCusto: dividirEntreMuseus ? 'Rateado entre museus' : form.centro_custo,
-          nomeArquivo: form.file_name_final,
-          aprovadoPeloCoordenador: true,
-        });
-      } catch (e) {
-        console.error('Erro ao notificar:', e);
-      }
-
-      toast({
-        title: '✅ Documento aprovado direto pela coordenação.',
-        description: 'Notificação enviada.',
-        duration: 3000,
-      });
-      onSaved();
-    } catch (e) {
-      toast({ title: 'Erro ao aprovar', description: e.message, variant: 'destructive', duration: 3000 });
-    } finally {
-      setApprovingDirect(false);
-    }
-  }
-
-  async function handleEnviarAprovacao(forcarEnvio = false) {
-    if (!forcarEnvio) {
-      if (!form.rubrica_id) {
-        toast({ title: 'Selecione a rubrica antes de enviar.', variant: 'destructive', duration: 3000 });
-        return;
-      }
-      if (!form.centro_custo && !dividirEntreMuseus) {
-        toast({ title: 'Selecione o centro de custo antes de enviar.', variant: 'destructive', duration: 3000 });
-        return;
-      }
-      if (dividirEntreMuseus && !rateioValido) {
-        toast({
-          title: `A soma do rateio (R$ ${totalRateado.toFixed(2)}) deve ser igual ao valor total (R$ ${valorTotal.toFixed(2)}).`,
-          variant: 'destructive',
-          duration: 3000,
-        });
-        return;
-      }
     }
 
     setSending(true);
+
     try {
+      const rateioPayload = getRateioPayload();
+      const rubricaNome = getRubricaNome(form.rubrica_id);
+
       const pr = await base44.entities.PurchaseRequest.create({
         descricao_item: form.descricao_servico || form.nf_emitente_nome,
         fornecedor_nome: form.nf_emitente_nome,
         fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
         valor_solicitado: valorTotal,
-        meta_id: form.meta_id,
+        meta_id: form.meta_id || 'MC3A-20',
         categoria: 'Nota Fiscal',
         tipo_gasto: form.tipo_gasto,
         centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
         rubrica_id: form.rubrica_id,
-        status: 'SOLICITADO',
+        rubrica_nome: rubricaNome,
+        status: aprovarDireto ? 'APROVADO_COORD' : 'SOLICITADO',
         observacoes: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
       });
 
@@ -509,22 +394,49 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         nf_nome_renomeado: form.file_name_final,
         nf_status_leitura: 'lido_com_sucesso',
         nf_revisado: true,
+        rubrica_id: form.rubrica_id,
+        rubrica_nome: rubricaNome,
       });
 
+      if (dividirEntreMuseus && rateioPayload && rateioPayload.length > 0) {
+        await debitarRubricas(rateioPayload);
+      } else {
+        await debitarRubricaSimples(valorTotal);
+      }
+
       await base44.entities.DocumentIntake.update(intake.id, {
-        status_processamento: 'ENVIADO_APROVACAO',
+        status_processamento: aprovarDireto ? 'APROVADO' : 'ENVIADO_APROVACAO',
         entidade_destino: 'PurchaseRequest',
         entidade_destino_id: pr.id,
+        centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
+        rubrica_id_sugerida: form.rubrica_id,
+        rubrica_nome_sugerida: rubricaNome,
+        file_name_final: form.file_name_final,
+        resultado_ia: {
+          ...ia,
+          ...form,
+          categoria: 'Nota Fiscal',
+          rateio_museus: rateioPayload,
+          dividir_entre_museus: dividirEntreMuseus,
+        },
+        revisado_pelo_usuario: true,
       });
 
       toast({
-        title: 'Enviado com sucesso',
-        description: 'Documento enviado para aprovação.',
+        title: aprovarDireto ? '✅ Nota aprovada e debitada.' : 'Enviado para aprovação.',
         duration: 3000,
       });
-      onSaved();
+
+      onSaved?.();
+      onClose?.();
     } catch (e) {
-      toast({ title: 'Erro ao enviar', description: e.message, variant: 'destructive', duration: 3000 });
+      console.error(e);
+      toast({
+        title: 'Erro ao processar nota',
+        description: e?.message || 'Falha ao aprovar/enviar nota.',
+        variant: 'destructive',
+        duration: 3000,
+      });
     } finally {
       setSending(false);
     }
@@ -648,8 +560,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             </Select>
           </div>
 
-
-
           <div className="space-y-1">
             <Label>
               Tipo de Gasto <span className="text-red-500">*</span>
@@ -661,6 +571,24 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               <SelectContent>
                 <SelectItem value="Produto">Produto</SelectItem>
                 <SelectItem value="Serviço">Serviço</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label>
+              Rubrica <span className="text-red-500">*</span>
+            </Label>
+            <Select value={form.rubrica_id} onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar rubrica" />
+              </SelectTrigger>
+              <SelectContent>
+                {rubricas.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.rubrica || r.nome || r.descricao || 'Rubrica sem nome'}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -826,17 +754,17 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
             {user && COORD_EMAILS.includes((user.email || '').toLowerCase().trim()) && (
               <Button
-                onClick={handleAprovacaoDireta}
-                disabled={approvingDirect || !form.rubrica_id}
+                onClick={() => handleProcessarNota(true)}
+                disabled={sending || approvingDirect || !form.rubrica_id}
                 className="bg-green-600 hover:bg-green-700"
               >
-                {approvingDirect ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+                {sending || approvingDirect ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
                 Aprovar Direto (Coordenador)
               </Button>
             )}
 
             <Button
-              onClick={() => handleEnviarAprovacao(true)}
+              onClick={() => handleProcessarNota(true)}
               disabled={sending || !form.rubrica_id}
               className="bg-blue-600 hover:bg-blue-700"
             >
@@ -845,7 +773,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             </Button>
 
             <Button
-              onClick={() => handleEnviarAprovacao(true)}
+              onClick={() => handleProcessarNota(false)}
               disabled={
                 sending ||
                 !form.rubrica_id ||
