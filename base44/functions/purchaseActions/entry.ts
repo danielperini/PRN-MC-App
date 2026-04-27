@@ -109,6 +109,21 @@ Deno.serve(async (req) => {
         approved_at: new Date().toISOString()
       });
 
+      // Atualizar DocumentIntake vinculado para APROVADO (se existir)
+      try {
+        const intakes = await base44.asServiceRole.entities.DocumentIntake.filter({
+          entidade_destino: 'PurchaseRequest',
+          entidade_destino_id: purchaseId,
+        });
+        if (intakes && intakes.length > 0) {
+          await base44.asServiceRole.entities.DocumentIntake.update(intakes[0].id, {
+            status_processamento: 'APROVADO',
+          });
+        }
+      } catch (e) {
+        console.warn('Aviso: não foi possível atualizar DocumentIntake:', e?.message);
+      }
+
       return Response.json({
         success: true,
         message: 'Compra aprovada com sucesso'
