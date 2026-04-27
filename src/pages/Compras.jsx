@@ -22,7 +22,9 @@ import {
   FileText,
   AlertTriangle,
   Pencil,
-  Trash2
+  Trash2,
+  LinkIcon,
+  FileCheck2
 } from 'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
@@ -131,6 +133,14 @@ function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
 function getPurchaseOwnerEmails(purchase) {
   return [
     purchase?.created_by,
@@ -149,6 +159,44 @@ function purchaseBelongsToUser(purchase, email) {
   const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail) return false;
   return getPurchaseOwnerEmails(purchase).includes(normalizedEmail);
+}
+
+function isEntradaUnicaAttachment(att) {
+  const description = normalizeText(att?.description);
+  const fileName = normalizeText(att?.file_name);
+  const nfCategoria = normalizeText(att?.nf_categoria);
+  const nfTipo = normalizeText(att?.nf_tipo_documento);
+
+  return (
+    nfCategoria === 'nota_fiscal' ||
+    nfTipo === 'pdf_nf' ||
+    nfTipo === 'xml_nf' ||
+    description.includes('entrada unica') ||
+    description.includes('nota fiscal') ||
+    fileName.includes('museus centro') ||
+    !!att?.nf_numero ||
+    !!att?.nf_emitente_nome ||
+    !!att?.nf_valor_total
+  );
+}
+
+function dedupById(items) {
+  const map = new Map();
+  (items || []).forEach((item) => {
+    if (item?.id && !map.has(item.id)) map.set(item.id, item);
+  });
+  return Array.from(map.values());
+}
+
+function getDocTipoLabel(doc) {
+  if (doc?.nf_tipo_documento === 'pdf_nf') return 'PDF';
+  if (doc?.nf_tipo_documento === 'xml_nf') return 'XML';
+
+  const name = normalizeText(doc?.file_name || doc?.nf_nome_original);
+  if (name.endsWith('.pdf')) return 'PDF';
+  if (name.endsWith('.xml')) return 'XML';
+
+  return 'DOC';
 }
 
 async function carregarSolicitacoes({ isCoordenador, currentUser }) {
@@ -409,6 +457,7 @@ function ComprasInner() {
   const invalidateComprasQueries = useCallback(async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['purchases'] }),
+      queryClient.invalidateQueries({ queryKey: ['attachments-compras'] }),
       queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'] }),
       queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
       queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
@@ -454,12 +503,14 @@ function ComprasInner() {
   const { data: anexosCompras = [] } = useQuery({
     queryKey: ['attachments-compras'],
     queryFn: async () => {
-      const list = await base44.entities.Attachment.list('-created_date', 300);
-      return list.filter(att =>
-        att.nf_categoria === 'nota_fiscal' ||
-        att.description?.toLowerCase().includes('entrada única') ||
-        att.description?.toLowerCase().includes('entrada unica')
-      );
+      const list = await base44.entities.Attachment.list('-created_date', 500);
+      const docs = dedupById((list || []).filter(isEntradaUnicaAttachment));
+
+      return docs.sort((a, b) => {
+        const da = new Date(a?.created_date || 0).getTime();
+        const db = new Date(b?.created_date || 0).getTime();
+        return db - da;
+      });
     },
     enabled: !!currentUser
   });
@@ -941,15 +992,15 @@ function ComprasInner() {
                   setShowForm(true);
                 }}
                 onDelete={async (purchaseId) => {
-                   try {
-                     await base44.entities.PurchaseRequest.delete(purchaseId);
-                     await invalidateComprasQueries();
-                     smartToast.success('Solicitação deletada.');
-                   } catch (error) {
-                     console.error('Erro ao deletar solicitação:', error);
-                     smartToast.error('Erro ao deletar', error.message);
-                   }
-                 }}
+                  try {
+                    await base44.entities.PurchaseRequest.delete(purchaseId);
+                    await invalidateComprasQueries();
+                    smartToast.success('Solicitação deletada.');
+                  } catch (error) {
+                    console.error('Erro ao deletar solicitação:', error);
+                    smartToast.error('Erro ao deletar', error.message);
+                  }
+                }}
               />
             )}
           </div>
@@ -995,31 +1046,88 @@ function ComprasInner() {
         {tab === 'documentos' && (
           <div className="max-w-7xl space-y-6">
             <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <h3 className="font-semibold text-black mb-3">Documentos (Entrada Única)</h3>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="font-semibold text-black">
+                  Documentos (Entrada Única)
+                </h3>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                  {anexosCompras.length} documento(s)
+                </span>
+              </div>
+
               {anexosCompras.length === 0 ? (
                 <p className="text-gray-500 text-sm">Nenhum documento vinculado</p>
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {anexosCompras.map(doc => (
-                    <div key={doc.id} className="flex items-center justify-between border p-3 rounded hover:bg-gray-50 transition">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{doc.file_name}</p>
-                        <p className="text-xs text-gray-500">
-                          {doc.nf_emitente_nome || 'Documento'} • 
-                          {doc.nf_valor_total ? ` R$ ${Number(doc.nf_valor_total).toLocaleString('pt-BR')}` : ''}
-                          {doc.nf_numero ? ` • NF ${doc.nf_numero}` : ''}
-                        </p>
-                      </div>
-                      <a
-                        href={doc.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ml-2 px-3 py-1 bg-black text-white text-xs rounded hover:bg-gray-800 flex-shrink-0"
+                  {anexosCompras.map((doc) => {
+                    const tipoLabel = getDocTipoLabel(doc);
+                    const temVinculo =
+                      !!doc.nf_pdf_attachment_id || !!doc.nf_xml_attachment_id;
+
+                    return (
+                      <div
+                        key={doc.id}
+                        className="flex items-center justify-between border p-3 rounded hover:bg-gray-50 transition"
                       >
-                        Ver
-                      </a>
-                    </div>
-                  ))}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {doc.file_name || doc.nf_nome_renomeado || doc.nf_nome_original || 'Documento sem nome'}
+                            </p>
+
+                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700">
+                              {tipoLabel}
+                            </span>
+
+                            {temVinculo && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+                                <LinkIcon className="h-3 w-3" />
+                                Vinculado
+                              </span>
+                            )}
+
+                            {doc.nf_revisado && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                                <FileCheck2 className="h-3 w-3" />
+                                Revisado
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-xs text-gray-500">
+                            {doc.nf_emitente_nome || doc.description || 'Documento'}{' '}
+                            {doc.nf_valor_total
+                              ? `• ${fmtBRL(Number(doc.nf_valor_total))}`
+                              : ''}
+                            {doc.nf_numero ? ` • NF ${doc.nf_numero}` : ''}
+                          </p>
+
+                          {(doc.nf_pdf_attachment_id || doc.nf_xml_attachment_id) && (
+                            <p className="text-[11px] text-gray-400">
+                              {doc.nf_pdf_attachment_id
+                                ? `PDF: ${doc.nf_pdf_attachment_id}`
+                                : ''}
+                              {doc.nf_pdf_attachment_id && doc.nf_xml_attachment_id
+                                ? ' • '
+                                : ''}
+                              {doc.nf_xml_attachment_id
+                                ? `XML: ${doc.nf_xml_attachment_id}`
+                                : ''}
+                            </p>
+                          )}
+                        </div>
+
+                        <a
+                          href={doc.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-2 px-3 py-1 bg-black text-white text-xs rounded hover:bg-gray-800 flex-shrink-0"
+                        >
+                          Ver
+                        </a>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
