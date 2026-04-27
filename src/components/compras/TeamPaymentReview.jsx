@@ -43,7 +43,7 @@ function fmtBRL(v) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 }
 
-function PaymentDetailModal({ payment, onClose, onStatusChange, isCoordinator }) {
+function PaymentDetailModal({ payment, onClose, onStatusChange, isCoordinator, queryClient, payments }) {
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -138,6 +138,22 @@ function PaymentDetailModal({ payment, onClose, onStatusChange, isCoordinator })
             </div>
           )}
 
+          {isCoordinator && payment.status === 'PENDENTE' && (
+            <div className="border-t pt-4 flex justify-end gap-2">
+              <Button
+                className="bg-green-600 text-white hover:bg-green-700"
+                onClick={async () => {
+                  setLoading(true);
+                  await handleAction('APROVADO', comment, true);
+                }}
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />}
+                {loading ? 'Aprovando e debitando...' : 'Aprovar + Debitar'}
+              </Button>
+            </div>
+          )}
+
           {isCoordinator && payment.status === 'APROVADO' && (
             <div className="border-t pt-4 flex justify-end">
               <Button
@@ -167,7 +183,14 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
     base44.auth.me().then(setCurrentUser).catch(() => setCurrentUser(null));
   }, []);
 
-  const isCoordinator = ['admin', 'ADMIN', 'COORDENADOR'].includes(currentUser?.role);
+  const isCoordinator = [
+    'admin',
+    'ADMIN',
+    'COORDENADOR',
+    'COORD_COMUNICACAO',
+    'COORD_ADMINISTRATIVA',
+    'COORD_PRODUCAO'
+  ].includes(currentUser?.role);
 
   const { data: payments = [], isLoading } = useQuery({
     queryKey: ['team-payments'],
@@ -175,14 +198,33 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
     enabled: !!currentUser
   });
 
-  const handleStatusChange = async (paymentId, newStatus, comment) => {
+  const handleStatusChange = async (paymentId, newStatus, comment, debit = false) => {
     try {
       await base44.entities.TeamPayment.update(paymentId, {
         status: newStatus,
-        ...(comment ? { comentario_coordenacao: comment } : {})
+        ...(comment ? { comentario_coordenacao: comment } : {}),
+        ...(debit ? { debitado_em_rubrica: true } : {})
       });
+      
+      if (debit) {
+        const payment = payments.find(p => p.id === paymentId);
+        if (payment?.rubrica_id && payment?.valor_total) {
+          try {
+            const rubrica = await base44.entities.Rubrica.filter({ id: payment.rubrica_id });
+            if (rubrica?.[0]) {
+              const novoUtilizado = (rubrica[0].valor_utilizado || 0) + payment.valor_total;
+              await base44.entities.Rubrica.update(payment.rubrica_id, {
+                valor_utilizado: novoUtilizado
+              });
+            }
+          } catch (err) {
+            console.warn('Não foi possível debitar da rubrica:', err);
+          }
+        }
+      }
+      
       queryClient.invalidateQueries({ queryKey: ['team-payments'] });
-      // Toast feedback will be handled by the modal
+      queryClient.invalidateQueries({ queryKey: ['rubricas'] });
     } catch (error) {
       console.error('Erro ao alterar status:', error);
       throw error;
@@ -196,7 +238,9 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
       !busca ||
       String(p.member_name || p.user_name || '').toLowerCase().includes(busca) ||
       String(p.mes_referencia || '').toLowerCase().includes(busca);
-    return matchStatus && matchSearch;
+    const valor = p.valor_total || p.valor || 0;
+    const temValor = valor > 0;
+    return matchStatus && matchSearch && temValor;
   });
 
   const pendentes = payments.filter((p) => p.status === 'PENDENTE' || p.status === 'EM_ANALISE').length;
@@ -313,6 +357,8 @@ export default function TeamPaymentReview({ members = [], budgetLines = [] }) {
           onClose={() => setSelectedPayment(null)}
           onStatusChange={handleStatusChange}
           isCoordinator={isCoordinator}
+          queryClient={queryClient}
+          payments={payments}
         />
       )}
     </div>
