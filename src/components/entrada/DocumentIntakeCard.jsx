@@ -43,7 +43,7 @@ const DESTINO_LABEL = {
   Programacao: { label: 'Programação', path: '/Agenda' },
 };
 
-export default function DocumentIntakeCard({ intake, onReview }) {
+export default function DocumentIntakeCard({ intake, onReview, onDeleted }) {
   const { toast } = useToast();
   const [localTipo, setLocalTipo] = useState(intake.tipo_detectado);
   const [loading, setLoading] = useState(false);
@@ -138,6 +138,10 @@ export default function DocumentIntakeCard({ intake, onReview }) {
         }
       }
       toast({ title: 'Arquivo deletado permanentemente.' });
+      // Notifica pai para remover o card da lista
+      if (onDeleted) {
+        onDeleted(intake.id);
+      }
     } catch (e) {
       toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
     } finally {

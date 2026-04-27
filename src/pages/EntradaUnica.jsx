@@ -162,6 +162,10 @@ export default function EntradaUnica() {
     });
   }
 
+  function handleIntakeDeleted(intakeId) {
+    setIntakes((prev) => prev.filter((i) => i.id !== intakeId));
+  }
+
   const modalTipo = reviewIntake?.tipo_detectado;
   const isNF = modalTipo === 'NOTA_FISCAL_PDF' || modalTipo === 'NOTA_FISCAL_XML';
   const isFoto = modalTipo === 'FOTO_ATIVIDADE';
@@ -224,14 +228,15 @@ export default function EntradaUnica() {
                 </div> :
 
               <div className="space-y-2">
-                  {intakes.map((intake) =>
-                <DocumentIntakeCard
-                  key={intake.id}
-                  intake={intake}
-                  onReview={handleReview} />
+                   {intakes.map((intake) =>
+                 <DocumentIntakeCard
+                   key={intake.id}
+                   intake={intake}
+                   onReview={handleReview}
+                   onDeleted={handleIntakeDeleted} />
 
-                )}
-                </div>
+                 )}
+                 </div>
               }
             </div>
           </TabsContent>
