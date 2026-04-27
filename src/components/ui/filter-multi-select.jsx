@@ -62,7 +62,9 @@ export default function FilterMultiSelect({
       return;
     }
 
-    updateSelection([...selectedValues, option]);
+    // Adiciona sem permitir duplicação (Set evita adicionar se já existe)
+    const nextValues = Array.from(new Set([...selectedValues, option]));
+    updateSelection(nextValues);
   }
 
   function removeValue(option, event) {

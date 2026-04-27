@@ -115,8 +115,12 @@ export default function AtividadeCamposBasicos({
 }) {
   const museuLista = normalizeArray(atividade?.museu_lista ?? atividade?.museu);
   const tipoAcaoLista = normalizeArray(atividade?.tipo_acao_lista ?? atividade?.tipo_acao);
-  const equipeLista = normalizeArray(atividade?.equipe_participante_ids);
-  const metasLista = normalizeArray(atividade?.meta_vinculada_ids);
+  // Normalizar e remover duplicados ao carregar
+  const rawEquipeLista = normalizeArray(atividade?.equipe_participante_ids);
+  const equipeLista = Array.from(new Set(rawEquipeLista));
+  // Normalizar e remover duplicados ao carregar
+  const rawMetasLista = normalizeArray(atividade?.meta_vinculada_ids);
+  const metasLista = Array.from(new Set(rawMetasLista));
 
   const classificacoes = normalizeOptionList(
     classificacaoOptions?.length ? classificacaoOptions : CLASSIFICACAO_OPTIONS_DEFAULT
@@ -164,9 +168,9 @@ export default function AtividadeCamposBasicos({
     // Mapear labels para IDs usando equipeOptions
     const selecionados = equipeOptions.filter((item) => uniqueLabels.includes(item.label));
     
-    // Remover duplicados de IDs
-    const uniqueIds = removeDuplicatesString(selecionados.map((item) => item.id));
-    const nomes = selecionados.map((item) => item.label);
+    // Remover duplicados de IDs (usando Set para máxima segurança)
+    const uniqueIds = Array.from(new Set(selecionados.map((item) => item.id)));
+    const nomes = Array.from(new Set(selecionados.map((item) => item.label)));
 
     onChange('equipe_participante_ids', uniqueIds);
     onChange('equipe_participante_nomes', nomes.join(', '));
@@ -185,9 +189,9 @@ export default function AtividadeCamposBasicos({
     // Mapear labels para IDs usando metasOptions
     const selecionados = metasOptions.filter((item) => uniqueLabels.includes(item.label));
     
-    // Remover duplicados de IDs
-    const uniqueIds = removeDuplicatesString(selecionados.map((item) => item.id));
-    const titulos = selecionados.map((item) => item.label);
+    // Remover duplicados de IDs (usando Set para máxima segurança)
+    const uniqueIds = Array.from(new Set(selecionados.map((item) => item.id)));
+    const titulos = Array.from(new Set(selecionados.map((item) => item.label)));
 
     onChange('meta_vinculada_ids', uniqueIds);
     onChange('meta_vinculada_titulos', titulos.join(', '));
