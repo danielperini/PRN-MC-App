@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Calendar, Users, FileText, TrendingUp, Target, Award, RotateCw, Filter } from 'lucide-react';
+import { Calendar, Users, FileText, TrendingUp, Target, Award, RotateCw, Filter, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import NewsCarousel from '@/components/dashboard/NewsCarousel';
 import RubricaSelectorPanel from '@/components/patrocinador/RubricaSelectorPanel';
@@ -77,6 +77,11 @@ export default function DashboardPatrocinador() {
         return data.getMonth() + 1 === mesAtual && data.getFullYear() === anoAtual;
       });
 
+      // Público do mês atual
+      const publicoMes = atividadesMes.reduce((sum, a) => {
+        return sum + (Number(a?.publico_total) || 0);
+      }, 0);
+
       // Atividades por classificação
       const atividadesClassificacao = {};
       atividadesMes.forEach((a) => {
@@ -144,13 +149,14 @@ export default function DashboardPatrocinador() {
         totalAtividadesMes: atividadesMes.length,
         totalAtividadesAno: activitiesRaw?.length || 0,
         totalPublico,
+        publicoMes,
         statusProjeto,
         percentualExecucao,
         atividades,
         rubricas: rubricasData,
         totalOrcado,
         totalUtilizado,
-        relatoriosAprovados: reportsRaw?.length || 0,
+        saldoTotal: totalOrcado - totalUtilizado,
         dadosMensais,
         dadosClassificacao,
         allActivitiesRaw: activitiesRaw || []
@@ -252,12 +258,12 @@ export default function DashboardPatrocinador() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2 text-slate-600">
               <Users className="w-4 h-4" />
-              Público Atingido
+              Público Total
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-slate-900">{data.totalPublico.toLocaleString()}</div>
-            <p className="text-xs text-slate-500 mt-1">pessoas/participações</p>
+            <p className="text-xs text-slate-500 mt-1">{data.publicoMes.toLocaleString()} este mês</p>
           </CardContent>
         </Card>
 
@@ -277,13 +283,15 @@ export default function DashboardPatrocinador() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2 text-slate-600">
-              <FileText className="w-4 h-4" />
-              Relatórios Aprovados
+              <Wallet className="w-4 h-4" />
+              Saldo Total
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{data.relatoriosAprovados}</div>
-            <p className="text-xs text-slate-500 mt-1">documentos aprovados</p>
+            <div className="text-2xl font-bold text-slate-900">
+              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.saldoTotal)}
+            </div>
+            <p className="text-xs text-slate-500 mt-1">disponível</p>
           </CardContent>
         </Card>
       </div>
