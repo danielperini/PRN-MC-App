@@ -5,6 +5,7 @@ import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Toolti
 import { Calendar, Users, FileText, TrendingUp, Target, Award, RotateCw, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import NewsCarousel from '@/components/dashboard/NewsCarousel';
+import RubricaSelectorPanel from '@/components/patrocinador/RubricaSelectorPanel';
 import {
   Select,
   SelectContent,
@@ -106,9 +107,10 @@ export default function DashboardPatrocinador() {
             saldo: 0
           };
         }
-        rubricasAgrupadas[grupo].previsto += Number(r?.valor_rubrica) || 0;
-        rubricasAgrupadas[grupo].utilizado += Number(r?.valor_utilizado) || 0;
-        rubricasAgrupadas[grupo].saldo += Number(r?.saldo) || 0;
+        // Usa campos reais: valor_total, valor_utilizado_aprovado, saldo_disponivel
+        rubricasAgrupadas[grupo].previsto += Number(r?.valor_total) || 0;
+        rubricasAgrupadas[grupo].utilizado += Number(r?.valor_utilizado_aprovado) || 0;
+        rubricasAgrupadas[grupo].saldo += Number(r?.saldo_disponivel) || 0;
       });
 
       const rubricasData = Object.values(rubricasAgrupadas).map((r) => ({
@@ -557,6 +559,9 @@ export default function DashboardPatrocinador() {
           </CardContent>
         </Card>
       }
+
+      {/* Painel de Análise de Rubrica Individual */}
+      <RubricaSelectorPanel />
 
       {/* Painel de Notícias */}
       <NewsCarousel />
