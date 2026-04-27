@@ -55,7 +55,6 @@ function AuthenticatedApp() {
       return null;
     }
 
-    // Qualquer outro erro (unknown, etc.) — mostra tela de acesso restrito
     return <UserNotRegisteredError />;
   }
 
@@ -176,7 +175,12 @@ function App() {
           <Router>
             <AuthenticatedApp />
           </Router>
-          <Toaster />
+
+          {/* ✅ PADRÃO GLOBAL DE TOAST */}
+          <Toaster
+            duration={3000}
+          />
+
         </QueryClientProvider>
       </PatrocinadorViewProvider>
     </AuthProvider>
