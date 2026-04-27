@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { base44 } from '@/api/base44Client';
-import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Plus, Trash2, SplitSquareHorizontal } from 'lucide-react';
+import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Plus, Trash2, SplitSquareHorizontal, BookOpen } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
@@ -296,10 +296,18 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-blue-500" />
-            Conferência de Nota Fiscal
-          </DialogTitle>
+          <div className="flex items-start justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-500" />
+              Conferência de Nota Fiscal
+            </DialogTitle>
+            <a href="/GuiaNotaFiscal" target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" size="sm" className="text-xs h-8">
+                <BookOpen className="w-3 h-3 mr-1" />
+                Ver guia
+              </Button>
+            </a>
+          </div>
         </DialogHeader>
 
         <div className="space-y-4">

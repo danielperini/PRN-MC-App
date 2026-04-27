@@ -170,6 +170,54 @@ Responda SOMENTE em JSON válido:
         tipoDetectado = 'NOTA_FISCAL_XML'; // mantém tipo mesmo com erro
       }
 
+      // Validação adicional com IA para NF-e
+      try {
+        const validacaoIA = await base44.asServiceRole.integrations.Core.InvokeLLM({
+          prompt: `Analise esta nota fiscal XML extraída e identifique problemas comuns de validação. Responda em JSON:
+{
+  "requer_xml_danfe": boolean,
+  "problemas": string[],
+  "avisos": string[],
+  "score_confiabilidade": number
+}
+
+Dados extraídos:
+- NF: ${numero}
+- Emitente: ${emitNome}
+- CNPJ: ${emitDoc}
+- Valor: ${valor}
+- Data: ${dataEmissao}
+
+Procure por:
+1. Valores zerados ou inválidos
+2. CNPJ inválido (formato)
+3. Data futura ou muito antiga (>5 anos)
+4. Descrição genérica ou faltando
+5. Possível duplicação por padrão`,
+          response_json_schema: {
+            type: 'object',
+            properties: {
+              requer_xml_danfe: { type: 'boolean' },
+              problemas: { type: 'array', items: { type: 'string' } },
+              avisos: { type: 'array', items: { type: 'string' } },
+              score_confiabilidade: { type: 'number' }
+            }
+          }
+        });
+        
+        if (validacaoIA.problemas?.length > 0) {
+          erros.push(...validacaoIA.problemas);
+        }
+        if (validacaoIA.avisos?.length > 0) {
+          erros.push(...validacaoIA.avisos);
+        }
+        if (validacaoIA.requer_xml_danfe) {
+          erros.push('⚠️ Para validação completa, é recomendado ter também o DANFE (PDF) desta NF-e para cruzamento de dados.');
+        }
+      } catch (e) {
+        console.warn('Validação adicional IA falhou:', e.message);
+      }
+
       await base44.asServiceRole.entities.DocumentIntake.update(intakeId, {
         tipo_detectado: 'NOTA_FISCAL_XML',
         status_processamento: 'AGUARDANDO_REVISAO',
@@ -249,6 +297,55 @@ Responda SOMENTE em JSON válido:
             rubricaSugerida = rubResp?.data?.suggestion || null;
           } catch (e) {
             erros.push(`Sugestão de rubrica falhou: ${e.message}`);
+          }
+
+          // Validação adicional com IA para PDF de NF
+          try {
+            const validacaoIA = await base44.asServiceRole.integrations.Core.InvokeLLM({
+              prompt: `Analise este PDF de nota fiscal e identifique problemas críticos. Responda em JSON:
+{
+  "requer_xml_obrigatorio": boolean,
+  "problemas": string[],
+  "avisos": string[],
+  "duplicada_suspeita": boolean
+}
+
+Dados encontrados:
+- NF: ${resultadoIa.nf_numero}
+- Emitente: ${resultadoIa.nf_emitente_nome}
+- Valor: ${resultadoIa.nf_valor_total}
+- Data: ${resultadoIa.nf_data_emissao}
+
+Procure por:
+1. Se é PDF DE NF apenas (sem XML) = obrigatório solicitar XML
+2. Divergências internas DANFE (valor/destinatário)
+3. Suspeita de duplicação
+4. Dados faltando ou ilegíveis`,
+              response_json_schema: {
+                type: 'object',
+                properties: {
+                  requer_xml_obrigatorio: { type: 'boolean' },
+                  problemas: { type: 'array', items: { type: 'string' } },
+                  avisos: { type: 'array', items: { type: 'string' } },
+                  duplicada_suspeita: { type: 'boolean' }
+                }
+              }
+            });
+            
+            if (validacaoIA.requer_xml_obrigatorio) {
+              erros.push('❌ OBRIGATÓRIO: XML DA NF-e É NECESSÁRIO. PDF sozinho não é suficiente para validação fiscal. Solicitar ao fornecedor.');
+            }
+            if (validacaoIA.problemas?.length > 0) {
+              erros.push(...validacaoIA.problemas);
+            }
+            if (validacaoIA.avisos?.length > 0) {
+              erros.push(...validacaoIA.avisos);
+            }
+            if (validacaoIA.duplicada_suspeita) {
+              erros.push('⚠️ SUSPEITA DE DUPLICAÇÃO: Verifique se já existe NF similar deste fornecedor.');
+            }
+          } catch (e) {
+            console.warn('Validação IA de PDF NF falhou:', e.message);
           }
         }
       } catch (e) {

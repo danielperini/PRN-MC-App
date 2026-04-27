@@ -16,6 +16,7 @@ import BaseConhecimento from './pages/BaseConhecimento';
 import DashboardPatrocinador from './pages/DashboardPatrocinador';
 import EntradaUnica from './pages/EntradaUnica.jsx';
 import Mensagens from './pages/Mensagens.jsx';
+import GuiaNotaFiscal from './pages/GuiaNotaFiscal';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -149,6 +150,15 @@ function AuthenticatedApp() {
         element={
           <LayoutWrapper currentPageName="Mensagens">
             <Mensagens />
+          </LayoutWrapper>
+        }
+      />
+
+      <Route
+        path="/GuiaNotaFiscal"
+        element={
+          <LayoutWrapper currentPageName="GuiaNotaFiscal">
+            <GuiaNotaFiscal />
           </LayoutWrapper>
         }
       />
