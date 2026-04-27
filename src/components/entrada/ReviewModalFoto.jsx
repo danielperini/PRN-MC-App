@@ -11,10 +11,13 @@ import { useToast } from '@/components/ui/use-toast';
 export default function ReviewModalFoto({ intake, onClose, onSaved }) {
   const { toast } = useToast();
   const [activities, setActivities] = useState([]);
+  const [metas, setMetas] = useState([]);
   const [loadingActivities, setLoadingActivities] = useState(true);
+  const [loadingMetas, setLoadingMetas] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     activity_id: intake.activity_id_vinculada || '',
+    meta_id: intake.meta_id_vinculada || '',
     legenda: intake.legenda_sugerida || intake.resultado_ia?.legenda || '',
     descricao: intake.resultado_ia?.descricao || '',
     local: intake.resultado_ia?.local_provavel || '',
@@ -39,6 +42,23 @@ export default function ReviewModalFoto({ intake, onClose, onSaved }) {
     load();
   }, []);
 
+  useEffect(() => {
+    async function loadMetas() {
+      try {
+        const projectMetas = await base44.entities.ProjectMeta.filter(
+          { ativo: true },
+          'nome'
+        );
+        setMetas(projectMetas || []);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoadingMetas(false);
+      }
+    }
+    loadMetas();
+  }, []);
+
   async function handleSave() {
     if (!form.activity_id) {
       toast({ title: 'Selecione uma atividade', variant: 'destructive' });
@@ -60,6 +80,7 @@ export default function ReviewModalFoto({ intake, onClose, onSaved }) {
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'APROVADO',
         activity_id_vinculada: form.activity_id,
+        meta_id_vinculada: form.meta_id || undefined,
         legenda_sugerida: form.legenda,
         entidade_destino: 'Activity',
         entidade_destino_id: form.activity_id,
@@ -113,6 +134,29 @@ export default function ReviewModalFoto({ intake, onClose, onSaved }) {
                   {activities.map((a) => (
                     <SelectItem key={a.id} value={a.id}>
                       {a.titulo} {a.data_realizacao ? `— ${a.data_realizacao}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {/* Meta do 3º Aditivo */}
+          <div className="space-y-1">
+            <Label>Meta do 3º Aditivo</Label>
+            {loadingMetas ? (
+              <div className="flex items-center gap-2 text-sm text-slate-400">
+                <Loader2 className="w-4 h-4 animate-spin" /> Carregando metas...
+              </div>
+            ) : (
+              <Select value={form.meta_id} onValueChange={(v) => setForm(f => ({ ...f, meta_id: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a meta (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {metas.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
