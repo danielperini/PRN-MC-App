@@ -11,7 +11,7 @@ function getDailyNews(items, count = 10) {
   const arr = [...items];
   // Fisher-Yates determinístico com seed
   for (let i = arr.length - 1; i > 0; i--) {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    seed = seed * 1103515245 + 12345 & 0x7fffffff;
     const j = seed % (i + 1);
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
@@ -26,7 +26,7 @@ export default function NewsCarousel() {
   const { data: published = [], isLoading } = useQuery({
     queryKey: ['dashboard-news-carousel'],
     queryFn: () => base44.entities.NewsHighlight.filter({ ativo: true }, '-created_date', 100),
-    refetchInterval: 300000, // 5 min
+    refetchInterval: 300000 // 5 min
   });
 
   const news = useMemo(() => getDailyNews(published, 10), [published]);
@@ -35,121 +35,121 @@ export default function NewsCarousel() {
   useEffect(() => {
     if (news.length === 0 || isPaused) return;
     intervalRef.current = setInterval(() => {
-      setCurrent(prev => (prev + 1) % news.length);
+      setCurrent((prev) => (prev + 1) % news.length);
     }, 5000);
     return () => clearInterval(intervalRef.current);
   }, [news.length, isPaused]);
 
-  const prev = () => setCurrent(i => (i - 1 + news.length) % news.length);
-  const next = () => setCurrent(i => (i + 1) % news.length);
+  const prev = () => setCurrent((i) => (i - 1 + news.length) % news.length);
+  const next = () => setCurrent((i) => (i + 1) % news.length);
 
   if (isLoading) {
     return (
       <div className="w-full h-24 border border-gray-200 rounded-xl flex items-center justify-center gap-2 text-gray-400 text-sm mb-6">
         <Newspaper className="w-4 h-4 animate-pulse" /> Carregando notícias...
-      </div>
-    );
+      </div>);
+
   }
 
   if (news.length === 0) return null;
 
   const item = news[current];
   // 3 itens visíveis: current, current+1, current+2
-  const visible = [0, 1, 2].map(offset => news[(current + offset) % news.length]);
+  const visible = [0, 1, 2].map((offset) => news[(current + offset) % news.length]);
 
   return (
     <div
       className="relative w-full mb-6"
       onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-    >
+      onMouseLeave={() => setIsPaused(false)}>
+      
       {/* Grid de 3 colunas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {visible.map((newsItem, idx) => (
-          <div
-            key={`${current}-${idx}`}
-            className="relative border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col"
-            style={{ minHeight: '136px' }}
-          >
+        {visible.map((newsItem, idx) =>
+        <div
+          key={`${current}-${idx}`}
+          className="relative border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col"
+          style={{ minHeight: '136px' }}>
+          
             {/* Barra de progresso apenas no primeiro */}
-            {idx === 0 && (
-              <div className="absolute top-0 left-0 right-0 h-0.5 bg-gray-100 z-10">
+            {idx === 0 &&
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gray-100 z-10">
                 <div
-                  className="h-full bg-black transition-all duration-300"
-                  style={{ width: `${((current + 1) / news.length) * 100}%` }}
-                />
+              className="h-full bg-black transition-all duration-300"
+              style={{ width: `${(current + 1) / news.length * 100}%` }} />
+            
               </div>
-            )}
+          }
 
             <div className="flex items-stretch flex-1">
               {/* Imagem */}
-              {newsItem.imagem_url && (
-                <div className="w-20 flex-shrink-0 overflow-hidden">
+              {newsItem.imagem_url &&
+            <div className="w-20 flex-shrink-0 overflow-hidden">
                   <img
-                    src={newsItem.imagem_url}
-                    alt=""
-                    className="w-full h-full object-cover"
-                    onError={e => e.target.parentElement.style.display = 'none'}
-                  />
+                src={newsItem.imagem_url}
+                alt=""
+                className="w-full h-full object-cover"
+                onError={(e) => e.target.parentElement.style.display = 'none'} />
+              
                 </div>
-              )}
+            }
 
               {/* Conteúdo */}
-              <div className="flex-1 px-3 py-3 flex flex-col justify-between min-w-0">
+              <div className="flex-1 px-3 py-3 flex flex-col justify-between min-w-0 hidden">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 truncate">
                       {newsItem.fonte?.replace(/_/g, ' ')}
                     </span>
-                    {idx === 0 && (
-                      <span className="text-[10px] text-gray-300 ml-auto flex-shrink-0">{current + 1}/{news.length}</span>
-                    )}
+                    {idx === 0 &&
+                  <span className="text-[10px] text-gray-300 ml-auto flex-shrink-0">{current + 1}/{news.length}</span>
+                  }
                   </div>
                   <a
-                    href={newsItem.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group block"
-                  >
+                  href={newsItem.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group block">
+                  
                     <h3 className="font-semibold text-gray-900 text-sm leading-snug line-clamp-2 group-hover:underline">
                       {newsItem.titulo}
                       <ExternalLink className="inline w-3 h-3 ml-1 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </h3>
                   </a>
-                  {newsItem.resumo && (
-                    <p className="text-xs text-gray-500 line-clamp-2 mt-1">{newsItem.resumo}</p>
-                  )}
+                  {newsItem.resumo &&
+                <p className="text-xs text-gray-500 line-clamp-2 mt-1">{newsItem.resumo}</p>
+                }
                 </div>
               </div>
             </div>
           </div>
-        ))}
+        )}
       </div>
 
       {/* Controles e indicadores */}
       <div className="flex items-center justify-center gap-3 mt-2">
         <button
           onClick={prev}
-          className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-black transition-colors"
-        >
+          className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-black transition-colors">
+          
           <ChevronLeft className="w-4 h-4" />
         </button>
         <div className="flex gap-1">
-          {news.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrent(i)}
-              className={`h-1.5 rounded-full transition-all ${i === current ? 'bg-black w-3' : 'bg-gray-300 w-1.5'}`}
-            />
-          ))}
+          {news.map((_, i) =>
+          <button
+            key={i}
+            onClick={() => setCurrent(i)}
+            className={`h-1.5 rounded-full transition-all ${i === current ? 'bg-black w-3' : 'bg-gray-300 w-1.5'}`} />
+
+          )}
         </div>
         <button
           onClick={next}
-          className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-black transition-colors"
-        >
+          className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-black transition-colors">
+          
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
-    </div>
-  );
+    </div>);
+
 }
