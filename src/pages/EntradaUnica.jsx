@@ -10,6 +10,7 @@ import ReviewModalNF from '@/components/entrada/ReviewModalNF';
 import ReviewModalFoto from '@/components/entrada/ReviewModalFoto';
 import ReviewModalDocAdmin from '@/components/entrada/ReviewModalDocAdmin';
 import ReviewModalOutro from '@/components/entrada/ReviewModalOutro';
+import ReviewModalNFXML from '@/components/entrada/ReviewModalNFXML';
 import CoordBulkImportPanel from '@/components/entrada/CoordBulkImportPanel';
 import DocumentMonitoringDashboard from '@/components/entrada/DocumentMonitoringDashboard';
 import DuplicateDetectionPanel from '@/components/entrada/DuplicateDetectionPanel';
@@ -259,8 +260,11 @@ export default function EntradaUnica() {
       )}
 
       {/* Modais de revisão */}
-      {reviewIntake && isNF &&
+      {reviewIntake && modalTipo === 'NOTA_FISCAL_PDF' &&
       <ReviewModalNF intake={reviewIntake} onClose={handleModalClose} onSaved={handleSaved} />
+      }
+      {reviewIntake && modalTipo === 'NOTA_FISCAL_XML' &&
+      <ReviewModalNFXML intake={reviewIntake} onClose={handleModalClose} onSaved={handleSaved} />
       }
       {reviewIntake && isFoto &&
       <ReviewModalFoto intake={reviewIntake} onClose={handleModalClose} onSaved={handleSaved} />
