@@ -1,5 +1,5 @@
 import React from 'react';
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "sonner";
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
 import { pagesConfig } from './pages.config';
@@ -176,9 +176,14 @@ function App() {
             <AuthenticatedApp />
           </Router>
 
-          {/* ✅ PADRÃO GLOBAL DE TOAST */}
+          {/* ✅ PADRÃO GLOBAL DE TOAST - Sonner */}
           <Toaster
+            position="top-right"
+            richColors
+            expand={false}
+            visibleToasts={3}
             duration={3000}
+            closeButton
           />
 
         </QueryClientProvider>

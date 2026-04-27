@@ -922,7 +922,7 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
             {user && COORD_EMAILS.includes((user.email || '').toLowerCase().trim()) && (
               <Button
                 onClick={handleAprovacaoDireta}
-                disabled={approvingDirect || !form.meta_id || !form.categoria || !form.budgetline_id || (!dividirEntreMuseus && !form.centro_custo) || (dividirEntreMuseus && !rateioValido)}
+                disabled={approvingDirect}
                 className="bg-green-600 hover:bg-green-700"
               >
                 {approvingDirect ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
@@ -931,11 +931,11 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
             )}
 
             <Button
-              onClick={handleAprovacaoDireta}
-              disabled={approvingDirect || !form.meta_id || !form.categoria || !form.budgetline_id || (!dividirEntreMuseus && !form.centro_custo) || (dividirEntreMuseus && !rateioValido)}
+              onClick={() => handleEnviarAprovacao(true)}
+              disabled={sending}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              {approvingDirect ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+              {sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
               Aprovar
             </Button>
 

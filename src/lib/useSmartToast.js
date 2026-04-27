@@ -1,78 +1,47 @@
 import { useCallback, useRef } from 'react';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 
 /**
- * Hook customizado para evitar duplicação de toasts
- * - Só exibe 1 toast por tipo de evento
- * - Dismiss anterior antes de novo (se houver)
- * - Padrão visual consistente
- * - Timeout automático 3s
+ * Hook customizado para evitar duplicação de toasts com Sonner
+ * - Força duration 3000ms
+ * - Máx 3 toasts visíveis
+ * - Deduplica mensagens
  */
 export function useSmartToast() {
-  const { toast, dismiss } = useToast();
-  const lastToastKeyRef = useRef(null);
+  const activeToastsRef = useRef(new Set());
 
-  const showToast = useCallback((config) => {
-    const { key = 'default', title, description, variant = 'default', duration = 3000 } = config;
+  const show = useCallback((message, type = 'success', duration = 3000) => {
+    if (activeToastsRef.current.has(message)) return;
 
-    // Dismiss toast anterior se existir e for mesma chave
-    if (lastToastKeyRef.current === key) {
-      dismiss(lastToastKeyRef.current);
-    }
+    activeToastsRef.current.add(message);
 
-    const id = toast({
-      title,
-      description,
-      variant,
+    toast[type](message, {
       duration,
+      onDismiss: () => activeToastsRef.current.delete(message),
     });
+  }, []);
 
-    lastToastKeyRef.current = key;
-    return id;
-  }, [toast, dismiss]);
+  const success = useCallback((msg, desc = '') => {
+    show(desc || msg, 'success', 3000);
+  }, [show]);
 
-  const success = useCallback((title, description = '') => {
-    return showToast({
-      key: 'success',
-      title: `✅ ${title}`,
-      description,
-      variant: 'default',
-    });
-  }, [showToast]);
+  const error = useCallback((msg, desc = '') => {
+    show(desc || msg, 'error', 3000);
+  }, [show]);
 
-  const error = useCallback((title, description = '') => {
-    return showToast({
-      key: 'error',
-      title: `❌ ${title}`,
-      description,
-      variant: 'destructive',
-    });
-  }, [showToast]);
+  const warning = useCallback((msg, desc = '') => {
+    show(desc || msg, 'warning', 3000);
+  }, [show]);
 
-  const info = useCallback((title, description = '') => {
-    return showToast({
-      key: 'info',
-      title,
-      description,
-      variant: 'default',
-    });
-  }, [showToast]);
-
-  const warning = useCallback((title, description = '') => {
-    return showToast({
-      key: 'warning',
-      title: `⚠️ ${title}`,
-      description,
-      variant: 'default',
-    });
-  }, [showToast]);
+  const info = useCallback((msg, desc = '') => {
+    show(desc || msg, 'info', 3000);
+  }, [show]);
 
   return {
-    toast: showToast,
     success,
     error,
-    info,
     warning,
-    dismiss,
+    info,
+    toast: show,
   };
 }
