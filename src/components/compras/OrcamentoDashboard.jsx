@@ -323,7 +323,7 @@ export default function OrcamentoDashboard({
   })}`;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 hidden">
       {/* KPI PRINCIPAL */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4"></div>
 
@@ -347,7 +347,7 @@ export default function OrcamentoDashboard({
 
       {/* EQUIPE + RISCO */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-5 border rounded-xl bg-purple-50">
+        <div className="p-5 border rounded-xl bg-purple-50 hidden">
           <div className="flex items-center gap-2 mb-2">
             <Users className="w-4 h-4 text-purple-700" />
             <span className="text-xs text-purple-700">Equipe</span>
@@ -356,7 +356,7 @@ export default function OrcamentoDashboard({
           <p className="text-xs text-purple-600">{pctEquipe.toFixed(1)}% Restantes</p>
         </div>
 
-        <div className="p-5 border rounded-xl bg-red-50">
+        <div className="p-5 border rounded-xl bg-red-50 hidden">
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="w-4 h-4 text-red-600" />
             <span className="text-xs text-red-600">Risco IA</span>
