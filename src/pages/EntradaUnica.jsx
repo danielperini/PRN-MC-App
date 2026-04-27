@@ -109,7 +109,8 @@ export default function EntradaUnica() {
       // PASSO 3: Confirma ao usuário que está salvo
       toast({
         title: `${files.length > 1 ? `${files.length} documentos recebidos` : 'Documento recebido'} e salvo com sucesso.`,
-        description: 'Iniciando análise pela IA. O arquivo está seguro mesmo que a análise falhe.'
+        description: 'Iniciando análise pela IA. O arquivo está seguro mesmo que a análise falhe.',
+        duration: 3000
       });
 
       // PASSO 4: Dispara análise da IA em background (não bloqueia, não perde dados)
