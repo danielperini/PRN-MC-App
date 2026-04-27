@@ -27,7 +27,7 @@ export default function ReviewModalNFXML({ intake, onClose, onSaved }) {
 
         if (pdfs.length === 0) {
           toast({ title: 'Nenhum PDF correspondente encontrado.', variant: 'destructive' });
-          onClose();
+          setTimeout(onClose, 3000);
           return;
         }
 
@@ -59,11 +59,13 @@ export default function ReviewModalNFXML({ intake, onClose, onSaved }) {
         });
 
         toast({ title: '✅ XML vinculado ao PDF com sucesso!' });
-        onSaved();
-        onClose();
+        setTimeout(() => {
+          onSaved();
+          onClose();
+        }, 3000);
       } catch (e) {
         toast({ title: 'Erro ao vincular', description: e.message, variant: 'destructive' });
-        onClose();
+        setTimeout(onClose, 3000);
       }
     }
 
