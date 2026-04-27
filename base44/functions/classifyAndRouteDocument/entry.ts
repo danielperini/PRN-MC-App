@@ -146,114 +146,22 @@ Responda SOMENTE em JSON válido:
     }
 
     // --- XML DE NOTA FISCAL ---
+    // XML não é analisado, apenas renomeado e vinculado ao PDF
     if (tipoDetectado === 'NOTA_FISCAL_XML') {
-      try {
-        const fileResp = await fetch(fileUrl);
-        const xmlContent = await fileResp.text();
-
-        // Extração direta do XML
-        const extractTag = (tag) => {
-          const m = xmlContent.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'i'));
-          return m ? safeStr(m[1]) : '';
-        };
-
-        const numero = extractTag('nNF').replace(/\D/g, '');
-        const valor = extractTag('vNF');
-        const dataEmissao = (extractTag('dhEmi') || extractTag('dEmi')).substring(0, 10);
-        const emitNome = (() => { const m = xmlContent.match(/<emit>([\s\S]*?)<\/emit>/i); return m ? safeStr((m[1].match(/<xNome>([\s\S]*?)<\/xNome>/i)||[])[1]) : ''; })();
-        const emitDoc = (() => { const m = xmlContent.match(/<emit>([\s\S]*?)<\/emit>/i); return m ? safeStr(((m[1].match(/<CNPJ>([\s\S]*?)<\/CNPJ>/i)||[])[1] || (m[1].match(/<CPF>([\s\S]*?)<\/CPF>/i)||[])[1])) : ''; })();
-
-        resultadoIa = {
-          nf_numero: numero,
-          nf_valor_total: valor,
-          nf_data_emissao: dataEmissao,
-          nf_emitente_nome: emitNome,
-          nf_emitente_cpf_cnpj: emitDoc,
-          tipo_documento: 'NOTA_FISCAL_XML'
-        };
-
-        nomeFinal = buildRenamedNF({ ...resultadoIa, extension: 'xml' });
-
-        // Sugere rubrica
-        if (emitNome || valor) {
-          try {
-            const rubResp = await base44.asServiceRole.functions.invoke('suggestRubrica', {
-              descricao: emitNome,
-              fornecedor: emitNome,
-              centro_custo: ''
-            });
-            rubricaSugerida = rubResp?.data?.suggestion || null;
-          } catch (e) {
-            erros.push(`Sugestão de rubrica falhou: ${e.message}`);
-          }
-        }
-      } catch (e) {
-        erros.push(`Leitura do XML falhou: ${e.message}`);
-        tipoDetectado = 'NOTA_FISCAL_XML'; // mantém tipo mesmo com erro
-      }
-
-      // Validação adicional com IA para NF-e
-      try {
-        const validacaoIA = await base44.asServiceRole.integrations.Core.InvokeLLM({
-          prompt: `Analise esta nota fiscal XML extraída e identifique problemas comuns de validação. Responda em JSON:
-{
-  "requer_xml_danfe": boolean,
-  "problemas": string[],
-  "avisos": string[],
-  "score_confiabilidade": number
-}
-
-Dados extraídos:
-- NF: ${numero}
-- Emitente: ${emitNome}
-- CNPJ: ${emitDoc}
-- Valor: ${valor}
-- Data: ${dataEmissao}
-
-Procure por:
-1. Valores zerados ou inválidos
-2. CNPJ inválido (formato)
-3. Data futura ou muito antiga (>5 anos)
-4. Descrição genérica ou faltando
-5. Possível duplicação por padrão`,
-          response_json_schema: {
-            type: 'object',
-            properties: {
-              requer_xml_danfe: { type: 'boolean' },
-              problemas: { type: 'array', items: { type: 'string' } },
-              avisos: { type: 'array', items: { type: 'string' } },
-              score_confiabilidade: { type: 'number' }
-            }
-          }
-        });
-        
-        if (validacaoIA.problemas?.length > 0) {
-          erros.push(...validacaoIA.problemas);
-        }
-        if (validacaoIA.avisos?.length > 0) {
-          erros.push(...validacaoIA.avisos);
-        }
-        if (validacaoIA.requer_xml_danfe) {
-          erros.push('⚠️ Para validação completa, é recomendado ter também o DANFE (PDF) desta NF-e para cruzamento de dados.');
-        }
-      } catch (e) {
-        console.warn('Validação adicional IA falhou:', e.message);
-      }
-
+      // Apenas padroniza o nome do XML (sem ".xml" no final porque é retirado)
+      nomeFinal = fileName; // Mantém nome original do XML
+      
       await base44.asServiceRole.entities.DocumentIntake.update(intakeId, {
         tipo_detectado: 'NOTA_FISCAL_XML',
         status_processamento: 'AGUARDANDO_REVISAO',
-        resultado_ia: resultadoIa,
+        resultado_ia: {},
         file_name_final: nomeFinal,
-        rubrica_id_sugerida: rubricaSugerida?.rubrica_id || '',
-        rubrica_nome_sugerida: rubricaSugerida?.rubrica_nome || '',
-        rubrica_justificativa: rubricaSugerida?.justificativa || '',
-        erros_validacao: erros,
+        erros_validacao: [],
         revisado_pelo_usuario: false,
         grupo_status: grupoStatus
       });
 
-      return Response.json({ ok: true, tipo: 'NOTA_FISCAL_XML', resultado_ia: resultadoIa, rubrica: rubricaSugerida });
+      return Response.json({ ok: true, tipo: 'NOTA_FISCAL_XML' });
     }
 
     // --- PDF (NOTA FISCAL OU DOCUMENTO) ---
