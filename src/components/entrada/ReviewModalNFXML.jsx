@@ -27,17 +27,22 @@ export default function ReviewModalNFXML({ intake, onClose, onSaved }) {
         }
         
         // Se não encontrou, tenta buscar o attachment mais recente do DocumentIntake do PDF
-        if (pdfs.length === 0) {
-          const docIntakes = await base44.entities.DocumentIntake.filter(
-            { tipo_detectado: 'NOTA_FISCAL_PDF' },
-            '-created_date',
-            1
-          );
-          if (docIntakes && docIntakes.length > 0 && docIntakes[0].entidade_destino_id) {
-            const pdfAttachment = await base44.entities.Attachment.get(docIntakes[0].entidade_destino_id);
-            if (pdfAttachment) pdfs = [pdfAttachment];
-          }
-        }
+         if (pdfs.length === 0) {
+           const docIntakes = await base44.entities.DocumentIntake.filter(
+             { tipo_detectado: 'NOTA_FISCAL_PDF' },
+             '-created_date',
+             1
+           );
+           if (docIntakes && docIntakes.length > 0 && docIntakes[0].entidade_destino_id) {
+             try {
+               const pdfAttachment = await base44.entities.Attachment.get(docIntakes[0].entidade_destino_id);
+               if (pdfAttachment) pdfs = [pdfAttachment];
+             } catch (err) {
+               // Attachment pode ter sido deletado, ignora
+               console.warn('PDF Attachment não encontrado:', err.message);
+             }
+           }
+         }
 
         if (pdfs.length === 0) {
           toast({ title: 'Nenhum PDF correspondente encontrado.', variant: 'destructive' });
