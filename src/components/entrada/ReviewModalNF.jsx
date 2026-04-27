@@ -13,7 +13,7 @@ const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
 const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }));
 
 const METAS_3_ADITIVO = [
-  { id: 'MC3A-01', nome: 'Meta 1 (mês 1-28): Contratação da equipe principal' },
+  { id: 'MC3A-01', nome: 'Meta 1 (Equipe - mês 1-28): Contratação da equipe principal' },
   { id: 'MC3A-02', nome: 'Meta 2 (mês 1-28): Plano de Comunicação nacional' },
   { id: 'MC3A-03', nome: 'Meta 3 (mês 2-28): Manutenção das exposições' },
   { id: 'MC3A-04', nome: 'Meta 4 (mês 6-15): Alteração de núcleos expositivos' },
@@ -69,9 +69,18 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   });
 
   useEffect(() => {
+    if (!form.nf_data_emissao && ia?.nf_data_emissao) {
+      setForm((f) => ({
+        ...f,
+        nf_data_emissao: ia.nf_data_emissao,
+      }));
+    }
+  }, [ia, form.nf_data_emissao]);
+
+  useEffect(() => {
     async function loadRubricas() {
       try {
-        const list = await base44.entities.Rubrica.list('', 500);
+        const list = await base44.entities.Rubrica.list('', 1000);
         setRubricas((list || []).filter((r) => r.ativo !== false));
       } catch (e) {
         console.error(e);
@@ -367,7 +376,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         fornecedor_nome: form.nf_emitente_nome,
         fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
         valor_solicitado: valorTotal,
-        meta_id: form.meta_id || 'MC3A-20',
+        meta_id: form.meta_id || 'MC3A-01',
         categoria: 'Nota Fiscal',
         tipo_gasto: form.tipo_gasto,
         centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
@@ -484,6 +493,18 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     }
 
     return true;
+  });
+
+  const rubricasOrdenadas = [...rubricas].sort((a, b) => {
+    const grupoA = String(a.grupo || '');
+    const grupoB = String(b.grupo || '');
+    const nomeA = String(a.rubrica || a.nome || a.descricao || '');
+    const nomeB = String(b.rubrica || b.nome || b.descricao || '');
+
+    const byGrupo = grupoA.localeCompare(grupoB, 'pt-BR');
+    if (byGrupo !== 0) return byGrupo;
+
+    return nomeA.localeCompare(nomeB, 'pt-BR');
   });
 
   return (
@@ -615,8 +636,9 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
                 <SelectValue placeholder="Selecionar rubrica" />
               </SelectTrigger>
               <SelectContent>
-                {rubricas.map((r) => (
+                {rubricasOrdenadas.map((r) => (
                   <SelectItem key={r.id} value={r.id}>
+                    {(r.grupo ? `${r.grupo} — ` : '')}
                     {r.rubrica || r.nome || r.descricao || 'Rubrica sem nome'}
                   </SelectItem>
                 ))}
