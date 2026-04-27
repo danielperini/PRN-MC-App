@@ -155,19 +155,22 @@ Deno.serve(async (req) => {
       const valorNum = parseValor(resultadoIa.nf_valor_total);
       try {
         const pr = await base44.asServiceRole.entities.PurchaseRequest.create({
-          descricao: resultadoIa.descricao_servico || resultadoIa.nf_emitente_nome || fileName,
+          descricao_item: resultadoIa.descricao_servico || resultadoIa.nf_emitente_nome || fileName,
           fornecedor_nome: resultadoIa.nf_emitente_nome || '',
-          fornecedor_cpf_cnpj: resultadoIa.nf_emitente_cpf_cnpj || '',
-          valor_total: valorNum,
-          data_emissao: resultadoIa.nf_data_emissao || '',
-          numero_nf: resultadoIa.nf_numero || '',
-          centro_custo: 'Atuação Geral',
+          fornecedor_cnpj: resultadoIa.nf_emitente_cpf_cnpj || '',
+          valor_solicitado: valorNum || 0,
+          meta_id: 'MC3A-EXTRA',
+          meta_extra_descricao: `[Importação coordenação] ${resultadoIa.nf_emitente_nome || fileName}`,
+          budgetline_id: rubricaSugerida?.rubrica_id || 'IMPORTACAO_COORD',
           rubrica_id: rubricaSugerida?.rubrica_id || '',
-          municipio: resultadoIa.municipio || '',
-          competencia: resultadoIa.competencia || '',
-          status: 'APROVADO',
-          observacoes: `[IMPORTAÇÃO COORDENAÇÃO] Proprietário: ${ownerName} (${ownerEmail}). Arquivo: ${nomeFinal}`,
-          created_by_email: ownerEmail,
+          categoria: 'Outros',
+          tipo_gasto: 'Serviço',
+          centro_custo: 'Geral',
+          nota_fiscal_url: fileUrl,
+          status: 'APROVADO_ADMIN',
+          aprov_admin_nome: ownerName,
+          aprov_admin_data: new Date().toISOString().slice(0, 10),
+          observacoes: `[IMPORTAÇÃO COORDENAÇÃO] Proprietário: ${ownerName} (${ownerEmail}). NF ${resultadoIa.nf_numero || ''}. Arquivo: ${nomeFinal}`,
         });
         purchaseId = pr.id;
 
