@@ -194,15 +194,15 @@ export default function EntradaUnica() {
             }
 
             {/* Zona de upload */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hidden">
-              <DocumentUploadZone onFilesSelected={handleFilesSelected} disabled={uploading} />
-              {uploading &&
-              <div className="flex items-center gap-2 mt-4 text-sm text-blue-600">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Enviando e iniciando análise pela IA...
-                </div>
-              }
-            </div>
+            
+
+
+
+
+
+
+
+            
 
             {/* Lista de documentos enviados */}
             <div>
