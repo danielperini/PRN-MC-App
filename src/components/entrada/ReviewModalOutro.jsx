@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
-import { FileQuestion, Loader2 } from 'lucide-react';
+import { FileQuestion, Loader2, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const TIPOS = [
@@ -19,6 +19,7 @@ export default function ReviewModalOutro({ intake, onClose, onReclassified }) {
   const { toast } = useToast();
   const [tipo, setTipo] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function handleReclassify() {
     if (!tipo) return;
@@ -35,6 +36,22 @@ export default function ReviewModalOutro({ intake, onClose, onReclassified }) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm('Tem certeza que deseja deletar este documento?')) return;
+    setDeleting(true);
+    try {
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'DELETADO',
+      });
+      toast({ title: 'Documento deletado com sucesso.' });
+      onClose();
+    } catch (e) {
+      toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -62,6 +79,11 @@ export default function ReviewModalOutro({ intake, onClose, onReclassified }) {
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              <Trash2 className={`w-4 h-4 ${deleting ? 'mr-2' : 'mr-2'}`} />
+              Deletar
+            </Button>
             <Button onClick={handleReclassify} disabled={!tipo || saving}>
               {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
               Confirmar

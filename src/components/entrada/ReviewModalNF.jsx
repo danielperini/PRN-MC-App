@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { base44 } from '@/api/base44Client';
-import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Plus, Trash2, SplitSquareHorizontal, BookOpen } from 'lucide-react';
+import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Plus, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
@@ -14,12 +14,23 @@ const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
 
 const DEFAULT_RATEIO = MUSEUS_RATEIO.map(m => ({ museu: m, valor: '' }));
 
+const COORD_EMAILS = [
+  'danielperini.mc@viadutodasartes.org.br',
+  'danie@periniprojetos.com.br',
+];
+
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const { toast } = useToast();
+  const [user, setUser] = useState(null);
   const [rubricas, setRubricas] = useState([]);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
+  const [approvingDirect, setApprovingDirect] = useState(false);
   const ia = intake.resultado_ia || {};
+
+  useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
+  }, []);
 
   // Rateamento
   const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false);
@@ -233,6 +244,107 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       onSaved();
     } catch (e) {
       toast({ title: 'Erro ao rereprocessar', description: e.message, variant: 'destructive' });
+    }
+  }
+
+  async function handleAprovacaoDireta() {
+    if (!form.meta_id) {
+      toast({ title: 'Selecione a meta antes de aprovar.', variant: 'destructive' });
+      return;
+    }
+    if (!form.categoria) {
+      toast({ title: 'Selecione a categoria antes de aprovar.', variant: 'destructive' });
+      return;
+    }
+    if (!form.budgetline_id) {
+      toast({ title: 'Selecione a linha orçamentária antes de aprovar.', variant: 'destructive' });
+      return;
+    }
+    if (!form.centro_custo && !dividirEntreMuseus) {
+      toast({ title: 'Selecione o centro de custo antes de aprovar.', variant: 'destructive' });
+      return;
+    }
+    if (dividirEntreMuseus && !rateioValido) {
+      toast({ title: `A soma do rateio (R$ ${totalRateado.toFixed(2)}) deve ser igual ao valor total (R$ ${valorTotal.toFixed(2)}).`, variant: 'destructive' });
+      return;
+    }
+
+    setApprovingDirect(true);
+    try {
+      const rateioPayload = getRateioPayload();
+      
+      const pr = await base44.entities.PurchaseRequest.create({
+        descricao_item: form.descricao_servico || form.nf_emitente_nome,
+        fornecedor_nome: form.nf_emitente_nome,
+        fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
+        valor_solicitado: valorTotal,
+        meta_id: form.meta_id,
+        categoria: form.categoria,
+        tipo_gasto: form.tipo_gasto,
+        budgetline_id: form.budgetline_id,
+        centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
+        rubrica_id: form.rubrica_id,
+        status: 'APROVADO',
+        observacoes: `Aprovado direto via Entrada Única (Coordenador). NF ${form.nf_numero} - ${form.nf_emitente_nome}.`,
+      });
+
+      await base44.entities.Attachment.create({
+        report_id: '',
+        file_name: form.file_name_final,
+        file_type: intake.mime_type,
+        file_url: intake.arquivo_original_url,
+        description: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
+        nf_numero: form.nf_numero,
+        nf_valor_total: valorTotal,
+        nf_data_emissao: form.nf_data_emissao,
+        nf_emitente_nome: form.nf_emitente_nome,
+        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+        nf_tipo_documento: intake.tipo_detectado === 'NOTA_FISCAL_XML' ? 'xml_nf' : 'pdf_nf',
+        nf_nome_original: intake.file_name_original,
+        nf_nome_renomeado: form.file_name_final,
+        nf_status_leitura: 'lido_com_sucesso',
+        nf_revisado: true,
+      });
+
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'APROVADO',
+        entidade_destino: 'PurchaseRequest',
+        entidade_destino_id: pr.id,
+        centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
+        rubrica_id_sugerida: form.rubrica_id,
+        file_name_final: form.file_name_final,
+        resultado_ia: { ...ia, ...form, rateio_museus: rateioPayload, dividir_entre_museus: dividirEntreMuseus },
+        revisado_pelo_usuario: true,
+      });
+
+      if (dividirEntreMuseus && rateioPayload && rateioPayload.length > 0) {
+        await debitarRubricas(rateioPayload);
+      } else {
+        await debitarRubricaSimples(valorTotal);
+      }
+
+      try {
+        await base44.functions.invoke('notifyDocumentSubmissionForApproval', {
+          documentIntakeId: intake.id,
+          tipoDocumento: 'Nota Fiscal',
+          categoriaIdentificada: form.categoria,
+          nfNumero: form.nf_numero,
+          valor: valorTotal,
+          rubricaSugerida: form.rubrica_id ? (rubricas.find(r => r.id === form.rubrica_id)?.rubrica || form.rubrica_id) : null,
+          centroCusto: dividirEntreMuseus ? 'Rateado entre museus' : form.centro_custo,
+          nomeArquivo: form.file_name_final,
+          aprovadoPeloCoordenador: true,
+        });
+      } catch (e) {
+        console.error('Erro ao notificar:', e);
+      }
+
+      toast({ title: '✅ Documento aprovado direto pela coordenação.', description: 'Notificação enviada.' });
+      onSaved();
+    } catch (e) {
+      toast({ title: 'Erro ao aprovar', description: e.message, variant: 'destructive' });
+    } finally {
+      setApprovingDirect(false);
     }
   }
 
@@ -648,6 +760,17 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Salvar Rascunho
             </Button>
+
+            {user && COORD_EMAILS.includes((user.email || '').toLowerCase().trim()) && (
+              <Button
+                onClick={handleAprovacaoDireta}
+                disabled={approvingDirect || !form.meta_id || !form.categoria || !form.budgetline_id || (!dividirEntreMuseus && !form.centro_custo) || (dividirEntreMuseus && !rateioValido)}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {approvingDirect ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+                Aprovar Direto
+              </Button>
+            )}
 
             <Button
               onClick={() => handleEnviarAprovacao(true)}

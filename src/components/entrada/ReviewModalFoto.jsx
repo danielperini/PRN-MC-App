@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
-import { Image, Loader2, CheckCircle2 } from 'lucide-react';
+import { Image, Loader2, CheckCircle2, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 export default function ReviewModalFoto({ intake, onClose, onSaved }) {
@@ -15,6 +15,7 @@ export default function ReviewModalFoto({ intake, onClose, onSaved }) {
   const [loadingActivities, setLoadingActivities] = useState(true);
   const [loadingMetas, setLoadingMetas] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
     activity_id: intake.activity_id_vinculada || '',
     meta_id: intake.meta_id_vinculada || '',
@@ -96,6 +97,22 @@ export default function ReviewModalFoto({ intake, onClose, onSaved }) {
       toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm('Tem certeza que deseja deletar esta foto?')) return;
+    setDeleting(true);
+    try {
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'DELETADO',
+      });
+      toast({ title: 'Foto deletada com sucesso.' });
+      onSaved();
+    } catch (e) {
+      toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -197,6 +214,10 @@ export default function ReviewModalFoto({ intake, onClose, onSaved }) {
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Deletar
+            </Button>
             <Button onClick={handleSave} disabled={saving || !form.activity_id}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
               Vincular Foto

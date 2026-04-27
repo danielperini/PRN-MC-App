@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
-import { FileText, Loader2, AlertCircle } from 'lucide-react';
+import { FileText, Loader2, AlertCircle, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const CATEGORIAS = [
@@ -23,6 +23,7 @@ export default function ReviewModalDocAdmin({ intake, onClose, onSaved }) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
     titulo: intake.resultado_ia?.descricao || '',
     categoria: '',
@@ -43,6 +44,22 @@ export default function ReviewModalDocAdmin({ intake, onClose, onSaved }) {
       toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm('Tem certeza que deseja deletar este documento?')) return;
+    setDeleting(true);
+    try {
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'DELETADO',
+      });
+      toast({ title: 'Documento deletado com sucesso.' });
+      onSaved();
+    } catch (e) {
+      toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -185,6 +202,15 @@ export default function ReviewModalDocAdmin({ intake, onClose, onSaved }) {
           <div className="flex justify-end gap-2 pt-2 flex-wrap">
             <Button variant="outline" onClick={onClose}>
               Cancelar
+            </Button>
+
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Deletar
             </Button>
 
             <Button
