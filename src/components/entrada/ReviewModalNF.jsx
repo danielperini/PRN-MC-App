@@ -12,6 +12,17 @@ const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
 const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }));
 
+const METAS_3_ADITIVO = [
+  { id: 'MC3A-01', nome: 'Meta 1 (mês 1-28): Contratação da equipe principal' },
+  { id: 'MC3A-02', nome: 'Meta 2 (mês 1-28): Plano de Comunicação nacional' },
+  { id: 'MC3A-03', nome: 'Meta 3 (mês 2-28): Manutenção das exposições' },
+  { id: 'MC3A-04', nome: 'Meta 4 (mês 6-15): Alteração de núcleos expositivos' },
+  { id: 'MC3A-05', nome: 'Meta 5 (mês 2-18): 60 ações educativas' },
+  { id: 'MC3A-06', nome: 'Meta 6 (mês 2-18): 36 ações culturais' },
+  { id: 'MC3A-07', nome: 'Meta 7 (mês 1-28): Educadores fixos' },
+  { id: 'MC3A-08', nome: 'Meta 8 (mês 1-18): Exposição MHAB Casarão' },
+];
+
 const COORD_EMAILS = [
   'danielperini.mc@viadutodasartes.org.br',
   'danie@periniprojetos.com.br',
@@ -20,8 +31,6 @@ const COORD_EMAILS = [
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const { toast } = useToast();
   const [user, setUser] = useState(null);
-  const [rubricas, setRubricas] = useState([]);
-  const [metas, setMetas] = useState([]);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [approvingDirect, setApprovingDirect] = useState(false);
@@ -31,6 +40,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [selectedXmlId, setSelectedXmlId] = useState('');
   const [loadingXmls, setLoadingXmls] = useState(false);
   const [linkingXml, setLinkingXml] = useState(false);
+  const [rubricas, setRubricas] = useState([]);
 
   const ia = intake.resultado_ia || {};
 
@@ -68,17 +78,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       }
     }
 
-    async function loadMetas() {
-      try {
-        const list = await base44.entities.ProjectMeta.list('', 200);
-        setMetas((list || []).filter((m) => m.ativo !== false));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
     loadRubricas();
-    loadMetas();
   }, []);
 
   function parseValorBR(v) {
@@ -582,7 +582,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
                 <SelectValue placeholder="Selecionar meta" />
               </SelectTrigger>
               <SelectContent>
-                {metas.map((m) => (
+                {METAS_3_ADITIVO.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
                     {m.nome}
                   </SelectItem>
