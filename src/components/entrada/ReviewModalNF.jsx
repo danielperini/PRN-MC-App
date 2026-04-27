@@ -23,6 +23,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const { toast } = useToast();
   const [user, setUser] = useState(null);
   const [rubricas, setRubricas] = useState([]);
+  const [metas, setMetas] = useState([]);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [approvingDirect, setApprovingDirect] = useState(false);
@@ -76,8 +77,17 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         console.error(e);
       }
     }
+    async function loadMetas() {
+      try {
+        const list = await base44.entities.ProjectMeta.list('', 200);
+        setMetas((list || []).filter(m => m.ativo !== false));
+      } catch (e) {
+        console.error(e);
+      }
+    }
     loadRubricas();
     loadBudgetLines();
+    loadMetas();
   }, []);
 
   // Converter valor (suporta pt-BR "1.234,56" e US "1234.56")
@@ -604,8 +614,10 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
             <Select value={form.meta_id} onValueChange={v => setForm(f => ({ ...f, meta_id: v }))}>
               <SelectTrigger><SelectValue placeholder="Selecionar meta" /></SelectTrigger>
               <SelectContent>
-                {['MC3A-20', 'MC3A-21', 'MC3A-22', 'MC3A-23', 'MC3A-24', 'MC3A-25', 'MC3A-EXTRA'].map(m => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                {metas.map(m => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.nome}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
