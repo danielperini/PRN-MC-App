@@ -68,12 +68,19 @@ const FONTES_PRIORITARIAS = [
   'repositórios universitários'
 ];
 
+const DISTRIBUICAO_GEOGRAFICA = {
+  BH: { percentual: 0.50, descricao: 'Belo Horizonte / Minas Gerais' },
+  BRASIL: { percentual: 0.25, descricao: 'Resto do Brasil' },
+  INTERNACIONAL: { percentual: 0.25, descricao: 'Conteúdo Internacional' }
+};
+
 const CURATION_SYSTEM_PROMPT = `Você é a curadoria editorial do painel LeitorNoticias do Projeto Museus Centro.
 
 MISSÃO EXPANDIDA:
-- Gerar 10-15 palavras-chave VARIADAS por dia combinando temas + territórios + autores + formatos
+- Gerar 15-20 palavras-chave VARIADAS por dia combinando temas + territórios + autores + formatos
 - Buscar conteúdo em português e inglês
 - Avaliar pertinência com sistema de pesos editoriais
+- Distribuição geográfica: 50% Belo Horizonte/MG, 25% Brasil, 25% Internacional
 - Publicar automaticamente (>= 80), enviar para pendência (60-79) ou descartar (< 60)
 
 TEMAS OBRIGATÓRIOS (variar diariamente):
@@ -85,16 +92,38 @@ ${AUTORES_PRIORITARIOS.join(' • ')}
 FONTES COM MAIOR PESO:
 ${FONTES_PRIORITARIAS.join(' • ')}
 
-ESTRATÉGIA DE BUSCA:
-1. Combine tema + território + autor + formato: "museologia urbana belo horizonte artigo"
-2. Use variações: "expografia contemporânea brasil scielo"
-3. Altere a ordem diariamente: "fotografia memória urbana belo horizonte"
-4. Inclua combinações: "mediação da informação museu imagem som"
-5. Busque em bases acadêmicas: "preservação audiovisual minas gerais pdf"
+DISTRIBUIÇÃO GEOGRÁFICA OBRIGATÓRIA:
+- 50% de conteúdo de Belo Horizonte ou Minas Gerais
+- 25% de conteúdo do resto do Brasil
+- 25% de conteúdo Internacional
+
+ESTRATÉGIA DE BUSCA POR GEOGRAFIA:
+
+PARA BELO HORIZONTE (50%):
+1. "tema + belo horizonte + artigo"
+2. "tema + minas gerais + scielo"
+3. "tema + UFMG"
+4. "tema + museus municipais bh"
+5. "tema + circuito municipal cultura"
+6. "tema + fundação clóvis salgado"
+
+PARA BRASIL (25%):
+1. "tema + brasil + artigo"
+2. "tema + nacional + museus"
+3. "tema + universidades brasileiras + repositório"
+4. "tema + estados como são paulo, rio de janeiro"
+5. "tema + patrimônio brasileiro"
+
+PARA INTERNACIONAL (25%):
+1. "tema + international + article"
+2. "tema + english + academia"
+3. "tema + museum + english"
+4. "tema + cultural heritage + worldwide"
+5. "tema + author + university"
 
 SISTEMA DE PESOS EDITORIAIS (scoring):
 - Base: 50 pontos
-- +15 se conteúdo ligado a Belo Horizonte ou Minas Gerais
+- +20 se conteúdo ligado a Belo Horizonte ou Minas Gerais
 - +15 se sobre museus, patrimônio ou memória
 - +15 se sobre fotografia, cinema ou audiovisual
 - +15 se artigo denso, acadêmico ou técnico de fonte confiável
@@ -112,21 +141,16 @@ REGRA DE PUBLICAÇÃO:
 - 60-79: PENDENTE
 - < 60: REJEITADO (descartar)
 
-META DIÁRIA: 10 conteúdos
-- 5 NOTICIA
-- 5 ARTIGO_DENSO/OPORTUNIDADE
-
-EQUILÍBRIO TEMÁTICO ESPERADO:
-- 2-3 conteúdos ligados a BH
-- 2-3 sobre museologia/expografia/montagem
-- 2-3 sobre fotografia/cinema/audiovisual
-- 2-3 acadêmicos/científicos com alto repertório
+META DIÁRIA: 20 conteúdos
+- 10 de Belo Horizonte/MG (50%)
+- 5 do resto do Brasil (25%)
+- 5 Internacionais (25%)
 
 RECÊNCIA:
 - NOTICIA: máximo 14 dias
 - ARTIGO_DENSO: máximo 1 ano
 
-Retorne JSON com array de conteúdos:
+Retorne JSON com array de conteúdos garantindo distribuição geográfica:
 {
   "titulo": string,
   "resumo": string,
@@ -140,7 +164,8 @@ Retorne JSON com array de conteúdos:
   "tags": array,
   "palavra_chave_geradora": string,
   "motivo_curadoria": string,
-  "status_curadoria": "PUBLICADO_AUTO|PENDENTE|REJEITADO"
+  "status_curadoria": "PUBLICADO_AUTO|PENDENTE|REJEITADO",
+  "localizacao_geografica": "BH|BRASIL|INTERNACIONAL"
 }`;
 
 Deno.serve(async (req) => {
@@ -153,39 +178,53 @@ Deno.serve(async (req) => {
     }
 
     // Selecionar temas variados para hoje
-    const temasDodia = TEMAS_ESPECIFICOS.sort(() => Math.random() - 0.5).slice(0, 6);
-    const autoresDodia = AUTORES_PRIORITARIOS.sort(() => Math.random() - 0.5).slice(0, 3);
+     const temasDodia = TEMAS_ESPECIFICOS.sort(() => Math.random() - 0.5).slice(0, 8);
+     const autoresDodia = AUTORES_PRIORITARIOS.sort(() => Math.random() - 0.5).slice(0, 4);
 
-    const result = await base44.integrations.Core.InvokeLLM({
-      prompt: `${CURATION_SYSTEM_PROMPT}
+     const result = await base44.integrations.Core.InvokeLLM({
+       prompt: `${CURATION_SYSTEM_PROMPT}
 
-Data de hoje: ${new Date().toISOString().split('T')[0]}
+    Data de hoje: ${new Date().toISOString().split('T')[0]}
 
-TEMAS DO DIA (use variações destes):
-${temasDodia.map(t => `• ${t}`).join('\n')}
+    TEMAS DO DIA (use variações destes):
+    ${temasDodia.map(t => `• ${t}`).join('\n')}
 
-AUTORES DO DIA (inclua em buscas de artigos):
-${autoresDodia.join(' • ')}
+    AUTORES DO DIA (inclua em buscas de artigos):
+    ${autoresDodia.join(' • ')}
 
-EXECUÇÃO:
-1. Combine temas + territórios + autores + formatos em 10-15 consultas diferentes
-2. Varie estratégias: curta, média, cauda longa, sinônimos
-3. Busque em fontes prioritárias (SciELO, bases acadêmicas, instituições locais)
-4. Para cada resultado: aplique sistema de pesos editoriais
-5. Classifique como NOTICIA (5) ou ARTIGO_DENSO (5)
-6. Decida status baseado no score
-7. Retorne array com todos os conteúdos encontrados (publicáveis + pendentes)
+    EXECUÇÃO (OBRIGATÓRIO: 50% BH, 25% Brasil, 25% Internacional):
 
-Exemplos de combinações para hoje:
-- "${temasDodia[0]} artigo"
-- "${temasDodia[1]} ${autoresDodia[0]}"
-- "${temasDodia[2]} belo horizonte scielo"
-- "${temasDodia[3]} montagem exposição artigo acadêmico"
-- "fotografia memória ${autoresDodia[1]} brasil"
-- "mediação cultural museu imagem som"
-- "expografia design ${autoresDodia[2]}"
+    PARA BELO HORIZONTE/MG (10 conteúdos):
+    1. "${temasDodia[0]} belo horizonte artigo"
+    2. "${temasDodia[1]} minas gerais scielo"
+    3. "${temasDodia[2]} UFMG museus"
+    4. "${temasDodia[3]} circuito municipal cultura bh"
+    5. "${temasDodia[4]} fundação clóvis salgado"
+    6. "${temasDodia[5]} belo horizonte ${autoresDodia[0]}"
+    7. "${temasDodia[6]} memória urbana belo horizonte"
+    8. "${temasDodia[7]} minas gerais patrimônio"
+    9. "museu história belo horizonte ${autoresDodia[1]}"
+    10. "expografia montagem ${autoresDodia[2]} bh"
 
-Mantenha equilíbrio: 2-3 BH, 2-3 museologia, 2-3 fotografia/cinema, 2-3 acadêmicos.`,
+    PARA BRASIL (5 conteúdos):
+    1. "${temasDodia[0]} brasil museus artigo"
+    2. "${temasDodia[1]} repositório universitário brasileiro"
+    3. "${temasDodia[2]} patrimônio nacional ${autoresDodia[3]}"
+    4. "${temasDodia[3]} mediação cultural universidades brasileiras"
+    5. "${temasDodia[4]} fotografia memória brasil"
+
+    PARA INTERNACIONAL (5 conteúdos):
+    1. "${temasDodia[5]} international article"
+    2. "${temasDodia[6]} museum education global"
+    3. "${temasDodia[7]} heritage preservation worldwide"
+    4. "museology urban contemporary english"
+    5. "museum collection management international"
+
+    VALIDAÇÃO FINAL:
+    - Garantir exatamente 50% BH, 25% Brasil, 25% Internacional
+    - Adicionar campo "localizacao_geografica" com valor BH, BRASIL ou INTERNACIONAL
+    - Todos os itens devem ter status_curadoria definido (PUBLICADO_AUTO, PENDENTE ou REJEITADO)
+    - Mínimo 60 de score para serem salvos`,
       add_context_from_internet: true,
       model: 'claude_sonnet_4_6',
       response_json_schema: {
@@ -218,23 +257,36 @@ Mantenha equilíbrio: 2-3 BH, 2-3 museologia, 2-3 fotografia/cinema, 2-3 acadêm
     });
 
     const resultados = result?.resultados || [];
-    const toSave = resultados.filter(r => r.status_curadoria !== 'REJEITADO');
+     const toSave = resultados.filter(r => r.status_curadoria !== 'REJEITADO');
 
-    if (toSave.length > 0) {
-      await base44.asServiceRole.entities.NewsHighlight.bulkCreate(toSave.map(r => ({
-        ...r,
-        ativo: r.status_curadoria === 'PUBLICADO_AUTO',
-        publicado_por_ia: r.status_curadoria === 'PUBLICADO_AUTO',
-        modelo_curadoria: 'claude'
-      })));
-    }
+     // Validar distribuição geográfica
+     const distribuicao = {
+       BH: toSave.filter(r => r.localizacao_geografica === 'BH').length,
+       BRASIL: toSave.filter(r => r.localizacao_geografica === 'BRASIL').length,
+       INTERNACIONAL: toSave.filter(r => r.localizacao_geografica === 'INTERNACIONAL').length
+     };
 
-    return Response.json({
-      success: true,
-      salvos: toSave.length,
-      rejeitados: resultados.filter(r => r.status_curadoria === 'REJEITADO').length,
-      resultados: toSave
-    });
+     if (toSave.length > 0) {
+       await base44.asServiceRole.entities.NewsHighlight.bulkCreate(toSave.map(r => ({
+         ...r,
+         ativo: r.status_curadoria === 'PUBLICADO_AUTO',
+         publicado_por_ia: r.status_curadoria === 'PUBLICADO_AUTO',
+         modelo_curadoria: 'claude'
+       })));
+     }
+
+     return Response.json({
+       success: true,
+       salvos: toSave.length,
+       rejeitados: resultados.filter(r => r.status_curadoria === 'REJEITADO').length,
+       distribuicao_geografica: distribuicao,
+       detalhes_esperado: {
+         BH: `${Math.round(distribuicao.BH / toSave.length * 100 || 0)}% (esperado 50%)`,
+         BRASIL: `${Math.round(distribuicao.BRASIL / toSave.length * 100 || 0)}% (esperado 25%)`,
+         INTERNACIONAL: `${Math.round(distribuicao.INTERNACIONAL / toSave.length * 100 || 0)}% (esperado 25%)`
+       },
+       resultados: toSave
+     });
   } catch (error) {
     console.error('Erro em runDailyCuration:', error);
     return Response.json({ error: error.message }, { status: 500 });
