@@ -175,9 +175,10 @@ export default function DashboardPatrocinador() {
         // Usa campos reais: valor_rubrica, valor_utilizado, saldo
         const previsto = Number(r?.valor_rubrica || 0);
         const utilizado = Number(r?.valor_utilizado || 0);
+        const saldoRubrica = Number(r?.saldo || (previsto - utilizado));
         rubricasAgrupadas[grupo].previsto += previsto;
         rubricasAgrupadas[grupo].utilizado += utilizado;
-        rubricasAgrupadas[grupo].saldo += (previsto - utilizado);
+        rubricasAgrupadas[grupo].saldo += saldoRubrica;
       });
 
       const rubricasData = Object.values(rubricasAgrupadas).map((r) => ({
