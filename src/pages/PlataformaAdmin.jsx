@@ -9,6 +9,8 @@ import MetadadosManager from '../components/admin/MetadadosManager';
 import MuseuManager from '../components/admin/MuseuManager';
 import EquipeManager from '../components/admin/EquipeManager';
 import UserPermissionsManager from '../components/admin/UserPermissionsManager';
+import AuditSystemPanel from '../components/admin/AuditSystemPanel';
+import HardeningPanel from '../components/admin/HardeningPanel';
 import {
   Users, FileText, History, Settings,
   CheckCircle, ChevronRight,
@@ -106,7 +108,8 @@ function PlataformaAdminInner() {
           <TabsTrigger value="museus">Museus</TabsTrigger>
           <TabsTrigger value="equipes">Equipes</TabsTrigger>
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
-          <TabsTrigger value="auditoria">Auditoria</TabsTrigger>
+          <TabsTrigger value="auditoria">📊 Auditoria</TabsTrigger>
+          <TabsTrigger value="hardening">🔒 Hardening</TabsTrigger>
           <TabsTrigger value="metadados">Metadados</TabsTrigger>
         </TabsList>
 
@@ -148,11 +151,11 @@ function PlataformaAdminInner() {
         </TabsContent>
 
         <TabsContent value="auditoria">
-          {logs.map(l => (
-            <div key={l.id} className="text-sm border p-2">
-              {l.action} - {l.actor_email}
-            </div>
-          ))}
+          <AuditSystemPanel />
+        </TabsContent>
+
+        <TabsContent value="hardening">
+          <HardeningPanel />
         </TabsContent>
 
       </Tabs>
