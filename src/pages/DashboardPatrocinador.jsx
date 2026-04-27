@@ -172,8 +172,8 @@ export default function DashboardPatrocinador() {
             saldo: 0
           };
         }
-        // Usa campos reais: valor_total, valor_utilizado, saldo
-        const previsto = Number(r?.valor_total || r?.valor_rubrica || 0);
+        // Usa campos reais: valor_rubrica, valor_utilizado, saldo
+        const previsto = Number(r?.valor_rubrica || 0);
         const utilizado = Number(r?.valor_utilizado || 0);
         rubricasAgrupadas[grupo].previsto += previsto;
         rubricasAgrupadas[grupo].utilizado += utilizado;
