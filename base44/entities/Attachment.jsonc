@@ -26,17 +26,13 @@
       "type": "string",
       "description": "URL p\u00fablica do arquivo armazenado"
     },
-    "file_hash": {
-      "type": "string",
-      "description": "Hash SHA-256 do conte\u00fado do arquivo para deduplica\u00e7\u00e3o"
-    },
     "description": {
       "type": "string",
       "description": "Descri\u00e7\u00e3o opcional do arquivo"
     },
     "drive_file_id": {
       "type": "string",
-      "description": "ID do arquivo no Google Drive"
+      "description": "ID do arquivo no Google Drive (preenchido ap\u00f3s backup)"
     },
     "drive_folder_id": {
       "type": "string",
@@ -51,23 +47,13 @@
       "type": "string",
       "description": "Data/hora do \u00faltimo backup realizado"
     },
-    "backup_status": {
+    "file_hash": {
       "type": "string",
-      "enum": [
-        "ok",
-        "erro",
-        "pendente",
-        "desatualizado"
-      ],
-      "description": "Status do backup no Drive"
+      "description": "SHA-256 do conte\u00fado do arquivo (para detec\u00e7\u00e3o de mudan\u00e7as)"
     },
     "last_synced_at": {
       "type": "string",
-      "description": "Data/hora da \u00faltima sincroniza\u00e7\u00e3o com o Drive"
-    },
-    "source_updated_date": {
-      "type": "string",
-      "description": "Data de atualiza\u00e7\u00e3o da entidade de origem no momento do \u00faltimo backup"
+      "description": "Timestamp da \u00faltima sincroniza\u00e7\u00e3o com o Drive"
     },
     "nf_tipo_documento": {
       "type": "string",

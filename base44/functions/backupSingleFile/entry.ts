@@ -1,74 +1,78 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 /**
- * Backup de um Attachment para o Google Drive.
- * Usa escopo drive.file — NÃO pode listar/buscar arquivos com query.
- * Cacheia IDs de pastas no BackupLog para evitar duplicatas.
+ * backupSingleFile — Backup de um Attachment para o Google Drive.
+ *
+ * Lógica:
+ * 1. Busca o Attachment pelo ID
+ * 2. Se backup_done + drive_file_id + hash não mudou → skip
+ * 3. Calcula SHA-256 do arquivo
+ * 4. Se hash mudou e tem drive_file_id → PATCH (atualiza conteúdo)
+ * 5. Se não tem drive_file_id → upload na pasta correta por tipo
+ *
+ * Estrutura de pastas (root: 1lUvhkeMp-yZ4nNnS33jDw3eekhbpp1R7):
+ *   01_Notas_Fiscais / PDF  (nf_tipo_documento === 'pdf_nf' ou mime=pdf + tem nf_numero)
+ *   01_Notas_Fiscais / XML  (nf_tipo_documento === 'xml_nf')
+ *   03_Fotos_Atividades / {museu}  (imagens)
+ *   07_Documentos_Administrativos  (demais)
+ *
+ * Usa cache de IDs de pasta via AuditLog (details = cache_key).
  */
 
-const ATIVIDADES_ROOT_FOLDER_ID = '1JIQOY1eY29Qt-iUFgivfioaSoaFXGFJy';
-const CACHE_KEY_PREFIX = 'drive_folder_cache__';
+const ROOT_FOLDER_ID = '1lUvhkeMp-yZ4nNnS33jDw3eekhbpp1R7';
+const CACHE_KEY_PREFIX = 'drive_folder_id__';
 
-function sanitize(value) {
-  return String(value || 'Sem_Nome')
-    .trim()
-    .replace(/[\/\\:*?"<>|]/g, '_')
-    .slice(0, 80) || 'Sem_Nome';
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function sanitize(v) {
+  return String(v || 'Sem_Nome').trim().replace(/[\/\\:*?"<>|]/g, '_').slice(0, 80) || 'Sem_Nome';
 }
 
-function extractAttachmentId(body) {
-  return (
-    body?.attachment_id ||
-    body?.entity_id ||
-    body?.event?.entity_id ||
-    body?.data?.entity_id ||
-    body?.data?.event?.entity_id ||
-    null
-  );
+async function sha256Hex(data) {
+  const buffer = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+  const hash = await crypto.subtle.digest('SHA-256', buffer);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function createDriveFolder(accessToken, folderName, parentId) {
+async function createFolder(accessToken, name, parentId) {
   const res = await fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      name: folderName,
-      mimeType: 'application/vnd.google-apps.folder',
-      parents: [parentId],
-    }),
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] }),
   });
   const data = await res.json();
-  if (data.error) throw new Error(`Erro ao criar pasta "${folderName}": ${data.error.message}`);
+  if (data.error) throw new Error(`Erro ao criar pasta "${name}": ${data.error.message}`);
   return data.id;
 }
 
-/**
- * Retorna o ID de uma pasta, criando-a se não existir.
- * Usa BackupLog como cache de IDs para não criar duplicatas.
- */
-async function getOrCreateCachedFolder(base44, accessToken, folderName, parentId) {
-  const cacheKey = `${CACHE_KEY_PREFIX}${parentId}__${folderName}`;
+async function listChildren(accessToken, parentId) {
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`)}&fields=files(id,name)&pageSize=100`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.files || [];
+}
 
-  // Tenta buscar no cache
-  const cached = await base44.asServiceRole.entities.BackupLog
+async function getOrCreateCached(base44, accessToken, name, parentId) {
+  const cacheKey = `${CACHE_KEY_PREFIX}${parentId}__${name}`;
+
+  // Tenta cache via AuditLog
+  const cached = await base44.asServiceRole.entities.AuditLog
     .filter({ details: cacheKey })
     .catch(() => []);
 
-  if (cached && cached.length > 0) {
-    const record = cached[0];
-    // O ID da pasta está armazenado no campo "entity_id"
-    if (record.entity_id && record.entity_id.length > 10) {
-      return record.entity_id;
-    }
+  if (cached?.length > 0 && cached[0].entity_id?.length > 10) {
+    return cached[0].entity_id;
   }
 
-  // Cria a pasta no Drive
-  const folderId = await createDriveFolder(accessToken, folderName, parentId);
+  // Verifica se já existe no Drive
+  const children = await listChildren(accessToken, parentId);
+  const existing = children.find(f => f.name === name);
+  const folderId = existing ? existing.id : await createFolder(accessToken, name, parentId);
 
-  // Salva no cache
+  // Salva cache
   await base44.asServiceRole.entities.AuditLog.create({
     action: 'CREATE',
     entity_type: 'ATTACHMENT',
@@ -76,118 +80,146 @@ async function getOrCreateCachedFolder(base44, accessToken, folderName, parentId
     actor_email: 'system',
     actor_name: 'Backup System',
     details: cacheKey,
-  }).catch(() => null); // não bloquear se o cache falhar
+  }).catch(() => null);
 
   return folderId;
 }
+
+async function uploadFile(accessToken, blob, name, folderId) {
+  const formData = new FormData();
+  formData.append('metadata', new Blob([JSON.stringify({ name, parents: [folderId] })], { type: 'application/json' }));
+  formData.append('file', blob, name);
+  const res = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` }, body: formData }
+  );
+  const data = await res.json();
+  if (data.error) throw new Error('Erro no upload: ' + data.error.message);
+  return data.id;
+}
+
+async function patchFile(accessToken, fileId, blob, name) {
+  const formData = new FormData();
+  formData.append('metadata', new Blob([JSON.stringify({ name })], { type: 'application/json' }));
+  formData.append('file', blob, name);
+  const res = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&fields=id`,
+    { method: 'PATCH', headers: { Authorization: `Bearer ${accessToken}` }, body: formData }
+  );
+  const data = await res.json();
+  if (data.error) throw new Error('Erro no PATCH: ' + data.error.message);
+  return data.id;
+}
+
+// ── Roteamento de pasta por tipo de arquivo ───────────────────────────────────
+
+async function resolveTargetFolder(base44, accessToken, attachment) {
+  const isNfXml = attachment.nf_tipo_documento === 'xml_nf';
+  const isNfPdf = attachment.nf_tipo_documento === 'pdf_nf' || (attachment.nf_numero && /\.pdf$/i.test(attachment.file_name || ''));
+  const isPhoto = /\.(jpg|jpeg|png|gif|webp)$/i.test(attachment.file_name || '') || /^image\//i.test(attachment.file_type || '');
+
+  if (isNfXml) {
+    const nfRoot = await getOrCreateCached(base44, accessToken, '01_Notas_Fiscais', ROOT_FOLDER_ID);
+    return await getOrCreateCached(base44, accessToken, 'XML', nfRoot);
+  }
+
+  if (isNfPdf) {
+    const nfRoot = await getOrCreateCached(base44, accessToken, '01_Notas_Fiscais', ROOT_FOLDER_ID);
+    return await getOrCreateCached(base44, accessToken, 'PDF', nfRoot);
+  }
+
+  if (isPhoto) {
+    const fotosRoot = await getOrCreateCached(base44, accessToken, '03_Fotos_Atividades', ROOT_FOLDER_ID);
+    // Tenta determinar museu pelo relatório
+    let museu = 'Geral';
+    if (attachment.report_id) {
+      const report = await base44.asServiceRole.entities.Report.get(attachment.report_id).catch(() => null);
+      if (report?.museu) museu = sanitize(report.museu);
+    }
+    return await getOrCreateCached(base44, accessToken, museu, fotosRoot);
+  }
+
+  // Documentos administrativos genéricos
+  return await getOrCreateCached(base44, accessToken, '07_Documentos_Administrativos', ROOT_FOLDER_ID);
+}
+
+// ── Handler principal ─────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
     const body = await req.json().catch(() => ({}));
-    const attachment_id = extractAttachmentId(body);
+    const attachment_id =
+      body?.attachment_id ||
+      body?.entity_id ||
+      body?.event?.entity_id ||
+      body?.data?.entity_id ||
+      null;
 
     if (!attachment_id) {
       return Response.json({ error: 'attachment_id obrigatório' }, { status: 400 });
     }
 
     const attachment = await base44.asServiceRole.entities.Attachment.get(attachment_id);
-    if (!attachment) {
-      return Response.json({ error: 'Arquivo não encontrado' }, { status: 404 });
-    }
-
-    if (attachment.backup_done && attachment.drive_file_id) {
-      return Response.json({
-        skipped: true,
-        reason: 'Backup já realizado',
-        attachment_id,
-        drive_file_id: attachment.drive_file_id,
-      });
-    }
-
-    if (!attachment.file_url) {
-      return Response.json({ error: 'Arquivo sem URL' }, { status: 400 });
-    }
+    if (!attachment) return Response.json({ error: 'Attachment não encontrado' }, { status: 404 });
+    if (!attachment.file_url) return Response.json({ error: 'Arquivo sem URL' }, { status: 400 });
 
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
 
-    const isPhoto =
-      /\.(jpg|jpeg|png|gif|webp)$/i.test(attachment.file_name || '') ||
-      /^image\//i.test(attachment.file_type || '');
-
-    // Determinar label da subpasta: nome da atividade ou autor do relatório
-    let folderLabel = 'Sem_Atividade';
-
-    if (attachment.activity_id && attachment.report_id) {
-      const activities = await base44.asServiceRole.entities.Activity
-        .filter({ report_id: attachment.report_id })
-        .catch(() => []);
-      const act = activities.find(a => a.id === attachment.activity_id);
-      if (act?.titulo) {
-        folderLabel = sanitize(act.titulo);
-      }
-    }
-
-    if (folderLabel === 'Sem_Atividade' && attachment.report_id) {
-      const report = await base44.asServiceRole.entities.Report.get(attachment.report_id).catch(() => null);
-      if (report?.author_name) folderLabel = sanitize(report.author_name);
-    }
-
-    // Estrutura: Root / Fotos|Documentos / NomeDaAtividade
-    const typeLabel = isPhoto ? 'Fotos' : 'Documentos';
-    const typeFolderId = await getOrCreateCachedFolder(base44, accessToken, typeLabel, ATIVIDADES_ROOT_FOLDER_ID);
-    const targetFolderId = await getOrCreateCachedFolder(base44, accessToken, folderLabel, typeFolderId);
-
-    // Download do arquivo original
+    // Baixa o arquivo
     const fileResponse = await fetch(attachment.file_url);
-    if (!fileResponse.ok) {
-      return Response.json({ error: 'Não foi possível baixar o arquivo original' }, { status: 400 });
-    }
+    if (!fileResponse.ok) return Response.json({ error: 'Erro ao baixar arquivo' }, { status: 400 });
     const fileBlob = await fileResponse.blob();
+    const fileBuffer = await fileBlob.arrayBuffer();
+    const newHash = await sha256Hex(new Uint8Array(fileBuffer));
 
-    // Upload para o Drive
-    const formData = new FormData();
-    formData.append(
-      'metadata',
-      new Blob(
-        [JSON.stringify({ name: attachment.file_name, parents: [targetFolderId] })],
-        { type: 'application/json' }
-      )
-    );
-    formData.append('file', fileBlob, attachment.file_name);
-
-    const uploadRes = await fetch(
-      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` },
-        body: formData,
-      }
-    );
-
-    const result = await uploadRes.json();
-    if (result.error) {
-      throw new Error('Erro no upload: ' + result.error.message);
+    // Hash igual ao anterior → skip
+    if (attachment.backup_done && attachment.drive_file_id && attachment.file_hash === newHash) {
+      return Response.json({
+        skipped: true,
+        reason: 'Conteúdo sem alteração',
+        attachment_id,
+        drive_file_id: attachment.drive_file_id,
+        file_hash: newHash,
+      });
     }
 
-    const backupDate = new Date().toISOString();
+    const now = new Date().toISOString();
+    let driveFileId;
+    let action;
+
+    if (attachment.drive_file_id && attachment.backup_done) {
+      // PATCH — atualiza conteúdo no Drive
+      driveFileId = await patchFile(accessToken, attachment.drive_file_id, fileBlob, attachment.file_name);
+      action = 'patched';
+    } else {
+      // Novo upload na pasta correta
+      const targetFolderId = await resolveTargetFolder(base44, accessToken, attachment);
+      driveFileId = await uploadFile(accessToken, fileBlob, attachment.file_name, targetFolderId);
+      action = 'uploaded';
+    }
+
     await base44.asServiceRole.entities.Attachment.update(attachment_id, {
       backup_done: true,
-      drive_file_id: result.id,
-      backup_date: backupDate,
+      drive_file_id: driveFileId,
+      backup_date: now,
+      file_hash: newHash,
+      last_synced_at: now,
     });
 
     return Response.json({
       success: true,
+      action,
       attachment_id,
-      drive_file_id: result.id,
-      drive_link: `https://drive.google.com/file/d/${result.id}/view`,
-      backup_date: backupDate,
-      folder: `${typeLabel}/${folderLabel}`,
+      drive_file_id: driveFileId,
+      drive_link: `https://drive.google.com/file/d/${driveFileId}/view`,
+      file_hash: newHash,
+      backup_date: now,
     });
+
   } catch (error) {
-    console.error('Erro no backup:', error);
+    console.error('Erro no backupSingleFile:', error);
     return Response.json({ error: error?.message || String(error) }, { status: 500 });
   }
 });
