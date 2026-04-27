@@ -1,0 +1,120 @@
+{
+  "name": "DocumentIntake",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que fez o upload"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Nome do usu\u00e1rio"
+    },
+    "tipo_detectado": {
+      "type": "string",
+      "enum": [
+        "FOTO_ATIVIDADE",
+        "NOTA_FISCAL_PDF",
+        "NOTA_FISCAL_XML",
+        "DOCUMENTO_ADMINISTRATIVO",
+        "OUTRO",
+        "PENDENTE"
+      ],
+      "default": "PENDENTE",
+      "description": "Tipo detectado pela IA"
+    },
+    "status_processamento": {
+      "type": "string",
+      "enum": [
+        "ENVIADO",
+        "ANALISANDO_IA",
+        "AGUARDANDO_REVISAO",
+        "RASCUNHO",
+        "ENVIADO_APROVACAO",
+        "APROVADO",
+        "REJEITADO",
+        "ERRO_PROCESSAMENTO"
+      ],
+      "default": "ENVIADO",
+      "description": "Estado do processamento da entrada \u00fanica"
+    },
+    "arquivo_original_url": {
+      "type": "string",
+      "description": "URL do arquivo original enviado"
+    },
+    "file_name_original": {
+      "type": "string",
+      "description": "Nome original do arquivo"
+    },
+    "file_name_final": {
+      "type": "string",
+      "description": "Nome final padronizado ap\u00f3s renomea\u00e7\u00e3o"
+    },
+    "mime_type": {
+      "type": "string",
+      "description": "MIME type do arquivo"
+    },
+    "entidade_destino": {
+      "type": "string",
+      "enum": [
+        "PurchaseRequest",
+        "TeamPayment",
+        "Attachment",
+        "Activity",
+        "Programacao",
+        ""
+      ],
+      "description": "Entidade de destino ap\u00f3s roteamento"
+    },
+    "entidade_destino_id": {
+      "type": "string",
+      "description": "ID do registro criado na entidade de destino"
+    },
+    "resultado_ia": {
+      "type": "object",
+      "description": "Resultado completo da an\u00e1lise da IA (JSON com campos extra\u00eddos)"
+    },
+    "erros_validacao": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Lista de erros ou inconsist\u00eancias detectadas"
+    },
+    "rubrica_id_sugerida": {
+      "type": "string",
+      "description": "ID da rubrica sugerida pela IA"
+    },
+    "rubrica_nome_sugerida": {
+      "type": "string",
+      "description": "Nome da rubrica sugerida"
+    },
+    "rubrica_justificativa": {
+      "type": "string",
+      "description": "Justificativa da sugest\u00e3o de rubrica"
+    },
+    "centro_custo": {
+      "type": "string",
+      "description": "Centro de custo identificado ou selecionado"
+    },
+    "activity_id_vinculada": {
+      "type": "string",
+      "description": "ID da atividade vinculada (para FOTO_ATIVIDADE)"
+    },
+    "legenda_sugerida": {
+      "type": "string",
+      "description": "Legenda sugerida pela IA para fotos"
+    },
+    "revisado_pelo_usuario": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o usu\u00e1rio j\u00e1 revisou os dados da IA"
+    }
+  },
+  "required": [
+    "user_email",
+    "arquivo_original_url",
+    "file_name_original",
+    "mime_type"
+  ]
+}
