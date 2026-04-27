@@ -45,6 +45,7 @@ function deduplicarAtividades(atividades) {
 
 export default function CoordDashboard({ reports = [], isLoading }) {
   const [filterShowMore, setFilterShowMore] = useState(false);
+  const [dismissDuplicatas, setDismissDuplicatas] = useState(false);
   const [filterDataInicio, setFilterDataInicio] = useState('');
   const [filterDataFim, setFilterDataFim] = useState('');
   const [filterMuseu, setFilterMuseu] = useState('');
@@ -310,10 +311,11 @@ export default function CoordDashboard({ reports = [], isLoading }) {
       </div>
 
       {/* Aviso de duplicatas */}
-       {duplicatas > 0 &&
-      <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
-           ⚠ {duplicatas} atividade(s) duplicada(s) detectadas e removidas da contagem
-         </p>
+       {duplicatas > 0 && !dismissDuplicatas &&
+      <div className="flex items-center justify-between text-xs text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+           <span>⚠ {duplicatas} atividade(s) duplicada(s) detectadas e removidas da contagem</span>
+           <button onClick={() => setDismissDuplicatas(true)} className="ml-3 text-amber-400 hover:text-amber-700 transition-colors"><X className="w-3.5 h-3.5" /></button>
+         </div>
       }
 
       {/* KPI Cards — atividades e público consideram apenas relatórios APROVADOS */}
