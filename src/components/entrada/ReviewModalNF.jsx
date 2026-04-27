@@ -4,15 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { base44 } from '@/api/base44Client';
-import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Plus, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck, RefreshCw } from 'lucide-react';
+import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck, RefreshCw, LinkIcon } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
 
-const DEFAULT_RATEIO = MUSEUS_RATEIO.map(m => ({ museu: m, valor: '' }));
+const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }));
 
 const COORD_EMAILS = [
   'danielperini.mc@viadutodasartes.org.br',
@@ -29,13 +28,17 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [approvingDirect, setApprovingDirect] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
+  const [xmlCandidates, setXmlCandidates] = useState([]);
+  const [selectedXmlId, setSelectedXmlId] = useState('');
+  const [loadingXmls, setLoadingXmls] = useState(false);
+  const [linkingXml, setLinkingXml] = useState(false);
+
   const ia = intake.resultado_ia || {};
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
-  // Rateamento
   const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false);
   const [rateio, setRateio] = useState(DEFAULT_RATEIO);
 
@@ -64,33 +67,35 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     async function loadRubricas() {
       try {
         const list = await base44.entities.Rubrica.list('', 200);
-        setRubricas((list || []).filter(r => r.ativo !== false));
+        setRubricas((list || []).filter((r) => r.ativo !== false));
       } catch (e) {
         console.error(e);
       }
     }
+
     async function loadBudgetLines() {
       try {
         const list = await base44.entities.BudgetLine.list('', 200);
-        setBudgetLines((list || []).filter(b => b.ativo !== false));
+        setBudgetLines((list || []).filter((b) => b.ativo !== false));
       } catch (e) {
         console.error(e);
       }
     }
+
     async function loadMetas() {
       try {
         const list = await base44.entities.ProjectMeta.list('', 200);
-        setMetas((list || []).filter(m => m.ativo !== false));
+        setMetas((list || []).filter((m) => m.ativo !== false));
       } catch (e) {
         console.error(e);
       }
     }
+
     loadRubricas();
     loadBudgetLines();
     loadMetas();
   }, []);
 
-  // Converter valor (suporta pt-BR "1.234,56" e US "1234.56")
   function parseValorBR(v) {
     const s = String(v || '0').trim().replace(/\s/g, '');
     if (/^\d{1,3}(\.\d{3})*(,\d+)?$/.test(s)) {
@@ -99,7 +104,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     return parseFloat(s.replace(',', '.')) || 0;
   }
 
-  // Reconstruir nome padronizado com valores atuais
   function buildNomePadronizado() {
     const numero = (form.nf_numero || 'SEM-NUM').trim();
     const fornecedor = (form.nf_emitente_nome || 'FORNECEDOR').trim().substring(0, 40).toUpperCase();
@@ -111,11 +115,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     return `${numero} - ${fornecedor} - MUSEUS CENTRO - R$ ${valorFormatado}.${extAtual}`;
   }
 
-  // Sugerir meta automaticamente baseado em categoria e descrição
   useEffect(() => {
     const sugerirMeta = async () => {
-      if (!form.categoria || form.meta_id) return; // Não sobrescrever se já preenchido
-      
+      if (!form.categoria || form.meta_id) return;
+
       try {
         const metaSugestion = await base44.asServiceRole.integrations.Core.InvokeLLM({
           prompt: `Baseado na categoria "${form.categoria}" e descrição "${form.descricao_servico}", qual meta do 3º Aditivo é mais adequada?
@@ -124,50 +127,152 @@ Opções: MC3A-20, MC3A-21, MC3A-22, MC3A-23, MC3A-24, MC3A-25, MC3A-EXTRA
 
 Responda SOMENTE com o código da meta (ex: MC3A-22)`,
           response_json_schema: {
-            type: "object",
-            properties: { meta: { type: "string" } }
-          }
+            type: 'object',
+            properties: { meta: { type: 'string' } },
+          },
         });
-        
+
         const metaSug = metaSugestion?.meta?.trim();
-        if (metaSug && ['MC3A-20', 'MC3A-21', 'MC3A-22', 'MC3A-23', 'MC3A-24', 'MC3A-25', 'MC3A-EXTRA'].includes(metaSug)) {
-          setForm(f => ({ ...f, meta_id: metaSug }));
+        if (
+          metaSug &&
+          ['MC3A-20', 'MC3A-21', 'MC3A-22', 'MC3A-23', 'MC3A-24', 'MC3A-25', 'MC3A-EXTRA'].includes(metaSug)
+        ) {
+          setForm((f) => ({ ...f, meta_id: metaSug }));
         }
       } catch (e) {
         console.warn('Erro ao sugerir meta:', e);
       }
     };
-    
+
     sugerirMeta();
   }, [form.categoria, form.descricao_servico]);
 
-  // Atualiza nome automaticamente ao editar número, fornecedor ou valor
   useEffect(() => {
-    setForm(f => ({ ...f, file_name_final: buildNomePadronizado() }));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    setForm((f) => ({ ...f, file_name_final: buildNomePadronizado() }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.nf_numero, form.nf_emitente_nome, form.nf_valor_total]);
 
-  // Calcular totais do rateio
+  useEffect(() => {
+    async function loadXMLs() {
+      if (!form.nf_numero) {
+        setXmlCandidates([]);
+        setSelectedXmlId('');
+        return;
+      }
+
+      setLoadingXmls(true);
+
+      try {
+        const list = await base44.entities.Attachment.filter(
+          {
+            nf_numero: form.nf_numero,
+            nf_tipo_documento: 'xml_nf',
+          },
+          '-created_date',
+          20
+        );
+
+        const unique = [];
+        const seen = new Set();
+
+        for (const item of list || []) {
+          if (!item?.id || seen.has(item.id)) continue;
+          seen.add(item.id);
+          unique.push(item);
+        }
+
+        setXmlCandidates(unique);
+        setSelectedXmlId(unique[0]?.id || '');
+      } catch (e) {
+        console.error('Erro ao buscar XML:', e);
+      } finally {
+        setLoadingXmls(false);
+      }
+    }
+
+    loadXMLs();
+  }, [form.nf_numero]);
+
   const valorTotal = parseValorBR(form.nf_valor_total);
   const totalRateado = rateio.reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
   const diferencaRateio = Math.abs(valorTotal - totalRateado);
-  const rateioValido = dividirEntreMuseus ? diferencaRateio < 0.01 && rateio.some(r => parseFloat(r.valor) > 0) : true;
+  const rateioValido = dividirEntreMuseus
+    ? diferencaRateio < 0.01 && rateio.some((r) => parseFloat(r.valor) > 0)
+    : true;
 
   function handleRateioValor(museu, valor) {
-    setRateio(prev => prev.map(r => r.museu === museu ? { ...r, valor } : r));
+    setRateio((prev) => prev.map((r) => (r.museu === museu ? { ...r, valor } : r)));
   }
 
   function distribuirIgualmente() {
-    const museusSelecionados = rateio.filter(r => r.museu);
+    const museusSelecionados = rateio.filter((r) => r.museu);
     const valorPorMuseu = (valorTotal / museusSelecionados.length).toFixed(2);
-    setRateio(MUSEUS_RATEIO.map(m => ({ museu: m, valor: valorPorMuseu })));
+    setRateio(MUSEUS_RATEIO.map((m) => ({ museu: m, valor: valorPorMuseu })));
   }
 
   function getRateioPayload() {
     if (!dividirEntreMuseus) return null;
     return rateio
-      .filter(r => parseFloat(r.valor) > 0)
-      .map(r => ({ museu: r.museu, valor: parseFloat(r.valor) }));
+      .filter((r) => parseFloat(r.valor) > 0)
+      .map((r) => ({ museu: r.museu, valor: parseFloat(r.valor) }));
+  }
+
+  async function handleVincularXML() {
+    if (!selectedXmlId || !intake.entidade_destino_id) {
+      toast({
+        title: 'Não foi possível vincular XML',
+        description: 'O PDF ainda não possui Attachment associado.',
+        variant: 'destructive',
+        duration: 3000,
+      });
+      return;
+    }
+
+    setLinkingXml(true);
+
+    try {
+      const xml = await base44.entities.Attachment.get(selectedXmlId);
+
+      await base44.entities.Attachment.update(intake.entidade_destino_id, {
+        nf_xml_attachment_id: xml.id,
+        nf_revisado: true,
+        nf_categoria: 'nota_fiscal',
+        nf_numero: form.nf_numero,
+        nf_valor_total: valorTotal,
+        nf_data_emissao: form.nf_data_emissao,
+        nf_emitente_nome: form.nf_emitente_nome,
+        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+        nf_tipo_documento: 'pdf_nf',
+        nf_nome_renomeado: form.file_name_final,
+      });
+
+      await base44.entities.Attachment.update(xml.id, {
+        nf_pdf_attachment_id: intake.entidade_destino_id,
+        nf_revisado: true,
+        nf_categoria: 'nota_fiscal',
+        nf_numero: form.nf_numero,
+        nf_valor_total: valorTotal,
+        nf_data_emissao: form.nf_data_emissao,
+        nf_emitente_nome: form.nf_emitente_nome,
+        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+      });
+
+      toast({
+        title: 'XML vinculado ao PDF com sucesso.',
+        duration: 3000,
+      });
+
+      onSaved?.();
+    } catch (e) {
+      toast({
+        title: 'Erro ao vincular XML',
+        description: e?.message || 'Falha ao vincular XML.',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    } finally {
+      setLinkingXml(false);
+    }
   }
 
   async function handleSalvarRascunho() {
@@ -175,16 +280,21 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
     try {
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'RASCUNHO',
-        resultado_ia: { ...ia, ...form, rateio_museus: getRateioPayload(), dividir_entre_museus: dividirEntreMuseus },
+        resultado_ia: {
+          ...ia,
+          ...form,
+          rateio_museus: getRateioPayload(),
+          dividir_entre_museus: dividirEntreMuseus,
+        },
         centro_custo: form.centro_custo,
         rubrica_id_sugerida: form.rubrica_id,
         file_name_final: form.file_name_final,
         revisado_pelo_usuario: true,
       });
-      toast({ title: 'Rascunho salvo com sucesso.' });
+      toast({ title: 'Rascunho salvo com sucesso.', duration: 3000 });
       onSaved();
     } catch (e) {
-      toast({ title: 'Erro ao salvar rascunho', description: e.message, variant: 'destructive' });
+      toast({ title: 'Erro ao salvar rascunho', description: e.message, variant: 'destructive', duration: 3000 });
     } finally {
       setSaving(false);
     }
@@ -193,45 +303,37 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
   async function atualizarRubrica(rubricaId, valorDebito) {
     const rubrica = await base44.entities.Rubrica.get(rubricaId);
     if (!rubrica) return;
-    
-    // Usa valor_total primeiro, depois valor_rubrica como fallback
-    const valorTotal = rubrica.valor_total || rubrica.valor_rubrica || 0;
+
+    const valorBase = rubrica.valor_total || rubrica.valor_rubrica || 0;
     const utilizado = (rubrica.valor_utilizado || 0) + valorDebito;
     const comprometido = rubrica.saldo_comprometido || 0;
-    const saldo = valorTotal - utilizado - comprometido;
-    const percentual = valorTotal > 0 ? (utilizado / valorTotal) * 100 : 0;
-    
+    const saldo = valorBase - utilizado - comprometido;
+    const percentual = valorBase > 0 ? (utilizado / valorBase) * 100 : 0;
+
     await base44.entities.Rubrica.update(rubricaId, {
       valor_utilizado: utilizado,
       saldo_comprometido: comprometido,
-      saldo: saldo,
+      saldo,
       percentual_utilizado: percentual,
     });
   }
 
   async function debitarRubricas(rateioPayload) {
-    // Agrupa débitos por rubrica_id para evitar escritas concorrentes
     const debitosPorRubrica = {};
 
     for (const item of rateioPayload) {
-      // Busca se existe uma RubricaMuseuConfig específica para este museu
       const configs = await base44.entities.RubricaMuseuConfig.filter({
         rubrica_id: form.rubrica_id,
         museu: item.museu,
       });
 
-      // Usa a rubrica_id da config (sempre igual a form.rubrica_id neste caso)
-      // mas respeita o divisor se configurado
-      const rubricaAlvo = (configs && configs.length > 0)
-        ? configs[0].rubrica_id
-        : form.rubrica_id;
-
+      const rubricaAlvo = configs && configs.length > 0 ? configs[0].rubrica_id : form.rubrica_id;
       debitosPorRubrica[rubricaAlvo] = (debitosPorRubrica[rubricaAlvo] || 0) + item.valor;
     }
 
-    for (const [rubricaId, valorTotal] of Object.entries(debitosPorRubrica)) {
+    for (const [rubricaId, valorDebito] of Object.entries(debitosPorRubrica)) {
       try {
-        await atualizarRubrica(rubricaId, valorTotal);
+        await atualizarRubrica(rubricaId, valorDebito);
       } catch (e) {
         console.error(`Erro ao debitar rubrica ${rubricaId}:`, e);
       }
@@ -239,23 +341,8 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
   }
 
   async function debitarRubricaSimples(valor) {
-    // Sem rateio: debita o valor total na rubrica selecionada
     try {
-      const rubrica = await base44.entities.Rubrica.get(form.rubrica_id);
-      if (rubrica) {
-        const valorTotal = rubrica.valor_total || rubrica.valor_rubrica || 0;
-        const utilizado = (rubrica.valor_utilizado || 0) + valor;
-        const comprometido = rubrica.saldo_comprometido || 0;
-        const saldo = valorTotal - utilizado - comprometido;
-        const percentual = valorTotal > 0 ? (utilizado / valorTotal) * 100 : 0;
-        
-        await base44.entities.Rubrica.update(rubrica.id, {
-          valor_utilizado: utilizado,
-          saldo_comprometido: comprometido,
-          saldo: saldo,
-          percentual_utilizado: percentual,
-        });
-      }
+      await atualizarRubrica(form.rubrica_id, valor);
     } catch (e) {
       console.error('Erro ao debitar rubrica:', e);
     }
@@ -268,10 +355,10 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'DELETADO',
       });
-      toast({ title: 'Documento deletado com sucesso.' });
+      toast({ title: 'Documento deletado com sucesso.', duration: 3000 });
       onSaved();
     } catch (e) {
-      toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
+      toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive', duration: 3000 });
     } finally {
       setDeleting(false);
     }
@@ -286,10 +373,10 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
         erros_validacao: [],
         revisado_pelo_usuario: false,
       });
-      toast({ title: 'Documento enviado para reprocessamento.' });
+      toast({ title: 'Documento enviado para reprocessamento.', duration: 3000 });
       onSaved();
     } catch (e) {
-      toast({ title: 'Erro ao rereprocessar', description: e.message, variant: 'destructive' });
+      toast({ title: 'Erro ao rereprocessar', description: e.message, variant: 'destructive', duration: 3000 });
     } finally {
       setReprocessing(false);
     }
@@ -297,30 +384,34 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
 
   async function handleAprovacaoDireta() {
     if (!form.meta_id) {
-      toast({ title: 'Selecione a meta antes de aprovar.', variant: 'destructive' });
+      toast({ title: 'Selecione a meta antes de aprovar.', variant: 'destructive', duration: 3000 });
       return;
     }
     if (!form.categoria) {
-      toast({ title: 'Selecione a categoria antes de aprovar.', variant: 'destructive' });
+      toast({ title: 'Selecione a categoria antes de aprovar.', variant: 'destructive', duration: 3000 });
       return;
     }
     if (!form.budgetline_id) {
-      toast({ title: 'Selecione a linha orçamentária antes de aprovar.', variant: 'destructive' });
+      toast({ title: 'Selecione a linha orçamentária antes de aprovar.', variant: 'destructive', duration: 3000 });
       return;
     }
     if (!form.centro_custo && !dividirEntreMuseus) {
-      toast({ title: 'Selecione o centro de custo antes de aprovar.', variant: 'destructive' });
+      toast({ title: 'Selecione o centro de custo antes de aprovar.', variant: 'destructive', duration: 3000 });
       return;
     }
     if (dividirEntreMuseus && !rateioValido) {
-      toast({ title: `A soma do rateio (R$ ${totalRateado.toFixed(2)}) deve ser igual ao valor total (R$ ${valorTotal.toFixed(2)}).`, variant: 'destructive' });
+      toast({
+        title: `A soma do rateio (R$ ${totalRateado.toFixed(2)}) deve ser igual ao valor total (R$ ${valorTotal.toFixed(2)}).`,
+        variant: 'destructive',
+        duration: 3000,
+      });
       return;
     }
 
     setApprovingDirect(true);
     try {
       const rateioPayload = getRateioPayload();
-      
+
       const pr = await base44.entities.PurchaseRequest.create({
         descricao_item: form.descricao_servico || form.nf_emitente_nome,
         fornecedor_nome: form.nf_emitente_nome,
@@ -341,7 +432,7 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
         file_name: form.file_name_final,
         file_type: intake.mime_type,
         file_url: intake.arquivo_original_url,
-        description: `Entrada Única - Nota Fiscal`,
+        description: 'Entrada Única - Nota Fiscal',
         nf_categoria: 'nota_fiscal',
         nf_numero: form.nf_numero,
         nf_valor_total: valorTotal,
@@ -362,7 +453,12 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
         centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
         rubrica_id_sugerida: form.rubrica_id,
         file_name_final: form.file_name_final,
-        resultado_ia: { ...ia, ...form, rateio_museus: rateioPayload, dividir_entre_museus: dividirEntreMuseus },
+        resultado_ia: {
+          ...ia,
+          ...form,
+          rateio_museus: rateioPayload,
+          dividir_entre_museus: dividirEntreMuseus,
+        },
         revisado_pelo_usuario: true,
       });
 
@@ -379,7 +475,7 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
           categoriaIdentificada: form.categoria,
           nfNumero: form.nf_numero,
           valor: valorTotal,
-          rubricaSugerida: form.rubrica_id ? (rubricas.find(r => r.id === form.rubrica_id)?.rubrica || form.rubrica_id) : null,
+          rubricaSugerida: form.rubrica_id ? (rubricas.find((r) => r.id === form.rubrica_id)?.rubrica || form.rubrica_id) : null,
           centroCusto: dividirEntreMuseus ? 'Rateado entre museus' : form.centro_custo,
           nomeArquivo: form.file_name_final,
           aprovadoPeloCoordenador: true,
@@ -388,10 +484,14 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
         console.error('Erro ao notificar:', e);
       }
 
-      toast({ title: '✅ Documento aprovado direto pela coordenação.', description: 'Notificação enviada.' });
+      toast({
+        title: '✅ Documento aprovado direto pela coordenação.',
+        description: 'Notificação enviada.',
+        duration: 3000,
+      });
       onSaved();
     } catch (e) {
-      toast({ title: 'Erro ao aprovar', description: e.message, variant: 'destructive' });
+      toast({ title: 'Erro ao aprovar', description: e.message, variant: 'destructive', duration: 3000 });
     } finally {
       setApprovingDirect(false);
     }
@@ -400,31 +500,33 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
   async function handleEnviarAprovacao(forcarEnvio = false) {
     if (!forcarEnvio) {
       if (!form.meta_id) {
-        toast({ title: 'Selecione a meta antes de enviar.', variant: 'destructive' });
+        toast({ title: 'Selecione a meta antes de enviar.', variant: 'destructive', duration: 3000 });
         return;
       }
       if (!form.categoria) {
-        toast({ title: 'Selecione a categoria antes de enviar.', variant: 'destructive' });
+        toast({ title: 'Selecione a categoria antes de enviar.', variant: 'destructive', duration: 3000 });
         return;
       }
       if (!form.budgetline_id) {
-        toast({ title: 'Selecione a linha orçamentária antes de enviar.', variant: 'destructive' });
+        toast({ title: 'Selecione a linha orçamentária antes de enviar.', variant: 'destructive', duration: 3000 });
         return;
       }
       if (!form.centro_custo && !dividirEntreMuseus) {
-        toast({ title: 'Selecione o centro de custo antes de enviar.', variant: 'destructive' });
+        toast({ title: 'Selecione o centro de custo antes de enviar.', variant: 'destructive', duration: 3000 });
         return;
       }
       if (dividirEntreMuseus && !rateioValido) {
-        toast({ title: `A soma do rateio (R$ ${totalRateado.toFixed(2)}) deve ser igual ao valor total (R$ ${valorTotal.toFixed(2)}).`, variant: 'destructive' });
+        toast({
+          title: `A soma do rateio (R$ ${totalRateado.toFixed(2)}) deve ser igual ao valor total (R$ ${valorTotal.toFixed(2)}).`,
+          variant: 'destructive',
+          duration: 3000,
+        });
         return;
       }
     }
 
     setSending(true);
     try {
-      const rateioPayload = getRateioPayload();
-
       const pr = await base44.entities.PurchaseRequest.create({
         descricao_item: form.descricao_servico || form.nf_emitente_nome,
         fornecedor_nome: form.nf_emitente_nome,
@@ -445,7 +547,7 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
         file_name: form.file_name_final,
         file_type: intake.mime_type,
         file_url: intake.arquivo_original_url,
-        description: `Entrada Única - Nota Fiscal`,
+        description: 'Entrada Única - Nota Fiscal',
         nf_categoria: 'nota_fiscal',
         nf_numero: form.nf_numero,
         nf_valor_total: valorTotal,
@@ -468,14 +570,28 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
       toast({
         title: 'Enviado com sucesso',
         description: 'Documento enviado para aprovação.',
+        duration: 3000,
       });
       onSaved();
     } catch (e) {
-      toast({ title: 'Erro ao enviar', description: e.message, variant: 'destructive' });
+      toast({ title: 'Erro ao enviar', description: e.message, variant: 'destructive', duration: 3000 });
     } finally {
       setSending(false);
     }
   }
+
+  const errosFiltrados = (intake.erros_validacao || []).filter((e) => {
+    const txt = String(e).toLowerCase();
+    if (txt.includes('futura') || txt.includes('future')) {
+      const match = txt.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if (match) {
+        const hoje = new Date();
+        const dataDoc = new Date(`${match[3]}-${match[2]}-${match[1]}`);
+        if (dataDoc <= hoje) return false;
+      }
+    }
+    return true;
+  });
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -496,13 +612,11 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Status IA */}
           <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm text-blue-700">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
             Documento analisado pela IA. Campos preenchidos automaticamente.
           </div>
 
-          {/* Justificativa da Classificação */}
           {ia.classificacao_justificativa && (
             <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700">
               <p className="font-medium mb-1">💡 Motivo da Classificação IA:</p>
@@ -510,81 +624,72 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
             </div>
           )}
 
-          {/* Inconsistências — remove falsos positivos de "data futura" */}
-          {(() => {
-            const hoje = new Date();
-            const errosFiltrados = (intake.erros_validacao || []).filter(e => {
-              const txt = String(e).toLowerCase();
-              if (txt.includes('futura') || txt.includes('future')) {
-                const match = txt.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-                if (match) {
-                  const dataDoc = new Date(`${match[3]}-${match[2]}-${match[1]}`);
-                  if (dataDoc <= hoje) return false;
-                }
-              }
-              return true;
-            });
-            return errosFiltrados.length > 0 ? (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-1">
-                <p className="font-medium flex items-center gap-1"><AlertCircle className="w-4 h-4" /> Inconsistências detectadas:</p>
-                {errosFiltrados.map((e, i) => <p key={i}>• {e}</p>)}
-              </div>
-            ) : null;
-          })()}
+          {errosFiltrados.length > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-1">
+              <p className="font-medium flex items-center gap-1">
+                <AlertCircle className="w-4 h-4" /> Inconsistências detectadas:
+              </p>
+              {errosFiltrados.map((e, i) => (
+                <p key={i}>• {e}</p>
+              ))}
+            </div>
+          )}
 
-          {/* Nome do arquivo */}
           <div className="space-y-1">
             <Label>Nome padronizado do arquivo</Label>
-            <Input value={form.file_name_final} onChange={e => setForm(f => ({ ...f, file_name_final: e.target.value }))} />
+            <Input value={form.file_name_final} onChange={(e) => setForm((f) => ({ ...f, file_name_final: e.target.value }))} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Número da NF</Label>
-              <Input value={form.nf_numero} onChange={e => setForm(f => ({ ...f, nf_numero: e.target.value }))} />
+              <Input value={form.nf_numero} onChange={(e) => setForm((f) => ({ ...f, nf_numero: e.target.value }))} />
             </div>
             <div className="space-y-1">
               <Label>Valor Total (R$)</Label>
-              <Input value={form.nf_valor_total} onChange={e => setForm(f => ({ ...f, nf_valor_total: e.target.value }))} />
+              <Input value={form.nf_valor_total} onChange={(e) => setForm((f) => ({ ...f, nf_valor_total: e.target.value }))} />
             </div>
             <div className="space-y-1">
               <Label>Data de Emissão</Label>
-              <Input type="date" value={form.nf_data_emissao} onChange={e => setForm(f => ({ ...f, nf_data_emissao: e.target.value }))} />
+              <Input type="date" value={form.nf_data_emissao} onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))} />
             </div>
             <div className="space-y-1">
               <Label>Competência</Label>
-              <Input value={form.competencia} onChange={e => setForm(f => ({ ...f, competencia: e.target.value }))} placeholder="Ex: Março/2026" />
+              <Input value={form.competencia} onChange={(e) => setForm((f) => ({ ...f, competencia: e.target.value }))} placeholder="Ex: Março/2026" />
             </div>
           </div>
 
           <div className="space-y-1">
             <Label>Fornecedor / Emitente</Label>
-            <Input value={form.nf_emitente_nome} onChange={e => setForm(f => ({ ...f, nf_emitente_nome: e.target.value }))} />
+            <Input value={form.nf_emitente_nome} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>CNPJ / CPF do Emitente</Label>
-              <Input value={form.nf_emitente_cpf_cnpj} onChange={e => setForm(f => ({ ...f, nf_emitente_cpf_cnpj: e.target.value }))} />
+              <Input value={form.nf_emitente_cpf_cnpj} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_cpf_cnpj: e.target.value }))} />
             </div>
             <div className="space-y-1">
               <Label>Município</Label>
-              <Input value={form.municipio} onChange={e => setForm(f => ({ ...f, municipio: e.target.value }))} />
+              <Input value={form.municipio} onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))} />
             </div>
           </div>
 
           <div className="space-y-1">
             <Label>Descrição do Serviço / Item</Label>
-            <Input value={form.descricao_servico} onChange={e => setForm(f => ({ ...f, descricao_servico: e.target.value }))} />
+            <Input value={form.descricao_servico} onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))} />
           </div>
 
-          {/* Meta ID */}
           <div className="space-y-1">
-            <Label>Meta do 3º Aditivo <span className="text-red-500">*</span></Label>
-            <Select value={form.meta_id} onValueChange={v => setForm(f => ({ ...f, meta_id: v }))}>
-              <SelectTrigger><SelectValue placeholder="Selecionar meta" /></SelectTrigger>
+            <Label>
+              Meta do 3º Aditivo <span className="text-red-500">*</span>
+            </Label>
+            <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar meta" />
+              </SelectTrigger>
               <SelectContent>
-                {metas.map(m => (
+                {metas.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
                     {m.nome}
                   </SelectItem>
@@ -593,24 +698,43 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
             </Select>
           </div>
 
-          {/* Categoria */}
           <div className="space-y-1">
-            <Label>Categoria <span className="text-red-500">*</span></Label>
-            <Select value={form.categoria} onValueChange={v => setForm(f => ({ ...f, categoria: v }))}>
-              <SelectTrigger><SelectValue placeholder="Selecionar categoria" /></SelectTrigger>
+            <Label>
+              Categoria <span className="text-red-500">*</span>
+            </Label>
+            <Select value={form.categoria} onValueChange={(v) => setForm((f) => ({ ...f, categoria: v }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar categoria" />
+              </SelectTrigger>
               <SelectContent>
-                {['Serviços (equipe/coordenação)', 'Serviços (comunicação: designer, foto, vídeo, imprensa, redes)', 'Serviços (produção/infraestrutura/expografia)', 'Serviços (eventos/atrações/artistas)', 'Serviços (segurança/limpeza)', 'Logística (transporte/vans)', 'Alimentação (lanche/café/coffeebreak)', 'Consultoria / Formação / Acessibilidade', 'Materiais de consumo', 'Outros'].map(c => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                {[
+                  'Serviços (equipe/coordenação)',
+                  'Serviços (comunicação: designer, foto, vídeo, imprensa, redes)',
+                  'Serviços (produção/infraestrutura/expografia)',
+                  'Serviços (eventos/atrações/artistas)',
+                  'Serviços (segurança/limpeza)',
+                  'Logística (transporte/vans)',
+                  'Alimentação (lanche/café/coffeebreak)',
+                  'Consultoria / Formação / Acessibilidade',
+                  'Materiais de consumo',
+                  'Outros',
+                ].map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Tipo de Gasto */}
           <div className="space-y-1">
-            <Label>Tipo de Gasto <span className="text-red-500">*</span></Label>
-            <Select value={form.tipo_gasto} onValueChange={v => setForm(f => ({ ...f, tipo_gasto: v }))}>
-              <SelectTrigger><SelectValue placeholder="Selecionar tipo" /></SelectTrigger>
+            <Label>
+              Tipo de Gasto <span className="text-red-500">*</span>
+            </Label>
+            <Select value={form.tipo_gasto} onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar tipo" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Produto">Produto</SelectItem>
                 <SelectItem value="Serviço">Serviço</SelectItem>
@@ -618,13 +742,16 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
             </Select>
           </div>
 
-          {/* Rubrica */}
           <div className="space-y-1">
-            <Label>Rubrica Orçamentária <span className="text-red-500">*</span></Label>
-            <Select value={form.budgetline_id} onValueChange={v => setForm(f => ({ ...f, budgetline_id: v }))}>
-              <SelectTrigger><SelectValue placeholder="Selecionar linha orçamentária" /></SelectTrigger>
+            <Label>
+              Rubrica Orçamentária <span className="text-red-500">*</span>
+            </Label>
+            <Select value={form.budgetline_id} onValueChange={(v) => setForm((f) => ({ ...f, budgetline_id: v }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar linha orçamentária" />
+              </SelectTrigger>
               <SelectContent>
-                {budgetLines.map(b => (
+                {budgetLines.map((b) => (
                   <SelectItem key={b.id} value={b.id}>
                     {b.nome || b.descricao}
                   </SelectItem>
@@ -633,95 +760,120 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
             </Select>
           </div>
 
+          {loadingXmls && (
+            <div className="border border-slate-200 rounded-xl p-3 text-sm text-slate-500 flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Buscando XMLs correspondentes...
+            </div>
+          )}
 
+          {!loadingXmls && xmlCandidates.length > 0 && (
+            <div className="border border-slate-200 rounded-xl p-3 space-y-2 bg-slate-50">
+              <p className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                <LinkIcon className="w-4 h-4" />
+                Vincular XML existente a este PDF
+              </p>
 
-          {/* ─── RATEAMENTO ─── */}
-          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <SplitSquareHorizontal className="w-4 h-4 text-slate-500" />
-                <span className="text-sm font-medium text-slate-700">Rateamento da Rubrica</span>
+              <div className="space-y-2 max-h-40 overflow-auto">
+                {xmlCandidates.map((xml) => (
+                  <button
+                    key={xml.id}
+                    type="button"
+                    onClick={() => setSelectedXmlId(xml.id)}
+                    className={`w-full text-left p-2 rounded border text-sm ${
+                      selectedXmlId === xml.id
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <p className="font-medium truncate">{xml.file_name || xml.nf_nome_original || 'XML sem nome'}</p>
+                    <p className="text-xs text-slate-500 truncate">
+                      {xml.nf_numero ? `NF ${xml.nf_numero}` : 'XML candidato'}
+                      {xml.nf_emitente_nome ? ` — ${xml.nf_emitente_nome}` : ''}
+                    </p>
+                  </button>
+                ))}
               </div>
+
+              <Button
+                type="button"
+                onClick={handleVincularXML}
+                disabled={!selectedXmlId || linkingXml}
+                className="w-full"
+              >
+                {linkingXml ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <LinkIcon className="w-4 h-4 mr-2" />}
+                Vincular XML ao PDF
+              </Button>
+            </div>
+          )}
+
+          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
+            <div className="flex items-center gap-2">
+              <SplitSquareHorizontal className="w-4 h-4 text-slate-500" />
+              <span className="text-sm font-medium text-slate-700">Rateamento da Rubrica</span>
             </div>
 
-            {/* Opção: Geral ou dividido */}
             <div className="flex flex-col gap-2 text-sm">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="rateio_tipo"
-                  checked={!dividirEntreMuseus}
-                  onChange={() => setDividirEntreMuseus(false)}
-                  className="accent-slate-700"
-                />
+                <input type="radio" name="rateio_tipo" checked={!dividirEntreMuseus} onChange={() => setDividirEntreMuseus(false)} className="accent-slate-700" />
                 <span className="text-slate-700">Pago pela verba geral (sem rateio entre museus)</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="rateio_tipo"
-                  checked={dividirEntreMuseus}
-                  onChange={() => setDividirEntreMuseus(true)}
-                  className="accent-slate-700"
-                />
+                <input type="radio" name="rateio_tipo" checked={dividirEntreMuseus} onChange={() => setDividirEntreMuseus(true)} className="accent-slate-700" />
                 <span className="text-slate-700">Dividir entre museus</span>
               </label>
             </div>
 
-            {/* Se não dividir: centro de custo simples */}
             {!dividirEntreMuseus && (
               <div className="space-y-1">
-                <Label>Centro de Custo <span className="text-red-500">*</span></Label>
-                <Select value={form.centro_custo} onValueChange={v => setForm(f => ({ ...f, centro_custo: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
+                <Label>
+                  Centro de Custo <span className="text-red-500">*</span>
+                </Label>
+                <Select value={form.centro_custo} onValueChange={(v) => setForm((f) => ({ ...f, centro_custo: v }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {CENTROS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {CENTROS.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
 
-            {/* Se dividir: tabela de rateio */}
             {dividirEntreMuseus && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs text-slate-500">Informe o valor de cada museu. A soma deve ser igual ao valor total da NF.</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={distribuirIgualmente}
-                    className="text-xs h-7"
-                  >
+                  <p className="text-xs text-slate-500">
+                    Informe o valor de cada museu. A soma deve ser igual ao valor total da NF.
+                  </p>
+                  <Button type="button" variant="outline" size="sm" onClick={distribuirIgualmente} className="text-xs h-7">
                     Dividir igualmente
                   </Button>
                 </div>
 
                 <div className="space-y-2">
-                  {rateio.map(r => (
+                  {rateio.map((r) => (
                     <div key={r.museu} className="flex items-center gap-3">
                       <span className="w-16 text-sm font-medium text-slate-700 flex-shrink-0">{r.museu}</span>
                       <div className="flex-1 relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">R$</span>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="0,00"
-                          value={r.valor}
-                          onChange={e => handleRateioValor(r.museu, e.target.value)}
-                          className="pl-9"
-                        />
+                        <Input type="number" min="0" step="0.01" placeholder="0,00" value={r.valor} onChange={(e) => handleRateioValor(r.museu, e.target.value)} className="pl-9" />
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Totalizador */}
                 <div className={`flex justify-between items-center text-sm font-medium px-1 py-2 rounded-lg border ${rateioValido ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
                   <span>Total rateado:</span>
-                  <span>R$ {totalRateado.toFixed(2)} {valorTotal > 0 && `/ R$ ${valorTotal.toFixed(2)}`}</span>
+                  <span>
+                    R$ {totalRateado.toFixed(2)} {valorTotal > 0 && `/ R$ ${valorTotal.toFixed(2)}`}
+                  </span>
                 </div>
+
                 {!rateioValido && valorTotal > 0 && (
                   <p className="text-xs text-red-500 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
@@ -732,16 +884,11 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
             )}
           </div>
 
-          {/* Aviso financeiro */}
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
             ⚡ Ao enviar, o valor será debitado imediatamente da(s) rubrica(s) correspondente(s), atualizando o valor realizado e o saldo disponível.
           </div>
 
-          {/* Alertas de problemas */}
-          {(intake.erros_validacao || []).filter(e => {
-            const txt = String(e).toLowerCase();
-            return !(txt.includes('futura') || txt.includes('future'));
-          }).length > 0 && (
+          {errosFiltrados.length > 0 && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 space-y-2">
               <p className="font-medium">⚠️ Este documento tem inconsistências. Você pode:</p>
               <ul className="list-disc list-inside space-y-1">
@@ -753,12 +900,15 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
           )}
 
           <div className="flex justify-end gap-2 pt-2 flex-wrap">
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
 
             <Button variant="destructive" size="sm" onClick={handleDeletarDocumento} disabled={deleting || saving || sending}>
               {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Trash2 className="w-4 h-4 mr-1" />}
               Deletar
             </Button>
+
             <Button variant="outline" size="sm" onClick={handleRereprocessar} disabled={reprocessing || saving || sending}>
               {reprocessing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <RefreshCw className="w-4 h-4 mr-1" />}
               Rereprocessar
