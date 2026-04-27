@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSmartToast } from '@/lib/useSmartToast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -371,6 +372,7 @@ function TabelaSolicitacoes({
 }
 
 function ComprasInner() {
+  const smartToast = useSmartToast();
   const [currentUser, setCurrentUser] = useState(null);
   const [tab, setTab] = useState('lista');
   const [showForm, setShowForm] = useState(false);
@@ -939,14 +941,15 @@ function ComprasInner() {
                   setShowForm(true);
                 }}
                 onDelete={async (purchaseId) => {
-                  try {
-                    await base44.entities.PurchaseRequest.delete(purchaseId);
-                    await invalidateComprasQueries();
-                  } catch (error) {
-                    console.error('Erro ao deletar solicitação:', error);
-                    alert('Erro ao deletar solicitação');
-                  }
-                }}
+                   try {
+                     await base44.entities.PurchaseRequest.delete(purchaseId);
+                     await invalidateComprasQueries();
+                     smartToast.success('Solicitação deletada.');
+                   } catch (error) {
+                     console.error('Erro ao deletar solicitação:', error);
+                     smartToast.error('Erro ao deletar', error.message);
+                   }
+                 }}
               />
             )}
           </div>

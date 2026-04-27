@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useToast } from '@/components/ui/use-toast';
+import { useSmartToast } from '@/lib/useSmartToast';
 import { Button } from '@/components/ui/button';
 import { Loader2, Inbox, RefreshCw, Activity } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,7 +21,7 @@ const COORD_EMAILS = [
 
 
 export default function EntradaUnica() {
-  const { toast } = useToast();
+  const smartToast = useSmartToast();
   const [user, setUser] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [intakes, setIntakes] = useState([]);
@@ -109,11 +109,10 @@ export default function EntradaUnica() {
       }
 
       // PASSO 3: Confirma ao usuário que está salvo
-      toast({
-        title: `${files.length > 1 ? `${files.length} documentos recebidos` : 'Documento recebido'} e salvo com sucesso.`,
-        description: 'Iniciando análise pela IA. O arquivo está seguro mesmo que a análise falhe.',
-        duration: 3000
-      });
+      smartToast.success(
+        `${files.length > 1 ? `${files.length} documentos recebidos` : 'Documento recebido'} e salvo.`,
+        'Iniciando análise pela IA...'
+      );
 
       // PASSO 4: Dispara análise da IA em background (não bloqueia, não perde dados)
       for (const { intake, attachmentId } of createdIntakes) {
@@ -134,7 +133,7 @@ export default function EntradaUnica() {
       }
 
     } catch (e) {
-      toast({ title: 'Erro no upload', description: e.message, variant: 'destructive' });
+      smartToast.error('Erro no upload', e.message);
     } finally {
       setUploading(false);
     }
@@ -151,10 +150,7 @@ export default function EntradaUnica() {
   function handleSaved() {
     setReviewIntake(null);
     loadIntakes();
-    toast({ 
-      title: 'Salvo com sucesso.',
-      duration: 10000
-    });
+    smartToast.success('Salvo com sucesso.');
   }
 
   function handleReclassified(novoTipo) {
