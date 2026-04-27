@@ -11,11 +11,12 @@ import EquipeManager from '../components/admin/EquipeManager';
 import UserPermissionsManager from '../components/admin/UserPermissionsManager';
 import AuditSystemPanel from '../components/admin/AuditSystemPanel';
 import HardeningPanel from '../components/admin/HardeningPanel';
+import { useState } from 'react';
 import {
   Users, FileText, History, Settings,
   CheckCircle, ChevronRight,
   AlertTriangle, Download, Database, Building2, Users2,
-  BookOpen
+  BookOpen, RotateCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -52,6 +53,8 @@ function PlataformaAdminInner() {
   const queryClient = useQueryClient();
   const { user: currentUser } = useCurrentUser();
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [restoringMembers, setRestoringMembers] = useState(false);
+  const [restoreResult, setRestoreResult] = useState(null);
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
@@ -72,6 +75,21 @@ function PlataformaAdminInner() {
     mutationFn: (id) => base44.entities.Report.update(id, { status: 'ARCHIVED' }),
     onSuccess: () => queryClient.invalidateQueries(['reports']),
   });
+
+  const handleRestoreInactiveMembers = async () => {
+    setRestoringMembers(true);
+    try {
+      const res = await base44.functions.invoke('restoreInactiveTeamMembers', {});
+      setRestoreResult(res.data);
+      await queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      toastMessages.success(res.data?.message || 'Membros restaurados com sucesso');
+    } catch (error) {
+      console.error('Erro:', error);
+      toastMessages.error(error?.message || 'Erro ao restaurar membros');
+    } finally {
+      setRestoringMembers(false);
+    }
+  };
 
   const totalUsers = users.length;
   const totalReports = reports.length;
@@ -107,6 +125,7 @@ function PlataformaAdminInner() {
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
           <TabsTrigger value="museus">Museus</TabsTrigger>
           <TabsTrigger value="equipes">Equipes</TabsTrigger>
+          <TabsTrigger value="membros">👥 Membros</TabsTrigger>
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
           <TabsTrigger value="auditoria">📊 Auditoria</TabsTrigger>
           <TabsTrigger value="hardening">🔒 Hardening</TabsTrigger>
@@ -123,6 +142,59 @@ function PlataformaAdminInner() {
 
         <TabsContent value="equipes">
           <EquipeManager />
+        </TabsContent>
+
+        <TabsContent value="membros">
+          <div className="border-2 border-black rounded-lg p-6 bg-white">
+            <h2 className="text-lg font-bold text-black mb-4">Restaurar Membros Inativos</h2>
+            <p className="text-sm text-gray-700 mb-6">
+              Clique abaixo para restaurar automaticamente todos os membros de equipe com status inativo ou suspenso.
+            </p>
+            
+            <Button
+              onClick={handleRestoreInactiveMembers}
+              disabled={restoringMembers}
+              className="bg-black text-white hover:bg-gray-900 gap-2"
+            >
+              {restoringMembers ? (
+                <>
+                  <RotateCw className="w-4 h-4 animate-spin" />
+                  Restaurando...
+                </>
+              ) : (
+                <>
+                  <RotateCw className="w-4 h-4" />
+                  Restaurar Agora
+                </>
+              )}
+            </Button>
+
+            {restoreResult && (
+              <div className="mt-6 p-4 border-2 border-black rounded-lg bg-white">
+                <p className="font-semibold text-black mb-2">{restoreResult.message}</p>
+                {restoreResult.restored && restoreResult.restored.length > 0 && (
+                  <div className="text-sm text-gray-700">
+                    <p className="font-medium mb-2">✅ Restaurados:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      {restoreResult.restored.map((m) => (
+                        <li key={m.id}>{m.name} (era {m.previousStatus})</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {restoreResult.errors && restoreResult.errors.length > 0 && (
+                  <div className="text-sm text-red-700 mt-3">
+                    <p className="font-medium mb-2">❌ Erros:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      {restoreResult.errors.map((e) => (
+                        <li key={e.id}>{e.name}: {e.error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="metadados">
