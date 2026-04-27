@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
-import { Loader2, Inbox, RefreshCw, Activity } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, Activity, Trash2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DocumentUploadZone from '@/components/entrada/DocumentUploadZone';
 import DocumentIntakeCard from '@/components/entrada/DocumentIntakeCard';
@@ -25,6 +25,7 @@ export default function EntradaUnica() {
   const [intakes, setIntakes] = useState([]);
   const [loadingIntakes, setLoadingIntakes] = useState(true);
   const [reviewIntake, setReviewIntake] = useState(null);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -162,6 +163,42 @@ export default function EntradaUnica() {
     });
   }
 
+  async function handleDeleteAll() {
+    if (!window.confirm('⚠️ Isto vai deletar TODOS os arquivos (aprovados, protegidos, etc). Tem certeza?')) return;
+    if (!window.confirm('Confirme novamente: deletar todos os arquivos?')) return;
+
+    setDeletingAll(true);
+    try {
+      // Busca TODOS (sem filtro de status_registro)
+      const allIntakes = await base44.entities.DocumentIntake.filter(
+        { user_email: user.email },
+        '-created_date',
+        500
+      );
+
+      // Deleta cada intake e seu attachment
+      for (const intake of allIntakes) {
+        try {
+          if (intake.entidade_destino_id) {
+            await base44.entities.Attachment.delete(intake.entidade_destino_id);
+          }
+          await base44.entities.DocumentIntake.update(intake.id, {
+            status_registro: 'REMOVIDO'
+          });
+        } catch (e) {
+          console.warn('Erro ao deletar intake:', e.message);
+        }
+      }
+
+      setIntakes([]);
+      toast({ title: '✅ Todos os arquivos foram removidos.' });
+    } catch (e) {
+      toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
+    } finally {
+      setDeletingAll(false);
+    }
+  }
+
   const modalTipo = reviewIntake?.tipo_detectado;
   const isNF = modalTipo === 'NOTA_FISCAL_PDF' || modalTipo === 'NOTA_FISCAL_XML';
   const isFoto = modalTipo === 'FOTO_ATIVIDADE';
@@ -207,9 +244,23 @@ export default function EntradaUnica() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-base font-semibold text-slate-700">Documentos Enviados</h2>
-                <Button variant="ghost" size="sm" onClick={loadIntakes} disabled={loadingIntakes}>
-                  <RefreshCw className={`w-4 h-4 ${loadingIntakes ? 'animate-spin' : ''}`} />
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={loadIntakes} disabled={loadingIntakes}>
+                    <RefreshCw className={`w-4 h-4 ${loadingIntakes ? 'animate-spin' : ''}`} />
+                  </Button>
+                  {intakes.length > 0 && (
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      onClick={handleDeleteAll}
+                      disabled={deletingAll}
+                      className="text-xs"
+                    >
+                      {deletingAll ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Trash2 className="w-4 h-4 mr-1" />}
+                      Limpar tudo
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {loadingIntakes && intakes.length === 0 ?
