@@ -8,6 +8,12 @@ import DocumentIntakeCard from '@/components/entrada/DocumentIntakeCard';
 import ReviewModalNF from '@/components/entrada/ReviewModalNF';
 import ReviewModalFoto from '@/components/entrada/ReviewModalFoto';
 import ReviewModalOutro from '@/components/entrada/ReviewModalOutro';
+import CoordBulkImportPanel from '@/components/entrada/CoordBulkImportPanel';
+
+const COORD_EMAILS = [
+  'danielperini.mc@viadutodasartes.org.br',
+  'danie@periniprojetos.com.br',
+];
 
 export default function EntradaUnica() {
   const { toast } = useToast();
@@ -160,6 +166,11 @@ export default function EntradaUnica() {
           Envie qualquer documento. A IA identifica o tipo e direciona automaticamente para o banco correto.
         </p>
       </div>
+
+      {/* Painel coordenador — visível apenas para e-mails autorizados */}
+      {user && COORD_EMAILS.includes((user.email || '').toLowerCase().trim()) && (
+        <CoordBulkImportPanel />
+      )}
 
       {/* Zona de upload */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
