@@ -663,25 +663,7 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
             </Select>
           </div>
 
-          {/* Rubrica Direta (alternativa) */}
-          <div className="space-y-1">
-            <Label>Rubrica Direta (opcional)</Label>
-            <Select value={form.rubrica_id} onValueChange={v => setForm(f => ({ ...f, rubrica_id: v }))}>
-              <SelectTrigger><SelectValue placeholder="Selecionar rubrica" /></SelectTrigger>
-              <SelectContent>
-                {rubricas.map(r => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {r.rubrica || r.nome || r.descricao}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {intake.rubrica_justificativa && (
-              <p className="text-xs text-slate-500 italic mt-1">
-                💡 Sugestão IA: {intake.rubrica_justificativa}
-              </p>
-            )}
-          </div>
+
 
           {/* ─── RATEAMENTO ─── */}
           <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
