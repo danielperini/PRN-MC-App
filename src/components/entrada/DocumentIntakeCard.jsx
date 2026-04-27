@@ -137,13 +137,13 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted }) {
           throw e;
         }
       }
-      toast({ title: 'Arquivo deletado permanentemente.' });
+      toast({ title: 'Arquivo deletado permanentemente.', duration: 3000 });
       // Notifica pai para remover o card da lista
       if (onDeleted) {
         onDeleted(intake.id);
       }
     } catch (e) {
-      toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
+      toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive', duration: 3000 });
     } finally {
       setLoading(false);
     }
