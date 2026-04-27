@@ -26,6 +26,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [approvingDirect, setApprovingDirect] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [reprocessing, setReprocessing] = useState(false);
   const ia = intake.resultado_ia || {};
 
   useEffect(() => {
@@ -251,6 +253,7 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
 
   async function handleDeletarDocumento() {
     if (!confirm('Tem certeza que deseja deletar este documento? Esta ação não pode ser desfeita.')) return;
+    setDeleting(true);
     try {
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'DELETADO',
@@ -259,10 +262,13 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
       onSaved();
     } catch (e) {
       toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
+    } finally {
+      setDeleting(false);
     }
   }
 
   async function handleRereprocessar() {
+    setReprocessing(true);
     try {
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'ANALISANDO_IA',
@@ -274,6 +280,8 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
       onSaved();
     } catch (e) {
       toast({ title: 'Erro ao rereprocessar', description: e.message, variant: 'destructive' });
+    } finally {
+      setReprocessing(false);
     }
   }
 
@@ -783,12 +791,12 @@ Responda SOMENTE com o código da meta (ex: MC3A-22)`,
           <div className="flex justify-end gap-2 pt-2 flex-wrap">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
 
-            <Button variant="destructive" size="sm" onClick={handleDeletarDocumento}>
-              <Trash2 className="w-4 h-4 mr-1" />
+            <Button variant="destructive" size="sm" onClick={handleDeletarDocumento} disabled={deleting || saving || sending}>
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Trash2 className="w-4 h-4 mr-1" />}
               Deletar
             </Button>
-            <Button variant="outline" size="sm" onClick={handleRereprocessar}>
-              <RefreshCw className="w-4 h-4 mr-1" />
+            <Button variant="outline" size="sm" onClick={handleRereprocessar} disabled={reprocessing || saving || sending}>
+              {reprocessing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <RefreshCw className="w-4 h-4 mr-1" />}
               Rereprocessar
             </Button>
 
