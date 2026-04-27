@@ -61,10 +61,21 @@ export default function EntradaUnica() {
 
     try {
       for (const file of files) {
-        // 1. Upload do arquivo
+        // PASSO 1: Upload do arquivo — nunca perde o arquivo
         const { file_url } = await base44.integrations.Core.UploadFile({ file });
 
-        // 2. Cria o DocumentIntake
+        // PASSO 2: Salva imediatamente no banco (Attachment de segurança + DocumentIntake)
+        // O Attachment garante que o arquivo aparece na área de Arquivos/Documentos mesmo se IA falhar
+        const attachmentGuarda = await base44.entities.Attachment.create({
+          report_id: '',
+          file_name: file.name,
+          file_type: file.type,
+          file_size: file.size,
+          file_url: file_url,
+          description: `Enviado via Entrada Única — aguardando classificação`,
+          backup_done: false,
+        });
+
         const intake = await base44.entities.DocumentIntake.create({
           user_email: user.email,
           user_name: user.full_name || user.email,
@@ -73,18 +84,23 @@ export default function EntradaUnica() {
           mime_type: file.type,
           status_processamento: 'ENVIADO',
           tipo_detectado: 'PENDENTE',
-          // Orientações para a IA salvas no resultado_ia para uso posterior
+          entidade_destino: 'Attachment',
+          entidade_destino_id: attachmentGuarda.id,
           resultado_ia: orientacoes ? { orientacoes_usuario: orientacoes } : undefined,
         });
 
-        createdIntakes.push(intake);
+        createdIntakes.push({ intake, attachmentId: attachmentGuarda.id });
         setIntakes(prev => [intake, ...prev]);
       }
 
-      toast({ title: `${files.length > 1 ? `${files.length} documentos recebidos` : 'Documento recebido'} com sucesso.` });
+      // PASSO 3: Confirma ao usuário que está salvo
+      toast({
+        title: `${files.length > 1 ? `${files.length} documentos recebidos` : 'Documento recebido'} e salvo com sucesso.`,
+        description: 'Iniciando análise pela IA. O arquivo está seguro mesmo que a análise falhe.',
+      });
 
-      // 3. Dispara análise da IA em background para cada intake
-      for (const intake of createdIntakes) {
+      // PASSO 4: Dispara análise da IA em background (não bloqueia, não perde dados)
+      for (const { intake, attachmentId } of createdIntakes) {
         base44.functions.invoke('classifyAndRouteDocument', {
           intake_id: intake.id,
           orientacoes_usuario: intake.resultado_ia?.orientacoes_usuario || ''
@@ -92,7 +108,11 @@ export default function EntradaUnica() {
           .then(() => loadIntakes())
           .catch((e) => {
             console.error('Erro na análise IA:', e);
-            base44.entities.DocumentIntake.update(intake.id, { status_processamento: 'ERRO_PROCESSAMENTO' });
+            // Arquivo já está salvo — apenas marca erro de processamento para classificação manual
+            base44.entities.DocumentIntake.update(intake.id, {
+              status_processamento: 'ERRO_PROCESSAMENTO',
+              erros_validacao: ['Erro na análise automática. Você pode classificar manualmente.'],
+            });
             loadIntakes();
           });
       }

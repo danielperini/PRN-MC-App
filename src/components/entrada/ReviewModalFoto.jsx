@@ -66,7 +66,10 @@ export default function ReviewModalFoto({ intake, onClose, onSaved }) {
         revisado_pelo_usuario: true,
       });
 
-      toast({ title: 'Foto vinculada à atividade com sucesso.' });
+      toast({
+        title: 'Foto salva e disponível na Atividade.',
+        description: 'Acesse a atividade para visualizar a foto vinculada.',
+      });
       onSaved();
     } catch (e) {
       toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' });

@@ -125,7 +125,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         revisado_pelo_usuario: true,
       });
 
-      toast({ title: 'Documento enviado para aprovação com sucesso.' });
+      toast({
+        title: 'Documento salvo e disponível em Compras.',
+        description: 'Revise os dados na área de Compras antes de enviar para aprovação.',
+      });
       onSaved();
     } catch (e) {
       toast({ title: 'Erro ao enviar', description: e.message, variant: 'destructive' });
