@@ -176,11 +176,12 @@ Responda SOMENTE em JSON válido:
     // --- PDF (NOTA FISCAL OU DOCUMENTO) ---
     if (tipoDetectado === 'PDF_CANDIDATO') {
       try {
+        const hoje = new Date().toISOString().slice(0, 10);
         const iaResp = await base44.asServiceRole.integrations.Core.InvokeLLM({
           prompt: `Analise este documento PDF e determine:
 1. Se é uma NOTA FISCAL (NF, NFS-e, RPA, fatura) ou um DOCUMENTO ADMINISTRATIVO comum
 2. Se for nota fiscal, extraia os dados principais
-3. Liste possíveis inconsistências${orientacoesUsuario ? `\n\nOrientações do usuário: ${orientacoesUsuario}` : ''}
+3. Liste possíveis inconsistências REAIS no documento (ex: valores zerados, campos obrigatórios ausentes, CPF/CNPJ inválido). NÃO sinalize como inconsistência datas passadas ou presentes. A data atual é ${hoje}, portanto qualquer data até ${hoje} é válida e NÃO deve ser reportada como "data futura".${orientacoesUsuario ? `\n\nOrientações do usuário: ${orientacoesUsuario}` : ''}
 
 Responda SOMENTE em JSON válido:
 {
