@@ -143,6 +143,17 @@ export default function ReportEditor() {
     if (!report?.id) return;
     if (lastLoadedReportIdRef.current === report.id) return;
 
+    // Normalizar atividades: limpar equipe_participante_ids inválidos
+    const normalizedAtividades = (Array.isArray(report?.atividades) ? report.atividades : []).map((atividade) => ({
+      ...atividade,
+      equipe_participante_ids: Array.isArray(atividade?.equipe_participante_ids) 
+        ? Array.from(new Set(atividade.equipe_participante_ids.filter(Boolean)))
+        : [],
+      meta_vinculada_ids: Array.isArray(atividade?.meta_vinculada_ids)
+        ? Array.from(new Set(atividade.meta_vinculada_ids.filter(Boolean)))
+        : []
+    }));
+
     setForm((prev) => ({
       ...prev,
       ...report,
@@ -162,7 +173,7 @@ export default function ReportEditor() {
       comentarios_coordenacao: report?.comentarios_coordenacao ?? '',
       historico_observacoes: report?.historico_observacoes ?? '',
       oportunidades_resumo: report?.oportunidades_resumo ?? '',
-      atividades: Array.isArray(report?.atividades) ? report.atividades : [],
+      atividades: normalizedAtividades,
       oportunidades: Array.isArray(report?.oportunidades) ? report.oportunidades : [],
       fotos: Array.isArray(report?.fotos) ? report.fotos : [],
       depoimentos: Array.isArray(report?.depoimentos) ? report.depoimentos : [],

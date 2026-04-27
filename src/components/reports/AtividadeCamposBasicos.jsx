@@ -113,14 +113,28 @@ export default function AtividadeCamposBasicos({
   metaOptions = [],
   programacaoOptions = [],
 }) {
+  // CRÍTICO: Validar que os IDs correspondem a opções válidas
+  const equipeOptions = (teamOptions || []).every(t => t.id && t.label)
+    ? teamOptions
+    : normalizeOptionList(teamOptions);
+  const metasOptions = normalizeOptionList(metaOptions || []);
+
   const museuLista = normalizeArray(atividade?.museu_lista ?? atividade?.museu);
   const tipoAcaoLista = normalizeArray(atividade?.tipo_acao_lista ?? atividade?.tipo_acao);
-  // Normalizar e remover duplicados ao carregar
+  
+  // Normalizar e validar IDs contra opções disponíveis
   const rawEquipeLista = normalizeArray(atividade?.equipe_participante_ids);
-  const equipeLista = Array.from(new Set(rawEquipeLista));
-  // Normalizar e remover duplicados ao carregar
+  const validEquipeIds = rawEquipeLista.filter((id) => 
+    equipeOptions.some((opt) => opt.id === id)
+  );
+  const equipeLista = Array.from(new Set(validEquipeIds));
+  
+  // Normalizar e validar IDs contra opções disponíveis
   const rawMetasLista = normalizeArray(atividade?.meta_vinculada_ids);
-  const metasLista = Array.from(new Set(rawMetasLista));
+  const validMetasIds = rawMetasLista.filter((id) =>
+    metasOptions.some((opt) => opt.id === id)
+  );
+  const metasLista = Array.from(new Set(validMetasIds));
 
   const classificacoes = normalizeOptionList(
     classificacaoOptions?.length ? classificacaoOptions : CLASSIFICACAO_OPTIONS_DEFAULT
@@ -130,10 +144,6 @@ export default function AtividadeCamposBasicos({
     produtoRealizadoOptions?.length ? produtoRealizadoOptions : PRODUTO_REALIZADO_OPTIONS_DEFAULT
   );
 
-  const equipeOptions = (teamOptions || []).every(t => t.id && t.label)
-    ? teamOptions
-    : normalizeOptionList(teamOptions);
-  const metasOptions = normalizeOptionList(metaOptions || []);
   const programacoes = normalizeOptionList(programacaoOptions);
 
   const ocorrencias = safeNumber(atividade?.quantidade_ocorrencias, 0);
