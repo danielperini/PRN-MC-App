@@ -95,32 +95,32 @@ export default function NewsCarousel() {
             }
 
               {/* Conteúdo */}
-              <div className="flex-1 px-3 py-3 flex flex-col justify-between min-w-0 hidden">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 truncate">
-                      {newsItem.fonte?.replace(/_/g, ' ')}
-                    </span>
-                    {idx === 0 &&
-                  <span className="text-[10px] text-gray-300 ml-auto flex-shrink-0">{current + 1}/{news.length}</span>
-                  }
-                  </div>
-                  <a
-                  href={newsItem.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group block">
-                  
-                    <h3 className="font-semibold text-gray-900 text-sm leading-snug line-clamp-2 group-hover:underline">
-                      {newsItem.titulo}
-                      <ExternalLink className="inline w-3 h-3 ml-1 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </h3>
-                  </a>
-                  {newsItem.resumo &&
-                <p className="text-xs text-gray-500 line-clamp-2 mt-1">{newsItem.resumo}</p>
-                }
-                </div>
-              </div>
+              
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            
             </div>
           </div>
         )}
