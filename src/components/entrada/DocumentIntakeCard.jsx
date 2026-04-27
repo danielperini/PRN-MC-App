@@ -63,7 +63,6 @@ export default function DocumentIntakeCard({ intake, onReview }) {
   const hasError = intake.status_processamento === 'ERRO_PROCESSAMENTO';
   const hasType = localTipo && localTipo !== 'PENDENTE';
   const isNF = localTipo === 'NOTA_FISCAL_PDF' || localTipo === 'NOTA_FISCAL_XML';
-  const canDelete = !['ENVIADO_APROVACAO', 'APROVADO', 'REJEITADO', 'VINCULADO'].includes(intake.status_processamento) && intake.grupo_status !== 'VINCULADO' && intake.grupo_status !== 'ENVIADO_APROVACAO';
 
   const destinoInfo = intake.entidade_destino && intake.entidade_destino !== 'Attachment'
     ? DESTINO_LABEL[intake.entidade_destino]
@@ -117,20 +116,10 @@ export default function DocumentIntakeCard({ intake, onReview }) {
   }
 
   async function handleDelete() {
-    const statusProtegidos = ['ENVIADO_APROVACAO', 'APROVADO', 'REJEITADO', 'VINCULADO'];
-    if (statusProtegidos.includes(intake.status_processamento) || intake.grupo_status === 'VINCULADO' || intake.grupo_status === 'ENVIADO_APROVACAO') {
-      toast({
-        title: 'Não é possível deletar',
-        description: 'Este arquivo já está vinculado a um processo e não pode ser excluído.',
-        variant: 'destructive'
-      });
-      return;
-    }
-
     if (!window.confirm('Tem certeza que deseja deletar este arquivo? Esta ação não pode ser desfeita.')) return;
     setLoading(true);
     try {
-      // Deleta o attachment vinculado
+      // Deleta attachment vinculado (permite IA preencher forms novamente)
       if (intake.entidade_destino_id) {
         try {
           await base44.entities.Attachment.delete(intake.entidade_destino_id);
@@ -139,11 +128,9 @@ export default function DocumentIntakeCard({ intake, onReview }) {
         }
       }
       
-      // Marca DocumentIntake como removido
-      await base44.entities.DocumentIntake.update(intake.id, {
-        status_registro: 'REMOVIDO'
-      });
-      toast({ title: 'Arquivo removido com sucesso.' });
+      // Deleta DocumentIntake completamente (não apenas marca como removido)
+      await base44.entities.DocumentIntake.delete(intake.id);
+      toast({ title: 'Arquivo deletado permanentemente.' });
     } catch (e) {
       toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
     } finally {
@@ -210,18 +197,16 @@ export default function DocumentIntakeCard({ intake, onReview }) {
               Reanalisar
             </Button>
           )}
-          {canDelete && (
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={loading}
-              className="h-7 w-7 p-0"
-              title="Deletar arquivo"
-            >
-              {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={loading}
+            className="h-7 w-7 p-0"
+            title="Deletar arquivo"
+          >
+            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+          </Button>
         </div>
       </div>
 
