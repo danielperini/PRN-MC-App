@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
       success: true,
       delegated_to: 'backupSingleFile',
       attachment_id: attachmentId,
-      result
+      result: result?.data || result
     });
 
   } catch (error) {
