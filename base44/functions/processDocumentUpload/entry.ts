@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
+
 function safeString(value: unknown): string {
   return String(value ?? '').trim();
 }
@@ -103,6 +105,16 @@ Deno.serve(async (req) => {
     }
 
     const bytes = base64ToUint8Array(contentBase64);
+    
+    // Validar tamanho do arquivo
+    if (bytes.length > MAX_UPLOAD_SIZE_BYTES) {
+      console.warn(`Arquivo rejeitado por exceder tamanho máximo: ${fileName} (${bytes.length} bytes)`);
+      return Response.json(
+        { ok: false, saved: false, error: 'Arquivo muito grande. O limite máximo permitido é de 25 MB.' },
+        { status: 400 }
+      );
+    }
+    
     const mimeType = inferMimeType(fileName);
 
     const uploadResponse = await base44.asServiceRole.integrations.Core.UploadFile({

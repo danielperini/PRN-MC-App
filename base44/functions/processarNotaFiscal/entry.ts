@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
+
 type NFStatus = 'lido_com_sucesso' | 'leitura_parcial' | 'leitura_falhou';
 
 type NFExtraida = {
@@ -315,11 +317,35 @@ Deno.serve(async (req) => {
     const downloadUrl = safeString(signed?.signed_url || fileUrl);
 
     const response = await fetch(downloadUrl);
-    if (!response.ok) {
-      throw new Error(`Falha ao baixar arquivo: ${response.status}`);
-    }
+     if (!response.ok) {
+       throw new Error(`Falha ao baixar arquivo: ${response.status}`);
+     }
 
-    const content = await response.text();
+     // Validar tamanho do arquivo
+     const contentLength = response.headers.get('content-length');
+     if (contentLength && parseInt(contentLength, 10) > MAX_UPLOAD_SIZE_BYTES) {
+       console.warn(`Arquivo rejeitado por exceder tamanho máximo: ${fileName} (${contentLength} bytes)`);
+       await base44.asServiceRole.entities.Attachment.update(attachmentId, {
+         nf_tipo_documento: '',
+         nf_status_leitura: 'leitura_falhou',
+         nf_nome_original: fileName,
+         nf_nome_renomeado: fileName,
+         nf_dados_extraidos_json: JSON.stringify({
+           motivo: 'arquivo_muito_grande',
+           tamanho_max_mb: 25,
+           processed_at: new Date().toISOString(),
+         }),
+         nf_pronto_para_email: false,
+         nf_pronto_para_backup: false,
+       });
+
+       return Response.json({
+         ok: false,
+         error: 'Arquivo muito grande. O limite máximo permitido é de 25 MB.',
+       }, { status: 400 });
+     }
+
+     const content = await response.text();
     const isXML = extension === 'xml';
     const isPDF = extension === 'pdf';
 

@@ -1,20 +1,36 @@
 import React, { useRef, useState } from 'react';
-import { Upload, FileText, Image, X } from 'lucide-react';
+import { Upload, FileText, Image, X, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { validateFiles, formatFileSize, UPLOAD_CONFIG } from '@/lib/uploadConfig';
 
 export default function DocumentUploadZone({ onFilesSelected, disabled }) {
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [orientacoes, setOrientacoes] = useState('');
+  const [fileErrors, setFileErrors] = useState([]);
 
   function handleFiles(files) {
     if (!files || files.length === 0) return;
-    const fileArray = Array.from(files);
-    setSelectedFiles(fileArray);
-    onFilesSelected(fileArray, orientacoes);
+    
+    const { valid, invalid } = validateFiles(files);
+    
+    // Se houver arquivos inválidos, mostrar erros
+    if (invalid.length > 0) {
+      setFileErrors(invalid.map(f => `${f.name}: ${f.errors[0]}`));
+      // Manter apenas os arquivos válidos
+      if (valid.length > 0) {
+        setSelectedFiles(prev => [...prev, ...valid]);
+        onFilesSelected([...selectedFiles, ...valid], orientacoes);
+      }
+    } else {
+      // Todos os arquivos são válidos
+      setFileErrors([]);
+      setSelectedFiles(prev => [...prev, ...valid]);
+      onFilesSelected([...selectedFiles, ...valid], orientacoes);
+    }
   }
 
   function onDrop(e) {
@@ -90,7 +106,7 @@ export default function DocumentUploadZone({ onFilesSelected, disabled }) {
               {getFileIcon(file)}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-slate-800 truncate">{file.name}</p>
-                <p className="text-xs text-slate-400">{file.type || 'desconhecido'} · {(file.size / 1024).toFixed(0)} KB</p>
+                <p className="text-xs text-slate-400">{file.type || 'desconhecido'} · {formatFileSize(file.size)}</p>
               </div>
               <button
                 onClick={() => removeFile(idx)}
@@ -123,17 +139,32 @@ export default function DocumentUploadZone({ onFilesSelected, disabled }) {
         </div>
       )}
 
+      {/* Erros de validação de arquivo */}
+       {fileErrors.length > 0 && (
+         <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-1">
+           {fileErrors.map((error, idx) => (
+             <div key={idx} className="flex items-start gap-2">
+               <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+               <p className="text-sm text-red-700">{error}</p>
+             </div>
+           ))}
+           <p className="text-xs text-red-600 mt-2">
+             O limite máximo é {UPLOAD_CONFIG.MAX_SIZE_MB} MB por arquivo. Os arquivos válidos foram mantidos na seleção.
+           </p>
+         </div>
+       )}
+
       {/* Orientações para IA */}
-      <div className="space-y-1.5">
-        <Label className="text-sm text-slate-600 font-medium">Orientações para a IA <span className="text-slate-400 font-normal">(opcional)</span></Label>
-        <Textarea
-          value={orientacoes}
-          onChange={(e) => setOrientacoes(e.target.value)}
-          placeholder="Escreva aqui alguma orientação para a análise. Exemplo: solicitar aprovação urgente ao coordenador, destacar que é pagamento retroativo, verificar gasto por rubrica, conferir vínculo com atividade ou observar centro de custo."
-          className="resize-none text-sm min-h-[80px]"
-          disabled={disabled}
-        />
+       <div className="space-y-1.5">
+         <Label className="text-sm text-slate-600 font-medium">Orientações para a IA <span className="text-slate-400 font-normal">(opcional)</span></Label>
+         <Textarea
+           value={orientacoes}
+           onChange={(e) => setOrientacoes(e.target.value)}
+           placeholder="Escreva aqui alguma orientação para a análise. Exemplo: solicitar aprovação urgente ao coordenador, destacar que é pagamento retroativo, verificar gasto por rubrica, conferir vínculo com atividade ou observar centro de custo."
+           className="resize-none text-sm min-h-[80px]"
+           disabled={disabled}
+         />
+       </div>
       </div>
-    </div>
-  );
-}
+      );
+      }

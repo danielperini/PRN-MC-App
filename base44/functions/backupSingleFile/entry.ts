@@ -168,11 +168,23 @@ Deno.serve(async (req) => {
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
 
     // Baixa o arquivo
-    const fileResponse = await fetch(attachment.file_url);
-    if (!fileResponse.ok) return Response.json({ error: 'Erro ao baixar arquivo' }, { status: 400 });
-    const fileBlob = await fileResponse.blob();
-    const fileBuffer = await fileBlob.arrayBuffer();
-    const newHash = await sha256Hex(new Uint8Array(fileBuffer));
+     const fileResponse = await fetch(attachment.file_url);
+     if (!fileResponse.ok) return Response.json({ error: 'Erro ao baixar arquivo' }, { status: 400 });
+
+     // Validar tamanho do arquivo
+     const contentLength = fileResponse.headers.get('content-length');
+     if (contentLength && parseInt(contentLength, 10) > MAX_UPLOAD_SIZE_BYTES) {
+       console.warn(`Arquivo rejeitado para backup por exceder tamanho máximo: ${attachment.file_name} (${contentLength} bytes)`);
+       return Response.json({
+         error: 'Arquivo muito grande para backup. O limite máximo é 25 MB.',
+         attachment_id,
+         skipped: true
+       }, { status: 400 });
+     }
+
+     const fileBlob = await fileResponse.blob();
+     const fileBuffer = await fileBlob.arrayBuffer();
+     const newHash = await sha256Hex(new Uint8Array(fileBuffer));
 
     // Hash igual ao anterior → skip
     if (attachment.backup_done && attachment.drive_file_id && attachment.file_hash === newHash) {
