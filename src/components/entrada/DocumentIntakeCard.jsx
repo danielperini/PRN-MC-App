@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2, Eye, Send, ChevronDown, FolderOpen, RefreshCw } from 'lucide-react';
+import { FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2, Eye, Send, ChevronDown, FolderOpen, RefreshCw, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -47,6 +47,7 @@ export default function DocumentIntakeCard({ intake, onReview }) {
   const { toast } = useToast();
   const [reclassifying, setReclassifying] = useState(false);
   const [reanalysing, setReanalysing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [localTipo, setLocalTipo] = useState(intake.tipo_detectado);
 
   const status = STATUS_CONFIG[intake.status_processamento] || STATUS_CONFIG.ENVIADO;
@@ -91,6 +92,41 @@ export default function DocumentIntakeCard({ intake, onReview }) {
       toast({ title: 'Erro ao reenviar', description: e.message, variant: 'destructive' });
     } finally {
       setReanalysing(false);
+    }
+  }
+
+  async function handleCancelAnalysis(novoTipo) {
+    setReclassifying(true);
+    try {
+      await base44.entities.DocumentIntake.update(intake.id, {
+        tipo_detectado: novoTipo,
+        status_processamento: 'AGUARDANDO_REVISAO',
+        revisado_pelo_usuario: true,
+      });
+      setLocalTipo(novoTipo);
+      // Abre o formulário correspondente
+      onReview({ ...intake, tipo_detectado: novoTipo });
+      toast({ title: 'Análise cancelada. Abra o formulário para salvar.' });
+    } catch (e) {
+      toast({ title: 'Erro ao cancelar análise', description: e.message, variant: 'destructive' });
+    } finally {
+      setReclassifying(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm('Tem certeza que deseja deletar este arquivo?')) return;
+    setDeleting(true);
+    try {
+      await base44.entities.DocumentIntake.delete(intake.id);
+      if (intake.entidade_destino_id) {
+        await base44.entities.Attachment.delete(intake.entidade_destino_id);
+      }
+      toast({ title: 'Arquivo deletado com sucesso.' });
+    } catch (e) {
+      toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -154,8 +190,34 @@ export default function DocumentIntakeCard({ intake, onReview }) {
             </Button>
           )}
           {isAnalisando && (
-            <div className="flex items-center gap-1 text-xs text-yellow-600">
-              <Loader2 className="w-4 h-4 animate-spin" />
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 text-xs text-yellow-600">
+                <Loader2 className="w-4 h-4 animate-spin" />
+              </div>
+              <div className="flex gap-1">
+                <Select onValueChange={handleCancelAnalysis} disabled={reclassifying}>
+                  <SelectTrigger className="h-7 text-xs w-32">
+                    <SelectValue placeholder="Cancelar análise" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIPO_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="h-7 w-7 p-0"
+                  title="Deletar arquivo"
+                >
+                  {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                </Button>
+              </div>
             </div>
           )}
           {isErro && (
