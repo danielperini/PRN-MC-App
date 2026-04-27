@@ -12,6 +12,7 @@ import ReviewModalDocAdmin from '@/components/entrada/ReviewModalDocAdmin';
 import ReviewModalOutro from '@/components/entrada/ReviewModalOutro';
 import CoordBulkImportPanel from '@/components/entrada/CoordBulkImportPanel';
 import DocumentMonitoringDashboard from '@/components/entrada/DocumentMonitoringDashboard';
+import DuplicateDetectionPanel from '@/components/entrada/DuplicateDetectionPanel';
 
 const COORD_EMAILS = [
 'danielperini.mc@viadutodasartes.org.br',
@@ -248,6 +249,14 @@ export default function EntradaUnica() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Painel de detecção de duplicados */}
+      {reviewIntake && (
+        <DuplicateDetectionPanel 
+          intake={reviewIntake}
+          onDuplicatesFound={(dups) => console.log('Duplicados encontrados:', dups)}
+        />
+      )}
 
       {/* Modais de revisão */}
       {reviewIntake && isNF &&
