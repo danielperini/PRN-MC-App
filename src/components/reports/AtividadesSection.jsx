@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2, Save, FileDown, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AtividadeCamposBasicos from './AtividadeCamposBasicos';
 import ActivityPhotoLinker from './ActivityPhotoLinker';
 import ActivityAttachments from './ActivityAttachments';
@@ -15,6 +14,38 @@ function createActivityId() {
     return crypto.randomUUID();
   }
   return `atividade_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function getTeamMemberId(member) {
+  return (
+    member?.id ||
+    member?.user_email ||
+    member?.email ||
+    member?.email_pessoal ||
+    ''
+  );
+}
+
+function getTeamMemberName(member) {
+  return (
+    member?.user_name ||
+    member?.nome ||
+    member?.nome_completo ||
+    member?.name ||
+    member?.full_name ||
+    member?.email ||
+    member?.user_email ||
+    member?.email_pessoal ||
+    'Sem nome'
+  );
 }
 
 export default function AtividadesSection({
@@ -93,13 +124,34 @@ export default function AtividadesSection({
   }, [programacaoItemsRaw]);
 
   const { data: equipe = [] } = useQuery({
-    queryKey: ['user-permissions-team'],
+    queryKey: ['team-members-for-report-activities'],
     queryFn: async () => {
-      const res = await base44.entities.UserPermission.list('user_name', 1000);
-      return (Array.isArray(res) ? res : []).map((u) => ({
-        id: u.user_email,
-        label: u.user_name || u.user_email
-      }));
+      const res = await base44.entities.TeamMember.list('', 1000);
+      const map = new Map();
+
+      for (const member of res || []) {
+        const id = getTeamMemberId(member);
+        const label = getTeamMemberName(member);
+        const dedupKey = normalizeText(
+          member?.user_email ||
+          member?.email ||
+          member?.email_pessoal ||
+          label
+        );
+
+        if (!id || !label || !dedupKey) continue;
+
+        if (!map.has(dedupKey)) {
+          map.set(dedupKey, {
+            id,
+            label
+          });
+        }
+      }
+
+      return Array.from(map.values()).sort((a, b) =>
+        String(a.label || '').localeCompare(String(b.label || ''), 'pt-BR')
+      );
     }
   });
 
@@ -107,13 +159,13 @@ export default function AtividadesSection({
     queryKey: ['project-metas'],
     queryFn: async () => {
       const res = await base44.entities.ProjectMeta.list('nome', 1000);
-      return (Array.isArray(res) ? res : []).
-      filter((m) => m.ativo !== false).
-      map((m) => ({
-        id: m.id,
-        label: m.nome,
-        nome: m.nome
-      }));
+      return (Array.isArray(res) ? res : [])
+        .filter((m) => m.ativo !== false)
+        .map((m) => ({
+          id: m.id,
+          label: m.nome,
+          nome: m.nome
+        }));
     }
   });
 
@@ -122,7 +174,13 @@ export default function AtividadesSection({
 
     setAtividades((prev) => {
       const list = Array.isArray(prev) ? [...prev] : [];
-      list[index] = { ...(list[index] || {}), [field]: value };
+
+      const normalizedValue =
+        field === 'equipe_participante_ids' && Array.isArray(value)
+          ? Array.from(new Set(value.filter(Boolean)))
+          : value;
+
+      list[index] = { ...(list[index] || {}), [field]: normalizedValue };
       return list;
     });
   }, [setAtividades]);
@@ -179,106 +237,87 @@ export default function AtividadesSection({
 
   return (
     <div className="space-y-6">
-      {onBackToReport &&
-      <div className="flex items-center justify-start">
+      {onBackToReport && (
+        <div className="flex items-center justify-start">
           <Button type="button" variant="outline" onClick={onBackToReport}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Retornar para relatório
           </Button>
         </div>
-      }
+      )}
 
-      
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      
-
-      {(atividades || []).map((atividade, index) =>
-      <div key={atividade?.id || index} className="border p-4 rounded space-y-4">
+      {(atividades || []).map((atividade, index) => (
+        <div key={atividade?.id || index} className="border p-4 rounded space-y-4">
           <div className="flex justify-between items-center">
             <b>Atividade {index + 1}</b>
 
-            {canEdit &&
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={() => removeAtividade(index)}>
-            
+            {canEdit && (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={() => removeAtividade(index)}
+              >
                 <Trash2 className="text-red-500 w-4 h-4" />
               </Button>
-          }
+            )}
           </div>
 
           <AtividadeCamposBasicos
-          atividade={atividade}
-          onChange={(field, value) => updateAtividade(index, field, value)}
-          museus={museusOptions}
-          tiposAcao={tiposAcaoOptions}
-          teamOptions={equipe}
-          metaOptions={metas}
-          programacaoOptions={programacaoItems}
-          canEdit={canEdit}
-          mesReferencia={mesReferencia}
-          ano={ano} />
-        
+            atividade={atividade}
+            onChange={(field, value) => updateAtividade(index, field, value)}
+            museus={museusOptions}
+            tiposAcao={tiposAcaoOptions}
+            teamOptions={equipe}
+            metaOptions={metas}
+            programacaoOptions={programacaoItems}
+            canEdit={canEdit}
+            mesReferencia={mesReferencia}
+            ano={ano}
+          />
 
-          {reportId &&
-        <ActivityAttachments
-          reportId={reportId}
-          activityIndex={index}
-          activityId={atividade?.id || atividade?._id}
-          activityName={atividade?.nome || atividade?.titulo || `Atividade ${index + 1}`}
-          canEdit={canEdit} />
+          {reportId && (
+            <ActivityAttachments
+              reportId={reportId}
+              activityIndex={index}
+              activityId={atividade?.id || atividade?._id}
+              activityName={atividade?.nome || atividade?.titulo || `Atividade ${index + 1}`}
+              canEdit={canEdit}
+            />
+          )}
 
-        }
-
-          {atividade?.id &&
-        <ActivityPhotoLinker
-          activityId={atividade.id}
-          onPhotosChange={(fotos) => updateAtividade(index, 'fotos', fotos)}
-          disabled={!canEdit} />
-
-        }
+          {atividade?.id && (
+            <ActivityPhotoLinker
+              activityId={atividade.id}
+              onPhotosChange={(fotos) => updateAtividade(index, 'fotos', fotos)}
+              disabled={!canEdit}
+            />
+          )}
         </div>
-      )}
+      ))}
 
       <div className="flex gap-2 flex-wrap">
-        {canEdit &&
-        <Button type="button" onClick={addAtividade} variant="outline">
+        {canEdit && (
+          <Button type="button" onClick={addAtividade} variant="outline">
             <Plus className="w-4 h-4 mr-2" />
             Adicionar atividade
           </Button>
-        }
+        )}
 
-        {canEdit && onSave &&
-        <Button type="button" onClick={handleSaveAtividades} disabled={saving}>
+        {canEdit && onSave && (
+          <Button type="button" onClick={handleSaveAtividades} disabled={saving}>
             <Save className="w-4 h-4 mr-2" />
             {saving ? 'Salvando...' : 'Salvar atividades'}
           </Button>
-        }
+        )}
 
-        {onExportPdf &&
-        <Button type="button" variant="outline" onClick={handleExportPdf} disabled={exportingPdf}>
+        {onExportPdf && (
+          <Button type="button" variant="outline" onClick={handleExportPdf} disabled={exportingPdf}>
             <FileDown className="w-4 h-4 mr-2" />
             {exportingPdf ? 'Gerando PDF...' : 'Exportar PDF para assinatura'}
           </Button>
-        }
+        )}
       </div>
-    </div>);
-
+    </div>
+  );
 }
