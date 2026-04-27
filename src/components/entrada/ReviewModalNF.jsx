@@ -4,12 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { base44 } from '@/api/base44Client';
-import { FileText, Loader2, AlertCircle, CheckCircle2, Send } from 'lucide-react';
+import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Plus, Trash2, SplitSquareHorizontal } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
+const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
+
+const DEFAULT_RATEIO = MUSEUS_RATEIO.map(m => ({ museu: m, valor: '' }));
 
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const { toast } = useToast();
@@ -17,6 +20,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const ia = intake.resultado_ia || {};
+
+  // Rateamento
+  const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false);
+  const [rateio, setRateio] = useState(DEFAULT_RATEIO);
 
   const [form, setForm] = useState({
     nf_numero: ia.nf_numero || '',
@@ -45,14 +52,35 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     loadRubricas();
   }, []);
 
-  const rubricaSelecionada = rubricas.find(r => r.id === form.rubrica_id);
+  // Calcular totais do rateio
+  const valorTotal = parseFloat(form.nf_valor_total) || 0;
+  const totalRateado = rateio.reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
+  const diferencaRateio = Math.abs(valorTotal - totalRateado);
+  const rateioValido = dividirEntreMuseus ? diferencaRateio < 0.01 && rateio.some(r => parseFloat(r.valor) > 0) : true;
+
+  function handleRateioValor(museu, valor) {
+    setRateio(prev => prev.map(r => r.museu === museu ? { ...r, valor } : r));
+  }
+
+  function distribuirIgualmente() {
+    const museusSelecionados = rateio.filter(r => r.museu);
+    const valorPorMuseu = (valorTotal / museusSelecionados.length).toFixed(2);
+    setRateio(MUSEUS_RATEIO.map(m => ({ museu: m, valor: valorPorMuseu })));
+  }
+
+  function getRateioPayload() {
+    if (!dividirEntreMuseus) return null;
+    return rateio
+      .filter(r => parseFloat(r.valor) > 0)
+      .map(r => ({ museu: r.museu, valor: parseFloat(r.valor) }));
+  }
 
   async function handleSalvarRascunho() {
     setSaving(true);
     try {
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'RASCUNHO',
-        resultado_ia: { ...ia, ...form },
+        resultado_ia: { ...ia, ...form, rateio_museus: getRateioPayload(), dividir_entre_museus: dividirEntreMuseus },
         centro_custo: form.centro_custo,
         rubrica_id_sugerida: form.rubrica_id,
         file_name_final: form.file_name_final,
@@ -72,29 +100,38 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       toast({ title: 'Selecione uma rubrica antes de enviar.', variant: 'destructive' });
       return;
     }
-    if (!form.centro_custo) {
+    if (!form.centro_custo && !dividirEntreMuseus) {
       toast({ title: 'Selecione o centro de custo antes de enviar.', variant: 'destructive' });
       return;
     }
+    if (dividirEntreMuseus && !rateioValido) {
+      toast({ title: `A soma do rateio (R$ ${totalRateado.toFixed(2)}) deve ser igual ao valor total (R$ ${valorTotal.toFixed(2)}).`, variant: 'destructive' });
+      return;
+    }
+
     setSending(true);
     try {
-      // Cria o PurchaseRequest reutilizando entidade existente
+      const rateioPayload = getRateioPayload();
+      const observacoesRateio = rateioPayload
+        ? `Rateio entre museus: ${rateioPayload.map(r => `${r.museu}: R$ ${r.valor.toFixed(2)}`).join(', ')}.`
+        : '';
+
       const pr = await base44.entities.PurchaseRequest.create({
         descricao: form.descricao_servico || form.nf_emitente_nome,
         fornecedor_nome: form.nf_emitente_nome,
         fornecedor_cpf_cnpj: form.nf_emitente_cpf_cnpj,
-        valor_total: parseFloat(form.nf_valor_total) || 0,
+        valor_total: valorTotal,
         data_emissao: form.nf_data_emissao,
         numero_nf: form.nf_numero,
-        centro_custo: form.centro_custo,
+        centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
         rubrica_id: form.rubrica_id,
         municipio: form.municipio,
         competencia: form.competencia,
         status: 'PENDENTE',
-        observacoes: `Criado via Entrada Única de Documentos. Arquivo: ${form.file_name_final}`,
+        rateio_museus: rateioPayload,
+        observacoes: `Criado via Entrada Única de Documentos. Arquivo: ${form.file_name_final}. ${observacoesRateio}`.trim(),
       });
 
-      // Vincula o attachment ao PurchaseRequest
       await base44.entities.Attachment.create({
         report_id: '',
         file_name: form.file_name_final,
@@ -102,7 +139,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         file_url: intake.arquivo_original_url,
         description: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
         nf_numero: form.nf_numero,
-        nf_valor_total: parseFloat(form.nf_valor_total) || 0,
+        nf_valor_total: valorTotal,
         nf_data_emissao: form.nf_data_emissao,
         nf_emitente_nome: form.nf_emitente_nome,
         nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
@@ -113,15 +150,14 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         nf_revisado: true,
       });
 
-      // Atualiza o intake
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'ENVIADO_APROVACAO',
         entidade_destino: 'PurchaseRequest',
         entidade_destino_id: pr.id,
-        centro_custo: form.centro_custo,
+        centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
         rubrica_id_sugerida: form.rubrica_id,
         file_name_final: form.file_name_final,
-        resultado_ia: { ...ia, ...form },
+        resultado_ia: { ...ia, ...form, rateio_museus: rateioPayload, dividir_entre_museus: dividirEntreMuseus },
         revisado_pelo_usuario: true,
       });
 
@@ -159,14 +195,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             const hoje = new Date();
             const errosFiltrados = (intake.erros_validacao || []).filter(e => {
               const txt = String(e).toLowerCase();
-              // Remove qualquer aviso de "data futura" que seja na verdade data passada/presente
               if (txt.includes('futura') || txt.includes('future')) {
                 const match = txt.match(/(\d{2})\/(\d{2})\/(\d{4})/);
                 if (match) {
                   const dataDoc = new Date(`${match[3]}-${match[2]}-${match[1]}`);
-                  if (dataDoc <= hoje) return false; // é passada/presente — falso positivo
+                  if (dataDoc <= hoje) return false;
                 }
-                // Sem data identificável — mantém por precaução
               }
               return true;
             });
@@ -224,39 +258,122 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             <Input value={form.descricao_servico} onChange={e => setForm(f => ({ ...f, descricao_servico: e.target.value }))} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {/* Centro de Custo */}
-            <div className="space-y-1">
-              <Label>Centro de Custo <span className="text-red-500">*</span></Label>
-              <Select value={form.centro_custo} onValueChange={v => setForm(f => ({ ...f, centro_custo: v }))}>
-                <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>
-                  {CENTROS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Rubrica */}
-            <div className="space-y-1">
-              <Label>Rubrica <span className="text-red-500">*</span></Label>
-              <Select value={form.rubrica_id} onValueChange={v => setForm(f => ({ ...f, rubrica_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Selecionar rubrica" /></SelectTrigger>
-                <SelectContent>
-                  {rubricas.map(r => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.rubrica || r.nome || r.descricao}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Rubrica */}
+          <div className="space-y-1">
+            <Label>Rubrica <span className="text-red-500">*</span></Label>
+            <Select value={form.rubrica_id} onValueChange={v => setForm(f => ({ ...f, rubrica_id: v }))}>
+              <SelectTrigger><SelectValue placeholder="Selecionar rubrica" /></SelectTrigger>
+              <SelectContent>
+                {rubricas.map(r => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.rubrica || r.nome || r.descricao}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {intake.rubrica_justificativa && (
+              <p className="text-xs text-slate-500 italic mt-1">
+                💡 Sugestão IA: {intake.rubrica_justificativa}
+              </p>
+            )}
           </div>
 
-          {intake.rubrica_justificativa && (
-            <p className="text-xs text-slate-500 italic">
-              💡 Sugestão IA: {intake.rubrica_justificativa}
-            </p>
-          )}
+          {/* ─── RATEAMENTO ─── */}
+          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <SplitSquareHorizontal className="w-4 h-4 text-slate-500" />
+                <span className="text-sm font-medium text-slate-700">Rateamento da Rubrica</span>
+              </div>
+            </div>
+
+            {/* Opção: Geral ou dividido */}
+            <div className="flex flex-col gap-2 text-sm">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="rateio_tipo"
+                  checked={!dividirEntreMuseus}
+                  onChange={() => setDividirEntreMuseus(false)}
+                  className="accent-slate-700"
+                />
+                <span className="text-slate-700">Pago pela verba geral (sem rateio entre museus)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="rateio_tipo"
+                  checked={dividirEntreMuseus}
+                  onChange={() => setDividirEntreMuseus(true)}
+                  className="accent-slate-700"
+                />
+                <span className="text-slate-700">Dividir entre museus</span>
+              </label>
+            </div>
+
+            {/* Se não dividir: centro de custo simples */}
+            {!dividirEntreMuseus && (
+              <div className="space-y-1">
+                <Label>Centro de Custo <span className="text-red-500">*</span></Label>
+                <Select value={form.centro_custo} onValueChange={v => setForm(f => ({ ...f, centro_custo: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
+                  <SelectContent>
+                    {CENTROS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Se dividir: tabela de rateio */}
+            {dividirEntreMuseus && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-slate-500">Informe o valor de cada museu. A soma deve ser igual ao valor total da NF.</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={distribuirIgualmente}
+                    className="text-xs h-7"
+                  >
+                    Dividir igualmente
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  {rateio.map(r => (
+                    <div key={r.museu} className="flex items-center gap-3">
+                      <span className="w-16 text-sm font-medium text-slate-700 flex-shrink-0">{r.museu}</span>
+                      <div className="flex-1 relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">R$</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0,00"
+                          value={r.valor}
+                          onChange={e => handleRateioValor(r.museu, e.target.value)}
+                          className="pl-9"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Totalizador */}
+                <div className={`flex justify-between items-center text-sm font-medium px-1 py-2 rounded-lg border ${rateioValido ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                  <span>Total rateado:</span>
+                  <span>R$ {totalRateado.toFixed(2)} {valorTotal > 0 && `/ R$ ${valorTotal.toFixed(2)}`}</span>
+                </div>
+                {!rateioValido && valorTotal > 0 && (
+                  <p className="text-xs text-red-500 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    Diferença de R$ {diferencaRateio.toFixed(2)} — ajuste os valores antes de enviar.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Aviso financeiro */}
           <div className="p-3 bg-slate-50 border rounded-lg text-xs text-slate-500">
@@ -269,7 +386,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Salvar Rascunho
             </Button>
-            <Button onClick={handleEnviarAprovacao} disabled={sending || !form.rubrica_id || !form.centro_custo}>
+            <Button
+              onClick={handleEnviarAprovacao}
+              disabled={sending || !form.rubrica_id || (!dividirEntreMuseus && !form.centro_custo) || (dividirEntreMuseus && !rateioValido)}
+            >
               {sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
               Enviar para Aprovação
             </Button>
