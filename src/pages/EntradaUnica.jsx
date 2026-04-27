@@ -148,7 +148,10 @@ export default function EntradaUnica() {
   function handleSaved() {
     setReviewIntake(null);
     loadIntakes();
-    toast({ title: 'Salvo com sucesso.' });
+    toast({ 
+      title: 'Salvo com sucesso.',
+      duration: 10000
+    });
   }
 
   function handleReclassified(novoTipo) {
