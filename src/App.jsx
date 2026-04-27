@@ -14,6 +14,7 @@ import Agenda from './pages/Agenda';
 import RubricasPorMuseu from './pages/RubricasPorMuseu';
 import BaseConhecimento from './pages/BaseConhecimento';
 import DashboardPatrocinador from './pages/DashboardPatrocinador';
+import EntradaUnica from './pages/EntradaUnica';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -129,6 +130,15 @@ function AuthenticatedApp() {
         element={
           <LayoutWrapper currentPageName="DashboardPatrocinador">
             <DashboardPatrocinador />
+          </LayoutWrapper>
+        }
+      />
+
+      <Route
+        path="/EntradaUnica"
+        element={
+          <LayoutWrapper currentPageName="EntradaUnica">
+            <EntradaUnica />
           </LayoutWrapper>
         }
       />

@@ -36,6 +36,7 @@ const PAGE_TITLES = {
   MeusDados: 'Informações',
   ProgramacaoEspelho: 'Programação — Espelho da Planilha',
   Agenda: 'Agenda Museu Centro',
+  EntradaUnica: 'Entrada Única de Documentos',
 };
 
 export default function Layout({ children, currentPageName }) {

@@ -19,6 +19,7 @@ import {
   DollarSign,
   Star,
   Eye,
+  Inbox,
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { isCoordenador, canManageUsers } from '@/components/auth/permissions';
@@ -33,6 +34,7 @@ const NAV_GROUPS = [
   {
     label: 'Trabalho',
     items: [
+      { path: 'EntradaUnica', label: 'Entrada Única de Documentos', icon: Inbox, roles: ['all'] },
       { path: 'Relatorios', label: 'Relatórios', icon: FileText, roles: ['all'] },
       { path: 'CoordReview', label: 'Revisão de relatórios', icon: Eye, roles: ['coord', 'admin'] },
       { path: 'Compras', label: 'Compras e Pagamentos', icon: ShoppingCart, roles: ['all'] },
