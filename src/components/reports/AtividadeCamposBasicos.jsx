@@ -15,12 +15,17 @@ function Field({ label, children }) {
 }
 
 function normalizeArray(value) {
-  if (Array.isArray(value)) return value.filter(Boolean);
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
+  if (!Array.isArray(value)) {
+    if (!value) return [];
+    return String(value)
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  
+  // Remove null/undefined e duplicados
+  const filtered = value.filter(Boolean);
+  return Array.from(new Set(filtered));
 }
 
 function toInputValue(value, fallback = '') {
@@ -146,21 +151,44 @@ export default function AtividadeCamposBasicos({
   }
 
   function handleEquipeChange(selectedLabels) {
-    const labels = Array.isArray(selectedLabels) ? selectedLabels : [];
-    const selecionados = equipeOptions.filter((item) => labels.includes(item.label));
-    const ids = selecionados.map((item) => item.id);
+    if (!Array.isArray(selectedLabels)) {
+      onChange('equipe_participante_ids', []);
+      onChange('equipe_participante_nomes', '');
+      return;
+    }
+
+    // Remover duplicados dos labels
+    const uniqueLabels = Array.from(new Set(selectedLabels.filter(Boolean)));
+    
+    // Mapear labels para IDs usando equipeOptions
+    const selecionados = equipeOptions.filter((item) => uniqueLabels.includes(item.label));
+    
+    // Remover duplicados de IDs
+    const uniqueIds = Array.from(new Set(selecionados.map((item) => item.id)));
     const nomes = selecionados.map((item) => item.label);
 
-    onChange('equipe_participante_ids', ids);
+    onChange('equipe_participante_ids', uniqueIds);
     onChange('equipe_participante_nomes', nomes.join(', '));
   }
 
   function handleMetasChange(selectedLabels) {
-    const labels = Array.isArray(selectedLabels) ? selectedLabels : [];
-    const selecionados = metasOptions.filter((item) => labels.includes(item.label));
-    const ids = selecionados.map((item) => item.id);
+    if (!Array.isArray(selectedLabels)) {
+      onChange('meta_vinculada_ids', []);
+      onChange('meta_vinculada_titulos', '');
+      return;
+    }
+
+    // Remover duplicados dos labels
+    const uniqueLabels = Array.from(new Set(selectedLabels.filter(Boolean)));
+    
+    // Mapear labels para IDs usando metasOptions
+    const selecionados = metasOptions.filter((item) => uniqueLabels.includes(item.label));
+    
+    // Remover duplicados de IDs
+    const uniqueIds = Array.from(new Set(selecionados.map((item) => item.id)));
     const titulos = selecionados.map((item) => item.label);
-    onChange('meta_vinculada_ids', ids);
+
+    onChange('meta_vinculada_ids', uniqueIds);
     onChange('meta_vinculada_titulos', titulos.join(', '));
   }
 
@@ -428,9 +456,12 @@ export default function AtividadeCamposBasicos({
         <Field label="Membros da equipe participantes">
           <FilterMultiSelect
             options={equipeOptions.map((item) => item.label)}
-            values={equipeOptions
-              .filter((item) => equipeLista.includes(item.id))
-              .map((item) => item.label)}
+            values={Array.from(new Set(
+              equipeOptions
+                .filter((item) => equipeLista.includes(item.id))
+                .map((item) => item.label)
+                .filter(Boolean)
+            ))}
             onChange={handleEquipeChange}
             disabled={!canEdit}
           />
@@ -442,9 +473,12 @@ export default function AtividadeCamposBasicos({
           )}
           <FilterMultiSelect
             options={metasOptions.map((item) => item.label)}
-            values={metasOptions
-              .filter((item) => metasLista.includes(item.id))
-              .map((item) => item.label)}
+            values={Array.from(new Set(
+              metasOptions
+                .filter((item) => metasLista.includes(item.id))
+                .map((item) => item.label)
+                .filter(Boolean)
+            ))}
             onChange={handleMetasChange}
             disabled={!canEdit}
             placeholder={metasOptions.length === 0 ? 'Carregando metas...' : 'Selecione metas...'}
