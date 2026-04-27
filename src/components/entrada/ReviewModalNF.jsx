@@ -122,6 +122,69 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     }
   }
 
+  async function atualizarRubrica(rubricaId, valorDebito) {
+    const rubrica = await base44.entities.Rubrica.get(rubricaId);
+    if (!rubrica) return;
+    const novoUtilizado = (rubrica.valor_utilizado || 0) + valorDebito;
+    const novoSaldo = (rubrica.valor_rubrica || 0) - novoUtilizado;
+    await base44.entities.Rubrica.update(rubricaId, {
+      valor_utilizado: novoUtilizado,
+      saldo: novoSaldo,
+      percentual_utilizado: rubrica.valor_rubrica > 0
+        ? (novoUtilizado / rubrica.valor_rubrica) * 100
+        : 0,
+    });
+  }
+
+  async function debitarRubricas(rateioPayload) {
+    // Agrupa débitos por rubrica_id para evitar escritas concorrentes
+    const debitosPorRubrica = {};
+
+    for (const item of rateioPayload) {
+      // Busca se existe uma RubricaMuseuConfig específica para este museu
+      const configs = await base44.entities.RubricaMuseuConfig.filter({
+        rubrica_id: form.rubrica_id,
+        museu: item.museu,
+      });
+
+      // Usa a rubrica_id da config (sempre igual a form.rubrica_id neste caso)
+      // mas respeita o divisor se configurado
+      const rubricaAlvo = (configs && configs.length > 0)
+        ? configs[0].rubrica_id
+        : form.rubrica_id;
+
+      debitosPorRubrica[rubricaAlvo] = (debitosPorRubrica[rubricaAlvo] || 0) + item.valor;
+    }
+
+    for (const [rubricaId, valorTotal] of Object.entries(debitosPorRubrica)) {
+      try {
+        await atualizarRubrica(rubricaId, valorTotal);
+      } catch (e) {
+        console.error(`Erro ao debitar rubrica ${rubricaId}:`, e);
+      }
+    }
+  }
+
+  async function debitarRubricaSimples(valor) {
+    // Sem rateio: debita o valor total na rubrica selecionada
+    try {
+      const rubrica = await base44.entities.Rubrica.get(form.rubrica_id);
+      if (rubrica) {
+        const novoUtilizado = (rubrica.valor_utilizado || 0) + valor;
+        const novoSaldo = (rubrica.valor_rubrica || 0) - novoUtilizado;
+        await base44.entities.Rubrica.update(rubrica.id, {
+          valor_utilizado: novoUtilizado,
+          saldo: novoSaldo,
+          percentual_utilizado: rubrica.valor_rubrica > 0
+            ? (novoUtilizado / rubrica.valor_rubrica) * 100
+            : 0,
+        });
+      }
+    } catch (e) {
+      console.error('Erro ao debitar rubrica:', e);
+    }
+  }
+
   async function handleEnviarAprovacao() {
     if (!form.rubrica_id) {
       toast({ title: 'Selecione uma rubrica antes de enviar.', variant: 'destructive' });
@@ -188,9 +251,16 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         revisado_pelo_usuario: true,
       });
 
+      // Debitar valores na(s) rubrica(s) correspondente(s)
+      if (dividirEntreMuseus && rateioPayload && rateioPayload.length > 0) {
+        await debitarRubricas(rateioPayload);
+      } else {
+        await debitarRubricaSimples(valorTotal);
+      }
+
       toast({
-        title: 'Documento salvo e disponível em Compras.',
-        description: 'Revise os dados na área de Compras antes de enviar para aprovação.',
+        title: 'Documento enviado e rubrica atualizada.',
+        description: observacoesRateio || `R$ ${valorTotal.toFixed(2)} debitado da rubrica selecionada.`,
       });
       onSaved();
     } catch (e) {
@@ -403,8 +473,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           </div>
 
           {/* Aviso financeiro */}
-          <div className="p-3 bg-slate-50 border rounded-lg text-xs text-slate-500">
-            ℹ️ O valor só será abatido da rubrica após aprovação da coordenação, conforme fluxo financeiro existente.
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+            ⚡ Ao enviar, o valor será debitado imediatamente da(s) rubrica(s) correspondente(s), atualizando o valor realizado e o saldo disponível.
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
