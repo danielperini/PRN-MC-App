@@ -120,15 +120,15 @@ export default function CoordBulkImportPanel() {
   const erros = results.filter(r => r.status === 'erro').length;
 
   return (
-    <div className="border-2 border-violet-200 rounded-2xl bg-violet-50 p-5 space-y-5">
+    <div className="border-2 border-slate-300 rounded-2xl bg-slate-50 p-5 space-y-5">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <ShieldCheck className="w-5 h-5 text-violet-600" />
-        <span className="font-semibold text-violet-800 text-sm">Importação em Lote — Modo Coordenação</span>
-        <Badge className="ml-auto bg-violet-100 text-violet-700 border-violet-300 text-xs">Restrito</Badge>
+        <ShieldCheck className="w-5 h-5 text-slate-600" />
+        <span className="font-semibold text-slate-800 text-sm">Importação em Lote — Modo Coordenação</span>
+        <Badge className="ml-auto bg-slate-200 text-slate-700 border-slate-400 text-xs">Restrito</Badge>
       </div>
 
-      <p className="text-xs text-violet-600 leading-relaxed">
+      <p className="text-xs text-slate-600 leading-relaxed">
         Faça upload de múltiplos arquivos em nome de um profissional. A IA classifica, nomeia e aprova automaticamente, mesmo que sejam de meses anteriores.
       </p>
 
@@ -160,12 +160,12 @@ export default function CoordBulkImportPanel() {
 
       {/* Upload */}
       <div
-        className="border-2 border-dashed border-violet-300 rounded-xl p-4 text-center cursor-pointer hover:bg-violet-100 transition-colors"
+        className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center cursor-pointer hover:bg-slate-100 transition-colors"
         onClick={() => !running && fileInputRef.current?.click()}
       >
-        <Upload className="w-6 h-6 text-violet-400 mx-auto mb-1" />
-        <p className="text-xs text-violet-600">Clique para selecionar arquivos (PDF, XML, imagens)</p>
-        <p className="text-xs text-violet-400 mt-0.5">Múltiplos arquivos permitidos</p>
+        <Upload className="w-6 h-6 text-slate-400 mx-auto mb-1" />
+        <p className="text-xs text-slate-600">Clique para selecionar arquivos (PDF, XML, imagens)</p>
+        <p className="text-xs text-slate-400 mt-0.5">Múltiplos arquivos permitidos</p>
         <input
           ref={fileInputRef}
           type="file"
@@ -196,7 +196,7 @@ export default function CoordBulkImportPanel() {
                   </span>
                 )}
                 {r?.nome_final && r.nome_final !== file.name && (
-                  <span className="text-violet-500 truncate max-w-[120px]" title={r.nome_final}>→ {r.nome_final}</span>
+                  <span className="text-slate-500 truncate max-w-[120px]" title={r.nome_final}>→ {r.nome_final}</span>
                 )}
                 {r?.error && (
                   <span className="text-red-400 truncate max-w-[100px]" title={r.error}>{r.error}</span>
@@ -225,7 +225,7 @@ export default function CoordBulkImportPanel() {
       <Button
         onClick={handleProcessar}
         disabled={running || files.length === 0}
-        className="w-full bg-violet-700 hover:bg-violet-800 text-white"
+        className="w-full bg-black hover:bg-slate-800 text-white"
       >
         {running
           ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Processando {results.filter(r => r.status === 'processando').length > 0 ? `(${results.findIndex(r => r.status === 'processando') + 1}/${files.length})` : ''}...</>
