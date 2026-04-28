@@ -120,14 +120,20 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     try {
       const purchase = await criarPurchaseRequest();
 
-      const resp = await base44.functions.invoke('purchaseActions', {
+      const response = await base44.functions.invoke('purchaseActions', {
         action: 'aprovar',
         purchaseId: purchase.id
       });
 
+      const result = response?.data || response;
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Falha ao aprovar');
+      }
+
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'APROVADO',
-        team_payment_id: resp?.team_payment_id || null
+        team_payment_id: result?.team_payment_id || null
       });
 
       toast({
@@ -142,7 +148,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
       toast({
         title: 'Erro ao aprovar',
-        description: e.message,
+        description: e?.message || 'Erro desconhecido',
         variant: 'destructive'
       });
     }
@@ -261,11 +267,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           <div className="flex justify-end gap-2">
             <Button onClick={onClose}>Cancelar</Button>
 
-            <Button
-              onClick={handleAprovar}
-              disabled={sending}
-              className="bg-blue-600"
-            >
+            <Button onClick={handleAprovar} disabled={sending} className="bg-blue-600">
               {sending
                 ? <Loader2 className="w-4 h-4 animate-spin mr-2"/>
                 : <CheckCircle2 className="w-4 h-4 mr-2"/>
@@ -273,10 +275,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               Aprovar
             </Button>
 
-            <Button
-              onClick={handleEnviar}
-              disabled={sending}
-            >
+            <Button onClick={handleEnviar} disabled={sending}>
               {sending
                 ? <Loader2 className="w-4 h-4 animate-spin mr-2"/>
                 : <Send className="w-4 h-4 mr-2"/>
