@@ -21,7 +21,9 @@ import {
   Loader2,
   FileText,
   LinkIcon,
-  BadgeCheck
+  BadgeCheck,
+  RotateCcw,
+  Save
 } from 'lucide-react';
 import {
   Dialog,
@@ -33,6 +35,7 @@ import {
 const STATUS_CONFIG = {
   PENDENTE: { label: 'Pendente', color: 'bg-white border-2 border-black text-black', icon: Clock },
   EM_ANALISE: { label: 'Em Análise', color: 'bg-white border-2 border-black text-black', icon: Clock },
+  DEVOLVIDO: { label: 'Devolvido', color: 'bg-white border-2 border-black text-black', icon: RotateCcw },
   APROVADO: { label: 'Aprovado', color: 'bg-black text-white', icon: CheckCircle },
   APROVADO_COORD: { label: 'Aprovado Coord.', color: 'bg-black text-white', icon: CheckCircle },
   RECUSADO: { label: 'Recusado', color: 'bg-black text-white', icon: XCircle },
@@ -57,25 +60,81 @@ function fmtBRL(v) {
   }).format(Number(v) || 0);
 }
 
-function PaymentDetailModal({ payment, onClose, onStatusChange, isCoordinator }) {
+function normalizeStatus(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function getRubricaNome(rubrica) {
+  return rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '';
+}
+
+function PaymentDetailModal({
+  payment,
+  rubricas,
+  onClose,
+  onSave,
+  onStatusChange,
+  isCoordinator
+}) {
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const [form, setForm] = useState({
+    member_name: payment?.member_name || payment?.user_name || '',
+    mes_referencia: payment?.mes_referencia || '',
+    ano: payment?.ano || '',
+    numero_nf: payment?.numero_nf || '',
+    valor_nf: payment?.valor_nf || payment?.valor_total || payment?.valor || '',
+    rubrica_id: payment?.rubrica_id || '',
+    rubrica_nome: payment?.rubrica_nome || '',
+    observacoes: payment?.observacoes || ''
+  });
+
   if (!payment) return null;
 
-  const valor = getPaymentValue(payment);
+  const valor = getPaymentValue({
+    ...payment,
+    valor_nf: form.valor_nf
+  });
+
+  const selectedRubrica = (rubricas || []).find((r) => r.id === form.rubrica_id);
+
+  const status = STATUS_CONFIG[normalizeStatus(payment.status)] || {
+    label: payment.status,
+    color: 'bg-white border-2 border-black text-black'
+  };
+
+  const handleSave = async () => {
+    setLoading(true);
+    await onSave(payment.id, {
+      ...form,
+      rubrica_nome: selectedRubrica ? getRubricaNome(selectedRubrica) : form.rubrica_nome,
+      valor_nf: Number(form.valor_nf || 0),
+      valor_total: Number(form.valor_nf || 0)
+    });
+    setLoading(false);
+  };
 
   const handleAction = async (newStatus) => {
     setLoading(true);
-    await onStatusChange(payment.id, newStatus, comment);
+    await onStatusChange(
+      payment.id,
+      newStatus,
+      comment,
+      {
+        ...form,
+        rubrica_nome: selectedRubrica ? getRubricaNome(selectedRubrica) : form.rubrica_nome,
+        valor_nf: Number(form.valor_nf || 0),
+        valor_total: Number(form.valor_nf || 0)
+      }
+    );
     setLoading(false);
     onClose();
   };
 
-  const status = STATUS_CONFIG[payment.status] || {
-    label: payment.status,
-    color: 'bg-white border-2 border-black text-black'
-  };
+  const podeAprovar =
+    isCoordinator &&
+    ['PENDENTE', 'EM_ANALISE', 'DEVOLVIDO'].includes(normalizeStatus(payment.status));
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -94,42 +153,101 @@ function PaymentDetailModal({ payment, onClose, onStatusChange, isCoordinator })
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-gray-500">Profissional</p>
-              <p className="font-medium">
-                {payment.member_name || payment.user_name || payment.created_by || '—'}
-              </p>
+              <p className="text-xs text-gray-500 mb-1">Profissional</p>
+              <Input
+                value={form.member_name}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, member_name: e.target.value }))
+                }
+                disabled={!isCoordinator}
+              />
             </div>
 
             <div>
-              <p className="text-xs text-gray-500">Mês de Referência</p>
-              <p className="font-medium">
-                {payment.mes_referencia || '—'} / {payment.ano || '—'}
-              </p>
+              <p className="text-xs text-gray-500 mb-1">Mês de Referência</p>
+              <Input
+                value={form.mes_referencia}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, mes_referencia: e.target.value }))
+                }
+                disabled={!isCoordinator}
+              />
             </div>
 
             <div>
-              <p className="text-xs text-gray-500">Valor</p>
-              <p className="font-medium text-lg">{fmtBRL(valor)}</p>
+              <p className="text-xs text-gray-500 mb-1">Ano</p>
+              <Input
+                value={form.ano}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, ano: e.target.value }))
+                }
+                disabled={!isCoordinator}
+              />
             </div>
 
             <div>
-              <p className="text-xs text-gray-500">Status</p>
+              <p className="text-xs text-gray-500 mb-1">Número da NF</p>
+              <Input
+                value={form.numero_nf}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, numero_nf: e.target.value }))
+                }
+                disabled={!isCoordinator}
+              />
+            </div>
+
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Valor</p>
+              <Input
+                type="number"
+                value={form.valor_nf}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, valor_nf: e.target.value }))
+                }
+                disabled={!isCoordinator}
+              />
+              <p className="mt-1 text-xs text-gray-500">{fmtBRL(valor)}</p>
+            </div>
+
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Status</p>
               <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>
                 {status.label}
               </span>
             </div>
+          </div>
 
-            <div>
-              <p className="text-xs text-gray-500">Número da NF</p>
-              <p className="font-medium">{payment.numero_nf || '—'}</p>
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-500">Rubrica</p>
-              <p className="font-medium">
-                {payment.rubrica_nome || payment.rubrica_id || '—'}
-              </p>
-            </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Rubrica vinculada</p>
+            <Select
+              value={form.rubrica_id}
+              onValueChange={(value) => {
+                const rubrica = (rubricas || []).find((r) => r.id === value);
+                setForm((f) => ({
+                  ...f,
+                  rubrica_id: value,
+                  rubrica_nome: rubrica ? getRubricaNome(rubrica) : ''
+                }));
+              }}
+              disabled={!isCoordinator}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a rubrica" />
+              </SelectTrigger>
+              <SelectContent>
+                {(rubricas || [])
+                  .filter((r) => r?.ativo !== false)
+                  .sort((a, b) =>
+                    getRubricaNome(a).localeCompare(getRubricaNome(b), 'pt-BR')
+                  )
+                  .map((rubrica) => (
+                    <SelectItem key={rubrica.id} value={rubrica.id}>
+                      {getRubricaNome(rubrica)}
+                      {rubrica.centro_custo ? ` — ${rubrica.centro_custo}` : ''}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {(payment.nota_fiscal_url || payment.xml_url) && (
@@ -162,61 +280,75 @@ function PaymentDetailModal({ payment, onClose, onStatusChange, isCoordinator })
             </div>
           )}
 
-          {payment.observacoes && (
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Observações</p>
-              <p className="text-sm text-gray-700 rounded-lg bg-gray-50 p-3">
-                {payment.observacoes}
-              </p>
-            </div>
-          )}
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Observações</p>
+            <Input
+              value={form.observacoes}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, observacoes: e.target.value }))
+              }
+              disabled={!isCoordinator}
+            />
+          </div>
 
-          {isCoordinator && (payment.status === 'PENDENTE' || payment.status === 'EM_ANALISE') && (
+          {isCoordinator && (
             <div className="space-y-3 border-t pt-4">
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">
-                  Comentário
+                  Comentário da coordenação
                 </label>
                 <Input
-                  placeholder="Comentário para o profissional..."
+                  placeholder="Comentário para aprovação ou devolução..."
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                 />
               </div>
 
-              <div className="flex gap-2 justify-end">
+              <div className="flex flex-wrap gap-2 justify-end">
                 <Button
                   variant="outline"
                   className="border-2 border-black text-black hover:bg-black hover:text-white"
-                  onClick={() => handleAction('RECUSADO')}
+                  onClick={handleSave}
                   disabled={loading}
                 >
-                  {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <XCircle className="h-4 w-4 mr-1" />}
-                  Recusar
+                  {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                  Salvar edição
                 </Button>
 
-                <Button
-                  className="bg-black text-white hover:bg-gray-900"
-                  onClick={() => handleAction('APROVADO')}
-                  disabled={loading}
-                >
-                  {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />}
-                  Aprovar
-                </Button>
+                {podeAprovar && (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="border-2 border-black text-black hover:bg-black hover:text-white"
+                      onClick={() => handleAction('DEVOLVIDO')}
+                      disabled={loading}
+                    >
+                      {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
+                      Devolver
+                    </Button>
+
+                    <Button
+                      className="bg-black text-white hover:bg-gray-900"
+                      onClick={() => handleAction('APROVADO_COORD')}
+                      disabled={loading || !form.rubrica_id}
+                    >
+                      {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />}
+                      Aprovar e debitar rubrica
+                    </Button>
+                  </>
+                )}
+
+                {(payment.status === 'APROVADO' || payment.status === 'APROVADO_COORD') && (
+                  <Button
+                    className="bg-black text-white hover:bg-gray-900"
+                    onClick={() => handleAction('PAGO')}
+                    disabled={loading}
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <DollarSign className="h-4 w-4 mr-1" />}
+                    Marcar como Pago
+                  </Button>
+                )}
               </div>
-            </div>
-          )}
-
-          {isCoordinator && (payment.status === 'APROVADO' || payment.status === 'APROVADO_COORD') && (
-            <div className="border-t pt-4 flex justify-end">
-              <Button
-                className="bg-black text-white hover:bg-gray-900"
-                onClick={() => handleAction('PAGO')}
-                disabled={loading}
-              >
-                {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <DollarSign className="h-4 w-4 mr-1" />}
-                Marcar como Pago
-              </Button>
             </div>
           )}
         </div>
@@ -251,25 +383,94 @@ export default function TeamPaymentReview() {
     enabled: !!currentUser
   });
 
-  const handleStatusChange = async (paymentId, newStatus, comment) => {
+  const { data: rubricas = [] } = useQuery({
+    queryKey: ['rubricas-team-payment-review'],
+    queryFn: () => base44.entities.Rubrica.list('rubrica', 2000),
+    enabled: !!currentUser
+  });
+
+  async function debitarRubricaSeNecessario(payment, payload) {
+    const statusAtual = normalizeStatus(payment?.status);
+    const novoStatus = normalizeStatus(payload?.status);
+
+    if (novoStatus !== 'APROVADO_COORD' && novoStatus !== 'APROVADO') return;
+    if (statusAtual === 'APROVADO_COORD' || statusAtual === 'APROVADO') return;
+    if (payment?.rubrica_debitada_aprovacao === true) return;
+    if (!payload?.rubrica_id) throw new Error('Selecione uma rubrica antes de aprovar.');
+
+    const valor = getPaymentValue({
+      ...payment,
+      ...payload
+    });
+
+    if (!valor || valor <= 0) throw new Error('Valor inválido para débito da rubrica.');
+
+    const rubrica = await base44.entities.Rubrica.get(payload.rubrica_id);
+    if (!rubrica?.id) throw new Error('Rubrica não encontrada.');
+
+    await base44.entities.Rubrica.update(rubrica.id, {
+      saldo_comprometido: Number(rubrica.saldo_comprometido || 0) + valor
+    });
+  }
+
+  const handleSavePayment = async (paymentId, payload) => {
+    const rubrica = (rubricas || []).find((r) => r.id === payload.rubrica_id);
+
     await base44.entities.TeamPayment.update(paymentId, {
+      ...payload,
+      rubrica_nome: rubrica ? getRubricaNome(rubrica) : payload.rubrica_nome,
+      atualizado_por_coord: currentUser?.email || '',
+      atualizado_em: new Date().toISOString()
+    });
+
+    queryClient.invalidateQueries({ queryKey: ['team-payments'] });
+    queryClient.invalidateQueries({ queryKey: ['rubricas'] });
+    queryClient.invalidateQueries({ queryKey: ['rubricas-team-payment-review'] });
+    queryClient.invalidateQueries({ queryKey: ['purchases'] });
+  };
+
+  const handleStatusChange = async (paymentId, newStatus, comment, editedPayload = {}) => {
+    const payment = payments.find((p) => p.id === paymentId);
+    const rubrica = (rubricas || []).find((r) => r.id === editedPayload.rubrica_id);
+
+    const payload = {
+      ...editedPayload,
+      rubrica_nome: rubrica ? getRubricaNome(rubrica) : editedPayload.rubrica_nome,
       status: newStatus,
       ...(comment ? { comentario_coordenacao: comment } : {}),
+      ...(newStatus === 'DEVOLVIDO'
+        ? {
+            devolvido_em: new Date().toISOString(),
+            devolvido_por: currentUser?.email || ''
+          }
+        : {}),
+      ...(newStatus === 'APROVADO' || newStatus === 'APROVADO_COORD'
+        ? {
+            aprovado_em: new Date().toISOString(),
+            aprovado_por: currentUser?.email || '',
+            rubrica_debitada_aprovacao: true
+          }
+        : {}),
       ...(newStatus === 'PAGO'
         ? {
             pago_em: new Date().toISOString(),
             pago_por: currentUser?.email || ''
           }
         : {})
-    });
+    };
+
+    await debitarRubricaSeNecessario(payment, payload);
+
+    await base44.entities.TeamPayment.update(paymentId, payload);
 
     queryClient.invalidateQueries({ queryKey: ['team-payments'] });
     queryClient.invalidateQueries({ queryKey: ['rubricas'] });
+    queryClient.invalidateQueries({ queryKey: ['rubricas-team-payment-review'] });
     queryClient.invalidateQueries({ queryKey: ['purchases'] });
   };
 
   const filtered = payments.filter((p) => {
-    const matchStatus = statusFilter === 'all' || p.status === statusFilter;
+    const matchStatus = statusFilter === 'all' || normalizeStatus(p.status) === statusFilter;
     const busca = search.trim().toLowerCase();
 
     const matchSearch =
@@ -283,13 +484,20 @@ export default function TeamPaymentReview() {
   });
 
   const pendentes = payments.filter(
-    (p) => p.status === 'PENDENTE' || p.status === 'EM_ANALISE'
+    (p) =>
+      normalizeStatus(p.status) === 'PENDENTE' ||
+      normalizeStatus(p.status) === 'EM_ANALISE' ||
+      normalizeStatus(p.status) === 'DEVOLVIDO'
   ).length;
 
   const automaticos = payments.filter((p) => p.origem_automatica).length;
 
   const totalAprovado = payments
-    .filter((p) => p.status === 'APROVADO' || p.status === 'APROVADO_COORD' || p.status === 'PAGO')
+    .filter((p) =>
+      normalizeStatus(p.status) === 'APROVADO' ||
+      normalizeStatus(p.status) === 'APROVADO_COORD' ||
+      normalizeStatus(p.status) === 'PAGO'
+    )
     .reduce((s, p) => s + getPaymentValue(p), 0);
 
   return (
@@ -370,7 +578,7 @@ export default function TeamPaymentReview() {
 
             <tbody>
               {filtered.map((p, i) => {
-                const status = STATUS_CONFIG[p.status] || {
+                const status = STATUS_CONFIG[normalizeStatus(p.status)] || {
                   label: p.status,
                   color: 'bg-white border-2 border-black text-black',
                   icon: Clock
@@ -454,7 +662,9 @@ export default function TeamPaymentReview() {
       {selectedPayment && (
         <PaymentDetailModal
           payment={selectedPayment}
+          rubricas={rubricas}
           onClose={() => setSelectedPayment(null)}
+          onSave={handleSavePayment}
           onStatusChange={handleStatusChange}
           isCoordinator={isCoordinator}
         />
