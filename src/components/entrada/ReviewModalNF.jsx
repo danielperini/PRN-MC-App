@@ -228,7 +228,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       .map((r) => ({ museu: r.museu, valor: parseFloat(r.valor) }));
   }
 
-  function validarBloqueios({ permitirInconsistencias = false } = {}) {
+  function validarBloqueios() {
     const erros = [];
 
     if (!form.rubrica_id) erros.push('Selecione a rubrica orçamentária.');
@@ -237,12 +237,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     if (!valorTotal || valorTotal <= 0) erros.push('Informe um valor válido.');
     if (!form.nf_emitente_nome) erros.push('Informe o fornecedor / emitente.');
     if (!form.nf_data_emissao) erros.push('Informe a data de emissão.');
-
     if (dividirEntreMuseus && !rateioValido) erros.push('Rateio inválido.');
-
-    if (!permitirInconsistencias && errosFiltrados.length > 0) {
-      erros.push('Existem inconsistências detectadas pela IA.');
-    }
 
     return erros;
   }
@@ -446,7 +441,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   }
 
   async function handleProcessarNota(aprovarDireto = false) {
-    const erros = validarBloqueios({ permitirInconsistencias: !aprovarDireto });
+    const erros = validarBloqueios();
 
     if (erros.length > 0) {
       toast({
