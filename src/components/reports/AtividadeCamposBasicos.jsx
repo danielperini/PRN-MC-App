@@ -65,23 +65,14 @@ export default function AtividadeCamposBasicos({
   programacaoOptions = [],
 }) {
 
-  // 🔥 CORREÇÃO PRINCIPAL: lista TODOS os membros + selecionados
+  // 🔥 CORREÇÃO PRINCIPAL
   const equipeOptions = dedupeOptions(teamOptions);
-  const rawEquipeIds = normalizeArray(atividade?.equipe_participante_ids);
 
-  // Garante que TODOS aparecem: opções base + selecionados que não estão na base
-  const equipeSelecionada = [
-    ...equipeOptions,
-    ...rawEquipeIds
-      .filter(id => !equipeOptions.some(opt => opt.id === id))
-      .map(id => ({ id, label: id })) // fallback com o ID como label
-  ];
+  const equipeIds = normalizeArray(atividade?.equipe_participante_ids);
 
-  const equipeSelecionadaLabels = Array.from(new Set(
-    equipeSelecionada
-      .filter(opt => rawEquipeIds.includes(opt.id))
-      .map(opt => opt.label)
-  ));
+  const equipeSelecionada = equipeOptions
+    .filter(opt => equipeIds.includes(opt.id))
+    .map(opt => opt.label);
 
   function handleEquipeChange(selectedLabels) {
     if (!Array.isArray(selectedLabels)) {
@@ -130,15 +121,15 @@ export default function AtividadeCamposBasicos({
         />
       </Field>
 
-      {/* 🔥 CAMPO CORRIGIDO: lista TODOS + nunca perde seleção */}
-       <Field label="Membros da equipe participantes">
-         <FilterMultiSelectAdvanced
-           options={equipeSelecionada}
-           values={equipeSelecionadaLabels}
-           onChange={handleEquipeChange}
-           disabled={!canEdit}
-         />
-       </Field>
+      {/* 🔥 CAMPO CORRIGIDO */}
+      <Field label="Membros da equipe participantes">
+        <FilterMultiSelectAdvanced
+          options={equipeOptions}
+          values={equipeSelecionada}
+          onChange={handleEquipeChange}
+          disabled={!canEdit}
+        />
+      </Field>
 
       <div className="grid md:grid-cols-3 gap-4">
 
