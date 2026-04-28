@@ -5,9 +5,7 @@ function toNumber(value: any) {
 
   const raw = String(value || '').trim();
 
-  if (/^\d{5,}$/.test(raw)) {
-    return Number(raw) / 100;
-  }
+  if (/^\d{5,}$/.test(raw)) return Number(raw) / 100;
 
   const clean = raw
     .replace('R$', '')
@@ -24,6 +22,10 @@ function normalizeText(value: any) {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase();
+}
+
+function safeString(value: any) {
+  return String(value || '').trim();
 }
 
 function getRubricaNome(rubrica: any) {
@@ -80,27 +82,17 @@ function parseCompetencia(value: any) {
   const mmYYYY = raw.match(/^(\d{1,2})\/(\d{4})$/);
   if (mmYYYY) {
     const mesIndex = Math.max(1, Math.min(12, Number(mmYYYY[1]))) - 1;
-    return {
-      mes_referencia: meses[mesIndex],
-      ano: Number(mmYYYY[2]),
-    };
+    return { mes_referencia: meses[mesIndex], ano: Number(mmYYYY[2]) };
   }
 
   const yyyyMM = raw.match(/^(\d{4})-(\d{1,2})/);
   if (yyyyMM) {
     const mesIndex = Math.max(1, Math.min(12, Number(yyyyMM[2]))) - 1;
-    return {
-      mes_referencia: meses[mesIndex],
-      ano: Number(yyyyMM[1]),
-    };
+    return { mes_referencia: meses[mesIndex], ano: Number(yyyyMM[1]) };
   }
 
   const now = new Date();
-
-  return {
-    mes_referencia: meses[now.getMonth()],
-    ano: now.getFullYear(),
-  };
+  return { mes_referencia: meses[now.getMonth()], ano: now.getFullYear() };
 }
 
 async function findBestTeamMember(base44: any, form: any) {
@@ -145,10 +137,6 @@ async function findBestTeamMember(base44: any, form: any) {
   } catch {
     return null;
   }
-}
-
-function safeString(value: any) {
-  return String(value || '').trim();
 }
 
 Deno.serve(async (req) => {
@@ -199,7 +187,7 @@ Deno.serve(async (req) => {
       form?.nome_arquivo_padronizado ||
       intake?.file_name ||
       intake?.nome_arquivo ||
-      `NF ${form?.nf_numero || ''}`;
+      `NF ${safeString(form?.nf_numero)}`;
 
     let attachment = null;
 
@@ -227,15 +215,15 @@ Deno.serve(async (req) => {
         });
       }
     } catch (e: any) {
-      console.warn('Attachment não criado:', e?.message);
+      console.warn('Attachment não criado, sem bloquear envio:', e?.message);
     }
 
     if (destinoEquipe) {
       const competencia = parseCompetencia(form?.nf_competencia || ia?.nf_competencia);
       const member = await findBestTeamMember(base44, form);
 
-      const teamPaymentPayload = {
-        team_member_id: member?.id || null,
+      const teamPayment = await base44.asServiceRole.entities.TeamPayment.create({
+        team_member_id: member?.id || 'entrada-unica-sem-membro',
         user_email: member?.user_email || member?.email || member?.email_pessoal || user.email || '',
         user_name: member?.user_name || member?.nome || member?.name || form?.nf_emitente_nome || '',
         funcao: member?.funcao || '',
@@ -247,14 +235,13 @@ Deno.serve(async (req) => {
         rubrica_id: form.rubrica_id,
         rubrica_nome: rubricaNome,
 
-        nota_fiscal_url: arquivoUrl || attachment?.file_url || '',
+        nota_fiscal_url: arquivoUrl || attachment?.file_url || 'sem-url',
         nota_fiscal_file_name: nomeArquivo,
         xml_url: safeString(form?.xml_url),
         xml_file_name: safeString(form?.xml_vinculado_nome),
 
         numero_nf: safeString(form?.nf_numero),
         valor_nf: valor,
-        valor_total: valor,
         valor_parcela_previsto: valor,
 
         nf_numero_extraido: safeString(form?.nf_numero),
@@ -269,11 +256,8 @@ Deno.serve(async (req) => {
         origem: 'Entrada Única',
         tipo_origem: 'NOTA_FISCAL_EQUIPE',
         observacoes: `Entrada Única — NF ${safeString(form?.nf_numero)}. ${safeString(form?.descricao_servico)}`,
-        documento_intake_id: intake.id,
-        nome_padronizado_arquivo: nomeArquivo,
-      };
-
-      const teamPayment = await base44.asServiceRole.entities.TeamPayment.create(teamPaymentPayload);
+        unique_key: `entrada-unica-${intake.id}`,
+      });
 
       await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
         entidade_destino: 'TeamPayment',
@@ -297,13 +281,14 @@ Deno.serve(async (req) => {
 
       return Response.json({
         success: true,
+        ok: true,
         destino: 'equipe',
         entity: 'TeamPayment',
         id: teamPayment.id,
       });
     }
 
-    const purchasePayload = {
+    const purchase = await base44.asServiceRole.entities.PurchaseRequest.create({
       descricao_item: form?.descricao_servico || form?.nf_emitente_nome || `NF ${safeString(form?.nf_numero)}`,
       fornecedor_nome: form?.nf_emitente_nome || '',
       fornecedor_cnpj: form?.nf_emitente_cpf_cnpj || '',
@@ -323,9 +308,7 @@ Deno.serve(async (req) => {
       nf_competencia: safeString(form?.nf_competencia),
       nome_padronizado_arquivo: nomeArquivo,
       nome_arquivo_padronizado: nomeArquivo,
-    };
-
-    const purchase = await base44.asServiceRole.entities.PurchaseRequest.create(purchasePayload);
+    });
 
     await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
       entidade_destino: 'PurchaseRequest',
@@ -348,6 +331,7 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: true,
+      ok: true,
       destino: 'solicitacoes',
       entity: 'PurchaseRequest',
       id: purchase.id,
@@ -357,6 +341,7 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: false,
+      ok: false,
       error: e?.message || 'Erro interno ao enviar nota para aprovação',
       stack: e?.stack || null,
     }, { status: 500 });
