@@ -20,6 +20,35 @@ import { useToast } from '@/components/ui/use-toast';
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const TIPOS_GASTO = ['Serviço', 'Produto', 'Material', 'Equipamento', 'Outro'];
 
+const METAS_3_ADITIVO = [
+  { id: 'MC3A-01', nome: 'Meta 1 — Contratação da equipe principal' },
+  { id: 'MC3A-02', nome: 'Meta 2 — Plano de Comunicação Nacional' },
+  { id: 'MC3A-03', nome: 'Meta 3 — Manutenção das 04 exposições' },
+  { id: 'MC3A-04', nome: 'Meta 4 — Alteração de 2 núcleos expositivos' },
+  { id: 'MC3A-05', nome: 'Meta 5 — 60 ações educativas' },
+  { id: 'MC3A-06', nome: 'Meta 6 — 36 ações culturais' },
+  { id: 'MC3A-07', nome: 'Meta 7 — Educadores fixos MIS / MUMO / MHAB' },
+  { id: 'MC3A-08', nome: 'Meta 8 — Exposição no Casarão do MHAB' },
+  { id: 'MC3A-09', nome: 'Meta 9 — Exposição no MIS' },
+  { id: 'MC3A-10', nome: 'Meta 10 — 18 mostras nos museus' },
+  { id: 'MC3A-11', nome: 'Meta 11 — Noturno nos Museus' },
+  { id: 'MC3A-12', nome: 'Meta 12 — Projeto curatorial galeria do MHAB' },
+  { id: 'MC3A-13', nome: 'Meta 13 — Projeto curatorial MUMO' },
+  { id: 'MC3A-14', nome: 'Meta 14 — Inscrição em leis de incentivo' },
+  { id: 'MC3A-15', nome: 'Meta 15 — Dispositivos acessíveis' },
+  { id: 'MC3A-16', nome: 'Meta 16 — 101 diárias de educador' },
+  { id: 'MC3A-17', nome: 'Meta 17 — Publicações / catálogos' },
+  { id: 'MC3A-18', nome: 'Meta 18 — Custeio de atividades educativas contínuas' },
+  { id: 'MC3A-19', nome: 'Meta 19 — Presente de Iemanjá' },
+  { id: 'MC3A-20', nome: 'Meta 20 — 30 ações educativas/culturais finais' },
+  { id: 'MC3A-21', nome: 'Meta 21 — Exposição no MUMO' },
+  { id: 'MC3A-22', nome: 'Meta 22 — Comunicação e divulgação' },
+  { id: 'MC3A-23', nome: 'Meta 23 — Consultorias para execução do projeto' },
+  { id: 'MC3A-24', nome: 'Meta 24 — Emenda Parlamentar' },
+  { id: 'MC3A-25', nome: 'Meta 25 — Outras ações' },
+  { id: 'MC3A-EXTRA', nome: 'MC3A-EXTRA — Ações extras' },
+];
+
 function parseValorBR(value) {
   const clean = String(value || '')
     .replace('R$', '')
@@ -32,9 +61,7 @@ function parseValorBR(value) {
 
 function formatValorBR(value) {
   const number = parseValorBR(value);
-
   if (!number) return '';
-
   return number.toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -43,14 +70,10 @@ function formatValorBR(value) {
 
 function normalizeDate(value) {
   if (!value) return '';
-
   const raw = String(value).trim();
-
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-
   const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (br) return `${br[3]}-${br[2]}-${br[1]}`;
-
   return raw;
 }
 
@@ -58,123 +81,73 @@ function getValue(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== '') || '';
 }
 
+function limparNomeArquivo(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s.-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+function gerarNomePadronizadoArquivo(form, intake) {
+  const numero = limparNomeArquivo(form.nf_numero || 'SEM NF');
+  const tipo = limparNomeArquivo(form.tipo_gasto || 'NOTA FISCAL');
+  const emitente = limparNomeArquivo(form.nf_emitente_nome || 'FORNECEDOR');
+  const centro = limparNomeArquivo(form.centro_custo || 'GERAL');
+  const valor = parseValorBR(form.nf_valor_total);
+
+  const extensao =
+    String(intake?.file_name || intake?.nome_arquivo || intake?.file_name_original || '')
+      .split('.')
+      .pop()
+      ?.toLowerCase() || 'pdf';
+
+  const valorTexto = valor
+    ? `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+    : 'R$ 0,00';
+
+  return `${numero} ${tipo} - ${emitente} - MUSEUS CENTRO - ${centro} - ${valorTexto}.${extensao}`;
+}
+
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const { toast } = useToast();
-
   const ia = intake?.resultado_ia || {};
 
   const [sending, setSending] = useState(false);
   const [rubricas, setRubricas] = useState([]);
-  const [metas, setMetas] = useState([]);
+  const [nomeEditadoManualmente, setNomeEditadoManualmente] = useState(false);
 
-  const [form, setForm] = useState({
-    nome_padronizado_arquivo: getValue(
-      intake?.nome_padronizado_arquivo,
-      intake?.nome_arquivo_padronizado,
-      ia.nome_padronizado_arquivo,
-      ia.nome_arquivo_padronizado,
-      intake?.file_name,
-      intake?.nome_arquivo
-    ),
+  const [form, setForm] = useState(() => {
+    const baseForm = {
+      nome_padronizado_arquivo: getValue(
+        intake?.nome_padronizado_arquivo,
+        intake?.nome_arquivo_padronizado,
+        ia.nome_padronizado_arquivo,
+        ia.nome_arquivo_padronizado
+      ),
+      nf_numero: getValue(ia.nf_numero, ia.numero_nf, intake?.nf_numero),
+      nf_valor_total: getValue(ia.nf_valor_total, ia.valor_total, ia.valor, intake?.nf_valor_total, intake?.valor_total),
+      nf_data_emissao: normalizeDate(getValue(ia.nf_data_emissao, ia.data_emissao, ia.dataEmissao, ia.emissao, intake?.nf_data_emissao)),
+      nf_competencia: getValue(ia.nf_competencia, ia.competencia, intake?.nf_competencia, intake?.competencia),
+      nf_emitente_nome: getValue(ia.nf_emitente_nome, ia.emitente_nome, ia.emitente, intake?.nf_emitente_nome, intake?.emitente),
+      nf_emitente_cpf_cnpj: getValue(ia.nf_emitente_cpf_cnpj, ia.cnpj_cpf_emitente, ia.cnpj, ia.cpf_cnpj, intake?.nf_emitente_cpf_cnpj),
+      municipio: getValue(ia.municipio, ia.municipio_emitente, intake?.municipio),
+      descricao_servico: getValue(ia.descricao_servico, ia.descricao, ia.descricao_item, intake?.descricao_servico, intake?.descricao),
+      meta_id: getValue(intake?.meta_id, intake?.meta_id_sugerida, ia.meta_id, ia.meta_id_sugerida),
+      tipo_gasto: getValue(intake?.tipo_gasto, ia.tipo_gasto, ia.tipo_gasto_sugerido, 'Serviço'),
+      centro_custo: getValue(ia.centro_custo_sugerido, ia.centro_custo, intake?.centro_custo, 'Atuação Geral'),
+      rubrica_id: getValue(intake?.rubrica_id, intake?.rubrica_id_sugerida, ia.rubrica_id, ia.rubrica_id_sugerida),
+      tipo_rateio: getValue(intake?.tipo_rateio, ia.tipo_rateio, 'geral'),
+      xml_vinculado_id: getValue(intake?.xml_vinculado_id, intake?.xml_id, ia.xml_vinculado_id),
+      xml_vinculado_nome: getValue(intake?.xml_vinculado_nome, intake?.xml_file_name, ia.xml_vinculado_nome, ia.xml_file_name),
+    };
 
-    nf_numero: getValue(ia.nf_numero, ia.numero_nf, intake?.nf_numero),
-    nf_valor_total: getValue(
-      ia.nf_valor_total,
-      ia.valor_total,
-      ia.valor,
-      intake?.nf_valor_total,
-      intake?.valor_total
-    ),
-    nf_data_emissao: normalizeDate(
-      getValue(
-        ia.nf_data_emissao,
-        ia.data_emissao,
-        ia.dataEmissao,
-        ia.emissao,
-        intake?.nf_data_emissao
-      )
-    ),
-    nf_competencia: getValue(
-      ia.nf_competencia,
-      ia.competencia,
-      intake?.nf_competencia,
-      intake?.competencia
-    ),
-
-    nf_emitente_nome: getValue(
-      ia.nf_emitente_nome,
-      ia.emitente_nome,
-      ia.emitente,
-      intake?.nf_emitente_nome,
-      intake?.emitente
-    ),
-    nf_emitente_cpf_cnpj: getValue(
-      ia.nf_emitente_cpf_cnpj,
-      ia.cnpj_cpf_emitente,
-      ia.cnpj,
-      ia.cpf_cnpj,
-      intake?.nf_emitente_cpf_cnpj
-    ),
-    municipio: getValue(
-      ia.municipio,
-      ia.municipio_emitente,
-      intake?.municipio
-    ),
-
-    descricao_servico: getValue(
-      ia.descricao_servico,
-      ia.descricao,
-      ia.descricao_item,
-      intake?.descricao_servico,
-      intake?.descricao
-    ),
-
-    meta_id: getValue(
-      intake?.meta_id,
-      intake?.meta_id_sugerida,
-      ia.meta_id,
-      ia.meta_id_sugerida
-    ),
-
-    tipo_gasto: getValue(
-      intake?.tipo_gasto,
-      ia.tipo_gasto,
-      ia.tipo_gasto_sugerido,
-      'Serviço'
-    ),
-
-    centro_custo: getValue(
-      ia.centro_custo_sugerido,
-      ia.centro_custo,
-      intake?.centro_custo,
-      'Atuação Geral'
-    ),
-
-    rubrica_id: getValue(
-      intake?.rubrica_id,
-      intake?.rubrica_id_sugerida,
-      ia.rubrica_id,
-      ia.rubrica_id_sugerida
-    ),
-
-    tipo_rateio: getValue(
-      intake?.tipo_rateio,
-      ia.tipo_rateio,
-      'geral'
-    ),
-
-    xml_vinculado_id: getValue(
-      intake?.xml_vinculado_id,
-      intake?.xml_id,
-      ia.xml_vinculado_id
-    ),
-
-    xml_vinculado_nome: getValue(
-      intake?.xml_vinculado_nome,
-      intake?.xml_file_name,
-      ia.xml_vinculado_nome,
-      ia.xml_file_name
-    ),
+    return {
+      ...baseForm,
+      nome_padronizado_arquivo: baseForm.nome_padronizado_arquivo || gerarNomePadronizadoArquivo(baseForm, intake),
+    };
   });
 
   useEffect(() => {
@@ -185,19 +158,27 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       } catch (e) {
         console.error('Erro ao carregar rubricas:', e);
       }
-
-      try {
-        if (base44.entities.Meta) {
-          const metasList = await base44.entities.Meta.list('', 500);
-          setMetas(metasList || []);
-        }
-      } catch (e) {
-        console.warn('Metas não carregadas neste contexto:', e);
-      }
     }
 
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (nomeEditadoManualmente) return;
+
+    setForm((f) => ({
+      ...f,
+      nome_padronizado_arquivo: gerarNomePadronizadoArquivo(f, intake),
+    }));
+  }, [
+    form.nf_numero,
+    form.nf_valor_total,
+    form.nf_emitente_nome,
+    form.tipo_gasto,
+    form.centro_custo,
+    intake,
+    nomeEditadoManualmente,
+  ]);
 
   function validar() {
     const erros = [];
@@ -208,6 +189,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     if (!form.nf_emitente_nome) erros.push('Emitente');
     if (!form.nf_emitente_cpf_cnpj) erros.push('CNPJ/CPF');
     if (!form.descricao_servico) erros.push('Descrição');
+    if (!form.meta_id) erros.push('Meta do 3º Aditivo');
     if (!form.tipo_gasto) erros.push('Tipo de gasto');
     if (!form.centro_custo) erros.push('Centro de custo');
     if (!form.rubrica_id) erros.push('Rubrica');
@@ -221,8 +203,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   }
 
   function getMetaNome(id) {
-    const meta = metas.find((item) => item.id === id);
-    return meta?.nome || meta?.titulo || meta?.meta || meta?.descricao || '';
+    const meta = METAS_3_ADITIVO.find((item) => item.id === id);
+    return meta?.nome || '';
   }
 
   async function salvarRascunho() {
@@ -236,6 +218,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'RASCUNHO',
+        nome_padronizado_arquivo: form.nome_padronizado_arquivo,
+        nome_arquivo_padronizado: form.nome_padronizado_arquivo,
         centro_custo: form.centro_custo,
         rubrica_id_sugerida: form.rubrica_id,
         rubrica_nome_sugerida: rubricaNome,
@@ -244,14 +228,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           ...ia,
           ...form,
           nf_valor_total: valor,
+          nome_padronizado_arquivo: form.nome_padronizado_arquivo,
+          nome_arquivo_padronizado: form.nome_padronizado_arquivo,
         },
       });
 
-      toast({
-        title: 'Rascunho salvo',
-        duration: 3000,
-      });
-
+      toast({ title: 'Rascunho salvo', duration: 3000 });
       await onSaved?.();
     } catch (e) {
       toast({
@@ -274,31 +256,26 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       descricao_item: form.descricao_servico,
       fornecedor_nome: form.nf_emitente_nome,
       fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
-
       valor_solicitado: valor,
       valor_total: valor,
-
       centro_custo: form.centro_custo,
       rubrica_id: form.rubrica_id,
       rubrica_nome: rubricaNome,
-
       meta_id: form.meta_id || null,
       meta_nome: metaNome || null,
-
       categoria: 'Nota Fiscal',
       tipo_gasto: form.tipo_gasto,
       status: 'SOLICITADO',
-
       observacoes: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
-
       nf_numero: form.nf_numero,
       nf_data_emissao: form.nf_data_emissao,
       nf_competencia: form.nf_competencia,
       nf_emitente_nome: form.nf_emitente_nome,
       nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
       municipio: form.municipio,
-
       documento_intake_id: intake.id,
+      nome_padronizado_arquivo: form.nome_padronizado_arquivo,
+      nome_arquivo_padronizado: form.nome_padronizado_arquivo,
       xml_vinculado_id: form.xml_vinculado_id || null,
       xml_vinculado_nome: form.xml_vinculado_nome || null,
       tipo_rateio: form.tipo_rateio || 'geral',
@@ -308,20 +285,20 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       entidade_destino: 'PurchaseRequest',
       entidade_destino_id: purchase.id,
       status_processamento: 'ENVIADO_APROVACAO',
-
+      nome_padronizado_arquivo: form.nome_padronizado_arquivo,
+      nome_arquivo_padronizado: form.nome_padronizado_arquivo,
       centro_custo: form.centro_custo,
       rubrica_id_sugerida: form.rubrica_id,
       rubrica_nome_sugerida: rubricaNome,
-
       meta_id: form.meta_id || null,
       meta_nome: metaNome || null,
-
       revisado_pelo_usuario: true,
-
       resultado_ia: {
         ...ia,
         ...form,
         nf_valor_total: valor,
+        nome_padronizado_arquivo: form.nome_padronizado_arquivo,
+        nome_arquivo_padronizado: form.nome_padronizado_arquivo,
       },
     });
 
@@ -357,10 +334,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         entidade_destino_id: purchase.id,
       });
 
-      toast({
-        title: '📩 Enviado para aprovação',
-        duration: 3000,
-      });
+      toast({ title: '📩 Enviado para aprovação', duration: 3000 });
 
       await onSaved?.();
       onClose?.();
@@ -386,12 +360,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
     try {
       await base44.entities.DocumentIntake.delete(intake.id);
-
-      toast({
-        title: 'Documento deletado',
-        duration: 3000,
-      });
-
+      toast({ title: 'Documento deletado', duration: 3000 });
       await onSaved?.();
       onClose?.();
     } catch (e) {
@@ -479,158 +448,65 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             </div>
           </div>
 
-          {(ia.motivo_classificacao || ia.motivo || ia.justificativa_classificacao) && (
-            <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-700">
-              <div className="font-medium">💡 Motivo da Classificação IA:</div>
-              <div className="mt-1 italic">
-                {ia.motivo_classificacao || ia.motivo || ia.justificativa_classificacao}
-              </div>
-            </div>
-          )}
-
           <div>
             <label className="mb-1 block text-sm font-medium">Nome padronizado do arquivo</label>
             <Input
               value={form.nome_padronizado_arquivo}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, nome_padronizado_arquivo: e.target.value }))
-              }
+              onChange={(e) => {
+                setNomeEditadoManualmente(true);
+                setForm((f) => ({ ...f, nome_padronizado_arquivo: e.target.value }));
+              }}
             />
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium">Número da NF</label>
-              <Input
-                value={form.nf_numero}
-                onChange={(e) => setForm((f) => ({ ...f, nf_numero: e.target.value }))}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">Valor Total (R$)</label>
-              <Input
-                value={form.nf_valor_total}
-                onChange={(e) => setForm((f) => ({ ...f, nf_valor_total: e.target.value }))}
-                onBlur={() =>
-                  setForm((f) => ({
-                    ...f,
-                    nf_valor_total: valorFormatado || f.nf_valor_total,
-                  }))
-                }
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">Data de Emissão</label>
-              <Input
-                type="date"
-                value={form.nf_data_emissao}
-                onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">Competência</label>
-              <Input
-                value={form.nf_competencia}
-                onChange={(e) => setForm((f) => ({ ...f, nf_competencia: e.target.value }))}
-                placeholder="MM/AAAA"
-              />
-            </div>
+            <Input placeholder="Número da NF" value={form.nf_numero} onChange={(e) => setForm((f) => ({ ...f, nf_numero: e.target.value }))} />
+            <Input placeholder="Valor Total (R$)" value={form.nf_valor_total} onChange={(e) => setForm((f) => ({ ...f, nf_valor_total: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, nf_valor_total: valorFormatado || f.nf_valor_total }))} />
+            <Input type="date" value={form.nf_data_emissao} onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))} />
+            <Input placeholder="Competência MM/AAAA" value={form.nf_competencia} onChange={(e) => setForm((f) => ({ ...f, nf_competencia: e.target.value }))} />
           </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">Fornecedor / Emitente</label>
-            <Input
-              value={form.nf_emitente_nome}
-              onChange={(e) => setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))}
-            />
-          </div>
+          <Input placeholder="Fornecedor / Emitente" value={form.nf_emitente_nome} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))} />
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium">CNPJ / CPF do Emitente</label>
-              <Input
-                value={form.nf_emitente_cpf_cnpj}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, nf_emitente_cpf_cnpj: e.target.value }))
-                }
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">Município</label>
-              <Input
-                value={form.municipio}
-                onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))}
-              />
-            </div>
+            <Input placeholder="CNPJ / CPF do Emitente" value={form.nf_emitente_cpf_cnpj} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_cpf_cnpj: e.target.value }))} />
+            <Input placeholder="Município" value={form.municipio} onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))} />
           </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">Descrição do Serviço / Item</label>
-            <Textarea
-              value={form.descricao_servico}
-              onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))}
-            />
-          </div>
+          <Textarea placeholder="Descrição do Serviço / Item" value={form.descricao_servico} onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))} />
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">Meta do 3º Aditivo *</label>
-            <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecionar meta" />
-              </SelectTrigger>
-              <SelectContent>
-                {metas.length === 0 && (
-                  <SelectItem value="sem_meta_disponivel" disabled>
-                    Nenhuma meta carregada
-                  </SelectItem>
-                )}
+          <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
+            <SelectTrigger>
+              <SelectValue placeholder="Meta do 3º Aditivo *" />
+            </SelectTrigger>
+            <SelectContent>
+              {METAS_3_ADITIVO.map((meta) => (
+                <SelectItem key={meta.id} value={meta.id}>
+                  {meta.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-                {metas.map((meta) => (
-                  <SelectItem key={meta.id} value={meta.id}>
-                    {meta.nome || meta.titulo || meta.meta || meta.descricao || 'Meta sem nome'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Select value={form.tipo_gasto} onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v }))}>
+            <SelectTrigger><SelectValue placeholder="Tipo de gasto" /></SelectTrigger>
+            <SelectContent>
+              {TIPOS_GASTO.map((tipo) => <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">Tipo de Gasto *</label>
-            <Select value={form.tipo_gasto} onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Tipo de gasto" />
-              </SelectTrigger>
-              <SelectContent>
-                {TIPOS_GASTO.map((tipo) => (
-                  <SelectItem key={tipo} value={tipo}>
-                    {tipo}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">Rubrica *</label>
-            <Select value={form.rubrica_id} onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecionar rubrica" />
-              </SelectTrigger>
-              <SelectContent>
-                {rubricasOrdenadas.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {(r.grupo ? `${r.grupo} — ` : '')}
-                    {r.rubrica || r.nome || r.descricao || 'Rubrica sem nome'}
-                    {r.centro_custo ? ` — ${r.centro_custo}` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Select value={form.rubrica_id} onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}>
+            <SelectTrigger><SelectValue placeholder="Selecionar rubrica" /></SelectTrigger>
+            <SelectContent>
+              {rubricasOrdenadas.map((r) => (
+                <SelectItem key={r.id} value={r.id}>
+                  {(r.grupo ? `${r.grupo} — ` : '')}
+                  {r.rubrica || r.nome || r.descricao || 'Rubrica sem nome'}
+                  {r.centro_custo ? ` — ${r.centro_custo}` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           <div className="rounded-lg border bg-slate-50 p-3">
             <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
@@ -644,116 +520,60 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               placeholder="XML vinculado"
             />
 
-            <button
-              type="button"
-              onClick={handleVincularXml}
-              className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white"
-            >
+            <button type="button" onClick={handleVincularXml} className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
               <LinkIcon className="h-4 w-4" />
               Vincular XML ao PDF
             </button>
           </div>
 
           <div className="rounded-lg border bg-slate-50 p-4">
-            <div className="mb-3 text-sm font-medium text-slate-700">
-              Rateamento da Rubrica
-            </div>
+            <div className="mb-3 text-sm font-medium text-slate-700">Rateamento da Rubrica</div>
 
             <label className="mb-2 flex items-center gap-2 text-sm">
-              <input
-                type="radio"
-                checked={form.tipo_rateio === 'geral'}
-                onChange={() => setForm((f) => ({ ...f, tipo_rateio: 'geral' }))}
-              />
+              <input type="radio" checked={form.tipo_rateio === 'geral'} onChange={() => setForm((f) => ({ ...f, tipo_rateio: 'geral' }))} />
               Pago pela verba geral (sem rateio entre museus)
             </label>
 
             <label className="mb-4 flex items-center gap-2 text-sm">
-              <input
-                type="radio"
-                checked={form.tipo_rateio === 'dividido'}
-                onChange={() => setForm((f) => ({ ...f, tipo_rateio: 'dividido' }))}
-              />
+              <input type="radio" checked={form.tipo_rateio === 'dividido'} onChange={() => setForm((f) => ({ ...f, tipo_rateio: 'dividido' }))} />
               Dividir entre museus
             </label>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium">Centro de Custo *</label>
-              <Select value={form.centro_custo} onValueChange={(v) => setForm((f) => ({ ...f, centro_custo: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Centro de custo" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CENTROS.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Select value={form.centro_custo} onValueChange={(v) => setForm((f) => ({ ...f, centro_custo: v }))}>
+              <SelectTrigger><SelectValue placeholder="Centro de custo" /></SelectTrigger>
+              <SelectContent>
+                {CENTROS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
             <div className="flex items-center gap-2">
               <Zap className="h-4 w-4" />
-              <span>
-                Ao enviar, a solicitação será encaminhada para aprovação da coordenação.
-              </span>
+              <span>Ao enviar, a solicitação será encaminhada para aprovação da coordenação.</span>
             </div>
           </div>
 
           <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={sending}
-              className="inline-flex h-9 items-center justify-center rounded-md border px-4 py-2 text-sm font-medium shadow-sm disabled:opacity-50"
-            >
-              Cancelar
-            </button>
+            <button type="button" onClick={onClose} disabled={sending} className="inline-flex h-9 items-center justify-center rounded-md border px-4 py-2 text-sm font-medium shadow-sm disabled:opacity-50">Cancelar</button>
 
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={sending}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-red-500 px-4 py-2 text-sm font-medium text-white shadow disabled:opacity-50"
-            >
+            <button type="button" onClick={handleDelete} disabled={sending} className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-red-500 px-4 py-2 text-sm font-medium text-white shadow disabled:opacity-50">
               <Trash2 className="h-4 w-4" />
               Deletar
             </button>
 
-            <button
-              type="button"
-              onClick={handleReprocessar}
-              disabled={sending}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-medium shadow-sm disabled:opacity-50"
-            >
+            <button type="button" onClick={handleReprocessar} disabled={sending} className="inline-flex h-9 items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-medium shadow-sm disabled:opacity-50">
               <RefreshCw className="h-4 w-4" />
               Reprocessar
             </button>
 
-            <button
-              type="button"
-              onClick={salvarRascunho}
-              disabled={sending}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-medium shadow-sm disabled:opacity-50"
-            >
+            <button type="button" onClick={salvarRascunho} disabled={sending} className="inline-flex h-9 items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-medium shadow-sm disabled:opacity-50">
               <Save className="h-4 w-4" />
               Salvar Rascunho
             </button>
 
-            <button
-              type="button"
-              onClick={handleEnviar}
-              disabled={sending}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white shadow disabled:opacity-50"
-            >
-              {sending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
+            <button type="button" onClick={handleEnviar} disabled={sending} className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white shadow disabled:opacity-50">
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               Enviar para Aprovação
             </button>
           </div>
