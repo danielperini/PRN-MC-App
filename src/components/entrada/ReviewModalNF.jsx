@@ -192,7 +192,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       nf_emitente_cpf_cnpj: getValue(ia.nf_emitente_cpf_cnpj, ia.cnpj_cpf_emitente, ia.cnpj, ia.cpf_cnpj, intake?.nf_emitente_cpf_cnpj),
       municipio: getValue(ia.municipio, ia.municipio_emitente, intake?.municipio),
       descricao_servico: getValue(ia.descricao_servico, ia.descricao, ia.descricao_item, intake?.descricao_servico, intake?.descricao),
-      meta_id: getValue(intake?.meta_id, intake?.meta_id_sugerida, ia.meta_id, ia.meta_id_sugerida),
+      meta_id: getValue(intake?.meta_id, intake?.meta_id_sugerida, ia.meta_id, ia.meta_id_sugerida, 'MC3A-20'),
       tipo_gasto: getValue(intake?.tipo_gasto, ia.tipo_gasto, ia.tipo_gasto_sugerido, 'Serviço'),
       centro_custo: getValue(ia.centro_custo_sugerido, ia.centro_custo, intake?.centro_custo, 'Atuação Geral'),
       rubrica_id: getValue(intake?.rubrica_id, intake?.rubrica_id_sugerida, ia.rubrica_id, ia.rubrica_id_sugerida),
@@ -238,16 +238,13 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     nomeEditadoManualmente,
   ]);
 
-  function validar() {
+  function validarEnvio() {
     const erros = [];
 
     if (!form.nf_numero) erros.push('Número NF');
-    if (!parseValorBR(form.nf_valor_total)) erros.push('Valor');
-    if (!form.nf_data_emissao) erros.push('Data de emissão');
+    if (!parseValorBR(form.nf_valor_total)) erros.push('Valor da nota');
     if (!form.nf_emitente_nome) erros.push('Emitente');
-    if (!form.nf_emitente_cpf_cnpj) erros.push('CNPJ/CPF');
     if (!form.descricao_servico) erros.push('Descrição');
-    if (!form.meta_id) erros.push('Meta do 3º Aditivo');
     if (!form.tipo_gasto) erros.push('Tipo de gasto');
     if (!form.centro_custo) erros.push('Centro de custo');
     if (!form.rubrica_id) erros.push('Rubrica');
@@ -298,7 +295,39 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     }
   }
 
-  async function salvarRascunho() {
+  async function safeCreateAttachment() {
+    try {
+      if (!intake?.arquivo_original_url && !intake?.file_url) return;
+
+      await base44.entities.Attachment.create({
+        report_id: '',
+        file_name: form.nome_padronizado_arquivo,
+        file_type: intake?.mime_type || 'application/pdf',
+        file_url: intake?.arquivo_original_url || intake?.file_url,
+        description: 'Entrada Única - Nota Fiscal',
+        nf_categoria: 'nota_fiscal',
+        nf_numero: form.nf_numero,
+        nf_valor_total: parseValorBR(form.nf_valor_total),
+        nf_data_emissao: form.nf_data_emissao,
+        nf_emitente_nome: form.nf_emitente_nome,
+        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+        nf_tipo_documento: intake?.tipo_detectado === 'NOTA_FISCAL_XML' ? 'xml_nf' : 'pdf_nf',
+        nf_nome_original: intake?.file_name_original || intake?.file_name || '',
+        nf_nome_renomeado: form.nome_padronizado_arquivo,
+        nf_status_leitura: 'lido_com_sucesso',
+        nf_revisado: true,
+        rubrica_id: form.rubrica_id,
+        rubrica_nome: getRubricaNome(form.rubrica_id),
+      });
+    } catch (e) {
+      console.warn('Attachment não criado, mas envio não será bloqueado:', e);
+    }
+  }
+
+  async function salvarRascunho(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+
     if (sending) return;
 
     setSending(true);
@@ -341,52 +370,34 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     }
   }
 
-  async function criarPurchaseRequest() {
+  async function criarPurchaseRequestParaAprovacao() {
     const valor = parseValorBR(form.nf_valor_total);
     const rubricaNome = getRubricaNome(form.rubrica_id);
     const metaNome = getMetaNome(form.meta_id);
     const rateioCalculado = getRateioCalculado();
 
     const response = await base44.entities.PurchaseRequest.create({
-      descricao_item: form.descricao_servico,
-      fornecedor_nome: form.nf_emitente_nome,
-      fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
+      descricao_item: form.descricao_servico || form.nf_emitente_nome || `NF ${form.nf_numero}`,
+      fornecedor_nome: form.nf_emitente_nome || '',
+      fornecedor_cnpj: form.nf_emitente_cpf_cnpj || '',
       valor_solicitado: valor,
-      valor_total: valor,
-      centro_custo: form.centro_custo,
+      meta_id: form.meta_id || 'MC3A-20',
+      categoria: 'Nota Fiscal',
+      tipo_gasto: form.tipo_gasto || 'Serviço',
+      centro_custo: form.tipo_rateio === 'dividido' ? 'Rateado' : form.centro_custo,
       rubrica_id: form.rubrica_id,
       rubrica_nome: rubricaNome,
-      meta_id: form.meta_id || null,
-      meta_nome: metaNome || null,
-      categoria: 'Nota Fiscal',
-      tipo_gasto: form.tipo_gasto,
       status: 'SOLICITADO',
       observacoes: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
-      nf_numero: form.nf_numero,
-      nf_data_emissao: form.nf_data_emissao,
-      nf_competencia: form.nf_competencia,
-      nf_emitente_nome: form.nf_emitente_nome,
-      nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
-      municipio: form.municipio,
-      documento_intake_id: intake?.id || null,
-      nome_padronizado_arquivo: form.nome_padronizado_arquivo,
-      nome_arquivo_padronizado: form.nome_padronizado_arquivo,
-      xml_vinculado_id: form.xml_vinculado_id || null,
-      xml_vinculado_nome: form.xml_vinculado_nome || null,
-      tipo_rateio: form.tipo_rateio || 'geral',
-      museus_rateio: form.tipo_rateio === 'dividido' ? form.museus_rateio : [],
-      rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
-      valor_por_museu:
-        form.tipo_rateio === 'dividido' && form.museus_rateio?.length
-          ? Number((valor / form.museus_rateio.length).toFixed(2))
-          : null,
     });
 
     const purchase = response?.data || response;
 
     if (!purchase?.id) {
-      throw new Error('PurchaseRequest criada sem ID de retorno.');
+      throw new Error('A solicitação foi criada sem ID de retorno.');
     }
+
+    await safeCreateAttachment();
 
     await safeUpdateDocumentIntake({
       entidade_destino: 'PurchaseRequest',
@@ -394,11 +405,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       status_processamento: 'ENVIADO_APROVACAO',
       nome_padronizado_arquivo: form.nome_padronizado_arquivo,
       nome_arquivo_padronizado: form.nome_padronizado_arquivo,
-      centro_custo: form.centro_custo,
+      file_name_final: form.nome_padronizado_arquivo,
+      centro_custo: form.tipo_rateio === 'dividido' ? 'Rateado' : form.centro_custo,
       rubrica_id_sugerida: form.rubrica_id,
       rubrica_nome_sugerida: rubricaNome,
-      meta_id: form.meta_id || null,
-      meta_nome: metaNome || null,
+      meta_id: form.meta_id || 'MC3A-20',
+      meta_nome: metaNome,
       tipo_rateio: form.tipo_rateio,
       museus_rateio: form.tipo_rateio === 'dividido' ? form.museus_rateio : [],
       rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
@@ -406,10 +418,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       resultado_ia: {
         ...ia,
         ...form,
+        categoria: 'Nota Fiscal',
         nf_valor_total: valor,
-        nome_padronizado_arquivo: form.nome_padronizado_arquivo,
-        nome_arquivo_padronizado: form.nome_padronizado_arquivo,
+        meta_id: form.meta_id || 'MC3A-20',
+        meta_nome: metaNome,
         rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
+        dividir_entre_museus: form.tipo_rateio === 'dividido',
       },
     });
 
@@ -422,7 +436,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
     if (sending) return;
 
-    const erros = validar();
+    const erros = validarEnvio();
 
     if (erros.length) {
       toast({
@@ -437,16 +451,18 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     setSending(true);
 
     try {
-      const purchase = await criarPurchaseRequest();
+      const purchase = await criarPurchaseRequestParaAprovacao();
 
       toast({
-        title: '📩 Enviado para aprovação',
-        description: `Solicitação criada: ${purchase.id}`,
-        duration: 3000,
+        title: '📩 Enviado para aprovação da coordenação',
+        description: `Solicitação criada e listada em Compras → Aprovações.`,
+        duration: 4000,
       });
 
       await onSaved?.();
       onClose?.();
+
+      return purchase;
     } catch (e) {
       console.error('Erro ao enviar para aprovação:', e);
 
