@@ -64,35 +64,32 @@ function scoreMember(member: any, searchText: string) {
   return score;
 }
 
-async function findDocumentIntake(base44: any, purchaseId: string) {
-  const list = await base44.asServiceRole.entities.DocumentIntake.filter({
-    entidade_destino: 'PurchaseRequest',
-    entidade_destino_id: purchaseId,
-  });
-
-  return list?.[0] || null;
+async function safeFindDocumentIntake(base44: any, purchaseId: string) {
+  try {
+    const list = await base44.asServiceRole.entities.DocumentIntake.filter({
+      entidade_destino: 'PurchaseRequest',
+      entidade_destino_id: purchaseId,
+    });
+    return list?.[0] || null;
+  } catch (e) {
+    console.warn('DocumentIntake não localizado:', e?.message);
+    return null;
+  }
 }
 
-async function findAttachment(base44: any, nfNumero: string) {
+async function safeFindAttachment(base44: any, nfNumero: string, tipo: string) {
   if (!nfNumero) return null;
 
-  const list = await base44.asServiceRole.entities.Attachment.filter({
-    nf_numero: nfNumero,
-    nf_tipo_documento: 'pdf_nf',
-  });
-
-  return list?.[0] || null;
-}
-
-async function findXml(base44: any, nfNumero: string) {
-  if (!nfNumero) return null;
-
-  const list = await base44.asServiceRole.entities.Attachment.filter({
-    nf_numero: nfNumero,
-    nf_tipo_documento: 'xml_nf',
-  });
-
-  return list?.[0] || null;
+  try {
+    const list = await base44.asServiceRole.entities.Attachment.filter({
+      nf_numero: nfNumero,
+      nf_tipo_documento: tipo,
+    });
+    return list?.[0] || null;
+  } catch (e) {
+    console.warn(`Attachment ${tipo} não localizado:`, e?.message);
+    return null;
+  }
 }
 
 function extractNFNumber(purchase: any, intake: any) {
@@ -123,21 +120,26 @@ function buildSearchText(purchase: any, intake: any, attachment: any) {
   ].filter(Boolean).join(' '));
 }
 
-async function findBestTeamMember(base44: any, searchText: string) {
-  const members = await base44.asServiceRole.entities.TeamMember.list('', 1000);
+async function safeFindBestTeamMember(base44: any, searchText: string) {
+  try {
+    const members = await base44.asServiceRole.entities.TeamMember.list('', 1000);
 
-  let best = null;
-  let bestScore = 0;
+    let best = null;
+    let bestScore = 0;
 
-  for (const member of members || []) {
-    const score = scoreMember(member, searchText);
-    if (score > bestScore) {
-      best = member;
-      bestScore = score;
+    for (const member of members || []) {
+      const score = scoreMember(member, searchText);
+      if (score > bestScore) {
+        best = member;
+        bestScore = score;
+      }
     }
-  }
 
-  return bestScore >= 35 ? best : null;
+    return bestScore >= 35 ? best : null;
+  } catch (e) {
+    console.warn('Erro ao buscar TeamMember:', e?.message);
+    return null;
+  }
 }
 
 async function ensureTeamPaymentFromNF(
@@ -148,30 +150,28 @@ async function ensureTeamPaymentFromNF(
   valor: number,
   userEmail: string
 ) {
-  const existing = await base44.asServiceRole.entities.TeamPayment.filter({
-    purchase_request_id: purchaseId,
-  });
+  try {
+    const existing = await base44.asServiceRole.entities.TeamPayment.filter({
+      purchase_request_id: purchaseId,
+    });
 
-  if (existing?.length > 0) return existing[0];
+    if (existing?.length > 0) return existing[0];
+  } catch (e) {
+    console.warn('Não foi possível verificar TeamPayment existente:', e?.message);
+  }
 
-  const intake = await findDocumentIntake(base44, purchaseId);
+  const intake = await safeFindDocumentIntake(base44, purchaseId);
   const nfNumero = extractNFNumber(purchase, intake);
-  const attachment = await findAttachment(base44, nfNumero);
-  const xml = await findXml(base44, nfNumero);
+  const attachment = await safeFindAttachment(base44, nfNumero, 'pdf_nf');
+  const xml = await safeFindAttachment(base44, nfNumero, 'xml_nf');
 
   const searchText = buildSearchText(purchase, intake, attachment);
-  const member = await findBestTeamMember(base44, searchText);
-
+  const member = await safeFindBestTeamMember(base44, searchText);
   const ia = intake?.resultado_ia || {};
 
-  const created = await base44.asServiceRole.entities.TeamPayment.create({
+  const payloadSeguro = {
     purchase_request_id: purchaseId,
-    document_intake_id: intake?.id || null,
-    attachment_id: attachment?.id || null,
-    nf_attachment_id: attachment?.id || null,
-    xml_attachment_id: xml?.id || null,
 
-    team_member_id: member?.id || null,
     user_name: getMemberName(member) || purchase?.fornecedor_nome || ia?.nf_emitente_nome || '',
     user_email: getMemberEmail(member) || '',
     funcao: member?.funcao || '',
@@ -185,20 +185,17 @@ async function ensureTeamPaymentFromNF(
     rubrica_nome: purchase.rubrica_nome || rubrica?.rubrica || rubrica?.nome || '',
 
     status: 'APROVADO_COORD',
-    origem: 'NF_APROVADA_COMPRA',
     origem_automatica: true,
     criado_por_aprovacao_nf: true,
     aprovado_por: userEmail,
     aprovado_em: new Date().toISOString(),
 
-    match_equipe_automatico: !!member,
-    match_equipe_score_origem: searchText ? 'nome_arquivo_nf_fornecedor_funcao_cpf_cnpj' : '',
     observacoes: member
       ? `Pagamento criado automaticamente pela aprovação da NF ${nfNumero}. Membro identificado: ${getMemberName(member)}.`
       : `Pagamento criado automaticamente pela aprovação da NF ${nfNumero}. Atenção: membro da equipe não identificado automaticamente.`,
-  });
+  };
 
-  return created;
+  return await base44.asServiceRole.entities.TeamPayment.create(payloadSeguro);
 }
 
 Deno.serve(async (req) => {
@@ -210,7 +207,8 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { action, purchaseId, comentario } = await req.json();
+    const body = await req.json();
+    const { action, purchaseId, comentario } = body || {};
 
     if (!purchaseId) {
       return Response.json({ error: 'purchaseId obrigatório' }, { status: 400 });
@@ -225,7 +223,10 @@ Deno.serve(async (req) => {
     const valor = getPurchaseValue(purchase);
 
     if (valor <= 0) {
-      return Response.json({ error: 'Valor inválido' }, { status: 400 });
+      return Response.json({
+        error: 'Valor inválido',
+        debug: { valor, purchaseId }
+      }, { status: 400 });
     }
 
     const rubrica = purchase?.rubrica_id
@@ -233,18 +234,27 @@ Deno.serve(async (req) => {
       : null;
 
     if (!rubrica) {
-      return Response.json({ error: 'Compra sem rubrica' }, { status: 400 });
+      return Response.json({
+        error: 'Compra sem rubrica',
+        debug: { purchaseId, rubrica_id: purchase?.rubrica_id }
+      }, { status: 400 });
     }
 
     const saldo = computeSaldo(rubrica);
 
-    if (action === 'approve_coord' || action === 'aprovar') {
+    if (action === 'approve_coord' || action === 'aprovar' || action === 'approve') {
       if (normalize(purchase.status) !== 'solicitado') {
-        return Response.json({ error: 'Status inválido' }, { status: 400 });
+        return Response.json({
+          error: 'Status inválido',
+          debug: { status: purchase.status }
+        }, { status: 400 });
       }
 
       if (saldo < valor) {
-        return Response.json({ error: 'Saldo insuficiente' }, { status: 400 });
+        return Response.json({
+          error: 'Saldo insuficiente',
+          debug: { saldo, valor }
+        }, { status: 400 });
       }
 
       await base44.asServiceRole.entities.Rubrica.update(rubrica.id, {
@@ -273,11 +283,11 @@ Deno.serve(async (req) => {
         );
       } catch (e: any) {
         teamPaymentWarning = e?.message || 'Falha ao criar TeamPayment automático';
-        console.warn('Erro TeamPayment:', teamPaymentWarning);
+        console.warn('TeamPayment automático falhou sem bloquear aprovação:', teamPaymentWarning);
       }
 
       try {
-        const intake = await findDocumentIntake(base44, purchaseId);
+        const intake = await safeFindDocumentIntake(base44, purchaseId);
         if (intake?.id) {
           await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
             status_processamento: 'APROVADO',
@@ -285,7 +295,7 @@ Deno.serve(async (req) => {
           });
         }
       } catch (e: any) {
-        console.warn('Erro ao atualizar DocumentIntake:', e?.message);
+        console.warn('Erro ao atualizar DocumentIntake sem bloquear aprovação:', e?.message);
       }
 
       return Response.json({
@@ -318,7 +328,10 @@ Deno.serve(async (req) => {
 
     if (action === 'mark_paid') {
       if (normalize(purchase.status) !== 'aprovado_coord') {
-        return Response.json({ error: 'Precisa estar aprovado' }, { status: 400 });
+        return Response.json({
+          error: 'Precisa estar aprovado',
+          debug: { status: purchase.status }
+        }, { status: 400 });
       }
 
       await base44.asServiceRole.entities.Rubrica.update(rubrica.id, {
@@ -339,12 +352,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    return Response.json({ error: 'Ação inválida' }, { status: 400 });
+    return Response.json({
+      error: 'Ação inválida',
+      debug: { action }
+    }, { status: 400 });
 
   } catch (e: any) {
+    console.error('purchaseActions fatal:', e?.message, e?.stack);
+
     return Response.json({
-      error: e?.message,
-      stack: e?.stack
+      error: e?.message || 'Erro interno em purchaseActions',
+      stack: e?.stack || null
     }, { status: 500 });
   }
 });
