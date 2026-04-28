@@ -1,183 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/uimport React, { useState } from 'react'
-import { base44 } from '@/api/base44Client'
-import { useToast } from '@/components/ui/use-toast'
-
-export default function ReviewModalNF({ document, onClose, onSuccess }) {
-  const { toast } = useToast()
-
-  const [loading, setLoading] = useState(false)
-
-  const handleEnviar = async (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    try {
-      setLoading(true)
-
-      const purchase = await base44.entities.PurchaseRequest.create({
-        descricao_item: document?.descricao || 'NF sem descrição',
-        valor_total: document?.valor_total || 0,
-        fornecedor_nome: document?.emitente || '',
-        fornecedor_cnpj: document?.cnpj || '',
-        status: 'SOLICITADO',
-        rubrica_id: document?.rubrica_id || null,
-        centro_custo: document?.centro_custo || null,
-        documento_id: document?.id
-      })
-
-      await base44.entities.DocumentIntake.update(document.id, {
-        status: 'ENVIADO_APROVACAO',
-        purchase_request_id: purchase.id
-      })
-
-      toast({
-        title: 'Enviado para aprovação',
-        description: 'Solicitação criada com sucesso.',
-      })
-
-      onSuccess?.()
-      onClose?.()
-
-    } catch (err) {
-      console.error(err)
-      toast({
-        title: 'Erro ao enviar',
-        description: err?.message || 'Erro desconhecido',
-        variant: 'destructive'
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleAprovar = async (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    try {
-      setLoading(true)
-
-      const purchase = await base44.entities.PurchaseRequest.create({
-        descricao_item: document?.descricao || 'NF sem descrição',
-        valor_total: document?.valor_total || 0,
-        fornecedor_nome: document?.emitente || '',
-        fornecedor_cnpj: document?.cnpj || '',
-        status: 'SOLICITADO',
-        rubrica_id: document?.rubrica_id || null,
-        centro_custo: document?.centro_custo || null,
-        documento_id: document?.id
-      })
-
-      const response = await base44.functions.invoke('purchaseActions', {
-        action: 'aprovar',
-        purchaseId: purchase.id
-      })
-
-      const result = response?.data || response
-
-      if (!result?.success) {
-        throw new Error(result?.error || 'Falha ao aprovar nota.')
-      }
-
-      await base44.entities.DocumentIntake.update(document.id, {
-        status: 'APROVADO',
-        purchase_request_id: purchase.id,
-        team_payment_id: result?.teamPaymentId || null
-      })
-
-      toast({
-        title: 'Aprovado com sucesso',
-        description: 'NF aprovada e rubrica atualizada.',
-      })
-
-      onSuccess?.()
-      onClose?.()
-
-    } catch (err) {
-      console.error(err)
-      toast({
-        title: 'Erro ao aprovar',
-        description: err?.message || 'Erro desconhecido',
-        variant: 'destructive'
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleDelete = async () => {
-    try {
-      setLoading(true)
-
-      await base44.entities.DocumentIntake.delete(document.id)
-
-      toast({
-        title: 'Documento deletado',
-      })
-
-      onSuccess?.()
-      onClose?.()
-
-    } catch (err) {
-      console.error(err)
-      toast({
-        title: 'Erro ao deletar',
-        description: err?.message || 'Erro desconhecido',
-        variant: 'destructive'
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-2xl rounded-xl bg-white">
-        
-        <div className="flex justify-between border-b p-4">
-          <h2>Conferência de Nota Fiscal</h2>
-          <button onClick={onClose}>X</button>
-        </div>
-
-        <div className="p-4 space-y-4">
-          {/* Mantém layout existente - NÃO ALTERADO */}
-        </div>
-
-        <div className="flex flex-wrap gap-2 p-4 border-t">
-          <button onClick={onClose}>Cancelar</button>
-
-          <button
-            onClick={handleDelete}
-            disabled={loading}
-            className="bg-red-500 text-white px-3 py-1 rounded"
-          >
-            Deletar
-          </button>
-
-          <button
-            onClick={handleAprovar}
-            disabled={loading}
-            className="bg-blue-600 text-white px-3 py-1 rounded"
-          >
-            Aprovar
-          </button>
-
-          <button
-            onClick={handleEnviar}
-            disabled={loading}
-            className="bg-black text-white px-3 py-1 rounded"
-          >
-            Enviar para Aprovação
-          </button>
-        </div>
-
-      </div>
-    </div>
-  )
-}i/textarea';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
 import { CheckCircle2, Loader2, Send } from 'lucide-react';
@@ -317,7 +141,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         title: 'Preencha campos obrigatórios',
         description: erros.join(', '),
         variant: 'destructive',
-        duration: 5000,
       });
       return;
     }
@@ -340,26 +163,19 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'APROVADO',
-        entidade_destino: 'PurchaseRequest',
         entidade_destino_id: purchase.id,
         team_payment_id: result?.team_payment_id || null,
       });
 
-      toast({
-        title: '✅ Nota aprovada com sucesso',
-        duration: 3000,
-      });
+      toast({ title: '✅ Nota aprovada com sucesso' });
 
       await onSaved?.();
       onClose?.();
     } catch (e) {
-      console.error('Erro ao aprovar NF:', e);
-
       toast({
         title: 'Erro ao aprovar',
-        description: e?.message || 'Falha ao aprovar nota fiscal.',
+        description: e?.message,
         variant: 'destructive',
-        duration: 6000,
       });
     } finally {
       setSending(false);
@@ -379,7 +195,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         title: 'Preencha campos obrigatórios',
         description: erros.join(', '),
         variant: 'destructive',
-        duration: 5000,
       });
       return;
     }
@@ -391,34 +206,24 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'ENVIADO_APROVACAO',
-        entidade_destino: 'PurchaseRequest',
         entidade_destino_id: purchase.id,
       });
 
-      toast({
-        title: '📩 Enviado para aprovação',
-        duration: 3000,
-      });
+      toast({ title: '📩 Enviado para aprovação' });
 
       await onSaved?.();
       onClose?.();
-    } catch (e) {
-      toast({
-        title: 'Erro ao enviar',
-        description: e?.message || 'Falha ao enviar nota.',
-        variant: 'destructive',
-        duration: 5000,
-      });
     } finally {
       setSending(false);
     }
   }
 
-  const rubricasOrdenadas = [...rubricas].sort((a, b) => {
-    const nomeA = String(a.rubrica || a.nome || a.descricao || '');
-    const nomeB = String(b.rubrica || b.nome || b.descricao || '');
-    return nomeA.localeCompare(nomeB, 'pt-BR');
-  });
+  const rubricasOrdenadas = [...rubricas].sort((a, b) =>
+    String(a.rubrica || a.nome || '').localeCompare(
+      String(b.rubrica || b.nome || ''),
+      'pt-BR'
+    )
+  );
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -428,105 +233,37 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         </DialogHeader>
 
         <div className="space-y-4">
-          <Input
-            placeholder="Número NF"
-            value={form.nf_numero}
-            onChange={(e) => setForm((f) => ({ ...f, nf_numero: e.target.value }))}
-          />
+          <Input placeholder="Número NF" value={form.nf_numero} onChange={(e) => setForm(f => ({ ...f, nf_numero: e.target.value }))} />
+          <Input placeholder="Valor" value={form.nf_valor_total} onChange={(e) => setForm(f => ({ ...f, nf_valor_total: e.target.value }))} />
+          <Input type="date" value={form.nf_data_emissao} onChange={(e) => setForm(f => ({ ...f, nf_data_emissao: e.target.value }))} />
+          <Input placeholder="Emitente" value={form.nf_emitente_nome} onChange={(e) => setForm(f => ({ ...f, nf_emitente_nome: e.target.value }))} />
+          <Textarea placeholder="Descrição" value={form.descricao_servico} onChange={(e) => setForm(f => ({ ...f, descricao_servico: e.target.value }))} />
 
-          <Input
-            placeholder="Valor"
-            value={form.nf_valor_total}
-            onChange={(e) => setForm((f) => ({ ...f, nf_valor_total: e.target.value }))}
-          />
-
-          <Input
-            type="date"
-            value={form.nf_data_emissao}
-            onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))}
-          />
-
-          <Input
-            placeholder="Emitente"
-            value={form.nf_emitente_nome}
-            onChange={(e) => setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))}
-          />
-
-          <Textarea
-            placeholder="Descrição"
-            value={form.descricao_servico}
-            onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))}
-          />
-
-          <Select
-            value={form.centro_custo}
-            onValueChange={(v) => setForm((f) => ({ ...f, centro_custo: v }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Centro de custo" />
-            </SelectTrigger>
+          <Select value={form.centro_custo} onValueChange={(v) => setForm(f => ({ ...f, centro_custo: v }))}>
+            <SelectTrigger><SelectValue placeholder="Centro de custo" /></SelectTrigger>
             <SelectContent>
-              {CENTROS.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
+              {CENTROS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
             </SelectContent>
           </Select>
 
-          <Select
-            value={form.rubrica_id}
-            onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Rubrica" />
-            </SelectTrigger>
+          <Select value={form.rubrica_id} onValueChange={(v) => setForm(f => ({ ...f, rubrica_id: v }))}>
+            <SelectTrigger><SelectValue placeholder="Rubrica" /></SelectTrigger>
             <SelectContent>
-              {rubricasOrdenadas.map((r) => (
+              {rubricasOrdenadas.map(r => (
                 <SelectItem key={r.id} value={r.id}>
-                  {(r.grupo ? `${r.grupo} — ` : '')}
-                  {r.rubrica || r.nome || r.descricao || 'Rubrica sem nome'}
-                  {r.centro_custo ? ` — ${r.centro_custo}` : ''}
+                  {(r.grupo ? `${r.grupo} — ` : '')}{r.rubrica || r.nome}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md border px-4 py-2 text-sm"
-            >
-              Cancelar
+            <button type="button" onClick={onClose} className="border px-4 py-2">Cancelar</button>
+            <button type="button" onClick={handleAprovar} disabled={sending} className="bg-blue-600 text-white px-4 py-2">
+              {sending ? <Loader2 className="animate-spin h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />} Aprovar
             </button>
-
-            <button
-              type="button"
-              onClick={handleAprovar}
-              disabled={sending}
-              className="inline-flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-700 disabled:opacity-50"
-            >
-              {sending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-              )}
-              Aprovar
-            </button>
-
-            <button
-              type="button"
-              onClick={handleEnviar}
-              disabled={sending}
-              className="inline-flex h-9 items-center justify-center rounded-md border px-4 py-2 text-sm font-medium shadow-sm disabled:opacity-50"
-            >
-              {sending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="mr-2 h-4 w-4" />
-              )}
-              Enviar
+            <button type="button" onClick={handleEnviar} disabled={sending} className="border px-4 py-2">
+              {sending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4" />} Enviar
             </button>
           </div>
         </div>
