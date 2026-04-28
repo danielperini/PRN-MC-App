@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
-import { CheckCircle2, Loader2, Send } from 'lucide-react';
+import { CheckCircle2, Loader2, Send, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
@@ -66,7 +66,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         console.error('Erro ao carregar rubricas:', e);
       }
     }
-
     loadRubricas();
   }, []);
 
@@ -120,7 +119,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       resultado_ia: {
         ...ia,
         ...form,
-        nf_data_emissao: form.nf_data_emissao,
         nf_valor_total: valor,
       },
     });
@@ -128,20 +126,15 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     return purchase;
   }
 
-  async function handleAprovar(event) {
-    event?.preventDefault?.();
-    event?.stopPropagation?.();
+  async function handleAprovar(e) {
+    e.preventDefault();
+    e.stopPropagation();
 
     if (sending) return;
 
     const erros = validar();
-
     if (erros.length) {
-      toast({
-        title: 'Preencha campos obrigatórios',
-        description: erros.join(', '),
-        variant: 'destructive',
-      });
+      toast({ title: 'Preencha campos obrigatórios', description: erros.join(', '), variant: 'destructive' });
       return;
     }
 
@@ -158,7 +151,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       const result = response?.data || response;
 
       if (!result?.success) {
-        throw new Error(result?.error || 'Falha ao aprovar nota.');
+        throw new Error(result?.error || 'Falha ao aprovar');
       }
 
       await base44.entities.DocumentIntake.update(intake.id, {
@@ -167,63 +160,61 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         team_payment_id: result?.team_payment_id || null,
       });
 
-      toast({ title: '✅ Nota aprovada com sucesso' });
+      toast({ title: 'Aprovado com sucesso' });
 
-      await onSaved?.();
+      onSaved?.();
       onClose?.();
     } catch (e) {
-      toast({
-        title: 'Erro ao aprovar',
-        description: e?.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro ao aprovar', description: e.message, variant: 'destructive' });
     } finally {
       setSending(false);
     }
   }
 
-  async function handleEnviar(event) {
-    event?.preventDefault?.();
-    event?.stopPropagation?.();
+  async function handleEnviar(e) {
+    e.preventDefault();
+    e.stopPropagation();
 
     if (sending) return;
 
     const erros = validar();
-
     if (erros.length) {
-      toast({
-        title: 'Preencha campos obrigatórios',
-        description: erros.join(', '),
-        variant: 'destructive',
-      });
+      toast({ title: 'Preencha campos obrigatórios', description: erros.join(', '), variant: 'destructive' });
       return;
     }
 
     setSending(true);
 
     try {
-      const purchase = await criarPurchaseRequest();
+      await criarPurchaseRequest();
 
-      await base44.entities.DocumentIntake.update(intake.id, {
-        status_processamento: 'ENVIADO_APROVACAO',
-        entidade_destino_id: purchase.id,
-      });
+      toast({ title: 'Enviado para aprovação' });
 
-      toast({ title: '📩 Enviado para aprovação' });
-
-      await onSaved?.();
+      onSaved?.();
       onClose?.();
     } finally {
       setSending(false);
     }
   }
 
-  const rubricasOrdenadas = [...rubricas].sort((a, b) =>
-    String(a.rubrica || a.nome || '').localeCompare(
-      String(b.rubrica || b.nome || ''),
-      'pt-BR'
-    )
-  );
+  async function handleDelete() {
+    if (sending) return;
+
+    setSending(true);
+
+    try {
+      await base44.entities.DocumentIntake.delete(intake.id);
+
+      toast({ title: 'Documento deletado' });
+
+      onSaved?.();
+      onClose?.();
+    } catch (e) {
+      toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive' });
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -249,21 +240,27 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           <Select value={form.rubrica_id} onValueChange={(v) => setForm(f => ({ ...f, rubrica_id: v }))}>
             <SelectTrigger><SelectValue placeholder="Rubrica" /></SelectTrigger>
             <SelectContent>
-              {rubricasOrdenadas.map(r => (
+              {rubricas.map(r => (
                 <SelectItem key={r.id} value={r.id}>
-                  {(r.grupo ? `${r.grupo} — ` : '')}{r.rubrica || r.nome}
+                  {r.grupo ? `${r.grupo} — ` : ''}{r.rubrica || r.nome}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="border px-4 py-2">Cancelar</button>
-            <button type="button" onClick={handleAprovar} disabled={sending} className="bg-blue-600 text-white px-4 py-2">
-              {sending ? <Loader2 className="animate-spin h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />} Aprovar
+            <button onClick={onClose} className="border px-4 py-2">Cancelar</button>
+
+            <button onClick={handleDelete} className="bg-red-500 text-white px-4 py-2 flex items-center gap-2">
+              <Trash2 size={16}/> Deletar
             </button>
-            <button type="button" onClick={handleEnviar} disabled={sending} className="border px-4 py-2">
-              {sending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4" />} Enviar
+
+            <button onClick={handleAprovar} className="bg-blue-600 text-white px-4 py-2 flex items-center gap-2">
+              <CheckCircle2 size={16}/> Aprovar
+            </button>
+
+            <button onClick={handleEnviar} className="border px-4 py-2 flex items-center gap-2">
+              <Send size={16}/> Enviar
             </button>
           </div>
         </div>
