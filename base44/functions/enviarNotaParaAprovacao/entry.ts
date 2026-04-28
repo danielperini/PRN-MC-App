@@ -65,18 +65,8 @@ function parseCompetencia(value: any) {
   const raw = String(value || '').trim();
 
   const meses = [
-    'Janeiro',
-    'Fevereiro',
-    'Março',
-    'Abril',
-    'Maio',
-    'Junho',
-    'Julho',
-    'Agosto',
-    'Setembro',
-    'Outubro',
-    'Novembro',
-    'Dezembro',
+    'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro',
   ];
 
   const mmYYYY = raw.match(/^(\d{1,2})\/(\d{4})$/);
@@ -184,48 +174,17 @@ Deno.serve(async (req) => {
     const arquivoUrl = intake?.arquivo_original_url || intake?.file_url || '';
     const nomeArquivo =
       form?.nome_padronizado_arquivo ||
-      form?.nome_arquivo_padronizado ||
       intake?.file_name ||
-      intake?.nome_arquivo ||
       `NF ${safeString(form?.nf_numero)}`;
-
-    let attachment = null;
-
-    try {
-      if (arquivoUrl) {
-        attachment = await base44.asServiceRole.entities.Attachment.create({
-          report_id: '',
-          file_name: nomeArquivo,
-          file_type: intake?.mime_type || 'application/pdf',
-          file_url: arquivoUrl,
-          description: 'Entrada Única - Nota Fiscal',
-          nf_categoria: 'nota_fiscal',
-          nf_numero: safeString(form?.nf_numero),
-          nf_valor_total: valor,
-          nf_data_emissao: safeString(form?.nf_data_emissao),
-          nf_emitente_nome: safeString(form?.nf_emitente_nome),
-          nf_emitente_cpf_cnpj: safeString(form?.nf_emitente_cpf_cnpj),
-          nf_tipo_documento: intake?.tipo_detectado === 'NOTA_FISCAL_XML' ? 'xml_nf' : 'pdf_nf',
-          nf_nome_original: intake?.file_name_original || intake?.file_name || '',
-          nf_nome_renomeado: nomeArquivo,
-          nf_status_leitura: 'lido_com_sucesso',
-          nf_revisado: true,
-          rubrica_id: form.rubrica_id,
-          rubrica_nome: rubricaNome,
-        });
-      }
-    } catch (e: any) {
-      console.warn('Attachment não criado, sem bloquear envio:', e?.message);
-    }
 
     if (destinoEquipe) {
       const competencia = parseCompetencia(form?.nf_competencia || ia?.nf_competencia);
       const member = await findBestTeamMember(base44, form);
 
       const teamPayment = await base44.asServiceRole.entities.TeamPayment.create({
-        team_member_id: member?.id || 'entrada-unica-sem-membro',
-        user_email: member?.user_email || member?.email || member?.email_pessoal || user.email || '',
-        user_name: member?.user_name || member?.nome || member?.name || form?.nf_emitente_nome || '',
+        team_member_id: member?.id || 'entrada-unica',
+        user_email: member?.user_email || user.email,
+        user_name: member?.user_name || form?.nf_emitente_nome,
         funcao: member?.funcao || '',
         role: member?.funcao || '',
 
@@ -235,115 +194,58 @@ Deno.serve(async (req) => {
         rubrica_id: form.rubrica_id,
         rubrica_nome: rubricaNome,
 
-        nota_fiscal_url: arquivoUrl || attachment?.file_url || 'sem-url',
+        nota_fiscal_url: arquivoUrl,
         nota_fiscal_file_name: nomeArquivo,
-        xml_url: safeString(form?.xml_url),
-        xml_file_name: safeString(form?.xml_vinculado_nome),
 
         numero_nf: safeString(form?.nf_numero),
         valor_nf: valor,
-        valor_parcela_previsto: valor,
-
-        nf_numero_extraido: safeString(form?.nf_numero),
-        nf_valor_extraido: valor,
-        nf_cnpj_emitente: safeString(form?.nf_emitente_cpf_cnpj),
-        nf_razao_social: safeString(form?.nf_emitente_nome),
-        nf_data_emissao: safeString(form?.nf_data_emissao),
-        nf_competencia: safeString(form?.nf_competencia),
 
         status: 'AGUARDANDO_APROVACAO',
-        origem_automatica: true,
         origem: 'Entrada Única',
-        tipo_origem: 'NOTA_FISCAL_EQUIPE',
-        observacoes: `Entrada Única — NF ${safeString(form?.nf_numero)}. ${safeString(form?.descricao_servico)}`,
-        unique_key: `entrada-unica-${intake.id}`,
       });
 
       await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
         entidade_destino: 'TeamPayment',
         entidade_destino_id: teamPayment.id,
-        team_payment_id: teamPayment.id,
-        status_processamento: 'ENVIADO_PAGAMENTO_EQUIPE',
-        nome_padronizado_arquivo: nomeArquivo,
-        nome_arquivo_padronizado: nomeArquivo,
-        file_name_final: nomeArquivo,
-        centro_custo: form?.centro_custo || '',
-        rubrica_id_sugerida: form.rubrica_id,
-        rubrica_nome_sugerida: rubricaNome,
-        revisado_pelo_usuario: true,
-        resultado_ia: {
-          ...ia,
-          ...form,
-          destino_fluxo: 'PAGAMENTO_EQUIPE',
-          nf_valor_total: valor,
-        },
+        status_processamento: 'ENVIADO_APROVACAO', // 🔥 CORREÇÃO CRÍTICA
       });
 
       return Response.json({
         success: true,
-        ok: true,
         destino: 'equipe',
-        entity: 'TeamPayment',
         id: teamPayment.id,
       });
     }
 
     const purchase = await base44.asServiceRole.entities.PurchaseRequest.create({
-      descricao_item: form?.descricao_servico || form?.nf_emitente_nome || `NF ${safeString(form?.nf_numero)}`,
-      fornecedor_nome: form?.nf_emitente_nome || '',
-      fornecedor_cnpj: form?.nf_emitente_cpf_cnpj || '',
+      descricao_item: form?.descricao_servico,
+      fornecedor_nome: form?.nf_emitente_nome,
+      fornecedor_cnpj: form?.nf_emitente_cpf_cnpj,
       valor_solicitado: valor,
-      valor_total: valor,
-      meta_id: form?.meta_id || 'MC3A-20',
-      categoria: 'Nota Fiscal',
-      tipo_gasto: form?.tipo_gasto || 'Serviço',
-      centro_custo: form?.centro_custo || '',
       rubrica_id: form.rubrica_id,
       rubrica_nome: rubricaNome,
       status: 'SOLICITADO',
-      observacoes: `Entrada Única — NF ${safeString(form?.nf_numero)}. ${safeString(form?.descricao_servico)}`,
       documento_intake_id: intake.id,
-      nf_numero: safeString(form?.nf_numero),
-      nf_data_emissao: safeString(form?.nf_data_emissao),
-      nf_competencia: safeString(form?.nf_competencia),
-      nome_padronizado_arquivo: nomeArquivo,
-      nome_arquivo_padronizado: nomeArquivo,
     });
 
     await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
       entidade_destino: 'PurchaseRequest',
       entidade_destino_id: purchase.id,
       status_processamento: 'ENVIADO_APROVACAO',
-      nome_padronizado_arquivo: nomeArquivo,
-      nome_arquivo_padronizado: nomeArquivo,
-      file_name_final: nomeArquivo,
-      centro_custo: form?.centro_custo || '',
-      rubrica_id_sugerida: form.rubrica_id,
-      rubrica_nome_sugerida: rubricaNome,
-      revisado_pelo_usuario: true,
-      resultado_ia: {
-        ...ia,
-        ...form,
-        destino_fluxo: 'SOLICITACOES',
-        nf_valor_total: valor,
-      },
     });
 
     return Response.json({
       success: true,
-      ok: true,
       destino: 'solicitacoes',
-      entity: 'PurchaseRequest',
       id: purchase.id,
     });
+
   } catch (e: any) {
-    console.error('enviarNotaParaAprovacao fatal:', e?.message, e?.stack);
+    console.error(e);
 
     return Response.json({
       success: false,
-      ok: false,
-      error: e?.message || 'Erro interno ao enviar nota para aprovação',
-      stack: e?.stack || null,
+      error: e?.message || 'Erro interno',
     }, { status: 500 });
   }
 });
