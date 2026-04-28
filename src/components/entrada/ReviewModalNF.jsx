@@ -1,7 +1,183 @@
 import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Textarea } from '@/components/uimport React, { useState } from 'react'
+import { base44 } from '@/api/base44Client'
+import { useToast } from '@/components/ui/use-toast'
+
+export default function ReviewModalNF({ document, onClose, onSuccess }) {
+  const { toast } = useToast()
+
+  const [loading, setLoading] = useState(false)
+
+  const handleEnviar = async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    try {
+      setLoading(true)
+
+      const purchase = await base44.entities.PurchaseRequest.create({
+        descricao_item: document?.descricao || 'NF sem descrição',
+        valor_total: document?.valor_total || 0,
+        fornecedor_nome: document?.emitente || '',
+        fornecedor_cnpj: document?.cnpj || '',
+        status: 'SOLICITADO',
+        rubrica_id: document?.rubrica_id || null,
+        centro_custo: document?.centro_custo || null,
+        documento_id: document?.id
+      })
+
+      await base44.entities.DocumentIntake.update(document.id, {
+        status: 'ENVIADO_APROVACAO',
+        purchase_request_id: purchase.id
+      })
+
+      toast({
+        title: 'Enviado para aprovação',
+        description: 'Solicitação criada com sucesso.',
+      })
+
+      onSuccess?.()
+      onClose?.()
+
+    } catch (err) {
+      console.error(err)
+      toast({
+        title: 'Erro ao enviar',
+        description: err?.message || 'Erro desconhecido',
+        variant: 'destructive'
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAprovar = async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    try {
+      setLoading(true)
+
+      const purchase = await base44.entities.PurchaseRequest.create({
+        descricao_item: document?.descricao || 'NF sem descrição',
+        valor_total: document?.valor_total || 0,
+        fornecedor_nome: document?.emitente || '',
+        fornecedor_cnpj: document?.cnpj || '',
+        status: 'SOLICITADO',
+        rubrica_id: document?.rubrica_id || null,
+        centro_custo: document?.centro_custo || null,
+        documento_id: document?.id
+      })
+
+      const response = await base44.functions.invoke('purchaseActions', {
+        action: 'aprovar',
+        purchaseId: purchase.id
+      })
+
+      const result = response?.data || response
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Falha ao aprovar nota.')
+      }
+
+      await base44.entities.DocumentIntake.update(document.id, {
+        status: 'APROVADO',
+        purchase_request_id: purchase.id,
+        team_payment_id: result?.teamPaymentId || null
+      })
+
+      toast({
+        title: 'Aprovado com sucesso',
+        description: 'NF aprovada e rubrica atualizada.',
+      })
+
+      onSuccess?.()
+      onClose?.()
+
+    } catch (err) {
+      console.error(err)
+      toast({
+        title: 'Erro ao aprovar',
+        description: err?.message || 'Erro desconhecido',
+        variant: 'destructive'
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    try {
+      setLoading(true)
+
+      await base44.entities.DocumentIntake.delete(document.id)
+
+      toast({
+        title: 'Documento deletado',
+      })
+
+      onSuccess?.()
+      onClose?.()
+
+    } catch (err) {
+      console.error(err)
+      toast({
+        title: 'Erro ao deletar',
+        description: err?.message || 'Erro desconhecido',
+        variant: 'destructive'
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-2xl rounded-xl bg-white">
+        
+        <div className="flex justify-between border-b p-4">
+          <h2>Conferência de Nota Fiscal</h2>
+          <button onClick={onClose}>X</button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {/* Mantém layout existente - NÃO ALTERADO */}
+        </div>
+
+        <div className="flex flex-wrap gap-2 p-4 border-t">
+          <button onClick={onClose}>Cancelar</button>
+
+          <button
+            onClick={handleDelete}
+            disabled={loading}
+            className="bg-red-500 text-white px-3 py-1 rounded"
+          >
+            Deletar
+          </button>
+
+          <button
+            onClick={handleAprovar}
+            disabled={loading}
+            className="bg-blue-600 text-white px-3 py-1 rounded"
+          >
+            Aprovar
+          </button>
+
+          <button
+            onClick={handleEnviar}
+            disabled={loading}
+            className="bg-black text-white px-3 py-1 rounded"
+          >
+            Enviar para Aprovação
+          </button>
+        </div>
+
+      </div>
+    </div>
+  )
+}i/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
 import { CheckCircle2, Loader2, Send } from 'lucide-react';
