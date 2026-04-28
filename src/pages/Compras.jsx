@@ -24,13 +24,14 @@ import {
   Pencil,
   Trash2,
   LinkIcon,
-  FileCheck2
+  FileCheck2,
+  CheckCircle2,
+  RotateCcw
 } from 'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
 import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
 import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
-import AprovacoesFila from '@/components/compras/AprovacoesFila';
 import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
 import TeamManager from '@/components/compras/TeamManager';
 import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
@@ -44,6 +45,7 @@ import RubricaDetail from '@/components/rubricas/RubricaDetail';
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
   SOLICITADO: { label: 'Solicitado', color: 'bg-blue-100 text-blue-700' },
+  DEVOLVIDO: { label: 'Devolvido', color: 'bg-amber-100 text-amber-700' },
   APROVADO_COORD: { label: 'Aprovado', color: 'bg-green-100 text-green-700' },
   APROVADO_ADMIN: { label: 'Aprovado Admin', color: 'bg-green-100 text-green-700' },
   RECUSADO: { label: 'Recusado', color: 'bg-red-100 text-red-700' },
@@ -97,6 +99,7 @@ function getPurchaseValue(p) {
     p?.valor_aprovado ||
     p?.valor_final ||
     p?.valor_solicitado ||
+    p?.valor_total ||
     0
   );
 }
@@ -113,12 +116,44 @@ function normalizeCentro(value) {
   if (raw === 'mhab') return 'MHAB';
   if (raw === 'mumo') return 'MUMO';
   if (raw === 'geral') return 'Geral';
+  if (raw === 'atuação geral') return 'Geral';
+  if (raw === 'atuacao geral') return 'Geral';
+  if (raw === 'rateado') return 'Rateado';
   if (raw === 'publicacoes') return 'Publicações';
   if (raw === 'noturno nos museus 2026') return 'Noturno nos Museus 2026';
   if (raw.includes('imagem e som')) return 'MIS';
   if (raw.includes('abilio barreto')) return 'MHAB';
   if (raw.includes('moda')) return 'MUMO';
   return String(value || '').trim();
+}
+
+function normalizeStatus(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function isSolicitado(purchase) {
+  return normalizeStatus(purchase?.status) === 'SOLICITADO';
+}
+
+function isCompraEquipe(purchase) {
+  const raw = [
+    purchase?.tipo_origem,
+    purchase?.origem,
+    purchase?.categoria,
+    purchase?.tipo_solicitacao,
+    purchase?.descricao_item,
+    purchase?.observacoes
+  ]
+    .map((v) => String(v || '').toLowerCase())
+    .join(' ');
+
+  return (
+    !!purchase?.team_payment_id ||
+    raw.includes('team') ||
+    raw.includes('equipe') ||
+    raw.includes('pagamento da equipe') ||
+    raw.includes('pagamento equipe')
+  );
 }
 
 function fmtBRL(v) {
@@ -277,8 +312,13 @@ function TabelaSolicitacoes({
   rubricas,
   isCoordenador,
   currentUser,
+  podeAprovarSolicitacoes,
+  hasGestaoCompras,
   onEdit,
-  onDelete
+  onDelete,
+  onApprove,
+  onReturn,
+  onGoTeamPayments
 }) {
   const rubricaById = useMemo(() => {
     const m = {};
@@ -289,6 +329,11 @@ function TabelaSolicitacoes({
   }, [rubricas]);
 
   if (!purchases || purchases.length === 0) return null;
+
+  const podeAprovar =
+    isCoordenador ||
+    podeAprovarSolicitacoes === true ||
+    hasGestaoCompras === true;
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200">
@@ -306,8 +351,9 @@ function TabelaSolicitacoes({
         </thead>
         <tbody>
           {purchases.map((p, i) => {
-            const status = STATUS_CONFIG[p.status] || {
-              label: p.status,
+            const statusKey = normalizeStatus(p.status);
+            const status = STATUS_CONFIG[statusKey] || {
+              label: p.status || '—',
               color: 'bg-gray-100 text-gray-600'
             };
 
@@ -322,13 +368,16 @@ function TabelaSolicitacoes({
             const valor = getPurchaseValue(p);
 
             const inconsistente =
-              (p.status === 'APROVADO_COORD' ||
-                p.status === 'APROVADO_ADMIN' ||
-                p.status === 'PAGO') &&
+              (statusKey === 'APROVADO_COORD' ||
+                statusKey === 'APROVADO_ADMIN' ||
+                statusKey === 'PAGO') &&
               (!p._has_orcamento_vinculado || p._sem_centro_custo);
 
             const podeEditar =
               isCoordenador || purchaseBelongsToUser(p, currentUser?.email);
+
+            const pendenteCoordenacao = isSolicitado(p);
+            const compraEquipe = isCompraEquipe(p);
 
             return (
               <tr
@@ -346,6 +395,12 @@ function TabelaSolicitacoes({
                     <p className="text-xs text-gray-400">{p.meta_id}</p>
                   )}
 
+                  {compraEquipe && (
+                    <span className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">
+                      Equipe
+                    </span>
+                  )}
+
                   {inconsistente && (
                     <span className="mt-0.5 inline-flex items-center gap-1 text-xs text-amber-600">
                       <AlertTriangle className="h-3 w-3" />
@@ -355,7 +410,7 @@ function TabelaSolicitacoes({
                 </td>
 
                 <td className="px-3 py-2.5 text-gray-600">
-                  {p.fornecedor_nome || '—'}
+                  {p.fornecedor_nome || p.nf_emitente_nome || '—'}
                 </td>
 
                 <td className="px-3 py-2.5">
@@ -386,29 +441,64 @@ function TabelaSolicitacoes({
                   {fmtBRL(valor)}
                 </td>
 
-                <td className="px-3 py-2.5 text-center flex items-center justify-center gap-2">
-                  {podeEditar && (
-                    <button
-                      onClick={() => onEdit(p)}
-                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-black"
-                      title="Editar"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  {isCoordenador && (
-                    <button
-                      onClick={() => {
-                        if (window.confirm('Tem certeza que deseja deletar esta solicitação?')) {
-                          onDelete(p.id);
-                        }
-                      }}
-                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                      title="Deletar"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                <td className="px-3 py-2.5">
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {podeEditar && (
+                      <button
+                        onClick={() => onEdit(p)}
+                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-black"
+                        title="Editar"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+
+                    {podeAprovar && pendenteCoordenacao && (
+                      <>
+                        <button
+                          onClick={() => onApprove(p)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700"
+                          title="Aprovar"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Aprovar
+                        </button>
+
+                        <button
+                          onClick={() => onReturn(p)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                          title="Devolver"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Devolver
+                        </button>
+                      </>
+                    )}
+
+                    {compraEquipe && isCoordenador && (
+                      <button
+                        onClick={onGoTeamPayments}
+                        className="rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1.5 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
+                        title="Ver em Pagamentos da Equipe"
+                      >
+                        Pagamento equipe
+                      </button>
+                    )}
+
+                    {isCoordenador && (
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Tem certeza que deseja deletar esta solicitação?')) {
+                            onDelete(p.id);
+                          }
+                        }}
+                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        title="Deletar"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             );
@@ -574,9 +664,9 @@ function ComprasInner() {
 
   const comprasInconsistentes = purchasesWithFlags.filter(
     (p) =>
-      (p.status === 'APROVADO_COORD' ||
-        p.status === 'APROVADO_ADMIN' ||
-        p.status === 'PAGO') &&
+      (normalizeStatus(p.status) === 'APROVADO_COORD' ||
+        normalizeStatus(p.status) === 'APROVADO_ADMIN' ||
+        normalizeStatus(p.status) === 'PAGO') &&
       (!p._has_orcamento_vinculado || p._sem_centro_custo)
   );
 
@@ -592,14 +682,14 @@ function ComprasInner() {
 
   const filtered = purchasesWithFlags.filter((p) => {
     const matchStatus =
-      filters.status === 'all' || p.status === filters.status;
+      filters.status === 'all' || normalizeStatus(p.status) === filters.status;
 
     let matchMeta = filters.meta_id === 'all';
     if (!matchMeta && filters.meta_id === 'produto') {
-      matchMeta = p.tipo_item === 'produto';
+      matchMeta = p.tipo_item === 'produto' || p.tipo_gasto === 'Produto';
     }
     if (!matchMeta && filters.meta_id === 'servico') {
-      matchMeta = p.tipo_item === 'servico';
+      matchMeta = p.tipo_item === 'servico' || p.tipo_gasto === 'Serviço';
     }
     if (!matchMeta) {
       matchMeta = p.meta_id === filters.meta_id;
@@ -637,10 +727,6 @@ function ComprasInner() {
     );
   });
 
-  const pendentesAprovacoes = (purchases || []).filter(
-    (p) => p.status === 'SOLICITADO'
-  ).length;
-
   const totalUtilizado = useMemo(() => {
     return (rubricasForTotalUtilizado || []).reduce(
       (s, r) => s + (r.valor_utilizado || 0),
@@ -654,6 +740,71 @@ function ComprasInner() {
     await invalidateComprasQueries();
     await refetchRubricas();
   }, [invalidateComprasQueries, refetchRubricas]);
+
+  async function handleApprovePurchase(purchase) {
+    if (!purchase?.id) return;
+
+    if (!purchase?.rubrica_id) {
+      smartToast.error('Não é possível aprovar sem rubrica vinculada.');
+      return;
+    }
+
+    try {
+      const response = await base44.functions.invoke('purchaseActions', {
+        purchaseId: purchase.id,
+        action: 'aprovar'
+      });
+
+      const result = response?.data || response;
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Falha ao aprovar solicitação.');
+      }
+
+      await refreshFinanceiroCompleto();
+
+      smartToast.success('Solicitação aprovada pela coordenação.');
+
+      if (isCompraEquipe(purchase) || result?.team_payment_id || result?.teamPaymentId) {
+        setTab('pagamentos');
+      }
+    } catch (error) {
+      console.error('Erro ao aprovar solicitação:', error);
+      smartToast.error('Erro ao aprovar', error.message);
+    }
+  }
+
+  async function handleReturnPurchase(purchase) {
+    if (!purchase?.id) return;
+
+    const comentario = window.prompt(
+      'Informe o comentário de devolução para o solicitante:',
+      'Devolvido pela coordenação para ajustes.'
+    );
+
+    if (comentario === null) return;
+
+    try {
+      const response = await base44.functions.invoke('purchaseActions', {
+        purchaseId: purchase.id,
+        action: 'rejeitar',
+        comentario: comentario || 'Devolvido pela coordenação.'
+      });
+
+      const result = response?.data || response;
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Falha ao devolver solicitação.');
+      }
+
+      await refreshFinanceiroCompleto();
+
+      smartToast.success('Solicitação devolvida.');
+    } catch (error) {
+      console.error('Erro ao devolver solicitação:', error);
+      smartToast.error('Erro ao devolver', error.message);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -794,16 +945,6 @@ function ComprasInner() {
             ...(isCoordenador ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
             { id: 'documentos', label: 'Documentos' },
             { id: 'equipe', label: 'Equipe' },
-            ...(podeAprovarSolicitacoes || hasGestaoCompras
-              ? [
-                  {
-                    id: 'aprovacoes',
-                    label: `Aprovações${
-                      pendentesAprovacoes > 0 ? ` (${pendentesAprovacoes})` : ''
-                    }`
-                  }
-                ]
-              : []),
             {
               id: 'pagamentos',
               label: isCoordenador ? 'Pagamentos da Equipe' : 'Meus Pagamentos'
@@ -987,10 +1128,15 @@ function ComprasInner() {
                 rubricas={rubricas}
                 isCoordenador={isCoordenador}
                 currentUser={currentUser}
+                podeAprovarSolicitacoes={podeAprovarSolicitacoes}
+                hasGestaoCompras={hasGestaoCompras}
                 onEdit={(purchase) => {
                   setEditingPurchase(purchase);
                   setShowForm(true);
                 }}
+                onApprove={handleApprovePurchase}
+                onReturn={handleReturnPurchase}
+                onGoTeamPayments={() => setTab('pagamentos')}
                 onDelete={async (purchaseId) => {
                   try {
                     await base44.entities.PurchaseRequest.delete(purchaseId);
@@ -1144,18 +1290,6 @@ function ComprasInner() {
           ) : (
             <TeamPaymentSubmit userEmail={currentUser?.email} />
           )
-        )}
-
-        {tab === 'aprovacoes' && (podeAprovarSolicitacoes || hasGestaoCompras) && (
-          <AprovacoesFila
-            purchases={purchases}
-            budgetLines={budgetLines}
-            statusConfig={STATUS_CONFIG}
-            onRefresh={refreshFinanceiroCompleto}
-            currentUser={currentUser}
-            hasGestaoCompras={hasGestaoCompras}
-            podeAprovarSolicitacoes={podeAprovarSolicitacoes}
-          />
         )}
       </div>
 
