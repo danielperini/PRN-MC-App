@@ -1,1 +1,4 @@
-
+{
+  "name": "enviarNotaParaAprovacao",
+  "entry": "entry.ts"
+}
