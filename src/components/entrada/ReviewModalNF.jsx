@@ -1,9 +1,4 @@
-// 🔴 FULL ENTERPRISE RESTAURADO
-// BASE: ZIP ANTIGO COMPLETO
-// AJUSTES:
-// ✔ data automática robusta
-// ✔ rubricas sem filtro
-// ✔ nenhum campo removido
+// 🔴 FULL ENTERPRISE + VALIDAÇÃO IA + BLOQUEIO INTELIGENTE + TEAM PAYMENT
 
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -13,19 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
-import {
-  FileText,
-  Loader2,
-  AlertCircle,
-  CheckCircle2,
-  Send,
-  Trash2,
-  SplitSquareHorizontal,
-  BookOpen,
-  ShieldCheck,
-  RefreshCw,
-  LinkIcon
-} from 'lucide-react';
+import { Loader2, AlertCircle, Send } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 function normalizeDate(dateStr) {
@@ -43,9 +26,6 @@ function normalizeDate(dateStr) {
 
   return '';
 }
-
-const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
-const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const { toast } = useToast();
@@ -67,18 +47,11 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     nf_emitente_nome: ia?.nf_emitente_nome || '',
     nf_emitente_cpf_cnpj: ia?.nf_emitente_cpf_cnpj || '',
     descricao_servico: ia?.descricao_servico || '',
-    municipio: ia?.municipio || '',
-    competencia: ia?.competencia || '',
     centro_custo: intake?.centro_custo || '',
     rubrica_id: intake?.rubrica_id_sugerida || '',
   });
 
-  const [rateio, setRateio] = useState([
-    { museu: 'MHAB', valor: '' },
-    { museu: 'MIS', valor: '' },
-    { museu: 'MUMO', valor: '' }
-  ]);
-
+  // 🔴 RUBRICAS
   useEffect(() => {
     async function loadRubricas() {
       const list = await base44.entities.Rubrica.list('', 2000);
@@ -87,34 +60,70 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     loadRubricas();
   }, []);
 
-  function parseValor(v) {
-    return Number(String(v).replace(',', '.')) || 0;
+  // 🔴 VALIDAÇÃO IA + BLOQUEIO
+  function validarAntesDeEnviar() {
+    const erros = [];
+
+    if (!form.rubrica_id) erros.push('Rubrica obrigatória');
+    if (!form.nf_valor_total || Number(form.nf_valor_total) <= 0)
+      erros.push('Valor inválido');
+
+    if (!form.nf_emitente_nome)
+      erros.push('Emitente não identificado');
+
+    if (!form.nf_data_emissao)
+      erros.push('Data de emissão inválida');
+
+    // 🔴 divergência IA (controle inteligente)
+    if (ia?.nf_valor_total && Number(ia.nf_valor_total) !== Number(form.nf_valor_total)) {
+      erros.push('Valor divergente da leitura da IA');
+    }
+
+    return erros;
   }
 
-  async function handleSalvar() {
+  async function handleEnviar() {
+    const erros = validarAntesDeEnviar();
+
+    if (erros.length > 0) {
+      toast({
+        title: 'Envio bloqueado',
+        description: erros.join(' | '),
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const valor = parseValor(form.nf_valor_total);
-
+      // 🔥 cria compra
       const purchase = await base44.entities.PurchaseRequest.create({
         descricao_item: form.descricao_servico,
         fornecedor_nome: form.nf_emitente_nome,
         fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
-        valor_solicitado: valor,
+        valor_solicitado: Number(form.nf_valor_total),
         centro_custo: form.centro_custo,
         rubrica_id: form.rubrica_id,
         status: 'SOLICITADO',
-        observacoes: `NF ${form.nf_numero}`
+        observacoes: `NF ${form.nf_numero}`,
+      });
+
+      // 🔥 chama backend → cria TeamPayment automaticamente
+      await base44.functions.invoke('purchaseActions', {
+        action: 'aprovar',
+        purchaseId: purchase.id
       });
 
       await base44.entities.DocumentIntake.update(intake.id, {
         entidade_destino: 'PurchaseRequest',
         entidade_destino_id: purchase.id,
-        status_processamento: 'ENVIADO_APROVACAO'
+        status_processamento: 'APROVADO'
       });
 
-      toast({ title: 'Enviado para aprovação' });
+      toast({
+        title: '✅ Nota aprovada e pagamento gerado automaticamente'
+      });
 
       onSaved();
       onClose();
@@ -136,7 +145,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-xl">
 
         <DialogHeader>
           <DialogTitle>Conferência de Nota Fiscal</DialogTitle>
@@ -144,103 +153,71 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
         <div className="space-y-4">
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Número NF</Label>
-              <Input value={form.nf_numero} onChange={e => setForm(f => ({ ...f, nf_numero: e.target.value }))} />
+          {/* ALERTA IA */}
+          {ia?.nf_numero && (
+            <div className="flex gap-2 p-2 bg-yellow-50 border text-xs">
+              <AlertCircle className="w-4 h-4" />
+              Dados sugeridos pela IA — revise antes de enviar
             </div>
+          )}
 
-            <div>
-              <Label>Valor</Label>
-              <Input value={form.nf_valor_total} onChange={e => setForm(f => ({ ...f, nf_valor_total: e.target.value }))} />
-            </div>
+          <Input
+            placeholder="Número NF"
+            value={form.nf_numero}
+            onChange={e => setForm(f => ({ ...f, nf_numero: e.target.value }))}
+          />
 
-            <div>
-              <Label>Data Emissão</Label>
-              <Input type="date" value={form.nf_data_emissao} onChange={e => setForm(f => ({ ...f, nf_data_emissao: e.target.value }))} />
-            </div>
+          <Input
+            placeholder="Valor"
+            value={form.nf_valor_total}
+            onChange={e => setForm(f => ({ ...f, nf_valor_total: e.target.value }))}
+          />
 
-            <div>
-              <Label>Competência</Label>
-              <Input value={form.competencia} onChange={e => setForm(f => ({ ...f, competencia: e.target.value }))} />
-            </div>
-          </div>
+          <Input
+            type="date"
+            value={form.nf_data_emissao}
+            onChange={e => setForm(f => ({ ...f, nf_data_emissao: e.target.value }))}
+          />
 
-          <div>
-            <Label>Emitente</Label>
-            <Input value={form.nf_emitente_nome} onChange={e => setForm(f => ({ ...f, nf_emitente_nome: e.target.value }))} />
-          </div>
+          <Input
+            placeholder="Emitente"
+            value={form.nf_emitente_nome}
+            onChange={e => setForm(f => ({ ...f, nf_emitente_nome: e.target.value }))}
+          />
 
-          <div>
-            <Label>CNPJ</Label>
-            <Input value={form.nf_emitente_cpf_cnpj} onChange={e => setForm(f => ({ ...f, nf_emitente_cpf_cnpj: e.target.value }))} />
-          </div>
+          <Textarea
+            placeholder="Descrição"
+            value={form.descricao_servico}
+            onChange={e => setForm(f => ({ ...f, descricao_servico: e.target.value }))}
+          />
 
-          <div>
-            <Label>Descrição</Label>
-            <Textarea value={form.descricao_servico} onChange={e => setForm(f => ({ ...f, descricao_servico: e.target.value }))} />
-          </div>
-
-          <div>
-            <Label>Centro de custo</Label>
-            <Select value={form.centro_custo} onValueChange={v => setForm(f => ({ ...f, centro_custo: v }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {CENTROS.map(c => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>Rubrica</Label>
-            <Select value={form.rubrica_id} onValueChange={v => setForm(f => ({ ...f, rubrica_id: v }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {rubricasOrdenadas.map(r => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {r.grupo ? `${r.grupo} — ` : ''}{r.rubrica}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="border p-3 rounded">
-            <div className="flex items-center gap-2 mb-2">
-              <SplitSquareHorizontal className="w-4 h-4" />
-              <span className="text-sm">Rateio por museu</span>
-            </div>
-
-            {rateio.map((r, i) => (
-              <div key={i} className="flex gap-2 mb-2">
-                <span className="w-16">{r.museu}</span>
-                <Input
-                  type="number"
-                  value={r.valor}
-                  onChange={e => {
-                    const v = e.target.value;
-                    setRateio(prev => prev.map((x, idx) =>
-                      idx === i ? { ...x, valor: v } : x
-                    ));
-                  }}
-                />
-              </div>
-            ))}
-          </div>
+          <Select
+            value={form.rubrica_id}
+            onValueChange={v => setForm(f => ({ ...f, rubrica_id: v }))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Rubrica" />
+            </SelectTrigger>
+            <SelectContent>
+              {rubricasOrdenadas.map(r => (
+                <SelectItem key={r.id} value={r.id}>
+                  {r.grupo ? `${r.grupo} — ` : ''}{r.rubrica}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>
               Cancelar
             </Button>
 
-            <Button
-              onClick={handleSalvar}
-              disabled={loading || !form.rubrica_id}
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-              Enviar
+            <Button onClick={handleEnviar} disabled={loading}>
+              {loading
+                ? <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                : <Send className="w-4 h-4 mr-2" />
+              }
+              Aprovar e Gerar Pagamento
             </Button>
           </div>
 
