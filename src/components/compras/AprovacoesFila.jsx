@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,22 +30,11 @@ function parseJSON(str, fb = []) {
 }
 
 function getValorPurchase(p) {
-  return (
-    p?.valor_solicitado ||
-    p?.valor_total ||
-    p?.valor_aprovado ||
-    p?.valor_pago ||
-    0
-  );
+  return p?.valor_solicitado || p?.valor_total || p?.valor_aprovado || p?.valor_pago || 0;
 }
 
 function getTituloPurchase(p) {
-  return (
-    p?.descricao_item ||
-    p?.descricao_servico ||
-    p?.nf_numero ||
-    'Solicitação sem descrição'
-  );
+  return p?.descricao_item || p?.descricao_servico || p?.nf_numero || 'Solicitação sem descrição';
 }
 
 function getFornecedorPurchase(p) {
