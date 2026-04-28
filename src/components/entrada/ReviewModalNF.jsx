@@ -374,19 +374,19 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       const result = response?.data || response;
 
       if (!result?.success) {
-        throw new Error(result?.error || 'Falha ao enviar nota.');
+        throw new Error(result?.error || result?.message || 'Falha ao enviar nota.');
       }
 
       toast({
         title:
           result.destino === 'equipe'
-            ? '📩 Enviado para Pagamentos da Equipe'
-            : '📩 Enviado para Solicitações',
+            ? '✅ Nota enviada para Pagamentos da Equipe'
+            : '✅ Solicitação enviada para Aprovação',
         description:
           result.destino === 'equipe'
-            ? 'A nota foi encaminhada para Compras → Pagamentos da Equipe.'
-            : 'A solicitação foi encaminhada para Compras → Solicitações.',
-        duration: 4000,
+            ? 'A nota já está disponível em Compras → Pagamentos da Equipe.'
+            : 'A solicitação já está disponível em Compras → Solicitações.',
+        duration: 5000,
       });
 
       await onSaved?.();
@@ -397,10 +397,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       console.error('Erro ao enviar:', e);
 
       toast({
-        title: 'Erro ao enviar',
-        description: e?.message || 'Falha ao enviar para aprovação.',
+        title: 'Erro ao enviar solicitação',
+        description: e?.message || 'Falha ao enviar para aprovação. Verifique console/log da function.',
         variant: 'destructive',
-        duration: 7000,
+        duration: 8000,
       });
     } finally {
       setSending(false);
@@ -708,7 +708,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
             <button type="button" onClick={handleEnviar} disabled={sending} className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white shadow disabled:opacity-50">
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Enviar
+              {sending ? 'Enviando...' : 'Enviar'}
             </button>
           </div>
         </div>
