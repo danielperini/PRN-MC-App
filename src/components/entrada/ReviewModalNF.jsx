@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,20 +21,15 @@ function parseValorBR(value) {
 
 function normalizeDate(value) {
   if (!value) return '';
-
   const raw = String(value).trim();
-
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-
   const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (br) return `${br[3]}-${br[2]}-${br[1]}`;
-
   return raw;
 }
 
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const { toast } = useToast();
-
   const ia = intake?.resultado_ia || {};
 
   const [sending, setSending] = useState(false);
@@ -81,7 +75,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   }
 
   function getRubricaNome(id) {
-    const r = rubricas.find(r => r.id === id);
+    const r = rubricas.find((item) => item.id === id);
     return r?.rubrica || r?.nome || r?.descricao || '';
   }
 
@@ -96,6 +90,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       centro_custo: form.centro_custo,
       rubrica_id: form.rubrica_id,
       rubrica_nome: getRubricaNome(form.rubrica_id),
+      categoria: 'Nota Fiscal',
+      tipo_gasto: 'Serviço',
       status: 'SOLICITADO',
       observacoes: `NF ${form.nf_numero}`,
       nf_numero: form.nf_numero,
@@ -103,14 +99,20 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     });
   }
 
-  async function handleAprovar() {
+  async function handleAprovar(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+
+    if (sending) return;
+
     const erros = validar();
 
     if (erros.length) {
       toast({
-        title: 'Preencha campos',
+        title: 'Preencha campos obrigatórios',
         description: erros.join(', '),
-        variant: 'destructive'
+        variant: 'destructive',
+        duration: 5000,
       });
       return;
     }
@@ -118,52 +120,63 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     setSending(true);
 
     try {
+      toast({ title: 'Processando aprovação...', duration: 1500 });
+
       const purchase = await criarPurchaseRequest();
 
       const response = await base44.functions.invoke('purchaseActions', {
         action: 'aprovar',
-        purchaseId: purchase.id
+        purchaseId: purchase.id,
       });
 
       const result = response?.data || response;
 
       if (!result?.success) {
-        throw new Error(result?.error || 'Falha ao aprovar');
+        throw new Error(result?.error || 'Falha ao aprovar nota.');
       }
 
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'APROVADO',
-        team_payment_id: result?.team_payment_id || null
+        entidade_destino: 'PurchaseRequest',
+        entidade_destino_id: purchase.id,
+        team_payment_id: result?.team_payment_id || null,
       });
 
       toast({
-        title: '✅ Nota aprovada com sucesso'
+        title: '✅ Nota aprovada com sucesso',
+        duration: 3000,
       });
 
-      onSaved?.();
+      await onSaved?.();
       onClose?.();
-
     } catch (e) {
-      console.error(e);
+      console.error('Erro ao aprovar NF:', e);
 
       toast({
         title: 'Erro ao aprovar',
-        description: e?.message || 'Erro desconhecido',
-        variant: 'destructive'
+        description: e?.message || 'Falha ao aprovar nota fiscal.',
+        variant: 'destructive',
+        duration: 6000,
       });
+    } finally {
+      setSending(false);
     }
-
-    setSending(false);
   }
 
-  async function handleEnviar() {
+  async function handleEnviar(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+
+    if (sending) return;
+
     const erros = validar();
 
     if (erros.length) {
       toast({
-        title: 'Preencha campos',
+        title: 'Preencha campos obrigatórios',
         description: erros.join(', '),
-        variant: 'destructive'
+        variant: 'destructive',
+        duration: 5000,
       });
       return;
     }
@@ -174,26 +187,35 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       const purchase = await criarPurchaseRequest();
 
       await base44.entities.DocumentIntake.update(intake.id, {
-        status_processamento: 'ENVIADO_APROVACAO'
+        status_processamento: 'ENVIADO_APROVACAO',
+        entidade_destino: 'PurchaseRequest',
+        entidade_destino_id: purchase.id,
       });
 
       toast({
-        title: '📩 Enviado para aprovação'
+        title: '📩 Enviado para aprovação',
+        duration: 3000,
       });
 
-      onSaved?.();
+      await onSaved?.();
       onClose?.();
-
     } catch (e) {
       toast({
-        title: 'Erro',
-        description: e.message,
-        variant: 'destructive'
+        title: 'Erro ao enviar',
+        description: e?.message || 'Falha ao enviar nota.',
+        variant: 'destructive',
+        duration: 5000,
       });
+    } finally {
+      setSending(false);
     }
-
-    setSending(false);
   }
+
+  const rubricasOrdenadas = [...rubricas].sort((a, b) => {
+    const nomeA = String(a.rubrica || a.nome || a.descricao || '');
+    const nomeB = String(b.rubrica || b.nome || b.descricao || '');
+    return nomeA.localeCompare(nomeB, 'pt-BR');
+  });
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -203,88 +225,107 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         </DialogHeader>
 
         <div className="space-y-4">
-
           <Input
             placeholder="Número NF"
             value={form.nf_numero}
-            onChange={e => setForm(f => ({ ...f, nf_numero: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, nf_numero: e.target.value }))}
           />
 
           <Input
             placeholder="Valor"
             value={form.nf_valor_total}
-            onChange={e => setForm(f => ({ ...f, nf_valor_total: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, nf_valor_total: e.target.value }))}
           />
 
           <Input
             type="date"
             value={form.nf_data_emissao}
-            onChange={e => setForm(f => ({ ...f, nf_data_emissao: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))}
           />
 
           <Input
             placeholder="Emitente"
             value={form.nf_emitente_nome}
-            onChange={e => setForm(f => ({ ...f, nf_emitente_nome: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))}
           />
 
           <Textarea
             placeholder="Descrição"
             value={form.descricao_servico}
-            onChange={e => setForm(f => ({ ...f, descricao_servico: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))}
           />
 
           <Select
             value={form.centro_custo}
-            onValueChange={v => setForm(f => ({ ...f, centro_custo: v }))}
+            onValueChange={(v) => setForm((f) => ({ ...f, centro_custo: v }))}
           >
             <SelectTrigger>
               <SelectValue placeholder="Centro de custo" />
             </SelectTrigger>
             <SelectContent>
-              {CENTROS.map(c => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
+              {CENTROS.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <Select
             value={form.rubrica_id}
-            onValueChange={v => setForm(f => ({ ...f, rubrica_id: v }))}
+            onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}
           >
             <SelectTrigger>
               <SelectValue placeholder="Rubrica" />
             </SelectTrigger>
             <SelectContent>
-              {rubricas.map(r => (
+              {rubricasOrdenadas.map((r) => (
                 <SelectItem key={r.id} value={r.id}>
-                  {r.rubrica}
+                  {(r.grupo ? `${r.grupo} — ` : '')}
+                  {r.rubrica || r.nome || r.descricao || 'Rubrica sem nome'}
+                  {r.centro_custo ? ` — ${r.centro_custo}` : ''}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <div className="flex justify-end gap-2">
-            <Button onClick={onClose}>Cancelar</Button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border px-4 py-2 text-sm"
+            >
+              Cancelar
+            </button>
 
-            <Button onClick={handleAprovar} disabled={sending} className="bg-blue-600">
-              {sending
-                ? <Loader2 className="w-4 h-4 animate-spin mr-2"/>
-                : <CheckCircle2 className="w-4 h-4 mr-2"/>
-              }
+            <button
+              type="button"
+              onClick={handleAprovar}
+              disabled={sending}
+              className="inline-flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-700 disabled:opacity-50"
+            >
+              {sending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+              )}
               Aprovar
-            </Button>
+            </button>
 
-            <Button onClick={handleEnviar} disabled={sending}>
-              {sending
-                ? <Loader2 className="w-4 h-4 animate-spin mr-2"/>
-                : <Send className="w-4 h-4 mr-2"/>
-              }
+            <button
+              type="button"
+              onClick={handleEnviar}
+              disabled={sending}
+              className="inline-flex h-9 items-center justify-center rounded-md border px-4 py-2 text-sm font-medium shadow-sm disabled:opacity-50"
+            >
+              {sending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="mr-2 h-4 w-4" />
+              )}
               Enviar
-            </Button>
-
+            </button>
           </div>
-
         </div>
       </DialogContent>
     </Dialog>
