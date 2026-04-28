@@ -10,22 +10,6 @@ import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 
-const COORD_EMAILS = [
-  'danielperini.mc@viadutodasartes.org.br',
-  'daniel@periniprojetos.com.br',
-  'danie@periniprojetos.com.br'
-];
-
-const COORD_ROLES = [
-  'admin',
-  'ADMIN',
-  'coordenador',
-  'COORDENADOR',
-  'COORD_COMUNICACAO',
-  'COORD_ADMINISTRATIVA',
-  'COORD_PRODUCAO'
-];
-
 function parseValorBR(value) {
   const clean = String(value || '')
     .replace('R$', '')
@@ -56,9 +40,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
   const [sending, setSending] = useState(false);
   const [rubricas, setRubricas] = useState([]);
-  const [user, setUser] = useState(null);
-  const [userPermission, setUserPermission] = useState(null);
-  const [loadingUser, setLoadingUser] = useState(true);
 
   const [form, setForm] = useState({
     nf_numero: ia.nf_numero || '',
@@ -78,52 +59,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   });
 
   useEffect(() => {
-    async function loadUser() {
-      try {
-        const me = await base44.auth.me();
-        setUser(me || null);
-
-        if (me?.email) {
-          try {
-            const perms = await base44.entities.UserPermission.filter({
-              user_email: me.email,
-            });
-            setUserPermission(perms?.[0] || null);
-          } catch {
-            setUserPermission(null);
-          }
-        }
-      } catch {
-        setUser(null);
-      } finally {
-        setLoadingUser(false);
-      }
-    }
-
-    loadUser();
-  }, []);
-
-  useEffect(() => {
     async function loadRubricas() {
-      try {
-        const list = await base44.entities.Rubrica.list('', 2000);
-        setRubricas(list || []);
-      } catch (e) {
-        console.error('Erro ao carregar rubricas:', e);
-      }
+      const list = await base44.entities.Rubrica.list('', 2000);
+      setRubricas(list || []);
     }
-
     loadRubricas();
   }, []);
-
-  const email = (user?.email || '').toLowerCase().trim();
-  const role = String(user?.role || '').trim();
-
-  const isCoordenador =
-    COORD_EMAILS.includes(email) ||
-    COORD_ROLES.includes(role) ||
-    userPermission?.gestao_compras === true ||
-    userPermission?.pode_aprovar_solicitacoes === true;
 
   function validar() {
     const erros = [];
@@ -140,86 +81,36 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   }
 
   function getRubricaNome(id) {
-    const r = rubricas.find((item) => item.id === id);
+    const r = rubricas.find(r => r.id === id);
     return r?.rubrica || r?.nome || r?.descricao || '';
-  }
-
-  async function verificarCoordenadorAtual() {
-    try {
-      const me = user || await base44.auth.me();
-      const currentEmail = (me?.email || '').toLowerCase().trim();
-      const currentRole = String(me?.role || '').trim();
-
-      if (COORD_EMAILS.includes(currentEmail)) return true;
-      if (COORD_ROLES.includes(currentRole)) return true;
-
-      try {
-        const perms = await base44.entities.UserPermission.filter({
-          user_email: me.email,
-        });
-
-        const perm = perms?.[0] || null;
-
-        return (
-          perm?.gestao_compras === true ||
-          perm?.pode_aprovar_solicitacoes === true
-        );
-      } catch {
-        return false;
-      }
-    } catch {
-      return false;
-    }
   }
 
   async function criarPurchaseRequest() {
     const valor = parseValorBR(form.nf_valor_total);
-    const rubricaNome = getRubricaNome(form.rubrica_id);
 
-    const purchase = await base44.entities.PurchaseRequest.create({
+    return await base44.entities.PurchaseRequest.create({
       descricao_item: form.descricao_servico,
       fornecedor_nome: form.nf_emitente_nome,
       fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
       valor_solicitado: valor,
       centro_custo: form.centro_custo,
       rubrica_id: form.rubrica_id,
-      rubrica_nome: rubricaNome,
-      categoria: 'Nota Fiscal',
-      tipo_gasto: 'Serviço',
+      rubrica_nome: getRubricaNome(form.rubrica_id),
       status: 'SOLICITADO',
-      observacoes: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
+      observacoes: `NF ${form.nf_numero}`,
       nf_numero: form.nf_numero,
       nf_data_emissao: form.nf_data_emissao,
     });
-
-    await base44.entities.DocumentIntake.update(intake.id, {
-      entidade_destino: 'PurchaseRequest',
-      entidade_destino_id: purchase.id,
-      status_processamento: 'ENVIADO_APROVACAO',
-      centro_custo: form.centro_custo,
-      rubrica_id_sugerida: form.rubrica_id,
-      rubrica_nome_sugerida: rubricaNome,
-      revisado_pelo_usuario: true,
-      resultado_ia: {
-        ...ia,
-        ...form,
-        nf_data_emissao: form.nf_data_emissao,
-        nf_valor_total: valor,
-      },
-    });
-
-    return purchase;
   }
 
-  async function handleClickPrincipal() {
+  async function handleAprovar() {
     const erros = validar();
 
     if (erros.length) {
       toast({
-        title: 'Preencha campos obrigatórios',
+        title: 'Preencha campos',
         description: erros.join(', '),
-        variant: 'destructive',
-        duration: 5000,
+        variant: 'destructive'
       });
       return;
     }
@@ -227,52 +118,76 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     setSending(true);
 
     try {
-      const podeAprovar = await verificarCoordenadorAtual();
       const purchase = await criarPurchaseRequest();
 
-      if (podeAprovar) {
-        const resp = await base44.functions.invoke('purchaseActions', {
-          action: 'aprovar',
-          purchaseId: purchase.id,
-        });
+      const resp = await base44.functions.invoke('purchaseActions', {
+        action: 'aprovar',
+        purchaseId: purchase.id
+      });
 
-        await base44.entities.DocumentIntake.update(intake.id, {
-          status_processamento: 'APROVADO',
-          team_payment_id: resp?.team_payment_id || resp?.data?.team_payment_id || null,
-        });
-
-        toast({
-          title: '✅ Nota aprovada com sucesso',
-          duration: 3000,
-        });
-      } else {
-        toast({
-          title: '📩 Nota enviada para aprovação',
-          duration: 3000,
-        });
-      }
-
-      await onSaved?.();
-      onClose?.();
-    } catch (e) {
-      console.error('Erro ao processar NF:', e);
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'APROVADO',
+        team_payment_id: resp?.team_payment_id || null
+      });
 
       toast({
-        title: 'Erro ao processar nota',
-        description: e?.message || 'Falha ao processar nota fiscal.',
-        variant: 'destructive',
-        duration: 5000,
+        title: '✅ Nota aprovada com sucesso'
       });
-    } finally {
-      setSending(false);
+
+      onSaved?.();
+      onClose?.();
+
+    } catch (e) {
+      console.error(e);
+
+      toast({
+        title: 'Erro ao aprovar',
+        description: e.message,
+        variant: 'destructive'
+      });
     }
+
+    setSending(false);
   }
 
-  const rubricasOrdenadas = [...rubricas].sort((a, b) => {
-    const nomeA = String(a.rubrica || a.nome || a.descricao || '');
-    const nomeB = String(b.rubrica || b.nome || b.descricao || '');
-    return nomeA.localeCompare(nomeB, 'pt-BR');
-  });
+  async function handleEnviar() {
+    const erros = validar();
+
+    if (erros.length) {
+      toast({
+        title: 'Preencha campos',
+        description: erros.join(', '),
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setSending(true);
+
+    try {
+      const purchase = await criarPurchaseRequest();
+
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'ENVIADO_APROVACAO'
+      });
+
+      toast({
+        title: '📩 Enviado para aprovação'
+      });
+
+      onSaved?.();
+      onClose?.();
+
+    } catch (e) {
+      toast({
+        title: 'Erro',
+        description: e.message,
+        variant: 'destructive'
+      });
+    }
+
+    setSending(false);
+  }
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -282,92 +197,95 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         </DialogHeader>
 
         <div className="space-y-4">
+
           <Input
             placeholder="Número NF"
             value={form.nf_numero}
-            onChange={(e) => setForm((f) => ({ ...f, nf_numero: e.target.value }))}
+            onChange={e => setForm(f => ({ ...f, nf_numero: e.target.value }))}
           />
 
           <Input
             placeholder="Valor"
             value={form.nf_valor_total}
-            onChange={(e) => setForm((f) => ({ ...f, nf_valor_total: e.target.value }))}
+            onChange={e => setForm(f => ({ ...f, nf_valor_total: e.target.value }))}
           />
 
           <Input
             type="date"
             value={form.nf_data_emissao}
-            onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))}
+            onChange={e => setForm(f => ({ ...f, nf_data_emissao: e.target.value }))}
           />
 
           <Input
             placeholder="Emitente"
             value={form.nf_emitente_nome}
-            onChange={(e) => setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))}
+            onChange={e => setForm(f => ({ ...f, nf_emitente_nome: e.target.value }))}
           />
 
           <Textarea
             placeholder="Descrição"
             value={form.descricao_servico}
-            onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))}
+            onChange={e => setForm(f => ({ ...f, descricao_servico: e.target.value }))}
           />
 
           <Select
             value={form.centro_custo}
-            onValueChange={(v) => setForm((f) => ({ ...f, centro_custo: v }))}
+            onValueChange={v => setForm(f => ({ ...f, centro_custo: v }))}
           >
             <SelectTrigger>
               <SelectValue placeholder="Centro de custo" />
             </SelectTrigger>
             <SelectContent>
-              {CENTROS.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
+              {CENTROS.map(c => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <Select
             value={form.rubrica_id}
-            onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}
+            onValueChange={v => setForm(f => ({ ...f, rubrica_id: v }))}
           >
             <SelectTrigger>
               <SelectValue placeholder="Rubrica" />
             </SelectTrigger>
             <SelectContent>
-              {rubricasOrdenadas.map((r) => (
+              {rubricas.map(r => (
                 <SelectItem key={r.id} value={r.id}>
-                  {(r.grupo ? `${r.grupo} — ` : '')}
-                  {r.rubrica || r.nome || r.descricao || 'Rubrica sem nome'}
-                  {r.centro_custo ? ` — ${r.centro_custo}` : ''}
+                  {r.rubrica}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
+            <Button onClick={onClose}>Cancelar</Button>
+
+            <Button
+              onClick={handleAprovar}
+              disabled={sending}
+              className="bg-blue-600"
+            >
+              {sending
+                ? <Loader2 className="w-4 h-4 animate-spin mr-2"/>
+                : <CheckCircle2 className="w-4 h-4 mr-2"/>
+              }
+              Aprovar
             </Button>
 
             <Button
-              type="button"
-              onClick={handleClickPrincipal}
+              onClick={handleEnviar}
               disabled={sending}
-              className="bg-blue-600 hover:bg-blue-700"
             >
-              {sending ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : isCoordenador ? (
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-              ) : (
-                <Send className="w-4 h-4 mr-2" />
-              )}
-
-              {isCoordenador ? 'Aprovar' : 'Enviar'}
+              {sending
+                ? <Loader2 className="w-4 h-4 animate-spin mr-2"/>
+                : <Send className="w-4 h-4 mr-2"/>
+              }
+              Enviar
             </Button>
+
           </div>
+
         </div>
       </DialogContent>
     </Dialog>
