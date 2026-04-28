@@ -51,7 +51,13 @@ const METAS_3_ADITIVO = [
 ];
 
 function parseValorBR(value) {
-  const clean = String(value || '')
+  const original = String(value || '').trim();
+
+  if (/^\d{5,}$/.test(original)) {
+    return Number(original) / 100;
+  }
+
+  const clean = original
     .replace('R$', '')
     .replace(/\s/g, '')
     .replace(/\./g, '')
@@ -120,9 +126,7 @@ function gerarNomePadronizadoArquivo(form, intake) {
 }
 
 function normalizarMuseusRateio(value) {
-  if (Array.isArray(value)) {
-    return value.filter((item) => MUSEUS_RATEIO.includes(item));
-  }
+  if (Array.isArray(value)) return value.filter((item) => MUSEUS_RATEIO.includes(item));
 
   if (typeof value === 'string' && value) {
     return value
@@ -156,18 +160,21 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
   const [form, setForm] = useState(() => {
     const museusRateioInicial = normalizarMuseusRateio(
-      getValue(
-        intake?.museus_rateio,
-        intake?.rateio_museus,
-        ia.museus_rateio,
-        ia.rateio_museus
-      )
+      getValue(intake?.museus_rateio, intake?.rateio_museus, ia.museus_rateio, ia.rateio_museus)
     );
 
     const tipoRateioInicial = getValue(
       intake?.tipo_rateio,
       ia.tipo_rateio,
       museusRateioInicial.length > 0 ? 'dividido' : 'geral'
+    );
+
+    const valorInicial = getValue(
+      ia.nf_valor_total,
+      ia.valor_total,
+      ia.valor,
+      intake?.nf_valor_total,
+      intake?.valor_total
     );
 
     const baseForm = {
@@ -178,7 +185,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         ia.nome_arquivo_padronizado
       ),
       nf_numero: getValue(ia.nf_numero, ia.numero_nf, intake?.nf_numero),
-      nf_valor_total: getValue(ia.nf_valor_total, ia.valor_total, ia.valor, intake?.nf_valor_total, intake?.valor_total),
+      nf_valor_total: formatValorBR(valorInicial),
       nf_data_emissao: normalizeDate(getValue(ia.nf_data_emissao, ia.data_emissao, ia.dataEmissao, ia.emissao, intake?.nf_data_emissao)),
       nf_competencia: getValue(ia.nf_competencia, ia.competencia, intake?.nf_competencia, intake?.competencia),
       nf_emitente_nome: getValue(ia.nf_emitente_nome, ia.emitente_nome, ia.emitente, intake?.nf_emitente_nome, intake?.emitente),
@@ -278,12 +285,17 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
   function getRateioCalculado() {
     const valor = parseValorBR(form.nf_valor_total);
-
-    if (form.tipo_rateio !== 'dividido') {
-      return [];
-    }
-
+    if (form.tipo_rateio !== 'dividido') return [];
     return montarRateioMuseus(valor, form.museus_rateio || []);
+  }
+
+  async function safeUpdateDocumentIntake(payload) {
+    try {
+      if (!intake?.id) return;
+      await base44.entities.DocumentIntake.update(intake.id, payload);
+    } catch (e) {
+      console.warn('DocumentIntake não atualizado, mas envio não será bloqueado:', e);
+    }
   }
 
   async function salvarRascunho() {
@@ -296,7 +308,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       const rubricaNome = getRubricaNome(form.rubrica_id);
       const rateioCalculado = getRateioCalculado();
 
-      await base44.entities.DocumentIntake.update(intake.id, {
+      await safeUpdateDocumentIntake({
         status_processamento: 'RASCUNHO',
         nome_padronizado_arquivo: form.nome_padronizado_arquivo,
         nome_arquivo_padronizado: form.nome_padronizado_arquivo,
@@ -311,8 +323,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           ...ia,
           ...form,
           nf_valor_total: valor,
-          nome_padronizado_arquivo: form.nome_padronizado_arquivo,
-          nome_arquivo_padronizado: form.nome_padronizado_arquivo,
           rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
         },
       });
@@ -337,7 +347,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     const metaNome = getMetaNome(form.meta_id);
     const rateioCalculado = getRateioCalculado();
 
-    const purchase = await base44.entities.PurchaseRequest.create({
+    const response = await base44.entities.PurchaseRequest.create({
       descricao_item: form.descricao_servico,
       fornecedor_nome: form.nf_emitente_nome,
       fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
@@ -358,7 +368,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       nf_emitente_nome: form.nf_emitente_nome,
       nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
       municipio: form.municipio,
-      documento_intake_id: intake.id,
+      documento_intake_id: intake?.id || null,
       nome_padronizado_arquivo: form.nome_padronizado_arquivo,
       nome_arquivo_padronizado: form.nome_padronizado_arquivo,
       xml_vinculado_id: form.xml_vinculado_id || null,
@@ -372,7 +382,13 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           : null,
     });
 
-    await base44.entities.DocumentIntake.update(intake.id, {
+    const purchase = response?.data || response;
+
+    if (!purchase?.id) {
+      throw new Error('PurchaseRequest criada sem ID de retorno.');
+    }
+
+    await safeUpdateDocumentIntake({
       entidade_destino: 'PurchaseRequest',
       entidade_destino_id: purchase.id,
       status_processamento: 'ENVIADO_APROVACAO',
@@ -423,22 +439,22 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     try {
       const purchase = await criarPurchaseRequest();
 
-      await base44.entities.DocumentIntake.update(intake.id, {
-        status_processamento: 'ENVIADO_APROVACAO',
-        entidade_destino: 'PurchaseRequest',
-        entidade_destino_id: purchase.id,
+      toast({
+        title: '📩 Enviado para aprovação',
+        description: `Solicitação criada: ${purchase.id}`,
+        duration: 3000,
       });
-
-      toast({ title: '📩 Enviado para aprovação', duration: 3000 });
 
       await onSaved?.();
       onClose?.();
     } catch (e) {
+      console.error('Erro ao enviar para aprovação:', e);
+
       toast({
-        title: 'Erro ao enviar',
-        description: e?.message || 'Falha ao enviar nota.',
+        title: 'Erro ao enviar para aprovação',
+        description: e?.message || 'Falha ao criar solicitação.',
         variant: 'destructive',
-        duration: 5000,
+        duration: 7000,
       });
     } finally {
       setSending(false);
@@ -479,7 +495,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     setSending(true);
 
     try {
-      await base44.entities.DocumentIntake.update(intake.id, {
+      await safeUpdateDocumentIntake({
         status_processamento: 'ANALISANDO_IA',
         resultado_ia: null,
         erros_validacao: [],
@@ -556,53 +572,94 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Input placeholder="Número da NF" value={form.nf_numero} onChange={(e) => setForm((f) => ({ ...f, nf_numero: e.target.value }))} />
-            <Input placeholder="Valor Total (R$)" value={form.nf_valor_total} onChange={(e) => setForm((f) => ({ ...f, nf_valor_total: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, nf_valor_total: valorFormatado || f.nf_valor_total }))} />
-            <Input type="date" value={form.nf_data_emissao} onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))} />
-            <Input placeholder="Competência MM/AAAA" value={form.nf_competencia} onChange={(e) => setForm((f) => ({ ...f, nf_competencia: e.target.value }))} />
+            <div>
+              <label className="mb-1 block text-sm font-medium">Número da NF</label>
+              <Input value={form.nf_numero} onChange={(e) => setForm((f) => ({ ...f, nf_numero: e.target.value }))} />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">Valor Total da Nota (R$)</label>
+              <Input
+                value={form.nf_valor_total}
+                onChange={(e) => setForm((f) => ({ ...f, nf_valor_total: e.target.value }))}
+                onBlur={() => setForm((f) => ({ ...f, nf_valor_total: valorFormatado || f.nf_valor_total }))}
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">Data de Emissão</label>
+              <Input type="date" value={form.nf_data_emissao} onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))} />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">Competência</label>
+              <Input placeholder="MM/AAAA" value={form.nf_competencia} onChange={(e) => setForm((f) => ({ ...f, nf_competencia: e.target.value }))} />
+            </div>
           </div>
 
-          <Input placeholder="Fornecedor / Emitente" value={form.nf_emitente_nome} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))} />
+          <div>
+            <label className="mb-1 block text-sm font-medium">Fornecedor / Emitente</label>
+            <Input value={form.nf_emitente_nome} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))} />
+          </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Input placeholder="CNPJ / CPF do Emitente" value={form.nf_emitente_cpf_cnpj} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_cpf_cnpj: e.target.value }))} />
-            <Input placeholder="Município" value={form.municipio} onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))} />
+            <div>
+              <label className="mb-1 block text-sm font-medium">CNPJ / CPF do Emitente</label>
+              <Input value={form.nf_emitente_cpf_cnpj} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_cpf_cnpj: e.target.value }))} />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">Município</label>
+              <Input value={form.municipio} onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))} />
+            </div>
           </div>
 
-          <Textarea placeholder="Descrição do Serviço / Item" value={form.descricao_servico} onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))} />
+          <div>
+            <label className="mb-1 block text-sm font-medium">Descrição do Serviço / Item</label>
+            <Textarea value={form.descricao_servico} onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))} />
+          </div>
 
-          <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
-            <SelectTrigger>
-              <SelectValue placeholder="Meta do 3º Aditivo *" />
-            </SelectTrigger>
-            <SelectContent>
-              {METAS_3_ADITIVO.map((meta) => (
-                <SelectItem key={meta.id} value={meta.id}>
-                  {meta.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Meta do 3º Aditivo *</label>
+            <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar meta" />
+              </SelectTrigger>
+              <SelectContent>
+                {METAS_3_ADITIVO.map((meta) => (
+                  <SelectItem key={meta.id} value={meta.id}>
+                    {meta.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select value={form.tipo_gasto} onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v }))}>
-            <SelectTrigger><SelectValue placeholder="Tipo de gasto" /></SelectTrigger>
-            <SelectContent>
-              {TIPOS_GASTO.map((tipo) => <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Tipo de Gasto *</label>
+            <Select value={form.tipo_gasto} onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v }))}>
+              <SelectTrigger><SelectValue placeholder="Tipo de gasto" /></SelectTrigger>
+              <SelectContent>
+                {TIPOS_GASTO.map((tipo) => <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select value={form.rubrica_id} onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}>
-            <SelectTrigger><SelectValue placeholder="Selecionar rubrica" /></SelectTrigger>
-            <SelectContent>
-              {rubricasOrdenadas.map((r) => (
-                <SelectItem key={r.id} value={r.id}>
-                  {(r.grupo ? `${r.grupo} — ` : '')}
-                  {r.rubrica || r.nome || r.descricao || 'Rubrica sem nome'}
-                  {r.centro_custo ? ` — ${r.centro_custo}` : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Rubrica *</label>
+            <Select value={form.rubrica_id} onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}>
+              <SelectTrigger><SelectValue placeholder="Selecionar rubrica" /></SelectTrigger>
+              <SelectContent>
+                {rubricasOrdenadas.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {(r.grupo ? `${r.grupo} — ` : '')}
+                    {r.rubrica || r.nome || r.descricao || 'Rubrica sem nome'}
+                    {r.centro_custo ? ` — ${r.centro_custo}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="rounded-lg border bg-slate-50 p-3">
             <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
@@ -610,11 +667,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               Vincular XML existente a este PDF
             </div>
 
-            <Input
-              value={form.xml_vinculado_nome}
-              onChange={(e) => setForm((f) => ({ ...f, xml_vinculado_nome: e.target.value }))}
-              placeholder="XML vinculado"
-            />
+            <Input value={form.xml_vinculado_nome} onChange={(e) => setForm((f) => ({ ...f, xml_vinculado_nome: e.target.value }))} placeholder="XML vinculado" />
 
             <button type="button" onClick={handleVincularXml} className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
               <LinkIcon className="h-4 w-4" />
@@ -626,17 +679,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             <div className="mb-3 text-sm font-medium text-slate-700">Rateamento da Rubrica</div>
 
             <label className="mb-2 flex items-center gap-2 text-sm">
-              <input
-                type="radio"
-                checked={form.tipo_rateio === 'geral'}
-                onChange={() =>
-                  setForm((f) => ({
-                    ...f,
-                    tipo_rateio: 'geral',
-                    museus_rateio: [],
-                  }))
-                }
-              />
+              <input type="radio" checked={form.tipo_rateio === 'geral'} onChange={() => setForm((f) => ({ ...f, tipo_rateio: 'geral', museus_rateio: [] }))} />
               Pago pela verba geral (sem rateio entre museus)
             </label>
 
@@ -664,11 +707,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
                 <div className="flex flex-wrap gap-3">
                   {MUSEUS_RATEIO.map((museu) => (
                     <label key={museu} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={form.museus_rateio?.includes(museu)}
-                        onChange={() => toggleMuseuRateio(museu)}
-                      />
+                      <input type="checkbox" checked={form.museus_rateio?.includes(museu)} onChange={() => toggleMuseuRateio(museu)} />
                       {museu}
                     </label>
                   ))}
@@ -687,6 +726,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               </div>
             )}
 
+            <label className="mb-1 block text-sm font-medium">Centro de Custo *</label>
             <Select value={form.centro_custo} onValueChange={(v) => setForm((f) => ({ ...f, centro_custo: v }))}>
               <SelectTrigger><SelectValue placeholder="Centro de custo" /></SelectTrigger>
               <SelectContent>
