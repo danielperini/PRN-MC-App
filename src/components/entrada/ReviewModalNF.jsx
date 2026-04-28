@@ -10,10 +10,19 @@ import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 
-// 🔴 DEFINIÇÃO DE COORDENADOR
 const COORD_EMAILS = [
   'danielperini.mc@viadutodasartes.org.br',
+  'daniel@periniprojetos.com.br',
   'danie@periniprojetos.com.br'
+];
+
+const COORD_ROLES = [
+  'admin',
+  'ADMIN',
+  'COORDENADOR',
+  'COORD_COMUNICACAO',
+  'COORD_ADMINISTRATIVA',
+  'COORD_PRODUCAO'
 ];
 
 function parseValorBR(value) {
@@ -47,15 +56,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [sending, setSending] = useState(false);
   const [rubricas, setRubricas] = useState([]);
   const [user, setUser] = useState(null);
-
-  // 🔴 IDENTIFICA USUÁRIO
-  useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
-  }, []);
-
-  const isCoordenador = COORD_EMAILS.includes(
-    (user?.email || '').toLowerCase().trim()
-  );
+  const [userPermission, setUserPermission] = useState(null);
+  const [loadingUser, setLoadingUser] = useState(true);
 
   const [form, setForm] = useState({
     nf_numero: ia.nf_numero || '',
@@ -75,12 +77,51 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   });
 
   useEffect(() => {
-    async function loadRubricas() {
-      const list = await base44.entities.Rubrica.list('', 2000);
-      setRubricas(list || []);
+    async function loadUser() {
+      try {
+        const me = await base44.auth.me();
+        setUser(me || null);
+
+        if (me?.email) {
+          try {
+            const perms = await base44.entities.UserPermission.filter({
+              user_email: me.email,
+            });
+            setUserPermission(perms?.[0] || null);
+          } catch {
+            setUserPermission(null);
+          }
+        }
+      } catch {
+        setUser(null);
+      } finally {
+        setLoadingUser(false);
+      }
     }
+
+    loadUser();
+  }, []);
+
+  useEffect(() => {
+    async function loadRubricas() {
+      try {
+        const list = await base44.entities.Rubrica.list('', 2000);
+        setRubricas(list || []);
+      } catch (e) {
+        console.error('Erro ao carregar rubricas:', e);
+      }
+    }
+
     loadRubricas();
   }, []);
+
+  const email = (user?.email || '').toLowerCase().trim();
+
+  const isCoordenador =
+    COORD_EMAILS.includes(email) ||
+    COORD_ROLES.includes(user?.role) ||
+    userPermission?.gestao_compras === true ||
+    userPermission?.pode_aprovar_solicitacoes === true;
 
   function validar() {
     const erros = [];
@@ -97,26 +138,47 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   }
 
   function getRubricaNome(id) {
-    const r = rubricas.find(r => r.id === id);
-    return r?.rubrica || r?.nome || '';
+    const r = rubricas.find((item) => item.id === id);
+    return r?.rubrica || r?.nome || r?.descricao || '';
   }
 
   async function criarPurchaseRequest() {
     const valor = parseValorBR(form.nf_valor_total);
+    const rubricaNome = getRubricaNome(form.rubrica_id);
 
-    return await base44.entities.PurchaseRequest.create({
+    const purchase = await base44.entities.PurchaseRequest.create({
       descricao_item: form.descricao_servico,
       fornecedor_nome: form.nf_emitente_nome,
       fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
       valor_solicitado: valor,
       centro_custo: form.centro_custo,
       rubrica_id: form.rubrica_id,
-      rubrica_nome: getRubricaNome(form.rubrica_id),
+      rubrica_nome: rubricaNome,
+      categoria: 'Nota Fiscal',
+      tipo_gasto: 'Serviço',
       status: 'SOLICITADO',
-      observacoes: `NF ${form.nf_numero}`,
+      observacoes: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
       nf_numero: form.nf_numero,
       nf_data_emissao: form.nf_data_emissao,
     });
+
+    await base44.entities.DocumentIntake.update(intake.id, {
+      entidade_destino: 'PurchaseRequest',
+      entidade_destino_id: purchase.id,
+      status_processamento: 'ENVIADO_APROVACAO',
+      centro_custo: form.centro_custo,
+      rubrica_id_sugerida: form.rubrica_id,
+      rubrica_nome_sugerida: rubricaNome,
+      revisado_pelo_usuario: true,
+      resultado_ia: {
+        ...ia,
+        ...form,
+        nf_data_emissao: form.nf_data_emissao,
+        nf_valor_total: valor,
+      },
+    });
+
+    return purchase;
   }
 
   async function handleClickPrincipal() {
@@ -124,9 +186,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
     if (erros.length) {
       toast({
-        title: 'Preencha campos',
+        title: 'Preencha campos obrigatórios',
         description: erros.join(', '),
-        variant: 'destructive'
+        variant: 'destructive',
+        duration: 5000,
       });
       return;
     }
@@ -137,44 +200,48 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       const purchase = await criarPurchaseRequest();
 
       if (isCoordenador) {
-        // 🔴 APROVA DIRETO
-        await base44.functions.invoke('purchaseActions', {
+        const resp = await base44.functions.invoke('purchaseActions', {
           action: 'aprovar',
-          purchaseId: purchase.id
+          purchaseId: purchase.id,
         });
 
         await base44.entities.DocumentIntake.update(intake.id, {
-          status_processamento: 'APROVADO'
+          status_processamento: 'APROVADO',
+          team_payment_id: resp?.team_payment_id || null,
         });
 
         toast({
-          title: '✅ Aprovado direto (coordenador)'
+          title: '✅ Nota aprovada com sucesso',
+          duration: 3000,
         });
-
       } else {
-        // 🔴 ENVIA PARA APROVAÇÃO
-        await base44.entities.DocumentIntake.update(intake.id, {
-          status_processamento: 'ENVIADO_APROVACAO'
-        });
-
         toast({
-          title: '📩 Enviado para aprovação'
+          title: '📩 Nota enviada para aprovação',
+          duration: 3000,
         });
       }
 
-      onSaved?.();
+      await onSaved?.();
       onClose?.();
-
     } catch (e) {
-      toast({
-        title: 'Erro',
-        description: e.message,
-        variant: 'destructive'
-      });
-    }
+      console.error('Erro ao processar NF:', e);
 
-    setSending(false);
+      toast({
+        title: isCoordenador ? 'Erro ao aprovar nota' : 'Erro ao enviar nota',
+        description: e?.message || 'Falha ao processar nota fiscal.',
+        variant: 'destructive',
+        duration: 5000,
+      });
+    } finally {
+      setSending(false);
+    }
   }
+
+  const rubricasOrdenadas = [...rubricas].sort((a, b) => {
+    const nomeA = String(a.rubrica || a.nome || a.descricao || '');
+    const nomeB = String(b.rubrica || b.nome || b.descricao || '');
+    return nomeA.localeCompare(nomeB, 'pt-BR');
+  });
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -184,87 +251,92 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         </DialogHeader>
 
         <div className="space-y-4">
-
           <Input
             placeholder="Número NF"
             value={form.nf_numero}
-            onChange={e => setForm(f => ({ ...f, nf_numero: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, nf_numero: e.target.value }))}
           />
 
           <Input
             placeholder="Valor"
             value={form.nf_valor_total}
-            onChange={e => setForm(f => ({ ...f, nf_valor_total: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, nf_valor_total: e.target.value }))}
           />
 
           <Input
             type="date"
             value={form.nf_data_emissao}
-            onChange={e => setForm(f => ({ ...f, nf_data_emissao: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))}
           />
 
           <Input
             placeholder="Emitente"
             value={form.nf_emitente_nome}
-            onChange={e => setForm(f => ({ ...f, nf_emitente_nome: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))}
           />
 
           <Textarea
             placeholder="Descrição"
             value={form.descricao_servico}
-            onChange={e => setForm(f => ({ ...f, descricao_servico: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))}
           />
 
           <Select
             value={form.centro_custo}
-            onValueChange={v => setForm(f => ({ ...f, centro_custo: v }))}
+            onValueChange={(v) => setForm((f) => ({ ...f, centro_custo: v }))}
           >
             <SelectTrigger>
               <SelectValue placeholder="Centro de custo" />
             </SelectTrigger>
             <SelectContent>
-              {CENTROS.map(c => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
+              {CENTROS.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <Select
             value={form.rubrica_id}
-            onValueChange={v => setForm(f => ({ ...f, rubrica_id: v }))}
+            onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}
           >
             <SelectTrigger>
               <SelectValue placeholder="Rubrica" />
             </SelectTrigger>
             <SelectContent>
-              {rubricas.map(r => (
+              {rubricasOrdenadas.map((r) => (
                 <SelectItem key={r.id} value={r.id}>
-                  {r.rubrica}
+                  {(r.grupo ? `${r.grupo} — ` : '')}
+                  {r.rubrica || r.nome || r.descricao || 'Rubrica sem nome'}
+                  {r.centro_custo ? ` — ${r.centro_custo}` : ''}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <div className="flex justify-end gap-2">
-            <Button onClick={onClose}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
 
             <Button
+              type="button"
               onClick={handleClickPrincipal}
-              disabled={sending}
-              className="bg-blue-600"
+              disabled={sending || loadingUser}
+              className="bg-blue-600 hover:bg-blue-700"
             >
-              {sending
-                ? <Loader2 className="w-4 h-4 animate-spin mr-2"/>
-                : isCoordenador
-                  ? <CheckCircle2 className="w-4 h-4 mr-2"/>
-                  : <Send className="w-4 h-4 mr-2"/>
-              }
+              {sending || loadingUser ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : isCoordenador ? (
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+              ) : (
+                <Send className="w-4 h-4 mr-2" />
+              )}
 
               {isCoordenador ? 'Aprovar' : 'Enviar'}
             </Button>
-
           </div>
-
         </div>
       </DialogContent>
     </Dialog>
