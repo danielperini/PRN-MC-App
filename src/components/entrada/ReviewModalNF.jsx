@@ -11,7 +11,6 @@ import {
   Trash2,
   RefreshCw,
   Save,
-  ShieldCheck,
   Link as LinkIcon,
   FileText,
   Zap,
@@ -329,70 +328,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     return purchase;
   }
 
-  async function handleAprovar(event) {
-    event?.preventDefault?.();
-    event?.stopPropagation?.();
-
-    if (sending) return;
-
-    const erros = validar();
-
-    if (erros.length) {
-      toast({
-        title: 'Preencha campos obrigatórios',
-        description: erros.join(', '),
-        variant: 'destructive',
-        duration: 5000,
-      });
-      return;
-    }
-
-    setSending(true);
-
-    try {
-      const purchase = await criarPurchaseRequest();
-
-      const response = await base44.functions.invoke('purchaseActions', {
-        action: 'aprovar',
-        purchaseId: purchase.id,
-      });
-
-      const result = response?.data || response;
-
-      if (!result?.success) {
-        throw new Error(result?.error || 'Falha ao aprovar nota.');
-      }
-
-      await base44.entities.DocumentIntake.update(intake.id, {
-        status_processamento: 'APROVADO',
-        entidade_destino: 'PurchaseRequest',
-        entidade_destino_id: purchase.id,
-        team_payment_id: result?.teamPaymentId || result?.team_payment_id || null,
-        revisado_pelo_usuario: true,
-      });
-
-      toast({
-        title: '✅ Nota aprovada com sucesso',
-        description: 'A solicitação foi aprovada e enviada ao fluxo financeiro.',
-        duration: 3000,
-      });
-
-      await onSaved?.();
-      onClose?.();
-    } catch (e) {
-      console.error('Erro ao aprovar NF:', e);
-
-      toast({
-        title: 'Erro ao aprovar',
-        description: e?.message || 'Falha ao aprovar nota fiscal.',
-        variant: 'destructive',
-        duration: 6000,
-      });
-    } finally {
-      setSending(false);
-    }
-  }
-
   async function handleEnviar(event) {
     event?.preventDefault?.();
     event?.stopPropagation?.();
@@ -475,11 +410,36 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     event?.preventDefault?.();
     event?.stopPropagation?.();
 
-    toast({
-      title: 'Reprocessamento não executado',
-      description: 'Função de reprocessamento não foi alterada neste ajuste.',
-      duration: 4000,
-    });
+    if (sending) return;
+
+    setSending(true);
+
+    try {
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'ANALISANDO_IA',
+        resultado_ia: null,
+        erros_validacao: [],
+        revisado_pelo_usuario: false,
+      });
+
+      toast({
+        title: 'Documento enviado para reprocessamento',
+        description: 'A nota foi marcada para nova análise pela IA.',
+        duration: 3000,
+      });
+
+      await onSaved?.();
+      onClose?.();
+    } catch (e) {
+      toast({
+        title: 'Erro ao reprocessar',
+        description: e?.message || 'Falha ao reprocessar documento.',
+        variant: 'destructive',
+        duration: 5000,
+      });
+    } finally {
+      setSending(false);
+    }
   }
 
   async function handleVincularXml(event) {
@@ -543,9 +503,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               <label className="mb-1 block text-sm font-medium">Número da NF</label>
               <Input
                 value={form.nf_numero}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, nf_numero: e.target.value }))
-                }
+                onChange={(e) => setForm((f) => ({ ...f, nf_numero: e.target.value }))}
               />
             </div>
 
@@ -553,9 +511,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               <label className="mb-1 block text-sm font-medium">Valor Total (R$)</label>
               <Input
                 value={form.nf_valor_total}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, nf_valor_total: e.target.value }))
-                }
+                onChange={(e) => setForm((f) => ({ ...f, nf_valor_total: e.target.value }))}
                 onBlur={() =>
                   setForm((f) => ({
                     ...f,
@@ -570,9 +526,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               <Input
                 type="date"
                 value={form.nf_data_emissao}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))
-                }
+                onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))}
               />
             </div>
 
@@ -580,9 +534,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               <label className="mb-1 block text-sm font-medium">Competência</label>
               <Input
                 value={form.nf_competencia}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, nf_competencia: e.target.value }))
-                }
+                onChange={(e) => setForm((f) => ({ ...f, nf_competencia: e.target.value }))}
                 placeholder="MM/AAAA"
               />
             </div>
@@ -592,9 +544,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             <label className="mb-1 block text-sm font-medium">Fornecedor / Emitente</label>
             <Input
               value={form.nf_emitente_nome}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))
-              }
+              onChange={(e) => setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))}
             />
           </div>
 
@@ -613,9 +563,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               <label className="mb-1 block text-sm font-medium">Município</label>
               <Input
                 value={form.municipio}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, municipio: e.target.value }))
-                }
+                onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))}
               />
             </div>
           </div>
@@ -624,18 +572,13 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             <label className="mb-1 block text-sm font-medium">Descrição do Serviço / Item</label>
             <Textarea
               value={form.descricao_servico}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, descricao_servico: e.target.value }))
-              }
+              onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))}
             />
           </div>
 
           <div>
             <label className="mb-1 block text-sm font-medium">Meta do 3º Aditivo *</label>
-            <Select
-              value={form.meta_id}
-              onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}
-            >
+            <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecionar meta" />
               </SelectTrigger>
@@ -657,10 +600,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
           <div>
             <label className="mb-1 block text-sm font-medium">Tipo de Gasto *</label>
-            <Select
-              value={form.tipo_gasto}
-              onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v }))}
-            >
+            <Select value={form.tipo_gasto} onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v }))}>
               <SelectTrigger>
                 <SelectValue placeholder="Tipo de gasto" />
               </SelectTrigger>
@@ -676,10 +616,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
           <div>
             <label className="mb-1 block text-sm font-medium">Rubrica *</label>
-            <Select
-              value={form.rubrica_id}
-              onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}
-            >
+            <Select value={form.rubrica_id} onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecionar rubrica" />
               </SelectTrigger>
@@ -703,9 +640,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
             <Input
               value={form.xml_vinculado_nome}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, xml_vinculado_nome: e.target.value }))
-              }
+              onChange={(e) => setForm((f) => ({ ...f, xml_vinculado_nome: e.target.value }))}
               placeholder="XML vinculado"
             />
 
@@ -744,10 +679,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
             <div>
               <label className="mb-1 block text-sm font-medium">Centro de Custo *</label>
-              <Select
-                value={form.centro_custo}
-                onValueChange={(v) => setForm((f) => ({ ...f, centro_custo: v }))}
-              >
+              <Select value={form.centro_custo} onValueChange={(v) => setForm((f) => ({ ...f, centro_custo: v }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Centro de custo" />
                 </SelectTrigger>
@@ -766,8 +698,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             <div className="flex items-center gap-2">
               <Zap className="h-4 w-4" />
               <span>
-                Ao enviar, o valor será debitado imediatamente da(s) rubrica(s)
-                correspondente(s), atualizando o valor realizado e o saldo disponível.
+                Ao enviar, a solicitação será encaminhada para aprovação da coordenação.
               </span>
             </div>
           </div>
@@ -810,34 +741,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             >
               <Save className="h-4 w-4" />
               Salvar Rascunho
-            </button>
-
-            <button
-              type="button"
-              onClick={handleAprovar}
-              disabled={sending}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white shadow disabled:opacity-50"
-            >
-              {sending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ShieldCheck className="h-4 w-4" />
-              )}
-              Aprovar Direto (Coordenador)
-            </button>
-
-            <button
-              type="button"
-              onClick={handleAprovar}
-              disabled={sending}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow disabled:opacity-50"
-            >
-              {sending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <CheckCircle2 className="h-4 w-4" />
-              )}
-              Aprovar
             </button>
 
             <button
