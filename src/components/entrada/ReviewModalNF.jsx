@@ -21,15 +21,20 @@ function parseValorBR(value) {
 
 function normalizeDate(value) {
   if (!value) return '';
+
   const raw = String(value).trim();
+
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
   const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+
   return raw;
 }
 
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const { toast } = useToast();
+
   const ia = intake?.resultado_ia || {};
 
   const [sending, setSending] = useState(false);
@@ -54,9 +59,14 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
   useEffect(() => {
     async function loadRubricas() {
-      const list = await base44.entities.Rubrica.list('', 2000);
-      setRubricas(list || []);
+      try {
+        const list = await base44.entities.Rubrica.list('', 2000);
+        setRubricas(list || []);
+      } catch (e) {
+        console.error('Erro ao carregar rubricas:', e);
+      }
     }
+
     loadRubricas();
   }, []);
 
@@ -81,22 +91,41 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
   async function criarPurchaseRequest() {
     const valor = parseValorBR(form.nf_valor_total);
+    const rubricaNome = getRubricaNome(form.rubrica_id);
 
-    return await base44.entities.PurchaseRequest.create({
+    const purchase = await base44.entities.PurchaseRequest.create({
       descricao_item: form.descricao_servico,
       fornecedor_nome: form.nf_emitente_nome,
       fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
       valor_solicitado: valor,
       centro_custo: form.centro_custo,
       rubrica_id: form.rubrica_id,
-      rubrica_nome: getRubricaNome(form.rubrica_id),
+      rubrica_nome: rubricaNome,
       categoria: 'Nota Fiscal',
       tipo_gasto: 'Serviço',
       status: 'SOLICITADO',
-      observacoes: `NF ${form.nf_numero}`,
+      observacoes: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
       nf_numero: form.nf_numero,
       nf_data_emissao: form.nf_data_emissao,
     });
+
+    await base44.entities.DocumentIntake.update(intake.id, {
+      entidade_destino: 'PurchaseRequest',
+      entidade_destino_id: purchase.id,
+      status_processamento: 'ENVIADO_APROVACAO',
+      centro_custo: form.centro_custo,
+      rubrica_id_sugerida: form.rubrica_id,
+      rubrica_nome_sugerida: rubricaNome,
+      revisado_pelo_usuario: true,
+      resultado_ia: {
+        ...ia,
+        ...form,
+        nf_data_emissao: form.nf_data_emissao,
+        nf_valor_total: valor,
+      },
+    });
+
+    return purchase;
   }
 
   async function handleAprovar(event) {
@@ -120,8 +149,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     setSending(true);
 
     try {
-      toast({ title: 'Processando aprovação...', duration: 1500 });
-
       const purchase = await criarPurchaseRequest();
 
       const response = await base44.functions.invoke('purchaseActions', {
