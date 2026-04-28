@@ -18,6 +18,7 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
+const MUSEUS_RATEIO = ['MIS', 'MHAB', 'MUMO'];
 const TIPOS_GASTO = ['Serviço', 'Produto', 'Material', 'Equipamento', 'Outro'];
 
 const METAS_3_ADITIVO = [
@@ -68,6 +69,13 @@ function formatValorBR(value) {
   });
 }
 
+function formatMoney(value) {
+  return Number(value || 0).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+}
+
 function normalizeDate(value) {
   if (!value) return '';
   const raw = String(value).trim();
@@ -111,6 +119,33 @@ function gerarNomePadronizadoArquivo(form, intake) {
   return `${numero} ${tipo} - ${emitente} - MUSEUS CENTRO - ${centro} - ${valorTexto}.${extensao}`;
 }
 
+function normalizarMuseusRateio(value) {
+  if (Array.isArray(value)) {
+    return value.filter((item) => MUSEUS_RATEIO.includes(item));
+  }
+
+  if (typeof value === 'string' && value) {
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => MUSEUS_RATEIO.includes(item));
+  }
+
+  return [];
+}
+
+function montarRateioMuseus(valor, museusSelecionados) {
+  if (!museusSelecionados.length) return [];
+
+  const valorUnitario = valor / museusSelecionados.length;
+
+  return museusSelecionados.map((museu) => ({
+    museu,
+    valor: Number(valorUnitario.toFixed(2)),
+    percentual: Number((100 / museusSelecionados.length).toFixed(2)),
+  }));
+}
+
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const { toast } = useToast();
   const ia = intake?.resultado_ia || {};
@@ -120,6 +155,21 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [nomeEditadoManualmente, setNomeEditadoManualmente] = useState(false);
 
   const [form, setForm] = useState(() => {
+    const museusRateioInicial = normalizarMuseusRateio(
+      getValue(
+        intake?.museus_rateio,
+        intake?.rateio_museus,
+        ia.museus_rateio,
+        ia.rateio_museus
+      )
+    );
+
+    const tipoRateioInicial = getValue(
+      intake?.tipo_rateio,
+      ia.tipo_rateio,
+      museusRateioInicial.length > 0 ? 'dividido' : 'geral'
+    );
+
     const baseForm = {
       nome_padronizado_arquivo: getValue(
         intake?.nome_padronizado_arquivo,
@@ -139,7 +189,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       tipo_gasto: getValue(intake?.tipo_gasto, ia.tipo_gasto, ia.tipo_gasto_sugerido, 'Serviço'),
       centro_custo: getValue(ia.centro_custo_sugerido, ia.centro_custo, intake?.centro_custo, 'Atuação Geral'),
       rubrica_id: getValue(intake?.rubrica_id, intake?.rubrica_id_sugerida, ia.rubrica_id, ia.rubrica_id_sugerida),
-      tipo_rateio: getValue(intake?.tipo_rateio, ia.tipo_rateio, 'geral'),
+      tipo_rateio: tipoRateioInicial,
+      museus_rateio: museusRateioInicial,
       xml_vinculado_id: getValue(intake?.xml_vinculado_id, intake?.xml_id, ia.xml_vinculado_id),
       xml_vinculado_nome: getValue(intake?.xml_vinculado_nome, intake?.xml_file_name, ia.xml_vinculado_nome, ia.xml_file_name),
     };
@@ -194,6 +245,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     if (!form.centro_custo) erros.push('Centro de custo');
     if (!form.rubrica_id) erros.push('Rubrica');
 
+    if (form.tipo_rateio === 'dividido' && !form.museus_rateio?.length) {
+      erros.push('Museus para rateio');
+    }
+
     return erros;
   }
 
@@ -207,6 +262,30 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     return meta?.nome || '';
   }
 
+  function toggleMuseuRateio(museu) {
+    setForm((f) => {
+      const atual = Array.isArray(f.museus_rateio) ? f.museus_rateio : [];
+      const existe = atual.includes(museu);
+
+      return {
+        ...f,
+        museus_rateio: existe
+          ? atual.filter((item) => item !== museu)
+          : [...atual, museu],
+      };
+    });
+  }
+
+  function getRateioCalculado() {
+    const valor = parseValorBR(form.nf_valor_total);
+
+    if (form.tipo_rateio !== 'dividido') {
+      return [];
+    }
+
+    return montarRateioMuseus(valor, form.museus_rateio || []);
+  }
+
   async function salvarRascunho() {
     if (sending) return;
 
@@ -215,6 +294,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     try {
       const valor = parseValorBR(form.nf_valor_total);
       const rubricaNome = getRubricaNome(form.rubrica_id);
+      const rateioCalculado = getRateioCalculado();
 
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'RASCUNHO',
@@ -223,6 +303,9 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         centro_custo: form.centro_custo,
         rubrica_id_sugerida: form.rubrica_id,
         rubrica_nome_sugerida: rubricaNome,
+        tipo_rateio: form.tipo_rateio,
+        museus_rateio: form.tipo_rateio === 'dividido' ? form.museus_rateio : [],
+        rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
         revisado_pelo_usuario: true,
         resultado_ia: {
           ...ia,
@@ -230,6 +313,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           nf_valor_total: valor,
           nome_padronizado_arquivo: form.nome_padronizado_arquivo,
           nome_arquivo_padronizado: form.nome_padronizado_arquivo,
+          rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
         },
       });
 
@@ -251,6 +335,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     const valor = parseValorBR(form.nf_valor_total);
     const rubricaNome = getRubricaNome(form.rubrica_id);
     const metaNome = getMetaNome(form.meta_id);
+    const rateioCalculado = getRateioCalculado();
 
     const purchase = await base44.entities.PurchaseRequest.create({
       descricao_item: form.descricao_servico,
@@ -279,6 +364,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       xml_vinculado_id: form.xml_vinculado_id || null,
       xml_vinculado_nome: form.xml_vinculado_nome || null,
       tipo_rateio: form.tipo_rateio || 'geral',
+      museus_rateio: form.tipo_rateio === 'dividido' ? form.museus_rateio : [],
+      rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
+      valor_por_museu:
+        form.tipo_rateio === 'dividido' && form.museus_rateio?.length
+          ? Number((valor / form.museus_rateio.length).toFixed(2))
+          : null,
     });
 
     await base44.entities.DocumentIntake.update(intake.id, {
@@ -292,6 +383,9 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       rubrica_nome_sugerida: rubricaNome,
       meta_id: form.meta_id || null,
       meta_nome: metaNome || null,
+      tipo_rateio: form.tipo_rateio,
+      museus_rateio: form.tipo_rateio === 'dividido' ? form.museus_rateio : [],
+      rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
       revisado_pelo_usuario: true,
       resultado_ia: {
         ...ia,
@@ -299,6 +393,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         nf_valor_total: valor,
         nome_padronizado_arquivo: form.nome_padronizado_arquivo,
         nome_arquivo_padronizado: form.nome_padronizado_arquivo,
+        rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
       },
     });
 
@@ -429,6 +524,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   });
 
   const valorFormatado = formatValorBR(form.nf_valor_total);
+  const rateioCalculado = getRateioCalculado();
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -530,14 +626,66 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             <div className="mb-3 text-sm font-medium text-slate-700">Rateamento da Rubrica</div>
 
             <label className="mb-2 flex items-center gap-2 text-sm">
-              <input type="radio" checked={form.tipo_rateio === 'geral'} onChange={() => setForm((f) => ({ ...f, tipo_rateio: 'geral' }))} />
+              <input
+                type="radio"
+                checked={form.tipo_rateio === 'geral'}
+                onChange={() =>
+                  setForm((f) => ({
+                    ...f,
+                    tipo_rateio: 'geral',
+                    museus_rateio: [],
+                  }))
+                }
+              />
               Pago pela verba geral (sem rateio entre museus)
             </label>
 
             <label className="mb-4 flex items-center gap-2 text-sm">
-              <input type="radio" checked={form.tipo_rateio === 'dividido'} onChange={() => setForm((f) => ({ ...f, tipo_rateio: 'dividido' }))} />
+              <input
+                type="radio"
+                checked={form.tipo_rateio === 'dividido'}
+                onChange={() =>
+                  setForm((f) => ({
+                    ...f,
+                    tipo_rateio: 'dividido',
+                    museus_rateio: f.museus_rateio?.length ? f.museus_rateio : ['MIS', 'MHAB', 'MUMO'],
+                  }))
+                }
+              />
               Dividir entre museus
             </label>
+
+            {form.tipo_rateio === 'dividido' && (
+              <div className="mb-4 rounded-md border bg-white p-3">
+                <div className="mb-2 text-sm font-medium text-slate-700">
+                  Selecione 1, 2 ou 3 museus para dividir o valor da nota
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  {MUSEUS_RATEIO.map((museu) => (
+                    <label key={museu} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={form.museus_rateio?.includes(museu)}
+                        onChange={() => toggleMuseuRateio(museu)}
+                      />
+                      {museu}
+                    </label>
+                  ))}
+                </div>
+
+                {rateioCalculado.length > 0 && (
+                  <div className="mt-3 space-y-1 text-xs text-slate-600">
+                    {rateioCalculado.map((item) => (
+                      <div key={item.museu} className="flex justify-between rounded bg-slate-50 px-2 py-1">
+                        <span>{item.museu}</span>
+                        <span>{formatMoney(item.valor)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <Select value={form.centro_custo} onValueChange={(v) => setForm((f) => ({ ...f, centro_custo: v }))}>
               <SelectTrigger><SelectValue placeholder="Centro de custo" /></SelectTrigger>
