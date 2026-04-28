@@ -341,6 +341,14 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     event?.preventDefault?.();
     event?.stopPropagation?.();
 
+    console.log('🚀 CLICK ENVIAR NF', { intakeId: intake?.id, form });
+
+    toast({
+      title: 'Enviando...',
+      description: 'Processando envio da nota fiscal.',
+      duration: 2000,
+    });
+
     if (sending) return;
 
     const erros = validarEnvio();
@@ -361,6 +369,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       const valor = parseValorBR(form.nf_valor_total);
       const rateioCalculado = getRateioCalculado();
 
+      console.log('📡 INVOKE enviarNotaParaAprovacao', {
+        intakeId: intake.id,
+        valor,
+        rubrica_id: form.rubrica_id,
+      });
+
       const response = await base44.functions.invoke('enviarNotaParaAprovacao', {
         intakeId: intake.id,
         form: {
@@ -371,7 +385,13 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         },
       });
 
+      console.log('📥 RESPONSE enviarNotaParaAprovacao:', response);
+
       const result = response?.data || response;
+
+      if (!result) {
+        throw new Error('Sem resposta da function enviarNotaParaAprovacao.');
+      }
 
       if (!result?.success) {
         throw new Error(result?.error || result?.message || 'Falha ao enviar nota.');
@@ -384,9 +404,9 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             : '✅ Solicitação enviada para Aprovação',
         description:
           result.destino === 'equipe'
-            ? 'A nota já está disponível em Compras → Pagamentos da Equipe.'
-            : 'A solicitação já está disponível em Compras → Solicitações.',
-        duration: 5000,
+            ? `A nota já está disponível em Compras → Pagamentos da Equipe. ID: ${result.id || '—'}`
+            : `A solicitação já está disponível em Compras → Solicitações. ID: ${result.id || '—'}`,
+        duration: 6000,
       });
 
       await onSaved?.();
@@ -394,13 +414,13 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
       return result;
     } catch (e) {
-      console.error('Erro ao enviar:', e);
+      console.error('❌ ERRO AO ENVIAR NF:', e);
 
       toast({
         title: 'Erro ao enviar solicitação',
         description: e?.message || 'Falha ao enviar para aprovação. Verifique console/log da function.',
         variant: 'destructive',
-        duration: 8000,
+        duration: 9000,
       });
     } finally {
       setSending(false);
