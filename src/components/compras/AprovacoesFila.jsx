@@ -29,6 +29,10 @@ function parseJSON(str, fb = []) {
   }
 }
 
+function normalizeStatus(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
 function getValorPurchase(p) {
   return p?.valor_solicitado || p?.valor_total || p?.valor_aprovado || p?.valor_pago || 0;
 }
@@ -78,7 +82,9 @@ export default function AprovacoesFila({
     hasGestaoCompras === true ||
     podeAprovarSolicitacoes === true;
 
-  const pendentes = (purchases || []).filter((p) => p.status === 'SOLICITADO');
+  const pendentes = (purchases || []).filter(
+    (p) => normalizeStatus(p?.status) === 'SOLICITADO'
+  );
 
   useEffect(() => {
     let active = true;
