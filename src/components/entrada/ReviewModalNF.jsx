@@ -19,7 +19,7 @@ import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const MUSEUS_RATEIO = ['MIS', 'MHAB', 'MUMO'];
-const TIPOS_GASTO = ['Serviço', 'Produto', 'Material', 'Equipamento', 'Outro'];
+const TIPOS_GASTO = ['Serviço', 'Produto', 'Material', 'Equipamento', 'Equipe', 'Outro'];
 
 const METAS_3_ADITIVO = [
   { id: 'MC3A-01', nome: 'Meta 1 — Contratação da equipe principal' },
@@ -148,6 +148,34 @@ function montarRateioMuseus(valor, museusSelecionados) {
     valor: Number(valorUnitario.toFixed(2)),
     percentual: Number((100 / museusSelecionados.length).toFixed(2)),
   }));
+}
+
+function isEquipeByData(form, ia, intake) {
+  const raw = [
+    form?.tipo_gasto,
+    form?.descricao_servico,
+    form?.rubrica_nome,
+    ia?.tipo_gasto,
+    ia?.categoria,
+    ia?.tipo_solicitacao,
+    ia?.classificacao,
+    ia?.descricao_servico,
+    intake?.tipo_gasto,
+    intake?.categoria,
+    intake?.tipo_solicitacao,
+  ]
+    .map((v) => String(v || '').toLowerCase())
+    .join(' ');
+
+  return (
+    raw.includes('equipe') ||
+    raw.includes('pagamento equipe') ||
+    raw.includes('pagamento da equipe') ||
+    raw.includes('profissional') ||
+    raw.includes('educador') ||
+    raw.includes('coordenação') ||
+    raw.includes('coordenacao')
+  );
 }
 
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
@@ -427,7 +455,90 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       },
     });
 
-    return purchase;
+    return { tipo: 'compra', registro: purchase };
+  }
+
+  async function criarTeamPaymentParaEquipe() {
+    const valor = parseValorBR(form.nf_valor_total);
+    const rubricaNome = getRubricaNome(form.rubrica_id);
+    const metaNome = getMetaNome(form.meta_id);
+    const rateioCalculado = getRateioCalculado();
+
+    const response = await base44.entities.TeamPayment.create({
+      status: 'PENDENTE',
+      origem_automatica: true,
+      origem: 'Entrada Única',
+      tipo_origem: 'NOTA_FISCAL_EQUIPE',
+
+      member_name: form.nf_emitente_nome || '',
+      user_name: form.nf_emitente_nome || '',
+      user_email: intake?.user_email || intake?.created_by || '',
+      created_by: intake?.created_by || '',
+
+      mes_referencia: form.nf_competencia || '',
+      ano: form.nf_competencia ? String(form.nf_competencia).split('/').pop() : '',
+
+      numero_nf: form.nf_numero,
+      valor_nf: valor,
+      valor_total: valor,
+
+      nota_fiscal_url: intake?.arquivo_original_url || intake?.file_url || '',
+      xml_url: form.xml_vinculado_nome || '',
+
+      rubrica_id: form.rubrica_id,
+      rubrica_nome: rubricaNome,
+
+      meta_id: form.meta_id || 'MC3A-20',
+      meta_nome: metaNome,
+
+      centro_custo: form.tipo_rateio === 'dividido' ? 'Rateado' : form.centro_custo,
+      tipo_rateio: form.tipo_rateio,
+      museus_rateio: form.tipo_rateio === 'dividido' ? form.museus_rateio : [],
+      rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
+
+      observacoes: `NF ${form.nf_numero} - ${form.descricao_servico || form.nf_emitente_nome}`,
+      documento_intake_id: intake?.id || null,
+      nome_padronizado_arquivo: form.nome_padronizado_arquivo,
+    });
+
+    const payment = response?.data || response;
+
+    if (!payment?.id) {
+      throw new Error('O pagamento de equipe foi criado sem ID de retorno.');
+    }
+
+    await safeCreateAttachment();
+
+    await safeUpdateDocumentIntake({
+      entidade_destino: 'TeamPayment',
+      entidade_destino_id: payment.id,
+      team_payment_id: payment.id,
+      status_processamento: 'ENVIADO_PAGAMENTO_EQUIPE',
+      nome_padronizado_arquivo: form.nome_padronizado_arquivo,
+      nome_arquivo_padronizado: form.nome_padronizado_arquivo,
+      file_name_final: form.nome_padronizado_arquivo,
+      centro_custo: form.tipo_rateio === 'dividido' ? 'Rateado' : form.centro_custo,
+      rubrica_id_sugerida: form.rubrica_id,
+      rubrica_nome_sugerida: rubricaNome,
+      meta_id: form.meta_id || 'MC3A-20',
+      meta_nome: metaNome,
+      tipo_rateio: form.tipo_rateio,
+      museus_rateio: form.tipo_rateio === 'dividido' ? form.museus_rateio : [],
+      rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
+      revisado_pelo_usuario: true,
+      resultado_ia: {
+        ...ia,
+        ...form,
+        categoria: 'Nota Fiscal - Equipe',
+        nf_valor_total: valor,
+        meta_id: form.meta_id || 'MC3A-20',
+        meta_nome: metaNome,
+        rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
+        dividir_entre_museus: form.tipo_rateio === 'dividido',
+      },
+    });
+
+    return { tipo: 'equipe', registro: payment };
   }
 
   async function handleEnviar(event) {
@@ -451,23 +562,38 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     setSending(true);
 
     try {
-      const purchase = await criarPurchaseRequestParaAprovacao();
+      const destinoEquipe = isEquipeByData(
+        {
+          ...form,
+          rubrica_nome: getRubricaNome(form.rubrica_id),
+        },
+        ia,
+        intake
+      );
+
+      const result = destinoEquipe
+        ? await criarTeamPaymentParaEquipe()
+        : await criarPurchaseRequestParaAprovacao();
 
       toast({
-        title: '📩 Enviado para aprovação da coordenação',
-        description: `Solicitação criada e listada em Compras → Aprovações.`,
+        title: destinoEquipe
+          ? '📩 Enviado para Pagamentos da Equipe'
+          : '📩 Enviado para Solicitações',
+        description: destinoEquipe
+          ? 'A nota fiscal foi encaminhada para Compras → Pagamentos da Equipe.'
+          : 'A solicitação foi encaminhada para Compras → Solicitações.',
         duration: 4000,
       });
 
       await onSaved?.();
       onClose?.();
 
-      return purchase;
+      return result;
     } catch (e) {
-      console.error('Erro ao enviar para aprovação:', e);
+      console.error('Erro ao enviar:', e);
 
       toast({
-        title: 'Erro ao enviar para aprovação',
+        title: 'Erro ao enviar',
         description: e?.message || 'Falha ao criar solicitação.',
         variant: 'destructive',
         duration: 7000,
@@ -754,7 +880,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
             <div className="flex items-center gap-2">
               <Zap className="h-4 w-4" />
-              <span>Ao enviar, a solicitação será encaminhada para aprovação da coordenação.</span>
+              <span>Ao enviar, a nota irá para Solicitações ou Pagamentos da Equipe conforme o tipo identificado.</span>
             </div>
           </div>
 
@@ -778,7 +904,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
             <button type="button" onClick={handleEnviar} disabled={sending} className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white shadow disabled:opacity-50">
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Enviar para Aprovação
+              Enviar
             </button>
           </div>
         </div>
