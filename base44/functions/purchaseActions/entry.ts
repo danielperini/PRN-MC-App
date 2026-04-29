@@ -1,153 +1,92 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+// base44/functions/purchaseActions/entry.ts
 
-function json(data: any, status = 200) {
-  return Response.json(data, { status });
-}
+import { base44 } from 'base44'
 
-function getValor(p: any) {
-  return Number(
-    p?.valor_pago ??
-    p?.valor_aprovado ??
-    p?.valor_total ??
-    p?.valor_solicitado ??
-    p?.valor ??
-    p?.nf_valor_total ??
-    0
-  ) || 0;
-}
-
-function normalizeAction(action: any) {
-  const a = String(action || '').toLowerCase();
-  if (a.includes('aprov') || a.includes('approve')) return 'aprovar';
-  if (a.includes('devol') || a.includes('reject') || a.includes('rejeit')) return 'devolver';
-  if (a.includes('pag') || a.includes('pay')) return 'pagar';
-  if (a.includes('del') || a.includes('remov') || a.includes('exclu')) return 'deletar';
-  return a;
-}
-
-async function getRubrica(base44: any, rubricaId: string) {
-  if (!rubricaId) throw new Error('Rubrica obrigatória');
-  const rubrica = await base44.asServiceRole.entities.Rubrica.get(rubricaId);
-  if (!rubrica) throw new Error('Rubrica não encontrada');
-  return rubrica;
-}
-
-async function debitarRealizado(base44: any, rubricaId: string, valor: number) {
-  const rubrica = await getRubrica(base44, rubricaId);
-
-  await base44.asServiceRole.entities.Rubrica.update(rubricaId, {
-    valor_utilizado: Number(rubrica?.valor_utilizado || 0) + valor,
-    saldo_comprometido: Math.max(0, Number(rubrica?.saldo_comprometido || 0) - valor),
-  });
-}
-
-async function estornarRealizado(base44: any, rubricaId: string, valor: number) {
-  const rubrica = await getRubrica(base44, rubricaId);
-
-  await base44.asServiceRole.entities.Rubrica.update(rubricaId, {
-    valor_utilizado: Math.max(0, Number(rubrica?.valor_utilizado || 0) - valor),
-  });
-}
-
-Deno.serve(async (req) => {
+export default async function handler(req: any, res: any) {
   try {
-    const base44 = createClientFromRequest(req);
-    const body = await req.json().catch(() => ({}));
+    const { action, data } = req.body
 
-    const action = normalizeAction(body.action);
-    const id =
-      body.id ||
-      body.purchaseId ||
-      body.purchase_id ||
-      body.requestId ||
-      body.request_id;
-
-    if (!id) return json({ success: false, error: 'ID da solicitação obrigatório' }, 400);
-
-    const purchase = await base44.asServiceRole.entities.PurchaseRequest.get(id);
-    if (!purchase) return json({ success: false, error: 'Solicitação não encontrada' }, 404);
-
-    const statusAtual = String(purchase.status || '').toUpperCase();
-    const valor = getValor(purchase);
-    const rubricaId = purchase.rubrica_id;
-
-    if (['aprovar', 'pagar'].includes(action)) {
-      if (!rubricaId) return json({ success: false, error: 'Solicitação sem rubrica vinculada' }, 400);
-      if (!valor) return json({ success: false, error: 'Valor da solicitação inválido' }, 400);
+    if (!action || !data) {
+      return res.status(400).json({ error: 'Ação ou dados não enviados' })
     }
 
-    if (action === 'aprovar') {
-      const jaDebitado = Boolean(purchase.rubrica_debitada_em || purchase.financeiro_lancado_em);
-
-      if (!jaDebitado) {
-        await debitarRealizado(base44, rubricaId, valor);
+    // ===============================
+    // 🔎 VALIDAÇÃO DE RUBRICA (FIX)
+    // ===============================
+    const validateRubrica = async (rubrica_id: string) => {
+      if (!rubrica_id) {
+        throw new Error('Envio bloqueado: rubrica não informada.')
       }
 
-      await base44.asServiceRole.entities.PurchaseRequest.update(id, {
-        status: 'APROVADO_COORD',
-        valor_aprovado: valor,
-        valor_pago: valor,
-        aprovado_em: purchase.aprovado_em || new Date().toISOString(),
-        financeiro_lancado_em: purchase.financeiro_lancado_em || new Date().toISOString(),
-        rubrica_debitada_em: purchase.rubrica_debitada_em || new Date().toISOString(),
-        rubrica_debitada_valor: valor,
-        comentario_aprovacao: body.comentario || purchase.comentario_aprovacao || '',
-      });
+      const rubrica = await base44.entity('Rubrica').get(rubrica_id)
 
-      return json({ success: true, status: 'APROVADO_COORD', valor_debitado: jaDebitado ? 0 : valor });
-    }
-
-    if (action === 'pagar') {
-      const jaDebitado = Boolean(purchase.rubrica_debitada_em || purchase.financeiro_lancado_em);
-
-      if (!jaDebitado) {
-        await debitarRealizado(base44, rubricaId, valor);
+      if (!rubrica) {
+        throw new Error('Envio bloqueado: rubrica inválida ou inexistente.')
       }
 
-      await base44.asServiceRole.entities.PurchaseRequest.update(id, {
-        status: 'PAGO',
-        valor_pago: valor,
-        pago_em: purchase.pago_em || new Date().toISOString(),
-        financeiro_lancado_em: purchase.financeiro_lancado_em || new Date().toISOString(),
-        rubrica_debitada_em: purchase.rubrica_debitada_em || new Date().toISOString(),
-        rubrica_debitada_valor: valor,
-      });
-
-      return json({ success: true, status: 'PAGO', valor_debitado: jaDebitado ? 0 : valor });
+      return rubrica
     }
 
-    if (action === 'devolver') {
-      const jaDebitado = Boolean(purchase.rubrica_debitada_em || purchase.financeiro_lancado_em);
+    // ===============================
+    // ✏️ UPDATE DE COMPRA
+    // ===============================
+    if (action === 'updatePurchase') {
+      const {
+        id,
+        rubrica_id,
+        centro_custo
+      } = data
 
-      if (jaDebitado && rubricaId && valor) {
-        await estornarRealizado(base44, rubricaId, valor);
+      // 🔥 valida rubrica
+      const rubrica = await validateRubrica(rubrica_id)
+
+      // 🔒 regra opcional: validar centro (SEM BLOQUEAR GERAL)
+      if (
+        rubrica.centro_custo &&
+        centro_custo &&
+        rubrica.centro_custo !== 'GERAL' &&
+        rubrica.centro_custo !== centro_custo
+      ) {
+        console.warn('⚠️ Rubrica com centro diferente — permitido com alerta')
       }
 
-      await base44.asServiceRole.entities.PurchaseRequest.update(id, {
-        status: 'DEVOLVIDO',
-        devolvido_em: new Date().toISOString(),
-        comentario_devolucao: body.comentario || body.motivo || body.reason || 'Devolvido pela coordenação.',
-        financeiro_lancado_em: null,
-        rubrica_debitada_em: null,
-        rubrica_debitada_valor: 0,
-      });
+      // ✅ update seguro
+      const updated = await base44.entity('PurchaseRequest').update({
+        id,
+        ...data,
+        rubrica_nome: rubrica.nome,
+        rubrica_grupo: rubrica.grupo
+      })
 
-      return json({ success: true, status: 'DEVOLVIDO' });
+      return res.status(200).json(updated)
     }
 
-    if (action === 'deletar') {
-      const jaDebitado = Boolean(purchase.rubrica_debitada_em || purchase.financeiro_lancado_em);
+    // ===============================
+    // ➕ CREATE DE COMPRA
+    // ===============================
+    if (action === 'createPurchase') {
+      const {
+        rubrica_id
+      } = data
 
-      if (jaDebitado && rubricaId && valor) {
-        await estornarRealizado(base44, rubricaId, valor);
-      }
+      const rubrica = await validateRubrica(rubrica_id)
 
-      await base44.asServiceRole.entities.PurchaseRequest.delete(id);
-      return json({ success: true, deleted: true });
+      const created = await base44.entity('PurchaseRequest').create({
+        ...data,
+        rubrica_nome: rubrica.nome,
+        rubrica_grupo: rubrica.grupo
+      })
+
+      return res.status(200).json(created)
     }
 
-    return json({ success: false, error: 'Ação inválida' }, 400);
-  } catch (e: any) {
-    return json({ success: false, error: e?.message || 'Erro interno' }, 500);
+    return res.status(400).json({ error: 'Ação inválida' })
+
+  } catch (err: any) {
+    console.error('❌ purchaseActions error:', err.message)
+
+    return res.status(400).json({
+      error: err.message || 'Erro interno'
+    })
   }
-});
+}
