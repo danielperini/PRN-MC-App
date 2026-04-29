@@ -66,6 +66,32 @@ async function registrarAuditoriaFinanceira(payload: any) {
   }
 }
 
+async function sincronizarDocumentosDaCompra(purchase: any, statusDocumento: string) {
+  try {
+    const attachments = await base44.entity('Attachment').filter({
+      purchase_id: purchase.id
+    })
+
+    for (const att of attachments || []) {
+      await updateEntity('Attachment', {
+        id: att.id,
+        status: statusDocumento,
+        nf_status: statusDocumento,
+        aprovado_em:
+          statusDocumento === 'APROVADO'
+            ? new Date().toISOString()
+            : att.aprovado_em || null,
+        inconsistencias:
+          statusDocumento === 'APROVADO'
+            ? 0
+            : att.inconsistencias
+      })
+    }
+  } catch (error) {
+    console.warn('Erro ao sincronizar documentos da compra:', error)
+  }
+}
+
 async function comprometerRubricaNaAprovacao(purchase: any) {
   if (!purchase?.id) {
     throw new Error('Compra inválida.')
@@ -76,7 +102,8 @@ async function comprometerRubricaNaAprovacao(purchase: any) {
       alreadyCommitted: true,
       rubrica: purchase?.rubrica_id
         ? await getEntity('Rubrica', purchase.rubrica_id)
-        : null
+        : null,
+      valor: getPurchaseValue(purchase)
     }
   }
 
@@ -89,7 +116,9 @@ async function comprometerRubricaNaAprovacao(purchase: any) {
 
   const saldoComprometidoAtual = toNumber(rubrica.saldo_comprometido)
   const valorUtilizadoAtual = toNumber(rubrica.valor_utilizado)
-  const valorRubrica = toNumber(rubrica.valor_rubrica ?? rubrica.valor_total ?? rubrica.valor)
+  const valorRubrica = toNumber(
+    rubrica.valor_rubrica ?? rubrica.valor_total ?? rubrica.valor
+  )
 
   const novoSaldoComprometido = saldoComprometidoAtual + valor
   const saldoReal =
@@ -131,7 +160,8 @@ async function baixarCompromissoNoPagamento(purchase: any) {
       alreadyUsed: true,
       rubrica: purchase?.rubrica_id
         ? await getEntity('Rubrica', purchase.rubrica_id)
-        : null
+        : null,
+      valor: getPurchaseValue(purchase)
     }
   }
 
@@ -144,7 +174,9 @@ async function baixarCompromissoNoPagamento(purchase: any) {
 
   const saldoComprometidoAtual = toNumber(rubrica.saldo_comprometido)
   const valorUtilizadoAtual = toNumber(rubrica.valor_utilizado)
-  const valorRubrica = toNumber(rubrica.valor_rubrica ?? rubrica.valor_total ?? rubrica.valor)
+  const valorRubrica = toNumber(
+    rubrica.valor_rubrica ?? rubrica.valor_total ?? rubrica.valor
+  )
 
   const novoSaldoComprometido = Math.max(0, saldoComprometidoAtual - valor)
   const novoValorUtilizado = valorUtilizadoAtual + valor
@@ -210,7 +242,8 @@ export default async function handler(req: any, res: any) {
         id,
         ...data,
         rubrica_nome: rubrica.nome || rubrica.rubrica,
-        rubrica_grupo: rubrica.grupo || rubrica.categoria || ''
+        rubrica_grupo: rubrica.grupo || rubrica.categoria || '',
+        updated_at: new Date().toISOString()
       })
 
       return res.status(200).json({
@@ -225,7 +258,9 @@ export default async function handler(req: any, res: any) {
       const created = await createEntity('PurchaseRequest', {
         ...data,
         rubrica_nome: rubrica.nome || rubrica.rubrica,
-        rubrica_grupo: rubrica.grupo || rubrica.categoria || ''
+        rubrica_grupo: rubrica.grupo || rubrica.categoria || '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
 
       return res.status(200).json({
@@ -265,9 +300,17 @@ export default async function handler(req: any, res: any) {
         financeiro_comprometido: true,
         valor_comprometido_financeiro:
           purchase.valor_comprometido_financeiro || valor || getPurchaseValue(purchase),
-        aprovado_coord_em: new Date().toISOString(),
+        aprovado_coord_em: purchase.aprovado_coord_em || new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
+
+      await sincronizarDocumentosDaCompra(
+        {
+          ...purchase,
+          ...updated
+        },
+        'APROVADO'
+      )
 
       return res.status(200).json({
         success: true,
@@ -310,9 +353,17 @@ export default async function handler(req: any, res: any) {
         financeiro_utilizado: true,
         valor_utilizado_financeiro:
           purchase.valor_utilizado_financeiro || valor || getPurchaseValue(purchase),
-        pago_em: new Date().toISOString(),
+        pago_em: purchase.pago_em || new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
+
+      await sincronizarDocumentosDaCompra(
+        {
+          ...purchase,
+          ...updated
+        },
+        'PAGO'
+      )
 
       return res.status(200).json({
         success: true,
@@ -348,6 +399,14 @@ export default async function handler(req: any, res: any) {
         devolvido_em: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
+
+      await sincronizarDocumentosDaCompra(
+        {
+          ...purchase,
+          ...updated
+        },
+        'DEVOLVIDO'
+      )
 
       return res.status(200).json({
         success: true,
