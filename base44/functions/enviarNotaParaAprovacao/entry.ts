@@ -39,53 +39,57 @@ export default async function handler(req: Request) {
       return json({ success: false, error: 'Rubrica obrigatória' }, 400);
     }
 
-    const valor = parseValor(
-      form.nf_valor_total ||
-      form.valor ||
-      form.valor_total
-    );
+    const valor = parseValor(form.nf_valor_total || form.valor || form.valor_total);
 
     if (!valor) {
-      return json({ success: false, error: 'Valor inválido' }, 400);
+      return json({ success: false, error: 'Valor da nota inválido' }, 400);
     }
 
-    // 🔎 CARREGA INTAKE (PARA PEGAR ARQUIVO ORIGINAL)
     let intake: any = null;
+
     try {
       intake = await base44.entities.DocumentIntake.get(intakeId);
-    } catch (e) {
-      console.warn('⚠️ intake não encontrado');
+    } catch (error) {
+      console.warn('⚠️ Não foi possível carregar DocumentIntake:', error);
     }
 
     const isEquipe =
       form?.tipo_pagamento === 'equipe' ||
+      form?.destino_aprovacao === 'equipe' ||
       String(form?.tipo_gasto || '').toLowerCase() === 'equipe';
 
-    // 📎 GARANTE QUE O ARQUIVO VAI JUNTO
     const nomePadronizado =
       form.nome_padronizado_arquivo ||
+      form.nome_arquivo_padronizado ||
       intake?.nome_padronizado_arquivo ||
+      intake?.nome_arquivo_padronizado ||
       intake?.file_name ||
       intake?.nome_arquivo ||
       '';
 
     const fileUrl =
       form.file_url ||
+      form.nota_fiscal_url ||
       intake?.file_url ||
-      intake?.nota_fiscal_url ||
+      intake?.url ||
       intake?.arquivo_url ||
+      intake?.nota_fiscal_url ||
       '';
 
     const xmlUrl =
       form.xml_url ||
       intake?.xml_url ||
+      intake?.xml_file_url ||
       '';
 
-    const basePayload = {
+    const payloadBase = {
       ...form,
 
       intake_id: intakeId,
+      document_intake_id: intakeId,
+
       origem: 'entrada_unica',
+      tipo_origem: 'entrada_unica',
 
       rubrica_id: form.rubrica_id,
       rubrica_nome: form.rubrica_nome,
@@ -95,42 +99,46 @@ export default async function handler(req: Request) {
       nf_numero: form.nf_numero,
       numero_nf: form.nf_numero,
 
-      valor,
-      valor_total: valor,
       nf_valor_total: valor,
+      valor_total: valor,
+      valor: valor,
 
       descricao: form.descricao_servico,
+      descricao_item: form.descricao_servico || form.nf_emitente_nome || 'Nota Fiscal',
 
       fornecedor_nome: form.nf_emitente_nome,
       fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
 
-      file_url: fileUrl,
       nota_fiscal_url: fileUrl,
+      file_url: fileUrl,
       xml_url: xmlUrl,
 
       nome_padronizado_arquivo: nomePadronizado,
       nome_arquivo_padronizado: nomePadronizado,
+      file_name: nomePadronizado || intake?.file_name || intake?.nome_arquivo || '',
 
       criado_em: new Date().toISOString()
     };
 
     let created;
 
-    // 👥 PAGAMENTO DE EQUIPE
     if (isEquipe) {
-      console.log('👥 criando TeamPayment');
+      console.log('👥 Criando TeamPayment');
 
       created = await base44.entities.TeamPayment.create({
-        ...basePayload,
+        ...payloadBase,
 
         status: 'AGUARDANDO_APROVACAO',
 
         valor_nf: valor,
         valor: valor,
+        valor_total: valor,
 
         member_name:
           form.member_name ||
+          form.user_name ||
           form.nf_emitente_nome ||
+          form.fornecedor_nome ||
           '',
 
         mes_referencia:
@@ -140,31 +148,25 @@ export default async function handler(req: Request) {
 
         origem_automatica: true
       });
-    }
-
-    // 🧾 SOLICITAÇÃO NORMAL
-    else {
-      console.log('🧾 criando PurchaseRequest');
+    } else {
+      console.log('🧾 Criando PurchaseRequest');
 
       created = await base44.entities.PurchaseRequest.create({
-        ...basePayload,
+        ...payloadBase,
 
-        // 🔴 ESSA LINHA RESOLVE A TELA COMPRAS
         status: 'SOLICITADO',
 
         valor_solicitado: valor,
+        valor_total: valor,
 
         categoria: form.categoria || 'Nota Fiscal',
         tipo_gasto: form.tipo_gasto || 'Serviço',
 
-        solicitante_email:
-          form.solicitante_email ||
-          form.user_email ||
-          ''
+        solicitante_email: form.solicitante_email || form.user_email || '',
+        requester_email: form.requester_email || form.user_email || ''
       });
     }
 
-    // 🔄 ATUALIZA INTAKE
     await base44.entities.DocumentIntake.update(intakeId, {
       status_processamento: 'ENVIADO_APROVACAO',
 
@@ -175,11 +177,13 @@ export default async function handler(req: Request) {
       rubrica_nome: form.rubrica_nome,
 
       nome_padronizado_arquivo: nomePadronizado,
+      nome_arquivo_padronizado: nomePadronizado,
 
-      revisado_pelo_usuario: true
+      revisado_pelo_usuario: true,
+      enviado_aprovacao_em: new Date().toISOString()
     });
 
-    console.log('✅ envio finalizado');
+    console.log('✅ envio concluído', created);
 
     return json({
       success: true,
@@ -188,7 +192,7 @@ export default async function handler(req: Request) {
     });
 
   } catch (err: any) {
-    console.error('❌ erro enviarNotaParaAprovacao', err);
+    console.error('❌ enviarNotaParaAprovacao', err);
 
     return json({
       success: false,
