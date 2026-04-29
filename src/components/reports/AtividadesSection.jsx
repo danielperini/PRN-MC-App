@@ -1,108 +1,59 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import AtividadesSection from '@/components/reports/AtividadesSection';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 
-export default function AtividadesSection({ report, setReport }) {
+export default function ReportEditor({ reportId }) {
 
-  const [nova, setNova] = useState({
-    nome: '',
-    descricao: '',
-    publico: '',
-  });
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  function adicionarAtividade() {
-    if (!nova.nome) return;
+  /* ================= LOAD ================= */
 
-    const listaAtual = report?.atividades || [];
+  useEffect(() => {
+    async function load() {
+      const r = await base44.entities.Report.get(reportId);
 
-    // 🔥 FIX: SEMPRE PRESERVAR EXISTENTES
-    const novaLista = [
-      ...listaAtual,
-      {
-        ...nova,
-        id: Date.now(),
-      }
-    ];
+      // 🔥 FIX: garantir array
+      r.atividades = r.atividades || [];
 
-    setReport({
+      setReport(r);
+      setLoading(false);
+    }
+
+    load();
+  }, [reportId]);
+
+  /* ================= SAVE ================= */
+
+  async function salvar() {
+    if (!report) return;
+
+    await base44.entities.Report.update(reportId, {
       ...report,
-      atividades: novaLista,
-    });
 
-    setNova({
-      nome: '',
-      descricao: '',
-      publico: '',
+      // 🔥 FIX: garantir que não salva undefined
+      atividades: report.atividades || [],
     });
   }
 
-  function removerAtividade(id) {
-    const listaAtual = report?.atividades || [];
-
-    const novaLista = listaAtual.filter(a => a.id !== id);
-
-    setReport({
-      ...report,
-      atividades: novaLista,
-    });
-  }
+  if (loading) return <div>Carregando...</div>;
 
   return (
-    <div className="space-y-4">
+    <div className="p-4 space-y-6">
 
-      {/* LISTA */}
-      <div className="space-y-2">
-        {(report?.atividades || []).map((a) => (
-          <div key={a.id} className="border p-3 rounded">
+      <h1 className="text-xl font-bold">Relatório</h1>
 
-            <div className="font-semibold">{a.nome}</div>
+      {/* ATIVIDADES */}
+      <AtividadesSection
+        report={report}
+        setReport={setReport}
+      />
 
-            <div className="text-sm">{a.descricao}</div>
-
-            <div className="text-xs text-gray-500">
-              Público: {a.publico}
-            </div>
-
-            <div className="flex justify-end mt-2">
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => removerAtividade(a.id)}
-              >
-                Remover
-              </Button>
-            </div>
-
-          </div>
-        ))}
-      </div>
-
-      {/* FORM */}
-      <div className="border p-3 rounded space-y-2">
-
-        <Input
-          placeholder="Nome da atividade"
-          value={nova.nome}
-          onChange={(e) => setNova({ ...nova, nome: e.target.value })}
-        />
-
-        <Textarea
-          placeholder="Descrição"
-          value={nova.descricao}
-          onChange={(e) => setNova({ ...nova, descricao: e.target.value })}
-        />
-
-        <Input
-          placeholder="Público"
-          value={nova.publico}
-          onChange={(e) => setNova({ ...nova, publico: e.target.value })}
-        />
-
-        <Button onClick={adicionarAtividade}>
-          Adicionar atividade
+      <div className="flex justify-end">
+        <Button onClick={salvar}>
+          Salvar Relatório
         </Button>
-
       </div>
 
     </div>
