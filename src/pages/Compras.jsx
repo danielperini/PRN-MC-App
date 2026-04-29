@@ -11,8 +11,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
+  SelectValue } from
+'@/components/ui/select';
 import {
   ShoppingCart,
   Plus,
@@ -26,8 +26,8 @@ import {
   LinkIcon,
   FileCheck2,
   CheckCircle2,
-  RotateCcw
-} from 'lucide-react';
+  RotateCcw } from
+'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
 import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
@@ -88,8 +88,8 @@ function getPurchaseBudgetlineId(purchase) {
     purchase?.budgetline_id ||
     purchase?.budget_line_id ||
     purchase?.linha_orcamentaria_id ||
-    null
-  );
+    null);
+
 }
 
 function getPurchaseValue(p) {
@@ -100,16 +100,16 @@ function getPurchaseValue(p) {
     p?.valor_final ||
     p?.valor_solicitado ||
     p?.valor_total ||
-    0
-  );
+    0);
+
 }
 
 function normalizeCentro(value) {
-  const raw = String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
+  const raw = String(value || '').
+  normalize('NFD').
+  replace(/[\u0300-\u036f]/g, '').
+  trim().
+  toLowerCase();
 
   if (!raw) return '';
   if (raw === 'mis') return 'MIS';
@@ -137,23 +137,23 @@ function isSolicitado(purchase) {
 
 function isCompraEquipe(purchase) {
   const raw = [
-    purchase?.tipo_origem,
-    purchase?.origem,
-    purchase?.categoria,
-    purchase?.tipo_solicitacao,
-    purchase?.descricao_item,
-    purchase?.observacoes
-  ]
-    .map((v) => String(v || '').toLowerCase())
-    .join(' ');
+  purchase?.tipo_origem,
+  purchase?.origem,
+  purchase?.categoria,
+  purchase?.tipo_solicitacao,
+  purchase?.descricao_item,
+  purchase?.observacoes].
+
+  map((v) => String(v || '').toLowerCase()).
+  join(' ');
 
   return (
     !!purchase?.team_payment_id ||
     raw.includes('team') ||
     raw.includes('equipe') ||
     raw.includes('pagamento da equipe') ||
-    raw.includes('pagamento equipe')
-  );
+    raw.includes('pagamento equipe'));
+
 }
 
 function fmtBRL(v) {
@@ -169,25 +169,25 @@ function normalizeEmail(value) {
 }
 
 function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
+  return String(value || '').
+  normalize('NFD').
+  replace(/[\u0300-\u036f]/g, '').
+  trim().
+  toLowerCase();
 }
 
 function getPurchaseOwnerEmails(purchase) {
   return [
-    purchase?.created_by,
-    purchase?.user_email,
-    purchase?.requester_email,
-    purchase?.solicitante_email,
-    purchase?.email_solicitante,
-    purchase?.author_email,
-    purchase?.owner_email
-  ]
-    .map(normalizeEmail)
-    .filter(Boolean);
+  purchase?.created_by,
+  purchase?.user_email,
+  purchase?.requester_email,
+  purchase?.solicitante_email,
+  purchase?.email_solicitante,
+  purchase?.author_email,
+  purchase?.owner_email].
+
+  map(normalizeEmail).
+  filter(Boolean);
 }
 
 function purchaseBelongsToUser(purchase, email) {
@@ -211,8 +211,8 @@ function isEntradaUnicaAttachment(att) {
     fileName.includes('museus centro') ||
     !!att?.nf_numero ||
     !!att?.nf_emitente_nome ||
-    !!att?.nf_valor_total
-  );
+    !!att?.nf_valor_total);
+
 }
 
 function dedupById(items) {
@@ -292,13 +292,13 @@ async function carregarSolicitacoes({ isCoordenador, currentUser }) {
   }
 
   const dedup = new Map();
-  resultados
-    .filter(Boolean)
-    .forEach((purchase) => {
-      if (purchase?.id && purchaseBelongsToUser(purchase, email)) {
-        dedup.set(purchase.id, purchase);
-      }
-    });
+  resultados.
+  filter(Boolean).
+  forEach((purchase) => {
+    if (purchase?.id && purchaseBelongsToUser(purchase, email)) {
+      dedup.set(purchase.id, purchase);
+    }
+  });
 
   return Array.from(dedup.values()).sort((a, b) => {
     const da = new Date(a?.created_date || 0).getTime();
@@ -331,9 +331,9 @@ function TabelaSolicitacoes({
   if (!purchases || purchases.length === 0) return null;
 
   const podeAprovar =
-    isCoordenador ||
-    podeAprovarSolicitacoes === true ||
-    hasGestaoCompras === true;
+  isCoordenador ||
+  podeAprovarSolicitacoes === true ||
+  hasGestaoCompras === true;
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200">
@@ -359,22 +359,22 @@ function TabelaSolicitacoes({
 
             const rubrica = p.rubrica_id ? rubricaById[p.rubrica_id] : null;
             const rubricaNome =
-              p?.rubrica_nome ||
-              p?.rubrica ||
-              rubrica?.rubrica ||
-              rubrica?.nome ||
-              '—';
+            p?.rubrica_nome ||
+            p?.rubrica ||
+            rubrica?.rubrica ||
+            rubrica?.nome ||
+            '—';
 
             const valor = getPurchaseValue(p);
 
             const inconsistente =
-              (statusKey === 'APROVADO_COORD' ||
-                statusKey === 'APROVADO_ADMIN' ||
-                statusKey === 'PAGO') &&
-              (!p._has_orcamento_vinculado || p._sem_centro_custo);
+            (statusKey === 'APROVADO_COORD' ||
+            statusKey === 'APROVADO_ADMIN' ||
+            statusKey === 'PAGO') && (
+            !p._has_orcamento_vinculado || p._sem_centro_custo);
 
             const podeEditar =
-              isCoordenador || purchaseBelongsToUser(p, currentUser?.email);
+            isCoordenador || purchaseBelongsToUser(p, currentUser?.email);
 
             const pendenteCoordenacao = isSolicitado(p);
             const compraEquipe = isCompraEquipe(p);
@@ -383,30 +383,30 @@ function TabelaSolicitacoes({
               <tr
                 key={p.id}
                 className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${
-                  i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'
-                } ${inconsistente ? 'bg-amber-50/60' : ''}`}
-              >
+                i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'} ${
+                inconsistente ? 'bg-amber-50/60' : ''}`}>
+                
                 <td className="max-w-xs px-3 py-2.5">
                   <p className="truncate font-medium text-gray-900">
                     {p.descricao_item || p.objeto || '—'}
                   </p>
 
-                  {p.meta_id && (
-                    <p className="text-xs text-gray-400">{p.meta_id}</p>
-                  )}
+                  {p.meta_id &&
+                  <p className="text-xs text-gray-400">{p.meta_id}</p>
+                  }
 
-                  {compraEquipe && (
-                    <span className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">
+                  {compraEquipe &&
+                  <span className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">
                       Equipe
                     </span>
-                  )}
+                  }
 
-                  {inconsistente && (
-                    <span className="mt-0.5 inline-flex items-center gap-1 text-xs text-amber-600">
+                  {inconsistente &&
+                  <span className="mt-0.5 inline-flex items-center gap-1 text-xs text-amber-600">
                       <AlertTriangle className="h-3 w-3" />
                       Sem vínculo
                     </span>
-                  )}
+                  }
                 </td>
 
                 <td className="px-3 py-2.5 text-gray-600">
@@ -414,13 +414,13 @@ function TabelaSolicitacoes({
                 </td>
 
                 <td className="px-3 py-2.5">
-                  {p._centro_custo_normalizado ? (
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                  {p._centro_custo_normalizado ?
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
                       {p._centro_custo_normalizado}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-gray-400">—</span>
-                  )}
+                    </span> :
+
+                  <span className="text-xs text-gray-400">—</span>
+                  }
                 </td>
 
                 <td className="max-w-[160px] px-3 py-2.5">
@@ -431,8 +431,8 @@ function TabelaSolicitacoes({
 
                 <td className="px-3 py-2.5">
                   <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}
-                  >
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>
+                    
                     {status.label}
                   </span>
                 </td>
@@ -443,70 +443,70 @@ function TabelaSolicitacoes({
 
                 <td className="px-3 py-2.5">
                   <div className="flex flex-wrap items-center justify-center gap-2">
-                    {podeEditar && (
-                      <button
-                        onClick={() => onEdit(p)}
-                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-black"
-                        title="Editar"
-                      >
+                    {podeEditar &&
+                    <button
+                      onClick={() => onEdit(p)}
+                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-black"
+                      title="Editar">
+                      
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
-                    )}
+                    }
 
-                    {podeAprovar && pendenteCoordenacao && (
-                      <>
+                    {podeAprovar && pendenteCoordenacao &&
+                    <>
                         <button
-                          onClick={() => onApprove(p)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700"
-                          title="Aprovar"
-                        >
+                        onClick={() => onApprove(p)}
+                        className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700"
+                        title="Aprovar">
+                        
                           <CheckCircle2 className="h-3.5 w-3.5" />
                           Aprovar
                         </button>
 
                         <button
-                          onClick={() => onReturn(p)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                          title="Devolver"
-                        >
+                        onClick={() => onReturn(p)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                        title="Devolver">
+                        
                           <RotateCcw className="h-3.5 w-3.5" />
                           Devolver
                         </button>
                       </>
-                    )}
+                    }
 
-                    {compraEquipe && isCoordenador && (
-                      <button
-                        onClick={onGoTeamPayments}
-                        className="rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1.5 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
-                        title="Ver em Pagamentos da Equipe"
-                      >
+                    {compraEquipe && isCoordenador &&
+                    <button
+                      onClick={onGoTeamPayments}
+                      className="rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1.5 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
+                      title="Ver em Pagamentos da Equipe">
+                      
                         Pagamento equipe
                       </button>
-                    )}
+                    }
 
-                    {isCoordenador && (
-                      <button
-                        onClick={() => {
-                          if (window.confirm('Tem certeza que deseja deletar esta solicitação?')) {
-                            onDelete(p.id);
-                          }
-                        }}
-                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                        title="Deletar"
-                      >
+                    {isCoordenador &&
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Tem certeza que deseja deletar esta solicitação?')) {
+                          onDelete(p.id);
+                        }
+                      }}
+                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                      title="Deletar">
+                      
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
-                    )}
+                    }
                   </div>
                 </td>
-              </tr>
-            );
+              </tr>);
+
           })}
         </tbody>
       </table>
-    </div>
-  );
+    </div>);
+
 }
 
 function ComprasInner() {
@@ -529,34 +529,34 @@ function ComprasInner() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    base44.auth
-      .me()
-      .then((u) => setCurrentUser(u))
-      .catch(() => setCurrentUser(null));
+    base44.auth.
+    me().
+    then((u) => setCurrentUser(u)).
+    catch(() => setCurrentUser(null));
   }, []);
 
   const isCoordenador = [
-    'admin',
-    'ADMIN',
-    'COORDENADOR',
-    'COORD_COMUNICACAO',
-    'COORD_ADMINISTRATIVA',
-    'COORD_PRODUCAO'
-  ].includes(currentUser?.role);
+  'admin',
+  'ADMIN',
+  'COORDENADOR',
+  'COORD_COMUNICACAO',
+  'COORD_ADMINISTRATIVA',
+  'COORD_PRODUCAO'].
+  includes(currentUser?.role);
 
   const invalidateComprasQueries = useCallback(async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['purchases'] }),
-      queryClient.invalidateQueries({ queryKey: ['attachments-compras'] }),
-      queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'] }),
-      queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
-      queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
-      queryClient.invalidateQueries({ queryKey: ['team-member-own'] }),
-      queryClient.invalidateQueries({
-        queryKey: ['team-members-all-for-coordinator']
-      }),
-      queryClient.invalidateQueries({ queryKey: ['team-payments'] })
-    ]);
+    queryClient.invalidateQueries({ queryKey: ['purchases'] }),
+    queryClient.invalidateQueries({ queryKey: ['attachments-compras'] }),
+    queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'] }),
+    queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
+    queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
+    queryClient.invalidateQueries({ queryKey: ['team-member-own'] }),
+    queryClient.invalidateQueries({
+      queryKey: ['team-members-all-for-coordinator']
+    }),
+    queryClient.invalidateQueries({ queryKey: ['team-payments'] })]
+    );
   }, [queryClient]);
 
   const { data: userPermission } = useQuery({
@@ -575,18 +575,18 @@ function ComprasInner() {
   });
 
   const hasGestaoCompras =
-    isCoordenador || userPermission?.gestao_compras === true;
+  isCoordenador || userPermission?.gestao_compras === true;
 
   const podeAprovarSolicitacoes =
-    isCoordenador || userPermission?.pode_aprovar_solicitacoes === true;
+  isCoordenador || userPermission?.pode_aprovar_solicitacoes === true;
 
   const { data: purchases = [], isLoading } = useQuery({
     queryKey: ['purchases', isCoordenador, currentUser?.email],
     queryFn: () =>
-      carregarSolicitacoes({
-        isCoordenador,
-        currentUser
-      }),
+    carregarSolicitacoes({
+      isCoordenador,
+      currentUser
+    }),
     enabled: !!currentUser
   });
 
@@ -664,10 +664,10 @@ function ComprasInner() {
 
   const comprasInconsistentes = purchasesWithFlags.filter(
     (p) =>
-      (normalizeStatus(p.status) === 'APROVADO_COORD' ||
-        normalizeStatus(p.status) === 'APROVADO_ADMIN' ||
-        normalizeStatus(p.status) === 'PAGO') &&
-      (!p._has_orcamento_vinculado || p._sem_centro_custo)
+    (normalizeStatus(p.status) === 'APROVADO_COORD' ||
+    normalizeStatus(p.status) === 'APROVADO_ADMIN' ||
+    normalizeStatus(p.status) === 'PAGO') && (
+    !p._has_orcamento_vinculado || p._sem_centro_custo)
   );
 
   const centrosDisponiveis = useMemo(() => {
@@ -682,7 +682,7 @@ function ComprasInner() {
 
   const filtered = purchasesWithFlags.filter((p) => {
     const matchStatus =
-      filters.status === 'all' || normalizeStatus(p.status) === filters.status;
+    filters.status === 'all' || normalizeStatus(p.status) === filters.status;
 
     let matchMeta = filters.meta_id === 'all';
     if (!matchMeta && filters.meta_id === 'produto') {
@@ -696,26 +696,26 @@ function ComprasInner() {
     }
 
     const matchRubrica =
-      filters.rubrica_id === 'all' || p.rubrica_id === filters.rubrica_id;
+    filters.rubrica_id === 'all' || p.rubrica_id === filters.rubrica_id;
 
     const matchInconsistencia =
-      filters.inconsistencias === 'all' ||
-      (filters.inconsistencias === 'somente_inconsistentes' &&
-        (!p._has_orcamento_vinculado || p._sem_centro_custo)) ||
-      (filters.inconsistencias === 'somente_ok' &&
-        p._has_orcamento_vinculado &&
-        !p._sem_centro_custo);
+    filters.inconsistencias === 'all' ||
+    filters.inconsistencias === 'somente_inconsistentes' && (
+    !p._has_orcamento_vinculado || p._sem_centro_custo) ||
+    filters.inconsistencias === 'somente_ok' &&
+    p._has_orcamento_vinculado &&
+    !p._sem_centro_custo;
 
     const matchCentro =
-      filters.centro_custo === 'all' ||
-      p._centro_custo_normalizado === filters.centro_custo;
+    filters.centro_custo === 'all' ||
+    p._centro_custo_normalizado === filters.centro_custo;
 
     const busca = filters.search.trim().toLowerCase();
     const matchSearch =
-      !busca ||
-      String(p.descricao_item || '').toLowerCase().includes(busca) ||
-      String(p.fornecedor_nome || '').toLowerCase().includes(busca) ||
-      String(p.objeto || '').toLowerCase().includes(busca);
+    !busca ||
+    String(p.descricao_item || '').toLowerCase().includes(busca) ||
+    String(p.fornecedor_nome || '').toLowerCase().includes(busca) ||
+    String(p.objeto || '').toLowerCase().includes(busca);
 
     return (
       matchStatus &&
@@ -723,8 +723,8 @@ function ComprasInner() {
       matchRubrica &&
       matchInconsistencia &&
       matchCentro &&
-      matchSearch
-    );
+      matchSearch);
+
   });
 
   const totalUtilizado = useMemo(() => {
@@ -819,54 +819,54 @@ function ComprasInner() {
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-black">Suprimentos</h1>
 
-                {isCoordenador ? (
-                  <span className="flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
+                {isCoordenador ?
+                <span className="flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
                     <ShieldCheck className="h-3 w-3" />
                     Coordenador
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                  </span> :
+
+                <span className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
                     <User className="h-3 w-3" />
                     Profissional
                   </span>
-                )}
+                }
               </div>
 
               <p className="text-sm text-gray-500">
-                {isCoordenador
-                  ? 'Visão geral — todas as solicitações'
-                  : 'Solicitações — 3º Termo Aditivo'}
+                {isCoordenador ?
+                'Visão geral — todas as solicitações' :
+                'Solicitações — 3º Termo Aditivo'}
               </p>
             </div>
           </div>
 
           <div className="flex gap-2">
-            {isCoordenador && (
-              <Button
-                variant="outline"
-                className="gap-2 border-black"
-                onClick={() => setShowReportGen(true)}
-              >
+            {isCoordenador &&
+            <Button
+              variant="outline"
+              className="gap-2 border-black"
+              onClick={() => setShowReportGen(true)}>
+              
                 <FileText className="h-4 w-4" />
                 Relatório PDF
               </Button>
-            )}
+            }
 
             <Button
               className="bg-black text-white hover:bg-gray-800"
               onClick={() => {
                 setEditingPurchase(null);
                 setShowForm(true);
-              }}
-            >
+              }}>
+              
               <Plus className="mr-2 h-4 w-4" />
               Nova Solicitação
             </Button>
           </div>
         </div>
 
-        {isCoordenador && comprasInconsistentes.length > 0 && (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+        {isCoordenador && comprasInconsistentes.length > 0 &&
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-700" />
               <div>
@@ -881,10 +881,10 @@ function ComprasInner() {
               </div>
             </div>
           </div>
-        )}
+        }
 
-        {isCoordenador && (
-          <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+        {isCoordenador &&
+        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
               <p className="text-xs font-medium text-gray-500">Total Previsto</p>
               <p className="mt-1 text-xl font-bold text-gray-900">
@@ -905,101 +905,101 @@ function ComprasInner() {
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
               <p className="text-xs font-medium text-gray-500">Saldo Disponível</p>
               <p
-                className={`mt-1 text-xl font-bold ${
-                  TOTAL_PREVISTO - totalUtilizado < 0
-                    ? 'text-red-600'
-                    : 'text-green-700'
-                }`}
-              >
+              className={`mt-1 text-xl font-bold ${
+              TOTAL_PREVISTO - totalUtilizado < 0 ?
+              'text-red-600' :
+              'text-green-700'}`
+              }>
+              
                 {fmtBRL(TOTAL_PREVISTO - totalUtilizado)}
               </p>
               <p className="text-xs text-gray-400">
-                {TOTAL_PREVISTO > 0
-                  ? Math.round((totalUtilizado / TOTAL_PREVISTO) * 100)
-                  : 0}
+                {TOTAL_PREVISTO > 0 ?
+              Math.round(totalUtilizado / TOTAL_PREVISTO * 100) :
+              0}
                 % utilizado
               </p>
             </div>
           </div>
-        )}
+        }
 
-        {isCoordenador && (
-          <div className="mb-6">
+        {isCoordenador &&
+        <div className="mb-6">
             <OrcamentoDashboard
-              budgetLines={budgetLines || []}
-              purchases={purchases || []}
-              rubricas={rubricas || []}
-            />
+            budgetLines={budgetLines || []}
+            purchases={purchases || []}
+            rubricas={rubricas || []} />
+          
           </div>
-        )}
+        }
 
-        {isCoordenador && (
-          <div className="mb-6">
+        {isCoordenador &&
+        <div className="mb-6">
             <ImportarOrcamento onImportSuccess={refreshFinanceiroCompleto} />
           </div>
-        )}
+        }
 
         <div className="-mx-4 mb-6 flex w-fit gap-1 overflow-x-auto rounded-none bg-gray-100 p-1 px-4 md:-mx-6 md:px-6">
           {[
-            { id: 'lista', label: 'Solicitações' },
-            ...(isCoordenador ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
-            { id: 'documentos', label: 'Documentos' },
-            { id: 'equipe', label: 'Equipe' },
-            {
-              id: 'pagamentos',
-              label: isCoordenador ? 'Pagamentos da Equipe' : 'Meus Pagamentos'
-            }
-          ].map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                tab === t.id
-                  ? 'bg-white text-black shadow'
-                  : 'text-gray-500 hover:text-black'
-              }`}
-            >
+          { id: 'lista', label: 'Solicitações' },
+          ...(isCoordenador ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
+          { id: 'documentos', label: 'Documentos' },
+          { id: 'equipe', label: 'Equipe' },
+          {
+            id: 'pagamentos',
+            label: isCoordenador ? 'Pagamentos da Equipe' : 'Meus Pagamentos'
+          }].
+          map((t) =>
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            tab === t.id ?
+            'bg-white text-black shadow' :
+            'text-gray-500 hover:text-black'}`
+            }>
+            
               {t.label}
             </button>
-          ))}
+          )}
         </div>
 
-        {tab === 'lista' && (
-          <div>
+        {tab === 'lista' &&
+        <div>
             <div className="mb-4 flex flex-wrap gap-3">
               <div className="relative min-w-48 flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Buscar..."
-                  className="pl-9"
-                  value={filters.search}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, search: e.target.value }))
-                  }
-                />
+                placeholder="Buscar..."
+                className="pl-9"
+                value={filters.search}
+                onChange={(e) =>
+                setFilters((f) => ({ ...f, search: e.target.value }))
+                } />
+              
               </div>
 
               <Select
-                value={filters.status}
-                onValueChange={(v) => setFilters((f) => ({ ...f, status: v }))}
-              >
+              value={filters.status}
+              onValueChange={(v) => setFilters((f) => ({ ...f, status: v }))}>
+              
                 <SelectTrigger className="w-44">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os status</SelectItem>
-                  {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>
+                  {Object.entries(STATUS_CONFIG).map(([k, v]) =>
+                <SelectItem key={k} value={k}>
                       {v.label}
                     </SelectItem>
-                  ))}
+                )}
                 </SelectContent>
               </Select>
 
               <Select
-                value={filters.meta_id}
-                onValueChange={(v) => setFilters((f) => ({ ...f, meta_id: v }))}
-              >
+              value={filters.meta_id}
+              onValueChange={(v) => setFilters((f) => ({ ...f, meta_id: v }))}>
+              
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Meta / Tipo" />
                 </SelectTrigger>
@@ -1032,57 +1032,57 @@ function ComprasInner() {
               </Select>
 
               <Select
-                value={filters.rubrica_id}
-                onValueChange={(v) =>
-                  setFilters((f) => ({ ...f, rubrica_id: v }))
-                }
-              >
+              value={filters.rubrica_id}
+              onValueChange={(v) =>
+              setFilters((f) => ({ ...f, rubrica_id: v }))
+              }>
+              
                 <SelectTrigger className="w-64">
                   <SelectValue placeholder="Rubrica" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as rubricas</SelectItem>
-                  {(rubricas || [])
-                    .filter((r) => r?.ativo !== false)
-                    .sort((a, b) =>
-                      String(a?.rubrica || a?.nome || '').localeCompare(
-                        String(b?.rubrica || b?.nome || ''),
-                        'pt-BR'
-                      )
-                    )
-                    .map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
+                  {(rubricas || []).
+                filter((r) => r?.ativo !== false).
+                sort((a, b) =>
+                String(a?.rubrica || a?.nome || '').localeCompare(
+                  String(b?.rubrica || b?.nome || ''),
+                  'pt-BR'
+                )
+                ).
+                map((r) =>
+                <SelectItem key={r.id} value={r.id}>
                         {r.rubrica || r.nome}
                       </SelectItem>
-                    ))}
+                )}
                 </SelectContent>
               </Select>
 
               <Select
-                value={filters.centro_custo}
-                onValueChange={(v) =>
-                  setFilters((f) => ({ ...f, centro_custo: v }))
-                }
-              >
+              value={filters.centro_custo}
+              onValueChange={(v) =>
+              setFilters((f) => ({ ...f, centro_custo: v }))
+              }>
+              
                 <SelectTrigger className="w-44">
                   <SelectValue placeholder="Centro de custo" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os centros</SelectItem>
-                  {centrosDisponiveis.map((centro) => (
-                    <SelectItem key={centro} value={centro}>
+                  {centrosDisponiveis.map((centro) =>
+                <SelectItem key={centro} value={centro}>
                       {centro}
                     </SelectItem>
-                  ))}
+                )}
                 </SelectContent>
               </Select>
 
               <Select
-                value={filters.inconsistencias}
-                onValueChange={(v) =>
-                  setFilters((f) => ({ ...f, inconsistencias: v }))
-                }
-              >
+              value={filters.inconsistencias}
+              onValueChange={(v) =>
+              setFilters((f) => ({ ...f, inconsistencias: v }))
+              }>
+              
                 <SelectTrigger className="w-52">
                   <SelectValue placeholder="Vínculo orçamentário" />
                 </SelectTrigger>
@@ -1103,95 +1103,95 @@ function ComprasInner() {
               {filters.status !== 'all' || filters.search ? ' (filtradas)' : ''}
             </p>
 
-            {isLoading ? (
-              <div className="py-16 text-center text-gray-400">Carregando...</div>
-            ) : filtered.length === 0 ? (
-              <div className="rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center">
+            {isLoading ?
+          <div className="py-16 text-center text-gray-400">Carregando...</div> :
+          filtered.length === 0 ?
+          <div className="rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center">
                 <ShoppingCart className="mx-auto mb-3 h-12 w-12 text-gray-300" />
                 <p className="font-medium text-gray-400">
                   Nenhuma solicitação encontrada
                 </p>
                 <Button
-                  className="mt-4 bg-black text-white"
-                  onClick={() => {
-                    setEditingPurchase(null);
-                    setShowForm(true);
-                  }}
-                >
+              className="mt-4 bg-black text-white"
+              onClick={() => {
+                setEditingPurchase(null);
+                setShowForm(true);
+              }}>
+              
                   <Plus className="mr-2 h-4 w-4" />
                   Criar primeira solicitação
                 </Button>
-              </div>
-            ) : (
-              <TabelaSolicitacoes
-                purchases={filtered}
-                rubricas={rubricas}
-                isCoordenador={isCoordenador}
-                currentUser={currentUser}
-                podeAprovarSolicitacoes={podeAprovarSolicitacoes}
-                hasGestaoCompras={hasGestaoCompras}
-                onEdit={(purchase) => {
-                  setEditingPurchase(purchase);
-                  setShowForm(true);
-                }}
-                onApprove={handleApprovePurchase}
-                onReturn={handleReturnPurchase}
-                onGoTeamPayments={() => setTab('pagamentos')}
-                onDelete={async (purchaseId) => {
-                  try {
-                    await base44.entities.PurchaseRequest.delete(purchaseId);
-                    await invalidateComprasQueries();
-                    smartToast.success('Solicitação deletada.');
-                  } catch (error) {
-                    console.error('Erro ao deletar solicitação:', error);
-                    smartToast.error('Erro ao deletar', error.message);
-                  }
-                }}
-              />
-            )}
-          </div>
-        )}
+              </div> :
 
-        {tab === 'rubricas' && isCoordenador && (
-          <div className="space-y-6">
-            {selectedRubrica ? (
-              <div>
+          <TabelaSolicitacoes
+            purchases={filtered}
+            rubricas={rubricas}
+            isCoordenador={isCoordenador}
+            currentUser={currentUser}
+            podeAprovarSolicitacoes={podeAprovarSolicitacoes}
+            hasGestaoCompras={hasGestaoCompras}
+            onEdit={(purchase) => {
+              setEditingPurchase(purchase);
+              setShowForm(true);
+            }}
+            onApprove={handleApprovePurchase}
+            onReturn={handleReturnPurchase}
+            onGoTeamPayments={() => setTab('pagamentos')}
+            onDelete={async (purchaseId) => {
+              try {
+                await base44.entities.PurchaseRequest.delete(purchaseId);
+                await invalidateComprasQueries();
+                smartToast.success('Solicitação deletada.');
+              } catch (error) {
+                console.error('Erro ao deletar solicitação:', error);
+                smartToast.error('Erro ao deletar', error.message);
+              }
+            }} />
+
+          }
+          </div>
+        }
+
+        {tab === 'rubricas' && isCoordenador &&
+        <div className="space-y-6">
+            {selectedRubrica ?
+          <div>
                 <button
-                  onClick={() => setSelectedRubrica(null)}
-                  className="mb-4 text-sm font-medium text-black hover:text-gray-600"
-                >
+              onClick={() => setSelectedRubrica(null)}
+              className="mb-4 text-sm font-medium text-black hover:text-gray-600">
+              
                   ← Voltar
                 </button>
 
                 <RubricaDetail
-                  rubrica={selectedRubrica}
-                  onClose={async () => {
-                    setSelectedRubrica(null);
-                    await refreshFinanceiroCompleto();
-                  }}
-                />
-              </div>
-            ) : (
-              <RubricasGrid
-                rubricas={rubricas}
-                onSelectRubrica={setSelectedRubrica}
-                onRefresh={refreshFinanceiroCompleto}
-                isCoordenador={isCoordenador}
-                totalPrevisto={TOTAL_PREVISTO}
-              />
-            )}
+              rubrica={selectedRubrica}
+              onClose={async () => {
+                setSelectedRubrica(null);
+                await refreshFinanceiroCompleto();
+              }} />
+            
+              </div> :
 
-            {loadingRubricas && (
-              <div className="text-sm text-gray-400">
+          <RubricasGrid
+            rubricas={rubricas}
+            onSelectRubrica={setSelectedRubrica}
+            onRefresh={refreshFinanceiroCompleto}
+            isCoordenador={isCoordenador}
+            totalPrevisto={TOTAL_PREVISTO} />
+
+          }
+
+            {loadingRubricas &&
+          <div className="text-sm text-gray-400">
                 Atualizando dados financeiros...
               </div>
-            )}
+          }
           </div>
-        )}
+        }
 
-        {tab === 'documentos' && (
-          <div className="max-w-7xl space-y-6">
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
+        {tab === 'documentos' &&
+        <div className="max-w-7xl space-y-6">
+            <div className="bg-white border border-gray-200 rounded-lg p-4 hidden">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h3 className="font-semibold text-black">
                   Documentos (Entrada Única)
@@ -1201,20 +1201,20 @@ function ComprasInner() {
                 </span>
               </div>
 
-              {anexosCompras.length === 0 ? (
-                <p className="text-gray-500 text-sm">Nenhum documento vinculado</p>
-              ) : (
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {anexosCompras.map((doc) => {
-                    const tipoLabel = getDocTipoLabel(doc);
-                    const temVinculo =
-                      !!doc.nf_pdf_attachment_id || !!doc.nf_xml_attachment_id;
+              {anexosCompras.length === 0 ?
+            <p className="text-gray-500 text-sm">Nenhum documento vinculado</p> :
 
-                    return (
-                      <div
-                        key={doc.id}
-                        className="flex items-center justify-between border p-3 rounded hover:bg-gray-50 transition"
-                      >
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {anexosCompras.map((doc) => {
+                const tipoLabel = getDocTipoLabel(doc);
+                const temVinculo =
+                !!doc.nf_pdf_attachment_id || !!doc.nf_xml_attachment_id;
+
+                return (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between border p-3 rounded hover:bg-gray-50 transition">
+                    
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-medium text-gray-900 truncate">
@@ -1225,104 +1225,104 @@ function ComprasInner() {
                               {tipoLabel}
                             </span>
 
-                            {temVinculo && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+                            {temVinculo &&
+                        <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
                                 <LinkIcon className="h-3 w-3" />
                                 Vinculado
                               </span>
-                            )}
+                        }
 
-                            {doc.nf_revisado && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                            {doc.nf_revisado &&
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
                                 <FileCheck2 className="h-3 w-3" />
                                 Revisado
                               </span>
-                            )}
+                        }
                           </div>
 
                           <p className="text-xs text-gray-500">
                             {doc.nf_emitente_nome || doc.description || 'Documento'}{' '}
-                            {doc.nf_valor_total
-                              ? `• ${fmtBRL(Number(doc.nf_valor_total))}`
-                              : ''}
+                            {doc.nf_valor_total ?
+                        `• ${fmtBRL(Number(doc.nf_valor_total))}` :
+                        ''}
                             {doc.nf_numero ? ` • NF ${doc.nf_numero}` : ''}
                           </p>
 
-                          {(doc.nf_pdf_attachment_id || doc.nf_xml_attachment_id) && (
-                            <p className="text-[11px] text-gray-400">
-                              {doc.nf_pdf_attachment_id
-                                ? `PDF: ${doc.nf_pdf_attachment_id}`
-                                : ''}
-                              {doc.nf_pdf_attachment_id && doc.nf_xml_attachment_id
-                                ? ' • '
-                                : ''}
-                              {doc.nf_xml_attachment_id
-                                ? `XML: ${doc.nf_xml_attachment_id}`
-                                : ''}
+                          {(doc.nf_pdf_attachment_id || doc.nf_xml_attachment_id) &&
+                      <p className="text-[11px] text-gray-400">
+                              {doc.nf_pdf_attachment_id ?
+                        `PDF: ${doc.nf_pdf_attachment_id}` :
+                        ''}
+                              {doc.nf_pdf_attachment_id && doc.nf_xml_attachment_id ?
+                        ' • ' :
+                        ''}
+                              {doc.nf_xml_attachment_id ?
+                        `XML: ${doc.nf_xml_attachment_id}` :
+                        ''}
                             </p>
-                          )}
+                      }
                         </div>
 
                         <a
-                          href={doc.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ml-2 px-3 py-1 bg-black text-white text-xs rounded hover:bg-gray-800 flex-shrink-0"
-                        >
+                      href={doc.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-2 px-3 py-1 bg-black text-white text-xs rounded hover:bg-gray-800 flex-shrink-0">
+                      
                           Ver
                         </a>
-                      </div>
-                    );
-                  })}
+                      </div>);
+
+              })}
                 </div>
-              )}
+            }
             </div>
 
             <GestaoDocumental />
           </div>
-        )}
+        }
 
         {tab === 'equipe' && <TeamManager budgetLines={budgetLines} />}
 
         {tab === 'pagamentos' && (
-          isCoordenador ? (
-            <TeamPaymentReview members={[]} budgetLines={budgetLines} />
-          ) : (
-            <TeamPaymentSubmit userEmail={currentUser?.email} />
-          )
-        )}
+        isCoordenador ?
+        <TeamPaymentReview members={[]} budgetLines={budgetLines} /> :
+
+        <TeamPaymentSubmit userEmail={currentUser?.email} />)
+
+        }
       </div>
 
-      {showForm && (
-        <PurchaseFormDialog
-          currentUser={currentUser}
-          prefill={editingPurchase}
-          onClose={() => {
-            setShowForm(false);
-            setEditingPurchase(null);
-          }}
-          onSuccess={async () => {
-            setShowForm(false);
-            setEditingPurchase(null);
-            await refreshFinanceiroCompleto();
-          }}
-        />
-      )}
+      {showForm &&
+      <PurchaseFormDialog
+        currentUser={currentUser}
+        prefill={editingPurchase}
+        onClose={() => {
+          setShowForm(false);
+          setEditingPurchase(null);
+        }}
+        onSuccess={async () => {
+          setShowForm(false);
+          setEditingPurchase(null);
+          await refreshFinanceiroCompleto();
+        }} />
 
-      {showReportGen && (
-        <ContractActivityReportGenerator
-          isOpen={showReportGen}
-          onClose={() => setShowReportGen(false)}
-        />
-      )}
-    </div>
-  );
+      }
+
+      {showReportGen &&
+      <ContractActivityReportGenerator
+        isOpen={showReportGen}
+        onClose={() => setShowReportGen(false)} />
+
+      }
+    </div>);
+
 }
 
 export default function Compras() {
   return (
     <RequireAuth>
       <ComprasInner />
-    </RequireAuth>
-  );
+    </RequireAuth>);
+
 }
