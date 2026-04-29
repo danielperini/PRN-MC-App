@@ -17,30 +17,21 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
-/* ================= HELPERS ================= */
+const TIPOS_GASTO = ['Serviço', 'Produto', 'Material', 'Equipamento', 'Equipe', 'Outro'];
 
 function parseValorBR(value) {
-  const original = String(value || '').trim();
-
-  if (/^\d{5,}$/.test(original)) return Number(original) / 100;
-
-  const clean = original
-    .replace('R$', '')
-    .replace(/\s/g, '')
-    .replace(/\./g, '')
-    .replace(',', '.');
-
-  return Number(clean) || 0;
+  return Number(
+    String(value || '')
+      .replace('R$', '')
+      .replace(/\s/g, '')
+      .replace(/\./g, '')
+      .replace(',', '.')
+  ) || 0;
 }
 
-function isPagamentoEquipe(form, intake) {
-  return (
-    String(form?.tipo_gasto || '').toLowerCase() === 'equipe' ||
-    String(form?.tipo_pagamento || '').toLowerCase() === 'equipe'
-  );
+function isPagamentoEquipe(form) {
+  return String(form?.tipo_gasto || '').toLowerCase() === 'equipe';
 }
-
-/* ================= COMPONENT ================= */
 
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const { toast } = useToast();
@@ -49,21 +40,15 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [rubricas, setRubricas] = useState([]);
   const [form, setForm] = useState(intake || {});
 
-  /* ================= LOAD ================= */
-
   useEffect(() => {
     async function load() {
       try {
         const list = await base44.entities.Rubrica.list('', 2000);
         setRubricas(list || []);
-      } catch (e) {
-        console.error(e);
-      }
+      } catch {}
     }
     load();
   }, []);
-
-  /* ================= VALIDAR ================= */
 
   function validarEnvio() {
     const erros = [];
@@ -81,12 +66,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     return rubricas.find((r) => r.id === id)?.rubrica || '';
   }
 
-  /* ================= FIX PRINCIPAL ================= */
-
-  async function handleEnviar(event) {
-    event?.preventDefault?.();
-    event?.stopPropagation?.();
-
+  async function handleEnviar(e) {
+    e?.preventDefault?.();
     if (sending) return;
 
     const erros = validarEnvio();
@@ -104,7 +85,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
     try {
       const valor = parseValorBR(form.nf_valor_total);
-      const destinoEquipe = isPagamentoEquipe(form, intake);
+      const equipe = isPagamentoEquipe(form);
 
       const payload = {
         intakeId: intake.id,
@@ -113,14 +94,13 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           nf_valor_total: valor,
           valor,
           valor_total: valor,
-          tipo_pagamento: destinoEquipe ? 'equipe' : 'compra',
+          tipo_pagamento: equipe ? 'equipe' : 'compra',
           rubrica_nome: getRubricaNome(form.rubrica_id),
         },
       };
 
-      toast({ title: 'Enviando...', duration: 2000 });
+      toast({ title: 'Enviando...' });
 
-      // 🔴 FIX: TIMEOUT + GARANTIA DE RESPOSTA
       const response = await Promise.race([
         base44.functions.invoke('enviarNotaParaAprovacao', payload),
         new Promise((_, reject) =>
@@ -136,7 +116,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
       toast({
         title: '✅ Enviado com sucesso',
-        description: destinoEquipe
+        description: equipe
           ? 'Pagamento enviado para equipe'
           : 'Solicitação enviada',
       });
@@ -145,26 +125,24 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       onClose?.();
 
     } catch (err) {
-      console.error('ERRO ENVIO:', err);
-
       toast({
         title: 'Erro ao enviar',
         description: err.message,
         variant: 'destructive',
       });
-
     } finally {
-      setSending(false); // 🔴 garante destravar botão
+      setSending(false);
     }
   }
-
-  /* ================= UI ORIGINAL ================= */
 
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Conferência de Nota Fiscal</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-blue-600" />
+            Conferência de Nota Fiscal
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -194,6 +172,20 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           />
 
           <Select
+            value={form.tipo_gasto || 'Serviço'}
+            onValueChange={(v) => setForm({ ...form, tipo_gasto: v })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TIPOS_GASTO.map((t) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
             value={form.rubrica_id || ''}
             onValueChange={(v) => setForm({ ...form, rubrica_id: v })}
           >
@@ -209,7 +201,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             </SelectContent>
           </Select>
 
-          <div className="flex justify-end gap-2 pt-4 border-t">
+          <div className="flex justify-end gap-2 border-t pt-4">
             <button onClick={onClose}>Cancelar</button>
 
             <button
