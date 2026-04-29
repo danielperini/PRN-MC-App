@@ -35,17 +35,14 @@ export default function PurchaseFormDialog({ open, onClose, prefill }) {
 
   useEffect(() => {
     const fetchRubricas = async () => {
-      const data = await base44.entity('Rubrica').list({ limit: 3000 })
+      const data = await base44.entities.Rubrica.list()
       setRubricas(data || [])
     }
     fetchRubricas()
   }, [])
 
   const handleSubmit = async () => {
-    await base44.entity('PurchaseRequest').update({
-      id: prefill.id,
-      ...form
-    })
+    await base44.entities.PurchaseRequest.update(prefill.id, form)
     onClose()
   }
 
