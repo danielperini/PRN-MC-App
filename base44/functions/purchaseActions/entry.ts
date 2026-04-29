@@ -1,102 +1,125 @@
-import { base44 } from 'base44'
+import { base44 } from 'base44';
 
-function toNumber(v: any) {
-  const n = Number(String(v || '').replace(',', '.'))
-  return isNaN(n) ? 0 : n
+function toNumber(value: any): number {
+  const raw = String(value ?? '')
+    .replace(/\s/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
 }
 
-function getValue(p: any) {
+function getPurchaseValue(purchase: any): number {
   return toNumber(
-    p?.valor_solicitado ||
-    p?.valor ||
-    p?.valor_total ||
-    p?.valor_aprovado ||
-    p?.valor_pago
-  )
+    purchase?.rubrica_debitada_valor ||
+      purchase?.valor_pago ||
+      purchase?.valor_aprovado_admin ||
+      purchase?.valor_aprovado ||
+      purchase?.valor_final ||
+      purchase?.valor_solicitado ||
+      purchase?.valor_total ||
+      purchase?.valor ||
+      0
+  );
 }
 
-async function getRubrica(id: string) {
-  if (!id) throw new Error('Rubrica obrigatória')
+async function getRubrica(rubricaId: string) {
+  if (!rubricaId) {
+    throw new Error('Rubrica obrigatória.');
+  }
 
-  const r = await base44.entity('Rubrica').get(id)
+  const rubrica = await base44.entity('Rubrica').get(rubricaId);
 
-  if (!r) throw new Error('Rubrica inválida')
+  if (!rubrica) {
+    throw new Error('Rubrica inválida.');
+  }
 
-  return r
+  return rubrica;
 }
 
 async function debitarRubrica(rubrica: any, valor: number) {
-  const utilizado = toNumber(rubrica.valor_utilizado)
-  const total = toNumber(rubrica.valor_rubrica)
-  const comprometido = toNumber(rubrica.saldo_comprometido)
+  const total = toNumber(rubrica.valor_total || rubrica.valor_rubrica);
+  const utilizadoAtual = toNumber(rubrica.valor_utilizado);
+  const comprometido = toNumber(rubrica.saldo_comprometido);
 
-  const novoUtilizado = utilizado + valor
-  const saldo = total - novoUtilizado - comprometido
+  const novoUtilizado = utilizadoAtual + valor;
+  const novoSaldo = total - novoUtilizado - comprometido;
+  const percentual = total > 0 ? (novoUtilizado / total) * 100 : 0;
 
   await base44.entity('Rubrica').update({
     id: rubrica.id,
     valor_utilizado: novoUtilizado,
-    saldo_real: saldo
-  })
+    saldo_real: novoSaldo,
+    saldo: novoSaldo,
+    percentual_utilizado: percentual
+  });
 }
 
 async function estornarRubrica(rubrica: any, valor: number) {
-  const utilizado = toNumber(rubrica.valor_utilizado)
-  const total = toNumber(rubrica.valor_rubrica)
-  const comprometido = toNumber(rubrica.saldo_comprometido)
+  const total = toNumber(rubrica.valor_total || rubrica.valor_rubrica);
+  const utilizadoAtual = toNumber(rubrica.valor_utilizado);
+  const comprometido = toNumber(rubrica.saldo_comprometido);
 
-  const novoUtilizado = Math.max(0, utilizado - valor)
-  const saldo = total - novoUtilizado - comprometido
+  const novoUtilizado = Math.max(0, utilizadoAtual - valor);
+  const novoSaldo = total - novoUtilizado - comprometido;
+  const percentual = total > 0 ? (novoUtilizado / total) * 100 : 0;
 
   await base44.entity('Rubrica').update({
     id: rubrica.id,
     valor_utilizado: novoUtilizado,
-    saldo_real: saldo
-  })
+    saldo_real: novoSaldo,
+    saldo: novoSaldo,
+    percentual_utilizado: percentual
+  });
 }
 
-async function syncDocumento(purchase: any, status = 'APROVADO') {
-  const docs = await base44.entity('Attachment').filter({
-    purchase_id: purchase.id
-  })
+async function syncAttachments(purchase: any, status: string) {
+  try {
+    const docs = await base44.entity('Attachment').filter({
+      purchase_id: purchase.id
+    });
 
-  for (const d of docs || []) {
-    await base44.entity('Attachment').update({
-      id: d.id,
-      status,
-      nf_status: status,
-      ocultar_entrada_unica: true,
-      inconsistencias: 0
-    })
+    for (const doc of docs || []) {
+      await base44.entity('Attachment').update({
+        id: doc.id,
+        status,
+        nf_status: status,
+        ocultar_entrada_unica: true,
+        inconsistencias: 0
+      });
+    }
+  } catch (error) {
+    console.error('Erro ao sincronizar anexos:', error);
   }
 }
 
 export default async function handler(req: any, res: any) {
   try {
-    const { action, purchaseId, comentario } = req.body
+    const { action, purchaseId, comentario } = req.body || {};
 
     if (!purchaseId) {
-      throw new Error('purchaseId obrigatório')
+      throw new Error('purchaseId obrigatório.');
     }
 
-    const purchase = await base44.entity('PurchaseRequest').get(purchaseId)
+    const purchase = await base44.entity('PurchaseRequest').get(purchaseId);
 
     if (!purchase) {
-      throw new Error('Compra não encontrada')
+      throw new Error('Solicitação não encontrada.');
     }
 
-    const valor = getValue(purchase)
+    const valor = getPurchaseValue(purchase);
 
     if (action === 'aprovar') {
-      const rubrica = await getRubrica(purchase.rubrica_id)
+      const rubrica = await getRubrica(purchase.rubrica_id);
 
-      const jaDebitada =
+      const jaDebitado =
         !!purchase.rubrica_debitada_em ||
         !!purchase.financeiro_lancado_em ||
-        purchase.financeiro_comprometido === true
+        purchase.financeiro_comprometido === true;
 
-      if (!jaDebitada) {
-        await debitarRubrica(rubrica, valor)
+      if (!jaDebitado) {
+        await debitarRubrica(rubrica, valor);
       }
 
       const updated = await base44.entity('PurchaseRequest').update({
@@ -106,71 +129,56 @@ export default async function handler(req: any, res: any) {
         financeiro_lancado_em: purchase.financeiro_lancado_em || new Date().toISOString(),
         rubrica_debitada_em: purchase.rubrica_debitada_em || new Date().toISOString(),
         rubrica_debitada_valor: purchase.rubrica_debitada_valor || valor
-      })
+      });
 
-      await syncDocumento(updated, 'APROVADO')
-
-      return res.json({
-        success: true,
-        purchase: updated
-      })
-    }
-
-    if (action === 'pagar') {
-      const updated = await base44.entity('PurchaseRequest').update({
-        id: purchase.id,
-        status: 'PAGO',
-        pago_em: purchase.pago_em || new Date().toISOString()
-      })
-
-      await syncDocumento(updated, 'PAGO')
+      await syncAttachments(updated, 'APROVADO');
 
       return res.json({
         success: true,
         purchase: updated
-      })
+      });
     }
 
     if (action === 'rejeitar' || action === 'devolver') {
       const deveEstornar =
         !!purchase.rubrica_debitada_em ||
         !!purchase.financeiro_lancado_em ||
-        purchase.financeiro_comprometido === true
+        purchase.financeiro_comprometido === true;
 
       if (deveEstornar && purchase.rubrica_id) {
-        const rubrica = await getRubrica(purchase.rubrica_id)
-        const valorEstorno = toNumber(purchase.rubrica_debitada_valor) || valor
-        await estornarRubrica(rubrica, valorEstorno)
+        const rubrica = await getRubrica(purchase.rubrica_id);
+        const valorEstorno = toNumber(purchase.rubrica_debitada_valor) || valor;
+        await estornarRubrica(rubrica, valorEstorno);
       }
 
       const updated = await base44.entity('PurchaseRequest').update({
         id: purchase.id,
         status: 'DEVOLVIDO',
-        comentario_devolucao: comentario || 'Devolvido pela coordenação.',
+        comentario_devolucao: comentario || 'Devolvido pela coordenação para ajustes.',
         financeiro_comprometido: false,
         financeiro_lancado_em: null,
         rubrica_debitada_em: null,
         rubrica_debitada_valor: 0
-      })
+      });
 
-      await syncDocumento(updated, 'DEVOLVIDO')
+      await syncAttachments(updated, 'DEVOLVIDO');
 
       return res.json({
         success: true,
         purchase: updated
-      })
+      });
     }
 
-    if (action === 'deletar' || action === 'cancelar') {
+    if (action === 'cancelar' || action === 'deletar') {
       const deveEstornar =
         !!purchase.rubrica_debitada_em ||
         !!purchase.financeiro_lancado_em ||
-        purchase.financeiro_comprometido === true
+        purchase.financeiro_comprometido === true;
 
       if (deveEstornar && purchase.rubrica_id) {
-        const rubrica = await getRubrica(purchase.rubrica_id)
-        const valorEstorno = toNumber(purchase.rubrica_debitada_valor) || valor
-        await estornarRubrica(rubrica, valorEstorno)
+        const rubrica = await getRubrica(purchase.rubrica_id);
+        const valorEstorno = toNumber(purchase.rubrica_debitada_valor) || valor;
+        await estornarRubrica(rubrica, valorEstorno);
       }
 
       const updated = await base44.entity('PurchaseRequest').update({
@@ -180,24 +188,26 @@ export default async function handler(req: any, res: any) {
         financeiro_lancado_em: null,
         rubrica_debitada_em: null,
         rubrica_debitada_valor: 0
-      })
+      });
 
-      await syncDocumento(updated, 'CANCELADO')
+      await syncAttachments(updated, 'CANCELADO');
 
       return res.json({
         success: true,
         purchase: updated
-      })
+      });
     }
 
     return res.status(400).json({
       success: false,
-      error: 'Ação inválida'
-    })
-  } catch (e: any) {
+      error: 'Ação inválida.'
+    });
+  } catch (error: any) {
+    console.error('purchaseActions error:', error);
+
     return res.status(400).json({
       success: false,
-      error: e.message
-    })
+      error: error?.message || 'Erro ao processar ação.'
+    });
   }
 }
