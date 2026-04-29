@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,12 +14,22 @@ import {
 import { Loader2, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
-const CENTROS = ['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Publicações', 'Geral'];
+const CENTROS = [
+  'MUMO',
+  'MIS',
+  'MHAB',
+  'Noturno nos Museus 2026',
+  'Publicações',
+  'Geral',
+  'Atuação Geral',
+];
 
 const EMPTY = {
   descricao_item: '',
   centro_custo: '',
   rubrica_id: '',
+  rubrica_nome: '',
+  budgetline_id: '',
   valor_solicitado: '',
   fornecedor_nome: '',
   fornecedor_cnpj: '',
@@ -28,12 +38,30 @@ const EMPTY = {
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
-  const n = Number(value);
+
+  if (typeof value === 'number') return value;
+
+  const clean = String(value)
+    .replace('R$', '')
+    .replace(/\s/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .trim();
+
+  const n = Number(clean);
   return Number.isFinite(n) ? n : 0;
 }
 
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
 function normalizeCentroCusto(value) {
-  const raw = String(value || '').toLowerCase();
+  const raw = normalizeText(value);
 
   if (!raw) return '';
   if (raw.includes('mis')) return 'MIS';
@@ -41,7 +69,7 @@ function normalizeCentroCusto(value) {
   if (raw.includes('mumo')) return 'MUMO';
   if (raw.includes('noturno')) return 'NOTURNO NOS MUSEUS 2026';
   if (raw.includes('publica')) return 'PUBLICAÇÕES';
-  if (raw.includes('geral')) return 'GLOBAL';
+  if (raw.includes('geral') || raw.includes('atuacao')) return 'GLOBAL';
 
   return String(value || '').toUpperCase();
 }
@@ -53,6 +81,7 @@ function sameCentroOrGlobal(entityCentro, selectedCentro) {
   if (!selected) return true;
   if (!entity) return true;
   if (entity === 'GLOBAL') return true;
+  if (selected === 'GLOBAL') return true;
 
   return entity === selected;
 }
@@ -66,27 +95,136 @@ function getRubricaCentroCusto(rubrica) {
   );
 }
 
+function getRubricaNome(rubrica) {
+  return rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '';
+}
+
+function normalizeFormFromPrefill(prefill) {
+  if (!prefill) return EMPTY;
+
+  return {
+    ...EMPTY,
+    ...prefill,
+
+    descricao_item:
+      prefill.descricao_item ||
+      prefill.descricao_servico ||
+      prefill.descricao ||
+      prefill.observacoes ||
+      '',
+
+    fornecedor_nome:
+      prefill.fornecedor_nome ||
+      prefill.nf_emitente_nome ||
+      prefill.emitente_nome ||
+      prefill.razao_social ||
+      '',
+
+    fornecedor_cnpj:
+      prefill.fornecedor_cnpj ||
+      prefill.nf_emitente_cpf_cnpj ||
+      prefill.cnpj ||
+      prefill.cpf_cnpj ||
+      '',
+
+    valor_solicitado:
+      prefill.valor_solicitado ??
+      prefill.valor_total ??
+      prefill.valor ??
+      prefill.nf_valor_total ??
+      '',
+
+    centro_custo:
+      prefill.centro_custo ||
+      prefill.museu ||
+      prefill.unidade ||
+      'Geral',
+
+    rubrica_id:
+      prefill.rubrica_id ||
+      prefill.rubricaId ||
+      '',
+
+    rubrica_nome:
+      prefill.rubrica_nome ||
+      prefill.rubrica ||
+      prefill.rubrica_descricao ||
+      '',
+
+    budgetline_id:
+      prefill.budgetline_id ||
+      prefill.budgetLineId ||
+      prefill.budget_line_id ||
+      '',
+
+    observacoes:
+      prefill.observacoes ||
+      prefill.comentarios ||
+      '',
+  };
+}
+
 export default function PurchaseFormDialog({
   currentUser,
   onClose,
   onSuccess,
   prefill,
 }) {
-
   const { data: rubricas = [] } = useQuery({
     queryKey: ['rubricas'],
     queryFn: () => base44.entities.Rubrica.list('-created_date', 999),
   });
 
-  const [form, setForm] = useState(() =>
-    prefill ? { ...EMPTY, ...prefill } : EMPTY
-  );
+  const { data: budgetLines = [] } = useQuery({
+    queryKey: ['budget-lines-purchase-form'],
+    queryFn: () => base44.entities.BudgetLine.list('', 2000),
+  });
 
+  const [form, setForm] = useState(() => normalizeFormFromPrefill(prefill));
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setForm(normalizeFormFromPrefill(prefill));
+  }, [prefill]);
 
   const rubricasAtivas = useMemo(() => {
     return (rubricas || []).filter((r) => r?.ativo !== false);
   }, [rubricas]);
+
+  const resolvedRubrica = useMemo(() => {
+    if (!form.rubrica_id && !form.rubrica_nome) return null;
+
+    const byId = rubricasAtivas.find((r) => r.id === form.rubrica_id);
+    if (byId) return byId;
+
+    const nomeAtual = normalizeText(form.rubrica_nome);
+
+    if (!nomeAtual) return null;
+
+    return rubricasAtivas.find((r) => {
+      const nomeRubrica = normalizeText(getRubricaNome(r));
+
+      return (
+        nomeRubrica === nomeAtual ||
+        nomeRubrica.includes(nomeAtual) ||
+        nomeAtual.includes(nomeRubrica)
+      );
+    }) || null;
+  }, [rubricasAtivas, form.rubrica_id, form.rubrica_nome]);
+
+  useEffect(() => {
+    if (!resolvedRubrica) return;
+
+    setForm((prev) => {
+      if (prev.rubrica_id === resolvedRubrica.id && prev.rubrica_nome) return prev;
+
+      return {
+        ...prev,
+        rubrica_id: resolvedRubrica.id,
+        rubrica_nome: getRubricaNome(resolvedRubrica),
+      };
+    });
+  }, [resolvedRubrica]);
 
   const filteredRubricas = useMemo(() => {
     return rubricasAtivas.filter((r) =>
@@ -95,13 +233,76 @@ export default function PurchaseFormDialog({
   }, [rubricasAtivas, form.centro_custo]);
 
   const selectedRubrica = useMemo(() => {
-    return rubricasAtivas.find((r) => r.id === form.rubrica_id) || null;
-  }, [rubricasAtivas, form.rubrica_id]);
+    return resolvedRubrica || rubricasAtivas.find((r) => r.id === form.rubrica_id) || null;
+  }, [resolvedRubrica, rubricasAtivas, form.rubrica_id]);
+
+  const resolvedBudgetLineId = useMemo(() => {
+    if (form.budgetline_id) return form.budgetline_id;
+
+    const rubricaId = selectedRubrica?.id || form.rubrica_id;
+    const rubricaNome = normalizeText(form.rubrica_nome || getRubricaNome(selectedRubrica));
+
+    const byRubricaId = (budgetLines || []).find((b) =>
+      b?.rubrica_id === rubricaId ||
+      b?.rubricaId === rubricaId ||
+      b?.rubrica_ref_id === rubricaId ||
+      b?.id === rubricaId
+    );
+
+    if (byRubricaId?.id) return byRubricaId.id;
+
+    if (rubricaNome) {
+      const byName = (budgetLines || []).find((b) => {
+        const nomes = [
+          b?.rubrica_nome,
+          b?.rubrica,
+          b?.nome,
+          b?.descricao,
+          b?.item,
+          b?.titulo,
+        ].map(normalizeText);
+
+        return nomes.some((nome) =>
+          nome &&
+          (nome === rubricaNome ||
+            nome.includes(rubricaNome) ||
+            rubricaNome.includes(nome))
+        );
+      });
+
+      if (byName?.id) return byName.id;
+    }
+
+    const byCentro = (budgetLines || []).find((b) =>
+      sameCentroOrGlobal(b?.centro_custo, form.centro_custo)
+    );
+
+    if (byCentro?.id) return byCentro.id;
+
+    return '';
+  }, [
+    budgetLines,
+    form.budgetline_id,
+    form.rubrica_id,
+    form.rubrica_nome,
+    form.centro_custo,
+    selectedRubrica,
+  ]);
+
+  useEffect(() => {
+    if (!resolvedBudgetLineId) return;
+
+    setForm((prev) => {
+      if (prev.budgetline_id === resolvedBudgetLineId) return prev;
+      return { ...prev, budgetline_id: resolvedBudgetLineId };
+    });
+  }, [resolvedBudgetLineId]);
 
   const validateFinanceiro = () => {
     if (!form.centro_custo) return 'Selecione o centro de custo.';
-    if (!form.rubrica_id) return 'Selecione a rubrica.';
+    if (!form.rubrica_id && !form.rubrica_nome) return 'Selecione a rubrica.';
     if (!selectedRubrica) return 'Rubrica inválida.';
+    if (!resolvedBudgetLineId) return 'Linha orçamentária obrigatória não localizada para esta rubrica.';
 
     const rubricaCentro = getRubricaCentroCusto(selectedRubrica);
 
@@ -114,6 +315,7 @@ export default function PurchaseFormDialog({
 
   const handleSave = async () => {
     const erro = validateFinanceiro();
+
     if (erro) {
       toastMessages.validationError(erro);
       return;
@@ -122,10 +324,17 @@ export default function PurchaseFormDialog({
     setSaving(true);
 
     try {
+      const rubricaNome = getRubricaNome(selectedRubrica) || form.rubrica_nome;
+
       const payload = {
         ...form,
+        rubrica_id: selectedRubrica?.id || form.rubrica_id,
+        rubrica_nome: rubricaNome,
+        budgetline_id: resolvedBudgetLineId,
         valor_solicitado: toNumber(form.valor_solicitado),
-        created_by: currentUser?.email,
+        valor_total: toNumber(form.valor_solicitado),
+        valor: toNumber(form.valor_solicitado),
+        created_by: form.created_by || currentUser?.email,
       };
 
       if (prefill?.id) {
@@ -136,7 +345,6 @@ export default function PurchaseFormDialog({
 
       toastMessages.createSuccess();
       onSuccess();
-
     } catch (e) {
       toastMessages.saveFailed(e?.message);
     }
@@ -177,7 +385,7 @@ export default function PurchaseFormDialog({
 
           <Select
             value={form.centro_custo}
-            onValueChange={(v) => setForm({ ...form, centro_custo: v, rubrica_id: '' })}
+            onValueChange={(v) => setForm({ ...form, centro_custo: v, rubrica_id: '', rubrica_nome: '', budgetline_id: '' })}
           >
             <SelectTrigger><SelectValue placeholder="Centro de custo" /></SelectTrigger>
             <SelectContent>
@@ -189,7 +397,16 @@ export default function PurchaseFormDialog({
 
           <Select
             value={form.rubrica_id || ''}
-            onValueChange={(v) => setForm({ ...form, rubrica_id: v })}
+            onValueChange={(v) => {
+              const rubrica = rubricasAtivas.find((r) => r.id === v);
+
+              setForm({
+                ...form,
+                rubrica_id: v,
+                rubrica_nome: getRubricaNome(rubrica),
+                budgetline_id: '',
+              });
+            }}
             disabled={!form.centro_custo}
           >
             <SelectTrigger><SelectValue placeholder="Rubrica" /></SelectTrigger>
