@@ -4,17 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
-import {
-  CheckCircle2,
-  Loader2,
-  Send,
-  Trash2,
-  RefreshCw,
-  Save,
-  Link as LinkIcon,
-  FileText,
-  Zap,
-} from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const TIPOS_GASTO = ['Serviço', 'Produto', 'Material', 'Equipamento', 'Equipe', 'Outro'];
@@ -56,7 +46,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
   function validarEnvio() {
     const erros = [];
-    if (!form.nf_numero) erros.push('NF');
+    if (!form.nf_numero) erros.push('Número NF');
     if (!parseValorBR(form.nf_valor_total)) erros.push('Valor');
     if (!form.nf_emitente_nome) erros.push('Emitente');
     if (!form.descricao_servico) erros.push('Descrição');
@@ -65,7 +55,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   }
 
   function getRubricaNome(id) {
-    return rubricas.find((r) => r.id === id)?.rubrica || '';
+    return rubricas.find(r => r.id === id)?.rubrica || '';
   }
 
   function toggleMuseu(m) {
@@ -77,11 +67,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     }
   }
 
-  /* ======================= FIX REAL ======================= */
+  /* ================= FIX DO BOTÃO ================= */
 
   async function handleEnviar(e) {
     e?.preventDefault?.();
-
     if (sending) return;
 
     const erros = validarEnvio();
@@ -149,7 +138,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     }
   }
 
-  /* ======================= UI ORIGINAL ======================= */
+  /* ================= UI ORIGINAL ================= */
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -164,59 +153,96 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             Documento analisado pela IA. Campos preenchidos automaticamente.
           </div>
 
-          <Input value={form.nome_padronizado_arquivo || ''} />
+          <div>
+            <label>Nome padronizado do arquivo</label>
+            <Input value={form.nome_padronizado_arquivo || ''} />
+          </div>
 
-          <Input value={form.nf_numero || ''} onChange={e => setForm({...form, nf_numero: e.target.value})} />
+          <div>
+            <label>Número da NF</label>
+            <Input value={form.nf_numero || ''} onChange={e => setForm({...form, nf_numero: e.target.value})}/>
+          </div>
 
-          <Input value={form.nf_valor_total || ''} onChange={e => setForm({...form, nf_valor_total: e.target.value})} />
+          <div>
+            <label>Valor Total da Nota (R$)</label>
+            <Input value={form.nf_valor_total || ''} onChange={e => setForm({...form, nf_valor_total: e.target.value})}/>
+          </div>
 
-          <Input value={form.nf_data_emissao || ''} />
+          <div>
+            <label>Data de Emissão</label>
+            <Input value={form.nf_data_emissao || ''}/>
+          </div>
 
-          <Input value={form.nf_competencia || ''} />
+          <div>
+            <label>Competência</label>
+            <Input value={form.nf_competencia || ''}/>
+          </div>
 
-          <Input value={form.nf_emitente_nome || ''} onChange={e => setForm({...form, nf_emitente_nome: e.target.value})} />
+          <div>
+            <label>Fornecedor / Emitente</label>
+            <Input value={form.nf_emitente_nome || ''} onChange={e => setForm({...form, nf_emitente_nome: e.target.value})}/>
+          </div>
 
-          <Input value={form.nf_emitente_cpf_cnpj || ''} />
+          <div>
+            <label>CNPJ / CPF do Emitente</label>
+            <Input value={form.nf_emitente_cpf_cnpj || ''}/>
+          </div>
 
-          <Input value={form.municipio || ''} />
+          <div>
+            <label>Município</label>
+            <Input value={form.municipio || ''}/>
+          </div>
 
-          <Textarea value={form.descricao_servico || ''} onChange={e => setForm({...form, descricao_servico: e.target.value})} />
+          <div>
+            <label>Descrição do Serviço / Item</label>
+            <Textarea value={form.descricao_servico || ''} onChange={e => setForm({...form, descricao_servico: e.target.value})}/>
+          </div>
 
-          <Select value={form.tipo_gasto || ''} onValueChange={v => setForm({...form, tipo_gasto: v})}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {TIPOS_GASTO.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div>
+            <label>Tipo de Gasto</label>
+            <Select value={form.tipo_gasto || ''} onValueChange={v => setForm({...form, tipo_gasto: v})}>
+              <SelectTrigger><SelectValue/></SelectTrigger>
+              <SelectContent>
+                {TIPOS_GASTO.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select value={form.rubrica_id || ''} onValueChange={v => setForm({...form, rubrica_id: v})}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {rubricas.map(r => <SelectItem key={r.id} value={r.id}>{r.rubrica}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div>
+            <label>Rubrica</label>
+            <Select value={form.rubrica_id || ''} onValueChange={v => setForm({...form, rubrica_id: v})}>
+              <SelectTrigger><SelectValue/></SelectTrigger>
+              <SelectContent>
+                {rubricas.map(r => <SelectItem key={r.id} value={r.id}>{r.rubrica}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <div className="border p-3 rounded space-y-2">
-            <div>Rateamento da Rubrica</div>
+          <div className="border p-3 rounded">
+            <label>Rateamento da Rubrica</label>
 
-            <label>
-              <input type="radio"
-                checked={form.tipo_rateio === 'geral'}
-                onChange={() => setForm({...form, tipo_rateio: 'geral'})}
-              />
-              Pago pela verba geral
-            </label>
+            <div>
+              <label>
+                <input type="radio"
+                  checked={form.tipo_rateio === 'geral'}
+                  onChange={() => setForm({...form, tipo_rateio: 'geral'})}
+                />
+                Pago pela verba geral
+              </label>
+            </div>
 
-            <label>
-              <input type="radio"
-                checked={form.tipo_rateio === 'dividido'}
-                onChange={() => setForm({...form, tipo_rateio: 'dividido'})}
-              />
-              Dividir entre museus
-            </label>
+            <div>
+              <label>
+                <input type="radio"
+                  checked={form.tipo_rateio === 'dividido'}
+                  onChange={() => setForm({...form, tipo_rateio: 'dividido'})}
+                />
+                Dividir entre museus
+              </label>
+            </div>
 
             {form.tipo_rateio === 'dividido' && (
-              <div className="flex gap-3">
+              <div className="flex gap-3 mt-2">
                 {MUSEUS.map(m => (
                   <label key={m}>
                     <input
@@ -238,11 +264,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           <div className="flex justify-end gap-2 border-t pt-4">
 
             <button onClick={onClose}>Cancelar</button>
-
             <button>Deletar</button>
-
             <button>Reprocessar</button>
-
             <button>Salvar Rascunho</button>
 
             <button
