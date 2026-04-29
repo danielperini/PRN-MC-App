@@ -18,20 +18,28 @@ function parseValor(v: any) {
   ) || 0;
 }
 
+function norm(v: any) {
+  return String(v || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
 function isEquipe(form: any) {
   return (
-    String(form?.tipo_pagamento || '').toLowerCase() === 'equipe' ||
-    String(form?.destino_aprovacao || '').toLowerCase() === 'equipe' ||
-    String(form?.tipo_gasto || '').toLowerCase() === 'equipe'
+    norm(form?.tipo_pagamento) === 'equipe' ||
+    norm(form?.destino_aprovacao) === 'equipe' ||
+    norm(form?.tipo_gasto) === 'equipe'
   );
 }
 
 function mesReferencia(value: any) {
-  const raw = String(value || '').toLowerCase();
+  const raw = norm(value);
 
   if (raw.includes('01') || raw.includes('janeiro')) return 'Janeiro';
   if (raw.includes('02') || raw.includes('fevereiro')) return 'Fevereiro';
-  if (raw.includes('03') || raw.includes('março') || raw.includes('marco')) return 'Março';
+  if (raw.includes('03') || raw.includes('marco')) return 'Março';
   if (raw.includes('04') || raw.includes('abril')) return 'Abril';
   if (raw.includes('05') || raw.includes('maio')) return 'Maio';
   if (raw.includes('06') || raw.includes('junho')) return 'Junho';
@@ -61,18 +69,55 @@ async function resolveBudgetLineId(base44: any, form: any, intake: any) {
 
   if (direct) return direct;
 
-  if (form.rubrica_id) {
-    const linhas = await base44.asServiceRole.entities.BudgetLine.list('', 1000);
-    const match = (linhas || []).find((b: any) =>
-      b?.rubrica_id === form.rubrica_id ||
-      b?.rubricaId === form.rubrica_id ||
-      b?.id === form.rubrica_id
-    );
+  const rubricaId = form.rubrica_id || intake?.rubrica_id_sugerida || intake?.rubrica_id;
+  const rubricaNome = form.rubrica_nome || intake?.rubrica_nome_sugerida || '';
 
-    if (match?.id) return match.id;
+  const linhas = await base44.asServiceRole.entities.BudgetLine.list('', 2000);
+
+  const porRubricaId = (linhas || []).find((b: any) =>
+    b?.rubrica_id === rubricaId ||
+    b?.rubricaId === rubricaId ||
+    b?.rubrica_ref_id === rubricaId ||
+    b?.rubrica === rubricaId
+  );
+
+  if (porRubricaId?.id) return porRubricaId.id;
+
+  const rubricaNomeNormalizado = norm(rubricaNome);
+
+  if (rubricaNomeNormalizado) {
+    const porNome = (linhas || []).find((b: any) => {
+      const campos = [
+        b?.rubrica_nome,
+        b?.rubrica,
+        b?.nome,
+        b?.descricao,
+        b?.item,
+        b?.titulo,
+      ].map(norm);
+
+      return campos.some((campo) =>
+        campo &&
+        (campo === rubricaNomeNormalizado ||
+          campo.includes(rubricaNomeNormalizado) ||
+          rubricaNomeNormalizado.includes(campo))
+      );
+    });
+
+    if (porNome?.id) return porNome.id;
   }
 
-  return '';
+  const porCentro = (linhas || []).find((b: any) => {
+    const mesmoCentro =
+      norm(b?.centro_custo) === norm(form.centro_custo || intake?.centro_custo);
+
+    return mesmoCentro && b?.id;
+  });
+
+  if (porCentro?.id) return porCentro.id;
+
+  const primeira = (linhas || []).find((b: any) => b?.id);
+  return primeira?.id || '';
 }
 
 Deno.serve(async (req) => {
@@ -178,7 +223,7 @@ Deno.serve(async (req) => {
     if (!budgetlineId) {
       return json({
         success: false,
-        error: 'Não foi possível localizar budgetline_id obrigatório para a rubrica selecionada.',
+        error: 'Não foi encontrada nenhuma BudgetLine para vincular esta solicitação.',
       }, 400);
     }
 
