@@ -17,13 +17,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
-/* ===================== CONFIG ===================== */
-
-const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
-const MUSEUS_RATEIO = ['MIS', 'MHAB', 'MUMO'];
-const TIPOS_GASTO = ['Serviço', 'Produto', 'Material', 'Equipamento', 'Equipe', 'Outro'];
-
-/* ===================== HELPERS ===================== */
+/* ================= HELPERS ================= */
 
 function parseValorBR(value) {
   const original = String(value || '').trim();
@@ -39,52 +33,42 @@ function parseValorBR(value) {
   return Number(clean) || 0;
 }
 
-function formatValorBR(value) {
-  const number = parseValorBR(value);
-  if (!number) return '';
-  return number.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+function isPagamentoEquipe(form, intake) {
+  return (
+    String(form?.tipo_gasto || '').toLowerCase() === 'equipe' ||
+    String(form?.tipo_pagamento || '').toLowerCase() === 'equipe'
+  );
 }
 
-function isPagamentoEquipe(form) {
-  return String(form?.tipo_gasto || '').toLowerCase() === 'equipe';
-}
-
-/* ===================== COMPONENT ===================== */
+/* ================= COMPONENT ================= */
 
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const { toast } = useToast();
 
   const [sending, setSending] = useState(false);
   const [rubricas, setRubricas] = useState([]);
+  const [form, setForm] = useState(intake || {});
 
-  const [form, setForm] = useState({
-    nf_numero: '',
-    nf_valor_total: '',
-    nf_emitente_nome: '',
-    descricao_servico: '',
-    tipo_gasto: 'Serviço',
-    rubrica_id: '',
-    centro_custo: 'Atuação Geral',
-  });
-
-  /* ===================== LOAD ===================== */
+  /* ================= LOAD ================= */
 
   useEffect(() => {
     async function load() {
       try {
         const list = await base44.entities.Rubrica.list('', 2000);
         setRubricas(list || []);
-      } catch {}
+      } catch (e) {
+        console.error(e);
+      }
     }
     load();
   }, []);
 
-  /* ===================== VALIDAR ===================== */
+  /* ================= VALIDAR ================= */
 
   function validarEnvio() {
     const erros = [];
 
-    if (!form.nf_numero) erros.push('NF');
+    if (!form.nf_numero) erros.push('Número NF');
     if (!parseValorBR(form.nf_valor_total)) erros.push('Valor');
     if (!form.nf_emitente_nome) erros.push('Emitente');
     if (!form.descricao_servico) erros.push('Descrição');
@@ -97,17 +81,19 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     return rubricas.find((r) => r.id === id)?.rubrica || '';
   }
 
-  /* ===================== ENVIAR ===================== */
+  /* ================= FIX PRINCIPAL ================= */
 
-  async function handleEnviar(e) {
-    e?.preventDefault?.();
+  async function handleEnviar(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+
     if (sending) return;
 
     const erros = validarEnvio();
 
     if (erros.length) {
       toast({
-        title: 'Campos obrigatórios',
+        title: 'Preencha campos obrigatórios',
         description: erros.join(', '),
         variant: 'destructive',
       });
@@ -118,45 +104,48 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
     try {
       const valor = parseValorBR(form.nf_valor_total);
-      const equipe = isPagamentoEquipe(form);
-
-      toast({ title: 'Enviando...' });
+      const destinoEquipe = isPagamentoEquipe(form, intake);
 
       const payload = {
         intakeId: intake.id,
         form: {
           ...form,
+          nf_valor_total: valor,
           valor,
-          tipo_pagamento: equipe ? 'equipe' : 'compra',
+          valor_total: valor,
+          tipo_pagamento: destinoEquipe ? 'equipe' : 'compra',
           rubrica_nome: getRubricaNome(form.rubrica_id),
         },
       };
 
-      const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout backend')), 12000)
-      );
+      toast({ title: 'Enviando...', duration: 2000 });
 
+      // 🔴 FIX: TIMEOUT + GARANTIA DE RESPOSTA
       const response = await Promise.race([
         base44.functions.invoke('enviarNotaParaAprovacao', payload),
-        timeout,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout ao enviar')), 12000)
+        ),
       ]);
 
       const result = response?.data || response;
 
       if (!result || result.success === false) {
-        throw new Error(result?.error || 'Erro');
+        throw new Error(result?.error || 'Erro ao enviar');
       }
 
       toast({
         title: '✅ Enviado com sucesso',
-        description: equipe ? 'Pagamento de equipe' : 'Solicitação criada',
+        description: destinoEquipe
+          ? 'Pagamento enviado para equipe'
+          : 'Solicitação enviada',
       });
 
       await onSaved?.();
       onClose?.();
 
     } catch (err) {
-      console.error(err);
+      console.error('ERRO ENVIO:', err);
 
       toast({
         title: 'Erro ao enviar',
@@ -165,61 +154,47 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       });
 
     } finally {
-      setSending(false);
+      setSending(false); // 🔴 garante destravar botão
     }
   }
 
-  /* ===================== UI ===================== */
+  /* ================= UI ORIGINAL ================= */
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Conferência NF</DialogTitle>
+          <DialogTitle>Conferência de Nota Fiscal</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
 
           <Input
             placeholder="Número NF"
-            value={form.nf_numero}
+            value={form.nf_numero || ''}
             onChange={(e) => setForm({ ...form, nf_numero: e.target.value })}
           />
 
           <Input
             placeholder="Valor"
-            value={form.nf_valor_total}
+            value={form.nf_valor_total || ''}
             onChange={(e) => setForm({ ...form, nf_valor_total: e.target.value })}
           />
 
           <Input
             placeholder="Emitente"
-            value={form.nf_emitente_nome}
+            value={form.nf_emitente_nome || ''}
             onChange={(e) => setForm({ ...form, nf_emitente_nome: e.target.value })}
           />
 
           <Textarea
             placeholder="Descrição"
-            value={form.descricao_servico}
+            value={form.descricao_servico || ''}
             onChange={(e) => setForm({ ...form, descricao_servico: e.target.value })}
           />
 
           <Select
-            value={form.tipo_gasto}
-            onValueChange={(v) => setForm({ ...form, tipo_gasto: v })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TIPOS_GASTO.map((t) => (
-                <SelectItem key={t} value={t}>{t}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={form.rubrica_id}
+            value={form.rubrica_id || ''}
             onValueChange={(v) => setForm({ ...form, rubrica_id: v })}
           >
             <SelectTrigger>
@@ -234,21 +209,17 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             </SelectContent>
           </Select>
 
-          <div className="flex justify-end gap-2">
-
-            <button onClick={onClose} className="border px-3 py-1">
-              Cancelar
-            </button>
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <button onClick={onClose}>Cancelar</button>
 
             <button
               onClick={handleEnviar}
               disabled={sending}
-              className="bg-black text-white px-3 py-1 flex items-center gap-2"
+              className="bg-black text-white px-4 py-2 flex items-center gap-2"
             >
               {sending && <Loader2 className="h-4 w-4 animate-spin" />}
               {sending ? 'Enviando...' : 'Enviar'}
             </button>
-
           </div>
 
         </div>
