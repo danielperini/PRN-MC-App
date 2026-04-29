@@ -1,251 +1,73 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { base44 } from '../../_shared/base44Client';
 
-function toNumber(value: any) {
-  if (typeof value === 'number') return value;
-
-  const raw = String(value || '').trim();
-
-  if (/^\d{5,}$/.test(raw)) return Number(raw) / 100;
-
-  const clean = raw
-    .replace('R$', '')
-    .replace(/\s/g, '')
-    .replace(/\./g, '')
-    .replace(',', '.');
-
-  return Number(clean) || 0;
-}
-
-function normalizeText(value: any) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-}
-
-function safeString(value: any) {
-  return String(value || '').trim();
-}
-
-function getRubricaNome(rubrica: any) {
-  return rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '';
-}
-
-function isEquipe(form: any, ia: any, intake: any, rubricaNome: string) {
-  const raw = [
-    form?.tipo_gasto,
-    form?.descricao_servico,
-    form?.rubrica_nome,
-    rubricaNome,
-    ia?.tipo_gasto,
-    ia?.categoria,
-    ia?.tipo_solicitacao,
-    ia?.classificacao,
-    ia?.descricao_servico,
-    intake?.tipo_gasto,
-    intake?.categoria,
-    intake?.tipo_solicitacao,
-  ]
-    .map(normalizeText)
-    .join(' ');
-
-  return (
-    raw.includes('equipe') ||
-    raw.includes('pagamento equipe') ||
-    raw.includes('pagamento da equipe') ||
-    raw.includes('profissional') ||
-    raw.includes('educador') ||
-    raw.includes('coordenação') ||
-    raw.includes('coordenacao')
-  );
-}
-
-function parseCompetencia(value: any) {
-  const raw = String(value || '').trim();
-
-  const meses = [
-    'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
-    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro',
-  ];
-
-  const mmYYYY = raw.match(/^(\d{1,2})\/(\d{4})$/);
-  if (mmYYYY) {
-    const mesIndex = Math.max(1, Math.min(12, Number(mmYYYY[1]))) - 1;
-    return { mes_referencia: meses[mesIndex], ano: Number(mmYYYY[2]) };
-  }
-
-  const yyyyMM = raw.match(/^(\d{4})-(\d{1,2})/);
-  if (yyyyMM) {
-    const mesIndex = Math.max(1, Math.min(12, Number(yyyyMM[2]))) - 1;
-    return { mes_referencia: meses[mesIndex], ano: Number(yyyyMM[1]) };
-  }
-
-  const now = new Date();
-  return { mes_referencia: meses[now.getMonth()], ano: now.getFullYear() };
-}
-
-async function findBestTeamMember(base44: any, form: any) {
+export default async function handler(req: any) {
   try {
-    const members = await base44.asServiceRole.entities.TeamMember.list('', 1000);
+    const { intakeId, form } = req.body;
 
-    const busca = normalizeText([
-      form?.nf_emitente_nome,
-      form?.nf_emitente_cpf_cnpj,
-      form?.descricao_servico,
-    ].join(' '));
-
-    let best: any = null;
-    let score = 0;
-
-    for (const member of members || []) {
-      let localScore = 0;
-
-      const nome = normalizeText(member?.user_name || member?.nome || member?.name);
-      const email = normalizeText(member?.user_email || member?.email || member?.email_pessoal);
-      const cpf = normalizeText(member?.cpf);
-      const cnpj = normalizeText(member?.cnpj);
-      const funcao = normalizeText(member?.funcao);
-
-      if (nome && busca.includes(nome)) localScore += 100;
-      if (cpf && busca.includes(cpf)) localScore += 80;
-      if (cnpj && busca.includes(cnpj)) localScore += 80;
-      if (email && busca.includes(email)) localScore += 50;
-      if (funcao && busca.includes(funcao)) localScore += 20;
-
-      for (const parte of nome.split(' ').filter((p: string) => p.length >= 3)) {
-        if (busca.includes(parte)) localScore += 5;
-      }
-
-      if (localScore > score) {
-        best = member;
-        score = localScore;
-      }
-    }
-
-    return score >= 30 ? best : null;
-  } catch {
-    return null;
-  }
-}
-
-Deno.serve(async (req) => {
-  try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-
-    if (!user) {
-      return Response.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await req.json();
-    const { intakeId, form = {} } = body || {};
+    console.log('📥 enviarNotaParaAprovacao - START', { intakeId, form });
 
     if (!intakeId) {
-      return Response.json({ success: false, error: 'intakeId obrigatório' }, { status: 400 });
+      return { success: false, error: 'intakeId obrigatório' };
     }
 
     if (!form?.rubrica_id) {
-      return Response.json({ success: false, error: 'Rubrica obrigatória' }, { status: 400 });
+      return { success: false, error: 'Rubrica obrigatória' };
     }
 
-    const intake = await base44.asServiceRole.entities.DocumentIntake.get(intakeId);
+    const isEquipe = form?.tipo_pagamento === 'equipe';
 
-    if (!intake?.id) {
-      return Response.json({ success: false, error: 'DocumentIntake não encontrado' }, { status: 404 });
-    }
+    let created;
 
-    const ia = intake?.resultado_ia || {};
-    const rubrica = await base44.asServiceRole.entities.Rubrica.get(form.rubrica_id);
+    // =========================
+    // 👥 PAGAMENTO DE EQUIPE
+    // =========================
+    if (isEquipe) {
+      console.log('👥 Criando TeamPayment');
 
-    if (!rubrica?.id) {
-      return Response.json({ success: false, error: 'Rubrica não encontrada' }, { status: 400 });
-    }
-
-    const valor = toNumber(form.nf_valor_total);
-
-    if (valor <= 0) {
-      return Response.json({ success: false, error: 'Valor da nota inválido' }, { status: 400 });
-    }
-
-    const rubricaNome = getRubricaNome(rubrica);
-    const destinoEquipe = isEquipe(form, ia, intake, rubricaNome);
-
-    const arquivoUrl = intake?.arquivo_original_url || intake?.file_url || '';
-    const nomeArquivo =
-      form?.nome_padronizado_arquivo ||
-      intake?.file_name ||
-      `NF ${safeString(form?.nf_numero)}`;
-
-    if (destinoEquipe) {
-      const competencia = parseCompetencia(form?.nf_competencia || ia?.nf_competencia);
-      const member = await findBestTeamMember(base44, form);
-
-      const teamPayment = await base44.asServiceRole.entities.TeamPayment.create({
-        team_member_id: member?.id || 'entrada-unica',
-        user_email: member?.user_email || user.email,
-        user_name: member?.user_name || form?.nf_emitente_nome,
-        funcao: member?.funcao || '',
-        role: member?.funcao || '',
-
-        mes_referencia: competencia.mes_referencia,
-        ano: competencia.ano,
-
-        rubrica_id: form.rubrica_id,
-        rubrica_nome: rubricaNome,
-
-        nota_fiscal_url: arquivoUrl,
-        nota_fiscal_file_name: nomeArquivo,
-
-        numero_nf: safeString(form?.nf_numero),
-        valor_nf: valor,
-
+      created = await base44.entities.TeamPayment.create({
+        ...form,
+        intake_id: intakeId,
         status: 'AGUARDANDO_APROVACAO',
-        origem: 'Entrada Única',
-      });
-
-      await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
-        entidade_destino: 'TeamPayment',
-        entidade_destino_id: teamPayment.id,
-        status_processamento: 'ENVIADO_APROVACAO', // 🔥 CORREÇÃO CRÍTICA
-      });
-
-      return Response.json({
-        success: true,
-        destino: 'equipe',
-        id: teamPayment.id,
+        rubrica_id: form.rubrica_id,
+        rubrica_nome: form.rubrica_nome,
+        valor: form.nf_valor_total,
       });
     }
 
-    const purchase = await base44.asServiceRole.entities.PurchaseRequest.create({
-      descricao_item: form?.descricao_servico,
-      fornecedor_nome: form?.nf_emitente_nome,
-      fornecedor_cnpj: form?.nf_emitente_cpf_cnpj,
-      valor_solicitado: valor,
-      rubrica_id: form.rubrica_id,
-      rubrica_nome: rubricaNome,
-      status: 'SOLICITADO',
-      documento_intake_id: intake.id,
-    });
+    // =========================
+    // 🧾 PURCHASE REQUEST
+    // =========================
+    else {
+      console.log('🧾 Criando PurchaseRequest');
 
-    await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
-      entidade_destino: 'PurchaseRequest',
-      entidade_destino_id: purchase.id,
+      created = await base44.entities.PurchaseRequest.create({
+        ...form,
+        intake_id: intakeId,
+        status: 'AGUARDANDO_APROVACAO',
+        rubrica_id: form.rubrica_id,
+        rubrica_nome: form.rubrica_nome,
+        valor_total: form.nf_valor_total,
+      });
+    }
+
+    // =========================
+    // 🔄 UPDATE INTAKE
+    // =========================
+    await base44.entities.DocumentIntake.update(intakeId, {
       status_processamento: 'ENVIADO_APROVACAO',
     });
 
-    return Response.json({
+    console.log('✅ enviarNotaParaAprovacao - OK', created);
+
+    return {
       success: true,
-      destino: 'solicitacoes',
-      id: purchase.id,
-    });
-
-  } catch (e: any) {
-    console.error(e);
-
-    return Response.json({
+      data: created,
+    };
+  } catch (err: any) {
+    console.error('❌ enviarNotaParaAprovacao', err);
+    return {
       success: false,
-      error: e?.message || 'Erro interno',
-    }, { status: 500 });
+      error: err.message || 'Erro ao enviar nota',
+    };
   }
-});
+}
