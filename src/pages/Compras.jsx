@@ -24,7 +24,8 @@ import {
   LinkIcon,
   FileCheck2,
   CheckCircle2,
-  RotateCcw
+  RotateCcw,
+  XCircle
 } from 'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
@@ -44,7 +45,7 @@ const STATUS_CONFIG = {
   DEVOLVIDO: { label: 'Devolvido', color: 'bg-amber-100 text-amber-700' },
   APROVADO_COORD: { label: 'Aprovado', color: 'bg-green-100 text-green-700' },
   APROVADO_ADMIN: { label: 'Aprovado', color: 'bg-green-100 text-green-700' },
-  RECUSADO: { label: 'Recusado', color: 'bg-red-100 text-red-700' },
+  RECUSADO: { label: 'Reprovado', color: 'bg-red-100 text-red-700' },
   CANCELADO: { label: 'Cancelado', color: 'bg-gray-100 text-gray-500' },
   PAGO: { label: 'Aprovado', color: 'bg-green-100 text-green-700' },
   APROVADO: { label: 'Aprovado', color: 'bg-green-100 text-green-700' }
@@ -329,8 +330,11 @@ function TabelaSolicitacoes({
   onEdit,
   onDelete,
   onApprove,
+  onReject,
   onReturn
 }) {
+  const [menuOpenId, setMenuOpenId] = useState(null);
+
   const rubricaById = useMemo(() => {
     const m = {};
     (rubricas || []).forEach((r) => {
@@ -350,14 +354,14 @@ function TabelaSolicitacoes({
     <div className="overflow-x-auto rounded-xl border border-gray-200">
       <table className="w-full table-fixed border-collapse text-sm">
         <colgroup>
-          <col className="w-[25%]" />
+          <col className="w-[27%]" />
+          <col className="w-[14%]" />
+          <col className="w-[8%]" />
           <col className="w-[15%]" />
-          <col className="w-[9%]" />
-          <col className="w-[16%]" />
           <col className="w-[10%]" />
           <col className="w-[10%]" />
           <col className="w-[7%]" />
-          <col className="w-[8%]" />
+          <col className="w-[9%]" />
         </colgroup>
 
         <thead>
@@ -404,6 +408,7 @@ function TabelaSolicitacoes({
 
             const pendenteCoordenacao = isSolicitado(p);
             const compraEquipe = isCompraEquipe(p);
+            const menuAberto = menuOpenId === p.id;
 
             return (
               <tr
@@ -412,7 +417,7 @@ function TabelaSolicitacoes({
                   i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'
                 } ${inconsistente ? 'bg-amber-50/60' : ''}`}
               >
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2.5 align-top">
                   <p className="line-clamp-2 font-medium text-gray-900">
                     {p.descricao_item || p.objeto || '—'}
                   </p>
@@ -433,13 +438,13 @@ function TabelaSolicitacoes({
                   )}
                 </td>
 
-                <td className="px-3 py-2.5 text-gray-600">
+                <td className="px-3 py-2.5 align-top text-gray-600">
                   <p className="truncate">
                     {p.fornecedor_nome || p.nf_emitente_nome || '—'}
                   </p>
                 </td>
 
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2.5 align-top">
                   {p._centro_custo_normalizado ? (
                     <span className="inline-block max-w-full truncate rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
                       {p._centro_custo_normalizado}
@@ -449,23 +454,23 @@ function TabelaSolicitacoes({
                   )}
                 </td>
 
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2.5 align-top">
                   <p className="truncate text-xs text-gray-700">
                     {rubricaNome}
                   </p>
                 </td>
 
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2.5 align-top">
                   <span className={`inline-block max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>
                     {status.label}
                   </span>
                 </td>
 
-                <td className="px-3 py-2.5 text-right font-medium tabular-nums text-gray-900">
+                <td className="px-3 py-2.5 align-top text-right font-medium tabular-nums text-gray-900">
                   <span className="block truncate">{fmtBRL(valor)}</span>
                 </td>
 
-                <td className="px-3 py-2.5 text-center">
+                <td className="px-3 py-2.5 align-top text-center">
                   {fileUrl ? (
                     <a
                       href={fileUrl}
@@ -480,56 +485,32 @@ function TabelaSolicitacoes({
                   )}
                 </td>
 
-                <td className="px-3 py-2.5">
-                  <div className="flex items-center justify-center gap-2">
+                <td className="px-3 py-2.5 align-top">
+                  <div className="relative flex items-center justify-center gap-2">
                     {podeEditar && (
                       <button
                         type="button"
                         onClick={(event) => {
                           event.preventDefault();
                           event.stopPropagation();
-                          onEdit(p);
+                          setMenuOpenId((current) => (current === p.id ? null : p.id));
                         }}
-                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-black"
-                        title="Editar"
+                        className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
+                        title="Ações"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                     )}
 
-                    {podeAprovar && pendenteCoordenacao && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => onApprove(p)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-2 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700"
-                          title="Aprovar"
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Aprovar
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => onReturn(p)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                          title="Devolver"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                          Devolver
-                        </button>
-                      </>
-                    )}
-
                     {isCoordenador && (
                       <button
                         type="button"
-                        onClick={(event) => {
+                        onClick={async (event) => {
                           event.preventDefault();
                           event.stopPropagation();
 
                           if (window.confirm('Tem certeza que deseja deletar esta solicitação?')) {
-                            onDelete(p.id);
+                            await onDelete(p.id);
                           }
                         }}
                         className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
@@ -537,6 +518,70 @@ function TabelaSolicitacoes({
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
+                    )}
+
+                    {menuAberto && (
+                      <div className="absolute right-0 top-8 z-30 w-44 rounded-xl border border-gray-200 bg-white p-1.5 text-left shadow-lg">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setMenuOpenId(null);
+                            onEdit(p);
+                          }}
+                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Editar
+                        </button>
+
+                        {podeAprovar && pendenteCoordenacao && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setMenuOpenId(null);
+                                onApprove(p);
+                              }}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-green-700 hover:bg-green-50"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Aprovar
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setMenuOpenId(null);
+                                onReject(p);
+                              }}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                            >
+                              <XCircle className="h-3.5 w-3.5" />
+                              Reprovar
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setMenuOpenId(null);
+                                onReturn(p);
+                              }}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              Devolver
+                            </button>
+                          </>
+                        )}
+                      </div>
                     )}
                   </div>
                 </td>
@@ -822,10 +867,42 @@ function ComprasInner() {
 
       await refreshFinanceiroCompleto();
 
-      smartToast.success('Solicitação aprovada pela coordenação.');
+      smartToast.success('Solicitação aprovada e rubrica debitada.');
     } catch (error) {
       console.error('Erro ao aprovar solicitação:', error);
       smartToast.error('Erro ao aprovar', error.message);
+    }
+  }
+
+  async function handleRejectPurchase(purchase) {
+    if (!purchase?.id) return;
+
+    const comentario = window.prompt(
+      'Informe o motivo da reprovação:',
+      'Reprovado pela coordenação.'
+    );
+
+    if (comentario === null) return;
+
+    try {
+      const response = await base44.functions.invoke('purchaseActions', {
+        purchaseId: purchase.id,
+        action: 'reprovar',
+        comentario: comentario || 'Reprovado pela coordenação.'
+      });
+
+      const result = response?.data || response;
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Falha ao reprovar solicitação.');
+      }
+
+      await refreshFinanceiroCompleto();
+
+      smartToast.success('Solicitação reprovada.');
+    } catch (error) {
+      console.error('Erro ao reprovar solicitação:', error);
+      smartToast.error('Erro ao reprovar', error.message);
     }
   }
 
@@ -842,7 +919,7 @@ function ComprasInner() {
     try {
       const response = await base44.functions.invoke('purchaseActions', {
         purchaseId: purchase.id,
-        action: 'rejeitar',
+        action: 'devolver',
         comentario: comentario || 'Devolvido pela coordenação.'
       });
 
@@ -858,6 +935,29 @@ function ComprasInner() {
     } catch (error) {
       console.error('Erro ao devolver solicitação:', error);
       smartToast.error('Erro ao devolver', error.message);
+    }
+  }
+
+  async function handleDeletePurchase(purchaseId) {
+    try {
+      const response = await base44.functions.invoke('purchaseActions', {
+        purchaseId,
+        action: 'deletar'
+      });
+
+      const result = response?.data || response;
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Falha ao deletar solicitação.');
+      }
+
+      await base44.entities.PurchaseRequest.delete(purchaseId);
+      await refreshFinanceiroCompleto();
+
+      smartToast.success('Solicitação deletada.');
+    } catch (error) {
+      console.error('Erro ao deletar solicitação:', error);
+      smartToast.error('Erro ao deletar', error.message);
     }
   }
 
@@ -1173,17 +1273,9 @@ function ComprasInner() {
                   setShowForm(true);
                 }}
                 onApprove={handleApprovePurchase}
+                onReject={handleRejectPurchase}
                 onReturn={handleReturnPurchase}
-                onDelete={async (purchaseId) => {
-                  try {
-                    await base44.entities.PurchaseRequest.delete(purchaseId);
-                    await invalidateComprasQueries();
-                    smartToast.success('Solicitação deletada.');
-                  } catch (error) {
-                    console.error('Erro ao deletar solicitação:', error);
-                    smartToast.error('Erro ao deletar', error.message);
-                  }
-                }}
+                onDelete={handleDeletePurchase}
               />
             )}
           </div>
