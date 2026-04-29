@@ -1,73 +1,41 @@
-import { base44 } from '../../_shared/base44Client';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-export default async function handler(req: any) {
+export default async function handler(req: Request) {
   try {
-    const { intakeId, form } = req.body;
+    const base44 = createClientFromRequest(req);
+    const body = await req.json();
 
-    console.log('📥 enviarNotaParaAprovacao - START', { intakeId, form });
+    const { intakeId, form } = body;
 
-    if (!intakeId) {
-      return { success: false, error: 'intakeId obrigatório' };
-    }
-
-    if (!form?.rubrica_id) {
-      return { success: false, error: 'Rubrica obrigatória' };
-    }
+    console.log('🚀 enviarNotaParaAprovacao', { intakeId });
 
     const isEquipe = form?.tipo_pagamento === 'equipe';
 
     let created;
 
-    // =========================
-    // 👥 PAGAMENTO DE EQUIPE
-    // =========================
     if (isEquipe) {
-      console.log('👥 Criando TeamPayment');
-
       created = await base44.entities.TeamPayment.create({
         ...form,
         intake_id: intakeId,
         status: 'AGUARDANDO_APROVACAO',
-        rubrica_id: form.rubrica_id,
-        rubrica_nome: form.rubrica_nome,
         valor: form.nf_valor_total,
       });
-    }
-
-    // =========================
-    // 🧾 PURCHASE REQUEST
-    // =========================
-    else {
-      console.log('🧾 Criando PurchaseRequest');
-
+    } else {
       created = await base44.entities.PurchaseRequest.create({
         ...form,
         intake_id: intakeId,
         status: 'AGUARDANDO_APROVACAO',
-        rubrica_id: form.rubrica_id,
-        rubrica_nome: form.rubrica_nome,
         valor_total: form.nf_valor_total,
       });
     }
 
-    // =========================
-    // 🔄 UPDATE INTAKE
-    // =========================
     await base44.entities.DocumentIntake.update(intakeId, {
       status_processamento: 'ENVIADO_APROVACAO',
     });
 
-    console.log('✅ enviarNotaParaAprovacao - OK', created);
-
-    return {
-      success: true,
-      data: created,
-    };
+    return new Response(JSON.stringify({ success: true, data: created }));
   } catch (err: any) {
-    console.error('❌ enviarNotaParaAprovacao', err);
-    return {
-      success: false,
-      error: err.message || 'Erro ao enviar nota',
-    };
+    console.error(err);
+    return new Response(JSON.stringify({ success: false, error: err.message }));
   }
 }
