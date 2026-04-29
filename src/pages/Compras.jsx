@@ -32,8 +32,6 @@ import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
 import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
 import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
 import TeamManager from '@/components/compras/TeamManager';
-import TeamPaymentSubmit from '@/components/compras/TeamPaymentSubmit';
-import TeamPaymentReview from '@/components/compras/TeamPaymentReview';
 import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
 import { useBudgetLines } from '@/components/compras/useBudgetLines';
 import GestaoDocumental from '@/pages/GestaoDocumental';
@@ -321,8 +319,7 @@ function TabelaSolicitacoes({
   onDelete,
   onApprove,
   onReturn,
-  onPay,
-  onGoTeamPayments
+  onPay
 }) {
   const rubricaById = useMemo(() => {
     const m = {};
@@ -341,7 +338,17 @@ function TabelaSolicitacoes({
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200">
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full table-fixed border-collapse text-sm">
+        <colgroup>
+          <col className="w-[24%]" />
+          <col className="w-[16%]" />
+          <col className="w-[10%]" />
+          <col className="w-[18%]" />
+          <col className="w-[10%]" />
+          <col className="w-[10%]" />
+          <col className="w-[12%]" />
+        </colgroup>
+
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50 text-left">
             <th className="px-3 py-3 font-medium text-gray-600">Descrição</th>
@@ -353,6 +360,7 @@ function TabelaSolicitacoes({
             <th className="px-3 py-3 text-center font-medium text-gray-600">Ações</th>
           </tr>
         </thead>
+
         <tbody>
           {purchases.map((p, i) => {
             const statusKey = normalizeStatus(p.status);
@@ -391,12 +399,12 @@ function TabelaSolicitacoes({
                   i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'
                 } ${inconsistente ? 'bg-amber-50/60' : ''}`}
               >
-                <td className="max-w-xs px-3 py-2.5">
+                <td className="px-3 py-2.5">
                   <p className="truncate font-medium text-gray-900">
                     {p.descricao_item || p.objeto || '—'}
                   </p>
 
-                  {p.meta_id && <p className="text-xs text-gray-400">{p.meta_id}</p>}
+                  {p.meta_id && <p className="truncate text-xs text-gray-400">{p.meta_id}</p>}
 
                   {compraEquipe && (
                     <span className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">
@@ -413,12 +421,14 @@ function TabelaSolicitacoes({
                 </td>
 
                 <td className="px-3 py-2.5 text-gray-600">
-                  {p.fornecedor_nome || p.nf_emitente_nome || '—'}
+                  <p className="truncate">
+                    {p.fornecedor_nome || p.nf_emitente_nome || '—'}
+                  </p>
                 </td>
 
                 <td className="px-3 py-2.5">
                   {p._centro_custo_normalizado ? (
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                    <span className="inline-block max-w-full truncate rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
                       {p._centro_custo_normalizado}
                     </span>
                   ) : (
@@ -426,24 +436,24 @@ function TabelaSolicitacoes({
                   )}
                 </td>
 
-                <td className="max-w-[160px] px-3 py-2.5">
-                  <span className="truncate text-left text-xs text-gray-700">
+                <td className="px-3 py-2.5">
+                  <p className="truncate text-xs text-gray-700">
                     {rubricaNome}
-                  </span>
+                  </p>
                 </td>
 
                 <td className="px-3 py-2.5">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>
+                  <span className={`inline-block max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>
                     {status.label}
                   </span>
                 </td>
 
                 <td className="px-3 py-2.5 text-right font-medium tabular-nums text-gray-900">
-                  {fmtBRL(valor)}
+                  <span className="block truncate">{fmtBRL(valor)}</span>
                 </td>
 
                 <td className="px-3 py-2.5">
-                  <div className="flex flex-wrap items-center justify-center gap-2">
+                  <div className="flex flex-wrap items-center justify-center gap-1.5">
                     {podeEditar && (
                       <button
                         onClick={() => onEdit(p)}
@@ -458,7 +468,7 @@ function TabelaSolicitacoes({
                       <>
                         <button
                           onClick={() => onApprove(p)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700"
+                          className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-2 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700"
                           title="Aprovar"
                         >
                           <CheckCircle2 className="h-3.5 w-3.5" />
@@ -467,7 +477,7 @@ function TabelaSolicitacoes({
 
                         <button
                           onClick={() => onReturn(p)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
                           title="Devolver"
                         >
                           <RotateCcw className="h-3.5 w-3.5" />
@@ -479,20 +489,10 @@ function TabelaSolicitacoes({
                     {podeAprovar && aprovadoNaoPago && (
                       <button
                         onClick={() => onPay(p)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-700"
+                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-700"
                         title="Marcar como pago"
                       >
                         Pagar
-                      </button>
-                    )}
-
-                    {compraEquipe && isCoordenador && (
-                      <button
-                        onClick={onGoTeamPayments}
-                        className="rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1.5 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
-                        title="Ver em Pagamentos da Equipe"
-                      >
-                        Pagamento equipe
                       </button>
                     )}
 
@@ -775,10 +775,6 @@ function ComprasInner() {
       await refreshFinanceiroCompleto();
 
       smartToast.success('Solicitação aprovada pela coordenação.');
-
-      if (isCompraEquipe(purchase) || result?.team_payment_id || result?.teamPaymentId) {
-        setTab('pagamentos');
-      }
     } catch (error) {
       console.error('Erro ao aprovar solicitação:', error);
       smartToast.error('Erro ao aprovar', error.message);
@@ -979,11 +975,7 @@ function ComprasInner() {
             { id: 'lista', label: 'Solicitações' },
             ...(isCoordenador ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
             { id: 'documentos', label: 'Documentos' },
-            { id: 'equipe', label: 'Equipe' },
-            {
-              id: 'pagamentos',
-              label: isCoordenador ? 'Pagamentos da Equipe' : 'Meus Pagamentos'
-            }
+            { id: 'equipe', label: 'Equipe' }
           ].map((t) => (
             <button
               key={t.id}
@@ -1158,7 +1150,6 @@ function ComprasInner() {
                 onApprove={handleApprovePurchase}
                 onReturn={handleReturnPurchase}
                 onPay={handlePayPurchase}
-                onGoTeamPayments={() => setTab('pagamentos')}
                 onDelete={async (purchaseId) => {
                   try {
                     await base44.entities.PurchaseRequest.delete(purchaseId);
@@ -1294,13 +1285,6 @@ function ComprasInner() {
         )}
 
         {tab === 'equipe' && <TeamManager budgetLines={budgetLines} />}
-
-        {tab === 'pagamentos' &&
-          (isCoordenador ? (
-            <TeamPaymentReview members={[]} budgetLines={budgetLines} />
-          ) : (
-            <TeamPaymentSubmit userEmail={currentUser?.email} />
-          ))}
       </div>
 
       {showForm && (
