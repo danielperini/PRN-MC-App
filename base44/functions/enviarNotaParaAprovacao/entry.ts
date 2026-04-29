@@ -54,10 +54,7 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const body = await req.json().catch(() => ({}));
-
     const { intakeId, form = {} } = body;
-
-    console.log('🚀 enviarNotaParaAprovacao START', { intakeId });
 
     if (!intakeId) return json({ success: false, error: 'intakeId obrigatório' }, 400);
     if (!form.rubrica_id) return json({ success: false, error: 'Rubrica obrigatória' }, 400);
@@ -72,6 +69,7 @@ Deno.serve(async (req) => {
       form.nota_fiscal_url ||
       intake?.arquivo_original_url ||
       intake?.file_url ||
+      intake?.url ||
       '';
 
     const nomeFinal =
@@ -105,12 +103,15 @@ Deno.serve(async (req) => {
 
         nota_fiscal_url: fileUrl,
         nota_fiscal_file_name: nomeFinal,
+        file_url: fileUrl,
 
         xml_url: form.xml_url || '',
         xml_file_name: form.xml_vinculado_nome || '',
 
         numero_nf: form.nf_numero || '',
         valor_nf: valor,
+        valor_total: valor,
+        valor: valor,
 
         nf_numero_extraido: form.nf_numero || '',
         nf_valor_extraido: valor,
@@ -151,8 +152,11 @@ Deno.serve(async (req) => {
       descricao_item: form.descricao_servico || form.nf_emitente_nome || 'Nota Fiscal',
       fornecedor_nome: form.nf_emitente_nome || '',
       fornecedor_cnpj: form.nf_emitente_cpf_cnpj || '',
+
       valor_solicitado: valor,
       valor_total: valor,
+      valor: valor,
+      nf_valor_total: valor,
 
       meta_id: form.meta_id || 'MC3A-20',
       categoria: form.categoria || 'Nota Fiscal',
@@ -195,8 +199,6 @@ Deno.serve(async (req) => {
       data: created,
     });
   } catch (err: any) {
-    console.error('❌ enviarNotaParaAprovacao ERROR', err);
-
     return json({
       success: false,
       error: err?.message || 'Erro interno ao enviar para aprovação',
