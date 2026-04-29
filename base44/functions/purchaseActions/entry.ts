@@ -7,6 +7,7 @@ function toNumber(v: any) {
 
 function getValue(p: any) {
   return toNumber(
+    p?.valor_solicitado ||
     p?.valor ||
     p?.valor_total ||
     p?.valor_aprovado ||
@@ -16,27 +17,45 @@ function getValue(p: any) {
 
 async function getRubrica(id: string) {
   if (!id) throw new Error('Rubrica obrigatória')
+
   const r = await base44.entity('Rubrica').get(id)
+
   if (!r) throw new Error('Rubrica inválida')
+
   return r
 }
 
 async function debitarRubrica(rubrica: any, valor: number) {
-  const comprometido = toNumber(rubrica.saldo_comprometido)
   const utilizado = toNumber(rubrica.valor_utilizado)
   const total = toNumber(rubrica.valor_rubrica)
+  const comprometido = toNumber(rubrica.saldo_comprometido)
 
-  const novoComprometido = comprometido + valor
-  const saldo = total - utilizado - novoComprometido
+  const novoUtilizado = utilizado + valor
+  const saldo = total - novoUtilizado - comprometido
 
   await base44.entity('Rubrica').update({
     id: rubrica.id,
-    saldo_comprometido: novoComprometido,
+    valor_utilizado: novoUtilizado,
     saldo_real: saldo
   })
 }
 
-async function syncDocumento(purchase: any) {
+async function estornarRubrica(rubrica: any, valor: number) {
+  const utilizado = toNumber(rubrica.valor_utilizado)
+  const total = toNumber(rubrica.valor_rubrica)
+  const comprometido = toNumber(rubrica.saldo_comprometido)
+
+  const novoUtilizado = Math.max(0, utilizado - valor)
+  const saldo = total - novoUtilizado - comprometido
+
+  await base44.entity('Rubrica').update({
+    id: rubrica.id,
+    valor_utilizado: novoUtilizado,
+    saldo_real: saldo
+  })
+}
+
+async function syncDocumento(purchase: any, status = 'APROVADO') {
   const docs = await base44.entity('Attachment').filter({
     purchase_id: purchase.id
   })
@@ -44,9 +63,9 @@ async function syncDocumento(purchase: any) {
   for (const d of docs || []) {
     await base44.entity('Attachment').update({
       id: d.id,
-      status: 'APROVADO',
-      nf_status: 'APROVADO',
-      ocultar_entrada_unica: true, // 🔥 REMOVE DA LISTA
+      status,
+      nf_status: status,
+      ocultar_entrada_unica: true,
       inconsistencias: 0
     })
   }
@@ -54,33 +73,131 @@ async function syncDocumento(purchase: any) {
 
 export default async function handler(req: any, res: any) {
   try {
-    const { action, purchaseId } = req.body
+    const { action, purchaseId, comentario } = req.body
+
+    if (!purchaseId) {
+      throw new Error('purchaseId obrigatório')
+    }
+
+    const purchase = await base44.entity('PurchaseRequest').get(purchaseId)
+
+    if (!purchase) {
+      throw new Error('Compra não encontrada')
+    }
+
+    const valor = getValue(purchase)
 
     if (action === 'aprovar') {
-      const purchase = await base44.entity('PurchaseRequest').get(purchaseId)
-
-      if (!purchase) throw new Error('Compra não encontrada')
-
       const rubrica = await getRubrica(purchase.rubrica_id)
-      const valor = getValue(purchase)
 
-      // 🔥 DEBITA IMEDIATO
-      await debitarRubrica(rubrica, valor)
+      const jaDebitada =
+        !!purchase.rubrica_debitada_em ||
+        !!purchase.financeiro_lancado_em ||
+        purchase.financeiro_comprometido === true
+
+      if (!jaDebitada) {
+        await debitarRubrica(rubrica, valor)
+      }
 
       const updated = await base44.entity('PurchaseRequest').update({
         id: purchase.id,
         status: 'APROVADO_COORD',
-        financeiro_comprometido: true
+        financeiro_comprometido: true,
+        financeiro_lancado_em: purchase.financeiro_lancado_em || new Date().toISOString(),
+        rubrica_debitada_em: purchase.rubrica_debitada_em || new Date().toISOString(),
+        rubrica_debitada_valor: purchase.rubrica_debitada_valor || valor
       })
 
-      // 🔥 REMOVE DA ENTRADA ÚNICA
-      await syncDocumento(updated)
+      await syncDocumento(updated, 'APROVADO')
 
-      return res.json({ success: true })
+      return res.json({
+        success: true,
+        purchase: updated
+      })
     }
 
-    return res.json({ success: false })
+    if (action === 'pagar') {
+      const updated = await base44.entity('PurchaseRequest').update({
+        id: purchase.id,
+        status: 'PAGO',
+        pago_em: purchase.pago_em || new Date().toISOString()
+      })
+
+      await syncDocumento(updated, 'PAGO')
+
+      return res.json({
+        success: true,
+        purchase: updated
+      })
+    }
+
+    if (action === 'rejeitar' || action === 'devolver') {
+      const deveEstornar =
+        !!purchase.rubrica_debitada_em ||
+        !!purchase.financeiro_lancado_em ||
+        purchase.financeiro_comprometido === true
+
+      if (deveEstornar && purchase.rubrica_id) {
+        const rubrica = await getRubrica(purchase.rubrica_id)
+        const valorEstorno = toNumber(purchase.rubrica_debitada_valor) || valor
+        await estornarRubrica(rubrica, valorEstorno)
+      }
+
+      const updated = await base44.entity('PurchaseRequest').update({
+        id: purchase.id,
+        status: 'DEVOLVIDO',
+        comentario_devolucao: comentario || 'Devolvido pela coordenação.',
+        financeiro_comprometido: false,
+        financeiro_lancado_em: null,
+        rubrica_debitada_em: null,
+        rubrica_debitada_valor: 0
+      })
+
+      await syncDocumento(updated, 'DEVOLVIDO')
+
+      return res.json({
+        success: true,
+        purchase: updated
+      })
+    }
+
+    if (action === 'deletar' || action === 'cancelar') {
+      const deveEstornar =
+        !!purchase.rubrica_debitada_em ||
+        !!purchase.financeiro_lancado_em ||
+        purchase.financeiro_comprometido === true
+
+      if (deveEstornar && purchase.rubrica_id) {
+        const rubrica = await getRubrica(purchase.rubrica_id)
+        const valorEstorno = toNumber(purchase.rubrica_debitada_valor) || valor
+        await estornarRubrica(rubrica, valorEstorno)
+      }
+
+      const updated = await base44.entity('PurchaseRequest').update({
+        id: purchase.id,
+        status: 'CANCELADO',
+        financeiro_comprometido: false,
+        financeiro_lancado_em: null,
+        rubrica_debitada_em: null,
+        rubrica_debitada_valor: 0
+      })
+
+      await syncDocumento(updated, 'CANCELADO')
+
+      return res.json({
+        success: true,
+        purchase: updated
+      })
+    }
+
+    return res.status(400).json({
+      success: false,
+      error: 'Ação inválida'
+    })
   } catch (e: any) {
-    return res.status(400).json({ error: e.message })
+    return res.status(400).json({
+      success: false,
+      error: e.message
+    })
   }
 }
