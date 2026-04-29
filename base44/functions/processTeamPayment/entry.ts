@@ -4,39 +4,26 @@ function json(data: any, status = 200) {
   return Response.json(data, { status });
 }
 
-function getValor(payment: any) {
+function getValor(p: any) {
   return Number(
-    payment?.valor ??
-    payment?.valor_nf ??
-    payment?.nf_valor_total ??
-    payment?.valor_total ??
-    payment?.valor_pago ??
+    p?.valor ??
+    p?.valor_nf ??
+    p?.nf_valor_total ??
+    p?.valor_total ??
+    p?.valor_pago ??
     0
   ) || 0;
 }
 
 function normalizeAction(action: any) {
-  const value = String(action || '').trim().toLowerCase();
+  const a = String(action || '').toLowerCase();
 
-  if (['aprovar', 'approve', 'approved'].includes(value)) return 'aprovar';
-  if (['devolver', 'reject', 'rejeitar', 'rejected'].includes(value)) return 'devolver';
-  if (['pagar', 'pay', 'marcar_pago', 'marcar-pago', 'paid'].includes(value)) return 'pagar';
-  if (['delete', 'deletar', 'excluir', 'remove', 'remover'].includes(value)) return 'deletar';
+  if (a.includes('aprov') || a.includes('approve')) return 'aprovar';
+  if (a.includes('devol') || a.includes('reject')) return 'devolver';
+  if (a.includes('pag') || a.includes('pay')) return 'pagar';
+  if (a.includes('del') || a.includes('remov')) return 'deletar';
 
-  return value;
-}
-
-async function ajustarComprometido(base44: any, rubricaId: string, delta: number) {
-  if (!rubricaId || !delta) return;
-
-  const rubrica = await base44.asServiceRole.entities.Rubrica.get(rubricaId);
-
-  await base44.asServiceRole.entities.Rubrica.update(rubricaId, {
-    saldo_comprometido: Math.max(
-      0,
-      Number(rubrica?.saldo_comprometido || 0) + delta
-    ),
-  });
+  return a;
 }
 
 Deno.serve(async (req) => {
@@ -44,110 +31,70 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const body = await req.json().catch(() => ({}));
 
-    const action = normalizeAction(body.action);
-    const id =
-      body.id ||
-      body.paymentId ||
-      body.payment_id ||
-      body.teamPaymentId ||
-      body.team_payment_id;
+    console.log('ACTION RECEBIDA:', body.action);
 
-    if (!id) {
-      return json({ success: false, error: 'ID do pagamento obrigatório' }, 400);
-    }
+    const action = normalizeAction(body.action);
+    const id = body.id || body.paymentId;
 
     const payment = await base44.asServiceRole.entities.TeamPayment.get(id);
 
-    if (!payment) {
-      return json({ success: false, error: 'Pagamento não encontrado' }, 404);
-    }
+    if (!payment) return json({ success: false });
 
-    const statusAtual = String(payment.status || '').toUpperCase();
-    const rubricaId = payment.rubrica_id;
     const valor = getValor(payment);
+    const rubricaId = payment.rubrica_id;
 
-    if (['aprovar', 'pagar'].includes(action)) {
-      if (!rubricaId) {
-        return json({ success: false, error: 'Pagamento sem rubrica vinculada' }, 400);
-      }
+    console.log('AÇÃO NORMALIZADA:', action);
 
-      if (!valor) {
-        return json({ success: false, error: 'Valor do pagamento inválido' }, 400);
-      }
-    }
-
+    // ================= APROVAR =================
     if (action === 'aprovar') {
-      if (['APROVADO_COORD', 'APROVADO', 'PAGO'].includes(statusAtual)) {
-        return json({ success: true, already_processed: true });
-      }
+      const rubrica = await base44.asServiceRole.entities.Rubrica.get(rubricaId);
 
-      await ajustarComprometido(base44, rubricaId, valor);
+      await base44.asServiceRole.entities.Rubrica.update(rubricaId, {
+        saldo_comprometido: (rubrica?.saldo_comprometido || 0) + valor,
+      });
 
       await base44.asServiceRole.entities.TeamPayment.update(id, {
         status: 'APROVADO_COORD',
-        valor_nf: valor,
-        aprov_coord_data: new Date().toISOString(),
-        observacoes: payment.observacoes || '',
       });
 
       return json({ success: true });
     }
 
+    // ================= PAGAR =================
     if (action === 'pagar') {
-      if (statusAtual === 'PAGO') {
-        return json({ success: true, already_processed: true });
-      }
-
       const rubrica = await base44.asServiceRole.entities.Rubrica.get(rubricaId);
 
       await base44.asServiceRole.entities.Rubrica.update(rubricaId, {
-        valor_utilizado: Number(rubrica?.valor_utilizado || 0) + valor,
-        saldo_comprometido: Math.max(
-          0,
-          Number(rubrica?.saldo_comprometido || 0) - valor
-        ),
+        valor_utilizado: (rubrica?.valor_utilizado || 0) + valor,
+        saldo_comprometido: Math.max(0, (rubrica?.saldo_comprometido || 0) - valor),
       });
 
       await base44.asServiceRole.entities.TeamPayment.update(id, {
         status: 'PAGO',
-        valor_pago: valor,
-        data_pagamento: new Date().toISOString(),
       });
 
       return json({ success: true });
     }
 
+    // ================= DEVOLVER =================
     if (action === 'devolver') {
-      if (['APROVADO_COORD', 'APROVADO'].includes(statusAtual) && rubricaId && valor) {
-        await ajustarComprometido(base44, rubricaId, -valor);
-      }
-
       await base44.asServiceRole.entities.TeamPayment.update(id, {
         status: 'DEVOLVIDO_REVISAO',
-        observacoes: [
-          payment.observacoes || '',
-          body.comentario || body.motivo || body.reason || 'Devolvido para revisão.'
-        ].filter(Boolean).join('\n\n'),
       });
 
       return json({ success: true });
     }
 
+    // ================= DELETAR =================
     if (action === 'deletar') {
-      if (['APROVADO_COORD', 'APROVADO'].includes(statusAtual) && rubricaId && valor) {
-        await ajustarComprometido(base44, rubricaId, -valor);
-      }
-
       await base44.asServiceRole.entities.TeamPayment.delete(id);
-
       return json({ success: true });
     }
 
-    return json({ success: false, error: 'Ação inválida' }, 400);
-  } catch (err: any) {
-    return json({
-      success: false,
-      error: err?.message || 'Erro interno',
-    }, 500);
+    return json({ success: false, error: 'ação não reconhecida' });
+
+  } catch (e: any) {
+    console.error(e);
+    return json({ success: false, error: e.message });
   }
 });
