@@ -327,7 +327,6 @@ function TabelaSolicitacoes({
   currentUser,
   podeAprovarSolicitacoes,
   hasGestaoCompras,
-  onEdit,
   onDelete,
   onApprove,
   onReject,
@@ -402,9 +401,6 @@ function TabelaSolicitacoes({
                 statusKey === 'PAGO' ||
                 statusKey === 'APROVADO') &&
               (!p._has_orcamento_vinculado || p._sem_centro_custo);
-
-            const podeEditar =
-              isCoordenador || purchaseBelongsToUser(p, currentUser?.email);
 
             const pendenteCoordenacao = isSolicitado(p);
             const compraEquipe = isCompraEquipe(p);
@@ -487,20 +483,18 @@ function TabelaSolicitacoes({
 
                 <td className="px-3 py-2.5 align-top">
                   <div className="relative flex items-center justify-center gap-2">
-                    {podeEditar && (
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          setMenuOpenId((current) => (current === p.id ? null : p.id));
-                        }}
-                        className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
-                        title="Ações"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setMenuOpenId((current) => (current === p.id ? null : p.id));
+                      }}
+                      className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
+                      title="Ações"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
 
                     {isCoordenador && (
                       <button
@@ -521,20 +515,16 @@ function TabelaSolicitacoes({
                     )}
 
                     {menuAberto && (
-                      <div className="absolute right-0 top-8 z-30 w-44 rounded-xl border border-gray-200 bg-white p-1.5 text-left shadow-lg">
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            setMenuOpenId(null);
-                            onEdit(p);
-                          }}
-                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                      <div className="absolute right-0 top-8 z-30 w-48 rounded-xl border border-gray-200 bg-white p-1.5 text-left shadow-lg">
+                        <a
+                          href={`/Compras?solicitacao=${p.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
                         >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Editar
-                        </button>
+                          <LinkIcon className="h-3.5 w-3.5" />
+                          Acessar solicitação
+                        </a>
 
                         {podeAprovar && pendenteCoordenacao && (
                           <>
@@ -558,12 +548,12 @@ function TabelaSolicitacoes({
                                 event.preventDefault();
                                 event.stopPropagation();
                                 setMenuOpenId(null);
-                                onReject(p);
+                                onReturn(p);
                               }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"
                             >
-                              <XCircle className="h-3.5 w-3.5" />
-                              Reprovar
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              Devolver
                             </button>
 
                             <button
@@ -572,12 +562,12 @@ function TabelaSolicitacoes({
                                 event.preventDefault();
                                 event.stopPropagation();
                                 setMenuOpenId(null);
-                                onReturn(p);
+                                onReject(p);
                               }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
                             >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                              Devolver
+                              <XCircle className="h-3.5 w-3.5" />
+                              Reprovar
                             </button>
                           </>
                         )}
@@ -1268,10 +1258,6 @@ function ComprasInner() {
                 currentUser={currentUser}
                 podeAprovarSolicitacoes={podeAprovarSolicitacoes}
                 hasGestaoCompras={hasGestaoCompras}
-                onEdit={(purchase) => {
-                  setEditingPurchase({ ...purchase });
-                  setShowForm(true);
-                }}
                 onApprove={handleApprovePurchase}
                 onReject={handleRejectPurchase}
                 onReturn={handleReturnPurchase}
@@ -1320,82 +1306,6 @@ function ComprasInner() {
 
         {tab === 'documentos' && (
           <div className="max-w-7xl space-y-6">
-            <div className="hidden rounded-lg border border-gray-200 bg-white p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="font-semibold text-black">
-                  Documentos (Entrada Única)
-                </h3>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                  {anexosCompras.length} documento(s)
-                </span>
-              </div>
-
-              {anexosCompras.length === 0 ? (
-                <p className="text-sm text-gray-500">Nenhum documento vinculado</p>
-              ) : (
-                <div className="max-h-96 space-y-2 overflow-y-auto">
-                  {anexosCompras.map((doc) => {
-                    const tipoLabel = getDocTipoLabel(doc);
-                    const temVinculo =
-                      !!doc.nf_pdf_attachment_id || !!doc.nf_xml_attachment_id;
-
-                    return (
-                      <div
-                        key={doc.id}
-                        className="flex items-center justify-between rounded border p-3 transition hover:bg-gray-50"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-medium text-gray-900">
-                              {doc.file_name ||
-                                doc.nf_nome_renomeado ||
-                                doc.nf_nome_original ||
-                                'Documento sem nome'}
-                            </p>
-
-                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700">
-                              {tipoLabel}
-                            </span>
-
-                            {temVinculo && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
-                                <LinkIcon className="h-3 w-3" />
-                                Vinculado
-                              </span>
-                            )}
-
-                            {doc.nf_revisado && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                                <FileCheck2 className="h-3 w-3" />
-                                Revisado
-                              </span>
-                            )}
-                          </div>
-
-                          <p className="text-xs text-gray-500">
-                            {doc.nf_emitente_nome || doc.description || 'Documento'}{' '}
-                            {doc.nf_valor_total
-                              ? `• ${fmtBRL(Number(doc.nf_valor_total))}`
-                              : ''}
-                            {doc.nf_numero ? ` • NF ${doc.nf_numero}` : ''}
-                          </p>
-                        </div>
-
-                        <a
-                          href={doc.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ml-2 flex-shrink-0 rounded bg-black px-3 py-1 text-xs text-white hover:bg-gray-800"
-                        >
-                          Ver
-                        </a>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
             <GestaoDocumental />
           </div>
         )}
