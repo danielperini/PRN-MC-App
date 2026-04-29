@@ -143,10 +143,6 @@ function normalizeStatus(value) {
   return String(value || '').trim().toUpperCase();
 }
 
-function isSolicitado(purchase) {
-  return normalizeStatus(purchase?.status) === 'SOLICITADO';
-}
-
 function isCompraEquipe(purchase) {
   const raw = [
     purchase?.tipo_origem,
@@ -235,17 +231,6 @@ function dedupById(items) {
   return Array.from(map.values());
 }
 
-function getDocTipoLabel(doc) {
-  if (doc?.nf_tipo_documento === 'pdf_nf') return 'PDF';
-  if (doc?.nf_tipo_documento === 'xml_nf') return 'XML';
-
-  const name = normalizeText(doc?.file_name || doc?.nf_nome_original);
-  if (name.endsWith('.pdf')) return 'PDF';
-  if (name.endsWith('.xml')) return 'XML';
-
-  return 'DOC';
-}
-
 async function carregarSolicitacoes({ isCoordenador, currentUser }) {
   if (!currentUser) return [];
 
@@ -270,30 +255,6 @@ async function carregarSolicitacoes({ isCoordenador, currentUser }) {
     );
   } catch (error) {
     console.error('Erro ao buscar PurchaseRequest por created_by:', error);
-  }
-
-  try {
-    pushArray(
-      await base44.entities.PurchaseRequest.filter(
-        { user_email: currentUser?.email },
-        '-created_date',
-        300
-      )
-    );
-  } catch (error) {
-    console.error('Erro ao buscar PurchaseRequest por user_email:', error);
-  }
-
-  try {
-    pushArray(
-      await base44.entities.PurchaseRequest.filter(
-        { requester_email: currentUser?.email },
-        '-created_date',
-        300
-      )
-    );
-  } catch (error) {
-    console.error('Erro ao buscar PurchaseRequest por requester_email:', error);
   }
 
   try {
@@ -329,8 +290,9 @@ function TabelaSolicitacoes({
   hasGestaoCompras,
   onDelete,
   onApprove,
-  onReject,
-  onReturn
+  onReturn,
+  onUnapprove,
+  onAccess
 }) {
   const [menuOpenId, setMenuOpenId] = useState(null);
 
@@ -384,6 +346,9 @@ function TabelaSolicitacoes({
               color: 'bg-gray-100 text-gray-600'
             };
 
+            const aprovado = ['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO'].includes(statusKey);
+            const pendenteAprovacao = !aprovado && statusKey !== 'RECUSADO' && statusKey !== 'CANCELADO';
+
             const rubrica = p.rubrica_id ? rubricaById[p.rubrica_id] : null;
             const rubricaNome =
               p?.rubrica_nome ||
@@ -394,15 +359,6 @@ function TabelaSolicitacoes({
 
             const valor = getPurchaseValue(p);
             const fileUrl = getPurchaseFileUrl(p, attachmentByPurchaseId);
-
-            const inconsistente =
-              (statusKey === 'APROVADO_COORD' ||
-                statusKey === 'APROVADO_ADMIN' ||
-                statusKey === 'PAGO' ||
-                statusKey === 'APROVADO') &&
-              (!p._has_orcamento_vinculado || p._sem_centro_custo);
-
-            const pendenteCoordenacao = isSolicitado(p);
             const compraEquipe = isCompraEquipe(p);
             const menuAberto = menuOpenId === p.id;
 
@@ -411,7 +367,7 @@ function TabelaSolicitacoes({
                 key={p.id}
                 className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${
                   i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'
-                } ${inconsistente ? 'bg-amber-50/60' : ''}`}
+                }`}
               >
                 <td className="px-3 py-2.5 align-top">
                   <p className="line-clamp-2 font-medium text-gray-900">
@@ -423,13 +379,6 @@ function TabelaSolicitacoes({
                   {compraEquipe && (
                     <span className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">
                       Equipe
-                    </span>
-                  )}
-
-                  {inconsistente && (
-                    <span className="mt-0.5 inline-flex items-center gap-1 text-xs text-amber-600">
-                      <AlertTriangle className="h-3 w-3" />
-                      Sem vínculo
                     </span>
                   )}
                 </td>
@@ -451,9 +400,7 @@ function TabelaSolicitacoes({
                 </td>
 
                 <td className="px-3 py-2.5 align-top">
-                  <p className="truncate text-xs text-gray-700">
-                    {rubricaNome}
-                  </p>
+                  <p className="truncate text-xs text-gray-700">{rubricaNome}</p>
                 </td>
 
                 <td className="px-3 py-2.5 align-top">
@@ -516,17 +463,21 @@ function TabelaSolicitacoes({
 
                     {menuAberto && (
                       <div className="absolute right-0 top-8 z-30 w-48 rounded-xl border border-gray-200 bg-white p-1.5 text-left shadow-lg">
-                        <a
-                          href={`/Compras?solicitacao=${p.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setMenuOpenId(null);
+                            onAccess(p);
+                          }}
                           className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
                         >
                           <LinkIcon className="h-3.5 w-3.5" />
                           Acessar solicitação
-                        </a>
+                        </button>
 
-                        {podeAprovar && pendenteCoordenacao && (
+                        {podeAprovar && pendenteAprovacao && (
                           <>
                             <button
                               type="button"
@@ -555,21 +506,23 @@ function TabelaSolicitacoes({
                               <RotateCcw className="h-3.5 w-3.5" />
                               Devolver
                             </button>
-
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                setMenuOpenId(null);
-                                onReject(p);
-                              }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                            >
-                              <XCircle className="h-3.5 w-3.5" />
-                              Reprovar
-                            </button>
                           </>
+                        )}
+
+                        {podeAprovar && aprovado && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              setMenuOpenId(null);
+                              onUnapprove(p);
+                            }}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                          >
+                            <XCircle className="h-3.5 w-3.5" />
+                            Desaprovar
+                          </button>
                         )}
                       </div>
                     )}
@@ -627,9 +580,7 @@ function ComprasInner() {
       queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
       queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
       queryClient.invalidateQueries({ queryKey: ['team-member-own'] }),
-      queryClient.invalidateQueries({
-        queryKey: ['team-members-all-for-coordinator']
-      }),
+      queryClient.invalidateQueries({ queryKey: ['team-members-all-for-coordinator'] }),
       queryClient.invalidateQueries({ queryKey: ['team-payments'] })
     ]);
   }, [queryClient]);
@@ -649,11 +600,8 @@ function ComprasInner() {
     enabled: !!currentUser?.email
   });
 
-  const hasGestaoCompras =
-    isCoordenador || userPermission?.gestao_compras === true;
-
-  const podeAprovarSolicitacoes =
-    isCoordenador || userPermission?.pode_aprovar_solicitacoes === true;
+  const hasGestaoCompras = isCoordenador || userPermission?.gestao_compras === true;
+  const podeAprovarSolicitacoes = isCoordenador || userPermission?.pode_aprovar_solicitacoes === true;
 
   const { data: purchases = [], isLoading } = useQuery({
     queryKey: ['purchases', isCoordenador, currentUser?.email],
@@ -701,10 +649,7 @@ function ComprasInner() {
   useQuery({
     queryKey: ['purchase-documents-all', isCoordenador, currentUser?.email],
     queryFn: async () => {
-      const docs = await base44.entities.PurchaseDocument.list(
-        '-created_date',
-        300
-      );
+      const docs = await base44.entities.PurchaseDocument.list('-created_date', 300);
       if (isCoordenador) return docs;
       return docs.filter((doc) => doc.uploadado_por === currentUser?.email);
     },
@@ -754,15 +699,6 @@ function ComprasInner() {
       };
     });
   }, [purchases]);
-
-  const comprasInconsistentes = purchasesWithFlags.filter(
-    (p) =>
-      (normalizeStatus(p.status) === 'APROVADO_COORD' ||
-        normalizeStatus(p.status) === 'APROVADO_ADMIN' ||
-        normalizeStatus(p.status) === 'PAGO' ||
-        normalizeStatus(p.status) === 'APROVADO') &&
-      (!p._has_orcamento_vinculado || p._sem_centro_custo)
-  );
 
   const centrosDisponiveis = useMemo(() => {
     const centros = new Set();
@@ -864,38 +800,6 @@ function ComprasInner() {
     }
   }
 
-  async function handleRejectPurchase(purchase) {
-    if (!purchase?.id) return;
-
-    const comentario = window.prompt(
-      'Informe o motivo da reprovação:',
-      'Reprovado pela coordenação.'
-    );
-
-    if (comentario === null) return;
-
-    try {
-      const response = await base44.functions.invoke('purchaseActions', {
-        purchaseId: purchase.id,
-        action: 'reprovar',
-        comentario: comentario || 'Reprovado pela coordenação.'
-      });
-
-      const result = response?.data || response;
-
-      if (!result?.success) {
-        throw new Error(result?.error || 'Falha ao reprovar solicitação.');
-      }
-
-      await refreshFinanceiroCompleto();
-
-      smartToast.success('Solicitação reprovada.');
-    } catch (error) {
-      console.error('Erro ao reprovar solicitação:', error);
-      smartToast.error('Erro ao reprovar', error.message);
-    }
-  }
-
   async function handleReturnPurchase(purchase) {
     if (!purchase?.id) return;
 
@@ -925,6 +829,38 @@ function ComprasInner() {
     } catch (error) {
       console.error('Erro ao devolver solicitação:', error);
       smartToast.error('Erro ao devolver', error.message);
+    }
+  }
+
+  async function handleUnapprovePurchase(purchase) {
+    if (!purchase?.id) return;
+
+    const comentario = window.prompt(
+      'Informe o motivo da desaprovação:',
+      'Desaprovado pela coordenação.'
+    );
+
+    if (comentario === null) return;
+
+    try {
+      const response = await base44.functions.invoke('purchaseActions', {
+        purchaseId: purchase.id,
+        action: 'desaprovar',
+        comentario: comentario || 'Desaprovado pela coordenação.'
+      });
+
+      const result = response?.data || response;
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Falha ao desaprovar solicitação.');
+      }
+
+      await refreshFinanceiroCompleto();
+
+      smartToast.success('Solicitação desaprovada e valor estornado da rubrica.');
+    } catch (error) {
+      console.error('Erro ao desaprovar solicitação:', error);
+      smartToast.error('Erro ao desaprovar', error.message);
     }
   }
 
@@ -1010,24 +946,6 @@ function ComprasInner() {
           </div>
         </div>
 
-        {isCoordenador && comprasInconsistentes.length > 0 && (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-700" />
-              <div>
-                <p className="text-sm font-semibold text-amber-900">
-                  Há {comprasInconsistentes.length} compra(s) aprovada(s) ou paga(s)
-                  com inconsistência de rubrica, linha orçamentária ou centro de custo.
-                </p>
-                <p className="mt-1 text-xs text-amber-800">
-                  Essas compras podem não debitar corretamente nas rubricas. Edite
-                  cada item e vincule a rubrica correta.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {isCoordenador && (
           <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
@@ -1057,12 +975,6 @@ function ComprasInner() {
                 }`}
               >
                 {fmtBRL(TOTAL_PREVISTO - totalUtilizado)}
-              </p>
-              <p className="text-xs text-gray-400">
-                {TOTAL_PREVISTO > 0
-                  ? Math.round((totalUtilizado / TOTAL_PREVISTO) * 100)
-                  : 0}
-                % utilizado
               </p>
             </div>
           </div>
@@ -1138,27 +1050,6 @@ function ComprasInner() {
               </Select>
 
               <Select
-                value={filters.meta_id}
-                onValueChange={(v) => setFilters((f) => ({ ...f, meta_id: v }))}
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Meta / Tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as metas / tipos</SelectItem>
-                  <SelectItem value="produto">— Apenas Produtos</SelectItem>
-                  <SelectItem value="servico">— Apenas Serviços</SelectItem>
-                  <SelectItem value="MC3A-20">MC3A-20 — Ações Educativas</SelectItem>
-                  <SelectItem value="MC3A-21">MC3A-21 — Exposição / Produção Cultural</SelectItem>
-                  <SelectItem value="MC3A-22">MC3A-22 — Comunicação e Divulgação</SelectItem>
-                  <SelectItem value="MC3A-23">MC3A-23 — Noturno nos Museus 2026</SelectItem>
-                  <SelectItem value="MC3A-24">MC3A-24 — Emenda Parlamentar</SelectItem>
-                  <SelectItem value="MC3A-25">MC3A-25 — Outras Ações</SelectItem>
-                  <SelectItem value="MC3A-EXTRA">MC3A-EXTRA — Ações Extras</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select
                 value={filters.rubrica_id}
                 onValueChange={(v) =>
                   setFilters((f) => ({ ...f, rubrica_id: v }))
@@ -1171,12 +1062,6 @@ function ComprasInner() {
                   <SelectItem value="all">Todas as rubricas</SelectItem>
                   {(rubricas || [])
                     .filter((r) => r?.ativo !== false)
-                    .sort((a, b) =>
-                      String(a?.rubrica || a?.nome || '').localeCompare(
-                        String(b?.rubrica || b?.nome || ''),
-                        'pt-BR'
-                      )
-                    )
                     .map((r) => (
                       <SelectItem key={r.id} value={r.id}>
                         {r.rubrica || r.nome}
@@ -1203,31 +1088,10 @@ function ComprasInner() {
                   ))}
                 </SelectContent>
               </Select>
-
-              <Select
-                value={filters.inconsistencias}
-                onValueChange={(v) =>
-                  setFilters((f) => ({ ...f, inconsistencias: v }))
-                }
-              >
-                <SelectTrigger className="w-52">
-                  <SelectValue placeholder="Vínculo orçamentário" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="somente_inconsistentes">
-                    Apenas inconsistentes
-                  </SelectItem>
-                  <SelectItem value="somente_ok">
-                    Apenas consistentes
-                  </SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             <p className="mb-3 text-sm text-gray-500">
               {filtered.length} solicitaç{filtered.length !== 1 ? 'ões' : 'ão'}
-              {filters.status !== 'all' || filters.search ? ' (filtradas)' : ''}
             </p>
 
             {isLoading ? (
@@ -1238,16 +1102,6 @@ function ComprasInner() {
                 <p className="font-medium text-gray-400">
                   Nenhuma solicitação encontrada
                 </p>
-                <Button
-                  className="mt-4 bg-black text-white"
-                  onClick={() => {
-                    setEditingPurchase(null);
-                    setShowForm(true);
-                  }}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Criar primeira solicitação
-                </Button>
               </div>
             ) : (
               <TabelaSolicitacoes
@@ -1259,8 +1113,12 @@ function ComprasInner() {
                 podeAprovarSolicitacoes={podeAprovarSolicitacoes}
                 hasGestaoCompras={hasGestaoCompras}
                 onApprove={handleApprovePurchase}
-                onReject={handleRejectPurchase}
                 onReturn={handleReturnPurchase}
+                onUnapprove={handleUnapprovePurchase}
+                onAccess={(purchase) => {
+                  setEditingPurchase({ ...purchase });
+                  setShowForm(true);
+                }}
                 onDelete={handleDeletePurchase}
               />
             )}
@@ -1270,22 +1128,13 @@ function ComprasInner() {
         {tab === 'rubricas' && isCoordenador && (
           <div className="space-y-6">
             {selectedRubrica ? (
-              <div>
-                <button
-                  onClick={() => setSelectedRubrica(null)}
-                  className="mb-4 text-sm font-medium text-black hover:text-gray-600"
-                >
-                  ← Voltar
-                </button>
-
-                <RubricaDetail
-                  rubrica={selectedRubrica}
-                  onClose={async () => {
-                    setSelectedRubrica(null);
-                    await refreshFinanceiroCompleto();
-                  }}
-                />
-              </div>
+              <RubricaDetail
+                rubrica={selectedRubrica}
+                onClose={async () => {
+                  setSelectedRubrica(null);
+                  await refreshFinanceiroCompleto();
+                }}
+              />
             ) : (
               <RubricasGrid
                 rubricas={rubricas}
