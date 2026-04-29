@@ -23,7 +23,8 @@ import {
   LinkIcon,
   BadgeCheck,
   RotateCcw,
-  Save
+  Save,
+  Trash2
 } from 'lucide-react';
 import {
   Dialog,
@@ -34,6 +35,7 @@ import {
 
 const STATUS_CONFIG = {
   PENDENTE: { label: 'Pendente', color: 'bg-white border-2 border-black text-black', icon: Clock },
+  AGUARDANDO_APROVACAO: { label: 'Aguardando Aprovação', color: 'bg-white border-2 border-black text-black', icon: Clock },
   EM_ANALISE: { label: 'Em Análise', color: 'bg-white border-2 border-black text-black', icon: Clock },
   DEVOLVIDO: { label: 'Devolvido', color: 'bg-white border-2 border-black text-black', icon: RotateCcw },
   APROVADO: { label: 'Aprovado', color: 'bg-black text-white', icon: CheckCircle },
@@ -48,6 +50,7 @@ function getPaymentValue(p) {
     p?.valor_nf ||
     p?.valor ||
     p?.valor_pago ||
+    p?.nf_valor_total ||
     0
   );
 }
@@ -80,11 +83,11 @@ function PaymentDetailModal({
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
-    member_name: payment?.member_name || payment?.user_name || '',
-    mes_referencia: payment?.mes_referencia || '',
+    member_name: payment?.member_name || payment?.user_name || payment?.nf_emitente_nome || '',
+    mes_referencia: payment?.mes_referencia || payment?.nf_competencia || '',
     ano: payment?.ano || '',
-    numero_nf: payment?.numero_nf || '',
-    valor_nf: payment?.valor_nf || payment?.valor_total || payment?.valor || '',
+    numero_nf: payment?.numero_nf || payment?.nf_numero || '',
+    valor_nf: payment?.valor_nf || payment?.valor_total || payment?.valor || payment?.nf_valor_total || '',
     rubrica_id: payment?.rubrica_id || '',
     rubrica_nome: payment?.rubrica_nome || '',
     observacoes: payment?.observacoes || ''
@@ -106,35 +109,49 @@ function PaymentDetailModal({
 
   const handleSave = async () => {
     setLoading(true);
-    await onSave(payment.id, {
-      ...form,
-      rubrica_nome: selectedRubrica ? getRubricaNome(selectedRubrica) : form.rubrica_nome,
-      valor_nf: Number(form.valor_nf || 0),
-      valor_total: Number(form.valor_nf || 0)
-    });
-    setLoading(false);
-  };
-
-  const handleAction = async (newStatus) => {
-    setLoading(true);
-    await onStatusChange(
-      payment.id,
-      newStatus,
-      comment,
-      {
+    try {
+      await onSave(payment.id, {
         ...form,
         rubrica_nome: selectedRubrica ? getRubricaNome(selectedRubrica) : form.rubrica_nome,
         valor_nf: Number(form.valor_nf || 0),
-        valor_total: Number(form.valor_nf || 0)
-      }
-    );
-    setLoading(false);
-    onClose();
+        valor_total: Number(form.valor_nf || 0),
+        valor: Number(form.valor_nf || 0)
+      });
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleAction = async (action) => {
+    setLoading(true);
+    try {
+      await onStatusChange(
+        payment.id,
+        action,
+        comment,
+        {
+          ...form,
+          rubrica_nome: selectedRubrica ? getRubricaNome(selectedRubrica) : form.rubrica_nome,
+          valor_nf: Number(form.valor_nf || 0),
+          valor_total: Number(form.valor_nf || 0),
+          valor: Number(form.valor_nf || 0)
+        }
+      );
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const normalizedPaymentStatus = normalizeStatus(payment.status);
 
   const podeAprovar =
     isCoordinator &&
-    ['PENDENTE', 'EM_ANALISE', 'DEVOLVIDO'].includes(normalizeStatus(payment.status));
+    ['PENDENTE', 'AGUARDANDO_APROVACAO', 'EM_ANALISE', 'DEVOLVIDO'].includes(normalizedPaymentStatus);
+
+  const podePagar =
+    isCoordinator &&
+    ['APROVADO', 'APROVADO_COORD'].includes(normalizedPaymentStatus);
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -144,10 +161,10 @@ function PaymentDetailModal({
         </DialogHeader>
 
         <div className="space-y-4">
-          {payment.origem_automatica && (
+          {(payment.origem_automatica || payment.origem === 'entrada_unica') && (
             <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700 flex items-center gap-2">
               <BadgeCheck className="h-4 w-4" />
-              Pagamento criado automaticamente a partir da aprovação da NF.
+              Pagamento criado automaticamente a partir da conferência da NF.
             </div>
           )}
 
@@ -250,13 +267,13 @@ function PaymentDetailModal({
             </Select>
           </div>
 
-          {(payment.nota_fiscal_url || payment.xml_url) && (
+          {(payment.nota_fiscal_url || payment.xml_url || payment.file_url) && (
             <div className="rounded-lg border border-gray-200 p-3 space-y-2">
               <p className="text-xs font-medium text-gray-500">Documentos vinculados</p>
 
-              {payment.nota_fiscal_url && (
+              {(payment.nota_fiscal_url || payment.file_url) && (
                 <a
-                  href={payment.nota_fiscal_url}
+                  href={payment.nota_fiscal_url || payment.file_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
@@ -320,7 +337,7 @@ function PaymentDetailModal({
                     <Button
                       variant="outline"
                       className="border-2 border-black text-black hover:bg-black hover:text-white"
-                      onClick={() => handleAction('DEVOLVIDO')}
+                      onClick={() => handleAction('devolver')}
                       disabled={loading}
                     >
                       {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
@@ -329,7 +346,7 @@ function PaymentDetailModal({
 
                     <Button
                       className="bg-black text-white hover:bg-gray-900"
-                      onClick={() => handleAction('APROVADO_COORD')}
+                      onClick={() => handleAction('aprovar')}
                       disabled={loading || !form.rubrica_id}
                     >
                       {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />}
@@ -338,16 +355,26 @@ function PaymentDetailModal({
                   </>
                 )}
 
-                {(payment.status === 'APROVADO' || payment.status === 'APROVADO_COORD') && (
+                {podePagar && (
                   <Button
                     className="bg-black text-white hover:bg-gray-900"
-                    onClick={() => handleAction('PAGO')}
+                    onClick={() => handleAction('pagar')}
                     disabled={loading}
                   >
                     {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <DollarSign className="h-4 w-4 mr-1" />}
                     Marcar como Pago
                   </Button>
                 )}
+
+                <Button
+                  variant="outline"
+                  className="border-2 border-red-500 text-red-600 hover:bg-red-500 hover:text-white"
+                  onClick={() => handleAction('deletar')}
+                  disabled={loading}
+                >
+                  {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                  Deletar
+                </Button>
               </div>
             </div>
           )}
@@ -389,30 +416,6 @@ export default function TeamPaymentReview() {
     enabled: !!currentUser
   });
 
-  async function debitarRubricaSeNecessario(payment, payload) {
-    const statusAtual = normalizeStatus(payment?.status);
-    const novoStatus = normalizeStatus(payload?.status);
-
-    if (novoStatus !== 'APROVADO_COORD' && novoStatus !== 'APROVADO') return;
-    if (statusAtual === 'APROVADO_COORD' || statusAtual === 'APROVADO') return;
-    if (payment?.rubrica_debitada_aprovacao === true) return;
-    if (!payload?.rubrica_id) throw new Error('Selecione uma rubrica antes de aprovar.');
-
-    const valor = getPaymentValue({
-      ...payment,
-      ...payload
-    });
-
-    if (!valor || valor <= 0) throw new Error('Valor inválido para débito da rubrica.');
-
-    const rubrica = await base44.entities.Rubrica.get(payload.rubrica_id);
-    if (!rubrica?.id) throw new Error('Rubrica não encontrada.');
-
-    await base44.entities.Rubrica.update(rubrica.id, {
-      saldo_comprometido: Number(rubrica.saldo_comprometido || 0) + valor
-    });
-  }
-
   const handleSavePayment = async (paymentId, payload) => {
     const rubrica = (rubricas || []).find((r) => r.id === payload.rubrica_id);
 
@@ -429,39 +432,34 @@ export default function TeamPaymentReview() {
     queryClient.invalidateQueries({ queryKey: ['purchases'] });
   };
 
-  const handleStatusChange = async (paymentId, newStatus, comment, editedPayload = {}) => {
-    const payment = payments.find((p) => p.id === paymentId);
-    const rubrica = (rubricas || []).find((r) => r.id === editedPayload.rubrica_id);
+  const handleStatusChange = async (paymentId, action, comment, editedPayload = {}) => {
+    if (action === 'deletar') {
+      await base44.functions.invoke('processTeamPayment', {
+        id: paymentId,
+        action: 'deletar'
+      });
 
-    const payload = {
-      ...editedPayload,
-      rubrica_nome: rubrica ? getRubricaNome(rubrica) : editedPayload.rubrica_nome,
-      status: newStatus,
-      ...(comment ? { comentario_coordenacao: comment } : {}),
-      ...(newStatus === 'DEVOLVIDO'
-        ? {
-            devolvido_em: new Date().toISOString(),
-            devolvido_por: currentUser?.email || ''
-          }
-        : {}),
-      ...(newStatus === 'APROVADO' || newStatus === 'APROVADO_COORD'
-        ? {
-            aprovado_em: new Date().toISOString(),
-            aprovado_por: currentUser?.email || '',
-            rubrica_debitada_aprovacao: true
-          }
-        : {}),
-      ...(newStatus === 'PAGO'
-        ? {
-            pago_em: new Date().toISOString(),
-            pago_por: currentUser?.email || ''
-          }
-        : {})
-    };
+      queryClient.invalidateQueries({ queryKey: ['team-payments'] });
+      queryClient.invalidateQueries({ queryKey: ['rubricas'] });
+      queryClient.invalidateQueries({ queryKey: ['rubricas-team-payment-review'] });
+      queryClient.invalidateQueries({ queryKey: ['purchases'] });
+      return;
+    }
 
-    await debitarRubricaSeNecessario(payment, payload);
+    await handleSavePayment(paymentId, editedPayload);
 
-    await base44.entities.TeamPayment.update(paymentId, payload);
+    const response = await base44.functions.invoke('processTeamPayment', {
+      id: paymentId,
+      paymentId,
+      action,
+      comentario: comment || ''
+    });
+
+    const result = response?.data || response;
+
+    if (result?.success === false) {
+      throw new Error(result?.error || 'Erro ao processar pagamento da equipe.');
+    }
 
     queryClient.invalidateQueries({ queryKey: ['team-payments'] });
     queryClient.invalidateQueries({ queryKey: ['rubricas'] });
@@ -475,9 +473,9 @@ export default function TeamPaymentReview() {
 
     const matchSearch =
       !busca ||
-      String(p.member_name || p.user_name || '').toLowerCase().includes(busca) ||
-      String(p.mes_referencia || '').toLowerCase().includes(busca) ||
-      String(p.numero_nf || '').toLowerCase().includes(busca) ||
+      String(p.member_name || p.user_name || p.nf_emitente_nome || '').toLowerCase().includes(busca) ||
+      String(p.mes_referencia || p.nf_competencia || '').toLowerCase().includes(busca) ||
+      String(p.numero_nf || p.nf_numero || '').toLowerCase().includes(busca) ||
       String(p.rubrica_nome || '').toLowerCase().includes(busca);
 
     return matchStatus && matchSearch && getPaymentValue(p) > 0;
@@ -486,11 +484,12 @@ export default function TeamPaymentReview() {
   const pendentes = payments.filter(
     (p) =>
       normalizeStatus(p.status) === 'PENDENTE' ||
+      normalizeStatus(p.status) === 'AGUARDANDO_APROVACAO' ||
       normalizeStatus(p.status) === 'EM_ANALISE' ||
       normalizeStatus(p.status) === 'DEVOLVIDO'
   ).length;
 
-  const automaticos = payments.filter((p) => p.origem_automatica).length;
+  const automaticos = payments.filter((p) => p.origem_automatica || p.origem === 'entrada_unica').length;
 
   const totalAprovado = payments
     .filter((p) =>
@@ -599,10 +598,10 @@ export default function TeamPaymentReview() {
                         <User className="h-4 w-4 text-gray-400" />
                         <div>
                           <span className="font-medium text-gray-900">
-                            {p.member_name || p.user_name || p.created_by || '—'}
+                            {p.member_name || p.user_name || p.nf_emitente_nome || p.created_by || '—'}
                           </span>
 
-                          {p.origem_automatica && (
+                          {(p.origem_automatica || p.origem === 'entrada_unica') && (
                             <p className="text-[11px] text-green-700">
                               Criado automaticamente por NF
                             </p>
@@ -612,12 +611,12 @@ export default function TeamPaymentReview() {
                     </td>
 
                     <td className="px-3 py-2.5 text-gray-600">
-                      {p.mes_referencia || '—'}{p.ano ? ` / ${p.ano}` : ''}
+                      {p.mes_referencia || p.nf_competencia || '—'}{p.ano ? ` / ${p.ano}` : ''}
                     </td>
 
                     <td className="px-3 py-2.5 text-gray-600">
-                      {p.numero_nf ? `NF ${p.numero_nf}` : '—'}
-                      {p.nota_fiscal_url && (
+                      {p.numero_nf || p.nf_numero ? `NF ${p.numero_nf || p.nf_numero}` : '—'}
+                      {(p.nota_fiscal_url || p.file_url) && (
                         <p className="text-[11px] text-blue-600">PDF vinculado</p>
                       )}
                       {p.xml_url && (
