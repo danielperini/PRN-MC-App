@@ -50,6 +50,31 @@ function anoReferencia(value: any) {
   return match ? Number(match[1]) : new Date().getFullYear();
 }
 
+async function resolveBudgetLineId(base44: any, form: any, intake: any) {
+  const direct =
+    form.budgetline_id ||
+    form.budgetLineId ||
+    form.budget_line_id ||
+    intake?.budgetline_id ||
+    intake?.budgetLineId ||
+    intake?.budget_line_id;
+
+  if (direct) return direct;
+
+  if (form.rubrica_id) {
+    const linhas = await base44.asServiceRole.entities.BudgetLine.list('', 1000);
+    const match = (linhas || []).find((b: any) =>
+      b?.rubrica_id === form.rubrica_id ||
+      b?.rubricaId === form.rubrica_id ||
+      b?.id === form.rubrica_id
+    );
+
+    if (match?.id) return match.id;
+  }
+
+  return '';
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -148,10 +173,21 @@ Deno.serve(async (req) => {
       });
     }
 
+    const budgetlineId = await resolveBudgetLineId(base44, form, intake);
+
+    if (!budgetlineId) {
+      return json({
+        success: false,
+        error: 'Não foi possível localizar budgetline_id obrigatório para a rubrica selecionada.',
+      }, 400);
+    }
+
     created = await base44.asServiceRole.entities.PurchaseRequest.create({
       descricao_item: form.descricao_servico || form.nf_emitente_nome || 'Nota Fiscal',
       fornecedor_nome: form.nf_emitente_nome || '',
       fornecedor_cnpj: form.nf_emitente_cpf_cnpj || '',
+
+      budgetline_id: budgetlineId,
 
       valor_solicitado: valor,
       valor_total: valor,
@@ -186,6 +222,7 @@ Deno.serve(async (req) => {
       file_name_final: nomeFinal,
       entidade_destino: 'PurchaseRequest',
       entidade_destino_id: created.id,
+      budgetline_id: budgetlineId,
       rubrica_id_sugerida: form.rubrica_id,
       rubrica_nome_sugerida: rubricaNome,
       centro_custo: form.centro_custo || intake?.centro_custo || '',
