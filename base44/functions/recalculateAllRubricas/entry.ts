@@ -4,83 +4,96 @@ function toNumber(v: any) {
   return Number(v) || 0;
 }
 
-function status(v: any) {
-  return String(v || '').toUpperCase();
-}
+function isAfterApril2026(mes: string, ano: number) {
+  const meses = [
+    'JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO',
+    'JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'
+  ];
 
-function valorPurchase(p: any) {
-  return toNumber(p.valor_pago) || toNumber(p.valor_aprovado) || toNumber(p.valor_total) || toNumber(p.valor_solicitado) || toNumber(p.valor);
-}
+  const idx = meses.indexOf(String(mes || '').toUpperCase());
+  if (idx === -1) return true;
 
-function valorTeamPayment(p: any) {
-  return toNumber(p.valor_pago) || toNumber(p.valor_nf) || toNumber(p.valor_total) || toNumber(p.valor);
+  if (ano > 2026) return true;
+  if (ano < 2026) return false;
+
+  return idx >= 3;
 }
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    const rubricas = await base44.asServiceRole.entities.Rubrica.list('', 3000);
-    const purchases = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', 3000);
-    const payments = await base44.asServiceRole.entities.TeamPayment.list('-created_date', 3000);
+    const rubricas = await base44.entities.Rubrica.list();
 
-    for (const rubrica of rubricas || []) {
+    const payments = await base44.entities.TeamPayment.list();
+    const lancamentos = await base44.entities.LancamentoRubrica.list();
+
+    for (const rubrica of rubricas) {
       const rubricaId = rubrica.id;
 
-      let valor_utilizado = 0;
-      let saldo_comprometido = 0;
+      /* =========================
+         🔒 1. LANCAMENTOS MANUAIS
+      ========================= */
 
-      for (const p of purchases || []) {
-        if (p.rubrica_id !== rubricaId) continue;
+      const lancamentosDaRubrica = lancamentos.filter(l => l.rubrica_id === rubricaId);
 
-        const s = status(p.status);
-        const valor = valorPurchase(p);
+      let manualUtilizado = 0;
+      let manualComprometido = 0;
 
-        if (['APROVADO_COORD', 'APROVADO_ADMIN', 'APROVADO', 'PAGO'].includes(s)) {
-          valor_utilizado += valor;
+      for (const l of lancamentosDaRubrica) {
+        const valor = toNumber(l.valor);
+
+        if (String(l.tipo || '').toUpperCase() === 'UTILIZADO') {
+          manualUtilizado += valor;
         }
 
-        if (['SOLICITADO', 'EM_ANALISE'].includes(s)) {
-          saldo_comprometido += 0;
-        }
-      }
-
-      for (const p of payments || []) {
-        if (p.rubrica_id !== rubricaId) continue;
-
-        const s = status(p.status);
-        const valor = valorTeamPayment(p);
-
-        if (['APROVADO_COORD', 'APROVADO', 'PAGO'].includes(s)) {
-          valor_utilizado += valor;
-        }
-
-        if (['AGUARDANDO_APROVACAO', 'EM_ANALISE'].includes(s)) {
-          saldo_comprometido += 0;
+        if (String(l.tipo || '').toUpperCase() === 'COMPROMETIDO') {
+          manualComprometido += valor;
         }
       }
 
-      const valor_total = toNumber(rubrica.valor_rubrica) || toNumber(rubrica.valor_total);
-      const saldo = valor_total - valor_utilizado - saldo_comprometido;
-      const percentual_utilizado = valor_total > 0 ? Number(((valor_utilizado / valor_total) * 100).toFixed(2)) : 0;
+      /* =========================
+         🔒 2. TEAM PAYMENTS (FILTRADO)
+      ========================= */
 
-      await base44.asServiceRole.entities.Rubrica.update(rubricaId, {
+      const paymentsDaRubrica = payments.filter(p =>
+        p.rubrica_id === rubricaId &&
+        isAfterApril2026(p.mes_referencia, p.ano)
+      );
+
+      let autoUtilizado = 0;
+      let autoComprometido = 0;
+
+      for (const p of paymentsDaRubrica) {
+        const valor = toNumber(p.valor_nf || p.valor_parcela_previsto);
+
+        const status = String(p.status || '').toUpperCase();
+
+        if (status === 'PAGO') {
+          autoUtilizado += valor;
+        }
+
+        if (status === 'APROVADO_COORD') {
+          autoComprometido += valor;
+        }
+      }
+
+      /* =========================
+         🔒 3. CONSOLIDAÇÃO FINAL
+      ========================= */
+
+      const valor_utilizado = manualUtilizado + autoUtilizado;
+      const saldo_comprometido = manualComprometido + autoComprometido;
+
+      await base44.entities.Rubrica.update(rubricaId, {
         valor_utilizado,
-        saldo_comprometido,
-        saldo,
-        percentual_utilizado,
-        recalculado_em: new Date().toISOString(),
+        saldo_comprometido
       });
     }
 
-    return Response.json({
-      success: true,
-      rubricas_processadas: (rubricas || []).length,
-    });
+    return Response.json({ ok: true });
+
   } catch (e: any) {
-    return Response.json({
-      success: false,
-      error: e?.message || 'Erro interno ao recalcular rubricas',
-    }, { status: 500 });
+    return Response.json({ error: e?.message || 'Erro interno' }, { status: 500 });
   }
 });
