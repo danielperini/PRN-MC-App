@@ -150,6 +150,20 @@ function montarRateioMuseus(valor, museusSelecionados) {
   }));
 }
 
+function isPagamentoEquipe(form, intake) {
+  const tipoGasto = String(form?.tipo_gasto || '').toLowerCase();
+  const tipoPagamento = String(form?.tipo_pagamento || intake?.tipo_pagamento || '').toLowerCase();
+  const categoria = String(form?.categoria || intake?.categoria || '').toLowerCase();
+  const origem = String(intake?.origem || intake?.tipo_documento || '').toLowerCase();
+
+  return (
+    tipoGasto === 'equipe' ||
+    tipoPagamento === 'equipe' ||
+    categoria.includes('equipe') ||
+    origem.includes('equipe')
+  );
+}
+
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const { toast } = useToast();
   const ia = intake?.resultado_ia || {};
@@ -194,6 +208,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       descricao_servico: getValue(ia.descricao_servico, ia.descricao, ia.descricao_item, intake?.descricao_servico, intake?.descricao),
       meta_id: getValue(intake?.meta_id, intake?.meta_id_sugerida, ia.meta_id, ia.meta_id_sugerida, 'MC3A-20'),
       tipo_gasto: getValue(intake?.tipo_gasto, ia.tipo_gasto, ia.tipo_gasto_sugerido, 'Serviço'),
+      tipo_pagamento: getValue(intake?.tipo_pagamento, ia.tipo_pagamento),
       centro_custo: getValue(ia.centro_custo_sugerido, ia.centro_custo, intake?.centro_custo, 'Atuação Geral'),
       rubrica_id: getValue(intake?.rubrica_id, intake?.rubrica_id_sugerida, ia.rubrica_id, ia.rubrica_id_sugerida),
       tipo_rateio: tipoRateioInicial,
@@ -319,6 +334,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           ...ia,
           ...form,
           nf_valor_total: valor,
+          tipo_pagamento: isPagamentoEquipe(form, intake) ? 'equipe' : 'compra',
           rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
         },
       });
@@ -341,15 +357,9 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     event?.preventDefault?.();
     event?.stopPropagation?.();
 
-    console.log('🚀 CLICK ENVIAR NF', { intakeId: intake?.id, form });
-
-    toast({
-      title: 'Enviando...',
-      description: 'Processando envio da nota fiscal.',
-      duration: 2000,
-    });
-
     if (sending) return;
+
+    console.log('🚀 CLICK ENVIAR NF', { intakeId: intake?.id, form });
 
     const erros = validarEnvio();
 
@@ -368,22 +378,36 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     try {
       const valor = parseValorBR(form.nf_valor_total);
       const rateioCalculado = getRateioCalculado();
+      const destinoEquipe = isPagamentoEquipe(form, intake);
+      const rubricaNome = getRubricaNome(form.rubrica_id);
 
-      console.log('📡 INVOKE enviarNotaParaAprovacao', {
-        intakeId: intake.id,
-        valor,
-        rubrica_id: form.rubrica_id,
+      toast({
+        title: 'Enviando solicitação...',
+        description: destinoEquipe
+          ? 'A nota será enviada para Pagamentos da Equipe.'
+          : 'A nota será enviada para Solicitações.',
+        duration: 2500,
       });
 
-      const response = await base44.functions.invoke('enviarNotaParaAprovacao', {
+      const payload = {
         intakeId: intake.id,
         form: {
           ...form,
           nf_valor_total: valor,
-          rubrica_nome: getRubricaNome(form.rubrica_id),
+          valor,
+          valor_total: valor,
+          tipo_pagamento: destinoEquipe ? 'equipe' : 'compra',
+          destino_aprovacao: destinoEquipe ? 'equipe' : 'solicitacao',
+          rubrica_id: form.rubrica_id,
+          rubrica_nome: rubricaNome,
           rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
+          museus_rateio: form.tipo_rateio === 'dividido' ? form.museus_rateio : [],
         },
-      });
+      };
+
+      console.log('📡 INVOKE enviarNotaParaAprovacao', payload);
+
+      const response = await base44.functions.invoke('enviarNotaParaAprovacao', payload);
 
       console.log('📥 RESPONSE enviarNotaParaAprovacao:', response);
 
@@ -393,20 +417,18 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         throw new Error('Sem resposta da function enviarNotaParaAprovacao.');
       }
 
-      if (!result?.success) {
+      if (result?.success === false) {
         throw new Error(result?.error || result?.message || 'Falha ao enviar nota.');
       }
 
       toast({
-        title:
-          result.destino === 'equipe'
-            ? '✅ Nota enviada para Pagamentos da Equipe'
-            : '✅ Solicitação enviada para Aprovação',
-        description:
-          result.destino === 'equipe'
-            ? `A nota já está disponível em Compras → Pagamentos da Equipe. ID: ${result.id || '—'}`
-            : `A solicitação já está disponível em Compras → Solicitações. ID: ${result.id || '—'}`,
-        duration: 6000,
+        title: destinoEquipe
+          ? '✅ Enviado para Pagamentos da Equipe'
+          : '✅ Solicitação enviada',
+        description: destinoEquipe
+          ? 'A nota já está disponível em Compras → Pagamentos da Equipe para aprovação.'
+          : 'A nota já está disponível em Compras → Solicitações para aprovação.',
+        duration: 7000,
       });
 
       await onSaved?.();
