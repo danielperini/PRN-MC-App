@@ -61,8 +61,12 @@ export default async function handler(req: Request) {
 
     let created;
 
+    // =========================
     // 👥 EQUIPE
+    // =========================
     if (isEquipe) {
+      console.log('👥 Criando TeamPayment');
+
       created = await base44.entities.TeamPayment.create({
         ...payloadBase,
         valor: valor,
@@ -70,8 +74,12 @@ export default async function handler(req: Request) {
       });
     }
 
-    // 🧾 SOLICITAÇÃO
+    // =========================
+    // 🧾 SOLICITAÇÃO NORMAL
+    // =========================
     else {
+      console.log('🧾 Criando PurchaseRequest');
+
       created = await base44.entities.PurchaseRequest.create({
         ...payloadBase,
         valor_total: valor,
@@ -79,13 +87,16 @@ export default async function handler(req: Request) {
       });
     }
 
+    // =========================
+    // 🔄 UPDATE INTAKE
+    // =========================
     await base44.entities.DocumentIntake.update(intakeId, {
       status_processamento: 'ENVIADO_APROVACAO',
       valor_processado: valor,
       destino: isEquipe ? 'equipe' : 'solicitacao',
     });
 
-    console.log('✅ envio concluído');
+    console.log('✅ envio concluído', created);
 
     return new Response(JSON.stringify({
       success: true,
