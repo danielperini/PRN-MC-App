@@ -65,26 +65,22 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
     });
   }, [rubricas, search]);
 
-  // 🔥 RECOMPUTAR VALORES (NÃO confiar no backend)
+  // ✅ CÁLCULO CORRETO — SEM COMPROMETIDO
   const dadosProcessados = useMemo(() => {
     return filtradas.map((r) => {
       const valor = toNumber(r?.valor_rubrica || r?.valor_total);
       const utilizado = toNumber(r?.valor_utilizado);
 
-      // 🔥 fallback seguro caso backend esteja inconsistente
-      const comprometido = toNumber(r?.saldo_comprometido || r?.valor_comprometido);
-
-      const saldo = valor - utilizado - comprometido;
+      const saldo = valor - utilizado;
 
       const perc = valor > 0
-        ? ((utilizado + comprometido) / valor) * 100
+        ? (utilizado / valor) * 100
         : 0;
 
       return {
         ...r,
         valor,
         utilizado,
-        comprometido,
         saldo,
         perc
       };
@@ -94,19 +90,16 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
   const totais = useMemo(() => {
     let previsto = 0;
     let utilizado = 0;
-    let comprometido = 0;
 
     for (const r of dadosProcessados) {
       previsto += r.valor;
       utilizado += r.utilizado;
-      comprometido += r.comprometido;
     }
 
     return {
       previsto,
       utilizado,
-      comprometido,
-      saldo: previsto - utilizado - comprometido
+      saldo: previsto - utilizado
     };
   }, [dadosProcessados]);
 
@@ -128,8 +121,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
               <th className="p-2">Rubrica</th>
               <th className="p-2">Valor</th>
               <th className="p-2">Utilizado</th>
-              <th className="p-2">Comprometido</th>
-              <th className="p-2">Saldo real</th>
+              <th className="p-2">Saldo</th>
               <th className="p-2">%</th>
             </tr>
           </thead>
@@ -163,10 +155,6 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
                   R$ {moeda(r.utilizado)}
                 </td>
 
-                <td className="p-2 text-orange-700">
-                  R$ {moeda(r.comprometido)}
-                </td>
-
                 <td className={`p-2 font-medium ${r.saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
                   R$ {moeda(r.saldo)}
                 </td>
@@ -183,7 +171,6 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
               <td colSpan={2} className="p-2">TOTAL</td>
               <td className="p-2">R$ {moeda(totais.previsto)}</td>
               <td className="p-2">R$ {moeda(totais.utilizado)}</td>
-              <td className="p-2">R$ {moeda(totais.comprometido)}</td>
               <td className="p-2">R$ {moeda(totais.saldo)}</td>
               <td></td>
             </tr>
