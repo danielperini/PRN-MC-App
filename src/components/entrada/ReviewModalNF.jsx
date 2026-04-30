@@ -205,27 +205,51 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
   useEffect(() => {
     async function loadXMLs() {
-      if (!form.nf_numero) {
-        setXmlCandidates([]);
-        setSelectedXmlId('');
-        return;
-      }
       setLoadingXmls(true);
       try {
-        const list = await base44.entities.Attachment.filter(
-          { nf_numero: form.nf_numero, nf_tipo_documento: 'xml_nf' },
+        const all = await base44.entities.DocumentIntake.filter(
+          { status_registro: 'ATIVO' },
           '-created_date',
-          20
+          100
         );
-        const unique = [];
-        const seen = new Set();
-        for (const item of list || []) {
-          if (!item?.id || seen.has(item.id)) continue;
-          seen.add(item.id);
-          unique.push(item);
-        }
-        setXmlCandidates(unique);
-        setSelectedXmlId(unique[0]?.id || '');
+
+        // Filtrar apenas XMLs não vinculados
+        const xmls = (all || []).filter((item) => {
+          if (!item?.id || item.id === intake.id) return false;
+          if (item.nf_pdf_intake_id || item.grupo_status === 'COMPLETO') return false;
+          const nome = String(item.file_name_original || '').toLowerCase();
+          const mime = String(item.mime_type || '').toLowerCase();
+          return (
+            item.tipo_detectado === 'NOTA_FISCAL_XML' ||
+            nome.endsWith('.xml') ||
+            mime.includes('xml')
+          );
+        });
+
+        // Pontuar candidatos por similaridade
+        const nfNumero = String(form.nf_numero || '').trim();
+        const fornecedor = String(form.nf_emitente_nome || '').toLowerCase().trim();
+        const cnpj = String(form.nf_emitente_cpf_cnpj || '').replace(/\D/g, '');
+        const valor = parseValorBR(form.nf_valor_total);
+
+        const scored = xmls.map((xml) => {
+          const xmlIa = xml.resultado_ia || {};
+          let score = 0;
+          if (nfNumero && xmlIa.nf_numero === nfNumero) score += 10;
+          if (cnpj && String(xmlIa.nf_emitente_cpf_cnpj || '').replace(/\D/g, '') === cnpj) score += 8;
+          if (fornecedor && String(xmlIa.nf_emitente_nome || '').toLowerCase().includes(fornecedor.slice(0, 10))) score += 5;
+          const xmlValor = parseValorBR(xmlIa.nf_valor_total || 0);
+          if (valor > 0 && xmlValor > 0 && Math.abs(valor - xmlValor) < 0.01) score += 6;
+          return { ...xml, _score: score };
+        });
+
+        const candidates = scored
+          .filter((x) => x._score > 0 || !nfNumero) // se sem número, mostrar todos
+          .sort((a, b) => b._score - a._score)
+          .slice(0, 10);
+
+        setXmlCandidates(candidates);
+        setSelectedXmlId(candidates[0]?.id || '');
       } catch (e) {
         console.error('Erro ao buscar XML:', e);
       } finally {
@@ -233,7 +257,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       }
     }
     loadXMLs();
-  }, [form.nf_numero]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.nf_numero, form.nf_emitente_cpf_cnpj]);
 
   const valorTotal = parseValorBR(form.nf_valor_total);
   const totalRateado = rateio.reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
@@ -267,35 +292,30 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   }
 
   async function handleVincularXML() {
-    if (!selectedXmlId || !intake.entidade_destino_id) {
-      toast({ title: 'Não foi possível vincular XML', description: 'O PDF ainda não possui Attachment associado.', variant: 'destructive', duration: 3000 });
+    if (!selectedXmlId) {
+      toast({ title: 'Selecione um XML para vincular.', variant: 'destructive', duration: 3000 });
       return;
     }
     setLinkingXml(true);
     try {
-      const xml = await base44.entities.Attachment.get(selectedXmlId);
-      await base44.entities.Attachment.update(intake.entidade_destino_id, {
-        nf_xml_attachment_id: xml.id,
-        nf_revisado: true,
-        nf_categoria: 'nota_fiscal',
-        nf_numero: form.nf_numero,
-        nf_valor_total: valorTotal,
-        nf_data_emissao: form.nf_data_emissao,
-        nf_emitente_nome: form.nf_emitente_nome,
-        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
-        nf_tipo_documento: 'pdf_nf',
-        nf_nome_renomeado: form.file_name_final,
+      const xml = xmlCandidates.find((x) => x.id === selectedXmlId);
+      if (!xml) throw new Error('XML não encontrado na lista.');
+
+      // Atualizar PDF (intake atual)
+      await base44.entities.DocumentIntake.update(intake.id, {
+        grupo_status: 'COMPLETO',
+        nf_xml_intake_id: xml.id,
+        nf_xml_url: xml.arquivo_original_url || '',
       });
-      await base44.entities.Attachment.update(xml.id, {
-        nf_pdf_attachment_id: intake.entidade_destino_id,
-        nf_revisado: true,
-        nf_categoria: 'nota_fiscal',
-        nf_numero: form.nf_numero,
-        nf_valor_total: valorTotal,
-        nf_data_emissao: form.nf_data_emissao,
-        nf_emitente_nome: form.nf_emitente_nome,
-        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+
+      // Atualizar XML (ocultar da fila, marcar como vinculado)
+      await base44.entities.DocumentIntake.update(xml.id, {
+        grupo_status: 'COMPLETO',
+        nf_pdf_intake_id: intake.id,
+        nf_pdf_url: intake.arquivo_original_url || '',
+        ocultar_entrada_unica: true,
       });
+
       toast({ title: 'XML vinculado ao PDF com sucesso.', duration: 3000 });
       onSaved?.();
     } catch (e) {
@@ -679,10 +699,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
                 {xmlCandidates.map((xml) => (
                   <button key={xml.id} type="button" onClick={() => setSelectedXmlId(xml.id)}
                     className={`w-full text-left p-2 rounded border text-sm ${selectedXmlId === xml.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
-                    <p className="font-medium truncate">{xml.file_name || xml.nf_nome_original || 'XML sem nome'}</p>
+                    <p className="font-medium truncate">{xml.file_name_original || xml.file_name_final || 'XML sem nome'}</p>
                     <p className="text-xs text-slate-500 truncate">
-                      {xml.nf_numero ? `NF ${xml.nf_numero}` : 'XML candidato'}
-                      {xml.nf_emitente_nome ? ` — ${xml.nf_emitente_nome}` : ''}
+                      {xml.resultado_ia?.nf_numero ? `NF ${xml.resultado_ia.nf_numero}` : 'XML candidato'}
+                      {xml.resultado_ia?.nf_emitente_nome ? ` — ${xml.resultado_ia.nf_emitente_nome}` : ''}
                     </p>
                   </button>
                 ))}
