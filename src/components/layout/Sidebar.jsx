@@ -48,7 +48,7 @@ const NAV_GROUPS = [
       { path: 'Agenda', label: 'Agenda Museu Centro', icon: CalendarDays, roles: ['all'] },
       { path: 'GaleriaFotos', label: 'Galeria', icon: Image, roles: ['all'] },
       { path: 'RubricasPorMuseu', label: 'Rubricas por museu', icon: DollarSign, roles: ['coord', 'admin'] },
-      { path: 'GestorArquivos', label: 'Arquivos', icon: Folder, roles: ['all'] },
+      // { path: 'GestorArquivos', label: 'Arquivos', icon: Folder, roles: ['all'] },
       {
         path: 'ProgramacaoEspelho',
         label: 'Informações Completas da Programação',
