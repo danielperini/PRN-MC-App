@@ -9,6 +9,7 @@ import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquare
 import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
+const ESTADOS_BR = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
 const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }));
 
@@ -96,8 +97,21 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
     nf_destinatario_nome: ia.nf_destinatario_nome || '',
     descricao_servico: ia.descricao_servico || '',
-    municipio: ia.municipio || '',
-    competencia: ia.competencia || ia.competencia_sugerida || '',
+    municipio: ia.municipio || ia.nf_municipio || ia.municipio_emitente || ia.cidade || '',
+    estado: ia.estado || ia.uf || ia.nf_estado || '',
+    competencia: (() => {
+      const raw = ia.competencia || ia.competencia_sugerida || ia.descricao_servico || '';
+      if (ia.competencia || ia.competencia_sugerida) return ia.competencia || ia.competencia_sugerida;
+      const m = raw.match(/(JANEIRO|FEVEREIRO|MAR[CÇ]O|ABRIL|MAIO|JUNHO|JULHO|AGOSTO|SETEMBRO|OUTUBRO|NOVEMBRO|DEZEMBRO)[\s\/\-]*2026/i)
+             || raw.match(/(\d{2})\/(\d{4})/);
+      if (m) return m[0];
+      return '';
+    })(),
+    banco: ia.banco || ia.dados_bancarios?.banco || '',
+    agencia: ia.agencia || ia.dados_bancarios?.agencia || '',
+    conta: ia.conta || ia.dados_bancarios?.conta || '',
+    tipo_conta: ia.tipo_conta || ia.dados_bancarios?.tipo_conta || '',
+    pix: ia.pix || ia.chave_pix || ia.dados_bancarios?.pix || '',
     centro_custo: ia.centro_custo_sugerido || intake.centro_custo || '',
     rubrica_id: intake.rubrica_id_sugerida || '',
     file_name_final: intake.file_name_final || intake.file_name_original,
@@ -356,6 +370,15 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         nf_numero: form.nf_numero || '',
         nf_emitente_nome: form.nf_emitente_nome || '',
         nf_data_emissao: form.nf_data_emissao || '',
+        municipio: form.municipio || '',
+        estado: form.estado || '',
+        competencia: form.competencia || '',
+        banco: form.banco || '',
+        agencia: form.agencia || '',
+        conta: form.conta || '',
+        tipo_conta: form.tipo_conta || '',
+        pix: form.pix || '',
+        chave_pix: form.pix || '',
         observacoes: `Origem: EntradaUnica | intake_id: ${intake.id}${dividirEntreMuseus ? ' | Rateado entre museus' : ''}`,
       });
 
@@ -518,11 +541,53 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               <Label>Município</Label>
               <Input value={form.municipio} onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))} />
             </div>
+            <div className="space-y-1">
+              <Label>Estado (UF)</Label>
+              <Select value={form.estado} onValueChange={(v) => setForm((f) => ({ ...f, estado: v }))}>
+                <SelectTrigger><SelectValue placeholder="UF" /></SelectTrigger>
+                <SelectContent>
+                  {ESTADOS_BR.map((uf) => (<SelectItem key={uf} value={uf}>{uf}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-1">
             <Label>Descrição do Serviço / Item</Label>
             <Input value={form.descricao_servico} onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))} />
+          </div>
+
+          {/* Dados bancários / Pix */}
+          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
+            <p className="text-sm font-medium text-slate-700">Dados bancários / Pix</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Banco</Label>
+                <Input value={form.banco} onChange={(e) => setForm((f) => ({ ...f, banco: e.target.value }))} placeholder="Ex: Nubank, Bradesco" />
+              </div>
+              <div className="space-y-1">
+                <Label>Agência</Label>
+                <Input value={form.agencia} onChange={(e) => setForm((f) => ({ ...f, agencia: e.target.value }))} placeholder="Ex: 0001" />
+              </div>
+              <div className="space-y-1">
+                <Label>Conta</Label>
+                <Input value={form.conta} onChange={(e) => setForm((f) => ({ ...f, conta: e.target.value }))} placeholder="Ex: 12345-6" />
+              </div>
+              <div className="space-y-1">
+                <Label>Tipo de Conta</Label>
+                <Select value={form.tipo_conta} onValueChange={(v) => setForm((f) => ({ ...f, tipo_conta: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Corrente">Corrente</SelectItem>
+                    <SelectItem value="Poupança">Poupança</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Chave Pix</Label>
+              <Input value={form.pix} onChange={(e) => setForm((f) => ({ ...f, pix: e.target.value }))} placeholder="CPF, e-mail, telefone ou chave aleatória" />
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -654,7 +719,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           </div>
 
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
-            ⚡ Ao enviar, o valor será encaminhado para aprovação conforme o fluxo financeiro.
+            ⚡ Ao enviar, a nota será encaminhada para aprovação conforme o fluxo financeiro.
           </div>
 
           {errosFiltrados.length > 0 && (
