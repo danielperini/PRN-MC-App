@@ -1,99 +1,103 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-function toNumber(v: any) {
-  return Number(v) || 0;
+function json(data: any, status = 200) {
+  return Response.json(data, { status });
 }
 
-function isAfterApril2026(mes: string, ano: number) {
-  const meses = [
-    'JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO',
-    'JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'
-  ];
+function toNumber(value: any): number {
+  const raw = String(value ?? '')
+    .replace(/\s/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
 
-  const idx = meses.indexOf(String(mes || '').toUpperCase());
-  if (idx === -1) return true;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
 
-  if (ano > 2026) return true;
-  if (ano < 2026) return false;
-
-  return idx >= 3;
+function getPurchaseValue(p: any) {
+  return toNumber(
+    p?.valor_pago ||
+    p?.valor_aprovado_admin ||
+    p?.valor_aprovado ||
+    p?.valor_final ||
+    p?.valor_solicitado ||
+    p?.valor_total ||
+    p?.valor ||
+    0
+  );
 }
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    const rubricas = await base44.entities.Rubrica.list();
+    // 1. Buscar todas rubricas
+    const rubricas = await base44.asServiceRole.entities.Rubrica.list();
 
-    const payments = await base44.entities.TeamPayment.list();
-    const lancamentos = await base44.entities.LancamentoRubrica.list();
+    // 2. Zerar tudo
+    for (const r of rubricas) {
+      const total = toNumber(r.valor_total || r.valor_rubrica);
 
-    for (const rubrica of rubricas) {
-      const rubricaId = rubrica.id;
-
-      /* =========================
-         🔒 1. LANCAMENTOS MANUAIS
-      ========================= */
-
-      const lancamentosDaRubrica = lancamentos.filter(l => l.rubrica_id === rubricaId);
-
-      let manualUtilizado = 0;
-      let manualComprometido = 0;
-
-      for (const l of lancamentosDaRubrica) {
-        const valor = toNumber(l.valor);
-
-        if (String(l.tipo || '').toUpperCase() === 'UTILIZADO') {
-          manualUtilizado += valor;
-        }
-
-        if (String(l.tipo || '').toUpperCase() === 'COMPROMETIDO') {
-          manualComprometido += valor;
-        }
-      }
-
-      /* =========================
-         🔒 2. TEAM PAYMENTS (FILTRADO)
-      ========================= */
-
-      const paymentsDaRubrica = payments.filter(p =>
-        p.rubrica_id === rubricaId &&
-        isAfterApril2026(p.mes_referencia, p.ano)
-      );
-
-      let autoUtilizado = 0;
-      let autoComprometido = 0;
-
-      for (const p of paymentsDaRubrica) {
-        const valor = toNumber(p.valor_nf || p.valor_parcela_previsto);
-
-        const status = String(p.status || '').toUpperCase();
-
-        if (status === 'PAGO') {
-          autoUtilizado += valor;
-        }
-
-        if (status === 'APROVADO_COORD') {
-          autoComprometido += valor;
-        }
-      }
-
-      /* =========================
-         🔒 3. CONSOLIDAÇÃO FINAL
-      ========================= */
-
-      const valor_utilizado = manualUtilizado + autoUtilizado;
-      const saldo_comprometido = manualComprometido + autoComprometido;
-
-      await base44.entities.Rubrica.update(rubricaId, {
-        valor_utilizado,
-        saldo_comprometido
+      await base44.asServiceRole.entities.Rubrica.update(r.id, {
+        valor_utilizado: 0,
+        saldo_comprometido: 0,
+        saldo_real: total,
+        saldo: total,
+        percentual_utilizado: 0
       });
     }
 
-    return Response.json({ ok: true });
+    // 3. Buscar todas compras aprovadas
+    const purchases = await base44.asServiceRole.entities.PurchaseRequest.list();
 
-  } catch (e: any) {
-    return Response.json({ error: e?.message || 'Erro interno' }, { status: 500 });
+    const aprovadas = purchases.filter(p =>
+      ['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO'].includes(
+        String(p.status || '').toUpperCase()
+      )
+    );
+
+    // 4. Agrupar por rubrica
+    const acumulado: Record<string, number> = {};
+
+    for (const p of aprovadas) {
+      if (!p.rubrica_id) continue;
+
+      const valor = getPurchaseValue(p);
+
+      acumulado[p.rubrica_id] =
+        (acumulado[p.rubrica_id] || 0) + valor;
+    }
+
+    // 5. Atualizar rubricas
+    for (const rubricaId of Object.keys(acumulado)) {
+      const r = rubricas.find(x => x.id === rubricaId);
+      if (!r) continue;
+
+      const total = toNumber(r.valor_total || r.valor_rubrica);
+      const utilizado = acumulado[rubricaId];
+
+      const saldo = total - utilizado;
+      const percentual = total > 0 ? (utilizado / total) * 100 : 0;
+
+      await base44.asServiceRole.entities.Rubrica.update(rubricaId, {
+        valor_utilizado: utilizado,
+        saldo_comprometido: 0,
+        saldo_real: saldo,
+        saldo: saldo,
+        percentual_utilizado: percentual
+      });
+    }
+
+    return json({
+      success: true,
+      totalRubricas: rubricas.length,
+      totalComprasConsideradas: aprovadas.length
+    });
+
+  } catch (error: any) {
+    return json({
+      success: false,
+      error: error.message
+    }, 500);
   }
 });
