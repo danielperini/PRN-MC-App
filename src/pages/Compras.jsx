@@ -270,9 +270,9 @@ function TabelaSolicitacoes({
     <div className="overflow-x-auto rounded-xl border border-gray-200">
       <table className="w-full table-fixed border-collapse text-sm">
         <colgroup>
-          <col className="w-[30%]" /><col className="w-[16%]" /><col className="w-[9%]" />
-          <col className="w-[17%]" /><col className="w-[11%]" /><col className="w-[11%]" />
-          <col className="w-[6%]"  />
+          <col className="w-[27%]" /><col className="w-[14%]" /><col className="w-[8%]" />
+          <col className="w-[15%]" /><col className="w-[10%]" /><col className="w-[10%]" />
+          <col className="w-[7%]"  /><col className="w-[9%]"  />
         </colgroup>
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50 text-left">
@@ -282,6 +282,7 @@ function TabelaSolicitacoes({
             <th className="px-3 py-3 font-medium text-gray-600">Rubrica</th>
             <th className="px-3 py-3 font-medium text-gray-600">Status</th>
             <th className="px-3 py-3 text-right font-medium text-gray-600">Valor</th>
+            <th className="px-3 py-3 text-center font-medium text-gray-600">Arquivo</th>
             <th className="px-3 py-3 text-center font-medium text-gray-600">Ações</th>
           </tr>
         </thead>
@@ -325,6 +326,13 @@ function TabelaSolicitacoes({
                 </td>
                 <td className="px-3 py-2.5 align-top text-right font-medium tabular-nums text-gray-900">
                   <span className="block truncate">{fmtBRL(valor)}</span>
+                </td>
+                <td className="px-3 py-2.5 align-top text-center">
+                  {fileUrl ? (
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900">Arquivo</a>
+                  ) : (
+                    <span className="text-xs text-gray-400">—</span>
+                  )}
                 </td>
                 <td className="px-3 py-2.5 align-top">
                   <div className="relative flex items-center justify-center gap-2">
