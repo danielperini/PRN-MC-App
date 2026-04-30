@@ -395,6 +395,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         valor_total: valor,
         nf_valor_total: valor,
         rubrica_id: form.rubrica_id,
+        budgetline_id: form.rubrica_id || null,
         centro_custo: centroCustoEnum,
         nota_fiscal_url: intake.arquivo_original_url || '',
         status: 'SOLICITADO',
