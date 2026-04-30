@@ -137,8 +137,8 @@ export default function AuditoriaFinanceiraCard({ purchases, rubricas }) {
   }, [purchases, rubricaById]);
 
   const total = alertas.length;
-  const visiveis = expanded ? alertas : alertas.slice(0, 5);
-  const temMais  = alertas.length > 5;
+  const visiveis = expanded ? alertas : alertas.slice(0, 2);
+  const temMais  = alertas.length > 2;
 
   // Cor do card
   let borderColor = 'border-green-200 bg-green-50';

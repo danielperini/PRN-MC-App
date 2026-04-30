@@ -860,11 +860,6 @@ function ComprasInner() {
           </div>
         )}
 
-        {/* Card de Auditoria Financeira — apenas coordenadores */}
-        {isCoordenador && (
-          <AuditoriaFinanceiraCard purchases={purchases} rubricas={rubricas} />
-        )}
-
         {isCoordenador && (
           <div className="mb-6">
             <OrcamentoDashboard budgetLines={budgetLines || []} purchases={purchases || []} rubricas={rubricas || []} />
@@ -1006,6 +1001,13 @@ function ComprasInner() {
 
         {/* Tab: Equipe */}
         {tab === 'equipe' && <TeamManager budgetLines={budgetLines} />}
+
+        {/* Card de Auditoria Financeira — final da página, apenas coordenadores */}
+        {isCoordenador && (
+          <div className="mt-8">
+            <AuditoriaFinanceiraCard purchases={purchases} rubricas={rubricas} />
+          </div>
+        )}
       </div>
 
       {showForm && (
