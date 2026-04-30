@@ -509,13 +509,12 @@ function ComprasInner() {
     staleTime: 0
   });
 
-  // ── Totais consolidados a partir das rubricas (fonte da verdade) ──────────
+  // ── Totais consolidados — Total Previsto fixo do 3º Aditivo ─────────────
+  const TOTAL_PREVISTO_3_ADITIVO = 1320000;
   const totaisConsolidados = useMemo(() => {
-    const ativas = (rubricas || []).filter((r) => r?.ativo !== false);
-    const totalPrevisto  = ativas.reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
-    const totalUtilizado = ativas.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
-    const saldo          = totalPrevisto - totalUtilizado;
-    return { totalPrevisto, totalUtilizado, saldo };
+    const totalUtilizado = (rubricas || []).reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
+    const saldo          = TOTAL_PREVISTO_3_ADITIVO - totalUtilizado;
+    return { totalPrevisto: TOTAL_PREVISTO_3_ADITIVO, totalUtilizado, saldo };
   }, [rubricas]);
 
   const purchasesWithFlags = useMemo(() => {
@@ -842,9 +841,9 @@ function ComprasInner() {
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
               <p className="text-xs font-medium text-gray-500">Total Previsto</p>
               <p className="mt-1 text-xl font-bold text-gray-900">
-                {fmtBRL(totaisConsolidados.totalPrevisto || TOTAL_PREVISTO_FALLBACK)}
+                {fmtBRL(totaisConsolidados.totalPrevisto)}
               </p>
-              <p className="text-xs text-gray-400">Soma das rubricas ativas</p>
+              <p className="text-xs text-gray-400">Valor total do 3º Aditivo</p>
             </div>
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
               <p className="text-xs font-medium text-gray-500">Total Utilizado</p>
@@ -985,7 +984,7 @@ function ComprasInner() {
                 onSelectRubrica={setSelectedRubrica}
                 onRefresh={refreshFinanceiroCompleto}
                 isCoordenador={isCoordenador}
-                totalPrevisto={totaisConsolidados.totalPrevisto || TOTAL_PREVISTO_FALLBACK}
+                totalPrevisto={totaisConsolidados.totalPrevisto}
               />
             )}
             {loadingRubricas && <div className="text-sm text-gray-400">Atualizando dados financeiros...</div>}
