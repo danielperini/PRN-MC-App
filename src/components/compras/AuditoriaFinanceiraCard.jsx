@@ -88,8 +88,14 @@ export default function AuditoriaFinanceiraCard({ purchases, rubricas }) {
         continue;
       }
 
-      // 5. Sem rubrica_debitada_em
-      if (!p.rubrica_debitada_em) {
+      // 5. Sem rubrica_debitada_em — ignorar pagamentos de equipe/contratos (sem NF)
+      const isEquipe = !!(
+        p.team_payment_id ||
+        String(p.tipo_origem || p.origem || p.categoria || p.tipo_solicitacao || '')
+          .toLowerCase().match(/equipe|team|contrato|prestacao|prestação/)
+      );
+      const temChaveFiscal = !!getChaveFiscal(p);
+      if (!p.rubrica_debitada_em && temChaveFiscal && !isEquipe) {
         lista.push({ tipo: 'Débito não registrado', descricao: `Aprovada sem débito registrado: "${desc}"`, id: p.id });
       }
 
