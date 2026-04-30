@@ -48,7 +48,6 @@ async function debitarRubrica(base44: any, rubrica: any, valor: number) {
 
   await base44.asServiceRole.entities.Rubrica.update(rubrica.id, {
     valor_utilizado: novoUtilizado,
-    saldo_comprometido: 0,
     saldo_real: novoSaldo,
     saldo: novoSaldo,
     percentual_utilizado: percentual
@@ -65,7 +64,6 @@ async function estornarRubrica(base44: any, rubrica: any, valor: number) {
 
   await base44.asServiceRole.entities.Rubrica.update(rubrica.id, {
     valor_utilizado: novoUtilizado,
-    saldo_comprometido: 0,
     saldo_real: novoSaldo,
     saldo: novoSaldo,
     percentual_utilizado: percentual
@@ -94,8 +92,7 @@ async function syncAttachments(base44: any, purchase: any, status: string) {
 async function estornarSeNecessario(base44: any, purchase: any, valor: number) {
   const deveEstornar =
     !!purchase.rubrica_debitada_em ||
-    !!purchase.financeiro_lancado_em ||
-    purchase.financeiro_comprometido === true;
+    !!purchase.financeiro_lancado_em;
 
   if (!deveEstornar || !purchase.rubrica_id) return;
 
@@ -124,13 +121,13 @@ Deno.serve(async (req) => {
 
     const valor = getPurchaseValue(purchase);
 
+    // =========================
+    // APROVAR (CORE CORRETO)
+    // =========================
     if (action === 'aprovar') {
       const rubrica = await getRubrica(base44, purchase.rubrica_id);
 
-      const jaDebitado =
-        !!purchase.rubrica_debitada_em ||
-        !!purchase.financeiro_lancado_em ||
-        purchase.financeiro_comprometido === true;
+      const jaDebitado = !!purchase.rubrica_debitada_em;
 
       if (!jaDebitado) {
         await debitarRubrica(base44, rubrica, valor);
@@ -140,7 +137,6 @@ Deno.serve(async (req) => {
         purchase.id,
         {
           status: 'APROVADO_COORD',
-          financeiro_comprometido: true,
           financeiro_lancado_em:
             purchase.financeiro_lancado_em || new Date().toISOString(),
           rubrica_debitada_em:
@@ -152,12 +148,12 @@ Deno.serve(async (req) => {
 
       await syncAttachments(base44, updated, 'APROVADO');
 
-      return json({
-        success: true,
-        purchase: updated
-      });
+      return json({ success: true, purchase: updated });
     }
 
+    // =========================
+    // DESAPROVAR / REPROVAR
+    // =========================
     if (action === 'desaprovar' || action === 'reprovar') {
       await estornarSeNecessario(base44, purchase, valor);
 
@@ -167,7 +163,6 @@ Deno.serve(async (req) => {
           status: action === 'reprovar' ? 'RECUSADO' : 'SOLICITADO',
           comentario_desaprovacao:
             comentario || 'Desaprovado pela coordenação.',
-          financeiro_comprometido: false,
           financeiro_lancado_em: null,
           rubrica_debitada_em: null,
           rubrica_debitada_valor: 0
@@ -176,12 +171,12 @@ Deno.serve(async (req) => {
 
       await syncAttachments(base44, updated, action === 'reprovar' ? 'REPROVADO' : 'SOLICITADO');
 
-      return json({
-        success: true,
-        purchase: updated
-      });
+      return json({ success: true, purchase: updated });
     }
 
+    // =========================
+    // DEVOLVER
+    // =========================
     if (action === 'devolver' || action === 'rejeitar') {
       await estornarSeNecessario(base44, purchase, valor);
 
@@ -190,8 +185,7 @@ Deno.serve(async (req) => {
         {
           status: 'DEVOLVIDO',
           comentario_devolucao:
-            comentario || 'Devolvido pela coordenação para ajustes.',
-          financeiro_comprometido: false,
+            comentario || 'Devolvido pela coordenação.',
           financeiro_lancado_em: null,
           rubrica_debitada_em: null,
           rubrica_debitada_valor: 0
@@ -200,12 +194,12 @@ Deno.serve(async (req) => {
 
       await syncAttachments(base44, updated, 'DEVOLVIDO');
 
-      return json({
-        success: true,
-        purchase: updated
-      });
+      return json({ success: true, purchase: updated });
     }
 
+    // =========================
+    // CANCELAR
+    // =========================
     if (action === 'cancelar' || action === 'deletar') {
       await estornarSeNecessario(base44, purchase, valor);
 
@@ -213,7 +207,6 @@ Deno.serve(async (req) => {
         purchase.id,
         {
           status: 'CANCELADO',
-          financeiro_comprometido: false,
           financeiro_lancado_em: null,
           rubrica_debitada_em: null,
           rubrica_debitada_valor: 0
@@ -222,16 +215,10 @@ Deno.serve(async (req) => {
 
       await syncAttachments(base44, updated, 'CANCELADO');
 
-      return json({
-        success: true,
-        purchase: updated
-      });
+      return json({ success: true, purchase: updated });
     }
 
-    return json({
-      success: false,
-      error: 'Ação inválida.'
-    }, 400);
+    return json({ success: false, error: 'Ação inválida.' }, 400);
   } catch (error: any) {
     console.error('purchaseActions error:', error);
 
