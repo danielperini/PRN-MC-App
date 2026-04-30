@@ -403,6 +403,7 @@ Retorne apenas o JSON, sem explicações.`;
       });
 
       toast.success('XML vinculado à nota fiscal com sucesso.');
+      setIntakes((prev) => prev.filter((i) => i.id !== xmlIntake.id));
       await loadIntakes();
     } catch (e) {
       console.error('Erro ao vincular XML:', e);
