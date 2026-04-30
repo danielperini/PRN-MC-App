@@ -32,6 +32,7 @@ export default function EntradaUnica() {
       const filtrados = (list || []).filter((i) => {
         const status = String(i.status_processamento || '').toUpperCase();
         if (status === 'APROVADO') return false;
+        if (status === 'ENVIADO_APROVACAO') return false;
         if (i.ocultar_entrada_unica === true) return false;
         return true;
       });

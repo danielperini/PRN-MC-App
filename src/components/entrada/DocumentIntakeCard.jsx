@@ -121,7 +121,7 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
       const rubrica = await base44.entities.Rubrica.get(rubrica_id).catch(() => null);
       const rubrica_nome = rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '';
 
-      await base44.entities.PurchaseRequest.create({
+      const novaPurchase = await base44.entities.PurchaseRequest.create({
         descricao_item: ia.descricao_servico || ia.nf_emitente_nome || fileName,
         fornecedor_nome: ia.nf_emitente_nome || '',
         fornecedor_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
@@ -138,9 +138,10 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
       });
 
       await base44.entities.DocumentIntake.update(intake.id, {
-        status_processamento: 'APROVADO',
+        status_processamento: 'ENVIADO_APROVACAO',
         ocultar_entrada_unica: true,
         entidade_destino: 'PurchaseRequest',
+        entidade_destino_id: novaPurchase?.id || '',
       });
 
       if (onSentToApproval) onSentToApproval(intake.id);
