@@ -175,6 +175,34 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.nf_numero, form.nf_emitente_nome, form.nf_valor_total]);
 
+  // Busca membro da equipe pelo CPF e preenche dados bancários ainda vazios
+  useEffect(() => {
+    const cpf = String(form.nf_emitente_cpf_cnpj || '').replace(/\D/g, '');
+    if (cpf.length !== 11) return; // só PF
+
+    async function buscarMembro() {
+      try {
+        const membros = await base44.entities.TeamMember.filter({ cpf }, '-created_date', 5);
+        const membro = membros?.[0];
+        if (!membro) return;
+
+        setForm((f) => ({
+          ...f,
+          banco:      f.banco      || membro.banco      || '',
+          agencia:    f.agencia    || membro.agencia    || '',
+          conta:      f.conta      || membro.conta      || '',
+          tipo_conta: f.tipo_conta || membro.tipo_conta || '',
+          pix:        f.pix        || membro.pix_key    || '',
+        }));
+      } catch (e) {
+        console.error('Erro ao buscar membro da equipe:', e);
+      }
+    }
+
+    buscarMembro();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.nf_emitente_cpf_cnpj]);
+
   useEffect(() => {
     async function loadXMLs() {
       if (!form.nf_numero) {
