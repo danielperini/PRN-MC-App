@@ -196,10 +196,19 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
             <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
               {tipoLabel}
             </span>
-            <span className={cn('inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium', status.color)}>
-              <Icon className={cn('w-3 h-3', status.spin && 'animate-spin')} />
-              {status.label}
-            </span>
+            {/* XML vinculado: só mostrar "Aguardando vínculo"; se já vinculado, não mostrar status */}
+            {isXML && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO' && (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">
+                <Clock className="w-3 h-3" />
+                Aguardando vínculo
+              </span>
+            )}
+            {!isXML && (
+              <span className={cn('inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium', status.color)}>
+                <Icon className={cn('w-3 h-3', status.spin && 'animate-spin')} />
+                {status.label}
+              </span>
+            )}
             {valorDisplay && (
               <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
                 {valorDisplay}
