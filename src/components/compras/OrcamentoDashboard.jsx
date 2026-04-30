@@ -32,12 +32,7 @@ function getRubricaPrevisto(r) {
 }
 
 function getRubricaUtilizado(r) {
-  return (
-    toNumber(r?.valor_utilizado) ||
-    toNumber(r?.utilizado) ||
-    toNumber(r?.saldo_comprometido) ||
-    0);
-
+  return toNumber(r?.valor_utilizado) || toNumber(r?.utilizado) || 0;
 }
 
 function getRubricaNome(r) {
@@ -207,13 +202,11 @@ export default function OrcamentoDashboard({
 }) {
   /* ================= BASE ================= */
 
-  const totalInicial = budgetLines.reduce(
-    (acc, l) => acc + toNumber(l.saldo_inicial),
-    0
-  );
+  const TOTAL_PREVISTO = 1320000;
+  const totalInicial = TOTAL_PREVISTO;
 
-  const totalComprometido = budgetLines.reduce(
-    (acc, l) => acc + toNumber(l.saldo_comprometido),
+  const totalComprometido = rubricas.reduce(
+    (acc, r) => acc + toNumber(r.valor_utilizado),
     0
   );
 
