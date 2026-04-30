@@ -1,103 +1,69 @@
-import React, { useState, useEffect } from 'react';
-import { FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2, Eye, Send, FolderOpen, RefreshCw, X } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2,
+  Eye, Send, RefreshCw, X, Download, ExternalLink
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { base44 } from '@/api/base44Client';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 
 const STATUS_CONFIG = {
-  ENVIADO: { label: 'Enviado', color: 'bg-blue-100 text-blue-700', icon: Clock },
-  ANALISANDO_IA: { label: 'Analisando IA...', color: 'bg-yellow-100 text-yellow-700', icon: Loader2, spin: true },
-  AGUARDANDO_REVISAO: { label: 'Aguardando revisão', color: 'bg-orange-100 text-orange-700', icon: Eye },
-  RASCUNHO: { label: 'Rascunho', color: 'bg-slate-100 text-slate-600', icon: FileText },
-  ENVIADO_APROVACAO: { label: 'Enviado para aprovação', color: 'bg-purple-100 text-purple-700', icon: Send },
-  APROVADO: { label: 'Aprovado', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
-  REJEITADO: { label: 'Rejeitado', color: 'bg-red-100 text-red-700', icon: AlertCircle },
-  ERRO_PROCESSAMENTO: { label: 'Erro no processamento', color: 'bg-red-100 text-red-700', icon: AlertCircle },
+  ENVIADO:            { label: 'Enviado',              color: 'bg-blue-100 text-blue-700',    icon: Clock },
+  ANALISANDO_IA:      { label: 'Analisando...',        color: 'bg-yellow-100 text-yellow-700', icon: Loader2, spin: true },
+  AGUARDANDO_REVISAO: { label: 'Aguardando revisão',   color: 'bg-orange-100 text-orange-700', icon: Eye },
+  RASCUNHO:           { label: 'Rascunho',             color: 'bg-slate-100 text-slate-600',   icon: FileText },
+  ENVIADO_APROVACAO:  { label: 'Enviado p/ aprovação', color: 'bg-purple-100 text-purple-700', icon: Send },
+  APROVADO:           { label: 'Aprovado',             color: 'bg-green-100 text-green-700',   icon: CheckCircle2 },
+  REJEITADO:          { label: 'Rejeitado',            color: 'bg-red-100 text-red-700',       icon: AlertCircle },
+  ERRO_PROCESSAMENTO: { label: 'Erro',                 color: 'bg-red-100 text-red-700',       icon: AlertCircle },
 };
-
-const TIPO_OPTIONS = [
-  { value: 'NOTA_FISCAL_PDF', label: 'Nota fiscal de fornecedor (PDF)' },
-  { value: 'NOTA_FISCAL_XML', label: 'Nota fiscal XML' },
-  { value: 'FOTO_ATIVIDADE', label: 'Foto de atividade' },
-  { value: 'DOCUMENTO_ADMINISTRATIVO', label: 'Documento administrativo' },
-  { value: 'OUTRO', label: 'Outro documento' },
-];
 
 const TIPO_LABEL = {
-  FOTO_ATIVIDADE: 'Foto de Atividade',
-  NOTA_FISCAL_PDF: 'Nota Fiscal PDF',
-  NOTA_FISCAL_XML: 'Nota Fiscal XML',
-  DOCUMENTO_ADMINISTRATIVO: 'Documento Administrativo',
-  OUTRO: 'Outro',
-  PENDENTE: 'Pendente',
+  NOTA_FISCAL_PDF:         'NF PDF',
+  NOTA_FISCAL_XML:         'NF XML',
+  FOTO_ATIVIDADE:          'Foto',
+  DOCUMENTO_ADMINISTRATIVO:'Documento',
+  OUTRO:                   'Outro',
+  PENDENTE:                'Pendente',
 };
 
-const DESTINO_LABEL = {
-  PurchaseRequest: { label: 'Compras', path: '/Compras' },
-  TeamPayment: { label: 'Pagamentos da Equipe', path: '/GestaoPagamentos' },
-  Attachment: { label: 'Documentos / Arquivos', path: '/GestorArquivos' },
-  Activity: { label: 'Atividade', path: '/NovaAtividade' },
-  Programacao: { label: 'Programação', path: '/Agenda' },
-};
+function parseValorBR(v) {
+  const s = String(v || '0').trim().replace(/\s/g, '');
+  if (/^\d{1,3}(\.\d{3})*(,\d+)?$/.test(s)) {
+    return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+  return parseFloat(s.replace(',', '.')) || 0;
+}
 
-export default function DocumentIntakeCard({ intake, onReview, onDeleted }) {
-  const { toast } = useToast();
-  const [localTipo, setLocalTipo] = useState(intake.tipo_detectado);
+function getValorDisplay(intake) {
+  const ia = intake.resultado_ia || {};
+  const valor = ia.nf_valor_total || ia.valor || ia.valor_total || intake.valor;
+  if (!valor) return null;
+  const num = parseValorBR(valor);
+  if (!num || num <= 0) return null;
+  return `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+}
+
+export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSentToApproval }) {
   const [loading, setLoading] = useState(false);
-
-  // Sincronizar quando intake muda
-  useEffect(() => {
-    setLocalTipo(intake.tipo_detectado);
-  }, [intake.id, intake.tipo_detectado]);
+  const [sendingApproval, setSendingApproval] = useState(false);
 
   const status = STATUS_CONFIG[intake.status_processamento] || STATUS_CONFIG.ENVIADO;
   const Icon = status.icon;
-  const isImage = localTipo === 'FOTO_ATIVIDADE';
+  const tipo = intake.tipo_detectado;
+  const isImage = tipo === 'FOTO_ATIVIDADE';
+  const isNF = tipo === 'NOTA_FISCAL_PDF' || tipo === 'NOTA_FISCAL_XML';
 
-  // Estados condicionais simplificados
-  const isProcessing = intake.status_processamento === 'ANALISANDO_IA' || intake.status_processamento === 'ENVIADO';
-  const canReview = intake.status_processamento === 'AGUARDANDO_REVISAO' || intake.status_processamento === 'RASCUNHO';
+  const canReview = ['AGUARDANDO_REVISAO', 'RASCUNHO'].includes(intake.status_processamento);
   const hasError = intake.status_processamento === 'ERRO_PROCESSAMENTO';
-  const hasType = localTipo && localTipo !== 'PENDENTE';
-  const isNF = localTipo === 'NOTA_FISCAL_PDF' || localTipo === 'NOTA_FISCAL_XML';
+  const isProcessing = ['ANALISANDO_IA', 'ENVIADO'].includes(intake.status_processamento);
+  const canSendApproval = canReview && isNF;
 
-  const destinoInfo = intake.entidade_destino && intake.entidade_destino !== 'Attachment'
-    ? DESTINO_LABEL[intake.entidade_destino]
-    : null;
-
-  // Filtrar erros relevantes (remover datas futuras já passadas)
-  const relevantErrors = (intake.erros_validacao || []).filter(e => {
-    const txt = String(e).toLowerCase();
-    if (txt.includes('futura') || txt.includes('future')) {
-      const match = txt.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-      if (match) {
-        const dataDoc = new Date(`${match[3]}-${match[2]}-${match[1]}`);
-        if (dataDoc <= new Date()) return false;
-      }
-    }
-    return true;
-  });
-
-  async function handleClassification(novoTipo) {
-    if (novoTipo === localTipo) return;
-    setLoading(true);
-    try {
-      await base44.entities.DocumentIntake.update(intake.id, {
-        tipo_detectado: novoTipo,
-        status_processamento: 'AGUARDANDO_REVISAO',
-        revisado_pelo_usuario: true,
-      });
-      setLocalTipo(novoTipo);
-      toast({ title: 'Categoria atualizada com sucesso.' });
-    } catch (e) {
-      toast({ title: 'Erro ao atualizar categoria', description: e.message, variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
-  }
+  const valorDisplay = getValorDisplay(intake);
+  const fileName = intake.file_name_final || intake.file_name_original || 'Arquivo';
+  const tipoLabel = TIPO_LABEL[tipo] || tipo || 'Pendente';
 
   async function handleReanalyse() {
     setLoading(true);
@@ -106,20 +72,18 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted }) {
         status_processamento: 'ENVIADO',
         erros_validacao: [],
       });
-      await base44.functions.invoke('classifyAndRouteDocument', { intake_id: intake.id });
-      toast({ title: 'Documento reenviado para análise.' });
+      toast.success('Documento reenviado para análise.');
     } catch (e) {
-      toast({ title: 'Erro ao reenviar', description: e.message, variant: 'destructive' });
+      toast.error('Erro ao reenviar: ' + e.message);
     } finally {
       setLoading(false);
     }
   }
 
   async function handleDelete() {
-    if (!window.confirm('Tem certeza que deseja deletar este arquivo? Esta ação não pode ser desfeita.')) return;
+    if (!window.confirm('Tem certeza que deseja deletar este arquivo?')) return;
     setLoading(true);
     try {
-      // Deleta attachment vinculado (permite IA preencher forms novamente)
       if (intake.entidade_destino_id) {
         try {
           await base44.entities.Attachment.delete(intake.entidade_destino_id);
@@ -127,196 +91,206 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted }) {
           console.warn('Erro ao deletar attachment:', e.message);
         }
       }
-      
-      // Deleta DocumentIntake completamente (não apenas marca como removido)
       try {
         await base44.entities.DocumentIntake.delete(intake.id);
       } catch (e) {
-        // Se não encontrar, significa que já foi deletado — tudo bem
-        if (!e.message?.includes('not found')) {
-          throw e;
-        }
+        if (!e.message?.includes('not found')) throw e;
       }
-      toast({ title: 'Arquivo deletado permanentemente.', duration: 3000 });
-      // Notifica pai para remover o card da lista
-      if (onDeleted) {
-        onDeleted(intake.id);
-      }
+      toast.success('Arquivo deletado.');
+      if (onDeleted) onDeleted(intake.id);
     } catch (e) {
-      toast({ title: 'Erro ao deletar', description: e.message, variant: 'destructive', duration: 3000 });
+      toast.error('Erro ao deletar: ' + e.message);
     } finally {
       setLoading(false);
     }
   }
 
+  async function handleSendToApproval() {
+    const ia = intake.resultado_ia || {};
+    const rubrica_id = intake.rubrica_id_sugerida || ia.rubrica_id;
+    const centro_custo = intake.centro_custo || ia.centro_custo_sugerido;
+    const valor = parseValorBR(ia.nf_valor_total || ia.valor || ia.valor_total || 0);
+
+    if (!rubrica_id || !centro_custo || !valor) {
+      toast.error('Preencha rubrica, centro de custo e valor antes de enviar. Clique em "Editar" para revisar.');
+      return;
+    }
+
+    setSendingApproval(true);
+    try {
+      const rubrica = await base44.entities.Rubrica.get(rubrica_id).catch(() => null);
+      const rubrica_nome = rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '';
+
+      await base44.entities.PurchaseRequest.create({
+        descricao_item: ia.descricao_servico || ia.nf_emitente_nome || fileName,
+        fornecedor_nome: ia.nf_emitente_nome || '',
+        fornecedor_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
+        valor: valor,
+        rubrica_id: rubrica_id,
+        rubrica_nome: rubrica_nome,
+        centro_custo: centro_custo,
+        nota_fiscal_url: intake.arquivo_original_url || '',
+        status: 'AGUARDANDO_APROVACAO',
+        origem: 'EntradaUnica',
+        intake_id: intake.id,
+        nf_numero: ia.nf_numero || '',
+        nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || '',
+      });
+
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'APROVADO',
+        ocultar_entrada_unica: true,
+        entidade_destino: 'PurchaseRequest',
+      });
+
+      if (onSentToApproval) onSentToApproval(intake.id);
+    } catch (e) {
+      toast.error('Erro ao enviar para aprovação: ' + e.message);
+    } finally {
+      setSendingApproval(false);
+    }
+  }
+
   return (
-    <div className="border border-slate-200 rounded-xl p-4 bg-white hover:shadow-sm transition-shadow space-y-3">
-      {/* Header com ícone, nome, data e status */}
-      <div className="flex items-start gap-4">
+    <div className="border border-slate-200 rounded-xl p-4 bg-white hover:shadow-sm transition-shadow">
+      <div className="flex items-center gap-3">
+        {/* Ícone */}
         <div className={cn(
-          'w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0',
+          'w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0',
           isImage ? 'bg-purple-100' : 'bg-slate-100'
         )}>
           {isImage
-            ? <Image className="w-6 h-6 text-purple-500" />
-            : <FileText className="w-6 h-6 text-slate-400" />
+            ? <Image className="w-5 h-5 text-purple-500" />
+            : <FileText className="w-5 h-5 text-slate-400" />
           }
         </div>
 
+        {/* Info principal */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-slate-800 truncate">
-            {intake.file_name_final || intake.file_name_original}
+          <p className="text-sm font-medium text-slate-800 truncate" title={fileName}>
+            {fileName}
           </p>
-          <p className="text-xs text-slate-400 mb-2">
-            {new Date(intake.created_date).toLocaleDateString('pt-BR', {
-              day: '2-digit', month: '2-digit', year: 'numeric',
-              hour: '2-digit', minute: '2-digit'
-            })}
-          </p>
-
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {/* Tipo */}
+            <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+              {tipoLabel}
+            </span>
+            {/* Status */}
             <span className={cn('inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium', status.color)}>
               <Icon className={cn('w-3 h-3', status.spin && 'animate-spin')} />
               {status.label}
             </span>
-
-            {relevantErrors.length > 0 && (
-              <span className="text-xs text-red-500 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                {relevantErrors.length} inconsistência(s)
+            {/* Valor */}
+            {valorDisplay && (
+              <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                {valorDisplay}
               </span>
             )}
           </div>
         </div>
 
-        {/* Botões de ação à direita */}
-        <div className="flex-shrink-0 flex items-center gap-1">
-          {canReview && (
-            <Button size="sm" onClick={() => onReview({ ...intake, tipo_detectado: localTipo })}>
-              Revisar
+        {/* Ações */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Ver arquivo */}
+          {intake.arquivo_original_url && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0"
+              title="Ver arquivo"
+              onClick={() => window.open(intake.arquivo_original_url, '_blank')}
+            >
+              <ExternalLink className="w-4 h-4 text-slate-400" />
             </Button>
           )}
+
+          {/* Baixar arquivo */}
+          {intake.arquivo_original_url && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0"
+              title="Baixar arquivo"
+              onClick={() => {
+                const a = document.createElement('a');
+                a.href = intake.arquivo_original_url;
+                a.download = fileName;
+                a.click();
+              }}
+            >
+              <Download className="w-4 h-4 text-slate-400" />
+            </Button>
+          )}
+
+          {/* Reanalisar (em erro) */}
           {hasError && (
             <Button
               size="sm"
               variant="outline"
               onClick={handleReanalyse}
               disabled={loading}
-              className="text-xs h-7"
+              className="text-xs h-8 px-2"
+              title="Reanalisar"
             >
-              {loading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
-              Reanalisar
+              {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
             </Button>
           )}
+
+          {/* Editar formulário */}
+          {canReview && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onReview({ ...intake })}
+              className="h-8 text-xs px-3"
+            >
+              Editar
+            </Button>
+          )}
+
+          {/* Enviar para aprovação */}
+          {canSendApproval && (
+            <Button
+              size="sm"
+              onClick={handleSendToApproval}
+              disabled={sendingApproval}
+              className="h-8 text-xs px-3 bg-black text-white hover:bg-gray-800"
+            >
+              {sendingApproval
+                ? <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                : <Send className="w-3 h-3 mr-1" />
+              }
+              {sendingApproval ? 'Enviando...' : 'Enviar'}
+            </Button>
+          )}
+
+          {/* Deletar */}
           <Button
             size="sm"
-            variant="destructive"
+            variant="ghost"
             onClick={handleDelete}
-            disabled={loading}
-            className="h-7 w-7 p-0"
+            disabled={loading || sendingApproval}
+            className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
             title="Deletar arquivo"
           >
-            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-4 h-4" />}
           </Button>
         </div>
       </div>
 
-      {/* Seção: Classificação da IA + Reclassificação */}
-      {hasType && !isProcessing && (
-        <div className="border-t border-slate-100 pt-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 font-medium">Categoria identificada pela IA:</span>
-            <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
-              {TIPO_LABEL[localTipo] || localTipo}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500">Confirmar ou alterar:</span>
-            <div className="flex-1 max-w-[280px]">
-              <Select
-                value={localTipo}
-                onValueChange={handleClassification}
-                disabled={loading}
-              >
-                <SelectTrigger className="h-7 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIPO_OPTIONS.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
-          </div>
-
-          {intake.rubrica_nome_sugerida && (
-            <p className="text-xs text-slate-500">
-              💡 Rubrica sugerida: <span className="font-medium text-slate-700">{intake.rubrica_nome_sugerida}</span>
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Seção: Agrupamento PDF+XML */}
-      {isNF && intake.grupo_status && (
-        <div className="border-t border-slate-100 pt-3">
-          {intake.grupo_status === 'COMPLETO' ? (
-            <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 px-2 py-1.5 rounded">
-              <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>PDF e XML associados — pronto para processar</span>
-            </div>
-          ) : intake.grupo_status === 'INCOMPLETO' ? (
-            <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-2 py-1.5 rounded">
-              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>Envie PDF + XML da mesma nota para completar</span>
-            </div>
-          ) : null}
-        </div>
-      )}
-
-      {/* Seção: Destino do documento */}
-      {destinoInfo && (
-        <div className="border-t border-slate-100 pt-3 flex items-center gap-2">
-          <FolderOpen className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-          <span className="text-xs text-slate-500">Disponível em:</span>
-          <a
-            href={destinoInfo.path}
-            className="text-xs font-semibold text-green-700 hover:underline"
-          >
-            {destinoInfo.label}
-          </a>
-        </div>
-      )}
-
-      {/* Seção: Erro na análise — permite reclassificação manual */}
+      {/* Aviso de erro */}
       {hasError && (
-        <div className="border-t border-slate-100 pt-3 space-y-2">
-          <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
-            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-            <span>Arquivo salvo, mas ocorreu erro na análise. Classifique manualmente para vincular à área correta.</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500">Classificar como:</span>
-            <div className="flex-1 max-w-[280px]">
-              <Select value={localTipo} onValueChange={handleClassification} disabled={loading}>
-                <SelectTrigger className="h-7 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIPO_OPTIONS.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+        <div className="mt-3 flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+          <span>Erro na análise. Clique em reanalisar ou edite manualmente.</span>
+        </div>
+      )}
+
+      {/* Aviso de agrupamento NF incompleto */}
+      {isNF && intake.grupo_status === 'INCOMPLETO' && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+          <span>Envie também o XML desta nota para completar o par PDF+XML.</span>
         </div>
       )}
     </div>
