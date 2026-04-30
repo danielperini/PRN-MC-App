@@ -33,6 +33,19 @@ function rubricaKey(r: any): string {
   return `${normalize(r.grupo || r.categoria || '')}|${normalize(r.rubrica || r.nome || r.item_rubrica || '')}`;
 }
 
+function is3Aditivo(r: any): boolean {
+  const raw = normalize(
+    `${r?.origem_recurso || ''} ${r?.fonte_recurso || ''} ${r?.aditivo || ''} ${r?.plano_trabalho || ''}`
+  );
+
+  return (
+    r?.oficial_3_aditivo === true ||
+    raw.includes('3 aditivo') ||
+    raw.includes('3º aditivo') ||
+    raw.includes('3o aditivo')
+  );
+}
+
 function getPurchaseValue(p: any): number {
   return money(
     p?.valor_pago ||
@@ -67,17 +80,14 @@ const RUBRICAS_OFICIAIS = [
   { grupo: 'Equipe e gestão', rubrica: 'Rede Social / Marketing Cultural (mês 19 ao 28)', parcelas_unidades: '9 meses', valor_rubrica: 22500 },
   { grupo: 'Equipe e gestão', rubrica: 'Fotógrafo (mês 19 ao 28)', parcelas_unidades: '9 serviços', valor_rubrica: 27000 },
   { grupo: 'Equipe e gestão', rubrica: 'Designer (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 52000 },
-
   { grupo: 'Manutenção e operação', rubrica: 'Manutenção MIS (mês 19 ao 28)', parcelas_unidades: '9 meses', valor_rubrica: 13500 },
   { grupo: 'Manutenção e operação', rubrica: 'Manutenção MUMO (mês 19 ao 28)', parcelas_unidades: '9 meses', valor_rubrica: 13500 },
   { grupo: 'Manutenção e operação', rubrica: 'Manutenção MHAB (mês 19 ao 28)', parcelas_unidades: '9 meses', valor_rubrica: 18000 },
   { grupo: 'Manutenção e operação', rubrica: 'Educador MIS / MUMO / MHAB (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 138000 },
-
   { grupo: 'Mostras e exposições', rubrica: 'Mostra de baixa complexidade MIS', parcelas_unidades: '1 mostra', valor_rubrica: 4000 },
   { grupo: 'Mostras e exposições', rubrica: 'Mostra de média complexidade MHAB', parcelas_unidades: '1 mostra', valor_rubrica: 7000 },
   { grupo: 'Mostras e exposições', rubrica: 'Peça em destaque MHAB', parcelas_unidades: '1 peça/ação', valor_rubrica: 1000 },
   { grupo: 'Mostras e exposições', rubrica: 'Exposição MUMO', parcelas_unidades: '1 exposição', valor_rubrica: 210000 },
-
   { grupo: 'Noturno nos Museus 2026', rubrica: 'Produção (Ed. 2026)', parcelas_unidades: '1', valor_rubrica: 6000 },
   { grupo: 'Noturno nos Museus 2026', rubrica: 'Assistente de Produção (Ed. 2026)', parcelas_unidades: '1', valor_rubrica: 4000 },
   { grupo: 'Noturno nos Museus 2026', rubrica: 'ID / designer (Ed. 2026)', parcelas_unidades: '1', valor_rubrica: 7000 },
@@ -92,7 +102,6 @@ const RUBRICAS_OFICIAIS = [
   { grupo: 'Noturno nos Museus 2026', rubrica: 'Infraestrutura MIS/MUMO/MHAB (Ed. 2026)', parcelas_unidades: '3', valor_rubrica: 12000 },
   { grupo: 'Noturno nos Museus 2026', rubrica: 'Apresentações culturais – 3 museus PBH (Ed. 2026)', parcelas_unidades: '3', valor_rubrica: 7500 },
   { grupo: 'Noturno nos Museus 2026', rubrica: 'Infraestrutura 3 museus PBH (Ed. 2026)', parcelas_unidades: '3', valor_rubrica: 7500 },
-
   { grupo: 'Diárias e publicações', rubrica: 'Diárias MIS / MUMO / MHAB', parcelas_unidades: '21', valor_rubrica: 6300 },
   { grupo: 'Diárias e publicações', rubrica: 'Designer MHAB', parcelas_unidades: '1', valor_rubrica: 7000 },
   { grupo: 'Diárias e publicações', rubrica: 'Fotógrafo MHAB', parcelas_unidades: '1', valor_rubrica: 5675 },
@@ -100,16 +109,13 @@ const RUBRICAS_OFICIAIS = [
   { grupo: 'Diárias e publicações', rubrica: 'Revisão MHAB', parcelas_unidades: '55', valor_rubrica: 1375 },
   { grupo: 'Diárias e publicações', rubrica: 'Tradução MHAB', parcelas_unidades: '55', valor_rubrica: 2200 },
   { grupo: 'Diárias e publicações', rubrica: 'Impressão MHAB', parcelas_unidades: '350', valor_rubrica: 21000 },
-
   { grupo: 'Alimentação, material e ações', rubrica: 'Lanches/buffet (mês 19 ao 28)', parcelas_unidades: '3', valor_rubrica: 9000 },
   { grupo: 'Alimentação, material e ações', rubrica: 'Alimentação (mês 19 ao 28)', parcelas_unidades: '30', valor_rubrica: 9000 },
   { grupo: 'Alimentação, material e ações', rubrica: 'Material MIS / MUMO / MHAB (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 24000 },
   { grupo: 'Alimentação, material e ações', rubrica: 'Ações educativo-culturais MIS / MUMO / MHAB', parcelas_unidades: '10 meses', valor_rubrica: 90000 },
   { grupo: 'Alimentação, material e ações', rubrica: 'Fornecimento de som e iluminação', parcelas_unidades: '5', valor_rubrica: 7500 },
-
   { grupo: 'Consultorias', rubrica: 'Consultorias de temas transversais diversos', parcelas_unidades: '2', valor_rubrica: 5000 },
   { grupo: 'Consultorias', rubrica: 'Formação sobre Ambiente Seguro, Diversidade e Inclusão', parcelas_unidades: '1', valor_rubrica: 2500 },
-
   { grupo: 'Despesas gerais', rubrica: 'Transporte', parcelas_unidades: '10 meses', valor_rubrica: 4000 },
   { grupo: 'Despesas gerais', rubrica: 'Material de escritório', parcelas_unidades: '9 meses', valor_rubrica: 2700 },
   { grupo: 'Despesas gerais', rubrica: 'Assessoria jurídica', parcelas_unidades: '10 meses', valor_rubrica: 17000 },
@@ -124,20 +130,13 @@ Deno.serve(async (req) => {
     const totalBase = money(RUBRICAS_OFICIAIS.reduce((acc, r) => acc + money(r.valor_rubrica), 0));
 
     if (totalBase !== TOTAL_OFICIAL) {
-      return json(
-        {
-          success: false,
-          error: 'Base oficial não fecha em R$ 1.320.000,00.',
-          totalCalculado: totalBase,
-          totalEsperado: TOTAL_OFICIAL
-        },
-        500
-      );
+      return json({ success: false, error: 'Base oficial não fecha.', totalBase }, 500);
     }
 
-    let rubricas = await base44.asServiceRole.entities.Rubrica.list('ordem_exibicao', 1000);
-    const purchases = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', 2000);
+    let rubricas = await base44.asServiceRole.entities.Rubrica.list('ordem_exibicao', 3000);
+    const purchases = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', 3000);
 
+    const oficiaisKeys = new Set(RUBRICAS_OFICIAIS.map(rubricaKey));
     const existentesPorChave: Record<string, any[]> = {};
 
     for (const r of rubricas || []) {
@@ -149,14 +148,14 @@ Deno.serve(async (req) => {
 
     let criadas = 0;
     let atualizadas = 0;
-    let duplicadasDesativadas = 0;
+    let inativadas = 0;
 
     for (let i = 0; i < RUBRICAS_OFICIAIS.length; i++) {
       const item = RUBRICAS_OFICIAIS[i];
       const key = rubricaKey(item);
       const existentes = existentesPorChave[key] || [];
       const principal = existentes[0];
-      const valorRubrica = money(item.valor_rubrica);
+      const total = money(item.valor_rubrica);
 
       const payload = {
         codigo: `3AD-${String(i + 1).padStart(3, '0')}`,
@@ -167,11 +166,12 @@ Deno.serve(async (req) => {
         item_rubrica: item.rubrica,
         parcelas_unidades: item.parcelas_unidades,
         numero_parcelas_unidades: item.parcelas_unidades,
-        valor_rubrica: valorRubrica,
-        valor_total: valorRubrica,
+        valor_rubrica: total,
+        valor_total: total,
         origem_recurso: '3º ADITIVO',
         fonte_recurso: '3º ADITIVO',
         aditivo: '3º ADITIVO',
+        plano_trabalho: '3º Aditivo - Museus Centro / OSC Viaduto das Artes',
         oficial_3_aditivo: true,
         ativo: true,
         status: 'ATIVA',
@@ -188,48 +188,43 @@ Deno.serve(async (req) => {
           await base44.asServiceRole.entities.Rubrica.update(duplicada.id, {
             ativo: false,
             status: 'INATIVA_DUPLICADA',
-            duplicada_de: principal.id,
-            motivo_inativacao: 'Duplicidade de rubrica oficial do 3º Aditivo.'
+            duplicada_de: principal.id
           });
-          duplicadasDesativadas++;
+          inativadas++;
         }
       } else {
         await base44.asServiceRole.entities.Rubrica.create({
           ...payload,
           valor_utilizado: 0,
-          saldo: valorRubrica,
-          saldo_real: valorRubrica,
+          saldo: total,
+          saldo_real: total,
           percentual_utilizado: 0
         });
         criadas++;
       }
     }
 
-    rubricas = await base44.asServiceRole.entities.Rubrica.list('ordem_exibicao', 1000);
-
-    const chavesOficiais = new Set(RUBRICAS_OFICIAIS.map((r) => rubricaKey(r)));
+    rubricas = await base44.asServiceRole.entities.Rubrica.list('ordem_exibicao', 3000);
 
     for (const r of rubricas || []) {
       const key = rubricaKey(r);
-      const isOficialAtual = chavesOficiais.has(key);
+      const ehOficialAtual = oficiaisKeys.has(key);
 
-      if (r?.oficial_3_aditivo === true && !isOficialAtual && r?.ativo !== false) {
+      if (is3Aditivo(r) && !ehOficialAtual && r?.ativo !== false) {
         await base44.asServiceRole.entities.Rubrica.update(r.id, {
           ativo: false,
           status: 'INATIVA_FORA_BASE_OFICIAL',
-          motivo_inativacao: 'Rubrica fora da base oficial atual do 3º Aditivo.'
+          motivo_inativacao: 'Rubrica antiga do 3º Aditivo substituída pela base oficial de 52 linhas.'
         });
+        inativadas++;
       }
     }
 
-    rubricas = await base44.asServiceRole.entities.Rubrica.list('ordem_exibicao', 1000);
+    rubricas = await base44.asServiceRole.entities.Rubrica.list('ordem_exibicao', 3000);
 
-    const rubricasOficiaisAtivas = (rubricas || []).filter((r: any) => {
-      const key = rubricaKey(r);
-      return chavesOficiais.has(key) && r?.ativo !== false;
-    });
+    const oficiaisAtivas = (rubricas || []).filter((r: any) => oficiaisKeys.has(rubricaKey(r)) && r?.ativo !== false);
 
-    const acumuladoPorRubricaId: Record<string, number> = {};
+    const acumulado: Record<string, number> = {};
 
     for (const p of purchases || []) {
       if (!p?.rubrica_id) continue;
@@ -237,16 +232,14 @@ Deno.serve(async (req) => {
       if (p?.duplicada === true) continue;
 
       const valor = getPurchaseValue(p);
-      if (!valor || valor <= 0) continue;
+      if (valor <= 0) continue;
 
-      acumuladoPorRubricaId[p.rubrica_id] = money((acumuladoPorRubricaId[p.rubrica_id] || 0) + valor);
+      acumulado[p.rubrica_id] = money((acumulado[p.rubrica_id] || 0) + valor);
     }
 
-    let recalculadas = 0;
-
-    for (const r of rubricasOficiaisAtivas) {
+    for (const r of oficiaisAtivas) {
       const total = money(r.valor_rubrica || r.valor_total);
-      const utilizado = money(acumuladoPorRubricaId[r.id] || 0);
+      const utilizado = money(acumulado[r.id] || 0);
       const saldo = money(total - utilizado);
       const percentual = total > 0 ? money((utilizado / total) * 100) : 0;
 
@@ -262,20 +255,20 @@ Deno.serve(async (req) => {
         regra_financeira: 'APROVADO = UTILIZADO',
         recalculado_em: new Date().toISOString()
       });
-
-      recalculadas++;
     }
+
+    const totalAtivo = money(oficiaisAtivas.reduce((acc: number, r: any) => acc + money(r.valor_rubrica || r.valor_total), 0));
 
     return json({
       success: true,
-      regra: 'APROVADO = UTILIZADO',
       totalOficial: TOTAL_OFICIAL,
       totalBase,
+      totalAtivo,
       totalRubricasOficiais: RUBRICAS_OFICIAIS.length,
       criadas,
       atualizadas,
-      duplicadasDesativadas,
-      recalculadas
+      inativadas,
+      regra: 'APROVADO = UTILIZADO'
     });
   } catch (error: any) {
     console.error('recalculateAllRubricas error:', error);
