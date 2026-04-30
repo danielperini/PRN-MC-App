@@ -297,6 +297,65 @@ Retorne apenas o JSON, sem explicações.`;
     setIntakes((prev) => prev.filter((i) => i.id !== id));
   }
 
+  async function handleLinkXml(xmlIntake) {
+    try {
+      const todos = await base44.entities.DocumentIntake.filter(
+        { user_email: user?.email, status_registro: 'ATIVO' },
+        '-created_date',
+        100
+      );
+
+      const iaXml = xmlIntake.resultado_ia || {};
+      const nfNumero  = String(iaXml.nf_numero || '').replace(/\D/g, '');
+      const cnpj      = String(iaXml.nf_emitente_cpf_cnpj || '').replace(/\D/g, '');
+      const valor     = Number(iaXml.nf_valor_total || 0);
+      const nome      = String(iaXml.nf_emitente_nome || '').toLowerCase().replace(/\s+/g, '').substring(0, 10);
+      const nomeArq   = String(xmlIntake.file_name_original || '').toLowerCase().replace(/\.xml$/, '');
+
+      const pdf = todos.find((c) => {
+        if (c.id === xmlIntake.id) return false;
+        if (c.ocultar_entrada_unica) return false;
+        if (c.tipo_detectado !== 'NOTA_FISCAL_PDF') return false;
+
+        const iaC = c.resultado_ia || {};
+        const matchNumero = nfNumero && String(iaC.nf_numero || '').replace(/\D/g, '') === nfNumero;
+        const matchCnpj   = cnpj && String(iaC.nf_emitente_cpf_cnpj || '').replace(/\D/g, '') === cnpj;
+        const matchValor  = valor > 0 && Math.abs(Number(iaC.nf_valor_total || 0) - valor) < 0.02;
+        const matchNome   = nome && String(iaC.nf_emitente_nome || '').toLowerCase().replace(/\s+/g, '').substring(0, 10) === nome;
+        const matchArq    = nomeArq && String(c.file_name_original || '').toLowerCase().includes(nomeArq.substring(0, 8));
+
+        const score = [matchNumero, matchCnpj, matchValor, matchNome, matchArq].filter(Boolean).length;
+        return score >= 2;
+      });
+
+      if (!pdf) {
+        toast.error('Nenhum PDF correspondente encontrado para este XML.');
+        return;
+      }
+
+      await Promise.all([
+        base44.entities.DocumentIntake.update(pdf.id, {
+          grupo_status: 'COMPLETO',
+          nf_xml_intake_id: xmlIntake.id,
+          nf_xml_url: xmlIntake.arquivo_original_url,
+        }),
+        base44.entities.DocumentIntake.update(xmlIntake.id, {
+          grupo_status: 'COMPLETO',
+          nf_pdf_intake_id: pdf.id,
+          nf_pdf_url: pdf.arquivo_original_url,
+          ocultar_entrada_unica: true,
+        }),
+      ]);
+
+      setIntakes((prev) => prev.filter((i) => i.id !== xmlIntake.id));
+      await loadIntakes();
+      toast.success('XML vinculado à nota fiscal com sucesso.');
+    } catch (e) {
+      console.error('Erro ao vincular XML:', e);
+      toast.error('Erro ao vincular XML.');
+    }
+  }
+
   function handleSentToApproval(id) {
     setIntakes((prev) => prev.filter((i) => i.id !== id));
     toast.success('Enviado para aprovação com sucesso.');
@@ -352,6 +411,7 @@ Retorne apenas o JSON, sem explicações.`;
                 onDeleted={handleDeleted}
                 onSentToApproval={handleSentToApproval}
                 onReanalyse={handleReanalyse}
+                onLinkXml={handleLinkXml}
               />
             ))}
           </div>
