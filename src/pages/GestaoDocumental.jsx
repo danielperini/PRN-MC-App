@@ -6,6 +6,8 @@ import {
   FileText, FileCode, File,
   Search, Trash2, ExternalLink, Download
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { deletePurchaseRequest } from '@/lib/deleteIntegrado';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -121,9 +123,26 @@ export default function GestaoDocumental() {
   }, [documentos, search]);
 
   async function handleDelete(doc) {
-    if (!window.confirm('Remover documento?')) return;
-    await base44.entities.Attachment.update(doc.id, { status_registro: 'DELETADO' });
-    queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
+    if (!window.confirm('Remover documento e solicitações vinculadas?')) return;
+    try {
+      // Se houver PurchaseRequest vinculada via report_id, deletar integrado
+      if (doc.report_id) {
+        const pr = await base44.entities.PurchaseRequest.get(doc.report_id).catch(() => null);
+        if (pr) {
+          await deletePurchaseRequest(pr);
+        }
+      }
+      // Soft delete do attachment
+      try {
+        await base44.entities.Attachment.delete(doc.id);
+      } catch {
+        await base44.entities.Attachment.update(doc.id, { status_registro: 'DELETADO' });
+      }
+      toast.success('Registro deletado e rubrica estornada com sucesso.');
+      queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
+    } catch (e) {
+      toast.error('Erro ao deletar: ' + e.message);
+    }
   }
 
   return (

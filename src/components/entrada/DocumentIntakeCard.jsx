@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+import { deleteIntake } from '@/lib/deleteIntegrado';
 
 const STATUS_CONFIG = {
   ENVIADO:            { label: 'Enviado',              color: 'bg-blue-100 text-blue-700',    icon: Clock },
@@ -89,19 +90,8 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
     if (!window.confirm('Tem certeza que deseja deletar este arquivo?')) return;
     setLoading(true);
     try {
-      if (intake.entidade_destino_id) {
-        try {
-          await base44.entities.Attachment.delete(intake.entidade_destino_id);
-        } catch (e) {
-          console.warn('Erro ao deletar attachment:', e.message);
-        }
-      }
-      try {
-        await base44.entities.DocumentIntake.delete(intake.id);
-      } catch (e) {
-        if (!e.message?.includes('not found')) throw e;
-      }
-      toast.success('Arquivo deletado.');
+      await deleteIntake(intake);
+      toast.success('Registro deletado e rubrica estornada com sucesso.');
       if (onDeleted) onDeleted(intake.id);
     } catch (e) {
       toast.error('Erro ao deletar: ' + e.message);

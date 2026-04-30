@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
+import { deletePurchaseRequest } from '@/lib/deleteIntegrado';
 import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
 import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
 import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
@@ -694,15 +695,14 @@ function ComprasInner() {
 
   async function handleDeletePurchase(purchaseId) {
     try {
-      try {
-        const response = await base44.functions.invoke('purchaseActions', { purchaseId, action: 'deletar' });
-        const result = response?.data || response;
-        if (!result?.success) throw new Error(result?.error || 'Falha ao deletar.');
-      } catch (_) {
-        await base44.entities.PurchaseRequest.delete(purchaseId);
+      const pr = await base44.entities.PurchaseRequest.get(purchaseId).catch(() => null);
+      if (pr) {
+        await deletePurchaseRequest(pr);
+      } else {
+        await base44.entities.PurchaseRequest.delete(purchaseId).catch(() => {});
       }
       await refreshFinanceiroCompleto();
-      smartToast.success('Solicitação deletada.');
+      smartToast.success('Registro deletado e rubrica estornada com sucesso.');
     } catch (error) {
       console.error('Erro ao deletar solicitação:', error);
       smartToast.error('Erro ao deletar', error.message);
