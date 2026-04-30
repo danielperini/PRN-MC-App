@@ -16,11 +16,11 @@ function toNumber(value: any): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function roundMoney(value: number): number {
-  return Math.round((Number(value) || 0) * 100) / 100;
+function money(value: any): number {
+  return Math.round(toNumber(value) * 100) / 100;
 }
 
-function normalizeText(value: any): string {
+function normalize(value: any): string {
   return String(value ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -29,26 +29,12 @@ function normalizeText(value: any): string {
     .toLowerCase();
 }
 
-function makeRubricaKey(row: any): string {
-  return [
-    row.natureza_despesa,
-    row.nome_natureza,
-    row.numero_item,
-    row.meta,
-    row.item_rubrica,
-    row.unidade,
-    row.quantidade,
-    row.periodo_frequencia,
-    row.valor_unitario,
-    row.valor_total,
-    row.origem_recurso
-  ]
-    .map(normalizeText)
-    .join('|');
+function rubricaKey(r: any): string {
+  return `${normalize(r.grupo || r.categoria || '')}|${normalize(r.rubrica || r.nome || r.item_rubrica || '')}`;
 }
 
 function getPurchaseValue(p: any): number {
-  return toNumber(
+  return money(
     p?.valor_pago ||
       p?.valor_aprovado_admin ||
       p?.valor_aprovado ||
@@ -67,612 +53,135 @@ function isStatusAprovado(status: any): boolean {
   );
 }
 
-const TOTAL_OFICIAL_3_ADITIVO = 1320000;
+const TOTAL_OFICIAL = 1320000;
 
-const RUBRICAS_OFICIAIS_3_ADITIVO = [
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '3',
-    meta: '10 - 18 pequenas mostras de baixa ou média complexidade',
-    item_rubrica: 'Mostra baixa complexidade MIS',
-    unidade: 'Mostra',
-    quantidade: 1,
-    periodo_frequencia: 1,
-    valor_unitario: 4000,
-    valor_total: 4000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '3',
-    meta: '10 - 18 pequenas mostras de baixa ou média complexidade',
-    item_rubrica: 'Mostra média complexidade MHAB',
-    unidade: 'Mostra',
-    quantidade: 1,
-    periodo_frequencia: 1,
-    valor_unitario: 7000,
-    valor_total: 7000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '3',
-    meta: '10 - 18 pequenas mostras de baixa ou média complexidade',
-    item_rubrica: 'Peça em destaque MHAB',
-    unidade: 'Mostra',
-    quantidade: 1,
-    periodo_frequencia: 1,
-    valor_unitario: 1000,
-    valor_total: 1000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '42',
-    meta: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus',
-    item_rubrica: 'Produção (Ed. 2026)',
-    unidade: 'serviço',
-    quantidade: 1,
-    periodo_frequencia: 1,
-    valor_unitario: 6000,
-    valor_total: 6000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '42',
-    meta: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus',
-    item_rubrica: 'Assistente de Produção (Ed. 2026)',
-    unidade: 'serviço',
-    quantidade: 1,
-    periodo_frequencia: 1,
-    valor_unitario: 4000,
-    valor_total: 4000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '23',
-    meta: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus',
-    item_rubrica: 'ID (designer) (Ed. 2026)',
-    unidade: 'serviço',
-    quantidade: 1,
-    periodo_frequencia: 1,
-    valor_unitario: 7000,
-    valor_total: 7000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '13',
-    meta: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus',
-    item_rubrica: 'Sinalização (Ed. 2026)',
-    unidade: 'serviço',
-    quantidade: 45,
-    periodo_frequencia: 1,
-    valor_unitario: 250,
-    valor_total: 11250,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '42',
-    meta: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus',
-    item_rubrica: 'Monitores (Ed. 2026)',
-    unidade: 'serviço',
-    quantidade: 10,
-    periodo_frequencia: 1,
-    valor_unitario: 300,
-    valor_total: 3000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '17',
-    meta: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus',
-    item_rubrica: 'Kit de Iluminação (Ed. 2026)',
-    unidade: 'serviço',
-    quantidade: 6,
-    periodo_frequencia: 1,
-    valor_unitario: 2000,
-    valor_total: 12000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339037',
-    nome_natureza: 'Locação de Mão de Obra',
-    numero_item: '2',
-    meta: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus',
-    item_rubrica: 'Segurança (Ed. 2026)',
-    unidade: 'serviço',
-    quantidade: 6,
-    periodo_frequencia: 1,
-    valor_unitario: 500,
-    valor_total: 3000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '41',
-    meta: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus',
-    item_rubrica: 'Limpeza (Ed. 2026)',
-    unidade: 'serviço',
-    quantidade: 6,
-    periodo_frequencia: 1,
-    valor_unitario: 450,
-    valor_total: 2700,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '18',
-    meta: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus',
-    item_rubrica: 'Vans (Ed. 2026)',
-    unidade: 'serviço',
-    quantidade: 32,
-    periodo_frequencia: 1,
-    valor_unitario: 950,
-    valor_total: 30400,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '24',
-    meta: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus',
-    item_rubrica: 'Vídeo e Fotografia (Ed. 2026)',
-    unidade: 'serviço',
-    quantidade: 1,
-    periodo_frequencia: 1,
-    valor_unitario: 20000,
-    valor_total: 20000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '22',
-    meta: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus',
-    item_rubrica: 'Apresentações – MIS / MUMO / MHAB / 3 museus PBH (Ed. 2026)',
-    unidade: 'Evento',
-    quantidade: 6,
-    periodo_frequencia: 1,
-    valor_unitario: 2500,
-    valor_total: 15000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '99',
-    meta: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus',
-    item_rubrica: 'Infraestrutura MIS/MUMO/MHAB (Ed. 2026)',
-    unidade: 'serviço',
-    quantidade: 3,
-    periodo_frequencia: 1,
-    valor_unitario: 4000,
-    valor_total: 12000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '22',
-    meta: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus',
-    item_rubrica: 'Apresentações Culturais - 3 museus PBH (Ed. 2026)',
-    unidade: 'Evento',
-    quantidade: 1,
-    periodo_frequencia: 3,
-    valor_unitario: 2500,
-    valor_total: 7500,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '99',
-    meta: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus',
-    item_rubrica: 'Infraestrutura 3 museus PBH (Ed. 2026)',
-    unidade: 'serviço',
-    quantidade: 3,
-    periodo_frequencia: 1,
-    valor_unitario: 2500,
-    valor_total: 7500,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '42',
-    meta: '16 - 101 Diárias',
-    item_rubrica: 'Diárias MIS / MUMO / MHAB',
-    unidade: 'serviço',
-    quantidade: 21,
-    periodo_frequencia: 1,
-    valor_unitario: 300,
-    valor_total: 6300,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '23',
-    meta: '17 - Publicações',
-    item_rubrica: 'Designer MHAB',
-    unidade: 'serviço',
-    quantidade: 1,
-    periodo_frequencia: 1,
-    valor_unitario: 7000,
-    valor_total: 7000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '24',
-    meta: '17 - Publicações',
-    item_rubrica: 'Fotógrafo MHAB',
-    unidade: 'serviço',
-    quantidade: 1,
-    periodo_frequencia: 1,
-    valor_unitario: 5675,
-    valor_total: 5675,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '22',
-    meta: '17 - Publicações',
-    item_rubrica: 'Pesquisa e texto MHAB (2ª publicação)',
-    unidade: 'serviço',
-    quantidade: 1,
-    periodo_frequencia: 1,
-    valor_unitario: 3000,
-    valor_total: 3000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '99',
-    meta: '17 - Publicações',
-    item_rubrica: 'Revisão MHAB',
-    unidade: 'serviço',
-    quantidade: 1,
-    periodo_frequencia: 55,
-    valor_unitario: 25,
-    valor_total: 1375,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '99',
-    meta: '17 - Publicações',
-    item_rubrica: 'Tradução MHAB',
-    unidade: 'serviço',
-    quantidade: 1,
-    periodo_frequencia: 55,
-    valor_unitario: 40,
-    valor_total: 2200,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '13',
-    meta: '17 - Publicações',
-    item_rubrica: 'Impressão MHAB',
-    unidade: 'serviço',
-    quantidade: 1,
-    periodo_frequencia: 350,
-    valor_unitario: 60,
-    valor_total: 21000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '12',
-    meta: '18 - Custeios para atividades educativas contínuas',
-    item_rubrica: 'Lanches/buffet (mês 19 ao mês 28)',
-    unidade: 'serviço',
-    quantidade: 3,
-    periodo_frequencia: 1,
-    valor_unitario: 3000,
-    valor_total: 9000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '12',
-    meta: '18 - Custeios para atividades educativas contínuas',
-    item_rubrica: 'Alimentação (mês 19 ao mês 28)',
-    unidade: 'serviço',
-    quantidade: 3,
-    periodo_frequencia: 10,
-    valor_unitario: 300,
-    valor_total: 9000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339030',
-    nome_natureza: 'Material de consumo',
-    numero_item: '15',
-    meta: '18 - Custeios para atividades educativas contínuas',
-    item_rubrica: 'Material MIS / MUMO / MHAB (mês 19 ao mês 28)',
-    unidade: 'mês',
-    quantidade: 3,
-    periodo_frequencia: 10,
-    valor_unitario: 800,
-    valor_total: 24000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '22',
-    meta: '20 - Realizar 30 (trinta) ações educativas e ou culturais',
-    item_rubrica: 'Ações Educativo-culturais MIS / MUMO / MHAB',
-    unidade: 'serviço',
-    quantidade: 3,
-    periodo_frequencia: 10,
-    valor_unitario: 3000,
-    valor_total: 90000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '99',
-    meta: '20 - Realizar 30 (trinta) ações educativas e ou culturais',
-    item_rubrica: 'Fornecimento de som e iluminação',
-    unidade: 'serviço',
-    quantidade: 5,
-    periodo_frequencia: 1,
-    valor_unitario: 1500,
-    valor_total: 7500,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '3',
-    meta: '21 - Realizar uma exposição e o evento de abertura no Museu da Moda',
-    item_rubrica: 'Exposição MUMO',
-    unidade: 'serviço',
-    quantidade: 1,
-    periodo_frequencia: 1,
-    valor_unitario: 210000,
-    valor_total: 210000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339035',
-    nome_natureza: 'Serviços de Consultoria',
-    numero_item: '1',
-    meta: '22. Contratação de consultorias',
-    item_rubrica: 'Consultorias de temas transversais diversos',
-    unidade: 'serviço',
-    quantidade: 2,
-    periodo_frequencia: 1,
-    valor_unitario: 2500,
-    valor_total: 5000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339035',
-    nome_natureza: 'Serviços de Consultoria',
-    numero_item: '1',
-    meta: '22. Contratação de consultorias',
-    item_rubrica: 'Formação sobre Ambiente Seguro, Diversidade e Inclusão',
-    unidade: 'serviço',
-    quantidade: 1,
-    periodo_frequencia: 1,
-    valor_unitario: 2500,
-    valor_total: 2500,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339030',
-    nome_natureza: 'Material de consumo',
-    numero_item: '04',
-    meta: '23 - Despesas Gerais',
-    item_rubrica: 'Transporte',
-    unidade: 'mês',
-    quantidade: 1,
-    periodo_frequencia: 10,
-    valor_unitario: 400,
-    valor_total: 4000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339030',
-    nome_natureza: 'Material de consumo',
-    numero_item: '12',
-    meta: '23 - Despesas Gerais',
-    item_rubrica: 'Material escritório',
-    unidade: 'mês',
-    quantidade: 1,
-    periodo_frequencia: 9,
-    valor_unitario: 300,
-    valor_total: 2700,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '46',
-    meta: '23 - Despesas Gerais',
-    item_rubrica: 'Assessoria Jurídica',
-    unidade: 'mês',
-    quantidade: 1,
-    periodo_frequencia: 10,
-    valor_unitario: 1700,
-    valor_total: 17000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '04',
-    meta: '23 - Despesas Gerais',
-    item_rubrica: 'Energia elétrica',
-    unidade: 'mês',
-    quantidade: 1,
-    periodo_frequencia: 10,
-    valor_unitario: 450,
-    valor_total: 4500,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '42',
-    meta: '23 - Despesas Gerais',
-    item_rubrica: 'Contador',
-    unidade: 'mês',
-    quantidade: 1,
-    periodo_frequencia: 10,
-    valor_unitario: 1000,
-    valor_total: 10000,
-    origem_recurso: '3º ADITIVO'
-  },
-  {
-    natureza_despesa: '339039',
-    nome_natureza: 'Serviços de terceiros - Pessoa jurídica',
-    numero_item: '99',
-    meta: '24 - Gestão do projeto',
-    item_rubrica: 'Gestão, coordenação, produção, administração, comunicação e operação continuada',
-    unidade: 'serviço',
-    quantidade: 1,
-    periodo_frequencia: 1,
-    valor_unitario: 750000,
-    valor_total: 750000,
-    origem_recurso: '3º ADITIVO'
-  }
+const RUBRICAS_OFICIAIS = [
+  { grupo: 'Equipe e gestão', rubrica: 'Coordenador Geral (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 70000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Assistente de Coordenação e Produção', parcelas_unidades: '10 meses', valor_rubrica: 50000 },
+  { grupo: 'Consultorias', rubrica: 'Consultoria de programação', parcelas_unidades: '5 meses', valor_rubrica: 30000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Coordenador de Comunicação (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 60000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Analista Adm. Financeira (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 50000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Assistente Administrativo (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 40000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Produção MIS/MUMO/MHAB (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 113400 },
+  { grupo: 'Equipe e gestão', rubrica: 'Assessor de Imprensa (mês 19 ao 28)', parcelas_unidades: '9 meses', valor_rubrica: 27000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Rede Social / Marketing Cultural (mês 19 ao 28)', parcelas_unidades: '9 meses', valor_rubrica: 22500 },
+  { grupo: 'Equipe e gestão', rubrica: 'Fotógrafo (mês 19 ao 28)', parcelas_unidades: '9 serviços', valor_rubrica: 27000 },
+  { grupo: 'Equipe e gestão', rubrica: 'Designer (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 52000 },
+
+  { grupo: 'Manutenção e operação', rubrica: 'Manutenção MIS (mês 19 ao 28)', parcelas_unidades: '9 meses', valor_rubrica: 13500 },
+  { grupo: 'Manutenção e operação', rubrica: 'Manutenção MUMO (mês 19 ao 28)', parcelas_unidades: '9 meses', valor_rubrica: 13500 },
+  { grupo: 'Manutenção e operação', rubrica: 'Manutenção MHAB (mês 19 ao 28)', parcelas_unidades: '9 meses', valor_rubrica: 18000 },
+  { grupo: 'Manutenção e operação', rubrica: 'Educador MIS / MUMO / MHAB (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 138000 },
+
+  { grupo: 'Mostras e exposições', rubrica: 'Mostra de baixa complexidade MIS', parcelas_unidades: '1 mostra', valor_rubrica: 4000 },
+  { grupo: 'Mostras e exposições', rubrica: 'Mostra de média complexidade MHAB', parcelas_unidades: '1 mostra', valor_rubrica: 7000 },
+  { grupo: 'Mostras e exposições', rubrica: 'Peça em destaque MHAB', parcelas_unidades: '1 peça/ação', valor_rubrica: 1000 },
+  { grupo: 'Mostras e exposições', rubrica: 'Exposição MUMO', parcelas_unidades: '1 exposição', valor_rubrica: 210000 },
+
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Produção (Ed. 2026)', parcelas_unidades: '1', valor_rubrica: 6000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Assistente de Produção (Ed. 2026)', parcelas_unidades: '1', valor_rubrica: 4000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'ID / designer (Ed. 2026)', parcelas_unidades: '1', valor_rubrica: 7000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Sinalização (Ed. 2026)', parcelas_unidades: '45', valor_rubrica: 11250 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Monitores (Ed. 2026)', parcelas_unidades: '10', valor_rubrica: 3000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Kit de Iluminação (Ed. 2026)', parcelas_unidades: '6', valor_rubrica: 12000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Segurança (Ed. 2026)', parcelas_unidades: '6', valor_rubrica: 3000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Limpeza (Ed. 2026)', parcelas_unidades: '6', valor_rubrica: 2700 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Vans (Ed. 2026)', parcelas_unidades: '32', valor_rubrica: 30400 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Vídeo e Fotografia (Ed. 2026)', parcelas_unidades: '1', valor_rubrica: 20000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Apresentações – MIS/MUMO/MHAB/3 museus PBH (Ed. 2026)', parcelas_unidades: '6', valor_rubrica: 15000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Infraestrutura MIS/MUMO/MHAB (Ed. 2026)', parcelas_unidades: '3', valor_rubrica: 12000 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Apresentações culturais – 3 museus PBH (Ed. 2026)', parcelas_unidades: '3', valor_rubrica: 7500 },
+  { grupo: 'Noturno nos Museus 2026', rubrica: 'Infraestrutura 3 museus PBH (Ed. 2026)', parcelas_unidades: '3', valor_rubrica: 7500 },
+
+  { grupo: 'Diárias e publicações', rubrica: 'Diárias MIS / MUMO / MHAB', parcelas_unidades: '21', valor_rubrica: 6300 },
+  { grupo: 'Diárias e publicações', rubrica: 'Designer MHAB', parcelas_unidades: '1', valor_rubrica: 7000 },
+  { grupo: 'Diárias e publicações', rubrica: 'Fotógrafo MHAB', parcelas_unidades: '1', valor_rubrica: 5675 },
+  { grupo: 'Diárias e publicações', rubrica: 'Pesquisa e texto MHAB (2ª publicação)', parcelas_unidades: '1', valor_rubrica: 3000 },
+  { grupo: 'Diárias e publicações', rubrica: 'Revisão MHAB', parcelas_unidades: '55', valor_rubrica: 1375 },
+  { grupo: 'Diárias e publicações', rubrica: 'Tradução MHAB', parcelas_unidades: '55', valor_rubrica: 2200 },
+  { grupo: 'Diárias e publicações', rubrica: 'Impressão MHAB', parcelas_unidades: '350', valor_rubrica: 21000 },
+
+  { grupo: 'Alimentação, material e ações', rubrica: 'Lanches/buffet (mês 19 ao 28)', parcelas_unidades: '3', valor_rubrica: 9000 },
+  { grupo: 'Alimentação, material e ações', rubrica: 'Alimentação (mês 19 ao 28)', parcelas_unidades: '30', valor_rubrica: 9000 },
+  { grupo: 'Alimentação, material e ações', rubrica: 'Material MIS / MUMO / MHAB (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 24000 },
+  { grupo: 'Alimentação, material e ações', rubrica: 'Ações educativo-culturais MIS / MUMO / MHAB', parcelas_unidades: '10 meses', valor_rubrica: 90000 },
+  { grupo: 'Alimentação, material e ações', rubrica: 'Fornecimento de som e iluminação', parcelas_unidades: '5', valor_rubrica: 7500 },
+
+  { grupo: 'Consultorias', rubrica: 'Consultorias de temas transversais diversos', parcelas_unidades: '2', valor_rubrica: 5000 },
+  { grupo: 'Consultorias', rubrica: 'Formação sobre Ambiente Seguro, Diversidade e Inclusão', parcelas_unidades: '1', valor_rubrica: 2500 },
+
+  { grupo: 'Despesas gerais', rubrica: 'Transporte', parcelas_unidades: '10 meses', valor_rubrica: 4000 },
+  { grupo: 'Despesas gerais', rubrica: 'Material de escritório', parcelas_unidades: '9 meses', valor_rubrica: 2700 },
+  { grupo: 'Despesas gerais', rubrica: 'Assessoria jurídica', parcelas_unidades: '10 meses', valor_rubrica: 17000 },
+  { grupo: 'Despesas gerais', rubrica: 'Energia elétrica', parcelas_unidades: '10 meses', valor_rubrica: 4500 },
+  { grupo: 'Despesas gerais', rubrica: 'Contador', parcelas_unidades: '10 meses', valor_rubrica: 10000 }
 ];
-
-function buildRubricaPayload(row: any, index: number) {
-  const codigo = `3AD-${String(index + 1).padStart(3, '0')}`;
-  const rubricaKey = makeRubricaKey(row);
-  const valorTotal = roundMoney(toNumber(row.valor_total));
-  const valorUnitario = roundMoney(toNumber(row.valor_unitario));
-
-  return {
-    codigo,
-    rubrica_key: rubricaKey,
-    origem_recurso: row.origem_recurso,
-    fonte_recurso: row.origem_recurso,
-    aditivo: '3º ADITIVO',
-    plano_trabalho: '3º Aditivo - Museus Centro / OSC Viaduto das Artes',
-    natureza_despesa: String(row.natureza_despesa),
-    nome_natureza: row.nome_natureza,
-    numero_item: String(row.numero_item),
-    numero: String(row.numero_item),
-    meta: row.meta,
-    item_rubrica: row.item_rubrica,
-    nome: row.item_rubrica,
-    rubrica: row.item_rubrica,
-    descricao: `${row.meta} — ${row.item_rubrica}`,
-    unidade: row.unidade,
-    quantidade: toNumber(row.quantidade),
-    periodo_frequencia: toNumber(row.periodo_frequencia),
-    valor_unitario: valorUnitario,
-    valor_total: valorTotal,
-    valor_rubrica: valorTotal,
-    ativo: true,
-    status: 'ATIVA',
-    oficial_3_aditivo: true
-  };
-}
-
-function isRubrica3Aditivo(r: any): boolean {
-  const origem = normalizeText(r?.origem_recurso || r?.fonte_recurso || r?.aditivo || '');
-  return (
-    r?.oficial_3_aditivo === true ||
-    origem.includes('3 aditivo') ||
-    origem.includes('3º aditivo') ||
-    origem.includes('3o aditivo')
-  );
-}
-
-function getRubricaExistingKey(r: any): string {
-  if (r?.rubrica_key) return String(r.rubrica_key);
-  return makeRubricaKey({
-    natureza_despesa: r?.natureza_despesa,
-    nome_natureza: r?.nome_natureza,
-    numero_item: r?.numero_item || r?.numero,
-    meta: r?.meta,
-    item_rubrica: r?.item_rubrica || r?.rubrica || r?.nome,
-    unidade: r?.unidade,
-    quantidade: r?.quantidade,
-    periodo_frequencia: r?.periodo_frequencia,
-    valor_unitario: r?.valor_unitario,
-    valor_total: r?.valor_total || r?.valor_rubrica,
-    origem_recurso: r?.origem_recurso || r?.fonte_recurso || r?.aditivo
-  });
-}
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    const somaOficial = roundMoney(
-      RUBRICAS_OFICIAIS_3_ADITIVO.reduce((acc, row) => acc + toNumber(row.valor_total), 0)
-    );
+    const totalBase = money(RUBRICAS_OFICIAIS.reduce((acc, r) => acc + money(r.valor_rubrica), 0));
 
-    if (somaOficial !== TOTAL_OFICIAL_3_ADITIVO) {
+    if (totalBase !== TOTAL_OFICIAL) {
       return json(
         {
           success: false,
-          error: 'Base oficial do 3º Aditivo não confere com R$ 1.320.000,00.',
-          totalCalculado: somaOficial,
-          totalEsperado: TOTAL_OFICIAL_3_ADITIVO
+          error: 'Base oficial não fecha em R$ 1.320.000,00.',
+          totalCalculado: totalBase,
+          totalEsperado: TOTAL_OFICIAL
         },
         500
       );
     }
 
-    let rubricas = await base44.asServiceRole.entities.Rubrica.list();
-    const purchases = await base44.asServiceRole.entities.PurchaseRequest.list();
+    let rubricas = await base44.asServiceRole.entities.Rubrica.list('ordem_exibicao', 1000);
+    const purchases = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', 2000);
 
-    const porChave = new Map<string, any[]>();
+    const existentesPorChave: Record<string, any[]> = {};
 
     for (const r of rubricas || []) {
-      const key = getRubricaExistingKey(r);
-      if (!key) continue;
-
-      if (!porChave.has(key)) porChave.set(key, []);
-      porChave.get(key)!.push(r);
+      const key = rubricaKey(r);
+      if (!key || key === '|') continue;
+      if (!existentesPorChave[key]) existentesPorChave[key] = [];
+      existentesPorChave[key].push(r);
     }
 
-    const oficiaisAtivas: any[] = [];
     let criadas = 0;
     let atualizadas = 0;
     let duplicadasDesativadas = 0;
 
-    for (let i = 0; i < RUBRICAS_OFICIAIS_3_ADITIVO.length; i++) {
-      const payload = buildRubricaPayload(RUBRICAS_OFICIAIS_3_ADITIVO[i], i);
-      const existentes = porChave.get(payload.rubrica_key) || [];
+    for (let i = 0; i < RUBRICAS_OFICIAIS.length; i++) {
+      const item = RUBRICAS_OFICIAIS[i];
+      const key = rubricaKey(item);
+      const existentes = existentesPorChave[key] || [];
       const principal = existentes[0];
+      const valorRubrica = money(item.valor_rubrica);
+
+      const payload = {
+        codigo: `3AD-${String(i + 1).padStart(3, '0')}`,
+        grupo: item.grupo,
+        categoria: item.grupo,
+        rubrica: item.rubrica,
+        nome: item.rubrica,
+        item_rubrica: item.rubrica,
+        parcelas_unidades: item.parcelas_unidades,
+        numero_parcelas_unidades: item.parcelas_unidades,
+        valor_rubrica: valorRubrica,
+        valor_total: valorRubrica,
+        origem_recurso: '3º ADITIVO',
+        fonte_recurso: '3º ADITIVO',
+        aditivo: '3º ADITIVO',
+        oficial_3_aditivo: true,
+        ativo: true,
+        status: 'ATIVA',
+        ordem_exibicao: i + 1,
+        saldo_comprometido: 0,
+        valor_comprometido: 0
+      };
 
       if (principal?.id) {
         await base44.asServiceRole.entities.Rubrica.update(principal.id, payload);
-        oficiaisAtivas.push({ ...principal, ...payload });
         atualizadas++;
 
         for (const duplicada of existentes.slice(1)) {
@@ -680,71 +189,77 @@ Deno.serve(async (req) => {
             ativo: false,
             status: 'INATIVA_DUPLICADA',
             duplicada_de: principal.id,
-            motivo_inativacao: 'Duplicidade removida pela restauração da base oficial do 3º Aditivo.'
+            motivo_inativacao: 'Duplicidade de rubrica oficial do 3º Aditivo.'
           });
           duplicadasDesativadas++;
         }
       } else {
-        const criada = await base44.asServiceRole.entities.Rubrica.create(payload);
-        oficiaisAtivas.push(criada);
+        await base44.asServiceRole.entities.Rubrica.create({
+          ...payload,
+          valor_utilizado: 0,
+          saldo: valorRubrica,
+          saldo_real: valorRubrica,
+          percentual_utilizado: 0
+        });
         criadas++;
       }
     }
 
-    rubricas = await base44.asServiceRole.entities.Rubrica.list();
+    rubricas = await base44.asServiceRole.entities.Rubrica.list('ordem_exibicao', 1000);
 
-    const chavesOficiais = new Set(
-      RUBRICAS_OFICIAIS_3_ADITIVO.map((row) => makeRubricaKey(row))
-    );
+    const chavesOficiais = new Set(RUBRICAS_OFICIAIS.map((r) => rubricaKey(r)));
 
     for (const r of rubricas || []) {
-      if (!isRubrica3Aditivo(r)) continue;
+      const key = rubricaKey(r);
+      const isOficialAtual = chavesOficiais.has(key);
 
-      const key = getRubricaExistingKey(r);
-
-      if (!chavesOficiais.has(key) && r?.ativo !== false) {
+      if (r?.oficial_3_aditivo === true && !isOficialAtual && r?.ativo !== false) {
         await base44.asServiceRole.entities.Rubrica.update(r.id, {
           ativo: false,
           status: 'INATIVA_FORA_BASE_OFICIAL',
-          motivo_inativacao:
-            'Rubrica do 3º Aditivo não encontrada na base oficial restaurada. Solicitações existentes não foram alteradas.'
+          motivo_inativacao: 'Rubrica fora da base oficial atual do 3º Aditivo.'
         });
       }
     }
 
-    rubricas = await base44.asServiceRole.entities.Rubrica.list();
+    rubricas = await base44.asServiceRole.entities.Rubrica.list('ordem_exibicao', 1000);
 
-    const acumulado: Record<string, number> = {};
+    const rubricasOficiaisAtivas = (rubricas || []).filter((r: any) => {
+      const key = rubricaKey(r);
+      return chavesOficiais.has(key) && r?.ativo !== false;
+    });
+
+    const acumuladoPorRubricaId: Record<string, number> = {};
 
     for (const p of purchases || []) {
       if (!p?.rubrica_id) continue;
       if (!isStatusAprovado(p.status)) continue;
+      if (p?.duplicada === true) continue;
 
       const valor = getPurchaseValue(p);
       if (!valor || valor <= 0) continue;
 
-      acumulado[p.rubrica_id] = roundMoney((acumulado[p.rubrica_id] || 0) + valor);
+      acumuladoPorRubricaId[p.rubrica_id] = money((acumuladoPorRubricaId[p.rubrica_id] || 0) + valor);
     }
 
     let recalculadas = 0;
 
-    for (const r of rubricas || []) {
-      if (!r?.id) continue;
-
-      const total = roundMoney(toNumber(r.valor_total || r.valor_rubrica));
-      const utilizado = roundMoney(toNumber(acumulado[r.id] || 0));
-      const saldo = roundMoney(total - utilizado);
-      const percentual = total > 0 ? roundMoney((utilizado / total) * 100) : 0;
+    for (const r of rubricasOficiaisAtivas) {
+      const total = money(r.valor_rubrica || r.valor_total);
+      const utilizado = money(acumuladoPorRubricaId[r.id] || 0);
+      const saldo = money(total - utilizado);
+      const percentual = total > 0 ? money((utilizado / total) * 100) : 0;
 
       await base44.asServiceRole.entities.Rubrica.update(r.id, {
+        valor_rubrica: total,
+        valor_total: total,
         valor_utilizado: utilizado,
         saldo_comprometido: 0,
         valor_comprometido: 0,
-        saldo_real: saldo,
         saldo,
+        saldo_real: saldo,
         percentual_utilizado: percentual,
         regra_financeira: 'APROVADO = UTILIZADO',
-        atualizado_por_recalculo: true,
         recalculado_em: new Date().toISOString()
       });
 
@@ -754,16 +269,13 @@ Deno.serve(async (req) => {
     return json({
       success: true,
       regra: 'APROVADO = UTILIZADO',
-      totalOficial3Aditivo: TOTAL_OFICIAL_3_ADITIVO,
-      somaOficialRestaurada: somaOficial,
-      rubricasOficiais: RUBRICAS_OFICIAIS_3_ADITIVO.length,
+      totalOficial: TOTAL_OFICIAL,
+      totalBase,
+      totalRubricasOficiais: RUBRICAS_OFICIAIS.length,
       criadas,
       atualizadas,
       duplicadasDesativadas,
-      recalculadas,
-      totalComprasAprovadasConsideradas: Object.keys(acumulado).length,
-      observacao:
-        'Rubricas fora da base oficial foram inativadas. Solicitações existentes não foram alteradas.'
+      recalculadas
     });
   } catch (error: any) {
     console.error('recalculateAllRubricas error:', error);
