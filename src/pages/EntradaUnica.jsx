@@ -311,10 +311,7 @@ Retorne apenas o JSON, sem explicações.`;
     <div className="w-full max-w-3xl mx-auto py-8 px-4 space-y-8">
       {/* Upload */}
       <div>
-        <h1 className="text-xl font-semibold text-slate-800 mb-1">Entrada Única de Documentos</h1>
-        <p className="text-sm text-slate-500 mb-6">
-          Envie notas fiscais, fotos de atividades ou documentos administrativos. A IA irá classificar e extrair os dados automaticamente.
-        </p>
+        <h1 className="text-xl font-semibold text-slate-800 mb-1">Entrada Única de Documentos PDF e XML (Contratos, Notas Fiscais)</h1>
         <DocumentUploadZone
           onFilesSelected={handleFilesSelected}
           uploading={uploading}
