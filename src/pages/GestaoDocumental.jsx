@@ -1,103 +1,102 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  FileText,
-  Search,
-  Trash2,
-  ExternalLink,
-  Download,
-  LinkIcon
+  FileText, FileCode, File,
+  Search, Trash2, ExternalLink, Download
 } from 'lucide-react';
 
-function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function normalizeText(v) {
+  return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 }
 
-function toNumber(value) {
-  const n = Number(String(value || '').replace(',', '.'));
+function toNumber(v) {
+  const n = Number(String(v || '').replace(',', '.'));
   return Number.isNaN(n) ? 0 : n;
 }
 
-function fmtBRL(value) {
-  const n = toNumber(value);
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(n);
+// Extensões e MIME types de imagem — EXCLUIR da gestão documental
+const IMAGE_EXTS  = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff', '.svg', '.heic', '.heif']);
+const IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/tiff', 'image/svg+xml', 'image/heic']);
+
+function isImagem(doc) {
+  const mime = String(doc?.file_type || doc?.mime_type || '').toLowerCase();
+  if (IMAGE_MIMES.has(mime)) return true;
+  const name = normalizeText(doc?.file_name || doc?.nf_nome_original || '');
+  return [...IMAGE_EXTS].some((ext) => name.endsWith(ext));
 }
 
 function getTipo(doc) {
-  const tipo = normalizeText(doc?.nf_tipo_documento);
-  const name = normalizeText(doc?.file_name || doc?.nf_nome_original || doc?.name);
+  const mime = String(doc?.file_type || doc?.mime_type || '').toLowerCase();
+  const name = normalizeText(doc?.file_name || doc?.nf_nome_original || '');
+  const nfTipo = normalizeText(doc?.nf_tipo_documento || '');
 
-  if (tipo === 'pdf_nf' || name.endsWith('.pdf')) return 'PDF';
-  if (tipo === 'xml_nf' || name.endsWith('.xml')) return 'XML';
+  if (nfTipo === 'xml_nf' || mime.includes('xml') || name.endsWith('.xml')) return 'XML';
+  if (nfTipo === 'pdf_nf' || mime.includes('pdf') || name.endsWith('.pdf')) return 'PDF';
+  if (mime.includes('word') || name.endsWith('.doc') || name.endsWith('.docx')) return 'DOC';
   return 'DOC';
 }
 
-function getValor(doc) {
-  return toNumber(
-    doc?.nf_valor_total ||
-    doc?.valor_total ||
-    doc?.valor ||
-    0
-  );
+function getCategoria(doc) {
+  if (doc?.nf_numero || doc?.nf_emitente_nome || doc?.nf_valor_total) return 'Nota Fiscal';
+  const desc = normalizeText(doc?.description || doc?.file_name || '');
+  if (desc.includes('contrato')) return 'Contrato';
+  if (desc.includes('nota') || desc.includes('nf') || desc.includes('nfe')) return 'Nota Fiscal';
+  return 'Documento';
 }
 
-function getFornecedor(doc) {
-  return (
-    doc?.nf_emitente_nome ||
-    doc?.fornecedor_nome ||
-    doc?.description ||
-    '—'
-  );
-}
-
-function getNumero(doc) {
-  return doc?.nf_numero || '—';
+function getFileName(doc) {
+  return doc?.file_name || doc?.nf_nome_renomeado || doc?.nf_nome_original || 'Documento';
 }
 
 function getFileUrl(doc) {
   return doc?.file_url || '';
 }
 
-function getFileName(doc) {
-  return (
-    doc?.file_name ||
-    doc?.nf_nome_renomeado ||
-    doc?.nf_nome_original ||
-    'Documento'
-  );
+function getFornecedor(doc) {
+  return doc?.nf_emitente_nome || doc?.fornecedor_nome || doc?.description || '—';
 }
 
-function filtrarEDeduplicarDocumentos(docs) {
+function fmtDate(v) {
+  if (!v) return '—';
+  const d = new Date(v);
+  if (isNaN(d)) return '—';
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+function filtrarEDeduplicar(docs) {
   const map = new Map();
 
   (docs || []).forEach((doc) => {
     if (!doc?.id) return;
     if (doc?.status_registro === 'DELETADO') return;
+    if (isImagem(doc)) return; // ← exclui fotos/imagens
 
-    const valor = getValor(doc);
-    if (getTipo(doc) === 'PDF' && valor === 0) return;
-
-    const key = getFileUrl(doc) || `${getNumero(doc)}-${valor}`;
-
-    if (!map.has(key)) {
-      map.set(key, doc);
-    }
+    const key = getFileUrl(doc) || doc.id;
+    if (!map.has(key)) map.set(key, doc);
   });
 
-  return Array.from(map.values()).sort((a, b) => {
-    return new Date(b.created_date) - new Date(a.created_date);
-  });
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0)
+  );
 }
+
+const TIPO_CONFIG = {
+  PDF: { label: 'PDF', color: 'bg-red-50 text-red-700',  Icon: FileText },
+  XML: { label: 'XML', color: 'bg-blue-50 text-blue-700', Icon: FileCode },
+  DOC: { label: 'DOC', color: 'bg-indigo-50 text-indigo-700', Icon: File },
+};
+
+const CATEG_COLOR = {
+  'Nota Fiscal': 'bg-amber-50 text-amber-700',
+  'Contrato':    'bg-purple-50 text-purple-700',
+  'Documento':   'bg-gray-100 text-gray-600',
+};
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function GestaoDocumental() {
   const queryClient = useQueryClient();
@@ -107,97 +106,164 @@ export default function GestaoDocumental() {
     queryKey: ['gestao-documental'],
     queryFn: async () => {
       const list = await base44.entities.Attachment.list('-created_date', 500);
-      return filtrarEDeduplicarDocumentos(list);
+      return filtrarEDeduplicar(list);
     }
   });
 
   const filtrados = useMemo(() => {
     const s = normalizeText(search);
     if (!s) return documentos;
-
     return documentos.filter((doc) =>
       normalizeText(getFileName(doc)).includes(s) ||
       normalizeText(getFornecedor(doc)).includes(s) ||
-      normalizeText(getNumero(doc)).includes(s)
+      normalizeText(doc?.nf_numero || '').includes(s)
     );
   }, [documentos, search]);
 
   async function handleDelete(doc) {
     if (!window.confirm('Remover documento?')) return;
-
-    await base44.entities.Attachment.update(doc.id, {
-      status_registro: 'DELETADO'
-    });
-
-    await queryClient.invalidateQueries(['gestao-documental']);
+    await base44.entities.Attachment.update(doc.id, { status_registro: 'DELETADO' });
+    queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
   }
 
   return (
-    <div className="p-4 border rounded-xl bg-white">
+    <div className="rounded-xl border border-gray-200 bg-white">
 
-      <div className="flex justify-between mb-4">
-        <h2 className="font-bold flex items-center gap-2">
-          <FileText size={18} />
-          Gestão Documental
-        </h2>
-
-        <span>{filtrados.length} docs</span>
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-gray-500" />
+          <span className="font-semibold text-gray-800">Documentos</span>
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+            {filtrados.length}
+          </span>
+        </div>
+        <div className="relative w-64">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+          <Input
+            className="pl-8 h-8 text-sm"
+            placeholder="Buscar arquivo, fornecedor..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
       </div>
 
-      <div className="mb-4 relative">
-        <Search className="absolute left-2 top-2 text-gray-400" size={14} />
-        <Input
-          className="pl-7"
-          placeholder="Buscar..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
+      {/* Tabela */}
       {isLoading ? (
-        <p>Carregando...</p>
+        <div className="py-12 text-center text-sm text-gray-400">Carregando documentos...</div>
+      ) : filtrados.length === 0 ? (
+        <div className="py-16 text-center">
+          <FileText className="mx-auto mb-3 h-10 w-10 text-gray-200" />
+          <p className="text-sm text-gray-400">Nenhum documento encontrado</p>
+        </div>
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr>
-              <th>Tipo</th>
-              <th>Arquivo</th>
-              <th>Fornecedor</th>
-              <th>Número</th>
-              <th>Valor</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {filtrados.map((doc) => (
-              <tr key={doc.id}>
-
-                <td>{getTipo(doc)}</td>
-                <td>{getFileName(doc)}</td>
-                <td>{getFornecedor(doc)}</td>
-                <td>{getNumero(doc)}</td>
-                <td>{fmtBRL(getValor(doc))}</td>
-
-                <td className="flex gap-2">
-
-                  <a href={getFileUrl(doc)} target="_blank">
-                    <ExternalLink size={14} />
-                  </a>
-
-                  <a href={getFileUrl(doc)} download>
-                    <Download size={14} />
-                  </a>
-
-                  <button onClick={() => handleDelete(doc)}>
-                    <Trash2 size={14} />
-                  </button>
-
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full table-fixed border-collapse text-sm">
+            <colgroup>
+              <col className="w-[35%]" />
+              <col className="w-[8%]"  />
+              <col className="w-[14%]" />
+              <col className="w-[22%]" />
+              <col className="w-[12%]" />
+              <col className="w-[9%]"  />
+            </colgroup>
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-medium text-gray-500">
+                <th className="px-4 py-2.5">Nome do arquivo</th>
+                <th className="px-3 py-2.5">Tipo</th>
+                <th className="px-3 py-2.5">Categoria</th>
+                <th className="px-3 py-2.5">Fornecedor / Descrição</th>
+                <th className="px-3 py-2.5">Data de envio</th>
+                <th className="px-3 py-2.5 text-center">Ações</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtrados.map((doc, i) => {
+                const tipo    = getTipo(doc);
+                const categ   = getCategoria(doc);
+                const tipoConf = TIPO_CONFIG[tipo] || TIPO_CONFIG.DOC;
+                const TipoIcon = tipoConf.Icon;
+                const fileUrl  = getFileUrl(doc);
+
+                return (
+                  <tr
+                    key={doc.id}
+                    className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                  >
+                    {/* Nome */}
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <TipoIcon className="h-4 w-4 flex-shrink-0 text-gray-400" />
+                        <span className="truncate text-gray-800 font-medium" title={getFileName(doc)}>
+                          {getFileName(doc)}
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* Tipo */}
+                    <td className="px-3 py-2.5">
+                      <span className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${tipoConf.color}`}>
+                        {tipoConf.label}
+                      </span>
+                    </td>
+
+                    {/* Categoria */}
+                    <td className="px-3 py-2.5">
+                      <span className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${CATEG_COLOR[categ] || 'bg-gray-100 text-gray-600'}`}>
+                        {categ}
+                      </span>
+                    </td>
+
+                    {/* Fornecedor */}
+                    <td className="px-3 py-2.5 text-gray-600 truncate" title={getFornecedor(doc)}>
+                      {getFornecedor(doc)}
+                    </td>
+
+                    {/* Data */}
+                    <td className="px-3 py-2.5 text-gray-500 tabular-nums">
+                      {fmtDate(doc.created_date)}
+                    </td>
+
+                    {/* Ações */}
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center justify-center gap-1">
+                        {fileUrl && (
+                          <>
+                            <a
+                              href={fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Ver"
+                              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-blue-700"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                            <a
+                              href={fileUrl}
+                              download
+                              title="Baixar"
+                              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </a>
+                          </>
+                        )}
+                        <button
+                          onClick={() => handleDelete(doc)}
+                          title="Deletar"
+                          className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

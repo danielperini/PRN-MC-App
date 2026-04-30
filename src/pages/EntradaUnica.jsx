@@ -48,17 +48,89 @@ export default function EntradaUnica() {
     if (user) loadIntakes();
   }, [user, loadIntakes]);
 
+  // Analisa documento por IA após upload (não bloqueia salvamento)
+  async function analisarComIA(intakeId, fileUrl, mimeType, orientacoes) {
+    try {
+      const isPDF = mimeType?.includes('pdf') || fileUrl?.toLowerCase().endsWith('.pdf');
+      const isXML = mimeType?.includes('xml') || fileUrl?.toLowerCase().endsWith('.xml');
+
+      if (!isPDF && !isXML) return; // só analisa NF/PDF/XML
+
+      await base44.entities.DocumentIntake.update(intakeId, {
+        status_processamento: 'ANALISANDO_IA'
+      });
+
+      const prompt = `Você é um especialista em notas fiscais e documentos fiscais brasileiros.
+Analise o documento e extraia os seguintes campos em JSON:
+{
+  "tipo_documento": "NOTA_FISCAL_PDF | NOTA_FISCAL_XML | DOCUMENTO_ADMINISTRATIVO | OUTRO",
+  "nf_numero": "número da NF ou serie-numero",
+  "nf_data_emissao": "YYYY-MM-DD",
+  "nf_valor_total": número,
+  "nf_emitente_nome": "razão social do emitente",
+  "nf_emitente_cpf_cnpj": "somente dígitos",
+  "nf_destinatario_nome": "razão social do destinatário/tomador",
+  "descricao_servico": "descrição do serviço ou produto",
+  "centro_custo_sugerido": "MIS | MHAB | MUMO | Geral"
+}
+${orientacoes ? `\nOrientações do usuário: ${orientacoes}` : ''}
+Retorne apenas o JSON, sem explicações.`;
+
+      const resultado = await base44.integrations.Core.InvokeLLM({
+        prompt,
+        file_urls: [fileUrl],
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            tipo_documento:         { type: 'string' },
+            nf_numero:              { type: 'string' },
+            nf_data_emissao:        { type: 'string' },
+            nf_valor_total:         { type: 'number' },
+            nf_emitente_nome:       { type: 'string' },
+            nf_emitente_cpf_cnpj:   { type: 'string' },
+            nf_destinatario_nome:   { type: 'string' },
+            descricao_servico:      { type: 'string' },
+            centro_custo_sugerido:  { type: 'string' },
+          }
+        }
+      });
+
+      const tipoDetectado =
+        resultado?.tipo_documento === 'NOTA_FISCAL_XML' ? 'NOTA_FISCAL_XML' :
+        resultado?.tipo_documento === 'NOTA_FISCAL_PDF' ? 'NOTA_FISCAL_PDF' :
+        resultado?.tipo_documento === 'DOCUMENTO_ADMINISTRATIVO' ? 'DOCUMENTO_ADMINISTRATIVO' :
+        'OUTRO';
+
+      await base44.entities.DocumentIntake.update(intakeId, {
+        status_processamento: 'AGUARDANDO_REVISAO',
+        tipo_detectado: tipoDetectado,
+        resultado_ia: resultado || {},
+        centro_custo: resultado?.centro_custo_sugerido || '',
+      });
+    } catch (err) {
+      console.error('Erro na análise por IA:', err);
+      // Não bloqueia — apenas marca erro para reprocessamento manual
+      try {
+        await base44.entities.DocumentIntake.update(intakeId, {
+          status_processamento: 'ERRO_PROCESSAMENTO',
+          erros_validacao: [String(err?.message || 'Falha na análise por IA')]
+        });
+      } catch (_) {}
+    }
+  }
+
   async function handleFilesSelected(files, orientacoes) {
     if (!user || !files || files.length === 0) return;
     setUploading(true);
 
     let successCount = 0;
     let errorCount = 0;
+    const intakesCriados = [];
 
     for (const file of files) {
       try {
         const { file_url } = await base44.integrations.Core.UploadFile({ file });
-        await base44.entities.DocumentIntake.create({
+        const intake = await base44.entities.DocumentIntake.create({
           user_email: user.email,
           user_name: user.full_name || user.email,
           arquivo_original_url: file_url,
@@ -70,6 +142,7 @@ export default function EntradaUnica() {
           revisado_pelo_usuario: false,
           resultado_ia: orientacoes ? { orientacoes_usuario: orientacoes } : {},
         });
+        intakesCriados.push({ intake, file_url, mime_type: file.type });
         successCount++;
       } catch (e) {
         console.error('Erro ao enviar arquivo:', e);
@@ -80,13 +153,22 @@ export default function EntradaUnica() {
     setUploading(false);
 
     if (successCount > 0) {
-      toast.success(`${successCount} arquivo(s) enviado(s) com sucesso.`);
+      toast.success(`${successCount} arquivo(s) enviado(s). Analisando com IA...`);
     }
     if (errorCount > 0) {
       toast.error(`${errorCount} arquivo(s) falharam ao enviar.`);
     }
 
     await loadIntakes();
+
+    // Dispara análise por IA em background (não bloqueia UI)
+    for (const { intake, file_url, mime_type } of intakesCriados) {
+      if (intake?.id) {
+        analisarComIA(intake.id, file_url, mime_type, orientacoes)
+          .then(() => loadIntakes())
+          .catch(() => {});
+      }
+    }
   }
 
   function handleReview(intake) {
