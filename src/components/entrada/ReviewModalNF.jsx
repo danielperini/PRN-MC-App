@@ -375,33 +375,33 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       const valor = parseValorBR(form.nf_valor_total);
       const rubricaNome = getRubricaNome(form.rubrica_id);
 
-      // centro_custo deve ser um dos valores do enum; se rateado, usar 'Geral'
-      const centroCustoEnum = dividirEntreMuseus
+      const valorSeguro = valor > 0 ? valor : 0.01;
+      const rubricaId = form.rubrica_id || 'SEM_RUBRICA';
+      const budgetlineId = form.budgetline_id || form.rubrica_id || 'SEM_BUDGETLINE';
+      const metaId = form.meta_id || 'MC3A-EXTRA';
+      const categoria = form.categoria || 'Outros';
+      const tipoGasto = ['Produto', 'Serviço'].includes(form.tipo_gasto) ? form.tipo_gasto : 'Serviço';
+      const centroCusto = dividirEntreMuseus
         ? 'Geral'
         : (['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Publicações', 'Geral'].includes(form.centro_custo)
             ? form.centro_custo
             : 'Geral');
 
-      // meta_id deve ser um dos valores do enum
-      const metaIdValido = ['MC3A-20','MC3A-21','MC3A-22','MC3A-23','MC3A-24','MC3A-25','MC3A-EXTRA'].includes(form.meta_id)
-        ? form.meta_id
-        : 'MC3A-EXTRA';
-
       const pr = await base44.entities.PurchaseRequest.create({
         descricao_item: form.descricao_servico || form.nf_emitente_nome || form.file_name_final || intake.file_name_original || '',
         fornecedor_nome: form.nf_emitente_nome || '',
         fornecedor_cnpj: form.nf_emitente_cpf_cnpj || '',
-        valor_solicitado: valor,
-        valor_total: valor,
-        nf_valor_total: valor,
-        rubrica_id: form.rubrica_id,
-        budgetline_id: form.rubrica_id || null,
-        centro_custo: centroCustoEnum,
+        valor_solicitado: valorSeguro,
+        valor_total: valorSeguro,
+        nf_valor_total: valorSeguro,
+        rubrica_id: rubricaId,
+        budgetline_id: budgetlineId,
+        centro_custo: centroCusto,
         nota_fiscal_url: intake.arquivo_original_url || '',
         status: 'SOLICITADO',
-        meta_id: metaIdValido,
-        categoria: 'Outros',
-        tipo_gasto: ['Produto', 'Serviço'].includes(form.tipo_gasto) ? form.tipo_gasto : 'Serviço',
+        meta_id: metaId,
+        categoria,
+        tipo_gasto: tipoGasto,
         nf_numero: form.nf_numero || '',
         nf_emitente_nome: form.nf_emitente_nome || '',
         nf_data_emissao: form.nf_data_emissao || '',
@@ -436,7 +436,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         ocultar_entrada_unica: true,
         entidade_destino: 'PurchaseRequest',
         entidade_destino_id: pr?.id || '',
-        centro_custo: centroCustoEnum,
+        centro_custo: centroCusto,
         rubrica_id_sugerida: form.rubrica_id,
         rubrica_nome_sugerida: rubricaNome,
         file_name_final: form.file_name_final,
