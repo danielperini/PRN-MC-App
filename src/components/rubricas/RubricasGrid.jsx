@@ -142,6 +142,7 @@ export default function RubricasGrid({
 
   const filtradas = useMemo(() => {
     return rubricasNormalizadas.filter((r) => {
+      if (!r.ativo) return false;
       const matchGrupo = groupFilter === 'all' || r.grupo === groupFilter;
       const busca = normalizarTexto(searchTerm);
       const texto = normalizarTexto(`${r.grupo} ${r.rubrica} ${r.numero_parcelas}`);
