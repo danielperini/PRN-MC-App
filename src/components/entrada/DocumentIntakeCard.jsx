@@ -237,7 +237,7 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
             </Button>
           )}
 
-          {/* Editar formulário */}
+          {/* Revisar formulário */}
           {canReview && (
             <Button
               size="sm"
@@ -245,7 +245,7 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
               onClick={() => onReview({ ...intake })}
               className="h-8 text-xs px-3"
             >
-              Editar
+              Revisar
             </Button>
           )}
 

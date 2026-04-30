@@ -324,55 +324,42 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
     try {
       const valor = parseValorBR(form.nf_valor_total);
-      const rateioCalculado = getRateioCalculado(rateio);
-      const destinoEquipe = isPagamentoEquipe(form, intake);
       const rubricaNome = getRubricaNome(form.rubrica_id);
+      const centroCusto = dividirEntreMuseus ? 'Rateado' : form.centro_custo;
 
-      toast({
-        title: 'Enviando solicitação...',
-        description: destinoEquipe ? 'A nota será enviada para Pagamentos da Equipe.' : 'A nota será enviada para Solicitações.',
-        duration: 2500,
+      const novaPurchase = await base44.entities.PurchaseRequest.create({
+        descricao_item: form.descricao_servico || form.nf_emitente_nome || intake.file_name_original || '',
+        fornecedor_nome: form.nf_emitente_nome || '',
+        fornecedor_cpf_cnpj: form.nf_emitente_cpf_cnpj || '',
+        valor: valor,
+        rubrica_id: form.rubrica_id,
+        rubrica_nome: rubricaNome,
+        centro_custo: centroCusto,
+        nota_fiscal_url: intake.arquivo_original_url || '',
+        status: 'AGUARDANDO_APROVACAO',
+        origem: 'EntradaUnica',
+        intake_id: intake.id,
+        nf_numero: form.nf_numero || '',
+        nf_data_emissao: form.nf_data_emissao || '',
+        rateio_museus: getRateioPayload(),
+        meta_id: form.meta_id || '',
+        tipo_gasto: form.tipo_gasto || 'Serviço',
       });
 
-      const payload = {
-        intakeId: intake.id,
-        form: {
-          ...form,
-          nf_valor_total: valor,
-          valor,
-          valor_total: valor,
-          tipo_pagamento: destinoEquipe ? 'equipe' : 'compra',
-          destino_aprovacao: destinoEquipe ? 'equipe' : 'solicitacao',
-          rubrica_id: form.rubrica_id,
-          rubrica_nome: rubricaNome,
-          rateio_museus: form.tipo_rateio === 'dividido' ? rateioCalculado : [],
-          museus_rateio: form.tipo_rateio === 'dividido' ? form.museus_rateio : [],
-        },
-      };
-
-      const response = await Promise.race([
-        base44.functions.invoke('enviarNotaParaAprovacao', payload),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Timeout ao enviar (backend não respondeu)')), 12000)
-        ),
-      ]);
-
-      const result = response?.data || response;
-
-      if (!result) throw new Error('Sem resposta da function enviarNotaParaAprovacao.');
-      if (result?.success === false) throw new Error(result?.error || result?.message || 'Falha ao enviar nota.');
-
-      toast({
-        title: destinoEquipe ? '✅ Enviado para Pagamentos da Equipe' : '✅ Solicitação enviada',
-        description: destinoEquipe ? 'Disponível em Compras → Pagamentos da Equipe.' : 'Disponível em Compras → Solicitações.',
-        duration: 7000,
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'ENVIADO_APROVACAO',
+        ocultar_entrada_unica: true,
+        entidade_destino: 'PurchaseRequest',
+        entidade_destino_id: novaPurchase?.id || '',
       });
+
+      toast({ title: '✅ Solicitação enviada para aprovação', description: 'Disponível em Compras → Solicitações.', duration: 5000 });
 
       await onSaved?.();
       onClose?.();
     } catch (e) {
       console.error('❌ ERRO AO ENVIAR NF:', e);
-      toast({ title: 'Erro ao enviar solicitação', description: e?.message || 'Falha ao enviar para aprovação.', variant: 'destructive', duration: 9000 });
+      toast({ title: 'Erro ao enviar solicitação', description: e?.message || 'Falha ao criar solicitação.', variant: 'destructive', duration: 9000 });
     } finally {
       setSending(false);
     }
