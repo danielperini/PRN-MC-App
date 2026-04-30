@@ -286,11 +286,22 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
         </div>
       )}
 
-      {/* Aviso de agrupamento NF incompleto */}
-      {isNF && intake.grupo_status === 'INCOMPLETO' && (
+      {/* Aviso de agrupamento NF incompleto — só mostra se não tiver XML vinculado */}
+      {isNF &&
+        intake.tipo_detectado === 'NOTA_FISCAL_PDF' &&
+        intake.grupo_status === 'INCOMPLETO' &&
+        !intake.nf_xml_url &&
+        intake.grupo_status !== 'COMPLETO' && (
         <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
           <span>Envie também o XML desta nota para completar o par PDF+XML.</span>
+        </div>
+      )}
+      {/* Indica PDF+XML vinculado */}
+      {isNF && intake.grupo_status === 'COMPLETO' && intake.nf_xml_url && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">
+          <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+          <span>XML vinculado automaticamente.</span>
         </div>
       )}
     </div>

@@ -50,12 +50,24 @@ export default function EntradaUnica() {
 
   // Analisa documento por IA após upload (não bloqueia salvamento)
   async function analisarComIA(intakeId, fileUrl, mimeType, orientacoes) {
+    const isPDF = mimeType?.includes('pdf') || fileUrl?.toLowerCase().endsWith('.pdf');
+    const isXML = mimeType?.includes('xml') || fileUrl?.toLowerCase().endsWith('.xml');
+
+    if (!isPDF && !isXML) return; // só analisa NF/PDF/XML
+
+    const tipoFallback = isXML ? 'NOTA_FISCAL_XML' : 'NOTA_FISCAL_PDF';
+
+    const aplicarFallback = async (motivo) => {
+      try {
+        await base44.entities.DocumentIntake.update(intakeId, {
+          status_processamento: 'AGUARDANDO_REVISAO',
+          tipo_detectado: tipoFallback,
+          erros_validacao: [motivo || 'IA não conseguiu concluir a análise. Revise manualmente.'],
+        });
+      } catch (_) {}
+    };
+
     try {
-      const isPDF = mimeType?.includes('pdf') || fileUrl?.toLowerCase().endsWith('.pdf');
-      const isXML = mimeType?.includes('xml') || fileUrl?.toLowerCase().endsWith('.xml');
-
-      if (!isPDF && !isXML) return; // só analisa NF/PDF/XML
-
       await base44.entities.DocumentIntake.update(intakeId, {
         status_processamento: 'ANALISANDO_IA'
       });
@@ -76,30 +88,34 @@ Analise o documento e extraia os seguintes campos em JSON:
 ${orientacoes ? `\nOrientações do usuário: ${orientacoes}` : ''}
 Retorne apenas o JSON, sem explicações.`;
 
-      const resultado = await base44.integrations.Core.InvokeLLM({
-        prompt,
-        file_urls: [fileUrl],
-        response_json_schema: {
-          type: 'object',
-          properties: {
-            tipo_documento:         { type: 'string' },
-            nf_numero:              { type: 'string' },
-            nf_data_emissao:        { type: 'string' },
-            nf_valor_total:         { type: 'number' },
-            nf_emitente_nome:       { type: 'string' },
-            nf_emitente_cpf_cnpj:   { type: 'string' },
-            nf_destinatario_nome:   { type: 'string' },
-            descricao_servico:      { type: 'string' },
-            centro_custo_sugerido:  { type: 'string' },
+      // Timeout de 20s para a chamada IA
+      const resultado = await Promise.race([
+        base44.integrations.Core.InvokeLLM({
+          prompt,
+          file_urls: [fileUrl],
+          response_json_schema: {
+            type: 'object',
+            properties: {
+              tipo_documento:         { type: 'string' },
+              nf_numero:              { type: 'string' },
+              nf_data_emissao:        { type: 'string' },
+              nf_valor_total:         { type: 'number' },
+              nf_emitente_nome:       { type: 'string' },
+              nf_emitente_cpf_cnpj:   { type: 'string' },
+              nf_destinatario_nome:   { type: 'string' },
+              descricao_servico:      { type: 'string' },
+              centro_custo_sugerido:  { type: 'string' },
+            }
           }
-        }
-      });
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 20000))
+      ]);
 
       const tipoDetectado =
         resultado?.tipo_documento === 'NOTA_FISCAL_XML' ? 'NOTA_FISCAL_XML' :
         resultado?.tipo_documento === 'NOTA_FISCAL_PDF' ? 'NOTA_FISCAL_PDF' :
         resultado?.tipo_documento === 'DOCUMENTO_ADMINISTRATIVO' ? 'DOCUMENTO_ADMINISTRATIVO' :
-        'OUTRO';
+        tipoFallback;
 
       await base44.entities.DocumentIntake.update(intakeId, {
         status_processamento: 'AGUARDANDO_REVISAO',
@@ -107,19 +123,92 @@ Retorne apenas o JSON, sem explicações.`;
         resultado_ia: resultado || {},
         centro_custo: resultado?.centro_custo_sugerido || '',
       });
+
+      // Após análise concluída, tenta vincular PDF+XML automaticamente
+      await tentarVincularPDFXML(intakeId, resultado, tipoDetectado);
+
     } catch (err) {
       console.error('Erro na análise por IA:', err);
-      // Fallback: permite revisão manual mesmo com falha da IA
-      try {
-        const isPDF = mimeType?.includes('pdf') || fileUrl?.toLowerCase().endsWith('.pdf');
-        const isXML = mimeType?.includes('xml') || fileUrl?.toLowerCase().endsWith('.xml');
-        const tipoFallback = isXML ? 'NOTA_FISCAL_XML' : isPDF ? 'NOTA_FISCAL_PDF' : 'OUTRO';
+      const motivo = err?.message === 'TIMEOUT'
+        ? 'IA não conseguiu concluir a análise. Revise manualmente.'
+        : 'IA não conseguiu concluir a análise. Revise manualmente.';
+      await aplicarFallback(motivo);
+    }
+  }
+
+  // Tenta vincular automaticamente PDF+XML da mesma NF
+  async function tentarVincularPDFXML(intakeId, resultado, tipoDetectado) {
+    try {
+      const isPDF = tipoDetectado === 'NOTA_FISCAL_PDF';
+      const isXML = tipoDetectado === 'NOTA_FISCAL_XML';
+      if (!isPDF && !isXML) return;
+
+      // Busca todos os intakes ativos do usuário
+      const todos = await base44.entities.DocumentIntake.filter(
+        { user_email: user?.email, status_registro: 'ATIVO' },
+        '-created_date',
+        100
+      );
+
+      const candidatos = todos.filter((c) => {
+        if (c.id === intakeId) return false;
+        if (c.ocultar_entrada_unica) return false;
+        if (isPDF && c.tipo_detectado !== 'NOTA_FISCAL_XML') return false;
+        if (isXML && c.tipo_detectado !== 'NOTA_FISCAL_PDF') return false;
+
+        const iaC = c.resultado_ia || {};
+        const nfN = resultado?.nf_numero;
+        const cnpj = resultado?.nf_emitente_cpf_cnpj;
+        const valor = resultado?.nf_valor_total;
+        const nome = resultado?.nf_emitente_nome;
+
+        const matchNumero = nfN && iaC.nf_numero && String(nfN).replace(/\D/g,'') === String(iaC.nf_numero).replace(/\D/g,'');
+        const matchCnpj = cnpj && iaC.nf_emitente_cpf_cnpj && String(cnpj).replace(/\D/g,'') === String(iaC.nf_emitente_cpf_cnpj).replace(/\D/g,'');
+        const matchValor = valor && iaC.nf_valor_total && Math.abs(Number(valor) - Number(iaC.nf_valor_total)) < 0.02;
+        const matchNome = nome && iaC.nf_emitente_nome &&
+          nome.toLowerCase().replace(/\s+/g,'').substring(0,10) === iaC.nf_emitente_nome.toLowerCase().replace(/\s+/g,'').substring(0,10);
+
+        // Pelo menos 2 critérios coincidentes
+        const score = [matchNumero, matchCnpj, matchValor, matchNome].filter(Boolean).length;
+        return score >= 2;
+      });
+
+      if (candidatos.length === 0) return;
+
+      const parceiro = candidatos[0];
+      const iaP = parceiro.resultado_ia || {};
+
+      const thisIntake = todos.find((i) => i.id === intakeId);
+
+      if (isPDF) {
+        // Este é PDF, parceiro é XML
         await base44.entities.DocumentIntake.update(intakeId, {
-          status_processamento: 'AGUARDANDO_REVISAO',
-          tipo_detectado: tipoFallback,
-          erros_validacao: ['IA não conseguiu extrair todos os campos. Revise manualmente.'],
+          grupo_status: 'COMPLETO',
+          nf_xml_intake_id: parceiro.id,
+          nf_xml_url: parceiro.arquivo_original_url,
         });
-      } catch (_) {}
+        await base44.entities.DocumentIntake.update(parceiro.id, {
+          grupo_status: 'COMPLETO',
+          nf_pdf_intake_id: intakeId,
+          nf_pdf_url: thisIntake?.arquivo_original_url || '',
+          ocultar_entrada_unica: true,
+        });
+      } else {
+        // Este é XML, parceiro é PDF
+        await base44.entities.DocumentIntake.update(intakeId, {
+          grupo_status: 'COMPLETO',
+          nf_pdf_intake_id: parceiro.id,
+          nf_pdf_url: parceiro.arquivo_original_url,
+          ocultar_entrada_unica: true,
+        });
+        await base44.entities.DocumentIntake.update(parceiro.id, {
+          grupo_status: 'COMPLETO',
+          nf_xml_intake_id: intakeId,
+          nf_xml_url: thisIntake?.arquivo_original_url || '',
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao vincular PDF+XML:', err);
     }
   }
 
