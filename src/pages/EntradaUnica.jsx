@@ -9,6 +9,131 @@ import ReviewModalDocAdmin from '@/components/entrada/ReviewModalDocAdmin';
 import ReviewModalOutro from '@/components/entrada/ReviewModalOutro';
 import { Loader2, InboxIcon } from 'lucide-react';
 
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function onlyDigits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function parseValorBR(value) {
+  const raw = String(value || '').trim().replace(/\s/g, '');
+  if (!raw) return 0;
+
+  if (/^\d{1,3}(\.\d{3})*(,\d+)?$/.test(raw)) {
+    return Number(raw.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+
+  return Number(raw.replace(',', '.')) || 0;
+}
+
+function getFileExt(intake) {
+  const name = String(intake?.file_name_original || intake?.arquivo_original_url || '').toLowerCase();
+  if (name.endsWith('.xml')) return 'xml';
+  if (name.endsWith('.pdf')) return 'pdf';
+  return '';
+}
+
+function getTipoByFile(intake) {
+  const mime = String(intake?.mime_type || '').toLowerCase();
+  const ext = getFileExt(intake);
+
+  if (mime.includes('xml') || ext === 'xml') return 'NOTA_FISCAL_XML';
+  if (mime.includes('pdf') || ext === 'pdf') return 'NOTA_FISCAL_PDF';
+
+  return intake?.tipo_detectado || 'OUTRO';
+}
+
+function getNFNumero(intake) {
+  const ia = intake?.resultado_ia || {};
+  return onlyDigits(ia.nf_numero || intake?.nf_numero || '');
+}
+
+function getValorNF(intake) {
+  const ia = intake?.resultado_ia || {};
+  return parseValorBR(
+    ia.nf_valor_total ||
+      ia.valor_total ||
+      ia.valor ||
+      intake?.nf_valor_total ||
+      intake?.valor ||
+      ''
+  );
+}
+
+function getFornecedor(intake) {
+  const ia = intake?.resultado_ia || {};
+  return normalizeText(
+    ia.nf_emitente_nome ||
+      ia.fornecedor_nome ||
+      intake?.nf_emitente_nome ||
+      intake?.fornecedor_nome ||
+      intake?.file_name_original ||
+      ''
+  );
+}
+
+function getCnpj(intake) {
+  const ia = intake?.resultado_ia || {};
+  return onlyDigits(
+    ia.nf_emitente_cpf_cnpj ||
+      ia.fornecedor_cpf_cnpj ||
+      intake?.nf_emitente_cpf_cnpj ||
+      intake?.fornecedor_cpf_cnpj ||
+      ''
+  );
+}
+
+function getNomeBase(intake) {
+  return normalizeText(intake?.file_name_original || intake?.file_name_final || '')
+    .replace(/\.pdf$/i, '')
+    .replace(/\.xml$/i, '')
+    .replace(/\bpdf\b/g, '')
+    .replace(/\bxml\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function calcularScoreVinculo(a, b) {
+  let score = 0;
+
+  const nfA = getNFNumero(a);
+  const nfB = getNFNumero(b);
+  if (nfA && nfB && nfA === nfB) score += 4;
+
+  const cnpjA = getCnpj(a);
+  const cnpjB = getCnpj(b);
+  if (cnpjA && cnpjB && cnpjA === cnpjB) score += 4;
+
+  const valorA = getValorNF(a);
+  const valorB = getValorNF(b);
+  if (valorA > 0 && valorB > 0 && Math.abs(valorA - valorB) < 0.02) score += 3;
+
+  const fornA = getFornecedor(a);
+  const fornB = getFornecedor(b);
+  if (fornA && fornB && (fornA.includes(fornB.slice(0, 12)) || fornB.includes(fornA.slice(0, 12)))) {
+    score += 2;
+  }
+
+  const nomeA = getNomeBase(a);
+  const nomeB = getNomeBase(b);
+  if (nomeA && nomeB) {
+    const palavrasA = nomeA.split(' ').filter((p) => p.length > 2);
+    const palavrasB = nomeB.split(' ').filter((p) => p.length > 2);
+    const comuns = palavrasA.filter((p) => palavrasB.includes(p));
+    if (comuns.length >= 4) score += 4;
+    else if (comuns.length >= 2) score += 2;
+  }
+
+  return score;
+}
+
 export default function EntradaUnica() {
   const [user, setUser] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -20,75 +145,149 @@ export default function EntradaUnica() {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
+  const corrigirTravados = useCallback(async (lista) => {
+    const agora = Date.now();
+
+    for (const item of lista || []) {
+      const status = String(item.status_processamento || '').toUpperCase();
+      if (status !== 'ANALISANDO_IA') continue;
+
+      const created = new Date(item.updated_date || item.created_date || 0).getTime();
+      const passouTempo = created && agora - created > 45000;
+
+      if (!passouTempo) continue;
+
+      const tipoFallback = getTipoByFile(item);
+
+      await base44.entities.DocumentIntake.update(item.id, {
+        status_processamento: 'AGUARDANDO_REVISAO',
+        tipo_detectado: tipoFallback,
+        erros_validacao: ['IA não conseguiu concluir a análise. Revise manualmente.'],
+      }).catch(() => {});
+    }
+  }, []);
+
+  const tentarVincularLista = useCallback(async (lista) => {
+    const ativos = (lista || []).filter((i) => !i.ocultar_entrada_unica);
+
+    const pdfs = ativos.filter((i) => getTipoByFile(i) === 'NOTA_FISCAL_PDF');
+    const xmls = ativos.filter((i) => getTipoByFile(i) === 'NOTA_FISCAL_XML');
+
+    for (const xml of xmls) {
+      if (xml.nf_pdf_intake_id || xml.grupo_status === 'COMPLETO') continue;
+
+      let melhorPdf = null;
+      let melhorScore = 0;
+
+      for (const pdf of pdfs) {
+        if (pdf.nf_xml_intake_id || pdf.grupo_status === 'COMPLETO') continue;
+
+        const score = calcularScoreVinculo(xml, pdf);
+        if (score > melhorScore) {
+          melhorScore = score;
+          melhorPdf = pdf;
+        }
+      }
+
+      if (melhorPdf && melhorScore >= 4) {
+        await base44.entities.DocumentIntake.update(melhorPdf.id, {
+          grupo_status: 'COMPLETO',
+          nf_xml_intake_id: xml.id,
+          nf_xml_url: xml.arquivo_original_url,
+        }).catch(() => {});
+
+        await base44.entities.DocumentIntake.update(xml.id, {
+          grupo_status: 'COMPLETO',
+          nf_pdf_intake_id: melhorPdf.id,
+          nf_pdf_url: melhorPdf.arquivo_original_url,
+          ocultar_entrada_unica: true,
+        }).catch(() => {});
+      }
+    }
+  }, []);
+
   const loadIntakes = useCallback(async () => {
     if (!user) return;
+
     setLoadingIntakes(true);
+
     try {
       const list = await base44.entities.DocumentIntake.filter(
         { user_email: user.email, status_registro: 'ATIVO' },
         '-created_date',
-        50
+        100
       );
-      const filtrados = (list || []).filter((i) => {
+
+      await corrigirTravados(list || []);
+      await tentarVincularLista(list || []);
+
+      const listAtualizada = await base44.entities.DocumentIntake.filter(
+        { user_email: user.email, status_registro: 'ATIVO' },
+        '-created_date',
+        100
+      );
+
+      const filtrados = (listAtualizada || []).filter((i) => {
         const status = String(i.status_processamento || '').toUpperCase();
         if (status === 'APROVADO') return false;
         if (status === 'ENVIADO_APROVACAO') return false;
+        if (status === 'DELETADO') return false;
         if (i.ocultar_entrada_unica === true) return false;
         return true;
       });
+
       setIntakes(filtrados);
     } catch (e) {
       console.error(e);
     } finally {
       setLoadingIntakes(false);
     }
-  }, [user]);
+  }, [user, corrigirTravados, tentarVincularLista]);
 
   useEffect(() => {
     if (user) loadIntakes();
   }, [user, loadIntakes]);
 
-  // Analisa documento por IA após upload (não bloqueia salvamento)
   async function analisarComIA(intakeId, fileUrl, mimeType, orientacoes) {
     const isPDF = mimeType?.includes('pdf') || fileUrl?.toLowerCase().endsWith('.pdf');
     const isXML = mimeType?.includes('xml') || fileUrl?.toLowerCase().endsWith('.xml');
 
-    if (!isPDF && !isXML) return; // só analisa NF/PDF/XML
+    if (!isPDF && !isXML) return;
 
     const tipoFallback = isXML ? 'NOTA_FISCAL_XML' : 'NOTA_FISCAL_PDF';
 
-    const aplicarFallback = async (motivo) => {
-      try {
-        await base44.entities.DocumentIntake.update(intakeId, {
-          status_processamento: 'AGUARDANDO_REVISAO',
-          tipo_detectado: tipoFallback,
-          erros_validacao: [motivo || 'IA não conseguiu concluir a análise. Revise manualmente.'],
-        });
-      } catch (_) {}
+    const aplicarFallback = async () => {
+      await base44.entities.DocumentIntake.update(intakeId, {
+        status_processamento: 'AGUARDANDO_REVISAO',
+        tipo_detectado: tipoFallback,
+        erros_validacao: ['IA não conseguiu concluir a análise. Revise manualmente.'],
+      }).catch(() => {});
     };
 
     try {
       await base44.entities.DocumentIntake.update(intakeId, {
-        status_processamento: 'ANALISANDO_IA'
+        status_processamento: 'ANALISANDO_IA',
       });
 
       const prompt = `Você é um especialista em notas fiscais e documentos fiscais brasileiros.
 Analise o documento e extraia os seguintes campos em JSON:
 {
   "tipo_documento": "NOTA_FISCAL_PDF | NOTA_FISCAL_XML | DOCUMENTO_ADMINISTRATIVO | OUTRO",
-  "nf_numero": "número da NF ou serie-numero",
+  "nf_numero": "número da NF",
   "nf_data_emissao": "YYYY-MM-DD",
   "nf_valor_total": número,
   "nf_emitente_nome": "razão social do emitente",
   "nf_emitente_cpf_cnpj": "somente dígitos",
   "nf_destinatario_nome": "razão social do destinatário/tomador",
   "descricao_servico": "descrição do serviço ou produto",
+  "municipio": "município",
+  "estado": "UF",
+  "competencia": "Mês/Ano",
   "centro_custo_sugerido": "MIS | MHAB | MUMO | Geral"
 }
 ${orientacoes ? `\nOrientações do usuário: ${orientacoes}` : ''}
 Retorne apenas o JSON, sem explicações.`;
 
-      // Timeout de 20s para a chamada IA
       const resultado = await Promise.race([
         base44.integrations.Core.InvokeLLM({
           prompt,
@@ -96,26 +295,32 @@ Retorne apenas o JSON, sem explicações.`;
           response_json_schema: {
             type: 'object',
             properties: {
-              tipo_documento:         { type: 'string' },
-              nf_numero:              { type: 'string' },
-              nf_data_emissao:        { type: 'string' },
-              nf_valor_total:         { type: 'number' },
-              nf_emitente_nome:       { type: 'string' },
-              nf_emitente_cpf_cnpj:   { type: 'string' },
-              nf_destinatario_nome:   { type: 'string' },
-              descricao_servico:      { type: 'string' },
-              centro_custo_sugerido:  { type: 'string' },
-            }
-          }
+              tipo_documento: { type: 'string' },
+              nf_numero: { type: 'string' },
+              nf_data_emissao: { type: 'string' },
+              nf_valor_total: { type: 'number' },
+              nf_emitente_nome: { type: 'string' },
+              nf_emitente_cpf_cnpj: { type: 'string' },
+              nf_destinatario_nome: { type: 'string' },
+              descricao_servico: { type: 'string' },
+              municipio: { type: 'string' },
+              estado: { type: 'string' },
+              competencia: { type: 'string' },
+              centro_custo_sugerido: { type: 'string' },
+            },
+          },
         }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 20000))
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('TIMEOUT')), 20000)
+        ),
       ]);
 
       const tipoDetectado =
-        resultado?.tipo_documento === 'NOTA_FISCAL_XML' ? 'NOTA_FISCAL_XML' :
-        resultado?.tipo_documento === 'NOTA_FISCAL_PDF' ? 'NOTA_FISCAL_PDF' :
-        resultado?.tipo_documento === 'DOCUMENTO_ADMINISTRATIVO' ? 'DOCUMENTO_ADMINISTRATIVO' :
-        tipoFallback;
+        resultado?.tipo_documento === 'NOTA_FISCAL_XML'
+          ? 'NOTA_FISCAL_XML'
+          : resultado?.tipo_documento === 'NOTA_FISCAL_PDF'
+            ? 'NOTA_FISCAL_PDF'
+            : tipoFallback;
 
       await base44.entities.DocumentIntake.update(intakeId, {
         status_processamento: 'AGUARDANDO_REVISAO',
@@ -124,91 +329,11 @@ Retorne apenas o JSON, sem explicações.`;
         centro_custo: resultado?.centro_custo_sugerido || '',
       });
 
-      // Após análise concluída, tenta vincular PDF+XML automaticamente
-      await tentarVincularPDFXML(intakeId, resultado, tipoDetectado);
-
+      await loadIntakes();
     } catch (err) {
       console.error('Erro na análise por IA:', err);
-      const motivo = err?.message === 'TIMEOUT'
-        ? 'IA não conseguiu concluir a análise. Revise manualmente.'
-        : 'IA não conseguiu concluir a análise. Revise manualmente.';
-      await aplicarFallback(motivo);
-    }
-  }
-
-  // Tenta vincular automaticamente PDF+XML da mesma NF
-  async function tentarVincularPDFXML(intakeId, resultado, tipoDetectado) {
-    try {
-      const isPDF = tipoDetectado === 'NOTA_FISCAL_PDF';
-      const isXML = tipoDetectado === 'NOTA_FISCAL_XML';
-      if (!isPDF && !isXML) return;
-
-      // Busca todos os intakes ativos do usuário
-      const todos = await base44.entities.DocumentIntake.filter(
-        { user_email: user?.email, status_registro: 'ATIVO' },
-        '-created_date',
-        100
-      );
-
-      const candidatos = todos.filter((c) => {
-        if (c.id === intakeId) return false;
-        if (c.ocultar_entrada_unica) return false;
-        if (isPDF && c.tipo_detectado !== 'NOTA_FISCAL_XML') return false;
-        if (isXML && c.tipo_detectado !== 'NOTA_FISCAL_PDF') return false;
-
-        const iaC = c.resultado_ia || {};
-        const nfN = resultado?.nf_numero;
-        const cnpj = resultado?.nf_emitente_cpf_cnpj;
-        const valor = resultado?.nf_valor_total;
-        const nome = resultado?.nf_emitente_nome;
-
-        const matchNumero = nfN && iaC.nf_numero && String(nfN).replace(/\D/g,'') === String(iaC.nf_numero).replace(/\D/g,'');
-        const matchCnpj = cnpj && iaC.nf_emitente_cpf_cnpj && String(cnpj).replace(/\D/g,'') === String(iaC.nf_emitente_cpf_cnpj).replace(/\D/g,'');
-        const matchValor = valor && iaC.nf_valor_total && Math.abs(Number(valor) - Number(iaC.nf_valor_total)) < 0.02;
-        const matchNome = nome && iaC.nf_emitente_nome &&
-          nome.toLowerCase().replace(/\s+/g,'').substring(0,10) === iaC.nf_emitente_nome.toLowerCase().replace(/\s+/g,'').substring(0,10);
-
-        // Pelo menos 2 critérios coincidentes
-        const score = [matchNumero, matchCnpj, matchValor, matchNome].filter(Boolean).length;
-        return score >= 2;
-      });
-
-      if (candidatos.length === 0) return;
-
-      const parceiro = candidatos[0];
-      const iaP = parceiro.resultado_ia || {};
-
-      const thisIntake = todos.find((i) => i.id === intakeId);
-
-      if (isPDF) {
-        // Este é PDF, parceiro é XML
-        await base44.entities.DocumentIntake.update(intakeId, {
-          grupo_status: 'COMPLETO',
-          nf_xml_intake_id: parceiro.id,
-          nf_xml_url: parceiro.arquivo_original_url,
-        });
-        await base44.entities.DocumentIntake.update(parceiro.id, {
-          grupo_status: 'COMPLETO',
-          nf_pdf_intake_id: intakeId,
-          nf_pdf_url: thisIntake?.arquivo_original_url || '',
-          ocultar_entrada_unica: true,
-        });
-      } else {
-        // Este é XML, parceiro é PDF
-        await base44.entities.DocumentIntake.update(intakeId, {
-          grupo_status: 'COMPLETO',
-          nf_pdf_intake_id: parceiro.id,
-          nf_pdf_url: parceiro.arquivo_original_url,
-          ocultar_entrada_unica: true,
-        });
-        await base44.entities.DocumentIntake.update(parceiro.id, {
-          grupo_status: 'COMPLETO',
-          nf_xml_intake_id: intakeId,
-          nf_xml_url: thisIntake?.arquivo_original_url || '',
-        });
-      }
-    } catch (err) {
-      console.error('Erro ao vincular PDF+XML:', err);
+      await aplicarFallback();
+      await loadIntakes();
     }
   }
 
@@ -218,7 +343,9 @@ Retorne apenas o JSON, sem explicações.`;
         status_processamento: 'ANALISANDO_IA',
         erros_validacao: [],
       });
+
       await loadIntakes();
+
       await analisarComIA(
         intake.id,
         intake.arquivo_original_url,
@@ -229,6 +356,57 @@ Retorne apenas o JSON, sem explicações.`;
       console.error('Erro no reprocessamento:', e);
     } finally {
       await loadIntakes();
+    }
+  }
+
+  async function handleLinkXml(xmlIntake) {
+    try {
+      const list = await base44.entities.DocumentIntake.filter(
+        { user_email: user.email, status_registro: 'ATIVO' },
+        '-created_date',
+        100
+      );
+
+      const pdfs = (list || []).filter((item) => {
+        if (item.id === xmlIntake.id) return false;
+        if (item.ocultar_entrada_unica) return false;
+        return getTipoByFile(item) === 'NOTA_FISCAL_PDF';
+      });
+
+      let melhorPdf = null;
+      let melhorScore = 0;
+
+      for (const pdf of pdfs) {
+        const score = calcularScoreVinculo(xmlIntake, pdf);
+        if (score > melhorScore) {
+          melhorPdf = pdf;
+          melhorScore = score;
+        }
+      }
+
+      if (!melhorPdf || melhorScore < 3) {
+        toast.error('Nenhum PDF correspondente encontrado para este XML.');
+        return;
+      }
+
+      await base44.entities.DocumentIntake.update(melhorPdf.id, {
+        grupo_status: 'COMPLETO',
+        nf_xml_intake_id: xmlIntake.id,
+        nf_xml_url: xmlIntake.arquivo_original_url,
+      });
+
+      await base44.entities.DocumentIntake.update(xmlIntake.id, {
+        grupo_status: 'COMPLETO',
+        nf_pdf_intake_id: melhorPdf.id,
+        nf_pdf_url: melhorPdf.arquivo_original_url,
+        ocultar_entrada_unica: true,
+      });
+
+      toast.success('XML vinculado à nota fiscal com sucesso.');
+      await loadIntakes();
+    } catch (e) {
+      console.error('Erro ao vincular XML:', e);
+      toast.error('Erro ao vincular XML: ' + (e?.message || e));
     }
   }
 
@@ -243,6 +421,13 @@ Retorne apenas o JSON, sem explicações.`;
     for (const file of files) {
       try {
         const { file_url } = await base44.integrations.Core.UploadFile({ file });
+
+        const ext = file.name.toLowerCase().endsWith('.xml')
+          ? 'NOTA_FISCAL_XML'
+          : file.name.toLowerCase().endsWith('.pdf')
+            ? 'NOTA_FISCAL_PDF'
+            : 'PENDENTE';
+
         const intake = await base44.entities.DocumentIntake.create({
           user_email: user.email,
           user_name: user.full_name || user.email,
@@ -251,10 +436,11 @@ Retorne apenas o JSON, sem explicações.`;
           mime_type: file.type,
           status_processamento: 'ENVIADO',
           status_registro: 'ATIVO',
-          tipo_detectado: 'PENDENTE',
+          tipo_detectado: ext,
           revisado_pelo_usuario: false,
           resultado_ia: orientacoes ? { orientacoes_usuario: orientacoes } : {},
         });
+
         intakesCriados.push({ intake, file_url, mime_type: file.type });
         successCount++;
       } catch (e) {
@@ -268,13 +454,13 @@ Retorne apenas o JSON, sem explicações.`;
     if (successCount > 0) {
       toast.success(`${successCount} arquivo(s) enviado(s). Analisando com IA...`);
     }
+
     if (errorCount > 0) {
       toast.error(`${errorCount} arquivo(s) falharam ao enviar.`);
     }
 
     await loadIntakes();
 
-    // Dispara análise por IA em background (não bloqueia UI)
     for (const { intake, file_url, mime_type } of intakesCriados) {
       if (intake?.id) {
         analisarComIA(intake.id, file_url, mime_type, orientacoes)
@@ -297,65 +483,6 @@ Retorne apenas o JSON, sem explicações.`;
     setIntakes((prev) => prev.filter((i) => i.id !== id));
   }
 
-  async function handleLinkXml(xmlIntake) {
-    try {
-      const todos = await base44.entities.DocumentIntake.filter(
-        { user_email: user?.email, status_registro: 'ATIVO' },
-        '-created_date',
-        100
-      );
-
-      const iaXml = xmlIntake.resultado_ia || {};
-      const nfNumero  = String(iaXml.nf_numero || '').replace(/\D/g, '');
-      const cnpj      = String(iaXml.nf_emitente_cpf_cnpj || '').replace(/\D/g, '');
-      const valor     = Number(iaXml.nf_valor_total || 0);
-      const nome      = String(iaXml.nf_emitente_nome || '').toLowerCase().replace(/\s+/g, '').substring(0, 10);
-      const nomeArq   = String(xmlIntake.file_name_original || '').toLowerCase().replace(/\.xml$/, '');
-
-      const pdf = todos.find((c) => {
-        if (c.id === xmlIntake.id) return false;
-        if (c.ocultar_entrada_unica) return false;
-        if (c.tipo_detectado !== 'NOTA_FISCAL_PDF') return false;
-
-        const iaC = c.resultado_ia || {};
-        const matchNumero = nfNumero && String(iaC.nf_numero || '').replace(/\D/g, '') === nfNumero;
-        const matchCnpj   = cnpj && String(iaC.nf_emitente_cpf_cnpj || '').replace(/\D/g, '') === cnpj;
-        const matchValor  = valor > 0 && Math.abs(Number(iaC.nf_valor_total || 0) - valor) < 0.02;
-        const matchNome   = nome && String(iaC.nf_emitente_nome || '').toLowerCase().replace(/\s+/g, '').substring(0, 10) === nome;
-        const matchArq    = nomeArq && String(c.file_name_original || '').toLowerCase().includes(nomeArq.substring(0, 8));
-
-        const score = [matchNumero, matchCnpj, matchValor, matchNome, matchArq].filter(Boolean).length;
-        return score >= 2;
-      });
-
-      if (!pdf) {
-        toast.error('Nenhum PDF correspondente encontrado para este XML.');
-        return;
-      }
-
-      await Promise.all([
-        base44.entities.DocumentIntake.update(pdf.id, {
-          grupo_status: 'COMPLETO',
-          nf_xml_intake_id: xmlIntake.id,
-          nf_xml_url: xmlIntake.arquivo_original_url,
-        }),
-        base44.entities.DocumentIntake.update(xmlIntake.id, {
-          grupo_status: 'COMPLETO',
-          nf_pdf_intake_id: pdf.id,
-          nf_pdf_url: pdf.arquivo_original_url,
-          ocultar_entrada_unica: true,
-        }),
-      ]);
-
-      setIntakes((prev) => prev.filter((i) => i.id !== xmlIntake.id));
-      await loadIntakes();
-      toast.success('XML vinculado à nota fiscal com sucesso.');
-    } catch (e) {
-      console.error('Erro ao vincular XML:', e);
-      toast.error('Erro ao vincular XML.');
-    }
-  }
-
   function handleSentToApproval(id) {
     setIntakes((prev) => prev.filter((i) => i.id !== id));
     toast.success('Enviado para aprovação com sucesso.');
@@ -368,12 +495,12 @@ Retorne apenas o JSON, sem explicações.`;
 
   return (
     <div className="w-full max-w-3xl mx-auto py-8 px-4 space-y-8">
-      {/* Upload */}
       <div>
         <h1 className="text-xl font-semibold text-slate-800 mb-1">Entrada Única de Documentos</h1>
         <p className="text-sm text-slate-500 mb-6">
           Envie notas fiscais, fotos de atividades ou documentos administrativos. A IA irá classificar e extrair os dados automaticamente.
         </p>
+
         <DocumentUploadZone
           onFilesSelected={handleFilesSelected}
           uploading={uploading}
@@ -381,7 +508,6 @@ Retorne apenas o JSON, sem explicações.`;
         />
       </div>
 
-      {/* Lista de documentos */}
       <div>
         <h2 className="text-base font-semibold text-slate-700 mb-3">
           Documentos em análise
@@ -418,7 +544,6 @@ Retorne apenas o JSON, sem explicações.`;
         )}
       </div>
 
-      {/* Modais de revisão */}
       {reviewIntake && isNF && (
         <ReviewModalNF
           intake={reviewIntake}
@@ -426,6 +551,7 @@ Retorne apenas o JSON, sem explicações.`;
           onSaved={handleSaved}
         />
       )}
+
       {reviewIntake && isFoto && (
         <ReviewModalFoto
           intake={reviewIntake}
@@ -433,6 +559,7 @@ Retorne apenas o JSON, sem explicações.`;
           onSaved={handleSaved}
         />
       )}
+
       {reviewIntake && isDocAdmin && (
         <ReviewModalDocAdmin
           intake={reviewIntake}
@@ -440,6 +567,7 @@ Retorne apenas o JSON, sem explicações.`;
           onSaved={handleSaved}
         />
       )}
+
       {reviewIntake && !isNF && !isFoto && !isDocAdmin && (
         <ReviewModalOutro
           intake={reviewIntake}
