@@ -346,6 +346,21 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         tipo_gasto: form.tipo_gasto || 'Serviço',
       });
 
+      await base44.entities.Attachment.create({
+        report_id: novaPurchase?.id || '',
+        file_name: form.file_name_final || intake.file_name_original || '',
+        file_type: intake.mime_type || 'application/pdf',
+        file_url: intake.arquivo_original_url || '',
+        nf_categoria: 'nota_fiscal',
+        nf_numero: form.nf_numero || '',
+        nf_valor_total: valor,
+        nf_data_emissao: form.nf_data_emissao || '',
+        nf_emitente_nome: form.nf_emitente_nome || '',
+        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj || '',
+        rubrica_id: form.rubrica_id || '',
+        rubrica_nome: rubricaNome,
+      });
+
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'ENVIADO_APROVACAO',
         ocultar_entrada_unica: true,
