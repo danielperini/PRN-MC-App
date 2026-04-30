@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2,
-  Eye, Send, RefreshCw, X, Download, ExternalLink
+  Eye, Send, RefreshCw, X, Download, ExternalLink, Link2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,12 +21,12 @@ const STATUS_CONFIG = {
 };
 
 const TIPO_LABEL = {
-  NOTA_FISCAL_PDF:         'NF PDF',
-  NOTA_FISCAL_XML:         'NF XML',
-  FOTO_ATIVIDADE:          'Foto',
-  DOCUMENTO_ADMINISTRATIVO:'Documento',
-  OUTRO:                   'Outro',
-  PENDENTE:                'Pendente',
+  NOTA_FISCAL_PDF:          'NF PDF',
+  NOTA_FISCAL_XML:          'NF XML',
+  FOTO_ATIVIDADE:           'Foto',
+  DOCUMENTO_ADMINISTRATIVO: 'Documento',
+  OUTRO:                    'Outro',
+  PENDENTE:                 'Pendente',
 };
 
 function parseValorBR(v) {
@@ -46,20 +46,27 @@ function getValorDisplay(intake) {
   return `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 }
 
-export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSentToApproval, onReanalyse }) {
+export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSentToApproval, onReanalyse, onLinkXml }) {
   const [loading, setLoading] = useState(false);
   const [sendingApproval, setSendingApproval] = useState(false);
 
   const status = STATUS_CONFIG[intake.status_processamento] || STATUS_CONFIG.ENVIADO;
   const Icon = status.icon;
-  const tipo = intake.tipo_detectado;
-  const isImage = tipo === 'FOTO_ATIVIDADE';
-  const isNF = tipo === 'NOTA_FISCAL_PDF' || tipo === 'NOTA_FISCAL_XML';
 
-  const canReview = ['AGUARDANDO_REVISAO', 'RASCUNHO', 'ERRO_PROCESSAMENTO'].includes(intake.status_processamento);
+  const tipo = intake.tipo_detectado;
+  const isXML = tipo === 'NOTA_FISCAL_XML';
+  const isPDF = tipo === 'NOTA_FISCAL_PDF';
+  const isNF = isPDF || isXML;
+  const isImage = tipo === 'FOTO_ATIVIDADE';
+
+  // XML nunca pode revisar nem enviar
+  const canReview = ['AGUARDANDO_REVISAO', 'RASCUNHO', 'ERRO_PROCESSAMENTO'].includes(intake.status_processamento) && !isXML;
   const hasError = intake.status_processamento === 'ERRO_PROCESSAMENTO';
   const isProcessing = ['ANALISANDO_IA', 'ENVIADO'].includes(intake.status_processamento);
-  const canSendApproval = canReview && isNF;
+  const canSendApproval = canReview && isPDF;
+
+  // XML: mostrar "Vincular XML" apenas se não vinculado e não completo
+  const canLinkXml = isXML && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO';
 
   const valorDisplay = getValorDisplay(intake);
   const fileName = intake.file_name_final || intake.file_name_original || 'Arquivo';
@@ -98,6 +105,22 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
       if (onDeleted) onDeleted(intake.id);
     } catch (e) {
       toast.error('Erro ao deletar: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleLinkXml() {
+    if (!onLinkXml) {
+      toast.error('Função de vínculo não disponível.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await onLinkXml(intake);
+      toast.success('XML vinculado com sucesso.');
+    } catch (e) {
+      toast.error('Erro ao vincular XML: ' + e.message);
     } finally {
       setLoading(false);
     }
@@ -170,16 +193,13 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
             {fileName}
           </p>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            {/* Tipo */}
             <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
               {tipoLabel}
             </span>
-            {/* Status */}
             <span className={cn('inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium', status.color)}>
               <Icon className={cn('w-3 h-3', status.spin && 'animate-spin')} />
               {status.label}
             </span>
-            {/* Valor */}
             {valorDisplay && (
               <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
                 {valorDisplay}
@@ -192,112 +212,90 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
         <div className="flex items-center gap-1 flex-shrink-0">
           {/* Ver arquivo */}
           {intake.arquivo_original_url && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              title="Ver arquivo"
-              onClick={() => window.open(intake.arquivo_original_url, '_blank')}
-            >
+            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Ver arquivo"
+              onClick={() => window.open(intake.arquivo_original_url, '_blank')}>
               <ExternalLink className="w-4 h-4 text-slate-400" />
             </Button>
           )}
 
-          {/* Baixar arquivo */}
+          {/* Baixar */}
           {intake.arquivo_original_url && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              title="Baixar arquivo"
-              onClick={() => {
-                const a = document.createElement('a');
-                a.href = intake.arquivo_original_url;
-                a.download = fileName;
-                a.click();
-              }}
-            >
+            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Baixar arquivo"
+              onClick={() => { const a = document.createElement('a'); a.href = intake.arquivo_original_url; a.download = fileName; a.click(); }}>
               <Download className="w-4 h-4 text-slate-400" />
             </Button>
           )}
 
-          {/* Reanalisar (em erro) */}
-          {hasError && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleReanalyse}
-              disabled={loading}
-              className="text-xs h-8 px-2"
-              title="Reanalisar com IA"
-            >
+          {/* Reanalisar (em erro, não XML) */}
+          {hasError && !isXML && (
+            <Button size="sm" variant="outline" onClick={handleReanalyse} disabled={loading}
+              className="text-xs h-8 px-2" title="Reanalisar com IA">
               {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
               {!loading && 'Reanalisar'}
             </Button>
           )}
 
-          {/* Revisar formulário */}
+          {/* XML: botão Vincular (se não vinculado) */}
+          {canLinkXml && (
+            <Button size="sm" variant="outline" onClick={handleLinkXml} disabled={loading}
+              className="h-8 text-xs px-3">
+              {loading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Link2 className="w-3 h-3 mr-1" />}
+              Vincular XML
+            </Button>
+          )}
+
+          {/* PDF: Revisar */}
           {canReview && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onReview({ ...intake })}
-              className="h-8 text-xs px-3"
-            >
+            <Button size="sm" variant="outline" onClick={() => onReview({ ...intake })}
+              className="h-8 text-xs px-3">
               Revisar
             </Button>
           )}
 
-          {/* Enviar para aprovação */}
+          {/* PDF: Enviar para aprovação */}
           {canSendApproval && (
-            <Button
-              size="sm"
-              onClick={handleSendToApproval}
-              disabled={sendingApproval}
-              className="h-8 text-xs px-3 bg-black text-white hover:bg-gray-800"
-            >
+            <Button size="sm" onClick={handleSendToApproval} disabled={sendingApproval}
+              className="h-8 text-xs px-3 bg-black text-white hover:bg-gray-800">
               {sendingApproval
                 ? <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                : <Send className="w-3 h-3 mr-1" />
-              }
+                : <Send className="w-3 h-3 mr-1" />}
               {sendingApproval ? 'Enviando...' : 'Enviar'}
             </Button>
           )}
 
           {/* Deletar */}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleDelete}
-            disabled={loading || sendingApproval}
-            className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
-            title="Deletar arquivo"
-          >
+          <Button size="sm" variant="ghost" onClick={handleDelete} disabled={loading || sendingApproval}
+            className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" title="Deletar arquivo">
             {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-4 h-4" />}
           </Button>
         </div>
       </div>
 
-      {/* Aviso de erro */}
-      {hasError && (
+      {/* Aviso de erro (não XML) */}
+      {hasError && !isXML && (
         <div className="mt-3 flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
           <span>Erro na análise. Clique em "Reanalisar" para tentar novamente ou em "Revisar" para editar manualmente.</span>
         </div>
       )}
 
-      {/* Aviso de agrupamento NF incompleto — só mostra se não tiver XML vinculado */}
-      {isNF &&
-        intake.tipo_detectado === 'NOTA_FISCAL_PDF' &&
-        intake.grupo_status === 'INCOMPLETO' &&
-        !intake.nf_xml_url &&
-        intake.grupo_status !== 'COMPLETO' && (
+      {/* Aviso XML aguardando vínculo */}
+      {isXML && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO' && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+          <span>XML aguardando vínculo com o PDF correspondente.</span>
+        </div>
+      )}
+
+      {/* Aviso PDF sem XML */}
+      {isPDF && intake.grupo_status === 'INCOMPLETO' && !intake.nf_xml_url && intake.grupo_status !== 'COMPLETO' && (
         <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
           <span>Envie também o XML desta nota para completar o par PDF+XML.</span>
         </div>
       )}
-      {/* Indica PDF+XML vinculado */}
+
+      {/* PDF+XML completo */}
       {isNF && intake.grupo_status === 'COMPLETO' && intake.nf_xml_url && (
         <div className="mt-3 flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">
           <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
