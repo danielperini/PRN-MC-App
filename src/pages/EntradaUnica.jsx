@@ -109,13 +109,37 @@ Retorne apenas o JSON, sem explicações.`;
       });
     } catch (err) {
       console.error('Erro na análise por IA:', err);
-      // Não bloqueia — apenas marca erro para reprocessamento manual
+      // Fallback: permite revisão manual mesmo com falha da IA
       try {
+        const isPDF = mimeType?.includes('pdf') || fileUrl?.toLowerCase().endsWith('.pdf');
+        const isXML = mimeType?.includes('xml') || fileUrl?.toLowerCase().endsWith('.xml');
+        const tipoFallback = isXML ? 'NOTA_FISCAL_XML' : isPDF ? 'NOTA_FISCAL_PDF' : 'OUTRO';
         await base44.entities.DocumentIntake.update(intakeId, {
-          status_processamento: 'ERRO_PROCESSAMENTO',
-          erros_validacao: [String(err?.message || 'Falha na análise por IA')]
+          status_processamento: 'AGUARDANDO_REVISAO',
+          tipo_detectado: tipoFallback,
+          erros_validacao: ['IA não conseguiu extrair todos os campos. Revise manualmente.'],
         });
       } catch (_) {}
+    }
+  }
+
+  async function handleReanalyse(intake) {
+    try {
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'ANALISANDO_IA',
+        erros_validacao: [],
+      });
+      await loadIntakes();
+      await analisarComIA(
+        intake.id,
+        intake.arquivo_original_url,
+        intake.mime_type,
+        intake.resultado_ia?.orientacoes_usuario
+      );
+    } catch (e) {
+      console.error('Erro no reprocessamento:', e);
+    } finally {
+      await loadIntakes();
     }
   }
 
@@ -238,6 +262,7 @@ Retorne apenas o JSON, sem explicações.`;
                 onReview={handleReview}
                 onDeleted={handleDeleted}
                 onSentToApproval={handleSentToApproval}
+                onReanalyse={handleReanalyse}
               />
             ))}
           </div>

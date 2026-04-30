@@ -46,7 +46,7 @@ function getValorDisplay(intake) {
   return `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 }
 
-export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSentToApproval }) {
+export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSentToApproval, onReanalyse }) {
   const [loading, setLoading] = useState(false);
   const [sendingApproval, setSendingApproval] = useState(false);
 
@@ -56,7 +56,7 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
   const isImage = tipo === 'FOTO_ATIVIDADE';
   const isNF = tipo === 'NOTA_FISCAL_PDF' || tipo === 'NOTA_FISCAL_XML';
 
-  const canReview = ['AGUARDANDO_REVISAO', 'RASCUNHO'].includes(intake.status_processamento);
+  const canReview = ['AGUARDANDO_REVISAO', 'RASCUNHO', 'ERRO_PROCESSAMENTO'].includes(intake.status_processamento);
   const hasError = intake.status_processamento === 'ERRO_PROCESSAMENTO';
   const isProcessing = ['ANALISANDO_IA', 'ENVIADO'].includes(intake.status_processamento);
   const canSendApproval = canReview && isNF;
@@ -66,15 +66,13 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
   const tipoLabel = TIPO_LABEL[tipo] || tipo || 'Pendente';
 
   async function handleReanalyse() {
+    if (!onReanalyse) return;
     setLoading(true);
     try {
-      await base44.entities.DocumentIntake.update(intake.id, {
-        status_processamento: 'ENVIADO',
-        erros_validacao: [],
-      });
+      await onReanalyse(intake);
       toast.success('Documento reenviado para análise.');
     } catch (e) {
-      toast.error('Erro ao reenviar: ' + e.message);
+      toast.error('Erro ao reanalisar: ' + e.message);
     } finally {
       setLoading(false);
     }
@@ -231,9 +229,10 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
               onClick={handleReanalyse}
               disabled={loading}
               className="text-xs h-8 px-2"
-              title="Reanalisar"
+              title="Reanalisar com IA"
             >
-              {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+              {!loading && 'Reanalisar'}
             </Button>
           )}
 
@@ -283,7 +282,7 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
       {hasError && (
         <div className="mt-3 flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-          <span>Erro na análise. Clique em reanalisar ou edite manualmente.</span>
+          <span>Erro na análise. Clique em "Reanalisar" para tentar novamente ou em "Revisar" para editar manualmente.</span>
         </div>
       )}
 
