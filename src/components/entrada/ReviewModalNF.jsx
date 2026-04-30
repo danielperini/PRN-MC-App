@@ -97,8 +97,14 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
     nf_destinatario_nome: ia.nf_destinatario_nome || '',
     descricao_servico: ia.descricao_servico || '',
-    municipio: ia.municipio || ia.nf_municipio || ia.municipio_emitente || ia.cidade || '',
-    estado: ia.estado || ia.uf || ia.nf_estado || '',
+    municipio: ia.municipio || ia.nf_municipio || ia.municipio_emitente || ia.cidade ||
+               ia.municipio_prestador || ia.municipio_tomador || ia.municipio_emissao ||
+               ia.prestador?.municipio || ia.emitente?.municipio || ia.tomador?.municipio ||
+               ia.endereco?.municipio || '',
+    estado: ia.estado || ia.uf || ia.nf_estado || ia.uf_prestador || ia.uf_emitente ||
+            ia.estado_prestador || ia.estado_emitente || ia.uf_tomador ||
+            ia.prestador?.uf || ia.emitente?.uf || ia.tomador?.uf ||
+            ia.endereco?.uf || ia.endereco?.estado || '',
     competencia: (() => {
       const raw = ia.competencia || ia.competencia_sugerida || ia.descricao_servico || '';
       if (ia.competencia || ia.competencia_sugerida) return ia.competencia || ia.competencia_sugerida;
@@ -107,11 +113,11 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       if (m) return m[0];
       return '';
     })(),
-    banco: ia.banco || ia.dados_bancarios?.banco || '',
-    agencia: ia.agencia || ia.dados_bancarios?.agencia || '',
-    conta: ia.conta || ia.dados_bancarios?.conta || '',
+    banco: ia.banco || ia.dados_bancarios?.banco || ia.banco_nome || ia.instituicao || '',
+    agencia: ia.agencia || ia.dados_bancarios?.agencia || ia.ag || ia.numero_agencia || '',
+    conta: ia.conta || ia.dados_bancarios?.conta || ia.numero_conta || ia.conta_corrente || '',
     tipo_conta: ia.tipo_conta || ia.dados_bancarios?.tipo_conta || '',
-    pix: ia.pix || ia.chave_pix || ia.dados_bancarios?.pix || '',
+    pix: ia.pix || ia.chave_pix || ia.dados_bancarios?.pix || ia.dados_bancarios?.chave_pix || ia.chave_pix_emitente || '',
     centro_custo: ia.centro_custo_sugerido || intake.centro_custo || '',
     rubrica_id: intake.rubrica_id_sugerida || '',
     file_name_final: intake.file_name_final || intake.file_name_original,
