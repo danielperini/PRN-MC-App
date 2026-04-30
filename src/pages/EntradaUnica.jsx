@@ -189,7 +189,7 @@ export default function EntradaUnica() {
         }
       }
 
-      if (melhorPdf && melhorScore >= 4) {
+      if (melhorPdf && melhorScore >= 2) {
         await base44.entities.DocumentIntake.update(melhorPdf.id, {
           grupo_status: 'COMPLETO',
           nf_xml_intake_id: xml.id,
@@ -384,7 +384,7 @@ Retorne apenas o JSON, sem explicações.`;
         }
       }
 
-      if (!melhorPdf || melhorScore < 3) {
+      if (!melhorPdf) {
         toast.error('Nenhum PDF correspondente encontrado para este XML.');
         return;
       }
