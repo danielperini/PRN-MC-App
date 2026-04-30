@@ -1,0 +1,217 @@
+import React, { useMemo, useState } from 'react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react';
+
+function toNumber(value) {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function getChaveFiscal(p) {
+  if (p?.nf_numero && (p?.fornecedor_cpf_cnpj || p?.nf_emitente_cpf_cnpj)) {
+    return `nf:${String(p.nf_numero).trim()}:${String(p.fornecedor_cpf_cnpj || p.nf_emitente_cpf_cnpj).replace(/\D/g, '')}`;
+  }
+  if (p?.nota_fiscal_url) return `url:${p.nota_fiscal_url.trim()}`;
+  if (p?.file_url) return `file:${p.file_url.trim()}`;
+  if (p?.intake_id) return `intake:${p.intake_id.trim()}`;
+  return null;
+}
+
+function getPurchaseValue(p) {
+  return (
+    toNumber(p?.valor_pago) ||
+    toNumber(p?.valor_aprovado_admin) ||
+    toNumber(p?.valor_aprovado) ||
+    toNumber(p?.valor_final) ||
+    toNumber(p?.valor_solicitado) ||
+    toNumber(p?.valor_total) ||
+    0
+  );
+}
+
+const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+
+function normalizeStatus(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+export default function AuditoriaFinanceiraCard({ purchases, rubricas }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const rubricaById = useMemo(() => {
+    const m = {};
+    (rubricas || []).forEach((r) => { if (r?.id) m[r.id] = r; });
+    return m;
+  }, [rubricas]);
+
+  const alertas = useMemo(() => {
+    const aprovadas = (purchases || []).filter(
+      (p) => STATUS_APROVADOS.has(normalizeStatus(p.status))
+    );
+
+    const lista = [];
+
+    // Mapa de chaves fiscais para detectar duplicatas
+    const chavesVistas = new Map();
+    for (const p of aprovadas) {
+      const chave = getChaveFiscal(p);
+      if (chave) {
+        if (chavesVistas.has(chave)) {
+          lista.push({
+            tipo: 'NF duplicada',
+            descricao: `Nota fiscal duplicada: "${p.descricao_item || p.nf_numero || p.id?.slice(0, 8)}"`,
+            id: p.id
+          });
+        } else {
+          chavesVistas.set(chave, p.id);
+        }
+      }
+    }
+
+    for (const p of aprovadas) {
+      const desc = p.descricao_item || p.objeto || p.id?.slice(0, 8) || '—';
+
+      // 1. Sem rubrica_id
+      if (!p.rubrica_id) {
+        lista.push({ tipo: 'Sem rubrica', descricao: `Aprovada sem rubrica: "${desc}"`, id: p.id });
+        continue; // sem rubrica, as verificações seguintes não fazem sentido
+      }
+
+      // 2. Sem valor
+      if (getPurchaseValue(p) === 0) {
+        lista.push({ tipo: 'Sem valor', descricao: `Aprovada sem valor: "${desc}"`, id: p.id });
+      }
+
+      // 3. Rubrica inexistente
+      const rubrica = rubricaById[p.rubrica_id];
+      if (!rubrica) {
+        lista.push({ tipo: 'Rubrica inexistente', descricao: `Rubrica ID não encontrada: "${desc}"`, id: p.id });
+        continue;
+      }
+
+      // 5. Sem rubrica_debitada_em
+      if (!p.rubrica_debitada_em) {
+        lista.push({ tipo: 'Débito não registrado', descricao: `Aprovada sem débito registrado: "${desc}"`, id: p.id });
+      }
+
+      // 6. rubrica_debitada_valor divergente
+      const valorSolicitado = getPurchaseValue(p);
+      const valorDebitado   = toNumber(p.rubrica_debitada_valor);
+      if (p.rubrica_debitada_em && valorDebitado > 0 && Math.abs(valorSolicitado - valorDebitado) > 0.01) {
+        lista.push({
+          tipo: 'Valor divergente',
+          descricao: `Valor aprovado ≠ debitado em "${desc}"`,
+          id: p.id
+        });
+      }
+
+      // 7. Rubrica não atualizada (valor_utilizado é zero mas há aprovadas)
+      if (toNumber(rubrica.valor_utilizado) === 0 && valorSolicitado > 0) {
+        lista.push({
+          tipo: 'Rubrica não atualizada',
+          descricao: `Rubrica "${rubrica.rubrica || rubrica.nome}" com utilizado=0 apesar de aprovações`,
+          id: p.id
+        });
+      }
+
+      // 8. Centro de custo divergente (se rubrica tiver campo museu/centro)
+      const centroPurchase = String(p.centro_custo || '').trim().toUpperCase();
+      const centroRubrica  = String(rubrica.museu || rubrica.centro_custo || '').trim().toUpperCase();
+      if (centroPurchase && centroRubrica && centroPurchase !== centroRubrica &&
+          !centroPurchase.includes('GERAL') && !centroRubrica.includes('GERAL') &&
+          !centroPurchase.includes('RATEADO')) {
+        lista.push({
+          tipo: 'Centro divergente',
+          descricao: `Centro "${p.centro_custo}" ≠ rubrica "${rubrica.museu || rubrica.centro_custo}" em "${desc}"`,
+          id: p.id
+        });
+      }
+    }
+
+    return lista;
+  }, [purchases, rubricaById]);
+
+  const total = alertas.length;
+  const visiveis = expanded ? alertas : alertas.slice(0, 5);
+  const temMais  = alertas.length > 5;
+
+  // Cor do card
+  let borderColor = 'border-green-200 bg-green-50';
+  let headerColor = 'text-green-700';
+  let iconColor   = 'text-green-500';
+  let Icon        = CheckCircle2;
+
+  if (total > 5) {
+    borderColor = 'border-red-200 bg-red-50';
+    headerColor = 'text-red-700';
+    iconColor   = 'text-red-500';
+    Icon        = ShieldAlert;
+  } else if (total > 0) {
+    borderColor = 'border-amber-200 bg-amber-50';
+    headerColor = 'text-amber-700';
+    iconColor   = 'text-amber-500';
+    Icon        = AlertTriangle;
+  }
+
+  const TIPO_COLORS = {
+    'NF duplicada':           'bg-red-100 text-red-700',
+    'Sem rubrica':            'bg-red-100 text-red-700',
+    'Sem valor':              'bg-amber-100 text-amber-700',
+    'Rubrica inexistente':    'bg-red-100 text-red-700',
+    'Débito não registrado':  'bg-amber-100 text-amber-700',
+    'Valor divergente':       'bg-amber-100 text-amber-700',
+    'Rubrica não atualizada': 'bg-orange-100 text-orange-700',
+    'Centro divergente':      'bg-gray-100 text-gray-600',
+  };
+
+  return (
+    <div className={`mb-6 rounded-xl border ${borderColor} p-4`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Icon className={`h-5 w-5 flex-shrink-0 ${iconColor}`} />
+          <div>
+            <p className={`font-semibold ${headerColor}`}>
+              Auditoria financeira
+              {total > 0 && (
+                <span className="ml-2 inline-block rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold">
+                  {total} inconsistênci{total !== 1 ? 'as' : 'a'}
+                </span>
+              )}
+            </p>
+            <p className="text-xs text-gray-500">
+              Verificação automática de solicitações, rubricas e notas fiscais.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {total === 0 ? (
+        <p className="mt-2 text-sm text-green-600">Nenhuma inconsistência detectada.</p>
+      ) : (
+        <div className="mt-3 space-y-1.5">
+          {visiveis.map((alerta, i) => (
+            <div key={`${alerta.id}-${i}`} className="flex items-start gap-2 text-sm text-gray-700">
+              <span className={`mt-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${TIPO_COLORS[alerta.tipo] || 'bg-gray-100 text-gray-600'}`}>
+                {alerta.tipo}
+              </span>
+              <span className="leading-snug">{alerta.descricao}</span>
+            </div>
+          ))}
+
+          {temMais && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="mt-1 flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-800"
+            >
+              {expanded ? (
+                <><ChevronUp className="h-3.5 w-3.5" /> Ocultar</>
+              ) : (
+                <><ChevronDown className="h-3.5 w-3.5" /> Ver todas ({total})</>
+              )}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

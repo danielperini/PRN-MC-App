@@ -37,6 +37,7 @@ import { useBudgetLines } from '@/components/compras/useBudgetLines';
 import GestaoDocumental from '@/pages/GestaoDocumental';
 import RubricasGrid from '@/components/compras/RubricasGrid';
 import RubricaDetail from '@/components/rubricas/RubricaDetail';
+import AuditoriaFinanceiraCard from '@/components/compras/AuditoriaFinanceiraCard';
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -857,6 +858,11 @@ function ComprasInner() {
               </p>
             </div>
           </div>
+        )}
+
+        {/* Card de Auditoria Financeira — apenas coordenadores */}
+        {isCoordenador && (
+          <AuditoriaFinanceiraCard purchases={purchases} rubricas={rubricas} />
         )}
 
         {isCoordenador && (
