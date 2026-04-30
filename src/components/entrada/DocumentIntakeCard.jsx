@@ -240,8 +240,16 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
             <Button size="sm" variant="outline" onClick={handleLinkXml} disabled={loading}
               className="h-8 text-xs px-3">
               {loading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Link2 className="w-3 h-3 mr-1" />}
-              Vincular XML
+              Vincular XML ao PDF
             </Button>
+          )}
+
+          {/* XML: já vinculado */}
+          {isXML && (intake.nf_pdf_intake_id || intake.grupo_status === 'COMPLETO') && (
+            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+              <CheckCircle2 className="w-3 h-3" />
+              XML vinculado
+            </span>
           )}
 
           {/* PDF: Revisar */}
@@ -283,7 +291,7 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
       {isXML && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO' && (
         <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>XML aguardando vínculo com o PDF correspondente.</span>
+          <span>Aguardando vínculo com o PDF correspondente.</span>
         </div>
       )}
 
