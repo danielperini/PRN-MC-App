@@ -325,47 +325,63 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     try {
       const valor = parseValorBR(form.nf_valor_total);
       const rubricaNome = getRubricaNome(form.rubrica_id);
-      const centroCusto = dividirEntreMuseus ? 'Rateado' : form.centro_custo;
 
-      const novaPurchase = await base44.entities.PurchaseRequest.create({
-        descricao_item: form.descricao_servico || form.nf_emitente_nome || intake.file_name_original || '',
+      // centro_custo deve ser um dos valores do enum; se rateado, usar 'Geral'
+      const centroCustoEnum = dividirEntreMuseus
+        ? 'Geral'
+        : (['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Publicações', 'Geral'].includes(form.centro_custo)
+            ? form.centro_custo
+            : 'Geral');
+
+      // meta_id deve ser um dos valores do enum
+      const metaIdValido = ['MC3A-20','MC3A-21','MC3A-22','MC3A-23','MC3A-24','MC3A-25','MC3A-EXTRA'].includes(form.meta_id)
+        ? form.meta_id
+        : 'MC3A-EXTRA';
+
+      const pr = await base44.entities.PurchaseRequest.create({
+        descricao_item: form.descricao_servico || form.nf_emitente_nome || form.file_name_final || intake.file_name_original || '',
         fornecedor_nome: form.nf_emitente_nome || '',
-        fornecedor_cpf_cnpj: form.nf_emitente_cpf_cnpj || '',
-        valor: valor,
+        fornecedor_cnpj: form.nf_emitente_cpf_cnpj || '',
+        valor_solicitado: valor,
+        valor_total: valor,
+        nf_valor_total: valor,
         rubrica_id: form.rubrica_id,
-        rubrica_nome: rubricaNome,
-        centro_custo: centroCusto,
+        centro_custo: centroCustoEnum,
         nota_fiscal_url: intake.arquivo_original_url || '',
-        status: 'AGUARDANDO_APROVACAO',
-        origem: 'EntradaUnica',
-        intake_id: intake.id,
+        status: 'SOLICITADO',
+        meta_id: metaIdValido,
+        categoria: 'Outros',
+        tipo_gasto: ['Produto', 'Serviço'].includes(form.tipo_gasto) ? form.tipo_gasto : 'Serviço',
         nf_numero: form.nf_numero || '',
+        nf_emitente_nome: form.nf_emitente_nome || '',
         nf_data_emissao: form.nf_data_emissao || '',
-        rateio_museus: getRateioPayload(),
-        meta_id: form.meta_id || '',
-        tipo_gasto: form.tipo_gasto || 'Serviço',
+        observacoes: `Origem: EntradaUnica | intake_id: ${intake.id}${dividirEntreMuseus ? ' | Rateado entre museus' : ''}`,
       });
 
       await base44.entities.Attachment.create({
-        report_id: novaPurchase?.id || '',
+        report_id: pr?.id || '',
         file_name: form.file_name_final || intake.file_name_original || '',
         file_type: intake.mime_type || 'application/pdf',
         file_url: intake.arquivo_original_url || '',
-        nf_categoria: 'nota_fiscal',
         nf_numero: form.nf_numero || '',
         nf_valor_total: valor,
         nf_data_emissao: form.nf_data_emissao || '',
         nf_emitente_nome: form.nf_emitente_nome || '',
         nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj || '',
+        nf_tipo_documento: 'pdf_nf',
         rubrica_id: form.rubrica_id || '',
-        rubrica_nome: rubricaNome,
       });
 
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'ENVIADO_APROVACAO',
         ocultar_entrada_unica: true,
         entidade_destino: 'PurchaseRequest',
-        entidade_destino_id: novaPurchase?.id || '',
+        entidade_destino_id: pr?.id || '',
+        centro_custo: centroCustoEnum,
+        rubrica_id_sugerida: form.rubrica_id,
+        rubrica_nome_sugerida: rubricaNome,
+        file_name_final: form.file_name_final,
+        revisado_pelo_usuario: true,
       });
 
       toast({ title: '✅ Solicitação enviada para aprovação', description: 'Disponível em Compras → Solicitações.', duration: 5000 });
