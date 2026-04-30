@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
-import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck, RefreshCw, LinkIcon } from 'lucide-react';
+import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck, RefreshCw, LinkIcon, X } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
@@ -79,6 +79,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [rubricas, setRubricas] = useState([]);
   const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false);
   const [rateio, setRateio] = useState(DEFAULT_RATEIO);
+  const [errosDismissed, setErrosDismissed] = useState([]);
 
   const ia = intake.resultado_ia || {};
   const dataEmissaoIA = getDataEmissaoFromIA(ia);
@@ -400,7 +401,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     !!selectedXmlId || xmlCandidates.length > 0 || !!intake?.nf_xml_attachment_id ||
     !!intake?.resultado_ia?.nf_xml_attachment_id || !!intake?.resultado_ia?.xml_url;
 
-  const errosFiltrados = (intake.erros_validacao || []).filter((e) => {
+  const errosFiltrados = (intake.erros_validacao || []).filter((e, i) => {
+    if (errosDismissed.includes(i)) return false;
     const txt = String(e || '').toLowerCase();
     if (temXMLVinculado && txt.includes('xml')) return false;
     if (txt.includes('cnpj') || txt.includes('empresa') || txt.includes('registrada')) return false;
@@ -462,7 +464,19 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               <p className="font-medium flex items-center gap-1">
                 <AlertCircle className="w-4 h-4" /> Inconsistências detectadas:
               </p>
-              {errosFiltrados.map((e, i) => (<p key={i}>• {e}</p>))}
+              {errosFiltrados.map((e, i) => (
+                <div key={i} className="flex items-start justify-between gap-2">
+                  <p>• {e}</p>
+                  <button
+                    type="button"
+                    onClick={() => setErrosDismissed((prev) => [...prev, (intake.erros_validacao || []).indexOf(e)])}
+                    className="flex-shrink-0 text-amber-500 hover:text-amber-700"
+                    title="Dispensar"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 
