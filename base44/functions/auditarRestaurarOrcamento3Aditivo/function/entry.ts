@@ -1,0 +1,1 @@
+{"name": "auditarRestaurarOrcamento3Aditivo", "description": "Restaura orcamento oficial e audita rubricas, solicitacoes, PDF/XML", "runtime": "deno"}
