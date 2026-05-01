@@ -68,7 +68,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   const isEditing = !!prefill?.id
   const statusKey = String(prefill?.status || '').trim().toUpperCase()
   const isApproved = STATUS_APROVADOS.has(statusKey)
-  const canApproveOrReturn = isCoordenador && isEditing && !isApproved && statusKey !== 'CANCELADO' && statusKey !== 'RECUSADO'
+  const BLOCKED_STATUSES = new Set(['CANCELADO', 'RECUSADO'])
+  const canApproveOrReturn = isCoordenador && isEditing && !isApproved && !BLOCKED_STATUSES.has(statusKey)
 
   // Carregar rubricas
   useEffect(() => {
