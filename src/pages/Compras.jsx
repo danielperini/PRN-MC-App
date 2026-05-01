@@ -1037,7 +1037,15 @@ function ComprasInner() {
 
         {isCoordenador && (
           <div className="mt-8">
-            <AuditoriaFinanceiraCard purchases={purchases} rubricas={rubricas} />
+            <AuditoriaFinanceiraCard
+              purchases={purchases}
+              rubricas={rubricas}
+              onEditPurchase={(purchase) => {
+                setEditingPurchase({ ...purchase });
+                setShowForm(true);
+                setTab('lista');
+              }}
+            />
           </div>
         )}
       </div>

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, ShieldAlert, Pencil, X } from 'lucide-react';
 
 function toNumber(value) {
   const n = Number(value ?? 0);
@@ -34,8 +34,20 @@ function normalizeStatus(value) {
   return String(value || '').trim().toUpperCase();
 }
 
-export default function AuditoriaFinanceiraCard({ purchases, rubricas }) {
+const TIPO_COLORS = {
+  'NF duplicada':           'bg-red-100 text-red-700',
+  'Sem rubrica':            'bg-red-100 text-red-700',
+  'Sem valor':              'bg-amber-100 text-amber-700',
+  'Rubrica inexistente':    'bg-red-100 text-red-700',
+  'Débito não registrado':  'bg-amber-100 text-amber-700',
+  'Valor divergente':       'bg-amber-100 text-amber-700',
+  'Rubrica não atualizada': 'bg-orange-100 text-orange-700',
+  'Centro divergente':      'bg-gray-100 text-gray-600',
+};
+
+export default function AuditoriaFinanceiraCard({ purchases, rubricas, onEditPurchase }) {
   const [expanded, setExpanded] = useState(false);
+  const [dismissed, setDismissed] = useState(new Set()); // chaves descartadas
 
   const rubricaById = useMemo(() => {
     const m = {};
@@ -50,7 +62,6 @@ export default function AuditoriaFinanceiraCard({ purchases, rubricas }) {
 
     const lista = [];
 
-    // Mapa de chaves fiscais para detectar duplicatas
     const chavesVistas = new Map();
     for (const p of aprovadas) {
       const chave = getChaveFiscal(p);
@@ -59,7 +70,9 @@ export default function AuditoriaFinanceiraCard({ purchases, rubricas }) {
           lista.push({
             tipo: 'NF duplicada',
             descricao: `Nota fiscal duplicada: "${p.descricao_item || p.nf_numero || p.id?.slice(0, 8)}"`,
-            id: p.id
+            id: p.id,
+            purchase: p,
+            alertKey: `nf-dup-${p.id}`
           });
         } else {
           chavesVistas.set(chave, p.id);
@@ -70,25 +83,21 @@ export default function AuditoriaFinanceiraCard({ purchases, rubricas }) {
     for (const p of aprovadas) {
       const desc = p.descricao_item || p.objeto || p.id?.slice(0, 8) || '—';
 
-      // 1. Sem rubrica_id
       if (!p.rubrica_id) {
-        lista.push({ tipo: 'Sem rubrica', descricao: `Aprovada sem rubrica: "${desc}"`, id: p.id });
-        continue; // sem rubrica, as verificações seguintes não fazem sentido
-      }
-
-      // 2. Sem valor
-      if (getPurchaseValue(p) === 0) {
-        lista.push({ tipo: 'Sem valor', descricao: `Aprovada sem valor: "${desc}"`, id: p.id });
-      }
-
-      // 3. Rubrica inexistente
-      const rubrica = rubricaById[p.rubrica_id];
-      if (!rubrica) {
-        lista.push({ tipo: 'Rubrica inexistente', descricao: `Rubrica ID não encontrada: "${desc}"`, id: p.id });
+        lista.push({ tipo: 'Sem rubrica', descricao: `Aprovada sem rubrica: "${desc}"`, id: p.id, purchase: p, alertKey: `sem-rubrica-${p.id}` });
         continue;
       }
 
-      // 5. Sem rubrica_debitada_em — ignorar pagamentos de equipe/contratos (sem NF)
+      if (getPurchaseValue(p) === 0) {
+        lista.push({ tipo: 'Sem valor', descricao: `Aprovada sem valor: "${desc}"`, id: p.id, purchase: p, alertKey: `sem-valor-${p.id}` });
+      }
+
+      const rubrica = rubricaById[p.rubrica_id];
+      if (!rubrica) {
+        lista.push({ tipo: 'Rubrica inexistente', descricao: `Rubrica não encontrada para: "${desc}"`, id: p.id, purchase: p, alertKey: `rubrica-inv-${p.id}` });
+        continue;
+      }
+
       const isEquipe = !!(
         p.team_payment_id ||
         String(p.tipo_origem || p.origem || p.categoria || p.tipo_solicitacao || '')
@@ -96,51 +105,40 @@ export default function AuditoriaFinanceiraCard({ purchases, rubricas }) {
       );
       const temChaveFiscal = !!getChaveFiscal(p);
       if (!p.rubrica_debitada_em && temChaveFiscal && !isEquipe) {
-        lista.push({ tipo: 'Débito não registrado', descricao: `Aprovada sem débito registrado: "${desc}"`, id: p.id });
+        lista.push({ tipo: 'Débito não registrado', descricao: `Aprovada sem débito registrado: "${desc}"`, id: p.id, purchase: p, alertKey: `debito-${p.id}` });
       }
 
-      // 6. rubrica_debitada_valor divergente
       const valorSolicitado = getPurchaseValue(p);
       const valorDebitado   = toNumber(p.rubrica_debitada_valor);
       if (p.rubrica_debitada_em && valorDebitado > 0 && Math.abs(valorSolicitado - valorDebitado) > 0.01) {
-        lista.push({
-          tipo: 'Valor divergente',
-          descricao: `Valor aprovado ≠ debitado em "${desc}"`,
-          id: p.id
-        });
+        lista.push({ tipo: 'Valor divergente', descricao: `Valor aprovado ≠ debitado em "${desc}"`, id: p.id, purchase: p, alertKey: `valor-div-${p.id}` });
       }
 
-      // 7. Rubrica não atualizada (valor_utilizado é zero mas há aprovadas)
       if (toNumber(rubrica.valor_utilizado) === 0 && valorSolicitado > 0) {
-        lista.push({
-          tipo: 'Rubrica não atualizada',
-          descricao: `Rubrica "${rubrica.rubrica || rubrica.nome}" com utilizado=0 apesar de aprovações`,
-          id: p.id
-        });
+        lista.push({ tipo: 'Rubrica não atualizada', descricao: `Rubrica "${rubrica.rubrica || rubrica.nome}" com utilizado=0 apesar de aprovações`, id: p.id, purchase: p, alertKey: `rubrica-0-${p.id}` });
       }
 
-      // 8. Centro de custo divergente (se rubrica tiver campo museu/centro)
       const centroPurchase = String(p.centro_custo || '').trim().toUpperCase();
       const centroRubrica  = String(rubrica.museu || rubrica.centro_custo || '').trim().toUpperCase();
       if (centroPurchase && centroRubrica && centroPurchase !== centroRubrica &&
           !centroPurchase.includes('GERAL') && !centroRubrica.includes('GERAL') &&
           !centroPurchase.includes('RATEADO')) {
-        lista.push({
-          tipo: 'Centro divergente',
-          descricao: `Centro "${p.centro_custo}" ≠ rubrica "${rubrica.museu || rubrica.centro_custo}" em "${desc}"`,
-          id: p.id
-        });
+        lista.push({ tipo: 'Centro divergente', descricao: `Centro "${p.centro_custo}" ≠ rubrica "${rubrica.museu || rubrica.centro_custo}" em "${desc}"`, id: p.id, purchase: p, alertKey: `centro-${p.id}` });
       }
     }
 
     return lista;
   }, [purchases, rubricaById]);
 
-  const total = alertas.length;
-  const visiveis = expanded ? alertas : alertas.slice(0, 2);
-  const temMais  = alertas.length > 2;
+  const alertasVisiveis = alertas.filter(a => !dismissed.has(a.alertKey));
+  const total = alertasVisiveis.length;
+  const exibidos = expanded ? alertasVisiveis : alertasVisiveis.slice(0, 3);
+  const temMais = alertasVisiveis.length > 3;
 
-  // Cor do card
+  function dismiss(alertKey) {
+    setDismissed(prev => new Set([...prev, alertKey]));
+  }
+
   let borderColor = 'border-green-200 bg-green-50';
   let headerColor = 'text-green-700';
   let iconColor   = 'text-green-500';
@@ -157,17 +155,6 @@ export default function AuditoriaFinanceiraCard({ purchases, rubricas }) {
     iconColor   = 'text-amber-500';
     Icon        = AlertTriangle;
   }
-
-  const TIPO_COLORS = {
-    'NF duplicada':           'bg-red-100 text-red-700',
-    'Sem rubrica':            'bg-red-100 text-red-700',
-    'Sem valor':              'bg-amber-100 text-amber-700',
-    'Rubrica inexistente':    'bg-red-100 text-red-700',
-    'Débito não registrado':  'bg-amber-100 text-amber-700',
-    'Valor divergente':       'bg-amber-100 text-amber-700',
-    'Rubrica não atualizada': 'bg-orange-100 text-orange-700',
-    'Centro divergente':      'bg-gray-100 text-gray-600',
-  };
 
   return (
     <div className={`mb-6 rounded-xl border ${borderColor} p-4`}>
@@ -193,13 +180,38 @@ export default function AuditoriaFinanceiraCard({ purchases, rubricas }) {
       {total === 0 ? (
         <p className="mt-2 text-sm text-green-600">Nenhuma inconsistência detectada.</p>
       ) : (
-        <div className="mt-3 space-y-1.5">
-          {visiveis.map((alerta, i) => (
-            <div key={`${alerta.id}-${i}`} className="flex items-start gap-2 text-sm text-gray-700">
+        <div className="mt-3 space-y-2">
+          {exibidos.map((alerta, i) => (
+            <div
+              key={`${alerta.alertKey}-${i}`}
+              className="flex items-start gap-2 rounded-lg bg-white/60 px-3 py-2 text-sm text-gray-700"
+            >
               <span className={`mt-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${TIPO_COLORS[alerta.tipo] || 'bg-gray-100 text-gray-600'}`}>
                 {alerta.tipo}
               </span>
-              <span className="leading-snug">{alerta.descricao}</span>
+              <span className="flex-1 leading-snug">{alerta.descricao}</span>
+
+              <div className="flex flex-shrink-0 items-center gap-1">
+                {onEditPurchase && alerta.purchase && (
+                  <button
+                    type="button"
+                    onClick={() => onEditPurchase(alerta.purchase)}
+                    className="flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                    title="Rever e editar esta solicitação"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Rever
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => dismiss(alerta.alertKey)}
+                  className="rounded-md border border-gray-200 bg-white p-1 text-gray-400 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-600 transition-colors"
+                  title="Descartar este alerta"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
             </div>
           ))}
 
