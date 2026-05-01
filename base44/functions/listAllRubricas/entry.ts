@@ -60,10 +60,13 @@ Deno.serve(async (req) => {
       200
     );
 
+    // Filtrar apenas rubricas ativas
+    const rubricasAtivas = (rubricasRaw || []).filter(r => r?.ativo !== false);
+
     const rubricasMap = new Map();
     const duplicadas = [];
 
-    for (const r of rubricasRaw || []) {
+    for (const r of rubricasAtivas) {
       const key = r?.rubrica_key || buildRubricaKey(r);
 
       if (!rubricasMap.has(key)) {
@@ -113,7 +116,7 @@ Deno.serve(async (req) => {
     return Response.json({
       success: true,
       total: rubricas.length,
-      total_raw: rubricasRaw.length,
+      total_raw: rubricasAtivas.length,
       total_duplicadas: duplicadas.length,
       total_previsto,
       total_utilizado,
