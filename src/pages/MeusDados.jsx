@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { isCoordGeral } from '@/components/auth/permissions';
+import DeleteAccountDialog from '@/components/auth/DeleteAccountDialog';
 
 const FORM_FIELDS = [
   { name: 'email_pessoal', label: 'Email Pessoal', type: 'email' },
@@ -130,6 +131,7 @@ function MeusDadosInner() {
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [teamMembers, setTeamMembers] = useState([]);
   const [autoFillLoading, setAutoFillLoading] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
     base44.auth.me().then((u) => {
@@ -498,6 +500,28 @@ function MeusDadosInner() {
             </Button>
           </div>
         </form>
+
+        {!selectedUserEmail && (
+          <div className="mt-12 pt-8 border-t space-y-4">
+            <h3 className="text-lg font-semibold text-red-600">Zona de Perigo</h3>
+            <p className="text-sm text-gray-600">
+              Deletar sua conta removerá permanentemente todos os seus dados do sistema.
+            </p>
+            <Button
+              variant="destructive"
+              onClick={() => setShowDeleteDialog(true)}
+              className="w-full bg-red-600 hover:bg-red-700"
+            >
+              Deletar Minha Conta
+            </Button>
+          </div>
+        )}
+
+        <DeleteAccountDialog
+          userEmail={user?.email}
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+        />
       </div>
     </div>
   );

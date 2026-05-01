@@ -3,12 +3,13 @@ import { Toaster } from "sonner";
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
 import { pagesConfig } from './pages.config';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { PatrocinadorViewProvider } from '@/context/PatrocinadorViewContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { AnimatePresence, motion } from 'framer-motion';
 import Aparencia from './pages/Aparencia';
 import ChecklistProducao from './pages/ChecklistProducao';
 import ProgramacaoEspelho from './pages/ProgramacaoEspelho';
@@ -38,6 +39,7 @@ function AuthenticatedApp() {
     authError,
     navigateToLogin,
   } = useAuth();
+  const location = useLocation();
 
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
@@ -61,7 +63,15 @@ function AuthenticatedApp() {
   }
 
   return (
-    <Routes>
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        transition={{ duration: 0.3 }}
+      >
+        <Routes>
       <Route
         path="/"
         element={
@@ -175,6 +185,8 @@ function AuthenticatedApp() {
 
       <Route path="*" element={<PageNotFound />} />
     </Routes>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 

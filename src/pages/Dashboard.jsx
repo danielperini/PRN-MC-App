@@ -21,6 +21,7 @@ import ActivityMetricsWidget from '../components/dashboard/ActivityMetricsWidget
 import OpportunityMetricsWidget from '../components/dashboard/OpportunityMetricsWidget';
 import NewsCarousel from '../components/dashboard/NewsCarousel';
 import DuplicateReportsModal from '../components/dashboard/DuplicateReportsModal';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
 const STATUS_CONFIG = {
   DRAFT: { label: 'Rascunho', color: 'bg-white text-black border border-black', icon: Clock },
@@ -118,6 +119,8 @@ function DashboardInner() {
     }
   };
 
+  const { containerRef, isPulling, pullDistance } = usePullToRefresh(handleRefresh);
+
   const showCoordView = isCoordenador && view === 'coordenador';
   const showDedicatedProfView = !isCoordenador;
   const displayReports = React.useMemo(() => {
@@ -158,7 +161,19 @@ function DashboardInner() {
   }, [filteredReports]);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white overflow-y-auto" ref={containerRef} style={{ maxHeight: '100vh' }}>
+      {isPulling && (
+        <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center h-16 bg-gradient-to-b from-blue-50 to-transparent">
+          <div className="text-center">
+            <div className="w-6 h-6 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin mx-auto" 
+              style={{ transform: `scaleY(${Math.min(pullDistance / 80, 1)})` }} 
+            />
+            <p className="text-xs text-blue-600 mt-1">
+              {pullDistance < 80 ? 'Puxe para atualizar' : 'Solte para atualizar'}
+            </p>
+          </div>
+        </div>
+      )}
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
         {/* Header */}
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
