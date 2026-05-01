@@ -119,6 +119,26 @@
   --cor-btn-primario-texto: #ffffff;
   --cor-btn-primario-hover: #1d5a7a;
   --cor-accent: #5FA8D3;
+  
+  /* Cores expandidas para dashboard colorido */
+  --cor-sucesso: #10b981;
+  --cor-sucesso-light: #d1fae5;
+  --cor-alerta: #f59e0b;
+  --cor-alerta-light: #fef3c7;
+  --cor-erro: #ef4444;
+  --cor-erro-light: #fee2e2;
+  --cor-info: #3b82f6;
+  --cor-info-light: #dbeafe;
+  --cor-roxo: #8b5cf6;
+  --cor-roxo-light: #ede9fe;
+  --cor-laranja: #f97316;
+  --cor-laranja-light: #ffedd5;
+  --cor-rosa: #ec4899;
+  --cor-rosa-light: #fce7f3;
+  --cor-verde-museu: #059669;
+  --cor-verde-museu-light: #d1fae5;
+  --cor-azul-museu: #1e40af;
+  --cor-azul-museu-light: #dbeafe;
 }
 
 /* Aplicação do tema Museu BH na Sidebar */
@@ -167,4 +187,56 @@
 [data-theme="museubh"] .border-blue-500,
 [data-theme="museubh"] .ring-blue-200 {
   border-color: var(--cor-primaria) !important;
+}
+
+/* Cores de status no tema Museu BH */
+[data-theme="museubh"] .bg-green-50,
+[data-theme="museubh"] .bg-green-100 {
+  background-color: var(--cor-sucesso-light) !important;
+}
+
+[data-theme="museubh"] .text-green-700,
+[data-theme="museubh"] .text-green-600 {
+  color: var(--cor-sucesso) !important;
+}
+
+[data-theme="museubh"] .border-green-200 {
+  border-color: var(--cor-sucesso) !important;
+}
+
+[data-theme="museubh"] .bg-yellow-50,
+[data-theme="museubh"] .bg-yellow-100 {
+  background-color: var(--cor-alerta-light) !important;
+}
+
+[data-theme="museubh"] .text-yellow-700,
+[data-theme="museubh"] .text-yellow-600 {
+  color: var(--cor-alerta) !important;
+}
+
+[data-theme="museubh"] .bg-red-50,
+[data-theme="museubh"] .bg-red-100 {
+  background-color: var(--cor-erro-light) !important;
+}
+
+[data-theme="museubh"] .text-red-600,
+[data-theme="museubh"] .text-red-700 {
+  color: var(--cor-erro) !important;
+}
+
+[data-theme="museubh"] .bg-blue-50 {
+  background-color: var(--cor-info-light) !important;
+}
+
+[data-theme="museubh"] .text-blue-700 {
+  color: var(--cor-info) !important;
+}
+
+/* Badges e indicadores coloridos */
+[data-theme="museubh"] .bg-emerald-50 {
+  background-color: var(--cor-sucesso-light) !important;
+}
+
+[data-theme="museubh"] .text-emerald-700 {
+  color: var(--cor-sucesso) !important;
 }
