@@ -26,20 +26,36 @@ Deno.serve(async (req) => {
     let totalAtividades = 0;
     let publicoPorMuseu = {};
     let publicoPorClassificacao = { META: 0, ROTINA: 0, EXTRA: 0 };
+    let publicoPorMes = {};
+    let detalhesAtualizacao = {
+      relatorios_processados: relatoriosAprovados.length,
+      atividades_somadas: 0,
+      ultima_atualizacao: new Date().toISOString(),
+      timestamp_unix: Date.now(),
+    };
 
-    // Processar relatórios
+    // Processar relatórios aprovados
     for (const relatorio of relatoriosAprovados) {
       if (relatorio.atividades && Array.isArray(relatorio.atividades)) {
         for (const atividade of relatorio.atividades) {
           const publico = atividade.publico_total || 0;
           totalPublico += publico;
           totalAtividades++;
+          detalhesAtualizacao.atividades_somadas++;
 
           // Agregação por museu
           if (!publicoPorMuseu[relatorio.museu]) {
             publicoPorMuseu[relatorio.museu] = 0;
           }
           publicoPorMuseu[relatorio.museu] += publico;
+
+          // Agregação por mês/ano
+          const chaveMes = `${relatorio.mes_referencia}/${relatorio.ano}`;
+          if (!publicoPorMes[chaveMes]) {
+            publicoPorMes[chaveMes] = { total: 0, atividades: 0 };
+          }
+          publicoPorMes[chaveMes].total += publico;
+          publicoPorMes[chaveMes].atividades++;
 
           // Agregação por classificação
           if (atividade.classificacao) {
@@ -63,6 +79,7 @@ Deno.serve(async (req) => {
     // Dados para observador/patrocinador (visão pública/agregada)
     const dadosPatrocinador = {
       atualizado_em: new Date().toISOString(),
+      timestamp_atualizacao: Date.now(),
       resumo: {
         total_relatorios_aprovados: relatoriosAprovados.length,
         total_atividades: totalAtividades,
@@ -75,6 +92,8 @@ Deno.serve(async (req) => {
       },
       distribuicao_publico: publicoPorMuseu,
       classificacao_atividades: publicoPorClassificacao,
+      publico_por_mes: publicoPorMes,
+      detalhes_confiabilidade: detalhesAtualizacao,
     };
 
     // Dados para admin/dashboard interno
