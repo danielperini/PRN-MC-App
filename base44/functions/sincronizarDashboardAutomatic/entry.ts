@@ -60,6 +60,24 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Dados para observador/patrocinador (visão pública/agregada)
+    const dadosPatrocinador = {
+      atualizado_em: new Date().toISOString(),
+      resumo: {
+        total_relatorios_aprovados: relatoriosAprovados.length,
+        total_atividades: totalAtividades,
+        total_publico: totalPublico,
+        media_publico: totalAtividades > 0 ? Math.round(totalPublico / totalAtividades) : 0,
+        total_compras_aprovadas: comprasAprovadas.length,
+        total_investimento: totalGastos,
+        investimento_aprovado: totalGastosAprovados,
+        taxa_execucao: totalGastosAprovados > 0 ? Math.round((totalGastos / totalGastosAprovados) * 100) : 0,
+      },
+      distribuicao_publico: publicoPorMuseu,
+      classificacao_atividades: publicoPorClassificacao,
+    };
+
+    // Dados para admin/dashboard interno
     const dadosDashboard = {
       atualizado_em: new Date().toISOString(),
       metricas: {
@@ -73,6 +91,7 @@ Deno.serve(async (req) => {
       },
       por_museu: publicoPorMuseu,
       por_classificacao: publicoPorClassificacao,
+      patrocinador: dadosPatrocinador,
     };
 
     return Response.json(dadosDashboard);
