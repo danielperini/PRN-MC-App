@@ -163,13 +163,24 @@ Deno.serve(async (req) => {
     const chaveMap = new Map();
     const duplicados = [];
 
-    for (const pr of solicitacoesValidas) {
-      const chave = `${pr.nf_numero || ""}|${pr.fornecedor_cnpj_cpf || ""}|${pr.valor_total || 0}`;
+    // Só audita duplicados entre solicitações que JÁ foram debitadas na rubrica
+    // (rubrica_debitada_em preenchido) para evitar cancelar solicitações legítimas aguardando aprovação
+    const solicitacoesDebitadas = solicitacoesValidas.filter((pr) => !!pr.rubrica_debitada_em);
+
+    for (const pr of solicitacoesDebitadas) {
+      const nfDoc = String(pr.nf_numero || "").trim();
+      const cnpj = String(pr.fornecedor_cnpj_cpf || pr.fornecedor_cnpj || "").replace(/\D/g, "");
+      const valor = Number(pr.valor_total || pr.valor_aprovado || pr.valor_solicitado || 0);
+
+      // Só considera duplicado se tiver NF + CNPJ identificável
+      if (!nfDoc || !cnpj) continue;
+
+      const chave = `${nfDoc}|${cnpj}|${valor}`;
 
       if (chaveMap.has(chave)) {
         duplicidadesEncontradas++;
         duplicados.push(pr.id);
-        console.log(`Duplicado: ${pr.nf_numero} - Fornecedor ${pr.fornecedor_cnpj_cpf}`);
+        console.log(`Duplicado: NF ${nfDoc} - Fornecedor ${cnpj}`);
 
         if (!dryRun && pr.status !== "CANCELADO") {
           await base44.asServiceRole.entities.PurchaseRequest.update(pr.id, {
