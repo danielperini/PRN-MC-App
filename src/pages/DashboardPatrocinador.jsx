@@ -2,229 +2,144 @@ import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Calendar, Users, FileText, TrendingUp, Target, Award, RotateCw, Filter, Wallet } from 'lucide-react';
+import { Calendar, Users, TrendingUp, Target, Award, RotateCw, Filter, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import NewsCarousel from '@/components/dashboard/NewsCarousel';
 import RubricaSelectorPanel from '@/components/patrocinador/RubricaSelectorPanel';
 import AgendaCard from '@/components/patrocinador/AgendaCard';
 import DataSyncAuditPanel from '@/components/dashboard/DataSyncAuditPanel';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue } from
-'@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+const CHART_COLORS = ['#6366f1','#f97316','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16','#14b8a6'];
+const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(v || 0);
 
 export default function DashboardPatrocinador() {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [filterTipoAtividade, setFilterTipoAtividade] = useState('todas');
   const [chartTypeOrcamento, setChartTypeOrcamento] = useState('bar');
-  const [filterCategoriaAtividade, setFilterCategoriaAtividade] = useState('todas');
   const [data, setData] = useState({
     periodo: '',
     museus: ['MIS', 'MHAB', 'MUMO'],
     totalAtividadesMes: 0,
     totalAtividadesAno: 0,
     totalPublico: 0,
-    statusProjeto: 'Em andamento',
+    publicoMes: 0,
     atividades: [],
     rubricas: [],
     dadosMensais: [],
-    dadosClassificacao: []
+    dadosClassificacao: [],
+    totalOrcado: 0,
+    totalUtilizado: 0,
+    saldoTotal: 0,
+    percentualExecucao: 0,
+    hasData: false,
   });
-
 
   useEffect(() => {
     loadDashboardData();
-    
-    // Atualizar a cada 60 segundos automaticamente
-    const interval = setInterval(() => {
-      loadDashboardData();
-    }, 60000);
-
-    // Subscrever a mudanças em relatórios aprovados
-    const unsubscribeReports = base44.entities.Report.subscribe((event) => {
-      if (event.type === 'update' && event.data?.status === 'APPROVED') {
-        loadDashboardData();
-      }
-    });
-
-    // Subscrever a mudanças em atividades
-    const unsubscribeActivities = base44.entities.Activity.subscribe((event) => {
-      if (event.type === 'create' || event.type === 'update') {
-        loadDashboardData();
-      }
-    });
-
-    // Subscrever a mudanças em rubricas
-    const unsubscribeRubricas = base44.entities.Rubrica.subscribe((event) => {
-      if (event.type === 'update') {
-        loadDashboardData();
-      }
-    });
-
-    // Subscrever a mudanças em pagamentos
-    const unsubscribePayments = base44.entities.TeamPayment.subscribe((event) => {
-      if ((event.type === 'update' || event.type === 'create') && event.data?.status === 'PAGO') {
-        loadDashboardData();
-      }
-    });
-
-    // Subscrever a mudanças em compras
-    const unsubscribePurchases = base44.entities.PurchaseRequest.subscribe((event) => {
-      if ((event.type === 'create' || event.type === 'update') && event.data?.status === 'APROVADO') {
-        loadDashboardData();
-      }
-    });
-
-    return () => {
-      clearInterval(interval);
-      unsubscribeReports();
-      unsubscribeActivities();
-      unsubscribeRubricas();
-      unsubscribePayments();
-      unsubscribePurchases();
-    };
+    const interval = setInterval(loadDashboardData, 60000);
+    const unsubscribeReports = base44.entities.Report.subscribe((e) => { if (e.type === 'update' && e.data?.status === 'APPROVED') loadDashboardData(); });
+    const unsubscribeActivities = base44.entities.Activity.subscribe((e) => { if (e.type === 'create' || e.type === 'update') loadDashboardData(); });
+    const unsubscribeRubricas = base44.entities.Rubrica.subscribe((e) => { if (e.type === 'update') loadDashboardData(); });
+    const unsubscribePayments = base44.entities.TeamPayment.subscribe((e) => { if ((e.type === 'update' || e.type === 'create') && e.data?.status === 'PAGO') loadDashboardData(); });
+    const unsubscribePurchases = base44.entities.PurchaseRequest.subscribe((e) => { if ((e.type === 'create' || e.type === 'update') && e.data?.status === 'APROVADO') loadDashboardData(); });
+    return () => { clearInterval(interval); unsubscribeReports(); unsubscribeActivities(); unsubscribeRubricas(); unsubscribePayments(); unsubscribePurchases(); };
   }, []);
 
   async function loadDashboardData() {
     try {
       setLoading(true);
-
-      const [reportsRaw, programacaoRaw, rubricasRaw, purchasesRaw, paymentsRaw] = await Promise.all([
+      const [reportsRaw, programacaoRaw, rubricasRaw] = await Promise.all([
         base44.entities.Report.filter({ status: 'APPROVED' }, '-updated_date', 200),
         base44.entities.Programacao.list('-data_realizacao', 200).catch(() => []),
         base44.entities.Rubrica.list('ordem_exibicao', 300),
-        base44.entities.PurchaseRequest.list('-created_date', 300).catch(() => []),
-        base44.entities.TeamPayment.filter({ status: 'PAGO' }, '', 200).catch(() => [])
       ]);
 
       const now = new Date();
       const mesAtual = now.getMonth() + 1;
       const anoAtual = now.getFullYear();
 
-      // Atividades por mês (combina Report + Programacao)
-      const atividadesPorMes = {};
       const todasAsAtividades = [
         ...(reportsRaw || []).filter(r => r.atividades).flatMap(r => r.atividades || []),
         ...(programacaoRaw || [])
       ];
-      
+
+      const atividadesPorMes = {};
       todasAsAtividades.forEach((a) => {
         const dataField = a?.data_realizacao || a?.data_programacao;
         if (!dataField) return;
-        const data = new Date(dataField);
-        const mes = String(data.getMonth() + 1).padStart(2, '0');
-        const ano = data.getFullYear();
-        const chave = `${ano}-${mes}`;
-        if (!atividadesPorMes[chave]) {
-          atividadesPorMes[chave] = { mes: chave, atividades: 0, publico: 0 };
-        }
+        const d = new Date(dataField);
+        const chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (!atividadesPorMes[chave]) atividadesPorMes[chave] = { mes: chave, atividades: 0, publico: 0 };
         atividadesPorMes[chave].atividades += 1;
         atividadesPorMes[chave].publico += Number(a?.publico_total || a?.publico_estimado) || 0;
       });
+      const dadosMensais = Object.values(atividadesPorMes).sort((a, b) => a.mes.localeCompare(b.mes)).slice(-12);
 
-      const dadosMensais = Object.values(atividadesPorMes).
-      sort((a, b) => a.mes.localeCompare(b.mes)).
-      slice(-12);
-
-      // Atividades do mês atual
       const atividadesMes = todasAsAtividades.filter((a) => {
         const dataField = a?.data_realizacao || a?.data_programacao;
         if (!dataField) return false;
-        const data = new Date(dataField);
-        return data.getMonth() + 1 === mesAtual && data.getFullYear() === anoAtual;
+        const d = new Date(dataField);
+        return d.getMonth() + 1 === mesAtual && d.getFullYear() === anoAtual;
       });
 
-      // Público do mês atual
-      const publicoMes = atividadesMes.reduce((sum, a) => {
-        return sum + (Number(a?.publico_total || a?.publico_estimado) || 0);
-      }, 0);
+      const publicoMes = atividadesMes.reduce((sum, a) => sum + (Number(a?.publico_total || a?.publico_estimado) || 0), 0);
+      const totalPublico = todasAsAtividades.reduce((sum, a) => sum + (Number(a?.publico_total || a?.publico_estimado) || 0), 0);
 
-      // Atividades por classificação
       const atividadesClassificacao = {};
       atividadesMes.forEach((a) => {
-        const classificacao = a?.classificacao || 'Outro';
-        atividadesClassificacao[classificacao] = (atividadesClassificacao[classificacao] || 0) + 1;
+        const c = a?.classificacao || 'Outro';
+        atividadesClassificacao[c] = (atividadesClassificacao[c] || 0) + 1;
       });
-
       const dadosClassificacao = Object.entries(atividadesClassificacao).map(([nome, quantidade]) => ({
-        nome,
-        quantidade,
+        nome, quantidade,
         display: nome === 'META' ? 'Metas' : nome === 'ROTINA' ? 'Rotina' : nome === 'EXTRA' ? 'Extra' : nome
       }));
 
-      // Total público
-      const totalPublico = todasAsAtividades.reduce((sum, a) => {
-        return sum + (Number(a?.publico_total || a?.publico_estimado) || 0);
-      }, 0);
-
-      // Rubricas — filtrar apenas ativas, deduplicar por id, agrupar por grupo
+      // Rubricas — apenas ativas, deduplicadas
       const TOTAL_OFICIAL = 1320000;
       const rubricasUnicas = new Map();
       (rubricasRaw || []).forEach((r) => {
-        if (r?.ativo === false) return; // ignorar inativas
+        if (r?.ativo === false) return;
         if (r?.id && !rubricasUnicas.has(r.id)) rubricasUnicas.set(r.id, r);
       });
-
       const rubricasAgrupadas = {};
       rubricasUnicas.forEach((r) => {
         const grupo = r?.grupo || 'Outros';
-        if (!rubricasAgrupadas[grupo]) {
-          rubricasAgrupadas[grupo] = { nome: grupo, previsto: 0, utilizado: 0, saldo: 0 };
-        }
+        if (!rubricasAgrupadas[grupo]) rubricasAgrupadas[grupo] = { nome: grupo, previsto: 0, utilizado: 0, saldo: 0 };
         const previsto = Number(r?.valor_rubrica || 0);
         const utilizado = Number(r?.valor_utilizado || 0);
         rubricasAgrupadas[grupo].previsto += previsto;
         rubricasAgrupadas[grupo].utilizado += utilizado;
         rubricasAgrupadas[grupo].saldo += (previsto - utilizado);
       });
-
       const rubricasData = Object.values(rubricasAgrupadas).map((r) => ({
-        ...r,
-        previsto: Number(r.previsto.toFixed(2)),
-        utilizado: Number(r.utilizado.toFixed(2)),
-        saldo: Number(r.saldo.toFixed(2))
+        ...r, previsto: Number(r.previsto.toFixed(2)), utilizado: Number(r.utilizado.toFixed(2)), saldo: Number(r.saldo.toFixed(2))
       }));
 
-      // Atividades por tipo (só do mês atual, não vazio)
       const atividadesPorTipo = {};
       atividadesMes.forEach((a) => {
         const tipo = a?.tipo_atividade || a?.tipo_programacao || 'Outro';
         atividadesPorTipo[tipo] = (atividadesPorTipo[tipo] || 0) + 1;
       });
+      const atividades = Object.entries(atividadesPorTipo).filter(([, c]) => c > 0).map(([tipo, quantidade]) => ({ tipo, quantidade }));
 
-      const atividades = Object.entries(atividadesPorTipo)
-        .filter(([, count]) => count > 0)
-        .map(([tipo, count]) => ({ tipo, quantidade: count }));
-
-      // Orçamento: previsto sempre = TOTAL_OFICIAL (R$ 1.320.000)
       const totalUtilizado = rubricasData.reduce((sum, r) => sum + r.utilizado, 0);
       const totalOrcado = TOTAL_OFICIAL;
-      const saldoTotalCalc = TOTAL_OFICIAL - totalUtilizado;
-      const percentualExecucao = TOTAL_OFICIAL > 0 ? Number((totalUtilizado / TOTAL_OFICIAL * 100).toFixed(1)) : 0;
-
-      const statusProjeto = reportsRaw?.length > 0 ? 'Relatórios aprovados' : 'Em andamento';
+      const saldoTotal = TOTAL_OFICIAL - totalUtilizado;
+      const percentualExecucao = Number((totalUtilizado / TOTAL_OFICIAL * 100).toFixed(1));
 
       setData({
         periodo: `${mesAtual}/${anoAtual}`,
         museus: ['MIS', 'MHAB', 'MUMO'],
         totalAtividadesMes: atividadesMes.length,
-        totalAtividadesAno: todasAsAtividades?.length || 0,
-        totalPublico,
-        publicoMes,
-        statusProjeto,
-        percentualExecucao,
-        atividades,
-        rubricas: rubricasData,
-        totalOrcado,
-        totalUtilizado,
-        saldoTotal: saldoTotalCalc,
-        dadosMensais,
-        dadosClassificacao,
-        hasData: reportsRaw?.length > 0 || todasAsAtividades?.length > 0
+        totalAtividadesAno: todasAsAtividades.length,
+        totalPublico, publicoMes,
+        percentualExecucao, atividades,
+        rubricas: rubricasData, totalOrcado, totalUtilizado, saldoTotal,
+        dadosMensais, dadosClassificacao,
+        hasData: reportsRaw?.length > 0 || todasAsAtividades.length > 0
       });
       setLastUpdate(new Date());
     } catch (error) {
@@ -238,447 +153,254 @@ export default function DashboardPatrocinador() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center space-y-3">
-          <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin mx-auto" />
-          <p className="text-slate-600">Carregando dashboard...</p>
+          <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto" />
+          <p className="text-slate-600 text-base">Carregando painel...</p>
         </div>
-      </div>);
-
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-lg p-6">
-        <h1 className="text-3xl font-bold mb-2">Painel Observador — Museus Centro</h1>
-        <p className="text-slate-300">Período: {data.periodo} | Museus: {data.museus.join(', ')} | Orçamento oficial: R$ 1.320.000,00</p>
-        
-
-
-        
-      </div>
-
-      {/* Filtros */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="text-sm font-medium text-slate-700 mb-2 block">Período</label>
-          <Select defaultValue="todos">
-            <SelectTrigger>
-              <SelectValue placeholder="Selecionar período" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos os meses</SelectItem>
-              {data.dadosMensais?.map((m) =>
-              <SelectItem key={m.mes} value={m.mes}>{m.mes}</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="text-sm font-medium text-slate-700 mb-2 block">Classificação</label>
-          <Select defaultValue="todas">
-            <SelectTrigger>
-              <SelectValue placeholder="Selecionar análise" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas as atividades</SelectItem>
-              <SelectItem value="META">Apenas Metas</SelectItem>
-              <SelectItem value="ROTINA">Apenas Rotina</SelectItem>
-              <SelectItem value="EXTRA">Apenas Extra</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="text-sm font-medium text-slate-700 mb-2 block">Tipo de Atividade</label>
-          <Select value={filterCategoriaAtividade} onValueChange={setFilterCategoriaAtividade}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecionar tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas</SelectItem>
-              <SelectItem value="Atividades Educativas">Educativas</SelectItem>
-              <SelectItem value="Consultorias">Consultorias</SelectItem>
-              <SelectItem value="Museus">Museus</SelectItem>
-              <SelectItem value="Variados">Variados</SelectItem>
-            </SelectContent>
-          </Select>
+      <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 text-white rounded-2xl p-8">
+        <div className="flex items-start justify-between flex-wrap gap-6">
+          <div>
+            <p className="text-indigo-300 text-xs font-bold uppercase tracking-widest mb-2">Painel Observador</p>
+            <h1 className="text-4xl font-extrabold mb-2 tracking-tight">Museus Centro</h1>
+            <p className="text-indigo-200 text-base">{data.museus.join(' · ')} &nbsp;|&nbsp; Período: {data.periodo}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-indigo-300 text-xs uppercase tracking-widest mb-1">Orçamento oficial</p>
+            <p className="text-3xl font-bold">R$ 1.320.000</p>
+            <Button size="sm" variant="outline" onClick={loadDashboardData} disabled={loading}
+              className="mt-3 border-white/30 text-white hover:bg-white/10 gap-1.5 text-xs bg-transparent">
+              <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? 'Atualizando...' : 'Atualizar'}
+            </Button>
+            {lastUpdate && <p className="text-indigo-400 text-xs mt-1">Atualizado {lastUpdate.toLocaleTimeString('pt-BR')}</p>}
+          </div>
         </div>
       </div>
 
       {!data.hasData && (
-        <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-4 text-sm text-amber-800">
-          ⚠️ <strong>Sem dados disponíveis</strong> para o período selecionado. Sincronize relatórios aprovados, atividades e pagamentos para visualizar métricas.
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-5 text-base text-amber-800 font-medium">
+          ⚠️ Sem dados disponíveis. Sincronize relatórios aprovados e atividades para visualizar métricas.
         </div>
       )}
 
-      {/* KPIs Principais */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-slate-600">
-              <Calendar className="w-4 h-4" />
-              Atividades (Mês)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{data.totalAtividadesMes}</div>
-            <p className="text-xs text-slate-500 mt-1">{data.totalAtividadesAno} no acumulado</p>
-            {data.totalAtividadesMes === 0 && <p className="text-xs text-amber-600 mt-2">Nenhuma atividade registrada</p>}
-          </CardContent>
-        </Card>
+      {/* KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="rounded-2xl p-6 bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-lg">
+          <div className="flex items-center gap-2 mb-3">
+            <Calendar className="w-5 h-5 text-blue-200" />
+            <p className="text-blue-100 text-xs font-bold uppercase tracking-wide">Atividades (mês)</p>
+          </div>
+          <p className="text-5xl font-extrabold">{data.totalAtividadesMes}</p>
+          <p className="text-blue-200 text-sm mt-2">{data.totalAtividadesAno} no acumulado total</p>
+        </div>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-slate-600">
-              <Users className="w-4 h-4" />
-              Público Total
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{data.totalPublico.toLocaleString()}</div>
-            <p className="text-xs text-slate-500 mt-1">{data.publicoMes.toLocaleString()} este mês</p>
-            {data.totalPublico === 0 && <p className="text-xs text-amber-600 mt-2">Sem registros de público</p>}
-          </CardContent>
-        </Card>
+        <div className="rounded-2xl p-6 bg-gradient-to-br from-emerald-500 to-teal-700 text-white shadow-lg">
+          <div className="flex items-center gap-2 mb-3">
+            <Users className="w-5 h-5 text-emerald-200" />
+            <p className="text-emerald-100 text-xs font-bold uppercase tracking-wide">Público Total</p>
+          </div>
+          <p className="text-5xl font-extrabold">{(data.totalPublico).toLocaleString('pt-BR')}</p>
+          <p className="text-emerald-200 text-sm mt-2">{(data.publicoMes).toLocaleString('pt-BR')} este mês</p>
+        </div>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-slate-600">
-              <TrendingUp className="w-4 h-4" />
-              Execução Orçamentária
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{data.percentualExecucao}%</div>
-            <p className="text-xs text-slate-500 mt-1">do orçamento previsto</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-2xl p-6 bg-gradient-to-br from-orange-500 to-red-600 text-white shadow-lg">
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingUp className="w-5 h-5 text-orange-200" />
+            <p className="text-orange-100 text-xs font-bold uppercase tracking-wide">Execução Orçam.</p>
+          </div>
+          <p className="text-5xl font-extrabold">{data.percentualExecucao}%</p>
+          <p className="text-orange-200 text-sm mt-2">do orçamento previsto</p>
+        </div>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-slate-600">
-              <Wallet className="w-4 h-4" />
-              Saldo Total
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.saldoTotal)}
-            </div>
-            <p className="text-xs text-slate-500 mt-1">disponível</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-2xl p-6 bg-gradient-to-br from-violet-500 to-purple-700 text-white shadow-lg">
+          <div className="flex items-center gap-2 mb-3">
+            <Wallet className="w-5 h-5 text-violet-200" />
+            <p className="text-violet-100 text-xs font-bold uppercase tracking-wide">Saldo Disponível</p>
+          </div>
+          <p className="text-2xl font-extrabold leading-tight">{fmt(data.saldoTotal)}</p>
+          <p className="text-violet-200 text-sm mt-2">restante no projeto</p>
+        </div>
       </div>
 
       {/* Orçamento Executivo */}
-      <Card className="border-2 border-black">
-        <CardHeader>
+      <Card className="border-0 shadow-xl rounded-2xl overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white py-5 px-6">
           <div className="flex items-center justify-between flex-wrap gap-3">
-            <CardTitle className="flex items-center gap-2">
-              <Target className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-white text-xl">
+              <Target className="w-5 h-5 text-amber-400" />
               Orçamento Executivo
             </CardTitle>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex gap-1 bg-white rounded border-2 border-black p-1">
-                <Button
-                  size="sm"
-                  variant={chartTypeOrcamento === 'bar' ? 'default' : 'ghost'}
-                  onClick={() => setChartTypeOrcamento('bar')}
-                  className={`text-xs ${chartTypeOrcamento === 'bar' ? 'bg-black text-white' : 'text-black hover:bg-gray-100'}`}>
-                  
-                  Colunas
-                </Button>
-                <Button
-                  size="sm"
-                  variant={chartTypeOrcamento === 'pie' ? 'default' : 'ghost'}
-                  onClick={() => setChartTypeOrcamento('pie')}
-                  className={`text-xs ${chartTypeOrcamento === 'pie' ? 'bg-black text-white' : 'text-black hover:bg-gray-100'}`}>
-                  
-                  Pizza
-                </Button>
-              </div>
-              {lastUpdate &&
-              <span className="text-xs text-slate-500">
-                  Atualizado: {lastUpdate.toLocaleString('pt-BR')}
-                </span>
-              }
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  loadDashboardData();
-                  // Mostrar feedback visual
-                  const btn = event?.currentTarget;
-                  if (btn) {
-                    const originalText = btn.textContent;
-                    btn.textContent = '✓ Sincronizado';
-                    setTimeout(() => {
-                      btn.textContent = originalText;
-                    }, 2000);
-                  }
-                }}
-                disabled={loading}
-                className="gap-1.5 text-xs">
-                <RotateCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                {loading ? 'Sincronizando...' : 'Sincronizar'}
+            <div className="flex gap-1 bg-white/10 rounded-lg p-1">
+              <Button size="sm" onClick={() => setChartTypeOrcamento('bar')}
+                className={`text-xs rounded-md ${chartTypeOrcamento === 'bar' ? 'bg-white text-slate-900' : 'bg-transparent text-white hover:bg-white/20'}`}>
+                Colunas
+              </Button>
+              <Button size="sm" onClick={() => setChartTypeOrcamento('pie')}
+                className={`text-xs rounded-md ${chartTypeOrcamento === 'pie' ? 'bg-white text-slate-900' : 'bg-transparent text-white hover:bg-white/20'}`}>
+                Pizza
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6 bg-white">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-white rounded-lg p-4 border-2 border-black">
-              <p className="text-sm font-medium text-black mb-1">Previsto</p>
-              <p className="text-xl font-bold text-black">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.totalOrcado)}
-              </p>
+            <div className="rounded-xl p-5 bg-blue-50 border border-blue-100">
+              <p className="text-xs font-bold text-blue-500 uppercase tracking-wide mb-1">Previsto</p>
+              <p className="text-2xl font-bold text-blue-900">{fmt(data.totalOrcado)}</p>
             </div>
-            <div className="bg-white rounded-lg p-4 border-2 border-black">
-              <p className="text-sm font-medium text-black mb-1">Utilizado</p>
-              <p className="text-xl font-bold text-black">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.totalUtilizado)}
-              </p>
+            <div className="rounded-xl p-5 bg-orange-50 border border-orange-100">
+              <p className="text-xs font-bold text-orange-500 uppercase tracking-wide mb-1">Utilizado</p>
+              <p className="text-2xl font-bold text-orange-900">{fmt(data.totalUtilizado)}</p>
             </div>
-            <div className="bg-white rounded-lg p-4 border-2 border-black">
-              <p className="text-sm font-medium text-black mb-1">Saldo</p>
-              <p className="text-xl font-bold text-black">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.totalOrcado - data.totalUtilizado)}
-              </p>
+            <div className="rounded-xl p-5 bg-emerald-50 border border-emerald-100">
+              <p className="text-xs font-bold text-emerald-500 uppercase tracking-wide mb-1">Saldo</p>
+              <p className="text-2xl font-bold text-emerald-900">{fmt(data.totalOrcado - data.totalUtilizado)}</p>
             </div>
           </div>
 
           {data.rubricas.length > 0 ? (
-          <div className="h-96 border-2 border-black rounded-lg p-4 bg-white">
+            <div className="h-96 rounded-xl p-4 bg-slate-50 border border-slate-100">
               <ResponsiveContainer width="100%" height="100%">
-                {chartTypeOrcamento === 'bar' ?
-              <BarChart data={data.rubricas} margin={{ top: 20, right: 30, left: 0, bottom: 80 }}>
-                    <CartesianGrid strokeDasharray="0" stroke="#000000" strokeWidth={1.5} />
-                    <XAxis
-                  dataKey="nome"
-                  angle={-45}
-                  textAnchor="end"
-                  height={120}
-                  tick={{ fontSize: 9, fill: '#000000' }}
-                  stroke="#000000"
-                  strokeWidth={2} />
-                
-                    <YAxis
-                  stroke="#000000"
-                  strokeWidth={2}
-                  tick={{ fontSize: 9, fill: '#000000' }} />
-                
-                    <Tooltip
-                  formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
-                  contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px' }} />
-                
-                    <Legend wrapperStyle={{ fontSize: '12px' }} />
-                    <Bar dataKey="previsto" fill="#ffffff" stroke="#000000" strokeWidth={2} name="Previsto" />
-                    <Bar dataKey="utilizado" fill="#000000" stroke="#000000" strokeWidth={2} name="Utilizado" />
-                  </BarChart> :
-
-              <PieChart>
-                     <Pie
-                  data={data.rubricas}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={false}
-                  outerRadius={100}
-                  fill="#000000"
-                  dataKey="previsto"
-                  nameKey="nome">
-                  
-                       {data.rubricas.map((entry, index) => {
-                    const colors = ['#FFD700', '#FF6B6B', '#4169E1', '#32CD32', '#FF8C00', '#DC143C', '#00CED1', '#9370DB', '#FF1493', '#20B2AA'];
-                    return (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={colors[index % colors.length]}
-                        stroke="#000000"
-                        strokeWidth={2} />);
-
-
-                  })}
-                     </Pie>
-                     <Legend wrapperStyle={{ fontSize: '11px' }} />
-                     <Tooltip
-                  formatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
-                  contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px' }} />
-                
-                   </PieChart>
-              }
+                {chartTypeOrcamento === 'bar' ? (
+                  <BarChart data={data.rubricas} margin={{ top: 20, right: 30, left: 0, bottom: 80 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="nome" angle={-45} textAnchor="end" height={120} tick={{ fontSize: 10, fill: '#475569' }} stroke="#cbd5e1" />
+                    <YAxis stroke="#cbd5e1" tick={{ fontSize: 10, fill: '#475569' }} />
+                    <Tooltip formatter={(v) => fmt(v)} contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f1f5f9', fontSize: '13px' }} />
+                    <Legend wrapperStyle={{ fontSize: '13px' }} />
+                    <Bar dataKey="previsto" fill="#6366f1" radius={[4,4,0,0]} name="Previsto" />
+                    <Bar dataKey="utilizado" fill="#f97316" radius={[4,4,0,0]} name="Utilizado" />
+                  </BarChart>
+                ) : (
+                  <PieChart>
+                    <Pie data={data.rubricas} cx="50%" cy="50%" outerRadius={110} dataKey="previsto" nameKey="nome" labelLine={false} label={false}>
+                      {data.rubricas.map((_, i) => <Cell key={`c-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                    </Pie>
+                    <Legend wrapperStyle={{ fontSize: '13px' }} />
+                    <Tooltip formatter={(v) => fmt(v)} contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f1f5f9' }} />
+                  </PieChart>
+                )}
               </ResponsiveContainer>
-              </div>
-              ) : (
-              <div className="h-96 flex items-center justify-center border-2 border-slate-200 rounded-lg bg-slate-50">
-              <p className="text-slate-500 text-center">
-               <span className="text-sm">Nenhuma rubrica com dados orçamentários</span>
-              </p>
-              </div>
-              )}
-              </CardContent>
-              </Card>
+            </div>
+          ) : (
+            <div className="h-48 flex items-center justify-center rounded-xl bg-slate-50 border border-slate-100">
+              <p className="text-slate-400 text-base">Nenhuma rubrica com dados orçamentários</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Atividades por Classificação */}
-      {data.dadosClassificacao && data.dadosClassificacao.length > 0 &&
-      <Card className="border-2 border-black">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="w-5 h-5" />
-              Atividades por Classificação (Metas, Rotina, Extra)
+      {data.dadosClassificacao && data.dadosClassificacao.length > 0 && (
+        <Card className="border-0 shadow-xl rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-violet-600 to-purple-700 text-white py-5 px-6">
+            <CardTitle className="flex items-center gap-2 text-white text-xl">
+              <Filter className="w-5 h-5 text-violet-200" />
+              Atividades por Classificação
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="h-80 border-2 border-black rounded-lg p-4 bg-white">
+          <CardContent className="p-6 bg-white">
+            <div className="h-72 rounded-xl bg-slate-50 p-4">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.dadosClassificacao} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
-                  <CartesianGrid strokeDasharray="0" stroke="#000000" strokeWidth={1.5} />
-                  <XAxis
-                  dataKey="display"
-                  stroke="#000000"
-                  strokeWidth={2}
-                  tick={{ fontSize: 9, fill: '#000000' }} />
-                
-                  <YAxis
-                  stroke="#000000"
-                  strokeWidth={2}
-                  tick={{ fontSize: 9, fill: '#000000' }} />
-                
-                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px' }} />
-                  <Bar dataKey="quantidade" fill="#000000" stroke="#000000" strokeWidth={2} name="Quantidade" />
+                <BarChart data={data.dadosClassificacao} margin={{ top: 20, right: 30, left: 0, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="display" stroke="#cbd5e1" tick={{ fontSize: 14, fill: '#475569', fontWeight: 600 }} />
+                  <YAxis stroke="#cbd5e1" tick={{ fontSize: 12, fill: '#475569' }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                  <Bar dataKey="quantidade" name="Quantidade" radius={[6,6,0,0]}>
+                    {data.dadosClassificacao.map((_, i) => <Cell key={`cc-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
-      }
+      )}
 
       {/* Atividades por Mês */}
-      {data.dadosMensais && data.dadosMensais.length > 0 &&
-      <Card className="border-2 border-black">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
+      {data.dadosMensais && data.dadosMensais.length > 0 && (
+        <Card className="border-0 shadow-xl rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-teal-600 to-emerald-700 text-white py-5 px-6">
+            <CardTitle className="flex items-center gap-2 text-white text-xl">
+              <Calendar className="w-5 h-5 text-teal-200" />
               Atividades e Público por Mês
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="h-80 border-2 border-black rounded-lg p-4 bg-white">
+          <CardContent className="p-6 bg-white">
+            <div className="h-72 rounded-xl bg-slate-50 p-4">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data.dadosMensais} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
-                  <CartesianGrid strokeDasharray="0" stroke="#000000" strokeWidth={1.5} />
-                  <XAxis
-                  dataKey="mes"
-                  stroke="#000000"
-                  strokeWidth={2}
-                  tick={{ fontSize: 9, fill: '#000000' }} />
-                
-                  <YAxis
-                  yAxisId="left"
-                  stroke="#000000"
-                  strokeWidth={2}
-                  tick={{ fontSize: 9, fill: '#000000' }}
-                  label={{ value: 'Atividades', angle: -90, position: 'insideLeft', fill: '#000000', fontSize: 11 }} />
-                
-                  <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  stroke="#000000"
-                  strokeWidth={2}
-                  tick={{ fontSize: 9, fill: '#000000' }}
-                  label={{ value: 'Público', angle: 90, position: 'insideRight', fill: '#000000', fontSize: 11 }} />
-                
-                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px' }} />
-                  <Legend wrapperStyle={{ fontSize: '12px' }} />
-                  <Line yAxisId="left" type="monotone" dataKey="atividades" stroke="#000000" strokeWidth={2.5} name="Atividades" />
-                  <Line yAxisId="right" type="monotone" dataKey="publico" stroke="#666666" strokeWidth={2.5} name="Público" />
+                <LineChart data={data.dadosMensais} margin={{ top: 20, right: 30, left: 0, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="mes" stroke="#cbd5e1" tick={{ fontSize: 11, fill: '#475569' }} />
+                  <YAxis yAxisId="left" stroke="#cbd5e1" tick={{ fontSize: 11, fill: '#475569' }} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#cbd5e1" tick={{ fontSize: 11, fill: '#475569' }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f1f5f9', fontSize: '13px' }} />
+                  <Legend wrapperStyle={{ fontSize: '13px' }} />
+                  <Line yAxisId="left" type="monotone" dataKey="atividades" stroke="#6366f1" strokeWidth={3} dot={{ fill: '#6366f1', r: 5 }} name="Atividades" />
+                  <Line yAxisId="right" type="monotone" dataKey="publico" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', r: 5 }} name="Público" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
-      }
+      )}
 
       {/* Atividades por Tipo */}
-      {data.atividades.length > 0 &&
-      <Card className="border-2 border-black">
-          <CardHeader>
+      {data.atividades.length > 0 && (
+        <Card className="border-0 shadow-xl rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-amber-500 to-orange-600 text-white py-5 px-6">
             <div className="flex items-center justify-between flex-wrap gap-3">
-              <CardTitle className="flex items-center gap-2">
-                <Award className="w-5 h-5" />
+              <CardTitle className="flex items-center gap-2 text-white text-xl">
+                <Award className="w-5 h-5 text-amber-200" />
                 Atividades por Tipo
               </CardTitle>
               <div className="w-48">
                 <Select value={filterTipoAtividade} onValueChange={setFilterTipoAtividade}>
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-white/10 border-white/20 text-white">
                     <SelectValue placeholder="Filtrar por tipo" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todas">Todos os tipos</SelectItem>
-                    {data.atividades.map((item) =>
-                  <SelectItem key={item.tipo} value={item.tipo}>{item.tipo}</SelectItem>
-                  )}
+                    {data.atividades.map((item) => <SelectItem key={item.tipo} value={item.tipo}>{item.tipo}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="h-80 border-2 border-black rounded-lg p-4 bg-white">
+          <CardContent className="p-6 bg-white">
+            <div className="h-72 rounded-xl bg-slate-50 p-4">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                  data={filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter((a) => a.tipo === filterTipoAtividade)}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={false}
-                  outerRadius={80}
-                  fill="#000000"
-                  dataKey="quantidade"
-                  nameKey="tipo">
-                  
-                    {(filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter((a) => a.tipo === filterTipoAtividade)).map((entry, index) => {
-                    const colors = ['#FFD700', '#FF6B6B', '#4169E1', '#32CD32', '#FF8C00', '#DC143C', '#00CED1', '#9370DB', '#FF1493', '#20B2AA'];
-                    return (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={colors[index % colors.length]}
-                        stroke="#000000"
-                        strokeWidth={2} />);
-
-
-                  })}
+                    data={filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter((a) => a.tipo === filterTipoAtividade)}
+                    cx="50%" cy="50%" outerRadius={100} dataKey="quantidade" nameKey="tipo" labelLine={false} label={false}>
+                    {(filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter((a) => a.tipo === filterTipoAtividade))
+                      .map((_, i) => <Cell key={`ct-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                   </Pie>
-                  <Legend wrapperStyle={{ fontSize: '11px' }} />
-                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '2px solid #000000', fontSize: '12px' }} />
+                  <Legend wrapperStyle={{ fontSize: '13px' }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f1f5f9', fontSize: '13px' }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
-      }
+      )}
 
-      {/* Painel de Sincronização e Auditoria */}
       <DataSyncAuditPanel />
-
-      {/* Painel de Análise de Rubrica Individual */}
       <RubricaSelectorPanel />
-
-      {/* Card de Agenda */}
       <AgendaCard />
-
-      {/* Painel de Notícias */}
       <NewsCarousel />
 
-      {/* Info Rodapé */}
-      <div className="bg-white rounded-lg p-4 border-2 border-black text-sm text-black">
-        <p className="font-medium mb-2">Sobre este painel</p>
-        <p>
-          Esse dashboard apresenta uma visão executiva e institucional do projeto Museus Centro. Os dados mostrados são filtrados
-          e consolidados para foco em resultados e indicadores principais. Para análises operacionais e detalhadas, acesse as demais
-          seções da plataforma.
-        </p>
+      <div className="rounded-xl p-5 bg-slate-50 border border-slate-200 text-slate-600 text-sm">
+        <p className="font-semibold text-slate-800 mb-1">Sobre este painel</p>
+        <p>Visão executiva e institucional do projeto Museus Centro. Dados filtrados e consolidados para foco em resultados e indicadores principais.</p>
       </div>
-    </div>);
-
+    </div>
+  );
 }
