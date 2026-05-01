@@ -206,10 +206,30 @@ Deno.serve(async (req) => {
       .map((r: any) => `${r.id} - ${getRubricaLabel(r)} - ${getRubricaGrupo(r)}`)
       .join('\n');
 
+    // BASE DE CONHECIMENTO — busca KnowledgeDocument do 3º Aditivo
+    let baseConhecimento = '';
+    try {
+      const docs = await base44.asServiceRole.entities.KnowledgeDocument.filter(
+        { ativo: true },
+        '-created_date',
+        20
+      );
+      const doc = (docs || []).find((d: any) =>
+        String(d.titulo || '').includes('Tudo Projeto')
+      );
+      if (doc?.conteudo_extraido) {
+        baseConhecimento = doc.conteudo_extraido.slice(0, 3000);
+      }
+    } catch {}
+
+    const baseSection = baseConhecimento
+      ? `\nBase oficial do 3º Aditivo:\n${baseConhecimento}\n`
+      : '';
+
     const llmRaw = await base44.asServiceRole.integrations.Core.InvokeLLM({
       prompt: `
 Escolha a melhor rubrica para esta compra.
-
+${baseSection}
 Compra: ${descricao}
 Fornecedor: ${fornecedor}
 Categoria: ${categoria}
@@ -220,7 +240,7 @@ Rubricas disponíveis:
 ${context}
 
 Responda somente JSON válido:
-{"rubrica_id":"","score":0,"justificativa":""}
+{"rubrica_id":"","score":0,"justificativa":"","meta_nome":"","centro_custo":""}
 `,
     });
 
@@ -242,8 +262,10 @@ Responda somente JSON válido:
         rubrica_id: found.id,
         rubrica_nome: getRubricaLabel(found),
         score: toNumber(llmResult?.score) || 60,
-        justificativa: llmResult?.justificativa || 'IA fallback',
-        source: 'llm',
+        justificativa: llmResult?.justificativa || 'IA conhecimento',
+        meta_nome: llmResult?.meta_nome || '',
+        centro_custo: llmResult?.centro_custo || '',
+        source: 'llm_knowledge',
       },
     });
   } catch (e: any) {
