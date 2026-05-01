@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -10,6 +11,8 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import NativeSelect from '@/components/ui/NativeSelect';
+import { useMediaQuery } from '@/hooks/use-mobile';
 import {
   CheckCircle,
   XCircle,
@@ -81,6 +84,7 @@ function PaymentDetailModal({
 }) {
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   const [form, setForm] = useState({
     member_name: payment?.member_name || payment?.user_name || payment?.nf_emitente_nome || '',
@@ -236,35 +240,60 @@ function PaymentDetailModal({
 
           <div>
             <p className="text-xs text-gray-500 mb-1">Rubrica vinculada</p>
-            <Select
-              value={form.rubrica_id}
-              onValueChange={(value) => {
-                const rubrica = (rubricas || []).find((r) => r.id === value);
-                setForm((f) => ({
-                  ...f,
-                  rubrica_id: value,
-                  rubrica_nome: rubrica ? getRubricaNome(rubrica) : ''
-                }));
-              }}
-              disabled={!isCoordinator}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione a rubrica" />
-              </SelectTrigger>
-              <SelectContent>
-                {(rubricas || [])
+            {isMobile ? (
+              <NativeSelect
+                value={form.rubrica_id}
+                onValueChange={(value) => {
+                  const rubrica = (rubricas || []).find((r) => r.id === value);
+                  setForm((f) => ({
+                    ...f,
+                    rubrica_id: value,
+                    rubrica_nome: rubrica ? getRubricaNome(rubrica) : ''
+                  }));
+                }}
+                placeholder="Selecione a rubrica"
+                disabled={!isCoordinator}
+                items={(rubricas || [])
                   .filter((r) => r?.ativo !== false)
                   .sort((a, b) =>
                     getRubricaNome(a).localeCompare(getRubricaNome(b), 'pt-BR')
                   )
-                  .map((rubrica) => (
-                    <SelectItem key={rubrica.id} value={rubrica.id}>
-                      {getRubricaNome(rubrica)}
-                      {rubrica.centro_custo ? ` — ${rubrica.centro_custo}` : ''}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
+                  .map((rubrica) => ({
+                    value: rubrica.id,
+                    label: `${getRubricaNome(rubrica)}${rubrica.centro_custo ? ` — ${rubrica.centro_custo}` : ''}`
+                  }))}
+              />
+            ) : (
+              <Select
+                value={form.rubrica_id}
+                onValueChange={(value) => {
+                  const rubrica = (rubricas || []).find((r) => r.id === value);
+                  setForm((f) => ({
+                    ...f,
+                    rubrica_id: value,
+                    rubrica_nome: rubrica ? getRubricaNome(rubrica) : ''
+                  }));
+                }}
+                disabled={!isCoordinator}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a rubrica" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(rubricas || [])
+                    .filter((r) => r?.ativo !== false)
+                    .sort((a, b) =>
+                      getRubricaNome(a).localeCompare(getRubricaNome(b), 'pt-BR')
+                    )
+                    .map((rubrica) => (
+                      <SelectItem key={rubrica.id} value={rubrica.id}>
+                        {getRubricaNome(rubrica)}
+                        {rubrica.centro_custo ? ` — ${rubrica.centro_custo}` : ''}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {(payment.nota_fiscal_url || payment.xml_url || payment.file_url) && (
@@ -390,6 +419,7 @@ export default function TeamPaymentReview() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedPayment, setSelectedPayment] = useState(null);
   const queryClient = useQueryClient();
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   useEffect(() => {
     base44.auth.me().then(setCurrentUser).catch(() => setCurrentUser(null));
@@ -418,53 +448,83 @@ export default function TeamPaymentReview() {
 
   const handleSavePayment = async (paymentId, payload) => {
     const rubrica = (rubricas || []).find((r) => r.id === payload.rubrica_id);
-
-    await base44.entities.TeamPayment.update(paymentId, {
+    
+    // Optimistic update
+    const previousData = queryClient.getQueryData(['team-payments']);
+    const optimisticPayment = {
       ...payload,
+      id: paymentId,
       rubrica_nome: rubrica ? getRubricaNome(rubrica) : payload.rubrica_nome,
       atualizado_por_coord: currentUser?.email || '',
       atualizado_em: new Date().toISOString()
-    });
+    };
+    
+    queryClient.setQueryData(['team-payments'], (old) =>
+      Array.isArray(old) ? old.map((p) => (p.id === paymentId ? { ...p, ...optimisticPayment } : p)) : old
+    );
 
-    queryClient.invalidateQueries({ queryKey: ['team-payments'] });
-    queryClient.invalidateQueries({ queryKey: ['rubricas'] });
-    queryClient.invalidateQueries({ queryKey: ['rubricas-team-payment-review'] });
-    queryClient.invalidateQueries({ queryKey: ['purchases'] });
+    try {
+      await base44.entities.TeamPayment.update(paymentId, optimisticPayment);
+      queryClient.invalidateQueries({ queryKey: ['team-payments'] });
+      queryClient.invalidateQueries({ queryKey: ['rubricas'] });
+      queryClient.invalidateQueries({ queryKey: ['rubricas-team-payment-review'] });
+      queryClient.invalidateQueries({ queryKey: ['purchases'] });
+    } catch (error) {
+      // Rollback on error
+      queryClient.setQueryData(['team-payments'], previousData);
+      toast.error('Erro ao salvar pagamento: ' + error.message);
+    }
   };
 
   const handleStatusChange = async (paymentId, action, comment, editedPayload = {}) => {
-    if (action === 'deletar') {
-      await base44.functions.invoke('processTeamPayment', {
-        id: paymentId,
-        action: 'deletar'
-      });
+    const previousData = queryClient.getQueryData(['team-payments']);
+    
+    // Optimistic update based on action
+    let newStatus = editedPayload.status || 'PENDENTE';
+    if (action === 'aprovar') newStatus = 'APROVADO_COORD';
+    if (action === 'devolver') newStatus = 'DEVOLVIDO';
+    if (action === 'pagar') newStatus = 'PAGO';
+    
+    queryClient.setQueryData(['team-payments'], (old) =>
+      Array.isArray(old) ? old.map((p) => (p.id === paymentId ? { ...p, status: newStatus, ...editedPayload } : p)) : old
+    );
+
+    try {
+      if (action === 'deletar') {
+        await base44.functions.invoke('processTeamPayment', {
+          id: paymentId,
+          action: 'deletar'
+        });
+        queryClient.setQueryData(['team-payments'], (old) =>
+          Array.isArray(old) ? old.filter((p) => p.id !== paymentId) : old
+        );
+      } else {
+        await handleSavePayment(paymentId, editedPayload);
+
+        const response = await base44.functions.invoke('processTeamPayment', {
+          id: paymentId,
+          paymentId,
+          action,
+          comentario: comment || ''
+        });
+
+        const result = response?.data || response;
+
+        if (result?.success === false) {
+          throw new Error(result?.error || 'Erro ao processar pagamento da equipe.');
+        }
+      }
 
       queryClient.invalidateQueries({ queryKey: ['team-payments'] });
       queryClient.invalidateQueries({ queryKey: ['rubricas'] });
       queryClient.invalidateQueries({ queryKey: ['rubricas-team-payment-review'] });
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
-      return;
+      toast.success('Pagamento atualizado com sucesso');
+    } catch (error) {
+      // Rollback on error
+      queryClient.setQueryData(['team-payments'], previousData);
+      toast.error('Erro ao processar pagamento: ' + error.message);
     }
-
-    await handleSavePayment(paymentId, editedPayload);
-
-    const response = await base44.functions.invoke('processTeamPayment', {
-      id: paymentId,
-      paymentId,
-      action,
-      comentario: comment || ''
-    });
-
-    const result = response?.data || response;
-
-    if (result?.success === false) {
-      throw new Error(result?.error || 'Erro ao processar pagamento da equipe.');
-    }
-
-    queryClient.invalidateQueries({ queryKey: ['team-payments'] });
-    queryClient.invalidateQueries({ queryKey: ['rubricas'] });
-    queryClient.invalidateQueries({ queryKey: ['rubricas-team-payment-review'] });
-    queryClient.invalidateQueries({ queryKey: ['purchases'] });
   };
 
   const filtered = payments.filter((p) => {
@@ -523,7 +583,7 @@ export default function TeamPaymentReview() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-col md:flex-row flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
           <Input
@@ -534,19 +594,34 @@ export default function TeamPaymentReview() {
           />
         </div>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os status</SelectItem>
-            {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-              <SelectItem key={k} value={k}>
-                {v.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {isMobile ? (
+          <NativeSelect
+            value={statusFilter}
+            onValueChange={setStatusFilter}
+            placeholder="Status"
+            items={[
+              { value: 'all', label: 'Todos os status' },
+              ...Object.entries(STATUS_CONFIG).map(([k, v]) => ({
+                value: k,
+                label: v.label
+              }))
+            ]}
+          />
+        ) : (
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os status</SelectItem>
+              {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+                <SelectItem key={k} value={k}>
+                  {v.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {isLoading ? (

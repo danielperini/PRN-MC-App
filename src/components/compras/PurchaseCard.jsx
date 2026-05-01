@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import {
   CheckCircle,
@@ -30,6 +31,7 @@ export default function PurchaseCard({
   onRefresh,
 }) {
 
+  const queryClient = useQueryClient();
   const [actionLoading, setActionLoading] = useState(false);
   const [teamPayment, setTeamPayment] = useState(null);
 
@@ -94,6 +96,13 @@ export default function PurchaseCard({
 
     setActionLoading(true);
 
+    // Optimistic update: update local state immediately
+    const previousData = queryClient.getQueryData(['purchases']);
+    const optimisticPurchase = { ...purchase, status: 'PAGO' };
+    queryClient.setQueryData(['purchases'], (old) =>
+      Array.isArray(old) ? old.map((p) => (p.id === purchase.id ? optimisticPurchase : p)) : old
+    );
+
     try {
 
       await base44.functions.invoke('purchaseActions', {
@@ -107,13 +116,18 @@ export default function PurchaseCard({
           : 'Pagamento realizado'
       );
 
+      // Invalidate queries for server sync
+      queryClient.invalidateQueries({ queryKey: ['purchases'] });
+      queryClient.invalidateQueries({ queryKey: ['team-payments'] });
       onRefresh?.();
 
     } catch (e) {
       toast.error('Erro ao pagar: ' + e.message);
+      // Rollback on error
+      queryClient.setQueryData(['purchases'], previousData);
+    } finally {
+      setActionLoading(false);
     }
-
-    setActionLoading(false);
   };
 
   return (
