@@ -8,7 +8,7 @@ import { base44 } from '@/api/base44Client'
 import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload } from 'lucide-react'
 import { useSmartToast } from '@/lib/useSmartToast'
 
-const METAS_FALLBACK = ['MC3A-20','MC3A-21','MC3A-22','MC3A-23','MC3A-24','MC3A-25','MC3A-EXTRA']
+
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Publicações','Geral']
 const CATEGORIAS = [
   'Serviços (equipe/coordenação)',
@@ -78,10 +78,10 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       .then(d => setRubricas((d || []).filter(r => r?.ativo !== false)))
       .catch(() => {})
 
-    base44.entities.ProjectMeta.list('nome', 100)
+    base44.entities.ProjectMeta.list('ordem', 100)
       .then(d => {
         const ativos = (d || []).filter(m => m?.ativo !== false)
-        setMetas(ativos.length > 0 ? ativos : [])
+        setMetas(ativos)
       })
       .catch(() => setMetas([]))
   }, [])
@@ -290,10 +290,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               <Select value={form.meta_id} onValueChange={v => { setField('meta_id', v); if (v !== 'MC3A-EXTRA') setField('meta_extra_descricao', ''); }}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  {metas.length > 0
-                    ? metas.map(m => <SelectItem key={m.id} value={m.nome}>{m.nome}</SelectItem>)
-                    : METAS_FALLBACK.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)
-                  }
+                  {metas.map(m => <SelectItem key={m.id} value={m.nome}>{m.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

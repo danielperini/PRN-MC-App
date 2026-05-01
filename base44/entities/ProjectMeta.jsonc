@@ -1,0 +1,26 @@
+{
+  "name": "ProjectMeta",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string",
+      "description": "Nome da meta do 3\u00ba Aditivo"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o detalhada da meta"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se a meta est\u00e1 ativa"
+    },
+    "ordem": {
+      "type": "number",
+      "description": "Ordem de exibi\u00e7\u00e3o (1 a 22)"
+    }
+  },
+  "required": [
+    "nome"
+  ]
+}
