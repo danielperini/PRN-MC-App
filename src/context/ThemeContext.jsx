@@ -27,7 +27,7 @@ export const THEMES = {
   museubh: {
     id: 'museubh',
     nome: 'Tema Museu BH',
-    descricao: 'Paleta inspirada na Pampulha, Museu da Moda e MHAB.',
+    descricao: 'Paleta inspirada na Pampulha, Museu da Moda, MHAB e MIS.',
     vars: {
       '--cor-primaria': '#2E6F95',
       '--cor-secundaria': '#5FA8D3',

@@ -9,15 +9,19 @@ import RubricaSelectorPanel from '@/components/patrocinador/RubricaSelectorPanel
 import AgendaCard from '@/components/patrocinador/AgendaCard';
 import DataSyncAuditPanel from '@/components/dashboard/DataSyncAuditPanel';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useTheme } from '@/context/ThemeContext';
 
 const CHART_COLORS = ['#6366f1','#f97316','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16','#14b8a6'];
+const CHART_COLORS_MUSEUBH = ['#2E6F95','#7A1E2C','#D9C6A5','#5FA8D3','#8B4513','#4B0082','#D4A574','#654321'];
 const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(v || 0);
 
 export default function DashboardPatrocinador() {
+  const { themeId } = useTheme();
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [filterTipoAtividade, setFilterTipoAtividade] = useState('todas');
   const [chartTypeOrcamento, setChartTypeOrcamento] = useState('bar');
+  const chartColors = themeId === 'museubh' ? CHART_COLORS_MUSEUBH : CHART_COLORS;
   const [data, setData] = useState({
     periodo: '',
     museus: ['MIS', 'MHAB', 'MUMO'],
@@ -163,22 +167,27 @@ export default function DashboardPatrocinador() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 text-white rounded-2xl p-8">
+      <div style={{
+        background: themeId === 'museubh' 
+          ? 'linear-gradient(135deg, #2E6F95 0%, #7A1E2C 100%)'
+          : 'linear-gradient(135deg, #111827 0%, #374151 100%)',
+        color: 'white'
+      }} className="rounded-2xl p-8">
         <div className="flex items-start justify-between flex-wrap gap-6">
           <div>
-            <p className="text-indigo-300 text-xs font-bold uppercase tracking-widest mb-2">Painel Observador</p>
+            <p style={{ color: themeId === 'museubh' ? '#D9C6A5' : '#9CA3AF' }} className="text-xs font-bold uppercase tracking-widest mb-2">Painel Observador</p>
             <h1 className="text-4xl font-extrabold mb-2 tracking-tight">Museus Centro</h1>
-            <p className="text-indigo-200 text-base">{data.museus.join(' · ')} &nbsp;|&nbsp; Período: {data.periodo}</p>
+            <p style={{ color: themeId === 'museubh' ? '#D9C6A5' : '#D1D5DB' }} className="text-base">{data.museus.join(' · ')} &nbsp;|&nbsp; Período: {data.periodo}</p>
           </div>
           <div className="text-right">
-            <p className="text-indigo-300 text-xs uppercase tracking-widest mb-1">Orçamento oficial</p>
+            <p style={{ color: themeId === 'museubh' ? '#D9C6A5' : '#9CA3AF' }} className="text-xs uppercase tracking-widest mb-1">Orçamento oficial</p>
             <p className="text-3xl font-bold">R$ 1.320.000</p>
             <Button size="sm" variant="outline" onClick={loadDashboardData} disabled={loading}
               className="mt-3 border-white/30 text-white hover:bg-white/10 gap-1.5 text-xs bg-transparent">
               <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               {loading ? 'Atualizando...' : 'Atualizar'}
             </Button>
-            {lastUpdate && <p className="text-indigo-400 text-xs mt-1">Atualizado {lastUpdate.toLocaleTimeString('pt-BR')}</p>}
+            {lastUpdate && <p style={{ color: themeId === 'museubh' ? '#D9C6A5' : '#818CF8' }} className="text-xs mt-1">Atualizado {lastUpdate.toLocaleTimeString('pt-BR')}</p>}
           </div>
         </div>
       </div>
@@ -191,40 +200,56 @@ export default function DashboardPatrocinador() {
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="rounded-2xl p-6 bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-lg">
+        <div style={{
+          background: themeId === 'museubh'
+            ? 'linear-gradient(135deg, #2E6F95 0%, #5FA8D3 100%)'
+            : 'linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%)'
+        }} className="rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-3">
-            <Calendar className="w-5 h-5 text-blue-200" />
-            <p className="text-blue-100 text-xs font-bold uppercase tracking-wide">Atividades (mês)</p>
+            <Calendar className="w-5 h-5" style={{ opacity: 0.8 }} />
+            <p className="text-xs font-bold uppercase tracking-wide" style={{ opacity: 0.9 }}>Atividades (mês)</p>
           </div>
           <p className="text-5xl font-extrabold">{data.totalAtividadesMes}</p>
-          <p className="text-blue-200 text-sm mt-2">{data.totalAtividadesAno} no acumulado total</p>
+          <p className="text-sm mt-2" style={{ opacity: 0.8 }}>{data.totalAtividadesAno} no acumulado total</p>
         </div>
 
-        <div className="rounded-2xl p-6 bg-gradient-to-br from-emerald-500 to-teal-700 text-white shadow-lg">
+        <div style={{
+          background: themeId === 'museubh'
+            ? 'linear-gradient(135deg, #D9C6A5 0%, #7A1E2C 100%)'
+            : 'linear-gradient(135deg, #10B981 0%, #047857 100%)'
+        }} className="rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-3">
-            <Users className="w-5 h-5 text-emerald-200" />
-            <p className="text-emerald-100 text-xs font-bold uppercase tracking-wide">Público Total</p>
+            <Users className="w-5 h-5" style={{ opacity: 0.8 }} />
+            <p className="text-xs font-bold uppercase tracking-wide" style={{ opacity: 0.9 }}>Público Total</p>
           </div>
           <p className="text-5xl font-extrabold">{(data.totalPublico).toLocaleString('pt-BR')}</p>
-          <p className="text-emerald-200 text-sm mt-2">{(data.publicoMes).toLocaleString('pt-BR')} este mês</p>
+          <p className="text-sm mt-2" style={{ opacity: 0.8 }}>{(data.publicoMes).toLocaleString('pt-BR')} este mês</p>
         </div>
 
-        <div className="rounded-2xl p-6 bg-gradient-to-br from-orange-500 to-red-600 text-white shadow-lg">
+        <div style={{
+          background: themeId === 'museubh'
+            ? 'linear-gradient(135deg, #5FA8D3 0%, #D9C6A5 100%)'
+            : 'linear-gradient(135deg, #F97316 0%, #DC2626 100%)'
+        }} className="rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-3">
-            <TrendingUp className="w-5 h-5 text-orange-200" />
-            <p className="text-orange-100 text-xs font-bold uppercase tracking-wide">Execução Orçam.</p>
+            <TrendingUp className="w-5 h-5" style={{ opacity: 0.8 }} />
+            <p className="text-xs font-bold uppercase tracking-wide" style={{ opacity: 0.9 }}>Execução Orçam.</p>
           </div>
           <p className="text-5xl font-extrabold">{data.percentualExecucao}%</p>
-          <p className="text-orange-200 text-sm mt-2">do orçamento previsto</p>
+          <p className="text-sm mt-2" style={{ opacity: 0.8 }}>do orçamento previsto</p>
         </div>
 
-        <div className="rounded-2xl p-6 bg-gradient-to-br from-violet-500 to-purple-700 text-white shadow-lg">
+        <div style={{
+          background: themeId === 'museubh'
+            ? 'linear-gradient(135deg, #7A1E2C 0%, #2E6F95 100%)'
+            : 'linear-gradient(135deg, #A855F7 0%, #6D28D9 100%)'
+        }} className="rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-3">
-            <Wallet className="w-5 h-5 text-violet-200" />
-            <p className="text-violet-100 text-xs font-bold uppercase tracking-wide">Saldo Disponível</p>
+            <Wallet className="w-5 h-5" style={{ opacity: 0.8 }} />
+            <p className="text-xs font-bold uppercase tracking-wide" style={{ opacity: 0.9 }}>Saldo Disponível</p>
           </div>
           <p className="text-2xl font-extrabold leading-tight">{fmt(data.saldoTotal)}</p>
-          <p className="text-violet-200 text-sm mt-2">restante no projeto</p>
+          <p className="text-sm mt-2" style={{ opacity: 0.8 }}>restante no projeto</p>
         </div>
       </div>
 
@@ -274,13 +299,13 @@ export default function DashboardPatrocinador() {
                     <YAxis stroke="#cbd5e1" tick={{ fontSize: 10, fill: '#475569' }} />
                     <Tooltip formatter={(v) => fmt(v)} contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f1f5f9', fontSize: '13px' }} />
                     <Legend wrapperStyle={{ fontSize: '13px' }} />
-                    <Bar dataKey="previsto" fill="#6366f1" radius={[4,4,0,0]} name="Previsto" />
-                    <Bar dataKey="utilizado" fill="#f97316" radius={[4,4,0,0]} name="Utilizado" />
+                    <Bar dataKey="previsto" fill={chartColors[0]} radius={[4,4,0,0]} name="Previsto" />
+                    <Bar dataKey="utilizado" fill={chartColors[1]} radius={[4,4,0,0]} name="Utilizado" />
                   </BarChart>
                 ) : (
                   <PieChart>
                     <Pie data={data.rubricas} cx="50%" cy="50%" outerRadius={110} dataKey="previsto" nameKey="nome" labelLine={false} label={false}>
-                      {data.rubricas.map((_, i) => <Cell key={`c-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                      {data.rubricas.map((_, i) => <Cell key={`c-${i}`} fill={chartColors[i % chartColors.length]} />)}
                     </Pie>
                     <Legend wrapperStyle={{ fontSize: '13px' }} />
                     <Tooltip formatter={(v) => fmt(v)} contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f1f5f9' }} />
@@ -314,7 +339,7 @@ export default function DashboardPatrocinador() {
                   <YAxis stroke="#cbd5e1" tick={{ fontSize: 12, fill: '#475569' }} />
                   <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
                   <Bar dataKey="quantidade" name="Quantidade" radius={[6,6,0,0]}>
-                    {data.dadosClassificacao.map((_, i) => <Cell key={`cc-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                    {data.dadosClassificacao.map((_, i) => <Cell key={`cc-${i}`} fill={chartColors[i % chartColors.length]} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -342,8 +367,8 @@ export default function DashboardPatrocinador() {
                   <YAxis yAxisId="right" orientation="right" stroke="#cbd5e1" tick={{ fontSize: 11, fill: '#475569' }} />
                   <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f1f5f9', fontSize: '13px' }} />
                   <Legend wrapperStyle={{ fontSize: '13px' }} />
-                  <Line yAxisId="left" type="monotone" dataKey="atividades" stroke="#6366f1" strokeWidth={3} dot={{ fill: '#6366f1', r: 5 }} name="Atividades" />
-                  <Line yAxisId="right" type="monotone" dataKey="publico" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', r: 5 }} name="Público" />
+                  <Line yAxisId="left" type="monotone" dataKey="atividades" stroke={chartColors[0]} strokeWidth={3} dot={{ fill: chartColors[0], r: 5 }} name="Atividades" />
+                  <Line yAxisId="right" type="monotone" dataKey="publico" stroke={chartColors[2]} strokeWidth={3} dot={{ fill: chartColors[2], r: 5 }} name="Público" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -381,7 +406,7 @@ export default function DashboardPatrocinador() {
                     data={filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter((a) => a.tipo === filterTipoAtividade)}
                     cx="50%" cy="50%" outerRadius={100} dataKey="quantidade" nameKey="tipo" labelLine={false} label={false}>
                     {(filterTipoAtividade === 'todas' ? data.atividades : data.atividades.filter((a) => a.tipo === filterTipoAtividade))
-                      .map((_, i) => <Cell key={`ct-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                       .map((_, i) => <Cell key={`ct-${i}`} fill={chartColors[i % chartColors.length]} />)}
                   </Pie>
                   <Legend wrapperStyle={{ fontSize: '13px' }} />
                   <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f1f5f9', fontSize: '13px' }} />
