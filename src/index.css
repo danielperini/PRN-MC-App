@@ -37,6 +37,26 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    
+    /* Variáveis de tema padrão */
+    --cor-primaria: #111111;
+    --cor-secundaria: #6b7280;
+    --cor-sucesso: #10b981;
+    --cor-alerta: #f59e0b;
+    --cor-fundo: #f8fafc;
+    --cor-fundo-secundario: #f3f4f6;
+    --cor-texto: #0f172a;
+    --cor-texto-secundario: #6b7280;
+    --cor-card: #ffffff;
+    --cor-destaque: #1e293b;
+    --cor-borda: #e2e8f0;
+    --cor-borda-clara: #e2e8f0;
+    --cor-nav: #ffffff;
+    --cor-nav-texto: #1e293b;
+    --cor-btn-primario: #111111;
+    --cor-btn-primario-texto: #ffffff;
+    --cor-btn-primario-hover: #374151;
+    --cor-accent: #3b82f6;
   }
 
   .dark {
@@ -139,6 +159,95 @@
   --cor-verde-museu-light: #d1fae5;
   --cor-azul-museu: #1e40af;
   --cor-azul-museu-light: #dbeafe;
+}
+
+/* Tema Miro */
+[data-theme="miro"] {
+  --cor-primaria: #4262FF;
+  --cor-secundaria: #FFD02F;
+  --cor-sucesso: #2ECC71;
+  --cor-alerta: #FF5C5C;
+  --cor-fundo: #FFFFFF;
+  --cor-fundo-secundario: #F5F6FA;
+  --cor-texto: #2B2D42;
+  --cor-texto-secundario: #A0A4B8;
+  --cor-card: #FFFFFF;
+  --cor-destaque: #FF5C5C;
+  --cor-borda: #E6E8F0;
+  --cor-borda-clara: #E6E8F0;
+  --cor-nav: #4262FF;
+  --cor-nav-texto: #FFFFFF;
+  --cor-btn-primario: #4262FF;
+  --cor-btn-primario-texto: #FFFFFF;
+  --cor-btn-primario-hover: #314BC2;
+  --cor-accent: #FFD02F;
+}
+
+/* Aplicações globais do Tema Miro */
+[data-theme="miro"] .bg-slate-50,
+[data-theme="miro"] .bg-gray-50,
+[data-theme="miro"] .bg-white {
+  background-color: var(--cor-fundo) !important;
+}
+
+[data-theme="miro"] .text-slate-900,
+[data-theme="miro"] .text-gray-900,
+[data-theme="miro"] .text-black {
+  color: var(--cor-texto) !important;
+}
+
+[data-theme="miro"] .border-gray-200,
+[data-theme="miro"] .border-slate-200 {
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="miro"] .bg-blue-600,
+[data-theme="miro"] .bg-blue-500,
+[data-theme="miro"] .bg-primary {
+  background-color: var(--cor-primaria) !important;
+}
+
+[data-theme="miro"] .text-blue-600 {
+  color: var(--cor-primaria) !important;
+}
+
+[data-theme="miro"] .bg-green-50,
+[data-theme="miro"] .bg-green-100 {
+  background-color: rgba(46, 204, 113, 0.1) !important;
+}
+
+[data-theme="miro"] .text-green-700,
+[data-theme="miro"] .text-green-600 {
+  color: var(--cor-sucesso) !important;
+}
+
+[data-theme="miro"] .bg-red-50,
+[data-theme="miro"] .bg-red-100 {
+  background-color: rgba(255, 92, 92, 0.1) !important;
+}
+
+[data-theme="miro"] .text-red-600,
+[data-theme="miro"] .text-red-700 {
+  color: var(--cor-alerta) !important;
+}
+
+[data-theme="miro"] .bg-yellow-50,
+[data-theme="miro"] .bg-yellow-100 {
+  background-color: rgba(255, 208, 47, 0.1) !important;
+}
+
+[data-theme="miro"] .text-yellow-600 {
+  color: var(--cor-secundaria) !important;
+}
+
+[data-theme="miro"] .bg-slate-900,
+[data-theme="miro"] .bg-gray-900 {
+  background-color: var(--cor-primaria) !important;
+}
+
+[data-theme="miro"] .hover\:bg-gray-800:hover,
+[data-theme="miro"] .hover\:bg-slate-800:hover {
+  background-color: var(--cor-btn-primario-hover) !important;
 }
 
 /* Aplicação do tema Museu BH na Sidebar */
