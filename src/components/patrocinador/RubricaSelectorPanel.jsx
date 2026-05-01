@@ -78,7 +78,7 @@ export default function RubricaSelectorPanel() {
 
   return (
     <Card className="border-2 border-black">
-      <CardHeader className="flex flex-col space-y-1.5 p-6 hidden">
+      <CardHeader className="flex flex-col space-y-1.5 p-6 hidden hidden">
         <CardTitle className="flex items-center gap-2">
           <TrendingUp className="w-5 h-5" />
           Análise de Rubrica
