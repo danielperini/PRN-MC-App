@@ -44,6 +44,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     centro_custo: '',
     rubrica_id: '',
     meta_id: '',
+    meta_extra_descricao: '',
     categoria: '',
     tipo_gasto: '',
     valor_solicitado: '',
@@ -87,6 +88,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         centro_custo: prefill.centro_custo || '',
         rubrica_id: prefill.rubrica_id || '',
         meta_id: prefill.meta_id || '',
+        meta_extra_descricao: prefill.meta_extra_descricao || '',
         categoria: prefill.categoria || '',
         tipo_gasto: prefill.tipo_gasto || '',
         valor_solicitado: prefill.valor_solicitado || prefill.valor || '',
@@ -276,7 +278,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
             {/* Meta */}
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Meta</label>
-              <Select value={form.meta_id} onValueChange={v => setField('meta_id', v)}>
+              <Select value={form.meta_id} onValueChange={v => { setField('meta_id', v); if (v !== 'MC3A-EXTRA') setField('meta_extra_descricao', ''); }}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>{METAS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
               </Select>
@@ -313,6 +315,19 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               </Select>
             </div>
           </div>
+
+          {/* Descrição da Meta Extra */}
+          {form.meta_id === 'MC3A-EXTRA' && (
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700">Nome da Meta <span className="text-red-500">*</span></label>
+              <Input
+                value={form.meta_extra_descricao}
+                onChange={e => setField('meta_extra_descricao', e.target.value)}
+                placeholder="Descreva o nome ou título da meta extra..."
+              />
+              <p className="text-xs text-gray-400">Este nome será exibido no lugar de "MC3A-EXTRA" em toda a plataforma.</p>
+            </div>
+          )}
 
           {/* Fornecedor */}
           <div className="grid grid-cols-2 gap-4">

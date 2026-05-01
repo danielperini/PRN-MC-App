@@ -329,7 +329,11 @@ function TabelaSolicitacoes({
               <tr key={p.id} className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
                 <td className="px-3 py-2.5 align-top">
                   <p className="line-clamp-2 font-medium text-gray-900">{p.descricao_item || p.objeto || '—'}</p>
-                  {p.meta_id && <p className="truncate text-xs text-gray-400">{p.meta_id}</p>}
+                  {p.meta_id && (
+                    <p className="truncate text-xs text-gray-400">
+                      {p.meta_id === 'MC3A-EXTRA' && p.meta_extra_descricao ? p.meta_extra_descricao : p.meta_id}
+                    </p>
+                  )}
                   {compraEquipe && (
                     <span className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">Equipe</span>
                   )}
