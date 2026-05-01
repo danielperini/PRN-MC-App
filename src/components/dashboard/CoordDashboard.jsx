@@ -83,10 +83,22 @@ export default function CoordDashboard({ reports = [], isLoading }) {
   const duplicatas = allAtivRaw.length - allAtiv.length;
 
   // KPIs
-  const totalRelatorios = reportsFiltrados.length;
   const pendentes = reportsFiltrados.filter((r) => ['SUBMITTED', 'IN_REVIEW'].includes(r.status)).length;
   const aprovados = reportsFiltrados.filter((r) => r.status === 'APPROVED').length;
   const totalAtiv = allAtiv.length;
+
+  // Atividades do mês anterior (Abril/2026) — apenas relatórios APROVADOS, sem duplicatas
+  const atividadesMesAnterior = useMemo(() => {
+    const agora = new Date();
+    const mesAnteriorIdx = agora.getMonth() === 0 ? 11 : agora.getMonth() - 1; // 0-indexed
+    const mesAnteriorNome = MESES_ORDER[mesAnteriorIdx];
+    const anoAnterior = agora.getMonth() === 0 ? agora.getFullYear() - 1 : agora.getFullYear();
+    const relsMesAnterior = reports.filter(
+      (r) => r.status === 'APPROVED' && r.mes_referencia === mesAnteriorNome && (r.ano || 2026) === anoAnterior
+    );
+    const ativsRaw = relsMesAnterior.flatMap((r) => r.atividades || []);
+    return { count: deduplicarAtividades(ativsRaw).length, mes: mesAnteriorNome };
+  }, [reports]);
   // Usa publico_total (estimado × repetições) quando disponível, senão publico_estimado
   const publicoTotal = allAtiv.reduce((s, a) => s + (Number(a.publico_total) || Number(a.publico_estimado) || 0), 0);
   const metas = allAtiv.filter((a) => a.classificacao === 'META').length;
@@ -205,7 +217,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     }),
     [],
     ['RESUMO GERAL'],
-    ['Total de Relatórios', totalRelatorios],
+    ['Total de Relatórios', reportsFiltrados.length],
     ['Total de Atividades (sem duplicatas)', totalAtiv],
     ['Público Total', publicoTotal],
     ['Metas', metas],
@@ -322,18 +334,13 @@ export default function CoordDashboard({ reports = [], isLoading }) {
       }
 
       {/* KPI Cards — atividades e público consideram apenas relatórios APROVADOS */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        {[
-        { label: 'Total de Relatórios', value: totalRelatorios, icon: FileText },
-        { label: 'Pendentes de Revisão', value: pendentes, icon: AlertCircle, highlight: pendentes > 0 },
-        { label: 'Aprovados', value: aprovados, icon: CheckCircle },
-        { label: 'Atividades (aprovados)', value: totalAtiv, icon: Target },
-        { label: 'Público Total (aprovados)', value: publicoTotal.toLocaleString('pt-BR'), icon: Users }].
-        map((kpi) =>
-        <KpiCard key={kpi.label} {...kpi} />
-        )}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KpiCard label="Pendentes de Revisão" value={pendentes} icon={AlertCircle} highlight={pendentes > 0} />
+        <KpiCard label="Aprovados" value={aprovados} icon={CheckCircle} />
+        <KpiCard label={`Atividades em ${atividadesMesAnterior.mes} (aprovados)`} value={atividadesMesAnterior.count} icon={TrendingUp} />
+        <KpiCard label="Público Total (aprovados)" value={publicoTotal.toLocaleString('pt-BR')} icon={Users} />
       </div>
-      <p className="text-xs text-gray-400">* Atividades e Público Total consideram apenas relatórios com status <strong>APROVADO</strong></p>
+      <p className="text-xs text-gray-400">* Atividades e Público Total consideram apenas relatórios com status <strong>APROVADO</strong>. Duplicatas removidas automaticamente.</p>
 
       {/* Charts row */}
       <div className="grid md:grid-cols-2 gap-6">
