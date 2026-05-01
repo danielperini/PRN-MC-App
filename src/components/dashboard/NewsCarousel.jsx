@@ -122,10 +122,6 @@ export default function NewsCarousel() {
 
 
 
-
-
-
-
             
             </div>
           </div>
