@@ -1,7 +1,8 @@
 import React from 'react';
-import { Palette, Trash2, Shield } from 'lucide-react';
+import { Palette, Shield, ShieldCheck } from 'lucide-react';
 import ThemeSelector from '@/components/theme/ThemeSelector';
 import RemoverDuplicadosPanel from '@/components/admin/RemoverDuplicadosPanel';
+import IntegridadePanel from '@/components/admin/IntegridadePanel.jsx';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function Aparencia() {
@@ -24,6 +25,22 @@ export default function Aparencia() {
         </CardContent>
       </Card>
 
+      {/* Card de verificação de integridade */}
+      <Card className="border border-gray-200">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-semibold flex items-center gap-2 text-gray-800">
+            <ShieldCheck className="w-4 h-4 text-blue-600" />
+            Verificar Integridade do Sistema — Versão 1.0 Estável
+          </CardTitle>
+          <p className="text-xs text-gray-500 mt-1">
+            Verifica banco de dados, usuários, relatórios, compras, rubricas, arquivos, duplicatas e logs.
+          </p>
+        </CardHeader>
+        <CardContent className="pt-0 px-6 pb-6">
+          <IntegridadePanel />
+        </CardContent>
+      </Card>
+
       {/* Card de duplicados */}
       <Card className="border border-gray-200">
         <CardHeader className="pb-2">
@@ -32,7 +49,7 @@ export default function Aparencia() {
             Ferramenta Administrativa — Relatórios Duplicados
           </CardTitle>
           <p className="text-xs text-gray-500 mt-1">
-            Apenas administradores e coordenadores devem usar esta função.
+            Apenas administradores e coordenadores devem usar esta função. Faz backup automático antes de remover.
           </p>
         </CardHeader>
         <CardContent className="pt-0 px-6 pb-6">

@@ -148,6 +148,17 @@ Deno.serve(async (req) => {
 
       await syncAttachments(base44, updated, 'APROVADO');
 
+      // Disparar e-mail automático para setor financeiro (não bloqueia se falhar)
+      try {
+        await base44.asServiceRole.functions.invoke('notifyPurchaseApprovedToFinanceiro', {
+          purchaseId: purchase.id,
+          aprovadorEmail: body.aprovadorEmail || '',
+          aprovadorNome: body.aprovadorNome || '',
+        });
+      } catch (emailErr) {
+        console.warn('E-mail financeiro não enviado:', emailErr?.message);
+      }
+
       return json({ success: true, purchase: updated });
     }
 
