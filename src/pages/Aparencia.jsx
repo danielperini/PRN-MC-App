@@ -2,7 +2,7 @@ import React from 'react';
 import { Palette, Shield, ShieldCheck } from 'lucide-react';
 import ThemeSelector from '@/components/theme/ThemeSelector';
 import RemoverDuplicadosPanel from '@/components/admin/RemoverDuplicadosPanel';
-import IntegridadePanel from '@/components/admin/IntegridadePanel';
+import IntegridadePanel from '@/components/admin/IntegridadePanel.jsx';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function Aparencia() {
