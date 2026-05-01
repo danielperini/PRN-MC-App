@@ -89,19 +89,19 @@
 
 /* ====== Sistema de Temas ====== */
 :root {
-  --cor-primaria: #111111;
-  --cor-secundaria: #6b7280;
-  --cor-fundo: #f8fafc;
-  --cor-texto: #0f172a;
-  --cor-card: #ffffff;
-  --cor-destaque: #1e293b;
-  --cor-borda: #e2e8f0;
-  --cor-nav: #ffffff;
-  --cor-nav-texto: #1e293b;
-  --cor-btn-primario: #111111;
-  --cor-btn-primario-texto: #ffffff;
-  --cor-btn-primario-hover: #374151;
-  --cor-accent: #3b82f6;
+  --cor-primaria: 0 0% 9%;
+  --cor-secundaria: 0 0% 42%;
+  --cor-fundo: 0 0% 98%;
+  --cor-texto: 240 9% 6%;
+  --cor-card: 0 0% 100%;
+  --cor-destaque: 240 6% 10%;
+  --cor-borda: 220 13% 91%;
+  --cor-nav: 0 0% 100%;
+  --cor-nav-texto: 240 6% 10%;
+  --cor-btn-primario: 0 0% 9%;
+  --cor-btn-primario-texto: 0 0% 98%;
+  --cor-btn-primario-hover: 0 0% 27%;
+  --cor-accent: 217 92% 58%;
 }
 
 /* Tema Museu BH */
