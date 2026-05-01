@@ -11,10 +11,6 @@ export default function Perfil() {
     base44.auth.me().then(setUser).catch(() => setUser(null));
   }, []);
 
-  const handleLogout = () => {
-    base44.auth.logout('/');
-  };
-
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center text-gray-400">
@@ -51,7 +47,7 @@ export default function Perfil() {
         <Button
           variant="outline"
           className="w-full justify-start gap-2 text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
-          onClick={handleLogout}
+          onClick={() => base44.auth.logout('/')}
         >
           <LogOut className="w-4 h-4" />
           Sair

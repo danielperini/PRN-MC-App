@@ -34,7 +34,6 @@ import MonitoringPanel from './pages/MonitoringPanel';
 import MumoMap from './pages/MumoMap';
 import MuseusNoMapa from './pages/MuseusNoMapa';
 import NovaAtividade from './pages/NovaAtividade';
-import Perfil from './pages/Perfil.jsx';
 import PlataformaAdmin from './pages/PlataformaAdmin';
 import PlataformaConfig from './pages/PlataformaConfig';
 import PrestacaoDeContas from './pages/PrestacaoDeContas';
@@ -80,7 +79,6 @@ export const PAGES = {
   MumoMap,
   MuseusNoMapa,
   NovaAtividade,
-  Perfil,
   PlataformaAdmin,
   PlataformaConfig,
   PrestacaoDeContas,
