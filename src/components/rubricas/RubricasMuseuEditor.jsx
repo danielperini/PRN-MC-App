@@ -388,10 +388,10 @@ export default function RubricasMuseuEditor({ museu, canEdit = false, refreshKey
 
                             <div className="flex flex-wrap gap-2 mt-1">
                               {rubrica.grupo ? (
-                                <span className="text-[10px] text-gray-500">
-                                  {rubrica.grupo}
-                                </span>
-                              ) : null}
+                                 <span className="text-xs text-gray-600 font-medium">
+                                   {rubrica.grupo}
+                                 </span>
+                               ) : null}
 
                               {rubrica.centro_custo ? (
                                 <span className="text-[10px] text-gray-400">
