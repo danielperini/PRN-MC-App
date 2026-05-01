@@ -182,14 +182,15 @@
   --cor-btn-primario-hover: #314BC2;
   --cor-accent: #FFD02F;
   
-  /* Sidebar escuro Miro */
-  --sidebar-background: #1A1D2E;
-  --sidebar-foreground: #E6E8F0;
-  --sidebar-primary: #4262FF;
+  /* Sidebar preto/vermelho escuro Miro - Melhorada para leitura */
+  --sidebar-background: #111111;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #7A1E2C;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #2B2F42;
-  --sidebar-accent-foreground: #E6E8F0;
-  --sidebar-border: #2B2F42;
+  --sidebar-accent: #2B2D42;
+  --sidebar-accent-foreground: #D1D5DB;
+  --sidebar-border: #333333;
+  --sidebar-ring: #4262FF;
 }
 
 /* Aplicações globais do Tema Miro */
@@ -197,6 +198,50 @@
 [data-theme="miro"] .bg-gray-50,
 [data-theme="miro"] .bg-white {
   background-color: var(--cor-fundo) !important;
+}
+
+/* Sidebar Miro - Contraste aprimorado */
+[data-theme="miro"] .bg-slate-900,
+[data-theme="miro"] .bg-gray-900 {
+  background-color: #111111 !important;
+}
+
+[data-theme="miro"] .bg-slate-800,
+[data-theme="miro"] .bg-gray-800,
+[data-theme="miro"] .hover\:bg-slate-800:hover,
+[data-theme="miro"] .hover\:bg-gray-800:hover {
+  background-color: #7A1E2C !important;
+}
+
+[data-theme="miro"] .text-slate-100,
+[data-theme="miro"] .text-gray-100,
+[data-theme="miro"] .text-white {
+  color: #FFFFFF !important;
+}
+
+[data-theme="miro"] .text-slate-400,
+[data-theme="miro"] .text-gray-400 {
+  color: #A0A4B8 !important;
+}
+
+[data-theme="miro"] .border-slate-800,
+[data-theme="miro"] .border-gray-800 {
+  border-color: #333333 !important;
+}
+
+[data-theme="miro"] .border-slate-700,
+[data-theme="miro"] .border-gray-700 {
+  border-color: #333333 !important;
+}
+
+[data-theme="miro"] .bg-slate-700 {
+  background-color: #2B2D42 !important;
+}
+
+[data-theme="miro"] [data-active="true"],
+[data-theme="miro"] .data-\[active\=true\] {
+  background-color: #7A1E2C !important;
+  color: #FFFFFF !important;
 }
 
 [data-theme="miro"] .text-slate-900,
