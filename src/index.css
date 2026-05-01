@@ -86,3 +86,85 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ====== Sistema de Temas ====== */
+:root {
+  --cor-primaria: #111111;
+  --cor-secundaria: #6b7280;
+  --cor-fundo: #f8fafc;
+  --cor-texto: #0f172a;
+  --cor-card: #ffffff;
+  --cor-destaque: #1e293b;
+  --cor-borda: #e2e8f0;
+  --cor-nav: #ffffff;
+  --cor-nav-texto: #1e293b;
+  --cor-btn-primario: #111111;
+  --cor-btn-primario-texto: #ffffff;
+  --cor-btn-primario-hover: #374151;
+  --cor-accent: #3b82f6;
+}
+
+/* Tema Museu BH */
+[data-theme="museubh"] {
+  --cor-primaria: #2E6F95;
+  --cor-secundaria: #5FA8D3;
+  --cor-fundo: #F5F5F5;
+  --cor-texto: #111111;
+  --cor-card: #ffffff;
+  --cor-destaque: #7A1E2C;
+  --cor-borda: #D9C6A5;
+  --cor-nav: #2E6F95;
+  --cor-nav-texto: #F5F5F5;
+  --cor-btn-primario: #2E6F95;
+  --cor-btn-primario-texto: #ffffff;
+  --cor-btn-primario-hover: #1d5a7a;
+  --cor-accent: #5FA8D3;
+}
+
+/* Aplicação do tema Museu BH na Sidebar */
+[data-theme="museubh"] .bg-slate-900 {
+  background-color: #1a3a4e !important;
+}
+[data-theme="museubh"] .bg-slate-800,
+[data-theme="museubh"] .hover\:bg-slate-800:hover {
+  background-color: #2E6F95 !important;
+}
+[data-theme="museubh"] .border-slate-800 {
+  border-color: #1d5a7a !important;
+}
+[data-theme="museubh"] .bg-slate-700 {
+  background-color: #2E6F95 !important;
+}
+
+/* Botões primários no tema Museu BH */
+[data-theme="museubh"] .bg-gray-900,
+[data-theme="museubh"] .bg-primary {
+  background-color: var(--cor-btn-primario) !important;
+}
+[data-theme="museubh"] .hover\:bg-gray-800:hover,
+[data-theme="museubh"] .hover\:bg-gray-700:hover {
+  background-color: var(--cor-btn-primario-hover) !important;
+}
+
+/* Fundo geral */
+[data-theme="museubh"] body,
+[data-theme="museubh"] .bg-slate-50 {
+  background-color: var(--cor-fundo) !important;
+}
+
+/* Acentos e destaques */
+[data-theme="museubh"] .text-primary,
+[data-theme="museubh"] .text-blue-600,
+[data-theme="museubh"] .text-blue-500 {
+  color: var(--cor-primaria) !important;
+}
+
+[data-theme="museubh"] .bg-blue-600,
+[data-theme="museubh"] .bg-blue-500 {
+  background-color: var(--cor-primaria) !important;
+}
+
+[data-theme="museubh"] .border-blue-500,
+[data-theme="museubh"] .ring-blue-200 {
+  border-color: var(--cor-primaria) !important;
+}

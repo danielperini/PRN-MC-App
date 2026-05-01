@@ -8,6 +8,8 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { PatrocinadorViewProvider } from '@/context/PatrocinadorViewContext';
+import { ThemeProvider } from '@/context/ThemeContext';
+import Aparencia from './pages/Aparencia';
 import ChecklistProducao from './pages/ChecklistProducao';
 import ProgramacaoEspelho from './pages/ProgramacaoEspelho';
 import Agenda from './pages/Agenda';
@@ -162,6 +164,15 @@ function AuthenticatedApp() {
         }
       />
 
+      <Route
+        path="/Aparencia"
+        element={
+          <LayoutWrapper currentPageName="Aparencia">
+            <Aparencia />
+          </LayoutWrapper>
+        }
+      />
+
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
@@ -170,6 +181,7 @@ function AuthenticatedApp() {
 function App() {
   return (
     <AuthProvider>
+      <ThemeProvider>
       <PatrocinadorViewProvider>
         <QueryClientProvider client={queryClientInstance}>
           <Router>
@@ -188,6 +200,7 @@ function App() {
 
         </QueryClientProvider>
       </PatrocinadorViewProvider>
+      </ThemeProvider>
     </AuthProvider>
   );
 }

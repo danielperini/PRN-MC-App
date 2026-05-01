@@ -21,6 +21,7 @@ import {
   Eye,
   Inbox,
   MessageSquare,
+  Palette,
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { isCoordenador, canManageUsers } from '@/components/auth/permissions';
@@ -62,6 +63,7 @@ const NAV_GROUPS = [
     label: 'Meus dados',
     items: [
       { path: 'MeusDados', label: 'Meus dados', icon: User, roles: ['all'] },
+      { path: 'Aparencia', label: 'Aparência', icon: Palette, roles: ['all'] },
       { path: 'Mensagens', label: 'Mensagens', icon: MessageSquare, roles: ['coord', 'admin'] },
       { path: 'UserManagement', label: 'Usuários', icon: Users, roles: ['coord', 'admin'], permission: 'canManageUsers' },
       { path: 'PlataformaAdmin', label: 'Plataforma', icon: Settings, roles: ['admin'], permission: 'canManagePlatform' },

@@ -40,6 +40,7 @@ const PAGE_TITLES = {
   Agenda: 'Agenda Museu Centro',
   EntradaUnica: 'Entrada Única de Documentos',
   Mensagens: 'Mensagens',
+  Aparencia: 'Aparência e Manutenção',
 };
 
 export default function Layout({ children, currentPageName }) {
