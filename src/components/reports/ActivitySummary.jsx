@@ -11,7 +11,7 @@ export default function ActivitySummary({ activities = [], dateRange = null, das
   }
 
   // Usar o público total do Dashboard se fornecido, caso contrário calcular
-  const totalPublico = dashboardPublico !== null ? dashboardPublico : activities.reduce((sum, a) => sum + (Number(a.publico_total) || Number(a.publico_estimado) || 0), 0);
+  const totalPublico = Math.round(dashboardPublico !== null ? dashboardPublico : activities.reduce((sum, a) => sum + (Number(a.publico_total) || Number(a.publico_estimado) || 0), 0));
   const totalActividades = activities.length;
   const aprovados = activities.filter(a => a.status === 'APROVADO').length;
 
