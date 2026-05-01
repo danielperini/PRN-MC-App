@@ -144,8 +144,15 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
   const role = currentUser?.role || '';
   const isCoord = isCoordenador(currentUser, userPermission);
   const isAdmin = role === 'admin' || role === 'ADMIN';
+  const baseRole = userPermission?.base_role || '';
+  const isObservador = baseRole === 'OBSERVADOR' || role === 'OBSERVADOR';
 
   function shouldShowItem(item) {
+    // Observador: apenas Dashboard e LeitorNoticias
+    if (isObservador) {
+      return ['Dashboard', 'LeitorNoticias', 'Agenda'].includes(item.path);
+    }
+
     if (item.permission === 'canManageUsers') return canManageUsers(currentUser);
     if (item.permission === 'canManagePlatform') return isAdmin;
 

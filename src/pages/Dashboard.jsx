@@ -164,11 +164,11 @@ function DashboardInner() {
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-semibold text-black tracking-tight">
-              {showSponsorView ? 'Painel do Patrocinador Parceiro' : showCoordView ? 'Painel da Coordenação' : 'Meu Painel'}
+              {showSponsorView ? 'Painel Observador' : showCoordView ? 'Painel da Coordenação' : 'Meu Painel'}
             </h1>
             <p className="text-gray-500 mt-1 text-sm">
               {showSponsorView
-                ? 'Visão executiva do projeto com indicadores consolidados'
+                ? 'Visão institucional do projeto — somente leitura'
                 : showCoordView
                 ? 'Visão consolidada de todos os relatórios e atividades'
                 : `Olá, ${currentUser?.full_name || ''}! Gerencie seus relatórios mensais.`}
@@ -200,7 +200,7 @@ function DashboardInner() {
                   onClick={() => setShowSponsorView(!showSponsorView)}
                   className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${showSponsorView ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
                 >
-                  <Eye className="w-3.5 h-3.5" />Patrocinador
+                  <Eye className="w-3.5 h-3.5" />Observador
                 </button>
               </div>
             )}

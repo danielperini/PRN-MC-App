@@ -17,6 +17,7 @@ const ROLE_LABELS = {
   COORDENADOR: 'coordenador',
   PROFISSIONAL: 'profissional',
   PATROCINADOR: 'patrocinador',
+  OBSERVADOR: 'observador',
   user: 'usuário',
 };
 
@@ -25,6 +26,7 @@ const ROLE_COLORS = {
   COORDENADOR: 'bg-blue-100 text-blue-800',
   PROFISSIONAL: 'bg-gray-100 text-gray-700',
   PATROCINADOR: 'bg-purple-100 text-purple-700',
+  OBSERVADOR: 'bg-teal-100 text-teal-700',
   user: 'bg-gray-100 text-gray-700',
 };
 
@@ -171,6 +173,7 @@ function PermissionsDialog({ user, permissions, onClose }) {
                 <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
                 <SelectItem value="COORDENADOR">Coordenador</SelectItem>
                 <SelectItem value="ADMIN">Administrador</SelectItem>
+                <SelectItem value="OBSERVADOR">Observador (somente leitura)</SelectItem>
                 <SelectItem value="PATROCINADOR">Patrocinador</SelectItem>
               </SelectContent>
             </Select>
@@ -241,6 +244,7 @@ function UserCard({ user, onEdit, onPassword, onPermissions, onRoleChange, onDel
             <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
             <SelectItem value="COORDENADOR">Coordenador</SelectItem>
             <SelectItem value="ADMIN">Administrador</SelectItem>
+            <SelectItem value="OBSERVADOR">Observador</SelectItem>
             <SelectItem value="PATROCINADOR">Patrocinador</SelectItem>
           </SelectContent>
         </Select>

@@ -95,10 +95,10 @@ export default function DashboardPatrocinador() {
 
       const [reportsRaw, programacaoRaw, rubricasRaw, purchasesRaw, paymentsRaw] = await Promise.all([
         base44.entities.Report.filter({ status: 'APPROVED' }, '-updated_date', 200),
-        base44.entities.Programacao.list('-data_realizacao', 200) || [],
-        base44.entities.Rubrica.list('', 200),
-        base44.entities.PurchaseRequest.filter({ status: 'APROVADO' }, '', 200) || [],
-        base44.entities.TeamPayment.filter({ status: 'PAGO' }, '', 200) || []
+        base44.entities.Programacao.list('-data_realizacao', 200).catch(() => []),
+        base44.entities.Rubrica.list('ordem_exibicao', 300),
+        base44.entities.PurchaseRequest.list('-created_date', 300).catch(() => []),
+        base44.entities.TeamPayment.filter({ status: 'PAGO' }, '', 200).catch(() => [])
       ]);
 
       const now = new Date();
@@ -161,25 +161,25 @@ export default function DashboardPatrocinador() {
         return sum + (Number(a?.publico_total || a?.publico_estimado) || 0);
       }, 0);
 
-      // Rubricas - agrupar por macro (Equipe, Manutenção, Consultorias, etc)
-      const rubricasAgrupadas = {};
+      // Rubricas — filtrar apenas ativas, deduplicar por id, agrupar por grupo
+      const TOTAL_OFICIAL = 1320000;
+      const rubricasUnicas = new Map();
       (rubricasRaw || []).forEach((r) => {
+        if (r?.ativo === false) return; // ignorar inativas
+        if (r?.id && !rubricasUnicas.has(r.id)) rubricasUnicas.set(r.id, r);
+      });
+
+      const rubricasAgrupadas = {};
+      rubricasUnicas.forEach((r) => {
         const grupo = r?.grupo || 'Outros';
         if (!rubricasAgrupadas[grupo]) {
-          rubricasAgrupadas[grupo] = {
-            nome: grupo,
-            previsto: 0,
-            utilizado: 0,
-            saldo: 0
-          };
+          rubricasAgrupadas[grupo] = { nome: grupo, previsto: 0, utilizado: 0, saldo: 0 };
         }
-        // Usa campos reais: valor_rubrica, valor_utilizado, saldo
         const previsto = Number(r?.valor_rubrica || 0);
         const utilizado = Number(r?.valor_utilizado || 0);
-        const saldoRubrica = Number(r?.saldo || (previsto - utilizado));
         rubricasAgrupadas[grupo].previsto += previsto;
         rubricasAgrupadas[grupo].utilizado += utilizado;
-        rubricasAgrupadas[grupo].saldo += saldoRubrica;
+        rubricasAgrupadas[grupo].saldo += (previsto - utilizado);
       });
 
       const rubricasData = Object.values(rubricasAgrupadas).map((r) => ({
@@ -198,15 +198,13 @@ export default function DashboardPatrocinador() {
 
       const atividades = Object.entries(atividadesPorTipo)
         .filter(([, count]) => count > 0)
-        .map(([tipo, count]) => ({
-          tipo,
-          quantidade: count
-        }));
+        .map(([tipo, count]) => ({ tipo, quantidade: count }));
 
-      const totalOrcado = rubricasData.reduce((sum, r) => sum + r.previsto, 0);
+      // Orçamento: previsto sempre = TOTAL_OFICIAL (R$ 1.320.000)
       const totalUtilizado = rubricasData.reduce((sum, r) => sum + r.utilizado, 0);
-      const saldoTotalCalc = totalOrcado - totalUtilizado;
-      const percentualExecucao = totalOrcado > 0 ? Number((totalUtilizado / totalOrcado * 100).toFixed(1)) : 0;
+      const totalOrcado = TOTAL_OFICIAL;
+      const saldoTotalCalc = TOTAL_OFICIAL - totalUtilizado;
+      const percentualExecucao = TOTAL_OFICIAL > 0 ? Number((totalUtilizado / TOTAL_OFICIAL * 100).toFixed(1)) : 0;
 
       const statusProjeto = reportsRaw?.length > 0 ? 'Relatórios aprovados' : 'Em andamento';
 
@@ -251,8 +249,8 @@ export default function DashboardPatrocinador() {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-lg p-6">
-        <h1 className="text-3xl font-bold mb-2">Painel Executivo do Projeto</h1>
-        <p className="text-slate-300">Período: {data.periodo} | Museus: {data.museus.join(', ')}</p>
+        <h1 className="text-3xl font-bold mb-2">Painel Observador — Museus Centro</h1>
+        <p className="text-slate-300">Período: {data.periodo} | Museus: {data.museus.join(', ')} | Orçamento oficial: R$ 1.320.000,00</p>
         
 
 
