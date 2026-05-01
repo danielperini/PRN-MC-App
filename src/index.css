@@ -249,14 +249,51 @@
   color: var(--cor-secundaria) !important;
 }
 
-[data-theme="miro"] .bg-slate-900,
-[data-theme="miro"] .bg-gray-900 {
-  background-color: var(--cor-primaria) !important;
+/* Sidebar escuro para Miro */
+[data-theme="miro"] .bg-slate-900 {
+  background-color: #111111 !important;
+}
+
+[data-theme="miro"] .bg-slate-800,
+[data-theme="miro"] .hover\:bg-slate-800:hover {
+  background-color: #1a1a1a !important;
+}
+
+[data-theme="miro"] .border-slate-800 {
+  border-color: #333333 !important;
+}
+
+[data-theme="miro"] .text-slate-400 {
+  color: #A0A4B8 !important;
+}
+
+[data-theme="miro"] .text-slate-500 {
+  color: #6B7280 !important;
+}
+
+[data-theme="miro"] .text-white {
+  color: #FFFFFF !important;
+}
+
+[data-theme="miro"] .text-slate-300 {
+  color: #E5E7EB !important;
+}
+
+[data-theme="miro"] .text-slate-200 {
+  color: #F3F4F6 !important;
+}
+
+[data-theme="miro"] .bg-white {
+  background-color: #FFFFFF !important;
+}
+
+[data-theme="miro"] .text-slate-900 {
+  color: #111111 !important;
 }
 
 [data-theme="miro"] .hover\:bg-gray-800:hover,
-[data-theme="miro"] .hover\:bg-slate-800:hover {
-  background-color: var(--cor-btn-primario-hover) !important;
+[data-theme="miro"] .hover\:bg-slate-700:hover {
+  background-color: #1a1a1a !important;
 }
 
 /* Aplicação do tema Museu BH na Sidebar */
