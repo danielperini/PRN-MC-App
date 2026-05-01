@@ -45,7 +45,7 @@ const TIPO_COLORS = {
   'Centro divergente':      'bg-gray-100 text-gray-600',
 };
 
-export default function AuditoriaFinanceiraCard({ purchases, rubricas, onEditPurchase }) {
+export default function AuditoriaFinanceiraCard({ purchases = [], rubricas = [], onEditPurchase }) {
   const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState(new Set()); // chaves descartadas
 
@@ -195,7 +195,7 @@ export default function AuditoriaFinanceiraCard({ purchases, rubricas, onEditPur
                 {onEditPurchase && alerta.purchase && (
                   <button
                     type="button"
-                    onClick={() => onEditPurchase(alerta.purchase)}
+                    onClick={() => { if (typeof onEditPurchase === 'function') onEditPurchase(alerta.purchase); }}
                     className="flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors"
                     title="Rever e editar esta solicitação"
                   >

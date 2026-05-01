@@ -367,7 +367,7 @@ function TabelaSolicitacoes({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        setMenuOpenId((c) => (c === p.id ? null : p.id));
+                        onAccess(p);
                       }}
                       className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
                       title="Ações"
