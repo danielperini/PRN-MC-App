@@ -95,26 +95,21 @@ export default function NewsCarousel() {
             }
 
               {/* Conteúdo */}
-              
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            
-
-
-
-
+              <div className="flex-1 flex flex-col justify-between p-3 min-w-0">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-xs text-gray-900 line-clamp-2">{newsItem.titulo}</h3>
+                  <p className="text-xs text-gray-600 line-clamp-1 mt-1">{newsItem.resumo}</p>
+                </div>
+                {newsItem.link &&
+              <a
+                href={newsItem.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-black underline flex items-center gap-1 w-fit hover:opacity-70 mt-2">
+                    Ler <ExternalLink className="w-3 h-3" />
+                  </a>
+              }
+              </div>
 
 
 
