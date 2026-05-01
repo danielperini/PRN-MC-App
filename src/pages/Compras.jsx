@@ -11,6 +11,8 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import NativeSelect from '@/components/ui/NativeSelect';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   ShoppingCart,
   Plus,
@@ -471,6 +473,7 @@ function TabelaSolicitacoes({
 
 function ComprasInner() {
   const smartToast = useSmartToast();
+  const isMobile = useIsMobile();
   const [currentUser, setCurrentUser] = useState(null);
   const [tab, setTab] = useState('lista');
   const [showForm, setShowForm] = useState(false);
@@ -934,41 +937,84 @@ function ComprasInner() {
         {tab === 'lista' && (
           <div>
             <div className="mb-4 flex flex-wrap gap-3">
-              <div className="relative min-w-48 flex-1">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                <Input placeholder="Buscar..." className="pl-9" value={filters.search} onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))} />
-              </div>
+               <div className="relative min-w-48 flex-1">
+                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                 <Input placeholder="Buscar..." className="pl-9" value={filters.search} onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))} />
+               </div>
 
-              <Select value={filters.status} onValueChange={(v) => setFilters((f) => ({ ...f, status: v }))}>
-                <SelectTrigger className="w-44"><SelectValue placeholder="Status" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os status</SelectItem>
-                  {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+               {isMobile ? (
+                 <>
+                   <NativeSelect
+                     value={filters.status}
+                     onValueChange={(v) => setFilters((f) => ({ ...f, status: v }))}
+                     placeholder="Status"
+                     items={[
+                       { value: 'all', label: 'Todos os status' },
+                       ...Object.entries(STATUS_CONFIG).map(([k, v]) => ({
+                         value: k,
+                         label: v.label
+                       }))
+                     ]}
+                   />
+                   <NativeSelect
+                     value={filters.rubrica_id}
+                     onValueChange={(v) => setFilters((f) => ({ ...f, rubrica_id: v }))}
+                     placeholder="Rubrica"
+                     items={[
+                       { value: 'all', label: 'Todas as rubricas' },
+                       ...(rubricas || []).filter((r) => r?.ativo !== false).map((r) => ({
+                         value: r.id,
+                         label: r.rubrica || r.nome
+                       }))
+                     ]}
+                   />
+                   <NativeSelect
+                     value={filters.centro_custo}
+                     onValueChange={(v) => setFilters((f) => ({ ...f, centro_custo: v }))}
+                     placeholder="Centro de custo"
+                     items={[
+                       { value: 'all', label: 'Todos os centros' },
+                       ...centrosDisponiveis.map((centro) => ({
+                         value: centro,
+                         label: centro
+                       }))
+                     ]}
+                   />
+                 </>
+               ) : (
+                 <>
+                   <Select value={filters.status} onValueChange={(v) => setFilters((f) => ({ ...f, status: v }))}>
+                     <SelectTrigger className="w-44"><SelectValue placeholder="Status" /></SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="all">Todos os status</SelectItem>
+                       {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+                         <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                       ))}
+                     </SelectContent>
+                   </Select>
 
-              <Select value={filters.rubrica_id} onValueChange={(v) => setFilters((f) => ({ ...f, rubrica_id: v }))}>
-                <SelectTrigger className="w-64"><SelectValue placeholder="Rubrica" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as rubricas</SelectItem>
-                  {(rubricas || []).filter((r) => r?.ativo !== false).map((r) => (
-                    <SelectItem key={r.id} value={r.id}>{r.rubrica || r.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                   <Select value={filters.rubrica_id} onValueChange={(v) => setFilters((f) => ({ ...f, rubrica_id: v }))}>
+                     <SelectTrigger className="w-64"><SelectValue placeholder="Rubrica" /></SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="all">Todas as rubricas</SelectItem>
+                       {(rubricas || []).filter((r) => r?.ativo !== false).map((r) => (
+                         <SelectItem key={r.id} value={r.id}>{r.rubrica || r.nome}</SelectItem>
+                       ))}
+                     </SelectContent>
+                   </Select>
 
-              <Select value={filters.centro_custo} onValueChange={(v) => setFilters((f) => ({ ...f, centro_custo: v }))}>
-                <SelectTrigger className="w-44"><SelectValue placeholder="Centro de custo" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os centros</SelectItem>
-                  {centrosDisponiveis.map((centro) => (
-                    <SelectItem key={centro} value={centro}>{centro}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                   <Select value={filters.centro_custo} onValueChange={(v) => setFilters((f) => ({ ...f, centro_custo: v }))}>
+                     <SelectTrigger className="w-44"><SelectValue placeholder="Centro de custo" /></SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="all">Todos os centros</SelectItem>
+                       {centrosDisponiveis.map((centro) => (
+                         <SelectItem key={centro} value={centro}>{centro}</SelectItem>
+                       ))}
+                     </SelectContent>
+                   </Select>
+                 </>
+               )}
+             </div>
 
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm text-gray-500">

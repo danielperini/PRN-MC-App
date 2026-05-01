@@ -43,6 +43,8 @@ const PAGE_TITLES = {
   EntradaUnica: 'Entrada Única de Documentos',
   Mensagens: 'Mensagens',
   Aparencia: 'Aparência e Manutenção',
+  ChecklistProducao: 'Checklist de Produção',
+  BaseConhecimento: 'Base de Conhecimento',
 };
 
 export default function Layout({ children, currentPageName }) {
@@ -188,7 +190,9 @@ export default function Layout({ children, currentPageName }) {
                 )}
               </div>
             )}
-            {children}
+            <div>
+              {children}
+            </div>
           </main>
 
           <MobileBottomTab currentPageName={currentPageName} />
