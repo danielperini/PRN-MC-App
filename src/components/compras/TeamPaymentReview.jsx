@@ -12,7 +12,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import NativeSelect from '@/components/ui/NativeSelect';
-import { useMediaQuery } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   CheckCircle,
   XCircle,
@@ -84,7 +84,7 @@ function PaymentDetailModal({
 }) {
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  const isMobile = useIsMobile();
 
   const [form, setForm] = useState({
     member_name: payment?.member_name || payment?.user_name || payment?.nf_emitente_nome || '',
@@ -419,7 +419,7 @@ export default function TeamPaymentReview() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedPayment, setSelectedPayment] = useState(null);
   const queryClient = useQueryClient();
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     base44.auth.me().then(setCurrentUser).catch(() => setCurrentUser(null));
