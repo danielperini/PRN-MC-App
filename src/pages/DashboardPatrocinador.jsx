@@ -42,13 +42,51 @@ export default function DashboardPatrocinador() {
 
   useEffect(() => {
     loadDashboardData();
-    const interval = setInterval(loadDashboardData, 60000);
-    const unsubscribeReports = base44.entities.Report.subscribe((e) => { if (e.type === 'update' && e.data?.status === 'APPROVED') loadDashboardData(); });
-    const unsubscribeActivities = base44.entities.Activity.subscribe((e) => { if (e.type === 'create' || e.type === 'update') loadDashboardData(); });
-    const unsubscribeRubricas = base44.entities.Rubrica.subscribe((e) => { if (e.type === 'update') loadDashboardData(); });
-    const unsubscribePayments = base44.entities.TeamPayment.subscribe((e) => { if ((e.type === 'update' || e.type === 'create') && e.data?.status === 'PAGO') loadDashboardData(); });
-    const unsubscribePurchases = base44.entities.PurchaseRequest.subscribe((e) => { if ((e.type === 'create' || e.type === 'update') && e.data?.status === 'APROVADO') loadDashboardData(); });
-    return () => { clearInterval(interval); unsubscribeReports(); unsubscribeActivities(); unsubscribeRubricas(); unsubscribePayments(); unsubscribePurchases(); };
+    
+    // Sincronizar a cada 30 segundos para dados mais frescos
+    const interval = setInterval(() => {
+      loadDashboardData();
+    }, 30000);
+
+    // Subscrições em tempo real para atualizar instantaneamente
+    const unsubscribeReports = base44.entities.Report.subscribe((e) => {
+      if (e.type === 'create' || e.type === 'update') {
+        loadDashboardData();
+      }
+    });
+    
+    const unsubscribeActivities = base44.entities.Activity.subscribe((e) => {
+      if (e.type === 'create' || e.type === 'update') {
+        loadDashboardData();
+      }
+    });
+    
+    const unsubscribeRubricas = base44.entities.Rubrica.subscribe((e) => {
+      if (e.type === 'update') {
+        loadDashboardData();
+      }
+    });
+    
+    const unsubscribePayments = base44.entities.TeamPayment.subscribe((e) => {
+      if (e.type === 'create' || e.type === 'update') {
+        loadDashboardData();
+      }
+    });
+    
+    const unsubscribePurchases = base44.entities.PurchaseRequest.subscribe((e) => {
+      if (e.type === 'create' || e.type === 'update') {
+        loadDashboardData();
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribeReports();
+      unsubscribeActivities();
+      unsubscribeRubricas();
+      unsubscribePayments();
+      unsubscribePurchases();
+    };
   }, []);
 
   async function loadDashboardData() {
