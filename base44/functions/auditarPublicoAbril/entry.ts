@@ -1,5 +1,10 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+const MESES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -9,15 +14,27 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Buscar todos os relatórios de abril/2026
+    // Calcular mês anterior
+    const agora = new Date();
+    let mesIndex = agora.getMonth() - 1; // 0-11
+    let ano = agora.getFullYear();
+    
+    if (mesIndex < 0) {
+      mesIndex = 11;
+      ano--;
+    }
+    
+    const mesReferencia = MESES[mesIndex];
+
+    // Buscar todos os relatórios do mês anterior
     const relatorios = await base44.asServiceRole.entities.Report.filter({
-      mes_referencia: 'Abril',
-      ano: 2026,
+      mes_referencia: mesReferencia,
+      ano: ano,
     }, '-updated_date', 500);
 
     const auditoria = {
-      mes: 'Abril',
-      ano: 2026,
+      mes: mesReferencia,
+      ano: ano,
       data_auditoria: new Date().toISOString(),
       auditado_por: user.email,
       resumo: {
