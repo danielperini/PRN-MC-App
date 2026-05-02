@@ -161,7 +161,7 @@ function DashboardInner() {
   }, [filteredReports]);
 
   return (
-    <div className="min-h-screen overflow-y-auto" ref={containerRef} style={{ maxHeight: '100vh' }}>
+    <div className="min-h-screen bg-white overflow-y-auto" ref={containerRef} style={{ maxHeight: '100vh' }}>
       {isPulling && (
         <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center h-16 bg-gradient-to-b from-blue-50 to-transparent">
           <div className="text-center">
