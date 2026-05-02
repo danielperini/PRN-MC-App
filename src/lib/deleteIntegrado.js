@@ -7,31 +7,19 @@ import { base44 } from '@/api/base44Client';
 
 const STATUS_APROVADOS = ['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO'];
 
-async function softDeleteIntake(id) {
+async function hardDeleteIntake(id) {
   try {
     await base44.entities.DocumentIntake.delete(id);
-  } catch {
-    try {
-      await base44.entities.DocumentIntake.update(id, {
-        status_processamento: 'DELETADO',
-        status_registro: 'INATIVO',
-        ocultar_entrada_unica: true,
-      });
-    } catch (e2) {
-      console.warn('soft delete intake falhou:', e2.message);
-    }
+  } catch (e) {
+    console.warn('Erro ao deletar intake:', e.message);
   }
 }
 
-async function softDeleteAttachment(id) {
+async function hardDeleteAttachment(id) {
   try {
     await base44.entities.Attachment.delete(id);
-  } catch {
-    try {
-      await base44.entities.Attachment.update(id, { status_registro: 'DELETADO' });
-    } catch (e2) {
-      console.warn('soft delete attachment falhou:', e2.message);
-    }
+  } catch (e) {
+    console.warn('Erro ao deletar attachment:', e.message);
   }
 }
 
@@ -74,7 +62,7 @@ export async function deleteIntake(intake) {
   const isXML = intake.tipo_detectado === 'NOTA_FISCAL_XML' ||
     String(intake.file_name_original || '').toLowerCase().endsWith('.xml');
 
-  // 1. Se há PurchaseRequest vinculada
+  // 1. Se há PurchaseRequest vinculada: estornar rubrica e deletar de fato
   const prId = intake.entidade_destino_id;
   if (prId && intake.entidade_destino === 'PurchaseRequest') {
     try {
@@ -84,23 +72,17 @@ export async function deleteIntake(intake) {
         if (STATUS_APROVADOS.includes(pr.status)) {
           await estornarRubrica(pr);
         }
-        // Cancelar solicitação
-        await base44.entities.PurchaseRequest.update(prId, {
-          status: 'CANCELADO',
-          rubrica_debitada_em: null,
-          rubrica_debitada_valor: 0,
-          financeiro_lancado_em: null,
-        });
-
         // Deletar attachments vinculados à PR
         try {
           const attachments = await base44.entities.Attachment.filter({ report_id: prId }, '-created_date', 50);
           for (const att of attachments || []) {
-            await softDeleteAttachment(att.id);
+            await hardDeleteAttachment(att.id);
           }
         } catch (e) {
           console.warn('Erro ao buscar attachments da PR:', e.message);
         }
+        // Deletar a solicitação de fato
+        await base44.entities.PurchaseRequest.delete(prId);
       }
     } catch (e) {
       console.warn('Erro ao processar PR vinculada:', e.message);
@@ -109,7 +91,7 @@ export async function deleteIntake(intake) {
 
   // 2. Se PDF: deletar XML pareado
   if (isPDF && intake.nf_xml_intake_id) {
-    await softDeleteIntake(intake.nf_xml_intake_id);
+    await hardDeleteIntake(intake.nf_xml_intake_id);
   }
 
   // 3. Se XML: remover vínculo no PDF pareado
@@ -125,8 +107,8 @@ export async function deleteIntake(intake) {
     }
   }
 
-  // 4. Deletar o intake
-  await softDeleteIntake(intake.id);
+  // 4. Deletar o intake de fato
+  await hardDeleteIntake(intake.id);
 }
 
 /**
@@ -141,25 +123,17 @@ export async function deletePurchaseRequest(pr) {
     await estornarRubrica(pr);
   }
 
-  // 2. Cancelar a solicitação
-  await base44.entities.PurchaseRequest.update(pr.id, {
-    status: 'CANCELADO',
-    rubrica_debitada_em: null,
-    rubrica_debitada_valor: 0,
-    financeiro_lancado_em: null,
-  });
-
-  // 3. Deletar attachments vinculados
+  // 2. Deletar attachments vinculados de fato
   try {
     const attachments = await base44.entities.Attachment.filter({ report_id: pr.id }, '-created_date', 50);
     for (const att of attachments || []) {
-      await softDeleteAttachment(att.id);
+      await hardDeleteAttachment(att.id);
     }
   } catch (e) {
     console.warn('Erro ao buscar attachments:', e.message);
   }
 
-  // 4. Localizar e ocultar DocumentIntake vinculado (por intake_id ou entidade_destino_id)
+  // 3. Localizar e deletar DocumentIntake vinculado
   try {
     const intakes = await base44.entities.DocumentIntake.filter(
       { entidade_destino_id: pr.id },
@@ -169,11 +143,14 @@ export async function deletePurchaseRequest(pr) {
     for (const intake of intakes || []) {
       // Se PDF: também deletar XML pareado
       if (intake.nf_xml_intake_id) {
-        await softDeleteIntake(intake.nf_xml_intake_id);
+        await hardDeleteIntake(intake.nf_xml_intake_id);
       }
-      await softDeleteIntake(intake.id);
+      await hardDeleteIntake(intake.id);
     }
   } catch (e) {
     console.warn('Erro ao buscar intakes vinculados:', e.message);
   }
+
+  // 4. Deletar a solicitação de fato
+  await base44.entities.PurchaseRequest.delete(pr.id);
 }
