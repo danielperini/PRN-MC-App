@@ -7,6 +7,7 @@ import ReviewModalNF from '@/components/entrada/ReviewModalNF';
 import ReviewModalFoto from '@/components/entrada/ReviewModalFoto';
 import ReviewModalDocAdmin from '@/components/entrada/ReviewModalDocAdmin';
 import ReviewModalOutro from '@/components/entrada/ReviewModalOutro';
+import LinkXmlModal from '@/components/entrada/LinkXmlModal';
 import { Loader2, InboxIcon } from 'lucide-react';
 
 function normalizeText(value) {
@@ -140,6 +141,7 @@ export default function EntradaUnica() {
   const [intakes, setIntakes] = useState([]);
   const [loadingIntakes, setLoadingIntakes] = useState(true);
   const [reviewIntake, setReviewIntake] = useState(null);
+  const [linkXmlIntake, setLinkXmlIntake] = useState(null); // XML aguardando vínculo manual
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -233,6 +235,9 @@ export default function EntradaUnica() {
         if (status === 'ENVIADO_APROVACAO') return false;
         if (status === 'DELETADO') return false;
         if (i.ocultar_entrada_unica === true) return false;
+        // XMLs já vinculados a um PDF somem da lista
+        const isXML = getTipoByFile(i) === 'NOTA_FISCAL_XML';
+        if (isXML && i.nf_pdf_intake_id) return false;
         return true;
       });
 
@@ -254,7 +259,16 @@ export default function EntradaUnica() {
 
     if (!isPDF && !isXML) return;
 
-    const tipoFallback = isXML ? 'NOTA_FISCAL_XML' : 'NOTA_FISCAL_PDF';
+    // XMLs não são suportados pela IA — marcar direto como aguardando revisão
+    if (isXML) {
+      await base44.entities.DocumentIntake.update(intakeId, {
+        status_processamento: 'AGUARDANDO_REVISAO',
+        tipo_detectado: 'NOTA_FISCAL_XML',
+      }).catch(() => {});
+      return;
+    }
+
+    const tipoFallback = 'NOTA_FISCAL_PDF';
 
     const aplicarFallback = async () => {
       await base44.entities.DocumentIntake.update(intakeId, {
@@ -360,36 +374,13 @@ Retorne apenas o JSON, sem explicações.`;
   }
 
   async function handleLinkXml(xmlIntake) {
+    // Abre modal para o usuário escolher o PDF
+    setLinkXmlIntake(xmlIntake);
+  }
+
+  async function handleConfirmLinkXml(xmlIntake, pdfIntake) {
     try {
-      const list = await base44.entities.DocumentIntake.filter(
-        { user_email: user.email, status_registro: 'ATIVO' },
-        '-created_date',
-        100
-      );
-
-      const pdfs = (list || []).filter((item) => {
-        if (item.id === xmlIntake.id) return false;
-        if (item.ocultar_entrada_unica) return false;
-        return getTipoByFile(item) === 'NOTA_FISCAL_PDF';
-      });
-
-      let melhorPdf = null;
-      let melhorScore = 0;
-
-      for (const pdf of pdfs) {
-        const score = calcularScoreVinculo(xmlIntake, pdf);
-        if (score > melhorScore) {
-          melhorPdf = pdf;
-          melhorScore = score;
-        }
-      }
-
-      if (!melhorPdf) {
-        toast.error('Nenhum PDF correspondente encontrado para este XML.');
-        return;
-      }
-
-      await base44.entities.DocumentIntake.update(melhorPdf.id, {
+      await base44.entities.DocumentIntake.update(pdfIntake.id, {
         grupo_status: 'COMPLETO',
         nf_xml_intake_id: xmlIntake.id,
         nf_xml_url: xmlIntake.arquivo_original_url,
@@ -397,13 +388,13 @@ Retorne apenas o JSON, sem explicações.`;
 
       await base44.entities.DocumentIntake.update(xmlIntake.id, {
         grupo_status: 'COMPLETO',
-        nf_pdf_intake_id: melhorPdf.id,
-        nf_pdf_url: melhorPdf.arquivo_original_url,
+        nf_pdf_intake_id: pdfIntake.id,
+        nf_pdf_url: pdfIntake.arquivo_original_url,
         ocultar_entrada_unica: true,
       });
 
       toast.success('XML vinculado à nota fiscal com sucesso.');
-      setIntakes((prev) => prev.filter((i) => i.id !== xmlIntake.id));
+      setLinkXmlIntake(null);
       await loadIntakes();
     } catch (e) {
       console.error('Erro ao vincular XML:', e);
@@ -574,6 +565,17 @@ Retorne apenas o JSON, sem explicações.`;
           intake={reviewIntake}
           onClose={() => setReviewIntake(null)}
           onSaved={handleSaved}
+        />
+      )}
+
+      {linkXmlIntake && (
+        <LinkXmlModal
+          xmlIntake={linkXmlIntake}
+          pdfsDisponiveis={intakes.filter(
+            (i) => getTipoByFile(i) === 'NOTA_FISCAL_PDF' && !i.nf_xml_intake_id && i.grupo_status !== 'COMPLETO'
+          )}
+          onConfirm={(pdfIntake) => handleConfirmLinkXml(linkXmlIntake, pdfIntake)}
+          onClose={() => setLinkXmlIntake(null)}
         />
       )}
     </div>
