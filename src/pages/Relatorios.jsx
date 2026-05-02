@@ -157,11 +157,9 @@ function RelatoriosInner() {
 
   const uniqueTeams = Array.from(new Set(allActivities.map((a) => a.equipe_responsavel).filter(Boolean))).sort();
 
-  const approvedReports = baseReports.filter((r) => ['APPROVED', 'SUBMITTED', 'IN_REVIEW', 'ARCHIVED'].includes(r.status));
-  const dashboardTotalPublico = approvedReports.reduce((sum, r) => {
-    const acts = Array.isArray(r.atividades) ? r.atividades : [];
-    return sum + acts.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0);
-  }, 0);
+  // Público total real = soma de publico_total (já multiplica por repeticoes) das atividades filtradas
+  const dashboardTotalPublico = filteredActivityList.reduce((sum, a) =>
+    sum + (Number(a.publico_total) || Number(a.publico_estimado) || 0), 0);
 
   const filtered = baseReports.filter((r) => {
     if (filters.mes && r.mes_referencia !== filters.mes) return false;
