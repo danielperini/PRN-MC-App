@@ -20,6 +20,15 @@ function detectMimeType(mimeType: unknown, fileName: unknown) {
     return 'PDF_CANDIDATO';
   }
 
+  if (
+    mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    mime === 'application/msword' ||
+    name.endsWith('.docx') ||
+    name.endsWith('.doc')
+  ) {
+    return 'DOCX_CANDIDATO';
+  }
+
   return 'OUTRO';
 }
 
@@ -597,6 +606,80 @@ Procure por:
         resultado_ia: resultadoIa,
         rubrica: rubricaSugerida,
       });
+    }
+
+    if (tipoDetectado === 'DOCX_CANDIDATO') {
+      try {
+        const hoje = new Date().toISOString().slice(0, 10);
+
+        const iaResp = await base44.asServiceRole.integrations.Core.InvokeLLM({
+          prompt: `Analise este documento Word (.docx) e determine seu tipo e conteúdo principal.
+Pode ser: contrato, termo, proposta, relatório, ata, ofício, declaração, currículo, memorial descritivo ou outro.
+Extraia as informações principais.${orientacoesUsuario ? `\n\nOrientações do usuário: ${orientacoesUsuario}` : ''}
+
+A data atual é ${hoje}.
+
+Responda SOMENTE em JSON válido:
+{
+  "tipo_documento": "contrato|termo|proposta|relatorio|ata|oficio|declaracao|outro",
+  "titulo": "",
+  "resumo": "",
+  "partes_envolvidas": [],
+  "valor_estimado": "",
+  "data_documento": "",
+  "vigencia": "",
+  "pontos_principais": [],
+  "inconsistencias": []
+}`,
+          file_urls: [fileUrl],
+          response_json_schema: {
+            type: 'object',
+            properties: {
+              tipo_documento: { type: 'string' },
+              titulo: { type: 'string' },
+              resumo: { type: 'string' },
+              partes_envolvidas: { type: 'array', items: { type: 'string' } },
+              valor_estimado: { type: 'string' },
+              data_documento: { type: 'string' },
+              vigencia: { type: 'string' },
+              pontos_principais: { type: 'array', items: { type: 'string' } },
+              inconsistencias: { type: 'array', items: { type: 'string' } },
+            },
+          },
+        });
+
+        resultadoIa = iaResp || {};
+        if (Array.isArray(resultadoIa.inconsistencias)) {
+          erros = resultadoIa.inconsistencias;
+        }
+      } catch (e) {
+        erros.push(`Análise do documento Word falhou: ${e.message}`);
+      }
+
+      const tituloDocx = safeStr(resultadoIa.titulo) || fileName;
+      nomeFinal = tituloDocx.length > 5 ? `${tituloDocx.substring(0, 60)} - MUSEUS CENTRO.docx` : fileName;
+
+      await updateSafe(base44.asServiceRole.entities.Attachment, attachment?.id, {
+        description: resultadoIa.resumo || 'Entrada Única - Documento Word',
+        categoria: 'documento_administrativo',
+        backup_done: attachment?.backup_done || false,
+      });
+
+      const grupoStatusDocx = await resolveGrupoStatus(base44, intake, 'DOCUMENTO_ADMINISTRATIVO');
+
+      await base44.asServiceRole.entities.DocumentIntake.update(intakeId, {
+        tipo_detectado: 'DOCUMENTO_ADMINISTRATIVO',
+        status_processamento: 'AGUARDANDO_REVISAO',
+        resultado_ia: resultadoIa,
+        entidade_destino: 'Attachment',
+        entidade_destino_id: attachment?.id || intake.entidade_destino_id || '',
+        file_name_final: nomeFinal,
+        erros_validacao: erros,
+        revisado_pelo_usuario: false,
+        grupo_status: grupoStatusDocx,
+      });
+
+      return Response.json({ ok: true, tipo: 'DOCUMENTO_ADMINISTRATIVO', subtipo: 'docx', resultado_ia: resultadoIa });
     }
 
     const grupoStatus = await resolveGrupoStatus(base44, intake, 'OUTRO');

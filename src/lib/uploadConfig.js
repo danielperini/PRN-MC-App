@@ -20,12 +20,16 @@ export const UPLOAD_CONFIG = {
   ACCEPTED_TYPES: {
     pdf: 'application/pdf',
     xml: ['text/xml', 'application/xml'],
-    image: ['image/jpeg', 'image/png', 'image/webp'],
+    image: ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'],
+    docx: [
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+    ],
     excel: ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
   },
 
   // Extensões aceitas
-  ACCEPTED_EXTENSIONS: ['.pdf', '.xml', '.jpg', '.jpeg', '.png', '.webp', '.xls', '.xlsx'],
+  ACCEPTED_EXTENSIONS: ['.pdf', '.xml', '.jpg', '.jpeg', '.png', '.webp', '.xls', '.xlsx', '.doc', '.docx'],
 };
 
 /**

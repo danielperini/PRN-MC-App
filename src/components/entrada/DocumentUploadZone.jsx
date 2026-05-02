@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Upload, FileText, Image, X, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, FileText, Image, X, AlertCircle, Loader2, FileType } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -88,11 +88,12 @@ export default function DocumentUploadZone({ onFilesSelected, disabled, uploadin
     if (file.type.startsWith('image/')) {
       return <Image className="w-5 h-5 text-purple-400" />;
     }
-
     if (file.name.toLowerCase().endsWith('.xml')) {
       return <FileText className="w-5 h-5 text-green-500" />;
     }
-
+    if (file.name.toLowerCase().endsWith('.docx') || file.name.toLowerCase().endsWith('.doc')) {
+      return <FileType className="w-5 h-5 text-blue-500" />;
+    }
     return <FileText className="w-5 h-5 text-slate-400" />;
   }
 
@@ -125,14 +126,14 @@ export default function DocumentUploadZone({ onFilesSelected, disabled, uploadin
           </p>
 
           <p className="text-xs text-slate-400 text-center">
-            Suporta contratos, termos, notas fiscais PDF, XML complementar e imagens.
+            Suporta PDF, XML, Word (.docx) e imagens (JPG, PNG).
           </p>
 
           <input
             ref={inputRef}
             type="file"
             className="hidden"
-            accept="application/pdf,text/xml,application/xml,image/*,.xml"
+            accept="application/pdf,text/xml,application/xml,image/*,.xml,.doc,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
             multiple
             onChange={(e) => handleFiles(e.target.files)}
             disabled={isDisabled}
@@ -196,7 +197,7 @@ export default function DocumentUploadZone({ onFilesSelected, disabled, uploadin
             ref={inputRef}
             type="file"
             className="hidden"
-            accept="application/pdf,text/xml,application/xml,image/*,.xml"
+            accept="application/pdf,text/xml,application/xml,image/*,.xml,.doc,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
             multiple
             onChange={(e) => handleFiles(e.target.files)}
             disabled={isDisabled}
