@@ -157,9 +157,7 @@ function RelatoriosInner() {
 
   const uniqueTeams = Array.from(new Set(allActivities.map((a) => a.equipe_responsavel).filter(Boolean))).sort();
 
-  // Público total real = soma de publico_total (já multiplica por repeticoes) das atividades filtradas
-  const dashboardTotalPublico = filteredActivityList.reduce((sum, a) =>
-    sum + (Number(a.publico_total) || Number(a.publico_estimado) || 0), 0);
+
 
   const filtered = baseReports.filter((r) => {
     if (filters.mes && r.mes_referencia !== filters.mes) return false;
@@ -404,7 +402,7 @@ function RelatoriosInner() {
           {filteredActivityList.length > 0 &&
           <div className="space-y-3">
               <p className="text-xs font-semibold text-black uppercase tracking-wide">Resumo do Período</p>
-              <ActivitySummary activities={filteredActivityList} dashboardPublico={dashboardTotalPublico} />
+              <ActivitySummary activities={filteredActivityList} />
             </div>
           }
         </div>
