@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AlertCircle, Clock, CheckCircle2, ChevronDown } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -9,97 +9,66 @@ export default function PendingActionsAlert() {
   const [pendingActions, setPendingActions] = useState([]);
   const [showPanel, setShowPanel] = useState(false);
   const [loading, setLoading] = useState(false);
+  const debounceRef = useRef(null);
+
+  const loadPendingActions = useCallback(async () => {
+    if (!user?.email) return;
+    try {
+      setLoading(true);
+      const returnedReports = await base44.entities.Report.filter(
+        { created_by: user.email, status: 'RETURNED' },
+        '-updated_date',
+        10
+      );
+
+      const actions = [];
+      returnedReports.forEach(report => {
+        actions.push({
+          id: `report_${report.id}`,
+          type: 'report_returned',
+          title: `Relatório devolvido: ${report.author_name}`,
+          subtitle: `${report.mes_referencia}/${report.ano}`,
+          description: report.return_comment || 'Revise os comentários do coordenador',
+          icon: AlertCircle,
+          color: 'text-amber-600',
+          bg: 'bg-amber-50',
+          border: 'border-amber-200',
+          createdAt: report.updated_date
+        });
+      });
+
+      actions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      setPendingActions(actions);
+    } catch (error) {
+      console.error('Erro ao carregar ações pendentes:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.email]);
+
+  // Versão com debounce para as subscriptions (evita rate limit)
+  const debouncedLoad = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => loadPendingActions(), 5000);
+  }, [loadPendingActions]);
 
   useEffect(() => {
     if (!user?.email) return;
 
-    const loadPendingActions = async () => {
-      try {
-        setLoading(true);
-        // Relatórios retornados para edição (status RETURNED)
-        const returnedReports = await base44.entities.Report.filter(
-          { 
-            created_by: user.email,
-            status: 'RETURNED'
-          },
-          '-updated_date',
-          10
-        );
-
-        // Solicitações de compra pendentes de aprovação (para coordenadores)
-        let pendingPurchases = [];
-        if (user.role === 'admin') {
-          pendingPurchases = await base44.entities.PurchaseRequest.filter(
-            { status: 'PENDING_APPROVAL' },
-            '-created_date',
-            10
-          );
-        }
-
-        const actions = [];
-
-        // Adicionar relatórios retornados
-        returnedReports.forEach(report => {
-          actions.push({
-            id: `report_${report.id}`,
-            type: 'report_returned',
-            title: `Relatório devolvido: ${report.author_name}`,
-            subtitle: `${report.mes_referencia}/${report.ano}`,
-            description: report.return_comment || 'Revise os comentários do coordenador',
-            icon: AlertCircle,
-            color: 'text-amber-600',
-            bg: 'bg-amber-50',
-            border: 'border-amber-200',
-            createdAt: report.updated_date
-          });
-        });
-
-        // Adicionar solicitações de compra pendentes
-        pendingPurchases.forEach(purchase => {
-          actions.push({
-            id: `purchase_${purchase.id}`,
-            type: 'purchase_pending',
-            title: `Aprovação pendente: ${purchase.descricao}`,
-            subtitle: `Solicitante: ${purchase.solicitante_nome}`,
-            description: `R$ ${purchase.valor_estimado?.toFixed(2) || '0.00'}`,
-            icon: Clock,
-            color: 'text-blue-600',
-            bg: 'bg-blue-50',
-            border: 'border-blue-200',
-            createdAt: purchase.created_date
-          });
-        });
-
-        // Ordenar por data (mais recentes primeiro)
-        actions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        setPendingActions(actions);
-      } catch (error) {
-        console.error('Erro ao carregar ações pendentes:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadPendingActions();
 
-    // Subscrever a mudanças em tempo real
+    // Subscriptions só disparam reload com debounce de 5s
     const unsubReport = base44.entities.Report.subscribe(event => {
-      if (event.type === 'update' && event.data.created_by === user.email) {
-        loadPendingActions();
-      }
-    });
-
-    const unsubPurchase = base44.entities.PurchaseRequest.subscribe(event => {
-      if (['create', 'update', 'delete'].includes(event.type)) {
-        loadPendingActions();
+      if (event.type === 'update' && event.data?.created_by === user.email) {
+        debouncedLoad();
       }
     });
 
     return () => {
       unsubReport();
-      unsubPurchase();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [user?.email, user?.role]);
+  }, [user?.email, loadPendingActions, debouncedLoad]);
 
   if (pendingActions.length === 0) {
     return null;
