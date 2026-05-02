@@ -125,7 +125,7 @@ export default function DocumentUploadZone({ onFilesSelected, disabled, uploadin
           </p>
 
           <p className="text-xs text-slate-400 text-center">
-            Suporta múltiplos arquivos: PDF, XML, imagens (JPG, PNG, WEBP) e documentos administrativos
+            Suporta contratos, termos, notas fiscais PDF, XML complementar e imagens.
           </p>
 
           <input

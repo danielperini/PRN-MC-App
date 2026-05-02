@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2,
-  Eye, Send, RefreshCw, X, Download, ExternalLink, Link2
+  Eye, Send, RefreshCw, X, Download, ExternalLink, Link2, Plus
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,9 +47,11 @@ function getValorDisplay(intake) {
   return `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 }
 
-export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSentToApproval, onReanalyse, onLinkXml }) {
+export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSentToApproval, onReanalyse, onLinkXml, onAddXmlToPdf }) {
   const [loading, setLoading] = useState(false);
   const [sendingApproval, setSendingApproval] = useState(false);
+  const [addingXml, setAddingXml] = useState(false);
+  const xmlInputRef = useRef(null);
 
   const status = STATUS_CONFIG[intake.status_processamento] || STATUS_CONFIG.ENVIADO;
   const Icon = status.icon;
@@ -106,6 +108,18 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
       return;
     }
     onLinkXml(intake);
+  }
+
+  async function handleXmlFileSelected(e) {
+    const file = e.target.files?.[0];
+    if (!file || !onAddXmlToPdf) return;
+    e.target.value = '';
+    setAddingXml(true);
+    try {
+      await onAddXmlToPdf(intake, file);
+    } finally {
+      setAddingXml(false);
+    }
   }
 
   async function handleSendToApproval() {
@@ -226,7 +240,7 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
             </Button>
           )}
 
-          {/* XML: botão Vincular (se não vinculado) */}
+          {/* XML: botão Vincular ao PDF (se não vinculado) */}
           {canLinkXml && (
             <Button size="sm" variant="outline" onClick={handleLinkXml} disabled={loading}
               className="h-8 text-xs px-3">
@@ -235,7 +249,7 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
             </Button>
           )}
 
-          {/* XML: já vinculado */}
+          {/* XML: já vinculado — não mostrar mais ações */}
           {isXML && (intake.nf_pdf_intake_id || intake.grupo_status === 'COMPLETO') && (
             <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
               <CheckCircle2 className="w-3 h-3" />
@@ -243,7 +257,26 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
             </span>
           )}
 
-          {/* PDF: Revisar */}
+          {/* PDF: Adicionar XML (se não tem XML vinculado) */}
+          {isPDF && !intake.nf_xml_intake_id && intake.grupo_status !== 'COMPLETO' && (
+            <>
+              <input
+                ref={xmlInputRef}
+                type="file"
+                accept=".xml,application/xml,text/xml"
+                className="hidden"
+                onChange={handleXmlFileSelected}
+              />
+              <Button size="sm" variant="outline" disabled={addingXml}
+                onClick={() => xmlInputRef.current?.click()}
+                className="h-8 text-xs px-3 border-amber-300 text-amber-700 hover:bg-amber-50">
+                {addingXml ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
+                {addingXml ? 'Vinculando...' : 'Adicionar XML'}
+              </Button>
+            </>
+          )}
+
+          {/* PDF: Revisar (não XML) */}
           {canReview && (
             <Button size="sm" variant="outline" onClick={() => onReview({ ...intake })}
               className="h-8 text-xs px-3">
@@ -262,8 +295,8 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
             </Button>
           )}
 
-          {/* Deletar */}
-          <Button size="sm" variant="ghost" onClick={handleDelete} disabled={loading || sendingApproval}
+          {/* Deletar (XML: mostrar; PDF: mostrar) */}
+          <Button size="sm" variant="ghost" onClick={handleDelete} disabled={loading || sendingApproval || addingXml}
             className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" title="Deletar arquivo">
             {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-4 h-4" />}
           </Button>
@@ -286,11 +319,11 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
         </div>
       )}
 
-      {/* Aviso PDF sem XML */}
-      {isPDF && intake.grupo_status === 'INCOMPLETO' && !intake.nf_xml_url && intake.grupo_status !== 'COMPLETO' && (
+      {/* Aviso PDF sem XML — sempre que PDF não tiver XML vinculado */}
+      {isPDF && !intake.nf_xml_intake_id && intake.grupo_status !== 'COMPLETO' && (
         <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>Envie também o XML desta nota para completar o par PDF+XML.</span>
+          <span>Envie o XML correspondente desta nota.</span>
         </div>
       )}
 

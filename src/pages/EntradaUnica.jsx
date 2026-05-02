@@ -8,7 +8,7 @@ import ReviewModalFoto from '@/components/entrada/ReviewModalFoto';
 import ReviewModalDocAdmin from '@/components/entrada/ReviewModalDocAdmin';
 import ReviewModalOutro from '@/components/entrada/ReviewModalOutro';
 import LinkXmlModal from '@/components/entrada/LinkXmlModal';
-import { Loader2, InboxIcon } from 'lucide-react';
+import { Loader2, InboxIcon, Plus } from 'lucide-react';
 
 function normalizeText(value) {
   return String(value || '')
@@ -263,7 +263,7 @@ export default function EntradaUnica() {
 
     if (!isPDF && !isXML) return;
 
-    // XMLs não são suportados pela IA — marcar direto como aguardando revisão
+    // XMLs nunca ficam em ANALISANDO_IA — vão direto para AGUARDANDO_VINCULO
     if (isXML) {
       await base44.entities.DocumentIntake.update(intakeId, {
         status_processamento: 'AGUARDANDO_REVISAO',
@@ -430,6 +430,48 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
     }
   }
 
+  async function handleAddXmlToPdf(pdfIntake, xmlFile) {
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: xmlFile });
+
+      const xmlIntake = await base44.entities.DocumentIntake.create({
+        user_email: user.email,
+        user_name: user.full_name || user.email,
+        arquivo_original_url: file_url,
+        file_name_original: xmlFile.name,
+        mime_type: xmlFile.type,
+        status_processamento: 'AGUARDANDO_REVISAO',
+        status_registro: 'ATIVO',
+        tipo_detectado: 'NOTA_FISCAL_XML',
+        revisado_pelo_usuario: false,
+        resultado_ia: {},
+      });
+
+      // Vincular XML ao PDF
+      await base44.entities.DocumentIntake.update(pdfIntake.id, {
+        grupo_status: 'COMPLETO',
+        nf_xml_intake_id: xmlIntake.id,
+        nf_xml_url: file_url,
+      });
+
+      // Atualizar XML com referência ao PDF e ocultar da lista
+      await base44.entities.DocumentIntake.update(xmlIntake.id, {
+        grupo_status: 'COMPLETO',
+        nf_pdf_intake_id: pdfIntake.id,
+        nf_pdf_url: pdfIntake.arquivo_original_url,
+        ocultar_entrada_unica: true,
+        status_processamento: 'AGUARDANDO_REVISAO',
+        tipo_detectado: 'NOTA_FISCAL_XML',
+      });
+
+      toast.success('XML vinculado à nota fiscal com sucesso.');
+      await loadIntakes();
+    } catch (e) {
+      console.error('Erro ao adicionar XML ao PDF:', e);
+      toast.error('Erro ao vincular XML: ' + (e?.message || e));
+    }
+  }
+
   async function handleFilesSelected(files, orientacoes) {
     if (!user || !files || files.length === 0) return;
     setUploading(true);
@@ -448,13 +490,15 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
             ? 'NOTA_FISCAL_PDF'
             : 'PENDENTE';
 
+        const isXmlFile = ext === 'NOTA_FISCAL_XML';
         const intake = await base44.entities.DocumentIntake.create({
           user_email: user.email,
           user_name: user.full_name || user.email,
           arquivo_original_url: file_url,
           file_name_original: file.name,
           mime_type: file.type,
-          status_processamento: 'ENVIADO',
+          // XML nunca deve ficar em ANALISANDO_IA — vai direto para AGUARDANDO_REVISAO
+          status_processamento: isXmlFile ? 'AGUARDANDO_REVISAO' : 'ENVIADO',
           status_registro: 'ATIVO',
           tipo_detectado: ext,
           revisado_pelo_usuario: false,
@@ -516,9 +560,9 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
   return (
     <div className="w-full max-w-3xl mx-auto py-8 px-4 space-y-8">
       <div>
-        <h1 className="text-xl font-semibold text-slate-800 mb-1">Entrada Única de Documentos</h1>
+        <h1 className="text-xl font-semibold text-slate-800 mb-1">Entrada de contratos, termos de compromisso e notas fiscais</h1>
         <p className="text-sm text-slate-500 mb-6">
-          Envie notas fiscais, fotos de atividades ou documentos administrativos. A IA irá classificar e extrair os dados automaticamente.
+          Envie contratos, termos de compromisso, notas fiscais em PDF e XML complementar.
         </p>
 
         <DocumentUploadZone
@@ -558,6 +602,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                 onSentToApproval={handleSentToApproval}
                 onReanalyse={handleReanalyse}
                 onLinkXml={handleLinkXml}
+                onAddXmlToPdf={handleAddXmlToPdf}
               />
             ))}
           </div>
