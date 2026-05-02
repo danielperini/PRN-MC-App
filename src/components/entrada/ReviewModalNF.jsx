@@ -81,6 +81,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false);
   const [rateio, setRateio] = useState(DEFAULT_RATEIO);
   const [errosDismissed, setErrosDismissed] = useState([]);
+  const [nfDuplicada, setNfDuplicada] = useState(null); // { nf_numero, fornecedor }
 
   const ia = intake.resultado_ia || {};
   const dataEmissaoIA = getDataEmissaoFromIA(ia);
@@ -121,8 +122,9 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     centro_custo: ia.centro_custo_sugerido || intake.centro_custo || '',
     rubrica_id: intake.rubrica_id_sugerida || '',
     file_name_final: intake.file_name_final || intake.file_name_original,
-    meta_id: '',
+    meta_id: ia.meta_sugerida || '',
     tipo_gasto: ia.tipo_gasto || 'Serviço',
+    categoria: ia.categoria_sugerida || '',
     tipo_rateio: 'geral',
     museus_rateio: [],
   });
@@ -139,11 +141,52 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       try {
         const list = await base44.entities.Rubrica.list('', 2000);
         setRubricas(list || []);
+
+        // Auto-match rubrica pelo nome sugerido pela IA
+        const nomeSugerido = String(ia.rubrica_nome_sugerida || intake.rubrica_nome_sugerida || '').toLowerCase().trim();
+        if (nomeSugerido && !intake.rubrica_id_sugerida) {
+          const match = (list || []).find((r) => {
+            const nomeR = String(r.rubrica || r.nome || r.descricao || '').toLowerCase();
+            return nomeR.includes(nomeSugerido.slice(0, 12)) || nomeSugerido.includes(nomeR.slice(0, 12));
+          });
+          if (match) {
+            setForm((f) => ({ ...f, rubrica_id: f.rubrica_id || match.id }));
+          }
+        }
       } catch (e) {
         console.error(e);
       }
     }
     loadRubricas();
+  }, []);
+
+  // Detectar NF duplicada
+  useEffect(() => {
+    const nfNum = String(ia.nf_numero || '').trim();
+    const cnpj = String(ia.nf_emitente_cpf_cnpj || '').replace(/\D/g, '');
+    if (!nfNum && !cnpj) return;
+
+    async function verificarDuplicata() {
+      try {
+        // Buscar em PurchaseRequest
+        const prs = await base44.entities.PurchaseRequest.filter(
+          { nf_numero: nfNum },
+          '-created_date',
+          10
+        );
+        const duplicadas = (prs || []).filter((pr) => pr.id !== intake?.entidade_destino_id);
+        if (duplicadas.length > 0) {
+          setNfDuplicada({
+            nf_numero: nfNum,
+            fornecedor: duplicadas[0].fornecedor_nome || duplicadas[0].nf_emitente_nome || '',
+            count: duplicadas.length,
+          });
+        }
+      } catch (e) {
+        // silencioso
+      }
+    }
+    verificarDuplicata();
   }, []);
 
   function parseValorBR(v) {
@@ -530,10 +573,24 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             Documento analisado pela IA. Campos preenchidos automaticamente.
           </div>
 
-          {ia.classificacao_justificativa && (
+          {nfDuplicada && (
+            <div className="p-3 bg-red-50 border border-red-400 rounded-lg text-sm text-red-800 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-600" />
+              <div>
+                <p className="font-semibold">⚠️ Nota fiscal possivelmente duplicada!</p>
+                <p className="mt-0.5">
+                  A NF <strong>nº {nfDuplicada.nf_numero}</strong>
+                  {nfDuplicada.fornecedor ? ` de "${nfDuplicada.fornecedor}"` : ''} já foi enviada para aprovação anteriormente ({nfDuplicada.count}x).
+                  Verifique antes de enviar novamente.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {(ia.justificativa_ia || ia.classificacao_justificativa) && (
             <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700">
-              <p className="font-medium mb-1">💡 Motivo da Classificação IA:</p>
-              <p className="italic">{ia.classificacao_justificativa}</p>
+              <p className="font-medium mb-1">💡 Análise da IA:</p>
+              <p className="italic">{ia.justificativa_ia || ia.classificacao_justificativa}</p>
             </div>
           )}
 
@@ -645,29 +702,57 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             </div>
           </div>
 
-          <div className="space-y-1">
-            <Label>Meta do 3º Aditivo <span className="text-red-500">*</span></Label>
-            <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
-              <SelectTrigger><SelectValue placeholder="Selecionar meta" /></SelectTrigger>
-              <SelectContent>
-                {METAS_3_ADITIVO.map((m) => (<SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1 col-span-2">
+              <Label>Meta do 3º Aditivo {form.meta_id && <span className="ml-1 text-green-600 text-xs">✓ preenchida pela IA</span>}</Label>
+              <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
+                <SelectTrigger><SelectValue placeholder="Selecionar meta" /></SelectTrigger>
+                <SelectContent>
+                  {METAS_3_ADITIVO.map((m) => (<SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Tipo de Gasto</Label>
+              <Select value={form.tipo_gasto} onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v }))}>
+                <SelectTrigger><SelectValue placeholder="Selecionar tipo" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Produto">Produto</SelectItem>
+                  <SelectItem value="Serviço">Serviço</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Categoria {form.categoria && <span className="ml-1 text-green-600 text-xs">✓ IA</span>}</Label>
+              <Select value={form.categoria} onValueChange={(v) => setForm((f) => ({ ...f, categoria: v }))}>
+                <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
+                <SelectContent>
+                  {[
+                    'Serviços (equipe/coordenação)',
+                    'Serviços (comunicação: designer, foto, vídeo, imprensa, redes)',
+                    'Serviços (produção/infraestrutura/expografia)',
+                    'Serviços (eventos/atrações/artistas)',
+                    'Serviços (segurança/limpeza)',
+                    'Logística (transporte/vans)',
+                    'Alimentação (lanche/café/coffeebreak)',
+                    'Consultoria / Formação / Acessibilidade',
+                    'Materiais de consumo',
+                    'Outros',
+                  ].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-1">
-            <Label>Tipo de Gasto <span className="text-red-500">*</span></Label>
-            <Select value={form.tipo_gasto} onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v }))}>
-              <SelectTrigger><SelectValue placeholder="Selecionar tipo" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Produto">Produto</SelectItem>
-                <SelectItem value="Serviço">Serviço</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <Label>Rubrica <span className="text-red-500">*</span></Label>
+            <Label>
+              Rubrica <span className="text-red-500">*</span>
+              {form.rubrica_id && (ia.rubrica_nome_sugerida || intake.rubrica_nome_sugerida) && (
+                <span className="ml-2 text-green-600 text-xs">✓ sugerida pela IA: {ia.rubrica_nome_sugerida || intake.rubrica_nome_sugerida}</span>
+              )}
+            </Label>
             <Select value={form.rubrica_id} onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}>
               <SelectTrigger><SelectValue placeholder="Selecionar rubrica" /></SelectTrigger>
               <SelectContent>

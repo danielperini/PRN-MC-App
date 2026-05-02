@@ -284,23 +284,35 @@ export default function EntradaUnica() {
       });
 
       const prompt = `Você é um especialista em notas fiscais e documentos fiscais brasileiros.
-Analise o documento e extraia os seguintes campos em JSON:
+Analise o documento e extraia os seguintes campos em JSON.
+Seja muito preciso e extraia o máximo de informações possível.
+
 {
   "tipo_documento": "NOTA_FISCAL_PDF | NOTA_FISCAL_XML | DOCUMENTO_ADMINISTRATIVO | OUTRO",
-  "nf_numero": "número da NF",
+  "nf_numero": "número da NF (somente dígitos ou alfanumérico exato)",
   "nf_data_emissao": "YYYY-MM-DD",
-  "nf_valor_total": número,
-  "nf_emitente_nome": "razão social do emitente",
-  "nf_emitente_cpf_cnpj": "somente dígitos",
+  "nf_valor_total": número (apenas o valor total líquido da nota),
+  "nf_emitente_nome": "razão social completa do emitente/prestador",
+  "nf_emitente_cpf_cnpj": "somente dígitos do CPF ou CNPJ do emitente",
   "nf_destinatario_nome": "razão social do destinatário/tomador",
-  "descricao_servico": "descrição do serviço ou produto",
-  "municipio": "município",
-  "estado": "UF",
-  "competencia": "Mês/Ano",
-  "centro_custo_sugerido": "MIS | MHAB | MUMO | Geral"
+  "descricao_servico": "descrição completa do serviço ou produto fornecido",
+  "municipio": "município do emitente/prestação",
+  "estado": "UF (2 letras)",
+  "competencia": "Mês/Ano de referência (ex: Março/2026)",
+  "centro_custo_sugerido": "MIS | MHAB | MUMO | Geral (identifique pelo nome do museu no documento ou destinatário)",
+  "banco": "nome do banco do emitente se informado no documento",
+  "agencia": "número da agência bancária se informado",
+  "conta": "número da conta bancária se informado",
+  "tipo_conta": "Corrente | Poupança se informado",
+  "pix": "chave pix se informada (CPF, email, telefone ou chave aleatória)",
+  "meta_sugerida": "identifique a meta mais provável: MC3A-20 (Coordenação/Equipe), MC3A-21 (Comunicação), MC3A-22 (Produção/infraestrutura), MC3A-23 (Eventos/atrações), MC3A-24 (Segurança/limpeza), MC3A-25 (Logística/transportes), MC3A-EXTRA (outro). Baseie-se na descrição do serviço.",
+  "tipo_gasto": "Produto | Serviço (identifique pelo documento)",
+  "categoria_sugerida": "Serviços (equipe/coordenação) | Serviços (comunicação: designer, foto, vídeo, imprensa, redes) | Serviços (produção/infraestrutura/expografia) | Serviços (eventos/atrações/artistas) | Serviços (segurança/limpeza) | Logística (transporte/vans) | Alimentação (lanche/café/coffeebreak) | Consultoria / Formação / Acessibilidade | Materiais de consumo | Outros",
+  "rubrica_nome_sugerida": "sugira o nome mais provável da rubrica orçamentária que este gasto pertence. Exemplos: Coordenação Geral, Designer Gráfico, Produção Cultural, Educador, Comunicação, Produção, Logística, Manutenção. Use a descrição do serviço para decidir.",
+  "justificativa_ia": "em 1-2 frases explique porque classificou assim"
 }
 ${orientacoes ? `\nOrientações do usuário: ${orientacoes}` : ''}
-Retorne apenas o JSON, sem explicações.`;
+Retorne apenas o JSON válido, sem explicações adicionais.`;
 
       const resultado = await Promise.race([
         base44.integrations.Core.InvokeLLM({
@@ -321,11 +333,21 @@ Retorne apenas o JSON, sem explicações.`;
               estado: { type: 'string' },
               competencia: { type: 'string' },
               centro_custo_sugerido: { type: 'string' },
+              banco: { type: 'string' },
+              agencia: { type: 'string' },
+              conta: { type: 'string' },
+              tipo_conta: { type: 'string' },
+              pix: { type: 'string' },
+              meta_sugerida: { type: 'string' },
+              tipo_gasto: { type: 'string' },
+              categoria_sugerida: { type: 'string' },
+              rubrica_nome_sugerida: { type: 'string' },
+              justificativa_ia: { type: 'string' },
             },
           },
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('TIMEOUT')), 20000)
+          setTimeout(() => reject(new Error('TIMEOUT')), 30000)
         ),
       ]);
 
@@ -341,6 +363,8 @@ Retorne apenas o JSON, sem explicações.`;
         tipo_detectado: tipoDetectado,
         resultado_ia: resultado || {},
         centro_custo: resultado?.centro_custo_sugerido || '',
+        rubrica_nome_sugerida: resultado?.rubrica_nome_sugerida || '',
+        rubrica_justificativa: resultado?.justificativa_ia || '',
       });
 
       await loadIntakes();
