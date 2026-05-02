@@ -100,20 +100,12 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
     }
   }
 
-  async function handleLinkXml() {
+  function handleLinkXml() {
     if (!onLinkXml) {
       toast.error('Função de vínculo não disponível.');
       return;
     }
-    setLoading(true);
-    try {
-      await onLinkXml(intake);
-      toast.success('XML vinculado com sucesso.');
-    } catch (e) {
-      toast.error('Erro ao vincular XML: ' + e.message);
-    } finally {
-      setLoading(false);
-    }
+    onLinkXml(intake);
   }
 
   async function handleSendToApproval() {

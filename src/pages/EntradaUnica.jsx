@@ -235,9 +235,13 @@ export default function EntradaUnica() {
         if (status === 'ENVIADO_APROVACAO') return false;
         if (status === 'DELETADO') return false;
         if (i.ocultar_entrada_unica === true) return false;
-        // XMLs já vinculados a um PDF somem da lista
+        // XMLs já vinculados: esconder se grupo_status COMPLETO, nf_pdf_intake_id, ocultar_entrada_unica ou entidade_destino_id
         const isXML = getTipoByFile(i) === 'NOTA_FISCAL_XML';
-        if (isXML && i.nf_pdf_intake_id) return false;
+        if (isXML && (
+          i.grupo_status === 'COMPLETO' ||
+          i.nf_pdf_intake_id ||
+          i.entidade_destino_id
+        )) return false;
         return true;
       });
 
