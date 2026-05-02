@@ -135,6 +135,13 @@ Deno.serve(async (req) => {
     let emailEnviado = false;
     let emailErro = null;
 
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+    if (EMAIL_FINANCEIRO !== ALLOWED_EMAIL) {
+      console.log('Email bloqueado (financeiro):', EMAIL_FINANCEIRO);
+      return Response.json({ success: true, skipped: true, reason: 'Email bloqueado por política de envio' });
+    }
+
     // Tentar enviar e-mail
     try {
       await base44.asServiceRole.integrations.Core.SendEmail({

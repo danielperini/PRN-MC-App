@@ -117,6 +117,12 @@ Deno.serve(async (req) => {
     body += `\nCaminho sugerido:\nCompras > Solicitações\n`;
     body += `\nPlataforma Museus Centro`;
 
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+    if (userEmail !== ALLOWED_EMAIL) {
+      console.log('Email bloqueado:', userEmail);
+      return Response.json({ success: true, skipped: true });
+    }
     await base44.integrations.Core.SendEmail({
       to: userEmail,
       subject,

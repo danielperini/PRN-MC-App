@@ -94,7 +94,11 @@ Plataforma de Gestão - Museus Centro
 
     const emailTitle = `Solicitação de Pagamento - Rubrica ${nomeRubrica} (NF ${nfNumero})`;
 
-    for (const to of recipients) {
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+    const allowedRecipients = recipients.filter(r => { if (r !== ALLOWED_EMAIL) { console.log('Email bloqueado:', r); return false; } return true; });
+
+    for (const to of allowedRecipients) {
       try {
         await base44.integrations.Core.SendEmail({
           to,

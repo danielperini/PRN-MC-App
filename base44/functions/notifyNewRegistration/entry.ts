@@ -20,7 +20,11 @@ Deno.serve(async (req) => {
 
     // Send notification to each coordinator
     for (const coordinator of coordinators) {
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+
       try {
+        if (coordinator.email !== ALLOWED_EMAIL) { console.log('Email bloqueado:', coordinator.email); throw new Error('bloqueado'); }
         // Send email notification
         await base44.integrations.Core.SendEmail({
           to: coordinator.email,

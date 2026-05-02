@@ -47,8 +47,15 @@ Deno.serve(async (req) => {
 </p>
     `;
 
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+    const allowedAdmins = adminUsers.filter(a => {
+      if (a.email !== ALLOWED_EMAIL) { console.log('Email bloqueado:', a.email); return false; }
+      return true;
+    });
+
     // Enviar email para cada coordenador
-    const emailPromises = adminUsers.map(admin => 
+    const emailPromises = allowedAdmins.map(admin => 
       base44.asServiceRole.integrations.Core.SendEmail({
         to: admin.email,
         subject: `Nova Solicitação de Acesso - ${registration.full_name}`,

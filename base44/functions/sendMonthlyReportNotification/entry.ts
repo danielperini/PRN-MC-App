@@ -23,6 +23,12 @@ https://museus-centro-bh.com.br/app/ReportEditor
 Obrigado!
 `;
 
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+    if (user_email !== ALLOWED_EMAIL) {
+      console.log('Email bloqueado:', user_email);
+      return Response.json({ success: true, skipped: true });
+    }
     await base44.integrations.Core.SendEmail({
       to: user_email,
       subject: `[IMPORTANTE] Relatório Mensal - ${mes}/${ano}`,

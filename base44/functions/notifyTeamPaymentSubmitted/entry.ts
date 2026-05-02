@@ -5,11 +5,14 @@ function formatBRL(v: unknown) {
   return `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// BLOQUEIO: enviar apenas para o endereço autorizado
+const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+
 const NOTIFY_EMAILS = [
   'notasfiscais@viadutodasartes.org.br',
   'adm@viadutodasartes.org.br',
   'danielperini.mc@viadutodasartes.org.br',
-];
+].filter(e => { if (e !== ALLOWED_EMAIL) { console.log('Email bloqueado:', e); return false; } return true; });
 
 function normalizeEmail(value: unknown) {
   return String(value || '').trim().toLowerCase();
@@ -88,7 +91,7 @@ Museus Centro`;
     let requesterNotification = 'skipped';
     let requesterReason = '';
 
-    if (emailSolicitante && !NOTIFY_EMAILS.includes(emailSolicitante)) {
+    if (emailSolicitante && !NOTIFY_EMAILS.includes(emailSolicitante) && emailSolicitante === ALLOWED_EMAIL) {
       if (isInternalAppEmail(emailSolicitante)) {
         try {
           await base44.asServiceRole.integrations.Core.SendEmail({

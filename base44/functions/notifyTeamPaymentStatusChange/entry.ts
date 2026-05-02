@@ -72,18 +72,26 @@ ${xml_url ? `• XML: ${xml_url}` : ''}
 Atenciosamente,
 Museus Centro`;
 
-    await base44.asServiceRole.integrations.Core.SendEmail({
-      to: requester_email,
-      subject,
-      body: bodyBase,
-      from_name: 'Museus Centro',
-    });
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+
+    if (requester_email === ALLOWED_EMAIL) {
+      await base44.asServiceRole.integrations.Core.SendEmail({
+        to: requester_email,
+        subject,
+        body: bodyBase,
+        from_name: 'Museus Centro',
+      });
+    } else {
+      console.log('Email bloqueado (solicitante):', requester_email);
+    }
 
     const notifyAdminsStatuses = ['APROVADO_COORD', 'DEVOLVIDO_REVISAO', 'RECUSADO', 'PAGO'];
 
     if (notifyAdminsStatuses.includes(normalizedStatus)) {
       for (const email of NOTIFY_ADMIN_EMAILS) {
         if (email !== requester_email) {
+          if (email !== ALLOWED_EMAIL) { console.log('Email bloqueado (admin):', email); continue; }
           await base44.asServiceRole.integrations.Core.SendEmail({
             to: email,
             subject,

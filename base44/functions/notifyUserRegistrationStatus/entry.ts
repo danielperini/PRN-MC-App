@@ -68,6 +68,12 @@ Deno.serve(async (req) => {
       `;
     }
 
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+    if (registration.email !== ALLOWED_EMAIL) {
+      console.log('Email bloqueado:', registration.email);
+      return Response.json({ success: true, skipped: true });
+    }
     await base44.asServiceRole.integrations.Core.SendEmail({
       to: registration.email,
       subject: subject,

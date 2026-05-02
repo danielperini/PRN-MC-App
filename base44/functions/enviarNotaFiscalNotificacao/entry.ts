@@ -158,9 +158,18 @@ Deno.serve(async (req) => {
       'notasfiscais@viadutodasartes.org.br',
     ];
 
-    const recipients = recipientsFromPayload.length > 0
-      ? recipientsFromPayload
-      : notificationDefaults;
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+
+    const recipients = (recipientsFromPayload.length > 0 ? recipientsFromPayload : notificationDefaults)
+      .filter(e => {
+        if (e !== ALLOWED_EMAIL) { console.log('Email bloqueado:', e); return false; }
+        return true;
+      });
+
+    if (recipients.length === 0) {
+      return Response.json({ ok: true, skipped: true, reason: 'Email bloqueado por política de envio' });
+    }
 
     const subject = `NF enviada - ${nfNomeRenomeado}`;
 

@@ -45,8 +45,12 @@ Deno.serve(async (req) => {
     // Salvar notificações
     await base44.asServiceRole.entities.Notification.bulkCreate(notifications);
 
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+
     // Enviar emails aos coordenadores
     for (const coord of coords) {
+      if (coord.user_email !== ALLOWED_EMAIL) { console.log('Email bloqueado:', coord.user_email); continue; }
       try {
         await base44.integrations.Core.SendEmail({
           to: coord.user_email,

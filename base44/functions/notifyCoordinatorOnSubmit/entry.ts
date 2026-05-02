@@ -29,9 +29,13 @@ Deno.serve(async (req) => {
       `Acesse a plataforma para revisar: https://seu-app.com/CoordReview\n\n` +
       `Abraços,\nSistema de Relatórios`;
 
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+    const allowedCoords = coordinators.filter(c => { if (c.email !== ALLOWED_EMAIL) { console.log('Email bloqueado:', c.email); return false; } return true; });
+
     // Enviar emails para todos os coordenadores do museu
     await Promise.all(
-      coordinators.map(coord =>
+      allowedCoords.map(coord =>
         base44.integrations.Core.SendEmail({
           to: coord.email,
           subject,

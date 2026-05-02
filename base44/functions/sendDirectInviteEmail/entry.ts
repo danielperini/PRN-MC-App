@@ -66,6 +66,12 @@ Se você não esperava este convite, desconsidere este email.
 Atenciosamente,
 Equipe da Plataforma de Relatórios`;
 
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+    if (email !== ALLOWED_EMAIL) {
+      console.log('Email bloqueado:', email);
+      return Response.json({ success: true, skipped: true, email });
+    }
     await base44.integrations.Core.SendEmail({
       from_name: emailConfig.nome_sender || 'Plataforma de Relatórios',
       to: email,

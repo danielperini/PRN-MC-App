@@ -40,8 +40,12 @@ Deno.serve(async (req) => {
     let emailsSent = 0;
     let emailErrors = [];
 
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+
     if (enviar_email) {
       for (const email of destinatarios) {
+        if (email !== ALLOWED_EMAIL) { console.log('Email bloqueado:', email); continue; }
         try {
           await base44.asServiceRole.integrations.Core.SendEmail({
             to: email,

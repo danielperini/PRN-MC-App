@@ -18,11 +18,14 @@ Deno.serve(async (req) => {
     const appUrl = Deno.env.get('APP_URL') || 'https://museus-centro.app';
     const linkCompra = `${appUrl}/Compras?tab=minhas&id=${purchaseId}`;
 
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+
     // Email para COORDENADORES
     const coordEmails = [
       'danielperini.mc@viadutodasartes.org.br',
       'danie@periniprojetos.com.br',
-    ];
+    ].filter(e => { if (e !== ALLOWED_EMAIL) { console.log('Email bloqueado:', e); return false; } return true; });
 
     const coordHtml = `
       <div style="font-family: Arial, sans-serif; color: #222; line-height: 1.6; max-width: 700px;">
@@ -80,11 +83,15 @@ Deno.serve(async (req) => {
     `;
 
     try {
-      await base44.asServiceRole.integrations.Core.SendEmail({
-        to: [user.email],
-        subject: '✅ Solicitação de compra enviada',
-        html: userHtml,
-      });
+      if (user.email === ALLOWED_EMAIL) {
+        await base44.asServiceRole.integrations.Core.SendEmail({
+          to: [user.email],
+          subject: '✅ Solicitação de compra enviada',
+          html: userHtml,
+        });
+      } else {
+        console.log('Email bloqueado (usuário confirmação):', user.email);
+      }
     } catch (e) {
       console.error('Erro ao enviar email usuário:', e.message);
     }

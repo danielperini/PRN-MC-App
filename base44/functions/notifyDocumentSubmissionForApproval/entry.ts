@@ -204,13 +204,16 @@ Deno.serve(async (req) => {
     const linkRevisar = `${Deno.env.get('APP_URL') || 'https://museus-centro.app'}/EntradaUnica`;
     const linkAcompanhar = linkRevisar;
 
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+
     // ═══════════════════════════════════════
     // EMAIL 1: Para COORDENADORES
     // ═══════════════════════════════════════
     const coordEmails = [
       'danielperini.mc@viadutodasartes.org.br',
       'danie@periniprojetos.com.br',
-    ];
+    ].filter(e => { if (e !== ALLOWED_EMAIL) { console.log('Email bloqueado:', e); return false; } return true; });
 
     const coordHtml = buildCoordinatorEmail({
       nomeSolicitante,
@@ -254,11 +257,15 @@ Deno.serve(async (req) => {
     let userEmailError = null;
 
     try {
-      userEmailResult = await base44.asServiceRole.integrations.Core.SendEmail({
-        to: [emailSolicitante],
-        subject: '✅ Seu documento foi enviado para aprovação',
-        html: userHtml,
-      });
+      if (emailSolicitante === ALLOWED_EMAIL) {
+        userEmailResult = await base44.asServiceRole.integrations.Core.SendEmail({
+          to: [emailSolicitante],
+          subject: '✅ Seu documento foi enviado para aprovação',
+          html: userHtml,
+        });
+      } else {
+        console.log('Email bloqueado (usuário confirmação):', emailSolicitante);
+      }
     } catch (e) {
       userEmailError = safeStr(e.message);
       console.error('Erro ao enviar email para usuário:', userEmailError);

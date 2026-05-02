@@ -16,6 +16,12 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing required fields: to, subject, body' }, { status: 400 });
     }
 
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+    if (to !== ALLOWED_EMAIL) {
+      console.log('Email bloqueado:', to);
+      return Response.json({ success: true, skipped: true });
+    }
     const result = await base44.integrations.Core.SendEmail({
       to,
       subject,

@@ -22,9 +22,13 @@ Deno.serve(async (req) => {
     const userEmail = report.created_by;
     const coordinatorEmails = await getCoordinatorEmails(base44);
     
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+
     // Notificar coordenadores quando relatório for SUBMITTED
     if (report.status === 'SUBMITTED' && eventType === 'update') {
       for (const coordEmail of coordinatorEmails) {
+        if (coordEmail !== ALLOWED_EMAIL) { console.log('Email bloqueado:', coordEmail); continue; }
         await base44.integrations.Core.SendEmail({
           to: coordEmail,
           subject: `📋 Novo Relatório Enviado para Revisão - ${report.author_name}`,
@@ -35,7 +39,8 @@ Deno.serve(async (req) => {
 
     // Notificar usuário quando relatório for RETURNED
     if (report.status === 'RETURNED' && eventType === 'update') {
-      await base44.integrations.Core.SendEmail({
+      if (userEmail !== ALLOWED_EMAIL) { console.log('Email bloqueado:', userEmail); }
+      else await base44.integrations.Core.SendEmail({
         to: userEmail,
         subject: `⚠️ Seu Relatório Foi Devolvido para Revisão`,
         body: formatUserReturnedEmail(report)
@@ -44,7 +49,8 @@ Deno.serve(async (req) => {
 
     // Notificar usuário quando relatório for APPROVED
     if (report.status === 'APPROVED' && eventType === 'update') {
-      await base44.integrations.Core.SendEmail({
+      if (userEmail !== ALLOWED_EMAIL) { console.log('Email bloqueado:', userEmail); }
+      else await base44.integrations.Core.SendEmail({
         to: userEmail,
         subject: `✅ Seu Relatório Foi Aprovado!`,
         body: formatUserApprovedEmail(report)

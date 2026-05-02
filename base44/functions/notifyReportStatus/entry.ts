@@ -71,9 +71,16 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, message: 'Notification skipped by user preference' });
     }
 
+    // BLOQUEIO: enviar apenas para o endereço autorizado
+    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+    const toEmail = reportData?.author_email || user.email;
+    if (toEmail !== ALLOWED_EMAIL) {
+      console.log('Email bloqueado:', toEmail);
+      return Response.json({ success: false, message: 'Email bloqueado por política de envio' });
+    }
     // Send email via Core integration
     const emailResult = await base44.asServiceRole.integrations.Core.SendEmail({
-      to: reportData?.author_email || user.email,
+      to: toEmail,
       subject: subject,
       body: body
     });
