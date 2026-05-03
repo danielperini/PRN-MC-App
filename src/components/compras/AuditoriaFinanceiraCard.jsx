@@ -24,8 +24,8 @@ function getPurchaseValue(p) {
     toNumber(p?.valor_final) ||
     toNumber(p?.valor_solicitado) ||
     toNumber(p?.valor_total) ||
-    0
-  );
+    0);
+
 }
 
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
@@ -35,14 +35,14 @@ function normalizeStatus(value) {
 }
 
 const TIPO_COLORS = {
-  'NF duplicada':           'bg-red-100 text-red-700',
-  'Sem rubrica':            'bg-red-100 text-red-700',
-  'Sem valor':              'bg-amber-100 text-amber-700',
-  'Rubrica inexistente':    'bg-red-100 text-red-700',
-  'Débito não registrado':  'bg-amber-100 text-amber-700',
-  'Valor divergente':       'bg-amber-100 text-amber-700',
+  'NF duplicada': 'bg-red-100 text-red-700',
+  'Sem rubrica': 'bg-red-100 text-red-700',
+  'Sem valor': 'bg-amber-100 text-amber-700',
+  'Rubrica inexistente': 'bg-red-100 text-red-700',
+  'Débito não registrado': 'bg-amber-100 text-amber-700',
+  'Valor divergente': 'bg-amber-100 text-amber-700',
   'Rubrica não atualizada': 'bg-orange-100 text-orange-700',
-  'Centro divergente':      'bg-gray-100 text-gray-600',
+  'Centro divergente': 'bg-gray-100 text-gray-600'
 };
 
 export default function AuditoriaFinanceiraCard({ purchases = [], rubricas = [], onEditPurchase }) {
@@ -51,7 +51,7 @@ export default function AuditoriaFinanceiraCard({ purchases = [], rubricas = [],
 
   const rubricaById = useMemo(() => {
     const m = {};
-    (rubricas || []).forEach((r) => { if (r?.id) m[r.id] = r; });
+    (rubricas || []).forEach((r) => {if (r?.id) m[r.id] = r;});
     return m;
   }, [rubricas]);
 
@@ -99,17 +99,17 @@ export default function AuditoriaFinanceiraCard({ purchases = [], rubricas = [],
       }
 
       const isEquipe = !!(
-        p.team_payment_id ||
-        String(p.tipo_origem || p.origem || p.categoria || p.tipo_solicitacao || '')
-          .toLowerCase().match(/equipe|team|contrato|prestacao|prestação/)
-      );
+      p.team_payment_id ||
+      String(p.tipo_origem || p.origem || p.categoria || p.tipo_solicitacao || '').
+      toLowerCase().match(/equipe|team|contrato|prestacao|prestação/));
+
       const temChaveFiscal = !!getChaveFiscal(p);
       if (!p.rubrica_debitada_em && temChaveFiscal && !isEquipe) {
         lista.push({ tipo: 'Débito não registrado', descricao: `Aprovada sem débito registrado: "${desc}"`, id: p.id, purchase: p, alertKey: `debito-${p.id}` });
       }
 
       const valorSolicitado = getPurchaseValue(p);
-      const valorDebitado   = toNumber(p.rubrica_debitada_valor);
+      const valorDebitado = toNumber(p.rubrica_debitada_valor);
       if (p.rubrica_debitada_em && valorDebitado > 0 && Math.abs(valorSolicitado - valorDebitado) > 0.01) {
         lista.push({ tipo: 'Valor divergente', descricao: `Valor aprovado ≠ debitado em "${desc}"`, id: p.id, purchase: p, alertKey: `valor-div-${p.id}` });
       }
@@ -119,10 +119,10 @@ export default function AuditoriaFinanceiraCard({ purchases = [], rubricas = [],
       }
 
       const centroPurchase = String(p.centro_custo || '').trim().toUpperCase();
-      const centroRubrica  = String(rubrica.museu || rubrica.centro_custo || '').trim().toUpperCase();
+      const centroRubrica = String(rubrica.museu || rubrica.centro_custo || '').trim().toUpperCase();
       if (centroPurchase && centroRubrica && centroPurchase !== centroRubrica &&
-          !centroPurchase.includes('GERAL') && !centroRubrica.includes('GERAL') &&
-          !centroPurchase.includes('RATEADO')) {
+      !centroPurchase.includes('GERAL') && !centroRubrica.includes('GERAL') &&
+      !centroPurchase.includes('RATEADO')) {
         lista.push({ tipo: 'Centro divergente', descricao: `Centro "${p.centro_custo}" ≠ rubrica "${rubrica.museu || rubrica.centro_custo}" em "${desc}"`, id: p.id, purchase: p, alertKey: `centro-${p.id}` });
       }
     }
@@ -130,45 +130,45 @@ export default function AuditoriaFinanceiraCard({ purchases = [], rubricas = [],
     return lista;
   }, [purchases, rubricaById]);
 
-  const alertasVisiveis = alertas.filter(a => !dismissed.has(a.alertKey));
+  const alertasVisiveis = alertas.filter((a) => !dismissed.has(a.alertKey));
   const total = alertasVisiveis.length;
   const exibidos = expanded ? alertasVisiveis : alertasVisiveis.slice(0, 3);
   const temMais = alertasVisiveis.length > 3;
 
   function dismiss(alertKey) {
-    setDismissed(prev => new Set([...prev, alertKey]));
+    setDismissed((prev) => new Set([...prev, alertKey]));
   }
 
   let borderColor = 'border-green-200 bg-green-50';
   let headerColor = 'text-green-700';
-  let iconColor   = 'text-green-500';
-  let Icon        = CheckCircle2;
+  let iconColor = 'text-green-500';
+  let Icon = CheckCircle2;
 
   if (total > 5) {
     borderColor = 'border-red-200 bg-red-50';
     headerColor = 'text-red-700';
-    iconColor   = 'text-red-500';
-    Icon        = ShieldAlert;
+    iconColor = 'text-red-500';
+    Icon = ShieldAlert;
   } else if (total > 0) {
     borderColor = 'border-amber-200 bg-amber-50';
     headerColor = 'text-amber-700';
-    iconColor   = 'text-amber-500';
-    Icon        = AlertTriangle;
+    iconColor = 'text-amber-500';
+    Icon = AlertTriangle;
   }
 
   return (
-    <div className={`mb-6 rounded-xl border ${borderColor} p-4`}>
+    <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 hidden">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <Icon className={`h-5 w-5 flex-shrink-0 ${iconColor}`} />
           <div>
             <p className={`font-semibold ${headerColor}`}>
               Auditoria financeira
-              {total > 0 && (
-                <span className="ml-2 inline-block rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold">
+              {total > 0 &&
+              <span className="ml-2 inline-block rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold">
                   {total} inconsistênci{total !== 1 ? 'as' : 'a'}
                 </span>
-              )}
+              }
             </p>
             <p className="text-xs text-gray-500">
               Verificação automática de solicitações, rubricas e notas fiscais.
@@ -177,59 +177,59 @@ export default function AuditoriaFinanceiraCard({ purchases = [], rubricas = [],
         </div>
       </div>
 
-      {total === 0 ? (
-        <p className="mt-2 text-sm text-green-600">Nenhuma inconsistência detectada.</p>
-      ) : (
-        <div className="mt-3 space-y-2">
-          {exibidos.map((alerta, i) => (
-            <div
-              key={`${alerta.alertKey}-${i}`}
-              className="flex items-start gap-2 rounded-lg bg-white/60 px-3 py-2 text-sm text-gray-700"
-            >
+      {total === 0 ?
+      <p className="mt-2 text-sm text-green-600">Nenhuma inconsistência detectada.</p> :
+
+      <div className="mt-3 space-y-2">
+          {exibidos.map((alerta, i) =>
+        <div
+          key={`${alerta.alertKey}-${i}`}
+          className="flex items-start gap-2 rounded-lg bg-white/60 px-3 py-2 text-sm text-gray-700">
+          
               <span className={`mt-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${TIPO_COLORS[alerta.tipo] || 'bg-gray-100 text-gray-600'}`}>
                 {alerta.tipo}
               </span>
               <span className="flex-1 leading-snug">{alerta.descricao}</span>
 
               <div className="flex flex-shrink-0 items-center gap-1">
-                {onEditPurchase && alerta.purchase && (
-                  <button
-                    type="button"
-                    onClick={() => { if (typeof onEditPurchase === 'function') onEditPurchase(alerta.purchase); }}
-                    className="flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                    title="Rever e editar esta solicitação"
-                  >
+                {onEditPurchase && alerta.purchase &&
+            <button
+              type="button"
+              onClick={() => {if (typeof onEditPurchase === 'function') onEditPurchase(alerta.purchase);}}
+              className="flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+              title="Rever e editar esta solicitação">
+              
                     <Pencil className="h-3 w-3" />
                     Rever
                   </button>
-                )}
+            }
                 <button
-                  type="button"
-                  onClick={() => dismiss(alerta.alertKey)}
-                  className="rounded-md border border-gray-200 bg-white p-1 text-gray-400 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-600 transition-colors"
-                  title="Descartar este alerta"
-                >
+              type="button"
+              onClick={() => dismiss(alerta.alertKey)}
+              className="rounded-md border border-gray-200 bg-white p-1 text-gray-400 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-600 transition-colors"
+              title="Descartar este alerta">
+              
                   <X className="h-3 w-3" />
                 </button>
               </div>
             </div>
-          ))}
+        )}
 
-          {temMais && (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="mt-1 flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-800"
-            >
-              {expanded ? (
-                <><ChevronUp className="h-3.5 w-3.5" /> Ocultar</>
-              ) : (
-                <><ChevronDown className="h-3.5 w-3.5" /> Ver todas ({total})</>
-              )}
+          {temMais &&
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-1 flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-800">
+          
+              {expanded ?
+          <><ChevronUp className="h-3.5 w-3.5" /> Ocultar</> :
+
+          <><ChevronDown className="h-3.5 w-3.5" /> Ver todas ({total})</>
+          }
             </button>
-          )}
+        }
         </div>
-      )}
-    </div>
-  );
+      }
+    </div>);
+
 }
