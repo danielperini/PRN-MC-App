@@ -9,15 +9,15 @@ import { AlertCircle, Save, X, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CATEGORIAS_LABEL = {
-  equipe: 'Equipe Principal',
+  equipe: 'Equipe e Coordenação (÷3 museus)',
   comunicacao: 'Comunicação',
   manutencao: 'Manutenção de Rotina',
   educador: 'Educador',
   diarias_educador: 'Diárias',
   lanches: 'Lanches',
-  alimentacao_cartao: 'Alimentação',
+  alimentacao_cartao: 'Alimentação (÷3 museus)',
   material: 'Material',
-  acoes_educativas: 'Ações Educativas',
+  acoes_educativas: 'Ações Educativas (÷3 museus)',
   som_luz: 'Som e Luz',
   exposicao: 'Exposição',
   noturno: 'Noturno nos Museus',
@@ -400,14 +400,8 @@ export default function RubricasMuseuEditor({ museu, canEdit = false, refreshKey
                               ) : null}
 
                               {divisor > 1 ? (
-                                <span className="text-[10px] text-gray-400">
-                                  Compartilhada ÷{divisor} museus
-                                </span>
-                              ) : null}
-
-                              {rubrica.distribuicao_mode ? (
-                                <span className="text-[10px] text-gray-400">
-                                  modo: {rubrica.distribuicao_mode}
+                                <span className="text-[10px] bg-blue-50 text-blue-600 border border-blue-100 rounded px-1">
+                                  ÷{divisor} museus • parte deste museu
                                 </span>
                               ) : null}
                             </div>

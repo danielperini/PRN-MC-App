@@ -112,6 +112,18 @@ function inferirCategoria(rubrica, budgetLine) {
   return 'outros';
 }
 
+// Rubricas compartilhadas: sempre dividir por 3 (todos os museus)
+const CATEGORIAS_COMPARTILHADAS = new Set([
+  'equipe',
+  'alimentacao_cartao',
+  'acoes_educativas',
+  'educador',
+  'lanches',
+  'diarias_educador',
+  'consultorias',
+  'despesas_gerais',
+]);
+
 function inferirMuseus(rubrica, budgetLine) {
   const texto = normalizeString(
     (rubrica?.grupo || '') +
@@ -140,24 +152,18 @@ function inferirMuseus(rubrica, budgetLine) {
   }
 
   if (
-    (texto.includes('exposi') || texto.includes('expograf') || texto.includes('mumo')) &&
+    (texto.includes('exposi') || texto.includes('expograf')) &&
     !texto.includes('mis') &&
-    !texto.includes('mhab')
+    !texto.includes('mhab') &&
+    !texto.includes('mumo')
   ) {
     return ['MUMO'];
   }
 
   const museusMencionados = MUSEUS.filter((m) => texto.includes(m.toLowerCase()));
-  if (museusMencionados.length > 0) return museusMencionados;
+  if (museusMencionados.length === 1) return museusMencionados;
 
-  if (
-    texto.includes('noturno') ||
-    texto.includes('equipe') ||
-    texto.includes('despesa geral')
-  ) {
-    return MUSEUS;
-  }
-
+  // Rubricas shared: divide por todos os 3 museus
   return MUSEUS;
 }
 
@@ -304,7 +310,11 @@ function distribuirValorPorMuseu(compras, rubrica, budgetLine) {
   for (const museu of MUSEUS) totais[museu] = 0;
 
   for (const compra of compras) {
-    const museu = detectMuseuFromPurchase(compra, rubrica, budgetLine);
+    // centro_custo da compra é a fonte prioritária para débito
+    const centroCusto = normalizeMuseu(compra?.centro_custo || '');
+    const museu = (centroCusto && MUSEUS.includes(centroCusto))
+      ? centroCusto
+      : detectMuseuFromPurchase(compra, rubrica, budgetLine);
     if (!museu || !MUSEUS.includes(museu)) continue;
     totais[museu] += getPurchaseValue(compra);
   }
@@ -487,11 +497,16 @@ Deno.serve(async (req) => {
       } else {
         const museus = inferirMuseus(rubrica, budgetLine);
         const categoria_key = inferirCategoria(rubrica, budgetLine);
-        associacoes = museus.map((m) => ({
+        // Rubricas compartilhadas SEMPRE dividem igualmente por 3
+        const divisor = museus.length >= 3 || CATEGORIAS_COMPARTILHADAS.has(categoria_key)
+          ? 3
+          : museus.length || 1;
+        const museusFinais = divisor === 3 ? MUSEUS : museus;
+        associacoes = museusFinais.map((m) => ({
           museu: m,
           categoria_key,
-          divisor: museus.length || 1,
-          distribuicao_mode: 'inferido',
+          divisor,
+          distribuicao_mode: divisor === 3 ? 'compartilhada_div3' : 'inferido',
         }));
       }
 
@@ -587,11 +602,12 @@ Deno.serve(async (req) => {
       if (rubricaSemAssociacao) {
         const categoria_key = inferirCategoria(rubrica, budgetLine);
         const museus = inferirMuseus(rubrica, budgetLine);
+        const divisor = museus.length >= 3 || CATEGORIAS_COMPARTILHADAS.has(categoria_key) ? 3 : (museus.length || 1);
+        const museusFinais = divisor === 3 ? MUSEUS : museus;
 
-        for (const museu of museus) {
+        for (const museu of museusFinais) {
           if (!resultado[museu][categoria_key]) resultado[museu][categoria_key] = [];
 
-          const divisor = museus.length || 1;
           const totalOrcado = Number((valorRubrica / divisor).toFixed(2));
           const valorPago = totalPagoDetectado > 0
             ? toNumber(pagosPorMuseu[museu])
@@ -622,7 +638,7 @@ Deno.serve(async (req) => {
             saldo,
             pct,
             divisor,
-            distribuicao_mode: 'fallback',
+            distribuicao_mode: divisor === 3 ? 'compartilhada_div3' : 'fallback',
             num_lancamentos: lans.length,
             num_compras_pagas: comprasPagas.length,
             num_compras_aprovadas: comprasAprovadas.length,
