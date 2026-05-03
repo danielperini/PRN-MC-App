@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { TrendingUp, Settings, RefreshCw, Link, LayoutGrid } from 'lucide-react';
+import { TrendingUp, RefreshCw, LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner';
 import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
 import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
@@ -38,51 +38,49 @@ function extractResumoMapFromSource(source) {
   if (totaisPorMuseu && typeof totaisPorMuseu === 'object' && !Array.isArray(totaisPorMuseu)) {
     Object.entries(totaisPorMuseu).forEach(([key, dados]) => {
       const museu = normalizeMuseu(key);
-      if (!museu) return;
+      if (!MUSEUS.includes(museu)) return;
 
       result[museu] = {
         museu,
         totalOrcado: toNumber(dados?.totalOrcado),
         totalUtilizado: toNumber(dados?.totalUtilizado),
         totalPago: toNumber(dados?.totalPago),
-        totalComprometido: toNumber(dados?.totalComprometido),
         totalLancamentos: toNumber(dados?.totalLancamentos),
         totalSaldo: toNumber(dados?.totalSaldo),
         pct:
-        dados?.pct !== undefined && dados?.pct !== null ?
-        toNumber(dados.pct) :
-        null
+          dados?.pct !== undefined && dados?.pct !== null
+            ? toNumber(dados.pct)
+            : null
       };
     });
   }
 
   const sumarioPorMuseu =
-  source?.sumario_por_museu ||
-  source?.sumario?.sumario_por_museu ||
-  [];
+    source?.sumario_por_museu ||
+    source?.sumario?.sumario_por_museu ||
+    [];
 
   if (Array.isArray(sumarioPorMuseu)) {
     sumarioPorMuseu.forEach((item) => {
       const museu = normalizeMuseu(item?.museu);
-      if (!museu) return;
+      if (!MUSEUS.includes(museu)) return;
 
       result[museu] = {
         museu,
         totalOrcado: toNumber(item?.valor_orcado),
         totalUtilizado: toNumber(item?.valor_utilizado),
         totalPago: toNumber(item?.valor_pago),
-        totalComprometido: toNumber(item?.valor_comprometido),
         totalLancamentos: toNumber(item?.valor_lancamentos),
         totalSaldo: toNumber(item?.saldo),
         pct:
-        toNumber(item?.valor_orcado) > 0 ?
-        Number(
-          (
-          toNumber(item?.valor_utilizado) / toNumber(item?.valor_orcado) *
-          100).
-          toFixed(2)
-        ) :
-        0
+          toNumber(item?.valor_orcado) > 0
+            ? Number(
+                (
+                  (toNumber(item?.valor_utilizado) / toNumber(item?.valor_orcado)) *
+                  100
+                ).toFixed(2)
+              )
+            : 0
       };
     });
   }
@@ -97,34 +95,33 @@ export default function RubricasPorMuseu() {
   const [currentUser, setCurrentUser] = useState(null);
   const [userPermission, setUserPermission] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isSetup, setIsSetup] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [lastRecalcResponse, setLastRecalcResponse] = useState(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    base44.auth.
-    me().
-    then(async (user) => {
-      setCurrentUser(user);
-      if (user?.email) {
-        const perms = await base44.entities.UserPermission.filter({
-          user_email: user.email
-        });
-        setUserPermission(perms?.[0] || null);
-      }
-    }).
-    catch(() => {});
+    base44.auth
+      .me()
+      .then(async (user) => {
+        setCurrentUser(user);
+        if (user?.email) {
+          const perms = await base44.entities.UserPermission.filter({
+            user_email: user.email
+          });
+          setUserPermission(perms?.[0] || null);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const isCoordenador =
-  currentUser &&
-  ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
+    currentUser &&
+    ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
 
   const canEdit =
-  isCoordenador ||
-  userPermission?.pode_gerenciar_rubricas ||
-  userPermission?.gestao_compras;
+    isCoordenador ||
+    userPermission?.pode_gerenciar_rubricas ||
+    userPermission?.gestao_compras;
 
   const {
     data: consolidado,
@@ -152,23 +149,21 @@ export default function RubricasPorMuseu() {
       const totalOrcado = toNumber(dados.totalOrcado);
       const totalUtilizado = toNumber(dados.totalUtilizado);
       const totalPago = toNumber(dados.totalPago);
-      const totalComprometido = toNumber(dados.totalComprometido);
       const totalLancamentos = toNumber(dados.totalLancamentos);
       const totalSaldo = toNumber(dados.totalSaldo);
 
       const pct =
-      dados.pct !== undefined && dados.pct !== null ?
-      toNumber(dados.pct) :
-      totalOrcado > 0 ?
-      Number((totalUtilizado / totalOrcado * 100).toFixed(2)) :
-      0;
+        dados.pct !== undefined && dados.pct !== null
+          ? toNumber(dados.pct)
+          : totalOrcado > 0
+            ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(2))
+            : 0;
 
       return {
         museu: m,
         totalOrcado,
         totalUtilizado,
         totalPago,
-        totalComprometido,
         totalLancamentos,
         totalSaldo,
         pct
@@ -177,30 +172,30 @@ export default function RubricasPorMuseu() {
   }, [consolidado, lastRecalcResponse]);
 
   const fmt = (v) =>
-  toNumber(v).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  });
+    toNumber(v).toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    });
 
   const refreshAllRubricaData = async () => {
     await Promise.all([
-    queryClient.invalidateQueries({
-      predicate: (query) => {
-        const key = Array.isArray(query.queryKey) ?
-        query.queryKey.join('|').toLowerCase() :
-        String(query.queryKey || '').toLowerCase();
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = Array.isArray(query.queryKey)
+            ? query.queryKey.join('|').toLowerCase()
+            : String(query.queryKey || '').toLowerCase();
 
-        return (
-          key.includes('rubrica') ||
-          key.includes('budget') ||
-          key.includes('compra') ||
-          key.includes('purchase') ||
-          key.includes('museu'));
-
-      }
-    }),
-    refetchConsolidado()]
-    );
+          return (
+            key.includes('rubrica') ||
+            key.includes('budget') ||
+            key.includes('compra') ||
+            key.includes('purchase') ||
+            key.includes('museu')
+          );
+        }
+      }),
+      refetchConsolidado()
+    ]);
 
     setRefreshNonce((prev) => prev + 1);
   };
@@ -218,10 +213,10 @@ export default function RubricasPorMuseu() {
       await refreshAllRubricaData();
 
       const inconsistencias =
-      toNumber(data?.sumario?.compras_pagas_nao_vinculadas) +
-      toNumber(data?.sumario?.compras_inconsistentes_museu) +
-      toNumber(data?.sumario?.lancamentos_sem_rubrica) +
-      toNumber(data?.sumario?.lancamentos_inconsistentes_museu);
+        toNumber(data?.sumario?.compras_pagas_nao_vinculadas) +
+        toNumber(data?.sumario?.compras_inconsistentes_museu) +
+        toNumber(data?.sumario?.lancamentos_sem_rubrica) +
+        toNumber(data?.sumario?.lancamentos_inconsistentes_museu);
 
       if (inconsistencias > 0) {
         toast.warning(
@@ -237,51 +232,6 @@ export default function RubricasPorMuseu() {
     setIsRefreshing(false);
   };
 
-  const handleSetupVinculos = async () => {
-    setIsSetup(true);
-    try {
-      const res = await base44.functions.invoke('setupRubricasMuseuConfig', {});
-      const data = res?.data || {};
-
-      await refreshAllRubricaData();
-
-      toast.success(`${data.criados?.length || 0} vínculos criados automaticamente`);
-    } catch (e) {
-      toast.error('Erro ao configurar vínculos: ' + (e?.message || 'erro desconhecido'));
-      console.error(e);
-    }
-    setIsSetup(false);
-  };
-
-  const resumoGeral = useMemo(() => {
-    return resumoPorMuseu.reduce(
-      (acc, item) => {
-        acc.totalOrcado += toNumber(item.totalOrcado);
-        acc.totalUtilizado += toNumber(item.totalUtilizado);
-        acc.totalPago += toNumber(item.totalPago);
-        acc.totalComprometido += toNumber(item.totalComprometido);
-        acc.totalLancamentos += toNumber(item.totalLancamentos);
-        acc.totalSaldo += toNumber(item.totalSaldo);
-        return acc;
-      },
-      {
-        totalOrcado: 0,
-        totalUtilizado: 0,
-        totalPago: 0,
-        totalComprometido: 0,
-        totalLancamentos: 0,
-        totalSaldo: 0
-      }
-    );
-  }, [resumoPorMuseu]);
-
-  const pctGeral =
-  resumoGeral.totalOrcado > 0 ?
-  Number(
-    (resumoGeral.totalUtilizado / resumoGeral.totalOrcado * 100).toFixed(2)
-  ) :
-  0;
-
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-10">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -291,7 +241,7 @@ export default function RubricasPorMuseu() {
             Rubricas por Museu
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Acompanhamento orçamentário centralizado
+            Acompanhamento orçamentário por museu
           </p>
         </div>
 
@@ -300,106 +250,24 @@ export default function RubricasPorMuseu() {
             variant="outline"
             className="gap-2"
             onClick={handleRefresh}
-            disabled={isRefreshing}>
-            
+            disabled={isRefreshing}
+          >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             Recalcular
           </Button>
 
-          {isCoordenador &&
-          <>
-              
-
-
-
-
-
-
-
-            
-
-              <Button
+          {isCoordenador && (
+            <Button
               variant="outline"
               className="gap-2"
-              onClick={() => setShowCardEditor(true)}>
-              
-                <LayoutGrid className="w-4 h-4" />
-                Editor de Cards
-              </Button>
-
-              
-
-
-
-
-
-
-            
-            </>
-          }
+              onClick={() => setShowCardEditor(true)}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Editor de Cards
+            </Button>
+          )}
         </div>
       </div>
-
-      <Card className="border-gray-200">
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div>
-              <div className="text-sm text-gray-500">Visão consolidada</div>
-              <div className="text-xl font-bold text-gray-900">
-                {fmt(resumoGeral.totalOrcado)}
-              </div>
-              <div className="text-xs text-gray-500">Total orçado dos museus</div>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-              <div>
-                <div className="text-gray-500">Utilizado</div>
-                <div className="font-semibold">{fmt(resumoGeral.totalUtilizado)}</div>
-              </div>
-              <div>
-                <div className="text-gray-500">Pago</div>
-                <div className="font-semibold text-green-700">
-                  {fmt(resumoGeral.totalPago)}
-                </div>
-              </div>
-              <div>
-                <div className="text-gray-500">Comprometido</div>
-                <div className="font-semibold text-orange-600">
-                  {fmt(resumoGeral.totalComprometido)}
-                </div>
-              </div>
-              <div>
-                <div className="text-gray-500">Saldo</div>
-                <div
-                  className={`font-bold ${
-                  resumoGeral.totalSaldo < 0 ? 'text-red-600' : 'text-green-600'}`
-                  }>
-                  
-                  {fmt(resumoGeral.totalSaldo)}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className={`h-2 rounded-full transition-all ${
-                pctGeral >= 100 ?
-                'bg-red-500' :
-                pctGeral >= 80 ?
-                'bg-orange-400' :
-                'bg-green-500'}`
-                }
-                style={{ width: `${Math.min(pctGeral, 100)}%` }} />
-              
-            </div>
-            <div className="mt-2 text-xs text-gray-500">
-              Utilização geral: <span className="font-semibold">{pctGeral}%</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {resumoPorMuseu.map(
@@ -408,131 +276,126 @@ export default function RubricasPorMuseu() {
             totalOrcado,
             totalUtilizado,
             totalPago,
-            totalComprometido,
             totalLancamentos,
             totalSaldo,
             pct
-          }) =>
-          <Card
-            key={museu}
-            className={`cursor-pointer transition-all border-2 ${
-            museuAtivo === museu ?
-            'border-gray-800 shadow-md' :
-            'border-gray-200 hover:border-gray-400'}`
-            }
-            onClick={() => setMuseuAtivo(museu)}>
-            
+          }) => (
+            <Card
+              key={museu}
+              className={`cursor-pointer transition-all border-2 ${
+                museuAtivo === museu
+                  ? 'border-gray-800 shadow-md'
+                  : 'border-gray-200 hover:border-gray-400'
+              }`}
+              onClick={() => setMuseuAtivo(museu)}
+            >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold text-base text-gray-900">{museu}</span>
                   <span
-                  className={`text-sm font-bold ${
-                  pct >= 80 ? 'text-red-600' : 'text-gray-500'}`
-                  }>
-                  
+                    className={`text-sm font-bold ${
+                      pct >= 80 ? 'text-red-600' : 'text-gray-500'
+                    }`}
+                  >
                     {pct}%
                   </span>
                 </div>
 
                 <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
                   <div
-                  className={`h-2 rounded-full transition-all ${
-                  pct >= 100 ?
-                  'bg-red-500' :
-                  pct >= 80 ?
-                  'bg-orange-400' :
-                  'bg-green-500'}`
-                  }
-                  style={{ width: `${Math.min(pct, 100)}%` }} />
-                
+                    className={`h-2 rounded-full transition-all ${
+                      pct >= 100
+                        ? 'bg-red-500'
+                        : pct >= 80
+                          ? 'bg-orange-400'
+                          : 'bg-green-500'
+                    }`}
+                    style={{ width: `${Math.min(pct, 100)}%` }}
+                  />
                 </div>
 
-                {isLoading && !lastRecalcResponse ?
-              <div className="space-y-1.5">
-                    {[1, 2, 3, 4].map((i) =>
-                <div key={i} className="h-3 bg-gray-100 rounded animate-pulse" />
-                )}
-                  </div> :
-
-              <div className="space-y-1 text-xs">
+                {isLoading && !lastRecalcResponse ? (
+                  <div className="space-y-1.5">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="h-3 bg-gray-100 rounded animate-pulse" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-1 text-xs">
                     <div className="flex justify-between text-gray-600">
                       <span>Previsto</span>
                       <span className="font-medium">{fmt(totalOrcado)}</span>
                     </div>
+
                     <div className="flex justify-between text-gray-600">
                       <span>✅ Pago</span>
                       <span className="font-medium text-green-700">
                         {fmt(totalPago)}
                       </span>
                     </div>
-                    {totalComprometido > 0 &&
-                <div className="flex justify-between text-gray-600">
-                        <span>🔒 Comprometido</span>
-                        <span className="font-medium text-orange-600">
-                          {fmt(totalComprometido)}
-                        </span>
-                      </div>
-                }
-                    {totalLancamentos > 0 &&
-                <div className="flex justify-between text-gray-600">
+
+                    {totalLancamentos > 0 && (
+                      <div className="flex justify-between text-gray-600">
                         <span>🧾 Lançamentos</span>
                         <span className="font-medium text-blue-700">
                           {fmt(totalLancamentos)}
                         </span>
                       </div>
-                }
+                    )}
+
                     <div className="flex justify-between text-gray-600">
                       <span>Utilizado</span>
                       <span className="font-medium">{fmt(totalUtilizado)}</span>
                     </div>
+
                     <div className="flex justify-between border-t pt-1 mt-1">
                       <span className="font-semibold text-gray-700">Saldo</span>
                       <span
-                    className={`font-bold ${
-                    totalSaldo < 0 ? 'text-red-600' : 'text-green-600'}`
-                    }>
-                    
+                        className={`font-bold ${
+                          totalSaldo < 0 ? 'text-red-600' : 'text-green-600'
+                        }`}
+                      >
                         {fmt(totalSaldo)}
                       </span>
                     </div>
                   </div>
-              }
+                )}
               </CardContent>
             </Card>
-
+          )
         )}
       </div>
 
       <Tabs value={museuAtivo} onValueChange={setMuseuAtivo}>
         <TabsList className="grid grid-cols-3 w-full max-w-sm">
-          {MUSEUS.map((m) =>
-          <TabsTrigger key={m} value={m} className="font-semibold">
+          {MUSEUS.map((m) => (
+            <TabsTrigger key={m} value={m} className="font-semibold">
               {m}
             </TabsTrigger>
-          )}
+          ))}
         </TabsList>
 
-        {MUSEUS.map((m) =>
-        <TabsContent key={`${m}-${refreshNonce}`} value={m} className="mt-4">
+        {MUSEUS.map((m) => (
+          <TabsContent key={`${m}-${refreshNonce}`} value={m} className="mt-4">
             <RubricasMuseuEditor
-            key={`${m}-${refreshNonce}`}
-            museu={m}
-            canEdit={canEdit}
-            refreshKey={refreshNonce} />
-          
+              key={`${m}-${refreshNonce}`}
+              museu={m}
+              canEdit={canEdit}
+              refreshKey={refreshNonce}
+            />
           </TabsContent>
-        )}
+        ))}
       </Tabs>
 
       <GerenciarRubricasMuseuDialog
         open={showGerenciar}
-        onClose={() => setShowGerenciar(false)} />
-      
+        onClose={() => setShowGerenciar(false)}
+      />
 
       <CardRubricaEditor
         open={showCardEditor}
-        onClose={() => setShowCardEditor(false)} />
-      
-    </div>);
-
+        onClose={() => setShowCardEditor(false)}
+      />
+    </div>
+  );
 }
