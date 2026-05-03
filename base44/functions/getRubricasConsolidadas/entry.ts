@@ -112,16 +112,58 @@ function inferirCategoria(rubrica, budgetLine) {
   return 'outros';
 }
 
-// Rubricas compartilhadas: sempre dividir por 3 (todos os museus)
+function deveExcluirDaVisaoMuseu(categoria, rubrica, budgetLine) {
+  const texto = normalizeString(
+    (rubrica?.grupo || '') +
+      ' ' +
+      (rubrica?.rubrica || rubrica?.nome || '') +
+      ' ' +
+      (rubrica?.observacao_uso || '') +
+      ' ' +
+      (budgetLine?.descricao || budgetLine?.rubrica || budgetLine?.nome || '')
+  );
+
+  if (categoria === 'consultorias' || categoria === 'despesas_gerais') {
+    return true;
+  }
+
+  if (categoria === 'equipe') {
+    if (
+      texto.includes('producao mis/mumo/mhab') ||
+      texto.includes('producao mis mumo mhab')
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  if (categoria === 'comunicacao') {
+    return true;
+  }
+
+  if (categoria === 'noturno') {
+    if (texto.includes('mis/mumo/mhab') || texto.includes('3 museus')) {
+      return false;
+    }
+
+    return true;
+  }
+
+  if (categoria === 'publicacoes') {
+    return true;
+  }
+
+  return false;
+}
+
 const CATEGORIAS_COMPARTILHADAS = new Set([
-  'equipe',
   'alimentacao_cartao',
   'acoes_educativas',
   'educador',
   'lanches',
   'diarias_educador',
-  'consultorias',
-  'despesas_gerais',
+  'material',
 ]);
 
 function inferirMuseus(rubrica, budgetLine) {
@@ -134,6 +176,14 @@ function inferirMuseus(rubrica, budgetLine) {
       ' ' +
       (budgetLine?.descricao || budgetLine?.rubrica || budgetLine?.nome || '')
   );
+
+  if (texto.includes('noturno')) {
+    if (texto.includes('mis/mumo/mhab') || texto.includes('3 museus')) {
+      return MUSEUS;
+    }
+
+    return [];
+  }
 
   const centroDireto = normalizeMuseu(
     rubrica?.centro_custo ||
@@ -163,7 +213,6 @@ function inferirMuseus(rubrica, budgetLine) {
   const museusMencionados = MUSEUS.filter((m) => texto.includes(m.toLowerCase()));
   if (museusMencionados.length === 1) return museusMencionados;
 
-  // Rubricas shared: divide por todos os 3 museus
   return MUSEUS;
 }
 
@@ -310,11 +359,12 @@ function distribuirValorPorMuseu(compras, rubrica, budgetLine) {
   for (const museu of MUSEUS) totais[museu] = 0;
 
   for (const compra of compras) {
-    // centro_custo da compra é a fonte prioritária para débito
     const centroCusto = normalizeMuseu(compra?.centro_custo || '');
-    const museu = (centroCusto && MUSEUS.includes(centroCusto))
-      ? centroCusto
-      : detectMuseuFromPurchase(compra, rubrica, budgetLine);
+    const museu =
+      centroCusto && MUSEUS.includes(centroCusto)
+        ? centroCusto
+        : detectMuseuFromPurchase(compra, rubrica, budgetLine);
+
     if (!museu || !MUSEUS.includes(museu)) continue;
     totais[museu] += getPurchaseValue(compra);
   }
@@ -333,9 +383,9 @@ function distribuirLancamentosPorMuseu(lancamentos, rubrica, budgetLine) {
   for (const lancamento of lancamentos) {
     const museu = normalizeMuseu(
       lancamento?.museu ||
-      lancamento?.museu_codigo ||
-      lancamento?.unidade ||
-      lancamento?.centro_custo
+        lancamento?.museu_codigo ||
+        lancamento?.unidade ||
+        lancamento?.centro_custo
     );
 
     if (museu && MUSEUS.includes(museu)) {
@@ -418,7 +468,7 @@ Deno.serve(async (req) => {
         comprasPagasPorRubrica[rubrica.id].push(p);
       }
 
-      if (status === 'APROVADO_ADMIN' || status === 'APROVADO_COORD') {
+      if (status === 'APROVADO_ADMIN' || status === 'APROVADO_COORD' || status === 'APROVADO') {
         if (!comprasAprovadasPorRubrica[rubrica.id]) {
           comprasAprovadasPorRubrica[rubrica.id] = [];
         }
@@ -441,7 +491,7 @@ Deno.serve(async (req) => {
 
       const budgetLine = budgetlineId ? budgetLineById[budgetlineId] || null : null;
 
-      const valorRubrica = toNumber(rubrica?.valor_rubrica);
+      const valorRubrica = toNumber(rubrica?.valor_rubrica || rubrica?.valor_total);
 
       const comprasPagas = comprasPagasPorRubrica[rubricaId] || [];
       const comprasAprovadas = comprasAprovadasPorRubrica[rubricaId] || [];
@@ -456,14 +506,6 @@ Deno.serve(async (req) => {
 
       const valorLancamentosRubrica = Number(
         lans.reduce((s, l) => s + toNumber(l?.valor), 0).toFixed(2)
-      );
-
-      const valorUtilizadoRubrica = Number(
-        (
-          valorPagoRubrica +
-          valorComprometidoRubrica +
-          valorLancamentosRubrica
-        ).toFixed(2)
       );
 
       const distribuicaoExplicita = getDistribuicaoExplicita(rubrica);
@@ -497,11 +539,20 @@ Deno.serve(async (req) => {
       } else {
         const museus = inferirMuseus(rubrica, budgetLine);
         const categoria_key = inferirCategoria(rubrica, budgetLine);
-        // Rubricas compartilhadas SEMPRE dividem igualmente por 3
-        const divisor = museus.length >= 3 || CATEGORIAS_COMPARTILHADAS.has(categoria_key)
-          ? 3
-          : museus.length || 1;
+
+        if (deveExcluirDaVisaoMuseu(categoria_key, rubrica, budgetLine)) {
+          continue;
+        }
+
+        if (!museus.length) continue;
+
+        const divisor =
+          museus.length >= 3 || CATEGORIAS_COMPARTILHADAS.has(categoria_key)
+            ? 3
+            : museus.length || 1;
+
         const museusFinais = divisor === 3 ? MUSEUS : museus;
+
         associacoes = museusFinais.map((m) => ({
           museu: m,
           categoria_key,
@@ -530,6 +581,10 @@ Deno.serve(async (req) => {
         const divisor = toNumber(assoc.divisor) || 1;
         const cat = assoc.categoria_key || 'outros';
 
+        if (deveExcluirDaVisaoMuseu(cat, rubrica, budgetLine)) {
+          continue;
+        }
+
         if (!resultado[assoc.museu][cat]) resultado[assoc.museu][cat] = [];
 
         const totalOrcado =
@@ -541,22 +596,22 @@ Deno.serve(async (req) => {
           assoc.valor_pago !== undefined
             ? toNumber(assoc.valor_pago)
             : totalPagoDetectado > 0
-            ? toNumber(pagosPorMuseu[assoc.museu])
-            : Number((valorPagoRubrica / divisor).toFixed(2));
+              ? toNumber(pagosPorMuseu[assoc.museu])
+              : 0;
 
         const valorComprometido =
           assoc.valor_comprometido !== undefined
             ? toNumber(assoc.valor_comprometido)
             : totalComprometidoDetectado > 0
-            ? toNumber(aprovadosPorMuseu[assoc.museu])
-            : Number((valorComprometidoRubrica / divisor).toFixed(2));
+              ? toNumber(aprovadosPorMuseu[assoc.museu])
+              : 0;
 
         const valorLancamentos =
           assoc.valor_lancamentos !== undefined
             ? toNumber(assoc.valor_lancamentos)
             : totalLancDetectado > 0
-            ? toNumber(lancamentosPorMuseu[assoc.museu])
-            : Number((valorLancamentosRubrica / divisor).toFixed(2));
+              ? toNumber(lancamentosPorMuseu[assoc.museu])
+              : 0;
 
         const valorUtilizado =
           assoc.valor_utilizado !== undefined
@@ -573,8 +628,8 @@ Deno.serve(async (req) => {
           assoc.percentual_utilizado !== null
             ? toNumber(assoc.percentual_utilizado)
             : totalOrcado > 0
-            ? Number(((valorUtilizado / totalOrcado) * 100).toFixed(1))
-            : 0;
+              ? Number(((valorUtilizado / totalOrcado) * 100).toFixed(1))
+              : 0;
 
         resultado[assoc.museu][cat].push({
           id: rubricaId,
@@ -597,58 +652,6 @@ Deno.serve(async (req) => {
           budgetline_id: budgetlineId,
         });
       }
-
-      const rubricaSemAssociacao = associacoes.length === 0;
-      if (rubricaSemAssociacao) {
-        const categoria_key = inferirCategoria(rubrica, budgetLine);
-        const museus = inferirMuseus(rubrica, budgetLine);
-        const divisor = museus.length >= 3 || CATEGORIAS_COMPARTILHADAS.has(categoria_key) ? 3 : (museus.length || 1);
-        const museusFinais = divisor === 3 ? MUSEUS : museus;
-
-        for (const museu of museusFinais) {
-          if (!resultado[museu][categoria_key]) resultado[museu][categoria_key] = [];
-
-          const totalOrcado = Number((valorRubrica / divisor).toFixed(2));
-          const valorPago = totalPagoDetectado > 0
-            ? toNumber(pagosPorMuseu[museu])
-            : Number((valorPagoRubrica / divisor).toFixed(2));
-          const valorComprometido = totalComprometidoDetectado > 0
-            ? toNumber(aprovadosPorMuseu[museu])
-            : Number((valorComprometidoRubrica / divisor).toFixed(2));
-          const valorLancamentos = totalLancDetectado > 0
-            ? toNumber(lancamentosPorMuseu[museu])
-            : Number((valorLancamentosRubrica / divisor).toFixed(2));
-          const valorUtilizado = Number((valorPago + valorComprometido + valorLancamentos).toFixed(2));
-          const saldo = Number((totalOrcado - valorUtilizado).toFixed(2));
-          const pct = totalOrcado > 0
-            ? Number(((valorUtilizado / totalOrcado) * 100).toFixed(1))
-            : 0;
-
-          resultado[museu][categoria_key].push({
-            id: rubricaId,
-            rubrica: rubrica.rubrica || rubrica.nome || '',
-            grupo: rubrica.grupo || '',
-            centro_custo: normalizeMuseu(rubrica?.centro_custo || '') || null,
-            valor_rubrica: valorRubrica,
-            totalOrcado,
-            valorUtilizado,
-            valorPago,
-            valorComprometido,
-            valorLancamentos,
-            saldo,
-            pct,
-            divisor,
-            distribuicao_mode: divisor === 3 ? 'compartilhada_div3' : 'fallback',
-            num_lancamentos: lans.length,
-            num_compras_pagas: comprasPagas.length,
-            num_compras_aprovadas: comprasAprovadas.length,
-            budgetline_id: budgetlineId,
-          });
-        }
-      }
-
-      const _saldoRubrica = Number((valorRubrica - valorUtilizadoRubrica).toFixed(2));
-      void _saldoRubrica;
     }
 
     const totaisPorMuseu = {};
