@@ -144,21 +144,28 @@ function DashboardInner() {
   const recentReports = filteredReports.slice(0, 8);
   const isLoading = showCoordView ? loadingAll : loadingMy || userLoading;
 
-  const stats = React.useMemo(() => {
-    const total = filteredReports.length;
-    const draft = filteredReports.filter((r) => r.status === 'DRAFT').length;
-    const submitted = filteredReports.filter((r) => r.status === 'SUBMITTED').length;
-    const inReview = filteredReports.filter((r) => r.status === 'IN_REVIEW').length;
-    const approved = filteredReports.filter((r) => r.status === 'APPROVED').length;
-    
-    return [
-      { label: 'Total', value: total },
-      { label: 'Rascunhos', value: draft },
-      { label: 'Enviados', value: submitted },
-      { label: 'Em Revisão', value: inReview },
-      { label: 'Aprovados', value: approved }
-    ];
+  const activityStats = React.useMemo(() => {
+    let totalAtividades = 0;
+    let totalPublico = 0;
+    filteredReports.forEach(r => {
+      const atividades = Array.isArray(r.atividades) ? r.atividades : [];
+      atividades.forEach(a => {
+        const vezes = Number(a.quantas_vezes_ocorreu || 1);
+        const publicoMedio = Number(a.publico_medio || 0);
+        totalAtividades += vezes;
+        totalPublico += vezes * publicoMedio;
+      });
+    });
+    return { totalAtividades, totalPublico };
   }, [filteredReports]);
+
+  const stats = React.useMemo(() => [
+    { label: 'Relatórios', value: filteredReports.length },
+    { label: 'Pendentes', value: filteredReports.filter(r => r.status !== 'APPROVED').length },
+    { label: 'Aprovados', value: filteredReports.filter(r => r.status === 'APPROVED').length },
+    { label: 'Atividades', value: activityStats.totalAtividades },
+    { label: 'Público', value: activityStats.totalPublico }
+  ], [filteredReports, activityStats]);
 
   return (
     <div className="min-h-screen bg-white overflow-y-auto" ref={containerRef} style={{ maxHeight: '100vh' }}>
