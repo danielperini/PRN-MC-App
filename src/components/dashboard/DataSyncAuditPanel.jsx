@@ -51,34 +51,34 @@ export default function DataSyncAuditPanel() {
   return (
     <div className="space-y-4">
       <Card className="border-2 border-slate-200">
-        <CardHeader>
+        <CardHeader className="flex flex-col space-y-1.5 p-6 hidden">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <RotateCw className="w-5 h-5" />
               Sincronização de Dados do Dashboard
             </CardTitle>
-            <Button 
-              onClick={triggerSync} 
+            <Button
+              onClick={triggerSync}
               disabled={syncing}
-              className="gap-2"
-            >
-              {syncing ? (
-                <>
+              className="gap-2">
+              
+              {syncing ?
+              <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Sincronizando...
-                </>
-              ) : (
-                <>
+                </> :
+
+              <>
                   <RotateCw className="w-4 h-4" />
                   Sincronizar Agora
                 </>
-              )}
+              }
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {lastSync && (
-            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+          {lastSync &&
+          <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
               <CheckCircle2 className="w-5 h-5 text-green-600" />
               <div>
                 <p className="text-sm font-medium text-green-900">Última sincronização</p>
@@ -87,17 +87,17 @@ export default function DataSyncAuditPanel() {
                 </p>
               </div>
             </div>
-          )}
+          }
 
-          <Tabs defaultValue="metrics" className="w-full">
+          <Tabs defaultValue="metrics" className="w-full hidden">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="metrics">Métricas</TabsTrigger>
               <TabsTrigger value="audit">Auditoria</TabsTrigger>
             </TabsList>
 
             <TabsContent value="metrics" className="space-y-3">
-              {syncMetrics ? (
-                <>
+              {syncMetrics ?
+              <>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
                       <p className="text-xs text-blue-600 font-medium">Relatórios Processados</p>
@@ -141,47 +141,47 @@ export default function DataSyncAuditPanel() {
                     </div>
                   </div>
 
-                  {syncMetrics.consolidated_by_museum && (
-                    <div className="border border-slate-200 rounded-lg p-3 space-y-2">
+                  {syncMetrics.consolidated_by_museum &&
+                <div className="border border-slate-200 rounded-lg p-3 space-y-2">
                       <p className="text-sm font-medium text-slate-700">Por Museu</p>
                       <div className="space-y-2 max-h-40 overflow-y-auto">
-                        {Object.entries(syncMetrics.consolidated_by_museum).map(([museu, periodos]) => (
-                          <div key={museu} className="bg-slate-50 p-2 rounded text-xs">
+                        {Object.entries(syncMetrics.consolidated_by_museum).map(([museu, periodos]) =>
+                    <div key={museu} className="bg-slate-50 p-2 rounded text-xs">
                             <p className="font-bold text-slate-900">{museu}</p>
                             <p className="text-slate-600">
                               {Object.keys(periodos).length} período(s) | 
                               {Object.values(periodos).reduce((sum, p) => sum + (p.atividades_mes || 0), 0)} atividades
                             </p>
                           </div>
-                        ))}
+                    )}
                       </div>
                     </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-center py-8 text-slate-500">
+                }
+                </> :
+
+              <div className="text-center py-8 text-slate-500">
                   <p>Execute uma sincronização para ver as métricas</p>
                 </div>
-              )}
+              }
             </TabsContent>
 
             <TabsContent value="audit" className="space-y-3">
-              {loading ? (
-                <div className="flex justify-center py-8">
+              {loading ?
+              <div className="flex justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-                </div>
-              ) : auditLogs.length === 0 ? (
-                <div className="text-center py-8 text-slate-500">
+                </div> :
+              auditLogs.length === 0 ?
+              <div className="text-center py-8 text-slate-500">
                   <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-40" />
                   <p>Nenhuma sincronização registrada</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {auditLogs.map((log) => (
-                    <div 
-                      key={log.id} 
-                      className="border border-slate-200 rounded-lg p-3 bg-slate-50 text-xs"
-                    >
+                </div> :
+
+              <div className="space-y-2">
+                  {auditLogs.map((log) =>
+                <div
+                  key={log.id}
+                  className="border border-slate-200 rounded-lg p-3 bg-slate-50 text-xs">
+                  
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <p className="font-bold text-slate-900">{log.actor_name}</p>
@@ -193,13 +193,13 @@ export default function DataSyncAuditPanel() {
                         <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0 mt-1" />
                       </div>
                     </div>
-                  ))}
+                )}
                 </div>
-              )}
+              }
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
-    </div>
-  );
+    </div>);
+
 }
