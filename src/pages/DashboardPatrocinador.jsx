@@ -256,8 +256,8 @@ export default function DashboardPatrocinador() {
             <Users className="w-5 h-5" style={{ opacity: 0.8 }} />
             <p className="text-xs font-bold uppercase tracking-wide" style={{ opacity: 0.9 }}>Público Total</p>
           </div>
-          <p className="text-5xl font-extrabold">{(data.totalPublico).toLocaleString('pt-BR')}</p>
-          <p className="text-sm mt-2" style={{ opacity: 0.8 }}>{(data.publicoMes).toLocaleString('pt-BR')} este mês</p>
+          <p className="text-5xl font-extrabold">{Math.round(data.totalPublico).toLocaleString('pt-BR')}</p>
+          <p className="text-sm mt-2" style={{ opacity: 0.8 }}>{Math.round(data.publicoMes).toLocaleString('pt-BR')} este mês</p>
         </div>
 
         <div style={{

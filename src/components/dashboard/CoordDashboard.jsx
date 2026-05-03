@@ -338,7 +338,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
         <KpiCard label="Pendentes de Revisão" value={pendentes} icon={AlertCircle} highlight={pendentes > 0} />
         <KpiCard label="Aprovados" value={aprovados} icon={CheckCircle} />
         <KpiCard label={`Atividades em ${atividadesMesAnterior.mes} (aprovados)`} value={atividadesMesAnterior.count} icon={TrendingUp} />
-        <KpiCard label="Público Total (aprovados)" value={publicoTotal.toLocaleString('pt-BR')} icon={Users} />
+        <KpiCard label="Público Total (aprovados)" value={Math.round(publicoTotal).toLocaleString('pt-BR')} icon={Users} />
       </div>
       <p className="text-xs text-gray-400">* Atividades e Público Total consideram apenas relatórios com status <strong>APROVADO</strong>. Duplicatas removidas automaticamente.</p>
 
@@ -371,7 +371,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
                 <XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
                 <Tooltip
-                formatter={(v) => [v.toLocaleString('pt-BR'), 'Público']}
+                formatter={(v) => [Math.round(v).toLocaleString('pt-BR'), 'Público']}
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
               
                 <Bar dataKey="publico" fill="#404040" radius={[4, 4, 0, 0]} name="Público" />
@@ -466,7 +466,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
                   <div className="flex gap-3 text-xs text-gray-500 pl-5">
                     <span>{m.relatorios} rel.</span>
                     <span>{m.atividades} ativ.</span>
-                    <span>{m.publico.toLocaleString('pt-BR')} púb.</span>
+                    <span>{Math.round(m.publico).toLocaleString('pt-BR')} púb.</span>
                   </div>
                 </div>
             )}
@@ -485,7 +485,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
               <XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip
-              formatter={(v) => [v.toLocaleString('pt-BR'), 'Público']}
+              formatter={(v) => [Math.round(v).toLocaleString('pt-BR'), 'Público']}
               contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
             
               <Line type="monotone" dataKey="publico" stroke="#000000" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
