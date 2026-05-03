@@ -546,7 +546,7 @@ function KpiCard({ label, value, icon: Icon, highlight }) {
         <Icon className={`w-4 h-4 ${highlight ? 'text-white' : 'text-gray-400'}`} />
         <span className={`text-xs font-medium ${highlight ? 'text-gray-300' : 'text-gray-600'}`}>{label}</span>
       </div>
-      <p className={`text-3xl font-bold leading-tight ${highlight ? 'text-white' : 'text-black'}`}>{value}</p>
+      <p className={`text-3xl font-bold leading-tight ${highlight ? 'text-white' : 'text-black'}`}>{typeof value === 'number' ? Math.round(value) : value}</p>
     </div>);
 
 }
