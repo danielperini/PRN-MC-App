@@ -10,6 +10,7 @@ import {
 'lucide-react';
 import PDFGeneratorDialog from '../components/reports/PDFGeneratorDialog';
 import PeriodExportDialog from '../components/reports/PeriodExportDialog';
+import RelatorioFisicoFinanceiroDialog from '../components/reports/RelatorioFisicoFinanceiroDialog';
 import ActivityFilters from '../components/reports/ActivityFilters';
 import ActivitySummary from '../components/reports/ActivitySummary';
 import { Button } from '@/components/ui/button';
@@ -94,6 +95,7 @@ function RelatoriosInner() {
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
   const [periodExportOpen, setPeriodExportOpen] = useState(false);
+  const [fisicoFinanceiroOpen, setFisicoFinanceiroOpen] = useState(false);
   const [exportingSingleId, setExportingSingleId] = useState(null);
 
   const deleteMutation = useMutation({
@@ -332,7 +334,7 @@ function RelatoriosInner() {
               <Button
                 variant="outline"
                 className="border-black gap-2"
-                onClick={() => setPeriodExportOpen(true)}
+                onClick={() => setFisicoFinanceiroOpen(true)}
               >
                 <Download className="w-4 h-4" />
                 Relatório Físico-Financeiro
@@ -571,6 +573,10 @@ function RelatoriosInner() {
         open={periodExportOpen}
         onClose={() => setPeriodExportOpen(false)}
         museusUnicos={[...new Set(baseReports.map((r) => r.museu).filter(Boolean))]} />
+
+      <RelatorioFisicoFinanceiroDialog
+        open={fisicoFinanceiroOpen}
+        onClose={() => setFisicoFinanceiroOpen(false)} />
       
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
