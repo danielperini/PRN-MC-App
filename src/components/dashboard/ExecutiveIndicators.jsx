@@ -5,23 +5,6 @@ const MONTH_ORDER = [
   'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'
 ];
 
-const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
-
-function MiniBar({ label, value, max, color = 'bg-black', suffix = '' }) {
-  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
-  return (
-    <div className="mb-2">
-      <div className="flex justify-between text-xs text-gray-600 mb-1">
-        <span className="truncate max-w-[60%]">{label}</span>
-        <span className="font-medium text-black">{value.toLocaleString('pt-BR')}{suffix}</span>
-      </div>
-      <div className="w-full h-1.5 bg-gray-100 rounded-full">
-        <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
 function CardSection({ title, children, empty }) {
   return (
     <div className="border border-gray-200 rounded-xl p-4">
@@ -33,71 +16,97 @@ function CardSection({ title, children, empty }) {
   );
 }
 
-export default function ExecutiveIndicators({ reports = [], programacao = [] }) {
-  const TOTAL_PREVISTO = 1320000;
+function getDataAtividade(a) {
+  return a?.data_realizacao || a?.data_programacao || a?.data || a?.created_date || null;
+}
 
+function getPublicoAtividade(a) {
+  const publicoDireto =
+    Number(a?.publico_total) ||
+    Number(a?.publico_estimado) ||
+    Number(a?.publico) ||
+    0;
+
+  if (publicoDireto > 0) return publicoDireto;
+
+  const publicoMedio =
+    Number(a?.publico_medio) ||
+    Number(a?.publico_medio_sessao) ||
+    Number(a?.publico_por_sessao) ||
+    0;
+
+  const vezes =
+    Number(a?.quantas_vezes_ocorreu) ||
+    Number(a?.qtd_ocorrencias) ||
+    Number(a?.ocorrencias) ||
+    1;
+
+  return publicoMedio * vezes;
+}
+
+export default function ExecutiveIndicators({ reports = [], programacao = [] }) {
   const now = new Date();
   const mesAtual = now.getMonth() + 1;
   const anoAtual = now.getFullYear();
 
-  // 🔥 UNIFICAÇÃO CORRETA (igual DashboardPatrocinador)
   const todasAtividades = [
     ...(reports || []).flatMap(r => Array.isArray(r.atividades) ? r.atividades : []),
     ...(programacao || [])
   ];
 
-  // ✅ ATIVIDADES POR MÊS (CORRIGIDO)
-  const activitiesByMonth = React.useMemo(() => {
-    const map = {};
-
-    todasAtividades.forEach(a => {
-      const dataField = a?.data_realizacao || a?.data_programacao;
-      if (!dataField) return;
-
-      const d = new Date(dataField);
-      const mesNome = MONTH_ORDER[d.getMonth()];
-
-      if (!map[mesNome]) {
-        map[mesNome] = { atividades: 0, publico: 0 };
-      }
-
-      map[mesNome].atividades += 1;
-      map[mesNome].publico += Number(a?.publico_total || a?.publico_estimado) || 0;
-    });
-
-    return MONTH_ORDER
-      .filter(m => map[m])
-      .map(m => ({
-        mes: m.slice(0, 3),
-        atividades: map[m].atividades,
-        publico: map[m].publico
-      }));
-  }, [todasAtividades]);
-
-  // ✅ ATIVIDADES DO MÊS ATUAL (FIX PRINCIPAL)
   const atividadesMesAtual = React.useMemo(() => {
     return todasAtividades.filter(a => {
-      const dataField = a?.data_realizacao || a?.data_programacao;
+      const dataField = getDataAtividade(a);
       if (!dataField) return false;
 
       const d = new Date(dataField);
+      if (Number.isNaN(d.getTime())) return false;
+
       return d.getMonth() + 1 === mesAtual && d.getFullYear() === anoAtual;
     }).length;
   }, [todasAtividades, mesAtual, anoAtual]);
 
+  const publicoTotal = React.useMemo(() => {
+    return todasAtividades.reduce((sum, a) => sum + getPublicoAtividade(a), 0);
+  }, [todasAtividades]);
+
+  const publicoMesAtual = React.useMemo(() => {
+    return todasAtividades.reduce((sum, a) => {
+      const dataField = getDataAtividade(a);
+      if (!dataField) return sum;
+
+      const d = new Date(dataField);
+      if (Number.isNaN(d.getTime())) return sum;
+
+      const isMesAtual = d.getMonth() + 1 === mesAtual && d.getFullYear() === anoAtual;
+      if (!isMesAtual) return sum;
+
+      return sum + getPublicoAtividade(a);
+    }, 0);
+  }, [todasAtividades, mesAtual, anoAtual]);
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      
+
       <CardSection title="Atividades (mês)">
         <div className="text-3xl font-bold text-black">
-          {atividadesMesAtual}
+          {atividadesMesAtual.toLocaleString('pt-BR')}
         </div>
       </CardSection>
 
       <CardSection title="Atividades (acumulado)">
         <div className="text-3xl font-bold text-black">
-          {todasAtividades.length}
+          {todasAtividades.length.toLocaleString('pt-BR')}
         </div>
+      </CardSection>
+
+      <CardSection title="Público Total">
+        <div className="text-3xl font-bold text-black">
+          {Math.round(publicoTotal).toLocaleString('pt-BR')}
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          {Math.round(publicoMesAtual).toLocaleString('pt-BR')} este mês
+        </p>
       </CardSection>
 
     </div>
