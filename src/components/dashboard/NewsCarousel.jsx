@@ -58,10 +58,10 @@ export default function NewsCarousel() {
   const visible = [0, 1, 2].map((offset) => news[(current + offset) % news.length]);
 
   return (
-    <div
-      className="relative w-full mb-6"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}>
+    <div className="relative w-full mb-6 hidden"
+
+    onMouseEnter={() => setIsPaused(true)}
+    onMouseLeave={() => setIsPaused(false)}>
       
       {/* Grid de 3 colunas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -95,7 +95,7 @@ export default function NewsCarousel() {
             }
 
               {/* Conteúdo */}
-              <div className="flex-1 flex flex-col justify-between p-3 min-w-0">
+              <div className="flex-1 flex flex-col justify-between p-3 min-w-0 hidden">
                 <div className="min-w-0">
                   <h3 className="font-semibold text-xs text-gray-900 line-clamp-2">{newsItem.titulo}</h3>
                   <p className="text-xs text-gray-600 line-clamp-1 mt-1">{newsItem.resumo}</p>
