@@ -54,7 +54,7 @@ Retorne APENAS o JSON válido, sem explicações adicionais.`,
           data_vencimento: { type: "string" }
         }
       },
-      model: 'gemini_3_pro'
+      model: 'gemini_3_1_pro'
     });
 
     return Response.json({

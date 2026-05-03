@@ -1,27 +1,6 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-import pdfParse from 'npm:pdf-parse@1.1.1';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-function normalizeText(value: string) {
-  return String(value || '')
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]+\n/g, '\n')
-    .trim();
-}
-
-async function extractPdfText(file_url: string) {
-  const res = await fetch(file_url);
-  if (!res.ok) {
-    throw new Error(`Falha ao baixar PDF: ${res.status}`);
-  }
-
-  const buffer = Buffer.from(await res.arrayBuffer());
-  const data = await pdfParse(buffer);
-  return normalizeText(data.text || '');
-}
-
-function toNumber(value: unknown) {
+function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
   const n = Number(
     String(value)
@@ -45,24 +24,11 @@ Deno.serve(async (req) => {
     const file_url = body?.file_url;
 
     if (!file_url) {
-      return Response.json(
-        { success: false, error: 'file_url é obrigatório' },
-        { status: 400 }
-      );
-    }
-
-    const texto = await extractPdfText(file_url);
-
-    if (!texto) {
-      return Response.json(
-        { success: false, error: 'Não foi possível extrair o texto do contrato' },
-        { status: 400 }
-      );
+      return Response.json({ success: false, error: 'file_url é obrigatório' }, { status: 400 });
     }
 
     const result = await base44.integrations.Core.InvokeLLM({
-      prompt: `
-Você está lendo um contrato de prestação de serviços ou documento equivalente.
+      prompt: `Você está lendo um contrato de prestação de serviços ou documento equivalente.
 
 Extraia apenas o que estiver claramente presente no documento.
 
@@ -98,9 +64,9 @@ Regras:
 - contrato_valido deve considerar a vigência final, se estiver clara
 - campos_com_baixa_confianca deve listar nomes dos campos duvidosos
 - trechos_base deve trazer pequenos trechos que sustentam cada campo encontrado
-- responder em português do Brasil
-`,
-      input: texto,
+- responder em português do Brasil`,
+      file_urls: [file_url],
+      model: 'claude_sonnet_4_6',
       response_json_schema: {
         type: 'object',
         properties: {
@@ -123,14 +89,8 @@ Regras:
           conta: { type: 'string' },
           pix_key: { type: 'string' },
           contrato_valido: { type: 'boolean' },
-          campos_com_baixa_confianca: {
-            type: 'array',
-            items: { type: 'string' },
-          },
-          trechos_base: {
-            type: 'object',
-            additionalProperties: { type: 'string' },
-          },
+          campos_com_baixa_confianca: { type: 'array', items: { type: 'string' } },
+          trechos_base: { type: 'object', additionalProperties: { type: 'string' } },
         },
       },
     });
@@ -169,26 +129,19 @@ Regras:
       pix_key: String(result?.pix_key || '').trim(),
       contrato_valido: contratoValido,
       campos_com_baixa_confianca: Array.isArray(result?.campos_com_baixa_confianca)
-        ? result.campos_com_baixa_confianca.map((v: unknown) => String(v || '').trim()).filter(Boolean)
+        ? result.campos_com_baixa_confianca.map(v => String(v || '').trim()).filter(Boolean)
         : [],
       trechos_base:
         result?.trechos_base && typeof result.trechos_base === 'object'
           ? result.trechos_base
           : {},
-      texto_extraido: texto,
     };
 
-    return Response.json({
-      success: true,
-      ...payload,
-    });
-  } catch (error: any) {
+    return Response.json({ success: true, ...payload });
+  } catch (error) {
     console.error('extractTeamContractData error:', error);
     return Response.json(
-      {
-        success: false,
-        error: error?.message || 'Erro interno ao processar contrato',
-      },
+      { success: false, error: error?.message || 'Erro interno ao processar contrato' },
       { status: 500 }
     );
   }

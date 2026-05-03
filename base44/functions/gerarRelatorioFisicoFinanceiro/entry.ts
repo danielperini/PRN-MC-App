@@ -1,7 +1,4 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-import Anthropic from 'npm:@anthropic-ai/sdk@0.26.0';
-
-const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') });
 
 const ORCAMENTO_TOTAL = 1320000;
 const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -31,13 +28,15 @@ function reportInPeriod(report, from, to) {
          rep <= new Date(to.getFullYear(), to.getMonth(), 1);
 }
 
-async function gerarTextoIA(prompt, maxTokens = 1800) {
-  const msg = await anthropic.messages.create({
-    model: 'claude-opus-4-5',
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content: prompt }],
+let _base44ForIA = null;
+
+async function gerarTextoIA(prompt) {
+  const texto = await _base44ForIA.asServiceRole.integrations.Core.InvokeLLM({
+    prompt,
+    model: 'claude_sonnet_4_6',
   });
-  return msg.content?.[0]?.text || '';
+  // InvokeLLM sem response_json_schema retorna string
+  return typeof texto === 'string' ? texto : (texto?.output || texto?.text || String(texto || ''));
 }
 
 function paragrafoHTML(texto) {
@@ -633,6 +632,7 @@ Deno.serve(async (req) => {
     const from = new Date(df + 'T00:00:00');
     const to   = new Date(dt + 'T23:59:59');
 
+    _base44ForIA = base44;
     const dados    = await coletarDados(base44, from, to, museuFiltro || null);
     const metricas = calcMetricas(dados);
 
