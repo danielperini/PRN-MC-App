@@ -6,9 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { FileDown, Loader2, Eye, AlertCircle } from 'lucide-react';
+import { FileDown, Loader2, Eye, AlertCircle, Paperclip, Sparkles } from 'lucide-react';
 
 const SECOES = [
   { id: 'capa',            label: 'Capa' },
@@ -33,41 +32,44 @@ const MUSEUS_OPTIONS = [
 ];
 
 export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje     = new Date().toISOString().slice(0, 10);
   const inicioAno = `${new Date().getFullYear()}-01-01`;
 
-  const [dateFrom, setDateFrom]   = useState(inicioAno);
-  const [dateTo, setDateTo]       = useState(hoje);
-  const [museu, setMuseu]         = useState('todos');
-  const [secoes, setSecoes]       = useState(
+  const [dateFrom, setDateFrom] = useState(inicioAno);
+  const [dateTo,   setDateTo]   = useState(hoje);
+  const [museu,    setMuseu]    = useState('todos');
+  const [secoes,   setSecoes]   = useState(
     Object.fromEntries(SECOES.map(s => [s.id, true]))
   );
+
+  // opções adicionais
+  const [modoEntrega,       setModoEntrega]       = useState(false); // Entrega / Prestação de Contas
+  const [introIA,           setIntroIA]           = useState(true);  // Redigir introdução com IA
+
   const [loadingPrevia, setLoadingPrevia] = useState(false);
   const [loadingPDF,    setLoadingPDF]    = useState(false);
   const [previa,        setPrevia]        = useState(null);
 
-  const toggleSecao = (id) =>
-    setSecoes(p => ({ ...p, [id]: !p[id] }));
+  const toggleSecao = (id) => setSecoes(p => ({ ...p, [id]: !p[id] }));
+  const toggleAll   = (val) => setSecoes(Object.fromEntries(SECOES.map(s => [s.id, val])));
 
-  const toggleAll = (val) =>
-    setSecoes(Object.fromEntries(SECOES.map(s => [s.id, val])));
-
-  const payload = {
+  const buildPayload = (modo) => ({
     dateFrom,
     dateTo,
-    museu: museu === 'todos' ? null : museu,
-    secoes: Object.entries(secoes).filter(([, v]) => v).map(([k]) => k),
-  };
+    museu:       museu === 'todos' ? null : museu,
+    secoes:      Object.entries(secoes).filter(([, v]) => v).map(([k]) => k),
+    modoEntrega,
+    introIA,
+    modo,
+  });
 
   const handlePrevia = async () => {
     if (!dateFrom || !dateTo) { toast.error('Informe as datas'); return; }
-    if (payload.secoes.length === 0) { toast.error('Selecione ao menos uma seção'); return; }
+    if (Object.values(secoes).filter(Boolean).length === 0) { toast.error('Selecione ao menos uma seção'); return; }
     setLoadingPrevia(true);
     setPrevia(null);
     try {
-      const res = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', {
-        ...payload, modo: 'previa'
-      });
+      const res = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', buildPayload('previa'));
       if (res.data?.error) { toast.error(res.data.error); return; }
       setPrevia(res.data);
       toast.success('Prévia gerada!');
@@ -80,21 +82,19 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
 
   const handlePDF = async () => {
     if (!dateFrom || !dateTo) { toast.error('Informe as datas'); return; }
-    if (payload.secoes.length === 0) { toast.error('Selecione ao menos uma seção'); return; }
+    if (Object.values(secoes).filter(Boolean).length === 0) { toast.error('Selecione ao menos uma seção'); return; }
     setLoadingPDF(true);
     try {
-      const res = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', {
-        ...payload, modo: 'pdf'
-      });
+      const res = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', buildPayload('pdf'));
       if (res.data?.error) { toast.error(res.data.error); return; }
-      const url = res.data?.pdf_url || res.data?.url;
+      const url  = res.data?.pdf_url || res.data?.url;
       const html = res.data?.html;
       if (url) {
         window.open(url, '_blank');
         toast.success('PDF gerado com sucesso!');
         onClose();
       } else if (html) {
-        const w = window.open('', '_blank', 'width=1100,height=800');
+        const w = window.open('', '_blank', 'width=1200,height=900');
         if (w) { w.document.open(); w.document.write(html); w.document.close(); }
         toast.success('Relatório aberto — use Ctrl+P para salvar em PDF.');
         onClose();
@@ -108,7 +108,9 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
     }
   };
 
-  const isLoading = loadingPrevia || loadingPDF;
+  const isLoading    = loadingPrevia || loadingPDF;
+  const secoesCount  = Object.values(secoes).filter(Boolean).length;
+  const tempoEstimado = modoEntrega ? '3–5 min' : '1–2 min';
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -147,6 +149,59 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
             </Select>
           </div>
 
+          {/* Opções de modo */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Opções de geração</Label>
+            <div className="space-y-2.5 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+
+              {/* Entrega / Prestação */}
+              <div
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${modoEntrega ? 'border-black bg-black/5' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                onClick={() => setModoEntrega(p => !p)}
+              >
+                <Checkbox
+                  id="modoEntrega"
+                  checked={modoEntrega}
+                  onCheckedChange={v => setModoEntrega(!!v)}
+                  onClick={e => e.stopPropagation()}
+                  className="mt-0.5"
+                />
+                <div>
+                  <Label htmlFor="modoEntrega" className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
+                    <Paperclip className="w-3.5 h-3.5" />
+                    Entrega / Prestação de Contas
+                  </Label>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Inclui fotos com legendas completas, tabela detalhada de NFs/compras por rubrica, planilha resumo financeira e texto de prestação de contas pela IA.
+                  </p>
+                </div>
+              </div>
+
+              {/* Intro IA */}
+              <div
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${introIA ? 'border-black bg-black/5' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                onClick={() => setIntroIA(p => !p)}
+              >
+                <Checkbox
+                  id="introIA"
+                  checked={introIA}
+                  onCheckedChange={v => setIntroIA(!!v)}
+                  onClick={e => e.stopPropagation()}
+                  className="mt-0.5"
+                />
+                <div>
+                  <Label htmlFor="introIA" className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Redigir introdução com IA
+                  </Label>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    IA lê as atividades do período e redige introdução institucional com resumo de execução física, público e principais destaques.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Seções */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -170,7 +225,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
               ))}
             </div>
             <p className="text-xs text-gray-400">
-              {Object.values(secoes).filter(Boolean).length} de {SECOES.length} seções selecionadas
+              {secoesCount} de {SECOES.length} seções selecionadas
             </p>
           </div>
 
@@ -200,10 +255,14 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
             </div>
           )}
 
-          {/* Aviso IA */}
+          {/* Aviso */}
           <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-100 rounded-lg text-xs text-amber-700">
             <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-            <span>A IA gera textos com base nos dados reais. Nenhum dado será alterado. A geração pode levar 1–2 minutos.</span>
+            <span>
+              A IA gera textos com base nos dados reais. Nenhum dado será alterado.
+              {modoEntrega && ' Modo Entrega inclui legendas completas, tabela detalhada de NFs e planilha resumo.'}
+              {' '}Tempo estimado: <strong>{tempoEstimado}</strong>.
+            </span>
           </div>
         </div>
 
