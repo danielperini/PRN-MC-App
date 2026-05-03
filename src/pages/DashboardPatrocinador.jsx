@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
@@ -18,7 +18,9 @@ const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency:
 export default function DashboardPatrocinador() {
   const { themeId } = useTheme();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const isFetchingRef = useRef(false);
   const [filterTipoAtividade, setFilterTipoAtividade] = useState('todas');
   const [chartTypeOrcamento, setChartTypeOrcamento] = useState('bar');
   const chartColors = themeId === 'museubh' ? CHART_COLORS_MUSEUBH : CHART_COLORS;
@@ -40,58 +42,12 @@ export default function DashboardPatrocinador() {
     hasData: false,
   });
 
-  useEffect(() => {
-    loadDashboardData();
-    
-    // Sincronizar a cada 30 segundos para dados mais frescos
-    const interval = setInterval(() => {
-      loadDashboardData();
-    }, 30000);
-
-    // Subscrições em tempo real para atualizar instantaneamente
-    const unsubscribeReports = base44.entities.Report.subscribe((e) => {
-      if (e.type === 'create' || e.type === 'update') {
-        loadDashboardData();
-      }
-    });
-    
-    const unsubscribeActivities = base44.entities.Activity.subscribe((e) => {
-      if (e.type === 'create' || e.type === 'update') {
-        loadDashboardData();
-      }
-    });
-    
-    const unsubscribeRubricas = base44.entities.Rubrica.subscribe((e) => {
-      if (e.type === 'update') {
-        loadDashboardData();
-      }
-    });
-    
-    const unsubscribePayments = base44.entities.TeamPayment.subscribe((e) => {
-      if (e.type === 'create' || e.type === 'update') {
-        loadDashboardData();
-      }
-    });
-    
-    const unsubscribePurchases = base44.entities.PurchaseRequest.subscribe((e) => {
-      if (e.type === 'create' || e.type === 'update') {
-        loadDashboardData();
-      }
-    });
-
-    return () => {
-      clearInterval(interval);
-      unsubscribeReports();
-      unsubscribeActivities();
-      unsubscribeRubricas();
-      unsubscribePayments();
-      unsubscribePurchases();
-    };
-  }, []);
-
-  async function loadDashboardData() {
+  const loadDashboardData = useCallback(async (silent = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
     try {
-      setLoading(true);
       const [reportsRaw, programacaoRaw, rubricasRaw] = await Promise.all([
         base44.entities.Report.filter({ status: 'APPROVED' }, '-updated_date', 200),
         base44.entities.Programacao.list('-data_realizacao', 200).catch(() => []),
@@ -187,9 +143,44 @@ export default function DashboardPatrocinador() {
     } catch (error) {
       console.error('Erro ao carregar dashboard patrocinador:', error);
     } finally {
+      isFetchingRef.current = false;
       setLoading(false);
+      setRefreshing(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    loadDashboardData(false);
+
+    // Polling a cada 60s em background (sem spinner)
+    const interval = setInterval(() => loadDashboardData(true), 60000);
+
+    // Subscrições em tempo real
+    const unsubscribeReports = base44.entities.Report.subscribe((e) => {
+      if (e.type === 'create' || e.type === 'update') loadDashboardData(true);
+    });
+    const unsubscribeActivities = base44.entities.Activity.subscribe((e) => {
+      if (e.type === 'create' || e.type === 'update') loadDashboardData(true);
+    });
+    const unsubscribeRubricas = base44.entities.Rubrica.subscribe((e) => {
+      if (e.type === 'update') loadDashboardData(true);
+    });
+    const unsubscribePayments = base44.entities.TeamPayment.subscribe((e) => {
+      if (e.type === 'create' || e.type === 'update') loadDashboardData(true);
+    });
+    const unsubscribePurchases = base44.entities.PurchaseRequest.subscribe((e) => {
+      if (e.type === 'create' || e.type === 'update') loadDashboardData(true);
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribeReports();
+      unsubscribeActivities();
+      unsubscribeRubricas();
+      unsubscribePayments();
+      unsubscribePurchases();
+    };
+  }, [loadDashboardData]);
 
   if (loading) {
     return (
@@ -220,12 +211,17 @@ export default function DashboardPatrocinador() {
           <div className="text-right">
             <p style={{ color: themeId === 'museubh' ? '#D9C6A5' : '#9CA3AF' }} className="text-xs uppercase tracking-widest mb-1">Orçamento oficial</p>
             <p className="text-3xl font-bold">R$ 1.320.000</p>
-            <Button size="sm" variant="outline" onClick={loadDashboardData} disabled={loading}
+            <Button size="sm" variant="outline" onClick={() => loadDashboardData(false)} disabled={loading || refreshing}
               className="mt-3 border-white/30 text-white hover:bg-white/10 gap-1.5 text-xs bg-transparent">
-              <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              {loading ? 'Atualizando...' : 'Atualizar'}
+              <RotateCw className={`w-3.5 h-3.5 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
+              {loading ? 'Carregando...' : refreshing ? 'Atualizando...' : 'Atualizar'}
             </Button>
-            {lastUpdate && <p style={{ color: themeId === 'museubh' ? '#D9C6A5' : '#818CF8' }} className="text-xs mt-1">Atualizado {lastUpdate.toLocaleTimeString('pt-BR')}</p>}
+            {lastUpdate && (
+              <p style={{ color: themeId === 'museubh' ? '#D9C6A5' : '#818CF8' }} className="text-xs mt-1 flex items-center gap-1">
+                {refreshing && <RotateCw className="w-2.5 h-2.5 animate-spin inline" />}
+                Atualizado {lastUpdate.toLocaleTimeString('pt-BR')}
+              </p>
+            )}
           </div>
         </div>
       </div>
