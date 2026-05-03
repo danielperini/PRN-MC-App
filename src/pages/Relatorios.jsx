@@ -328,6 +328,17 @@ function RelatoriosInner() {
 
             
 
+            {isCoordenador && (
+              <Button
+                variant="outline"
+                className="border-black gap-2"
+                onClick={() => setPeriodExportOpen(true)}
+              >
+                <Download className="w-4 h-4" />
+                Relatório Físico-Financeiro
+              </Button>
+            )}
+
             <Button
               variant="outline"
               className="border-black gap-2"
