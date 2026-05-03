@@ -22,6 +22,7 @@ import OpportunityMetricsWidget from '../components/dashboard/OpportunityMetrics
 import NewsCarousel from '../components/dashboard/NewsCarousel';
 import DuplicateReportsModal from '../components/dashboard/DuplicateReportsModal';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import ExecutiveIndicators from '../components/dashboard/ExecutiveIndicators';
 
 const STATUS_CONFIG = {
   DRAFT: { label: 'Rascunho', color: 'bg-white text-black border border-black', icon: Clock },
@@ -85,6 +86,19 @@ function DashboardInner() {
       }
     },
     enabled: isCoordenador
+  });
+
+  const { data: rubricas = [] } = useQuery({
+    queryKey: ['dashboard-rubricas'],
+    queryFn: async () => {
+      try {
+        const data = await base44.entities.Rubrica.list('rubrica', 1000);
+        return Array.isArray(data) ? data.filter(r => r.ativo !== false) : [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!currentUser?.email
   });
 
   // Subscrições em tempo real para atualizar números quando dados são excluídos/alterados
@@ -296,11 +310,17 @@ function DashboardInner() {
 
         {/* Visão Patrocinador */}
         {showSponsorView ? (
-          <DashboardPatrocinador />
+          <>
+            <ExecutiveIndicators reports={allReports} rubricas={rubricas} />
+            <div className="mt-8">
+              <DashboardPatrocinador />
+            </div>
+          </>
         ) : showCoordView ? (
           <>
             <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
             <CoordDashboard reports={allReports} isLoading={loadingAll} />
+            <ExecutiveIndicators reports={allReports} rubricas={rubricas} />
           </>
         ) : (
           <div>
