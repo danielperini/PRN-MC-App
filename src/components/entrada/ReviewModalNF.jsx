@@ -5,11 +5,10 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
-import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck, RefreshCw, LinkIcon, X } from 'lucide-react';
+import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck, RefreshCw, LinkIcon } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
-const ESTADOS_BR = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
 const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }));
 
@@ -31,14 +30,26 @@ const COORD_EMAILS = [
 
 function normalizeDateToInput(value) {
   if (!value) return '';
+
   const raw = String(value).trim();
+
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
   const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  if (br) {
+    return `${br[3]}-${br[2]}-${br[1]}`;
+  }
+
   const isoLike = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoLike) return `${isoLike[1]}-${isoLike[2]}-${isoLike[3]}`;
+  if (isoLike) {
+    return `${isoLike[1]}-${isoLike[2]}-${isoLike[3]}`;
+  }
+
   const d = new Date(raw);
-  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  if (!Number.isNaN(d.getTime())) {
+    return d.toISOString().slice(0, 10);
+  }
+
   return '';
 }
 
@@ -54,15 +65,58 @@ function getDataEmissaoFromIA(ia) {
   );
 }
 
-function isPagamentoEquipe(form, intake) {
-  const emitenteCpfCnpj = String(form.nf_emitente_cpf_cnpj || '').replace(/\D/g, '');
-  return emitenteCpfCnpj.length === 11;
+function onlyDigits(v) {
+  return String(v || '').replace(/\D/g, '');
 }
 
-function getRateioCalculado(rateio) {
-  return rateio
-    .filter((r) => parseFloat(r.valor) > 0)
-    .map((r) => ({ museu: r.museu, valor: parseFloat(r.valor) }));
+function parseValorComparacao(v) {
+  const raw = String(v || '0').trim().replace(/\s/g, '');
+  if (/^\d{1,3}(\.\d{3})*(,\d+)?$/.test(raw)) {
+    return parseFloat(raw.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+  return parseFloat(raw.replace(',', '.')) || 0;
+}
+
+async function verificarDuplicidadeNF({ nf_numero, nf_emitente_cpf_cnpj, nf_valor_total }) {
+  try {
+    const nf = onlyDigits(nf_numero);
+    const cnpj = onlyDigits(nf_emitente_cpf_cnpj);
+    const valor = parseValorComparacao(nf_valor_total);
+
+    if (!nf || !cnpj || valor <= 0) return false;
+
+    const lista = await base44.entities.PurchaseRequest.list('-created_date', 500);
+
+    return (lista || []).some((item) => {
+      const nfItem = onlyDigits(item?.nf_numero || item?.numero_nf || '');
+      const cnpjItem = onlyDigits(
+        item?.fornecedor_cnpj ||
+        item?.fornecedor_cpf_cnpj ||
+        item?.nf_emitente_cpf_cnpj ||
+        ''
+      );
+
+      const valorItem = parseValorComparacao(
+        item?.valor_solicitado ||
+        item?.valor_total ||
+        item?.valor ||
+        item?.valor_aprovado ||
+        item?.valor_pago ||
+        0
+      );
+
+      return (
+        nfItem &&
+        cnpjItem &&
+        nfItem === nf &&
+        cnpjItem === cnpj &&
+        Math.abs(valorItem - valor) < 0.01
+      );
+    });
+  } catch (e) {
+    console.error('Erro ao verificar duplicidade de NF:', e);
+    return false;
+  }
 }
 
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
@@ -78,10 +132,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [loadingXmls, setLoadingXmls] = useState(false);
   const [linkingXml, setLinkingXml] = useState(false);
   const [rubricas, setRubricas] = useState([]);
-  const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false);
-  const [rateio, setRateio] = useState(DEFAULT_RATEIO);
-  const [errosDismissed, setErrosDismissed] = useState([]);
-  const [nfDuplicada, setNfDuplicada] = useState(null); // { nf_numero, fornecedor }
 
   const ia = intake.resultado_ia || {};
   const dataEmissaoIA = getDataEmissaoFromIA(ia);
@@ -89,6 +139,9 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
+
+  const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false);
+  const [rateio, setRateio] = useState(DEFAULT_RATEIO);
 
   const [form, setForm] = useState({
     nf_numero: ia.nf_numero || '',
@@ -98,41 +151,23 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
     nf_destinatario_nome: ia.nf_destinatario_nome || '',
     descricao_servico: ia.descricao_servico || '',
-    municipio: ia.municipio || ia.nf_municipio || ia.municipio_emitente || ia.cidade ||
-               ia.municipio_prestador || ia.municipio_tomador || ia.municipio_emissao ||
-               ia.prestador?.municipio || ia.emitente?.municipio || ia.tomador?.municipio ||
-               ia.endereco?.municipio || '',
-    estado: ia.estado || ia.uf || ia.nf_estado || ia.uf_prestador || ia.uf_emitente ||
-            ia.estado_prestador || ia.estado_emitente || ia.uf_tomador ||
-            ia.prestador?.uf || ia.emitente?.uf || ia.tomador?.uf ||
-            ia.endereco?.uf || ia.endereco?.estado || '',
-    competencia: (() => {
-      const raw = ia.competencia || ia.competencia_sugerida || ia.descricao_servico || '';
-      if (ia.competencia || ia.competencia_sugerida) return ia.competencia || ia.competencia_sugerida;
-      const m = raw.match(/(JANEIRO|FEVEREIRO|MAR[CÇ]O|ABRIL|MAIO|JUNHO|JULHO|AGOSTO|SETEMBRO|OUTUBRO|NOVEMBRO|DEZEMBRO)[\s\/\-]*2026/i)
-             || raw.match(/(\d{2})\/(\d{4})/);
-      if (m) return m[0];
-      return '';
-    })(),
-    banco: ia.banco || ia.dados_bancarios?.banco || ia.banco_nome || ia.instituicao || '',
-    agencia: ia.agencia || ia.dados_bancarios?.agencia || ia.ag || ia.numero_agencia || '',
-    conta: ia.conta || ia.dados_bancarios?.conta || ia.numero_conta || ia.conta_corrente || '',
-    tipo_conta: ia.tipo_conta || ia.dados_bancarios?.tipo_conta || '',
-    pix: ia.pix || ia.chave_pix || ia.dados_bancarios?.pix || ia.dados_bancarios?.chave_pix || ia.chave_pix_emitente || '',
+    municipio: ia.municipio || '',
+    competencia: ia.competencia || ia.competencia_sugerida || '',
     centro_custo: ia.centro_custo_sugerido || intake.centro_custo || '',
     rubrica_id: intake.rubrica_id_sugerida || '',
     file_name_final: intake.file_name_final || intake.file_name_original,
-    meta_id: ia.meta_sugerida || '',
+    meta_id: '',
     tipo_gasto: ia.tipo_gasto || 'Serviço',
-    categoria: ia.categoria_sugerida || '',
-    tipo_rateio: 'geral',
-    museus_rateio: [],
   });
 
   useEffect(() => {
     const normalized = normalizeDateToInput(dataEmissaoIA);
+
     if (!form.nf_data_emissao && normalized) {
-      setForm((f) => ({ ...f, nf_data_emissao: normalized }));
+      setForm((f) => ({
+        ...f,
+        nf_data_emissao: normalized,
+      }));
     }
   }, [dataEmissaoIA, form.nf_data_emissao]);
 
@@ -141,52 +176,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       try {
         const list = await base44.entities.Rubrica.list('', 2000);
         setRubricas(list || []);
-
-        // Auto-match rubrica pelo nome sugerido pela IA
-        const nomeSugerido = String(ia.rubrica_nome_sugerida || intake.rubrica_nome_sugerida || '').toLowerCase().trim();
-        if (nomeSugerido && !intake.rubrica_id_sugerida) {
-          const match = (list || []).find((r) => {
-            const nomeR = String(r.rubrica || r.nome || r.descricao || '').toLowerCase();
-            return nomeR.includes(nomeSugerido.slice(0, 12)) || nomeSugerido.includes(nomeR.slice(0, 12));
-          });
-          if (match) {
-            setForm((f) => ({ ...f, rubrica_id: f.rubrica_id || match.id }));
-          }
-        }
       } catch (e) {
         console.error(e);
       }
     }
+
     loadRubricas();
-  }, []);
-
-  // Detectar NF duplicada
-  useEffect(() => {
-    const nfNum = String(ia.nf_numero || '').trim();
-    const cnpj = String(ia.nf_emitente_cpf_cnpj || '').replace(/\D/g, '');
-    if (!nfNum && !cnpj) return;
-
-    async function verificarDuplicata() {
-      try {
-        // Buscar em PurchaseRequest
-        const prs = await base44.entities.PurchaseRequest.filter(
-          { nf_numero: nfNum },
-          '-created_date',
-          10
-        );
-        const duplicadas = (prs || []).filter((pr) => pr.id !== intake?.entidade_destino_id);
-        if (duplicadas.length > 0) {
-          setNfDuplicada({
-            nf_numero: nfNum,
-            fornecedor: duplicadas[0].fornecedor_nome || duplicadas[0].nf_emitente_nome || '',
-            count: duplicadas.length,
-          });
-        }
-      } catch (e) {
-        // silencioso
-      }
-    }
-    verificarDuplicata();
   }, []);
 
   function parseValorBR(v) {
@@ -218,90 +213,46 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.nf_numero, form.nf_emitente_nome, form.nf_valor_total]);
 
-  // Busca membro da equipe pelo CPF e preenche dados bancários ainda vazios
-  useEffect(() => {
-    const cpf = String(form.nf_emitente_cpf_cnpj || '').replace(/\D/g, '');
-    if (cpf.length !== 11) return; // só PF
-
-    async function buscarMembro() {
-      try {
-        const membros = await base44.entities.TeamMember.filter({ cpf }, '-created_date', 5);
-        const membro = membros?.[0];
-        if (!membro) return;
-
-        setForm((f) => ({
-          ...f,
-          banco:      f.banco      || membro.banco      || '',
-          agencia:    f.agencia    || membro.agencia    || '',
-          conta:      f.conta      || membro.conta      || '',
-          tipo_conta: f.tipo_conta || membro.tipo_conta || '',
-          pix:        f.pix        || membro.pix_key    || '',
-        }));
-      } catch (e) {
-        console.error('Erro ao buscar membro da equipe:', e);
-      }
-    }
-
-    buscarMembro();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.nf_emitente_cpf_cnpj]);
-
   useEffect(() => {
     async function loadXMLs() {
+      if (!form.nf_numero) {
+        setXmlCandidates([]);
+        setSelectedXmlId('');
+        return;
+      }
+
       setLoadingXmls(true);
+
       try {
-        const all = await base44.entities.DocumentIntake.filter(
-          { status_registro: 'ATIVO' },
+        const list = await base44.entities.Attachment.filter(
+          {
+            nf_numero: form.nf_numero,
+            nf_tipo_documento: 'xml_nf',
+          },
           '-created_date',
-          100
+          20
         );
 
-        // Filtrar apenas XMLs não vinculados
-        const xmls = (all || []).filter((item) => {
-          if (!item?.id || item.id === intake.id) return false;
-          if (item.nf_pdf_intake_id || item.grupo_status === 'COMPLETO') return false;
-          const nome = String(item.file_name_original || '').toLowerCase();
-          const mime = String(item.mime_type || '').toLowerCase();
-          return (
-            item.tipo_detectado === 'NOTA_FISCAL_XML' ||
-            nome.endsWith('.xml') ||
-            mime.includes('xml')
-          );
-        });
+        const unique = [];
+        const seen = new Set();
 
-        // Pontuar candidatos por similaridade
-        const nfNumero = String(form.nf_numero || '').trim();
-        const fornecedor = String(form.nf_emitente_nome || '').toLowerCase().trim();
-        const cnpj = String(form.nf_emitente_cpf_cnpj || '').replace(/\D/g, '');
-        const valor = parseValorBR(form.nf_valor_total);
+        for (const item of list || []) {
+          if (!item?.id || seen.has(item.id)) continue;
+          seen.add(item.id);
+          unique.push(item);
+        }
 
-        const scored = xmls.map((xml) => {
-          const xmlIa = xml.resultado_ia || {};
-          let score = 0;
-          if (nfNumero && xmlIa.nf_numero === nfNumero) score += 10;
-          if (cnpj && String(xmlIa.nf_emitente_cpf_cnpj || '').replace(/\D/g, '') === cnpj) score += 8;
-          if (fornecedor && String(xmlIa.nf_emitente_nome || '').toLowerCase().includes(fornecedor.slice(0, 10))) score += 5;
-          const xmlValor = parseValorBR(xmlIa.nf_valor_total || 0);
-          if (valor > 0 && xmlValor > 0 && Math.abs(valor - xmlValor) < 0.01) score += 6;
-          return { ...xml, _score: score };
-        });
-
-        const candidates = scored
-          .filter((x) => x._score > 0 || !nfNumero) // se sem número, mostrar todos
-          .sort((a, b) => b._score - a._score)
-          .slice(0, 10);
-
-        setXmlCandidates(candidates);
-        setSelectedXmlId(candidates[0]?.id || '');
+        setXmlCandidates(unique);
+        setSelectedXmlId(unique[0]?.id || '');
       } catch (e) {
         console.error('Erro ao buscar XML:', e);
       } finally {
         setLoadingXmls(false);
       }
     }
+
     loadXMLs();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.nf_numero, form.nf_emitente_cpf_cnpj]);
+  }, [form.nf_numero]);
 
   const valorTotal = parseValorBR(form.nf_valor_total);
   const totalRateado = rateio.reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
@@ -315,7 +266,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   }
 
   function distribuirIgualmente() {
-    const valorPorMuseu = (valorTotal / MUSEUS_RATEIO.length).toFixed(2);
+    const museusSelecionados = rateio.filter((r) => r.museu);
+    const valorPorMuseu = (valorTotal / museusSelecionados.length).toFixed(2);
     setRateio(MUSEUS_RATEIO.map((m) => ({ museu: m, valor: valorPorMuseu })));
   }
 
@@ -326,43 +278,59 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       .map((r) => ({ museu: r.museu, valor: parseFloat(r.valor) }));
   }
 
-  function validarEnvio() {
-    const erros = [];
-    if (!form.rubrica_id) erros.push('Rubrica obrigatória');
-    if (!dividirEntreMuseus && !form.centro_custo) erros.push('Centro de custo obrigatório');
-    if (dividirEntreMuseus && !rateioValido) erros.push('Rateio inválido');
-    return erros;
-  }
-
   async function handleVincularXML() {
-    if (!selectedXmlId) {
-      toast({ title: 'Selecione um XML para vincular.', variant: 'destructive', duration: 3000 });
+    if (!selectedXmlId || !intake.entidade_destino_id) {
+      toast({
+        title: 'Não foi possível vincular XML',
+        description: 'O PDF ainda não possui Attachment associado.',
+        variant: 'destructive',
+        duration: 3000,
+      });
       return;
     }
+
     setLinkingXml(true);
+
     try {
-      const xml = xmlCandidates.find((x) => x.id === selectedXmlId);
-      if (!xml) throw new Error('XML não encontrado na lista.');
+      const xml = await base44.entities.Attachment.get(selectedXmlId);
 
-      // Atualizar PDF (intake atual)
-      await base44.entities.DocumentIntake.update(intake.id, {
-        grupo_status: 'COMPLETO',
-        nf_xml_intake_id: xml.id,
-        nf_xml_url: xml.arquivo_original_url || '',
+      await base44.entities.Attachment.update(intake.entidade_destino_id, {
+        nf_xml_attachment_id: xml.id,
+        nf_revisado: true,
+        nf_categoria: 'nota_fiscal',
+        nf_numero: form.nf_numero,
+        nf_valor_total: valorTotal,
+        nf_data_emissao: form.nf_data_emissao,
+        nf_emitente_nome: form.nf_emitente_nome,
+        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+        nf_tipo_documento: 'pdf_nf',
+        nf_nome_renomeado: form.file_name_final,
       });
 
-      // Atualizar XML (ocultar da fila, marcar como vinculado)
-      await base44.entities.DocumentIntake.update(xml.id, {
-        grupo_status: 'COMPLETO',
-        nf_pdf_intake_id: intake.id,
-        nf_pdf_url: intake.arquivo_original_url || '',
-        ocultar_entrada_unica: true,
+      await base44.entities.Attachment.update(xml.id, {
+        nf_pdf_attachment_id: intake.entidade_destino_id,
+        nf_revisado: true,
+        nf_categoria: 'nota_fiscal',
+        nf_numero: form.nf_numero,
+        nf_valor_total: valorTotal,
+        nf_data_emissao: form.nf_data_emissao,
+        nf_emitente_nome: form.nf_emitente_nome,
+        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
       });
 
-      toast({ title: 'XML vinculado ao PDF com sucesso.', duration: 3000 });
+      toast({
+        title: 'XML vinculado ao PDF com sucesso.',
+        duration: 3000,
+      });
+
       onSaved?.();
     } catch (e) {
-      toast({ title: 'Erro ao vincular XML', description: e?.message || 'Falha ao vincular XML.', variant: 'destructive', duration: 3000 });
+      toast({
+        title: 'Erro ao vincular XML',
+        description: e?.message || 'Falha ao vincular XML.',
+        variant: 'destructive',
+        duration: 3000,
+      });
     } finally {
       setLinkingXml(false);
     }
@@ -373,7 +341,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     try {
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'RASCUNHO',
-        resultado_ia: { ...ia, ...form, rateio_museus: getRateioPayload(), dividir_entre_museus: dividirEntreMuseus },
+        resultado_ia: {
+          ...ia,
+          ...form,
+          rateio_museus: getRateioPayload(),
+          dividir_entre_museus: dividirEntreMuseus,
+        },
         centro_custo: form.centro_custo,
         rubrica_id_sugerida: form.rubrica_id,
         file_name_final: form.file_name_final,
@@ -388,11 +361,61 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     }
   }
 
+  async function atualizarRubrica(rubricaId, valorDebito) {
+    const rubrica = await base44.entities.Rubrica.get(rubricaId);
+    if (!rubrica) return;
+
+    const valorBase = rubrica.valor_total || rubrica.valor_rubrica || 0;
+    const utilizado = (rubrica.valor_utilizado || 0) + valorDebito;
+    const comprometido = rubrica.saldo_comprometido || 0;
+    const saldo = valorBase - utilizado - comprometido;
+    const percentual = valorBase > 0 ? (utilizado / valorBase) * 100 : 0;
+
+    await base44.entities.Rubrica.update(rubricaId, {
+      valor_utilizado: utilizado,
+      saldo_comprometido: comprometido,
+      saldo,
+      percentual_utilizado: percentual,
+    });
+  }
+
+  async function debitarRubricas(rateioPayload) {
+    const debitosPorRubrica = {};
+
+    for (const item of rateioPayload) {
+      const configs = await base44.entities.RubricaMuseuConfig.filter({
+        rubrica_id: form.rubrica_id,
+        museu: item.museu,
+      });
+
+      const rubricaAlvo = configs && configs.length > 0 ? configs[0].rubrica_id : form.rubrica_id;
+      debitosPorRubrica[rubricaAlvo] = (debitosPorRubrica[rubricaAlvo] || 0) + item.valor;
+    }
+
+    for (const [rubricaId, valorDebito] of Object.entries(debitosPorRubrica)) {
+      try {
+        await atualizarRubrica(rubricaId, valorDebito);
+      } catch (e) {
+        console.error(`Erro ao debitar rubrica ${rubricaId}:`, e);
+      }
+    }
+  }
+
+  async function debitarRubricaSimples(valor) {
+    try {
+      await atualizarRubrica(form.rubrica_id, valor);
+    } catch (e) {
+      console.error('Erro ao debitar rubrica:', e);
+    }
+  }
+
   async function handleDeletarDocumento() {
     if (!confirm('Tem certeza que deseja deletar este documento? Esta ação não pode ser desfeita.')) return;
     setDeleting(true);
     try {
-      await base44.entities.DocumentIntake.update(intake.id, { status_processamento: 'DELETADO' });
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'DELETADO',
+      });
       toast({ title: 'Documento deletado com sucesso.', duration: 3000 });
       onSaved();
     } catch (e) {
@@ -420,122 +443,180 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     }
   }
 
-  async function handleEnviar(event) {
-    event?.preventDefault?.();
-    event?.stopPropagation?.();
+  async function handleProcessarNota(aprovarDireto = false) {
+    if (!form.rubrica_id) {
+      toast({ title: 'Selecione a rubrica antes de continuar.', variant: 'destructive', duration: 3000 });
+      return;
+    }
 
-    if (sending) return;
+    if (!form.centro_custo && !dividirEntreMuseus) {
+      toast({ title: 'Selecione o centro de custo.', variant: 'destructive', duration: 3000 });
+      return;
+    }
 
-    const erros = validarEnvio();
-    if (erros.length) {
-      toast({ title: 'Preencha campos obrigatórios', description: erros.join(', '), variant: 'destructive', duration: 5000 });
+    if (dividirEntreMuseus && !rateioValido) {
+      toast({ title: 'Rateio inválido.', variant: 'destructive', duration: 3000 });
       return;
     }
 
     setSending(true);
 
     try {
-      const valor = parseValorBR(form.nf_valor_total);
+      const rateioPayload = getRateioPayload();
       const rubricaNome = getRubricaNome(form.rubrica_id);
 
-      const valorSeguro = valor > 0 ? valor : 0.01;
-      const rubricaId = form.rubrica_id || 'SEM_RUBRICA';
-      const budgetlineId = form.budgetline_id || form.rubrica_id || 'SEM_BUDGETLINE';
-      const metaId = form.meta_id || 'MC3A-EXTRA';
-      const categoria = form.categoria || 'Outros';
-      const tipoGasto = ['Produto', 'Serviço'].includes(form.tipo_gasto) ? form.tipo_gasto : 'Serviço';
-      const centroCusto = dividirEntreMuseus
-        ? 'Geral'
-        : (['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Publicações', 'Geral'].includes(form.centro_custo)
-            ? form.centro_custo
-            : 'Geral');
+      const duplicada = await verificarDuplicidadeNF({
+        nf_numero: form.nf_numero,
+        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+        nf_valor_total: valorTotal,
+      });
+
+      if (duplicada) {
+        toast({
+          title: 'Nota fiscal já registrada',
+          description: 'Já existe uma nota fiscal com o mesmo número, mesmo CNPJ/CPF do emitente e mesmo valor.',
+          variant: 'destructive',
+          duration: 4000,
+        });
+        return;
+      }
 
       const pr = await base44.entities.PurchaseRequest.create({
-        descricao_item: form.descricao_servico || form.nf_emitente_nome || form.file_name_final || intake.file_name_original || '',
-        fornecedor_nome: form.nf_emitente_nome || '',
-        fornecedor_cnpj: form.nf_emitente_cpf_cnpj || '',
-        valor_solicitado: valorSeguro,
-        valor_total: valorSeguro,
-        nf_valor_total: valorSeguro,
-        rubrica_id: rubricaId,
-        budgetline_id: budgetlineId,
-        centro_custo: centroCusto,
-        nota_fiscal_url: intake.arquivo_original_url || '',
-        status: 'SOLICITADO',
-        meta_id: metaId,
-        categoria,
-        tipo_gasto: tipoGasto,
-        nf_numero: form.nf_numero || '',
-        nf_emitente_nome: form.nf_emitente_nome || '',
-        nf_data_emissao: form.nf_data_emissao || '',
-        municipio: form.municipio || '',
-        estado: form.estado || '',
-        competencia: form.competencia || '',
-        banco: form.banco || '',
-        agencia: form.agencia || '',
-        conta: form.conta || '',
-        tipo_conta: form.tipo_conta || '',
-        pix: form.pix || '',
-        chave_pix: form.pix || '',
-        observacoes: `Origem: EntradaUnica | intake_id: ${intake.id}${dividirEntreMuseus ? ' | Rateado entre museus' : ''}`,
+        descricao_item: form.descricao_servico || form.nf_emitente_nome,
+        fornecedor_nome: form.nf_emitente_nome,
+        fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
+        nf_numero: form.nf_numero,
+        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+        nf_valor_total: valorTotal,
+        nf_data_emissao: form.nf_data_emissao,
+        valor_solicitado: valorTotal,
+        meta_id: form.meta_id || 'MC3A-01',
+        categoria: 'Nota Fiscal',
+        tipo_gasto: form.tipo_gasto,
+        centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
+        rubrica_id: form.rubrica_id,
+        rubrica_nome: rubricaNome,
+        status: aprovarDireto ? 'APROVADO_COORD' : 'SOLICITADO',
+        observacoes: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
       });
 
       await base44.entities.Attachment.create({
-        report_id: pr?.id || '',
-        file_name: form.file_name_final || intake.file_name_original || '',
-        file_type: intake.mime_type || 'application/pdf',
-        file_url: intake.arquivo_original_url || '',
-        nf_numero: form.nf_numero || '',
-        nf_valor_total: valor,
-        nf_data_emissao: form.nf_data_emissao || '',
-        nf_emitente_nome: form.nf_emitente_nome || '',
-        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj || '',
-        nf_tipo_documento: 'pdf_nf',
-        rubrica_id: form.rubrica_id || '',
+        report_id: '',
+        purchase_id: pr.id,
+        purchase_request_id: pr.id,
+        file_name: form.file_name_final,
+        file_type: intake.mime_type,
+        file_url: intake.arquivo_original_url,
+        description: 'Entrada Única - Nota Fiscal',
+        nf_categoria: 'nota_fiscal',
+        nf_numero: form.nf_numero,
+        nf_valor_total: valorTotal,
+        nf_data_emissao: form.nf_data_emissao,
+        nf_emitente_nome: form.nf_emitente_nome,
+        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+        nf_tipo_documento: intake.tipo_detectado === 'NOTA_FISCAL_XML' ? 'xml_nf' : 'pdf_nf',
+        nf_nome_original: intake.file_name_original,
+        nf_nome_renomeado: form.file_name_final,
+        nf_status_leitura: 'lido_com_sucesso',
+        nf_revisado: true,
+        rubrica_id: form.rubrica_id,
+        rubrica_nome: rubricaNome,
       });
 
+      if (dividirEntreMuseus && rateioPayload && rateioPayload.length > 0) {
+        await debitarRubricas(rateioPayload);
+      } else {
+        await debitarRubricaSimples(valorTotal);
+      }
+
       await base44.entities.DocumentIntake.update(intake.id, {
-        status_processamento: 'ENVIADO_APROVACAO',
-        ocultar_entrada_unica: true,
+        status_processamento: aprovarDireto ? 'APROVADO' : 'ENVIADO_APROVACAO',
         entidade_destino: 'PurchaseRequest',
-        entidade_destino_id: pr?.id || '',
-        centro_custo: centroCusto,
+        entidade_destino_id: pr.id,
+        centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
         rubrica_id_sugerida: form.rubrica_id,
         rubrica_nome_sugerida: rubricaNome,
         file_name_final: form.file_name_final,
+        resultado_ia: {
+          ...ia,
+          ...form,
+          categoria: 'Nota Fiscal',
+          rateio_museus: rateioPayload,
+          dividir_entre_museus: dividirEntreMuseus,
+        },
         revisado_pelo_usuario: true,
       });
 
-      toast({ title: '✅ Solicitação enviada para aprovação', description: 'Disponível em Compras → Solicitações.', duration: 5000 });
+      toast({
+        title: aprovarDireto ? '✅ Nota aprovada e debitada.' : 'Enviado para aprovação.',
+        duration: 3000,
+      });
 
-      await onSaved?.();
+      onSaved?.();
       onClose?.();
     } catch (e) {
-      console.error('❌ ERRO AO ENVIAR NF:', e);
-      toast({ title: 'Erro ao enviar solicitação', description: e?.message || 'Falha ao criar solicitação.', variant: 'destructive', duration: 9000 });
+      console.error(e);
+      toast({
+        title: 'Erro ao processar nota',
+        description: e?.message || 'Falha ao aprovar/enviar nota.',
+        variant: 'destructive',
+        duration: 3000,
+      });
     } finally {
       setSending(false);
     }
   }
 
   const temXMLVinculado =
-    !!selectedXmlId || xmlCandidates.length > 0 || !!intake?.nf_xml_attachment_id ||
-    !!intake?.resultado_ia?.nf_xml_attachment_id || !!intake?.resultado_ia?.xml_url;
+    !!selectedXmlId ||
+    xmlCandidates.length > 0 ||
+    !!intake?.nf_xml_attachment_id ||
+    !!intake?.resultado_ia?.nf_xml_attachment_id ||
+    !!intake?.resultado_ia?.xml_url;
 
-  const errosFiltrados = (intake.erros_validacao || []).filter((e, i) => {
-    if (errosDismissed.includes(i)) return false;
+  const errosFiltrados = (intake.erros_validacao || []).filter((e) => {
     const txt = String(e || '').toLowerCase();
-    if (temXMLVinculado && txt.includes('xml')) return false;
-    if (txt.includes('cnpj') || txt.includes('empresa') || txt.includes('registrada')) return false;
-    if (form.nf_valor_total && (txt.includes('valor da nf') || txt.includes('valor') || txt.includes('destinatário') || txt.includes('destinatario'))) return false;
+
+    if (
+      txt.includes('nota fiscal possivelmente duplicada') ||
+      txt.includes('possivelmente duplicada') ||
+      txt.includes('já foi enviada para aprovação anteriormente') ||
+      txt.includes('ja foi enviada para aprovacao anteriormente')
+    ) {
+      return false;
+    }
+
+    if (temXMLVinculado && txt.includes('xml')) {
+      return false;
+    }
+
+    if (txt.includes('cnpj') || txt.includes('empresa') || txt.includes('registrada')) {
+      return false;
+    }
+
+    if (
+      form.nf_valor_total &&
+      (txt.includes('valor da nf') ||
+        txt.includes('valor') ||
+        txt.includes('destinatário') ||
+        txt.includes('destinatario'))
+    ) {
+      return false;
+    }
+
     if (txt.includes('futura') || txt.includes('future')) {
       const match = txt.match(/(\d{2})\/(\d{2})\/(\d{4})/);
       if (match) {
-        const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-        const dataDoc = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1])); dataDoc.setHours(0, 0, 0, 0);
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
+
+        const dataDoc = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+        dataDoc.setHours(0, 0, 0, 0);
+
         if (dataDoc <= hoje) return false;
       }
     }
+
     return true;
   });
 
@@ -544,8 +625,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     const grupoB = String(b.grupo || '');
     const nomeA = String(a.rubrica || a.nome || a.descricao || '');
     const nomeB = String(b.rubrica || b.nome || b.descricao || '');
+
     const byGrupo = grupoA.localeCompare(grupoB, 'pt-BR');
     if (byGrupo !== 0) return byGrupo;
+
     return nomeA.localeCompare(nomeB, 'pt-BR');
   });
 
@@ -573,24 +656,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             Documento analisado pela IA. Campos preenchidos automaticamente.
           </div>
 
-          {nfDuplicada && (
-            <div className="p-3 bg-red-50 border border-red-400 rounded-lg text-sm text-red-800 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-600" />
-              <div>
-                <p className="font-semibold">⚠️ Nota fiscal possivelmente duplicada!</p>
-                <p className="mt-0.5">
-                  A NF <strong>nº {nfDuplicada.nf_numero}</strong>
-                  {nfDuplicada.fornecedor ? ` de "${nfDuplicada.fornecedor}"` : ''} já foi enviada para aprovação anteriormente ({nfDuplicada.count}x).
-                  Verifique antes de enviar novamente.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {(ia.justificativa_ia || ia.classificacao_justificativa) && (
+          {ia.classificacao_justificativa && (
             <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700">
-              <p className="font-medium mb-1">💡 Análise da IA:</p>
-              <p className="italic">{ia.justificativa_ia || ia.classificacao_justificativa}</p>
+              <p className="font-medium mb-1">💡 Motivo da Classificação IA:</p>
+              <p className="italic">{ia.classificacao_justificativa}</p>
             </div>
           )}
 
@@ -600,17 +669,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
                 <AlertCircle className="w-4 h-4" /> Inconsistências detectadas:
               </p>
               {errosFiltrados.map((e, i) => (
-                <div key={i} className="flex items-start justify-between gap-2">
-                  <p>• {e}</p>
-                  <button
-                    type="button"
-                    onClick={() => setErrosDismissed((prev) => [...prev, (intake.erros_validacao || []).indexOf(e)])}
-                    className="flex-shrink-0 text-amber-500 hover:text-amber-700"
-                    title="Dispensar"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                <p key={i}>• {e}</p>
               ))}
             </div>
           )}
@@ -653,15 +712,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               <Label>Município</Label>
               <Input value={form.municipio} onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))} />
             </div>
-            <div className="space-y-1">
-              <Label>Estado (UF)</Label>
-              <Select value={form.estado} onValueChange={(v) => setForm((f) => ({ ...f, estado: v }))}>
-                <SelectTrigger><SelectValue placeholder="UF" /></SelectTrigger>
-                <SelectContent>
-                  {ESTADOS_BR.map((uf) => (<SelectItem key={uf} value={uf}>{uf}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           <div className="space-y-1">
@@ -669,92 +719,47 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             <Input value={form.descricao_servico} onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))} />
           </div>
 
-          {/* Dados bancários / Pix */}
-          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
-            <p className="text-sm font-medium text-slate-700">Dados bancários / Pix</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Banco</Label>
-                <Input value={form.banco} onChange={(e) => setForm((f) => ({ ...f, banco: e.target.value }))} placeholder="Ex: Nubank, Bradesco" />
-              </div>
-              <div className="space-y-1">
-                <Label>Agência</Label>
-                <Input value={form.agencia} onChange={(e) => setForm((f) => ({ ...f, agencia: e.target.value }))} placeholder="Ex: 0001" />
-              </div>
-              <div className="space-y-1">
-                <Label>Conta</Label>
-                <Input value={form.conta} onChange={(e) => setForm((f) => ({ ...f, conta: e.target.value }))} placeholder="Ex: 12345-6" />
-              </div>
-              <div className="space-y-1">
-                <Label>Tipo de Conta</Label>
-                <Select value={form.tipo_conta} onValueChange={(v) => setForm((f) => ({ ...f, tipo_conta: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Corrente">Corrente</SelectItem>
-                    <SelectItem value="Poupança">Poupança</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label>Chave Pix</Label>
-              <Input value={form.pix} onChange={(e) => setForm((f) => ({ ...f, pix: e.target.value }))} placeholder="CPF, e-mail, telefone ou chave aleatória" />
-            </div>
+          <div className="space-y-1">
+            <Label>
+              Meta do 3º Aditivo <span className="text-red-500">*</span>
+            </Label>
+            <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar meta" />
+              </SelectTrigger>
+              <SelectContent>
+                {METAS_3_ADITIVO.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1 col-span-2">
-              <Label>Meta do 3º Aditivo {form.meta_id && <span className="ml-1 text-green-600 text-xs">✓ preenchida pela IA</span>}</Label>
-              <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Selecionar meta" /></SelectTrigger>
-                <SelectContent>
-                  {METAS_3_ADITIVO.map((m) => (<SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label>Tipo de Gasto</Label>
-              <Select value={form.tipo_gasto} onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v }))}>
-                <SelectTrigger><SelectValue placeholder="Selecionar tipo" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Produto">Produto</SelectItem>
-                  <SelectItem value="Serviço">Serviço</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label>Categoria {form.categoria && <span className="ml-1 text-green-600 text-xs">✓ IA</span>}</Label>
-              <Select value={form.categoria} onValueChange={(v) => setForm((f) => ({ ...f, categoria: v }))}>
-                <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>
-                  {[
-                    'Serviços (equipe/coordenação)',
-                    'Serviços (comunicação: designer, foto, vídeo, imprensa, redes)',
-                    'Serviços (produção/infraestrutura/expografia)',
-                    'Serviços (eventos/atrações/artistas)',
-                    'Serviços (segurança/limpeza)',
-                    'Logística (transporte/vans)',
-                    'Alimentação (lanche/café/coffeebreak)',
-                    'Consultoria / Formação / Acessibilidade',
-                    'Materiais de consumo',
-                    'Outros',
-                  ].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-1">
+            <Label>
+              Tipo de Gasto <span className="text-red-500">*</span>
+            </Label>
+            <Select value={form.tipo_gasto} onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Produto">Produto</SelectItem>
+                <SelectItem value="Serviço">Serviço</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-1">
             <Label>
               Rubrica <span className="text-red-500">*</span>
-              {form.rubrica_id && (ia.rubrica_nome_sugerida || intake.rubrica_nome_sugerida) && (
-                <span className="ml-2 text-green-600 text-xs">✓ sugerida pela IA: {ia.rubrica_nome_sugerida || intake.rubrica_nome_sugerida}</span>
-              )}
             </Label>
             <Select value={form.rubrica_id} onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}>
-              <SelectTrigger><SelectValue placeholder="Selecionar rubrica" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar rubrica" />
+              </SelectTrigger>
               <SelectContent>
                 {rubricasOrdenadas.map((r) => (
                   <SelectItem key={r.id} value={r.id}>
@@ -780,19 +785,34 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
                 <LinkIcon className="w-4 h-4" />
                 Vincular XML existente a este PDF
               </p>
+
               <div className="space-y-2 max-h-40 overflow-auto">
                 {xmlCandidates.map((xml) => (
-                  <button key={xml.id} type="button" onClick={() => setSelectedXmlId(xml.id)}
-                    className={`w-full text-left p-2 rounded border text-sm ${selectedXmlId === xml.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
-                    <p className="font-medium truncate">{xml.file_name_original || xml.file_name_final || 'XML sem nome'}</p>
+                  <button
+                    key={xml.id}
+                    type="button"
+                    onClick={() => setSelectedXmlId(xml.id)}
+                    className={`w-full text-left p-2 rounded border text-sm ${
+                      selectedXmlId === xml.id
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <p className="font-medium truncate">{xml.file_name || xml.nf_nome_original || 'XML sem nome'}</p>
                     <p className="text-xs text-slate-500 truncate">
-                      {xml.resultado_ia?.nf_numero ? `NF ${xml.resultado_ia.nf_numero}` : 'XML candidato'}
-                      {xml.resultado_ia?.nf_emitente_nome ? ` — ${xml.resultado_ia.nf_emitente_nome}` : ''}
+                      {xml.nf_numero ? `NF ${xml.nf_numero}` : 'XML candidato'}
+                      {xml.nf_emitente_nome ? ` — ${xml.nf_emitente_nome}` : ''}
                     </p>
                   </button>
                 ))}
               </div>
-              <Button type="button" onClick={handleVincularXML} disabled={!selectedXmlId || linkingXml} className="w-full">
+
+              <Button
+                type="button"
+                onClick={handleVincularXML}
+                disabled={!selectedXmlId || linkingXml}
+                className="w-full"
+              >
                 {linkingXml ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <LinkIcon className="w-4 h-4 mr-2" />}
                 Vincular XML ao PDF
               </Button>
@@ -804,6 +824,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               <SplitSquareHorizontal className="w-4 h-4 text-slate-500" />
               <span className="text-sm font-medium text-slate-700">Rateamento da Rubrica</span>
             </div>
+
             <div className="flex flex-col gap-2 text-sm">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="radio" name="rateio_tipo" checked={!dividirEntreMuseus} onChange={() => setDividirEntreMuseus(false)} className="accent-slate-700" />
@@ -817,11 +838,19 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
             {!dividirEntreMuseus && (
               <div className="space-y-1">
-                <Label>Centro de Custo <span className="text-red-500">*</span></Label>
+                <Label>
+                  Centro de Custo <span className="text-red-500">*</span>
+                </Label>
                 <Select value={form.centro_custo} onValueChange={(v) => setForm((f) => ({ ...f, centro_custo: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {CENTROS.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+                    {CENTROS.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -830,9 +859,14 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             {dividirEntreMuseus && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs text-slate-500">Informe o valor de cada museu. A soma deve ser igual ao valor total da NF.</p>
-                  <Button type="button" variant="outline" size="sm" onClick={distribuirIgualmente} className="text-xs h-7">Dividir igualmente</Button>
+                  <p className="text-xs text-slate-500">
+                    Informe o valor de cada museu. A soma deve ser igual ao valor total da NF.
+                  </p>
+                  <Button type="button" variant="outline" size="sm" onClick={distribuirIgualmente} className="text-xs h-7">
+                    Dividir igualmente
+                  </Button>
                 </div>
+
                 <div className="space-y-2">
                   {rateio.map((r) => (
                     <div key={r.museu} className="flex items-center gap-3">
@@ -844,10 +878,14 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
                     </div>
                   ))}
                 </div>
+
                 <div className={`flex justify-between items-center text-sm font-medium px-1 py-2 rounded-lg border ${rateioValido ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
                   <span>Total rateado:</span>
-                  <span>R$ {totalRateado.toFixed(2)} {valorTotal > 0 && `/ R$ ${valorTotal.toFixed(2)}`}</span>
+                  <span>
+                    R$ {totalRateado.toFixed(2)} {valorTotal > 0 && `/ R$ ${valorTotal.toFixed(2)}`}
+                  </span>
                 </div>
+
                 {!rateioValido && valorTotal > 0 && (
                   <p className="text-xs text-red-500 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
@@ -859,7 +897,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           </div>
 
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
-            ⚡ Ao enviar, a nota será encaminhada para aprovação conforme o fluxo financeiro.
+            ⚡ Ao enviar, o valor será debitado imediatamente da(s) rubrica(s) correspondente(s), atualizando o valor realizado e o saldo disponível.
           </div>
 
           {errosFiltrados.length > 0 && (
@@ -874,7 +912,9 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           )}
 
           <div className="flex justify-end gap-2 pt-2 flex-wrap">
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
 
             <Button variant="destructive" size="sm" onClick={handleDeletarDocumento} disabled={deleting || saving || sending}>
               {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Trash2 className="w-4 h-4 mr-1" />}
@@ -891,9 +931,34 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               Salvar Rascunho
             </Button>
 
+            {user && COORD_EMAILS.includes((user.email || '').toLowerCase().trim()) && (
+              <Button
+                onClick={() => handleProcessarNota(true)}
+                disabled={sending || approvingDirect || !form.rubrica_id}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {sending || approvingDirect ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+                Aprovar Direto (Coordenador)
+              </Button>
+            )}
+
             <Button
-              onClick={handleEnviar}
-              disabled={sending || !form.rubrica_id || (!dividirEntreMuseus && !form.centro_custo) || (dividirEntreMuseus && !rateioValido)}
+              onClick={() => handleProcessarNota(true)}
+              disabled={sending || !form.rubrica_id}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+              Aprovar
+            </Button>
+
+            <Button
+              onClick={() => handleProcessarNota(false)}
+              disabled={
+                sending ||
+                !form.rubrica_id ||
+                (!dividirEntreMuseus && !form.centro_custo) ||
+                (dividirEntreMuseus && !rateioValido)
+              }
             >
               {sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
               Enviar para Aprovação
