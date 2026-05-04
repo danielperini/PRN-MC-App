@@ -1,97 +1,102 @@
 // 🔒 CONTROLE CENTRAL DE PERMISSÕES (NÃO ALTERAR SEM NECESSIDADE)
 
+function normalizeRole(user) {
+  return String(user?.role || user?.base_role || '').trim().toUpperCase();
+}
+
+function normalizeEmail(user) {
+  return String(user?.email || '').trim().toLowerCase();
+}
+
+export function isCoordGeral(user) {
+  if (!user) return false;
+
+  const role = normalizeRole(user);
+  const email = normalizeEmail(user);
+
+  return (
+    role === 'ADMIN' ||
+    role === 'COORD_GERAL' ||
+    role === 'COORDENADOR_GERAL' ||
+    email === 'daniel@periniprojetos.com.br' ||
+    email === 'danielperini.mc@viadutodasartes.org.br'
+  );
+}
+
 export function isCoordenador(user) {
   if (!user) return false;
 
+  const role = normalizeRole(user);
+
   return (
-    user?.base_role === 'COORDENADOR' ||
-    user?.base_role === 'ADMIN' ||
-    user?.email === 'daniel@periniprojetos.com.br'
+    isCoordGeral(user) ||
+    role === 'COORDENADOR' ||
+    role === 'COORD_COMUNICACAO' ||
+    role === 'COORD_ADMINISTRATIVA' ||
+    role === 'COORD_PRODUCAO'
   );
 }
 
 export function isProfissional(user) {
   if (!user) return false;
-
-  return (
-    user?.base_role === 'PROFISSIONAL' ||
-    (!isCoordenador(user) && !!user?.email)
-  );
+  return !isCoordenador(user) && !!user?.email;
 }
 
-// 👁️ Pode ver tudo (somente coordenação)
 export function canViewAll(user) {
   return isCoordenador(user);
 }
 
-// 📄 Pode ver apenas seus próprios dados
 export function canViewOwnData(user, record) {
   if (!user || !record) return false;
-
   if (isCoordenador(user)) return true;
 
-  const userEmail = (user.email || '').toLowerCase();
+  const userEmail = normalizeEmail(user);
 
   return (
-    (record?.user_email || '').toLowerCase() === userEmail ||
-    (record?.email || '').toLowerCase() === userEmail ||
-    (record?.created_by || '').toLowerCase() === userEmail
+    String(record?.user_email || '').toLowerCase() === userEmail ||
+    String(record?.email || '').toLowerCase() === userEmail ||
+    String(record?.created_by || '').toLowerCase() === userEmail ||
+    String(record?.uploadado_por || '').toLowerCase() === userEmail ||
+    String(record?.author_email || '').toLowerCase() === userEmail ||
+    String(record?.owner_email || '').toLowerCase() === userEmail ||
+    String(record?.solicitante_email || '').toLowerCase() === userEmail ||
+    String(record?.requester_email || '').toLowerCase() === userEmail
   );
 }
 
-// 🧾 Compras / Notas
 export function canViewPurchase(user, purchase) {
-  if (isCoordenador(user)) return true;
   return canViewOwnData(user, purchase);
 }
 
-// 💳 Pagamentos equipe
 export function canViewPayment(user, payment) {
-  if (isCoordenador(user)) return true;
   return canViewOwnData(user, payment);
 }
 
-// 📁 Documentos
 export function canViewDocument(user, doc) {
-  if (isCoordenador(user)) return true;
   return canViewOwnData(user, doc);
 }
 
-// 👥 Equipe (somente coordenação)
 export function canManageTeam(user) {
   return isCoordenador(user);
 }
 
-// 📊 Dashboard geral
 export function canViewDashboard(user) {
   return isCoordenador(user);
 }
 
-// 📊 Rubricas
 export function canViewRubricas(user) {
   return isCoordenador(user);
 }
 
-// 📥 Aprovações
 export function canApprove(user) {
   return isCoordenador(user);
 }
 
-// Alias para compatibilidade
-export const isCoordGeral = isCoordenador;
-
-// 👥 Pode gerenciar usuários (somente coordenação/admin)
 export function canManageUsers(user) {
   return isCoordenador(user);
 }
 
-// 🔐 Helper para filtros (IMPORTANTE)
 export function buildUserFilter(user) {
-  if (isCoordenador(user)) {
-    return {}; // sem filtro
-  }
-
-  return {
-    user_email: user.email
-  };
+  if (isCoordenador(user)) return {};
+  return { user_email: user?.email };
 }
