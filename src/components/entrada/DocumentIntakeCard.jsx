@@ -9,6 +9,15 @@ import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { deleteIntake } from '@/lib/deleteIntegrado';
 
+const TIPO_LABEL = {
+  FOTO_ATIVIDADE: 'Foto',
+  NOTA_FISCAL_PDF: 'NF PDF',
+  NOTA_FISCAL_XML: 'NF XML',
+  DOCUMENTO_ADMINISTRATIVO: 'Doc. Adm.',
+  OUTRO: 'Outro',
+  PENDENTE: 'Pendente',
+};
+
 const STATUS_CONFIG = {
   ENVIADO: { label: 'Enviado', color: 'bg-blue-100 text-blue-700', icon: Clock },
   ANALISANDO_IA: { label: 'Analisando...', color: 'bg-yellow-100 text-yellow-700', icon: Loader2, spin: true },
@@ -26,165 +35,6 @@ function parseValorBR(v) {
     return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
   }
   return parseFloat(s.replace(',', '.')) || 0;
-}
-
-function onlyDigits(v) {
-  return String(v || '').replace(/\D/g, '');
-}
-
-export default function DocumentIntakeCard({
-  intake,
-  onReview,
-  onDeleted,
-  onSentToApproval,
-  onReanalyse,
-  onLinkXml,
-  onAddXmlToPdf
-}) {
-  const [loading, setLoading] = useState(false);
-  const [sendingApproval, setSendingApproval] = useState(false);
-  const [isDuplicado, setIsDuplicado] = useState(false);
-
-  const xmlInputRef = useRef(null);
-  const comprovanteInputRef = useRef(null);
-
-  const status = STATUS_CONFIG[intake.status_processamento] || STATUS_CONFIG.ENVIADO;
-  const Icon = status.icon;
-
-  const ia = intake.resultado_ia || {};
-  const valor = parseValorBR(ia.nf_valor_total || intake.valor || 0);
-
-  // =========================
-  // DETECTAR DUPLICADO
-  // =========================
-  useEffect(() => {
-    async function checkDuplicado() {
-      try {
-        const nf = onlyDigits(ia.nf_numero);
-        const cnpj = onlyDigits(ia.nf_emitente_cpf_cnpj);
-
-        if (!nf || !cnpj || !valor) return;
-
-        const lista = await base44.entities.PurchaseRequest.list('-created_date', 300);
-
-        const duplicado = (lista || []).some(p =>
-          onlyDigits(p.nf_numero) === nf &&
-          onlyDigits(p.fornecedor_cnpj || p.fornecedor_cpf_cnpj) === cnpj &&
-          Math.abs(parseValorBR(p.valor || p.valor_solicitado) - valor) < 0.01
-        );
-
-        setIsDuplicado(duplicado);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    checkDuplicado();
-  }, []);
-
-  async function handleSendToApproval() {
-    if (isDuplicado) {
-      toast.error('Documento duplicado detectado.');
-      return;
-    }
-
-    const rubrica_id = intake.rubrica_id_sugerida;
-    const centro_custo = intake.centro_custo;
-
-    if (!rubrica_id || !centro_custo || !valor) {
-      toast.error('Preencha dados antes de enviar.');
-      return;
-    }
-
-    setSendingApproval(true);
-
-    try {
-      const pr = await base44.entities.PurchaseRequest.create({
-        descricao_item: ia.descricao_servico || ia.nf_emitente_nome,
-        fornecedor_nome: ia.nf_emitente_nome,
-        fornecedor_cnpj: ia.nf_emitente_cpf_cnpj,
-        valor,
-        valor_solicitado: valor,
-        rubrica_id,
-        budgetline_id: rubrica_id,
-        centro_custo,
-        status: 'AGUARDANDO_APROVACAO',
-        origem: 'EntradaUnica',
-        intake_id: intake.id,
-        nf_numero: ia.nf_numero,
-        nf_valor_total: valor,
-      });
-
-      await base44.entities.DocumentIntake.update(intake.id, {
-        status_processamento: 'ENVIADO_APROVACAO',
-        entidade_destino_id: pr.id,
-        ocultar_entrada_unica: true,
-      });
-
-      toast.success('Enviado para aprovação.');
-      onSentToApproval?.(intake.id);
-    } catch (e) {
-      toast.error('Erro ao enviar.');
-    } finally {
-      setSendingApproval(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (!confirm('Deletar?')) return;
-    setLoading(true);
-    try {
-      await deleteIntake(intake);
-      onDeleted?.(intake.id);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const fileName = intake.file_name_final || intake.file_name_original;
-
-  return (
-    <div className="border rounded-lg p-3 bg-white">
-
-      <div className="flex items-center justify-between">
-
-        <div>
-          <p className="text-sm font-medium">{fileName}</p>
-
-          <div className="flex gap-2 mt-1">
-
-            <span className={cn('text-xs px-2 py-0.5 rounded', status.color)}>
-              {status.label}
-            </span>
-
-            {isDuplicado && (
-              <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" />
-                REPETIDO
-              </span>
-            )}
-
-          </div>
-        </div>
-
-        <div className="flex gap-1">
-
-          <Button size="sm" onClick={handleSendToApproval} disabled={sendingApproval}>
-            <Send className="w-4 h-4 mr-1" />
-            Enviar
-          </Button>
-
-          <Button size="sm" variant="ghost" onClick={handleDelete}>
-            <X className="w-4 h-4" />
-          </Button>
-
-        </div>
-
-      </div>
-
-    </div>
-  );
-}  return parseFloat(s.replace(',', '.')) || 0;
 }
 
 function getValorDisplay(intake) {
