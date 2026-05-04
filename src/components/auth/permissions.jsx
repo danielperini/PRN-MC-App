@@ -1,158 +1,89 @@
-/**
- * Política central de permissões do sistema Museus Centro
- * Referenciar este arquivo em todos os componentes que precisam verificar permissões.
- */
+// 🔒 CONTROLE CENTRAL DE PERMISSÕES (NÃO ALTERAR SEM NECESSIDADE)
 
-export const COORD_GERAL_EMAIL = 'daniel@periniprojetos.com.br';
-
-export const AUTO_APPROVED_DOMAINS = [
-  '@viadutodasartes.org.br',
-  '@periniprojetos.com.br',
-  '@pbh.gov.br',
-];
-
-/**
- * Verifica se o usuário é o Coordenador Geral (Daniel Perini)
- * Único com poder total de gestão de usuários.
- */
-export function isCoordGeral(user) {
+export function isCoordenador(user) {
   if (!user) return false;
+
   return (
-    user.email === COORD_GERAL_EMAIL ||
-    user.can_manage_users === true
+    user?.base_role === 'COORDENADOR' ||
+    user?.base_role === 'ADMIN' ||
+    user?.email === 'daniel@periniprojetos.com.br'
   );
 }
 
-/**
- * Verifica se o usuário é coordenador (qualquer tipo, inclui coord geral)
- */
-export function isCoordenador(user) {
+export function isProfissional(user) {
   if (!user) return false;
-  if (isCoordGeral(user)) return true;
-  return [
-    'COORDENADOR',
-    'ADMIN',
-    'admin',
-    'COORD_PRODUCAO',
-    'COORD_ADMINISTRATIVA',
-    'COORD_COMUNICACAO',
-    'COORD_PROGRAMACAO',
-    'CONSULTORIA_PROGRAMACAO',
-  ].includes(user.role);
+
+  return (
+    user?.base_role === 'PROFISSIONAL' ||
+    (!isCoordenador(user) && !!user?.email)
+  );
 }
 
-/**
- * Verifica se o email pertence a um domínio com aprovação automática
- */
-export function isAutoApprovedDomain(email) {
-  if (!email) return false;
-  const lower = email.toLowerCase();
-  return AUTO_APPROVED_DOMAINS.some(domain => lower.endsWith(domain));
-}
-
-/**
- * Verifica se o usuário pode editar um relatório
- */
-export function canEditReport(currentUser, reportAuthorEmail) {
-  if (!currentUser) return false;
-  if (currentUser.email === reportAuthorEmail) return true;
-  return isCoordenador(currentUser);
-}
-
-/**
- * Verifica se o usuário pode gerenciar usuários (aprovar, editar, excluir permissões)
- * COORDENADOR também pode quando tem can_manage_users = true
- */
-export function canManageUsers(user) {
-  if (!user) return false;
-  return isCoordGeral(user) || user.can_manage_users === true || isCoordenador(user);
-}
-
-/**
- * Verifica se o usuário pode gerenciar permissões de outros usuários
- * Qualquer COORDENADOR ou ADMIN pode editar permissões
- */
-export function canManagePermissions(user) {
-  if (!user) return false;
+// 👁️ Pode ver tudo (somente coordenação)
+export function canViewAll(user) {
   return isCoordenador(user);
 }
 
-/**
- * Todos os usuários autenticados podem acessar a área Equipe.
- */
-export function canAccessEquipe(user) {
-  return !!user;
-}
+// 📄 Pode ver apenas seus próprios dados
+export function canViewOwnData(user, record) {
+  if (!user || !record) return false;
 
-/**
- * Usuário comum pode editar apenas o próprio perfil de equipe.
- * Coordenadores podem editar qualquer perfil.
- */
-export function canEditOwnTeamProfile(user, targetEmail) {
-  if (!user || !targetEmail) return false;
   if (isCoordenador(user)) return true;
-  return String(user.email || '').toLowerCase() === String(targetEmail || '').toLowerCase();
+
+  const userEmail = (user.email || '').toLowerCase();
+
+  return (
+    (record?.user_email || '').toLowerCase() === userEmail ||
+    (record?.email || '').toLowerCase() === userEmail ||
+    (record?.created_by || '').toLowerCase() === userEmail
+  );
 }
 
-/**
- * Apenas coordenadores podem editar todos os perfis da equipe.
- */
-export function canEditAllTeamProfiles(user) {
-  if (!user) return false;
+// 🧾 Compras / Notas
+export function canViewPurchase(user, purchase) {
+  if (isCoordenador(user)) return true;
+  return canViewOwnData(user, purchase);
+}
+
+// 💳 Pagamentos equipe
+export function canViewPayment(user, payment) {
+  if (isCoordenador(user)) return true;
+  return canViewOwnData(user, payment);
+}
+
+// 📁 Documentos
+export function canViewDocument(user, doc) {
+  if (isCoordenador(user)) return true;
+  return canViewOwnData(user, doc);
+}
+
+// 👥 Equipe (somente coordenação)
+export function canManageTeam(user) {
   return isCoordenador(user);
 }
 
-/**
- * Regra consolidada para edição de perfil de equipe.
- */
-export function canEditTeamProfile(user, targetEmail) {
-  if (!user) return false;
-  if (canEditAllTeamProfiles(user)) return true;
-  return canEditOwnTeamProfile(user, targetEmail);
+// 📊 Dashboard geral
+export function canViewDashboard(user) {
+  return isCoordenador(user);
 }
 
-/**
- * Regra consolidada para visualização de perfil de equipe.
- * Todos acessam a área; usuário comum vê apenas o próprio perfil;
- * coordenadores visualizam todos.
- */
-export function canViewTeamProfile(user, targetEmail) {
-  if (!user) return false;
-  if (isCoordenador(user)) return true;
-  if (!targetEmail) return false;
-  return String(user.email || '').toLowerCase() === String(targetEmail || '').toLowerCase();
+// 📊 Rubricas
+export function canViewRubricas(user) {
+  return isCoordenador(user);
 }
 
-/**
- * Verifica se o usuário é um PATROCINADOR (leitura apenas, dados aprovados)
- */
-export function isPatrocinador(user) {
-  if (!user) return false;
-  return user.role === 'PATROCINADOR' || user.base_role === 'PATROCINADOR';
+// 📥 Aprovações
+export function canApprove(user) {
+  return isCoordenador(user);
 }
 
-/**
- * Permissões específicas do PATROCINADOR
- */
-export const PATROCINADOR_PERMISSIONS = {
-  can_view_sponsor_dashboard: true,
-  can_view_approved_reports: true,
-  can_view_approved_programacao: true,
-  can_view_public_gallery: true,
-  can_view_budget_summary: true,
-  can_view_project_kpis: true,
-  can_manage_users: false,
-  can_manage_platform: false,
-  can_manage_files: false,
-  can_manage_equipes: false,
-  can_review_reports: false,
-  gestao_compras: false,
-  can_view_audit_log: false,
-};
+// 🔐 Helper para filtros (IMPORTANTE)
+export function buildUserFilter(user) {
+  if (isCoordenador(user)) {
+    return {}; // sem filtro
+  }
 
-/**
- * Verifica se um usuário PATROCINADOR pode acessar uma permissão específica
- */
-export function canSponsorAccess(permission) {
-  return PATROCINADOR_PERMISSIONS[permission] === true;
+  return {
+    user_email: user.email
+  };
 }
