@@ -32,25 +32,17 @@ const COORD_EMAILS = [
 
 function normalizeDateToInput(value) {
   if (!value) return '';
-
   const raw = String(value).trim();
-
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
 
   const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (br) {
-    return `${br[3]}-${br[2]}-${br[1]}`;
-  }
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
 
   const isoLike = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoLike) {
-    return `${isoLike[1]}-${isoLike[2]}-${isoLike[3]}`;
-  }
+  if (isoLike) return `${isoLike[1]}-${isoLike[2]}-${isoLike[3]}`;
 
   const d = new Date(raw);
-  if (!Number.isNaN(d.getTime())) {
-    return d.toISOString().slice(0, 10);
-  }
+  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
 
   return '';
 }
@@ -107,13 +99,7 @@ async function verificarDuplicidadeNF({ nf_numero, nf_emitente_cpf_cnpj, nf_valo
         0
       );
 
-      return (
-        nfItem &&
-        cnpjItem &&
-        nfItem === nf &&
-        cnpjItem === cnpj &&
-        Math.abs(valorItem - valor) < 0.01
-      );
+      return nfItem && cnpjItem && nfItem === nf && cnpjItem === cnpj && Math.abs(valorItem - valor) < 0.01;
     });
   } catch (e) {
     console.error('Erro ao verificar duplicidade de NF:', e);
@@ -164,12 +150,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
   useEffect(() => {
     const normalized = normalizeDateToInput(dataEmissaoIA);
-
     if (!form.nf_data_emissao && normalized) {
-      setForm((f) => ({
-        ...f,
-        nf_data_emissao: normalized,
-      }));
+      setForm((f) => ({ ...f, nf_data_emissao: normalized }));
     }
   }, [dataEmissaoIA, form.nf_data_emissao]);
 
@@ -182,7 +164,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         console.error(e);
       }
     }
-
     loadRubricas();
   }, []);
 
@@ -210,6 +191,17 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     return rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '';
   }
 
+  function getBudgetLineId(rubricaId) {
+    const rubrica = rubricas.find((r) => r.id === rubricaId);
+    return (
+      rubrica?.budgetline_id ||
+      rubrica?.budget_line_id ||
+      rubrica?.linha_orcamentaria_id ||
+      rubrica?.budgetLineId ||
+      rubricaId
+    );
+  }
+
   useEffect(() => {
     setForm((f) => ({ ...f, file_name_final: buildNomePadronizado() }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -227,10 +219,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
       try {
         const list = await base44.entities.Attachment.filter(
-          {
-            nf_numero: form.nf_numero,
-            nf_tipo_documento: 'xml_nf',
-          },
+          { nf_numero: form.nf_numero, nf_tipo_documento: 'xml_nf' },
           '-created_date',
           20
         );
@@ -320,11 +309,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
       });
 
-      toast({
-        title: 'XML vinculado ao PDF com sucesso.',
-        duration: 3000,
-      });
-
+      toast({ title: 'XML vinculado ao PDF com sucesso.', duration: 3000 });
       onSaved?.();
     } catch (e) {
       toast({
@@ -369,13 +354,11 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
     const valorBase = rubrica.valor_total || rubrica.valor_rubrica || 0;
     const utilizado = (rubrica.valor_utilizado || 0) + valorDebito;
-    const comprometido = rubrica.saldo_comprometido || 0;
-    const saldo = valorBase - utilizado - comprometido;
+    const saldo = valorBase - utilizado;
     const percentual = valorBase > 0 ? (utilizado / valorBase) * 100 : 0;
 
     await base44.entities.Rubrica.update(rubricaId, {
       valor_utilizado: utilizado,
-      saldo_comprometido: comprometido,
       saldo,
       percentual_utilizado: percentual,
     });
@@ -385,12 +368,23 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     const debitosPorRubrica = {};
 
     for (const item of rateioPayload) {
-      const configs = await base44.entities.RubricaMuseuConfig.filter({
-        rubrica_id: form.rubrica_id,
-        museu: item.museu,
-      });
+      let rubricaAlvo = form.rubrica_id;
 
-      const rubricaAlvo = configs && configs.length > 0 ? configs[0].rubrica_id : form.rubrica_id;
+      try {
+        if (base44.entities.RubricaMuseuConfig) {
+          const configs = await base44.entities.RubricaMuseuConfig.filter({
+            rubrica_id: form.rubrica_id,
+            museu: item.museu,
+          });
+
+          if (configs && configs.length > 0 && configs[0]?.rubrica_id) {
+            rubricaAlvo = configs[0].rubrica_id;
+          }
+        }
+      } catch (e) {
+        console.warn('RubricaMuseuConfig indisponível. Usando rubrica principal.', e);
+      }
+
       debitosPorRubrica[rubricaAlvo] = (debitosPorRubrica[rubricaAlvo] || 0) + item.valor;
     }
 
@@ -462,10 +456,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     }
 
     setSending(true);
+    if (aprovarDireto) setApprovingDirect(true);
 
     try {
       const rateioPayload = getRateioPayload();
       const rubricaNome = getRubricaNome(form.rubrica_id);
+      const budgetlineId = getBudgetLineId(form.rubrica_id);
 
       const duplicada = await verificarDuplicidadeNF({
         nf_numero: form.nf_numero,
@@ -487,18 +483,32 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         descricao_item: form.descricao_servico || form.nf_emitente_nome,
         fornecedor_nome: form.nf_emitente_nome,
         fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
+        fornecedor_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+
         nf_numero: form.nf_numero,
         nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
         nf_valor_total: valorTotal,
         nf_data_emissao: form.nf_data_emissao,
+
+        valor: valorTotal,
         valor_solicitado: valorTotal,
         meta_id: form.meta_id || 'MC3A-01',
         categoria: 'Nota Fiscal',
         tipo_gasto: form.tipo_gasto,
+
         centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
+
         rubrica_id: form.rubrica_id,
         rubrica_nome: rubricaNome,
-        status: aprovarDireto ? 'APROVADO_COORD' : 'SOLICITADO',
+
+        budgetline_id: budgetlineId,
+        budget_line_id: budgetlineId,
+        linha_orcamentaria_id: budgetlineId,
+
+        nota_fiscal_url: intake.arquivo_original_url,
+        status: aprovarDireto ? 'APROVADO_COORD' : 'AGUARDANDO_APROVACAO',
+        origem: 'EntradaUnica',
+        intake_id: intake.id,
         observacoes: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
       });
 
@@ -523,28 +533,41 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         nf_revisado: true,
         rubrica_id: form.rubrica_id,
         rubrica_nome: rubricaNome,
+        budgetline_id: budgetlineId,
+        budget_line_id: budgetlineId,
+        linha_orcamentaria_id: budgetlineId,
       });
 
-      if (dividirEntreMuseus && rateioPayload && rateioPayload.length > 0) {
-        await debitarRubricas(rateioPayload);
-      } else {
-        await debitarRubricaSimples(valorTotal);
+      if (aprovarDireto) {
+        if (dividirEntreMuseus && rateioPayload && rateioPayload.length > 0) {
+          await debitarRubricas(rateioPayload);
+        } else {
+          await debitarRubricaSimples(valorTotal);
+        }
       }
 
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: aprovarDireto ? 'APROVADO' : 'ENVIADO_APROVACAO',
         entidade_destino: 'PurchaseRequest',
         entidade_destino_id: pr.id,
+        purchase_request_id: pr.id,
         centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
         rubrica_id_sugerida: form.rubrica_id,
         rubrica_nome_sugerida: rubricaNome,
+        budgetline_id: budgetlineId,
+        budget_line_id: budgetlineId,
+        linha_orcamentaria_id: budgetlineId,
         file_name_final: form.file_name_final,
+        ocultar_entrada_unica: !aprovarDireto,
         resultado_ia: {
           ...ia,
           ...form,
           categoria: 'Nota Fiscal',
           rateio_museus: rateioPayload,
           dividir_entre_museus: dividirEntreMuseus,
+          rubrica_id: form.rubrica_id,
+          rubrica_nome: rubricaNome,
+          budgetline_id: budgetlineId,
         },
         revisado_pelo_usuario: true,
       });
@@ -566,6 +589,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       });
     } finally {
       setSending(false);
+      setApprovingDirect(false);
     }
   }
 
@@ -584,37 +608,23 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       txt.includes('possivelmente duplicada') ||
       txt.includes('já foi enviada para aprovação anteriormente') ||
       txt.includes('ja foi enviada para aprovacao anteriormente')
-    ) {
-      return false;
-    }
+    ) return false;
 
-    if (temXMLVinculado && txt.includes('xml')) {
-      return false;
-    }
-
-    if (txt.includes('cnpj') || txt.includes('empresa') || txt.includes('registrada')) {
-      return false;
-    }
+    if (temXMLVinculado && txt.includes('xml')) return false;
+    if (txt.includes('cnpj') || txt.includes('empresa') || txt.includes('registrada')) return false;
 
     if (
       form.nf_valor_total &&
-      (txt.includes('valor da nf') ||
-        txt.includes('valor') ||
-        txt.includes('destinatário') ||
-        txt.includes('destinatario'))
-    ) {
-      return false;
-    }
+      (txt.includes('valor da nf') || txt.includes('valor') || txt.includes('destinatário') || txt.includes('destinatario'))
+    ) return false;
 
     if (txt.includes('futura') || txt.includes('future')) {
       const match = txt.match(/(\d{2})\/(\d{2})\/(\d{4})/);
       if (match) {
         const hoje = new Date();
         hoje.setHours(0, 0, 0, 0);
-
         const dataDoc = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
         dataDoc.setHours(0, 0, 0, 0);
-
         if (dataDoc <= hoje) return false;
       }
     }
@@ -722,31 +732,21 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           </div>
 
           <div className="space-y-1">
-            <Label>
-              Meta do 3º Aditivo <span className="text-red-500">*</span>
-            </Label>
+            <Label>Meta do 3º Aditivo <span className="text-red-500">*</span></Label>
             <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecionar meta" />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Selecionar meta" /></SelectTrigger>
               <SelectContent>
                 {METAS_3_ADITIVO.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.nome}
-                  </SelectItem>
+                  <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-1">
-            <Label>
-              Tipo de Gasto <span className="text-red-500">*</span>
-            </Label>
+            <Label>Tipo de Gasto <span className="text-red-500">*</span></Label>
             <Select value={form.tipo_gasto} onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecionar tipo" />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Selecionar tipo" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="Produto">Produto</SelectItem>
                 <SelectItem value="Serviço">Serviço</SelectItem>
@@ -755,13 +755,9 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           </div>
 
           <div className="space-y-1">
-            <Label>
-              Rubrica <span className="text-red-500">*</span>
-            </Label>
+            <Label>Rubrica <span className="text-red-500">*</span></Label>
             <Select value={form.rubrica_id} onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecionar rubrica" />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Selecionar rubrica" /></SelectTrigger>
               <SelectContent>
                 {rubricasOrdenadas.map((r) => (
                   <SelectItem key={r.id} value={r.id}>
@@ -809,12 +805,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
                 ))}
               </div>
 
-              <Button
-                type="button"
-                onClick={handleVincularXML}
-                disabled={!selectedXmlId || linkingXml}
-                className="w-full"
-              >
+              <Button type="button" onClick={handleVincularXML} disabled={!selectedXmlId || linkingXml} className="w-full">
                 {linkingXml ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <LinkIcon className="w-4 h-4 mr-2" />}
                 Vincular XML ao PDF
               </Button>
@@ -840,18 +831,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
             {!dividirEntreMuseus && (
               <div className="space-y-1">
-                <Label>
-                  Centro de Custo <span className="text-red-500">*</span>
-                </Label>
+                <Label>Centro de Custo <span className="text-red-500">*</span></Label>
                 <Select value={form.centro_custo} onValueChange={(v) => setForm((f) => ({ ...f, centro_custo: v }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecionar" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
                   <SelectContent>
                     {CENTROS.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -883,9 +868,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
                 <div className={`flex justify-between items-center text-sm font-medium px-1 py-2 rounded-lg border ${rateioValido ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
                   <span>Total rateado:</span>
-                  <span>
-                    R$ {totalRateado.toFixed(2)} {valorTotal > 0 && `/ R$ ${valorTotal.toFixed(2)}`}
-                  </span>
+                  <span>R$ {totalRateado.toFixed(2)} {valorTotal > 0 && `/ R$ ${valorTotal.toFixed(2)}`}</span>
                 </div>
 
                 {!rateioValido && valorTotal > 0 && (
@@ -899,7 +882,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           </div>
 
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
-            ⚡ Ao enviar, o valor será debitado imediatamente da(s) rubrica(s) correspondente(s), atualizando o valor realizado e o saldo disponível.
+            ⚡ Ao aprovar, o valor será debitado da(s) rubrica(s) correspondente(s). Envio para aprovação não debita automaticamente.
           </div>
 
           {errosFiltrados.length > 0 && (
@@ -908,15 +891,13 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               <ul className="list-disc list-inside space-y-1">
                 <li>Trocar o arquivo e reprocessar</li>
                 <li>Deletar este documento</li>
-                <li>Enviar mesmo assim (irá para revisão do coordenador)</li>
+                <li>Enviar mesmo assim para revisão do coordenador</li>
               </ul>
             </div>
           )}
 
           <div className="flex justify-end gap-2 pt-2 flex-wrap">
-            <Button variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
+            <Button variant="outline" onClick={onClose}>Cancelar</Button>
 
             <Button variant="destructive" size="sm" onClick={handleDeletarDocumento} disabled={deleting || saving || sending}>
               {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Trash2 className="w-4 h-4 mr-1" />}
@@ -934,34 +915,13 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             </Button>
 
             {user && COORD_EMAILS.includes((user.email || '').toLowerCase().trim()) && (
-              <Button
-                onClick={() => handleProcessarNota(true)}
-                disabled={sending || approvingDirect || !form.rubrica_id}
-                className="bg-green-600 hover:bg-green-700"
-              >
+              <Button onClick={() => handleProcessarNota(true)} disabled={sending || approvingDirect || !form.rubrica_id} className="bg-green-600 hover:bg-green-700">
                 {sending || approvingDirect ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
                 Aprovar Direto (Coordenador)
               </Button>
             )}
 
-            <Button
-              onClick={() => handleProcessarNota(true)}
-              disabled={sending || !form.rubrica_id}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-              Aprovar
-            </Button>
-
-            <Button
-              onClick={() => handleProcessarNota(false)}
-              disabled={
-                sending ||
-                !form.rubrica_id ||
-                (!dividirEntreMuseus && !form.centro_custo) ||
-                (dividirEntreMuseus && !rateioValido)
-              }
-            >
+            <Button onClick={() => handleProcessarNota(false)} disabled={sending || !form.rubrica_id || (!dividirEntreMuseus && !form.centro_custo) || (dividirEntreMuseus && !rateioValido)}>
               {sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
               Enviar para Aprovação
             </Button>
