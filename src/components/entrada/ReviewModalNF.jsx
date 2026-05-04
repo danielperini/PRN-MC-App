@@ -158,7 +158,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     centro_custo: ia.centro_custo_sugerido || intake.centro_custo || '',
     rubrica_id: intake.rubrica_id_sugerida || '',
     file_name_final: intake.file_name_final || intake.file_name_original,
-    meta_id: '',
+    meta_id: ia.meta_sugerida || '',
     tipo_gasto: ia.tipo_gasto || 'Serviço',
   });
 
