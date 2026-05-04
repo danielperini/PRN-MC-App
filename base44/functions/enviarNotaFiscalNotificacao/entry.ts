@@ -20,6 +20,12 @@ function escapeHtml(value: unknown): string {
 }
 
 function normalizeRecipients(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => safeString(item).toLowerCase())
+      .filter(Boolean);
+  }
+
   return safeString(value)
     .split(/[;,]/)
     .map((item) => item.trim().toLowerCase())
@@ -30,18 +36,6 @@ function filtrarEmailsPermitidos(emails: string[]): string[] {
   return emails.filter((email) =>
     EMAILS_PERMITIDOS.includes(email.toLowerCase())
   );
-}
-
-function uniqueRecipients(...groups: string[][]): string[] {
-  const set = new Set<string>();
-
-  groups.flat().forEach((email) => {
-    const normalized = safeString(email).toLowerCase();
-    if (normalized) set.add(normalized);
-  });
-
-  // 🔒 FILTRO FINAL (CRÍTICO)
-  return filtrarEmailsPermitidos(Array.from(set));
 }
 
 function formatMoneyBR(value: unknown): string {
@@ -73,7 +67,6 @@ export default async function handler(req: Request) {
       nomeProfissional,
       funcao,
       museu,
-      reportId,
       fileName,
       nfNumero,
       nfValor,
@@ -86,15 +79,18 @@ export default async function handler(req: Request) {
 
     const listaOriginal = normalizeRecipients(destinatarios);
 
-    // 🔒 AQUI ESTÁ O BLOQUEIO REAL
+    // 🔒 FILTRO FINAL DE SEGURANÇA NO BACKEND
     const listaFinal = filtrarEmailsPermitidos(listaOriginal);
 
     if (listaFinal.length === 0) {
       console.warn('Nenhum e-mail permitido. Cancelando envio.');
-      return new Response(JSON.stringify({ ok: true, skipped: true }), { status: 200 });
+      return new Response(
+        JSON.stringify({ ok: true, skipped: true }),
+        { status: 200 }
+      );
     }
 
-    const subject = `${safeString(emitenteNome)} — ${formatMoneyBR(nfValor)}`;
+    const subject = `${safeString(emitenteNome) || 'Nota Fiscal'} — ${formatMoneyBR(nfValor)}`;
 
     const html = `
       <div style="font-family: Arial, sans-serif; font-size: 14px;">
@@ -107,17 +103,22 @@ export default async function handler(req: Request) {
         <hr/>
 
         <p><b>Fornecedor:</b> ${escapeHtml(emitenteNome)}</p>
-        <p><b>CNPJ:</b> ${escapeHtml(emitenteDoc)}</p>
+        <p><b>CNPJ/CPF:</b> ${escapeHtml(emitenteDoc)}</p>
         <p><b>Nº NF:</b> ${escapeHtml(nfNumero)}</p>
         <p><b>Valor:</b> ${formatMoneyBR(nfValor)}</p>
         <p><b>Data:</b> ${escapeHtml(nfData)}</p>
+        <p><b>Arquivo:</b> ${escapeHtml(fileName)}</p>
 
         <p><b>Descrição:</b></p>
         <p>${escapeHtml(descricaoNota)}</p>
 
         <hr/>
 
-        <p><a href="${fileUrl}" target="_blank">Abrir arquivo</a></p>
+        ${
+          safeString(fileUrl)
+            ? `<p><a href="${escapeHtml(fileUrl)}" target="_blank" rel="noopener noreferrer">Abrir arquivo</a></p>`
+            : ''
+        }
       </div>
     `;
 
@@ -127,10 +128,16 @@ export default async function handler(req: Request) {
       html,
     });
 
-    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    return new Response(JSON.stringify({ ok: true, sent_to: listaFinal }), {
+      status: 200,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erro desconhecido';
 
-  } catch (e) {
-    console.error(e);
-    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+    console.error('Erro em enviarNotaFiscalNotificacao:', error);
+
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+    });
   }
 }
