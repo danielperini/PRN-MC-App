@@ -19,9 +19,32 @@ function normalizeText(v) {
   return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 }
 
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function toNumber(v) {
   const n = Number(String(v || '').replace(',', '.'));
   return Number.isNaN(n) ? 0 : n;
+}
+
+function getDocumentOwnerEmails(doc) {
+  return [
+    doc?.created_by,
+    doc?.user_email,
+    doc?.requester_email,
+    doc?.solicitante_email,
+    doc?.email_solicitante,
+    doc?.author_email,
+    doc?.owner_email,
+    doc?.uploadado_por
+  ].map(normalizeEmail).filter(Boolean);
+}
+
+function documentBelongsToUser(doc, email) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return false;
+  return getDocumentOwnerEmails(doc).includes(normalizedEmail);
 }
 
 // Extensões e MIME types de imagem — EXCLUIR da gestão documental
@@ -74,8 +97,6 @@ function fmtDate(v) {
 }
 
 function isXmlVinculado(doc) {
-  // XML que já tem vínculo com um PDF (possui nf_xml_intake_id gravado no PDF correspondente
-  // ou tem campo nf_pdf_intake_id / nf_pdf_url diretamente no XML)
   return getTipo(doc) === 'XML' && (
     doc?.nf_pdf_intake_id || doc?.nf_xml_vinculado_a || doc?.nf_pdf_url
   );
@@ -87,8 +108,7 @@ function filtrarEDeduplicar(docs) {
   (docs || []).forEach((doc) => {
     if (!doc?.id) return;
     if (doc?.status_registro === 'DELETADO') return;
-    if (isImagem(doc)) return; // ← exclui fotos/imagens
-    // XMLs já vinculados a um PDF somem da lista
+    if (isImagem(doc)) return;
     if (isXmlVinculado(doc)) return;
 
     const key = getFileUrl(doc) || doc.id;
@@ -96,6 +116,49 @@ function filtrarEDeduplicar(docs) {
   });
 
   return Array.from(map.values()).sort(
+    (a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0)
+  );
+}
+
+async function carregarDocumentos({ isCoordenador, currentUser }) {
+  if (!currentUser) return [];
+
+  if (isCoordenador) {
+    return base44.entities.Attachment.list('-created_date', 500);
+  }
+
+  const resultados = [];
+
+  try {
+    const porUserEmail = await base44.entities.Attachment.filter(
+      { user_email: currentUser?.email },
+      '-created_date',
+      300
+    );
+    if (Array.isArray(porUserEmail)) resultados.push(...porUserEmail);
+  } catch (error) {
+    console.error('Erro ao buscar documentos por user_email:', error);
+  }
+
+  try {
+    const porCreatedBy = await base44.entities.Attachment.filter(
+      { created_by: currentUser?.email },
+      '-created_date',
+      300
+    );
+    if (Array.isArray(porCreatedBy)) resultados.push(...porCreatedBy);
+  } catch (error) {
+    console.error('Erro ao buscar documentos por created_by:', error);
+  }
+
+  const dedup = new Map();
+  resultados.forEach((doc) => {
+    if (doc?.id && documentBelongsToUser(doc, currentUser?.email)) {
+      dedup.set(doc.id, doc);
+    }
+  });
+
+  return Array.from(dedup.values()).sort(
     (a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0)
   );
 }
@@ -174,19 +237,19 @@ function VincularXmlModal({ xmlDoc, pdfsDisponiveis, onConfirm, onClose }) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function GestaoDocumental() {
+export default function GestaoDocumental({ currentUser = null, isCoordenador = false }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [vincularXml, setVincularXml] = useState(null); // doc XML aguardando vínculo
+  const [vincularXml, setVincularXml] = useState(null);
 
   const { data: todosDocumentos = [], isLoading } = useQuery({
-    queryKey: ['gestao-documental'],
-    queryFn: async () => base44.entities.Attachment.list('-created_date', 500)
+    queryKey: ['gestao-documental', isCoordenador, currentUser?.email],
+    queryFn: async () => carregarDocumentos({ isCoordenador, currentUser }),
+    enabled: !!currentUser
   });
 
   const documentos = useMemo(() => filtrarEDeduplicar(todosDocumentos), [todosDocumentos]);
 
-  // PDFs disponíveis para receber vínculo com um XML (qualquer PDF, vinculados ou não)
   const pdfsDisponiveis = useMemo(() =>
     (todosDocumentos || []).filter((d) => {
       if (d?.status_registro === 'DELETADO') return false;
@@ -198,16 +261,16 @@ export default function GestaoDocumental() {
   async function handleVincularXml(pdfDoc) {
     if (!vincularXml || !pdfDoc) return;
     try {
-      // Atualiza o PDF: marca que tem um XML vinculado
       await base44.entities.Attachment.update(pdfDoc.id, {
         nf_xml_intake_id: vincularXml.id,
         nf_xml_url: getFileUrl(vincularXml),
       });
-      // Atualiza o XML: marca que está vinculado a esse PDF (e some da lista)
+
       await base44.entities.Attachment.update(vincularXml.id, {
         nf_pdf_intake_id: pdfDoc.id,
         nf_pdf_url: getFileUrl(pdfDoc),
       });
+
       toast.success('XML vinculado ao PDF com sucesso.');
       setVincularXml(null);
       queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
@@ -229,19 +292,19 @@ export default function GestaoDocumental() {
   async function handleDelete(doc) {
     if (!window.confirm('Remover documento e solicitações vinculadas?')) return;
     try {
-      // Se houver PurchaseRequest vinculada via report_id, deletar integrado
       if (doc.report_id) {
         const pr = await base44.entities.PurchaseRequest.get(doc.report_id).catch(() => null);
         if (pr) {
           await deletePurchaseRequest(pr);
         }
       }
-      // Soft delete do attachment
+
       try {
         await base44.entities.Attachment.delete(doc.id);
       } catch {
         await base44.entities.Attachment.update(doc.id, { status_registro: 'DELETADO' });
       }
+
       toast.success('Registro deletado e rubrica estornada com sucesso.');
       queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
     } catch (e) {
@@ -314,7 +377,6 @@ export default function GestaoDocumental() {
                     key={doc.id}
                     className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
                   >
-                    {/* Nome */}
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <TipoIcon className="h-4 w-4 flex-shrink-0 text-gray-400" />
@@ -324,31 +386,26 @@ export default function GestaoDocumental() {
                       </div>
                     </td>
 
-                    {/* Tipo */}
                     <td className="px-3 py-2.5">
                       <span className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${tipoConf.color}`}>
                         {tipoConf.label}
                       </span>
                     </td>
 
-                    {/* Categoria */}
                     <td className="px-3 py-2.5">
                       <span className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${CATEG_COLOR[categ] || 'bg-gray-100 text-gray-600'}`}>
                         {categ}
                       </span>
                     </td>
 
-                    {/* Fornecedor */}
                     <td className="px-3 py-2.5 text-gray-600 truncate" title={getFornecedor(doc)}>
                       {getFornecedor(doc)}
                     </td>
 
-                    {/* Data */}
                     <td className="px-3 py-2.5 text-gray-500 tabular-nums">
                       {fmtDate(doc.created_date)}
                     </td>
 
-                    {/* Ações */}
                     <td className="px-3 py-2.5">
                      <div className="flex items-center justify-center gap-1">
                        {fileUrl && (
@@ -372,7 +429,6 @@ export default function GestaoDocumental() {
                            </a>
                          </>
                        )}
-                       {/* Botão Vincular para XMLs sem vínculo */}
                        {tipo === 'XML' && !doc?.nf_pdf_intake_id && !doc?.nf_pdf_url && (
                          <button
                            onClick={() => setVincularXml(doc)}
