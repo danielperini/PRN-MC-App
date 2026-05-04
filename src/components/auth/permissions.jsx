@@ -77,6 +77,14 @@ export function canApprove(user) {
   return isCoordenador(user);
 }
 
+// Alias para compatibilidade
+export const isCoordGeral = isCoordenador;
+
+// 👥 Pode gerenciar usuários (somente coordenação/admin)
+export function canManageUsers(user) {
+  return isCoordenador(user);
+}
+
 // 🔐 Helper para filtros (IMPORTANTE)
 export function buildUserFilter(user) {
   if (isCoordenador(user)) {
