@@ -21,6 +21,8 @@ const METAS_3_ADITIVO = [
   { id: 'MC3A-06', nome: 'Meta 6 (mês 2-18): 36 ações culturais' },
   { id: 'MC3A-07', nome: 'Meta 7 (mês 1-28): Educadores fixos' },
   { id: 'MC3A-08', nome: 'Meta 8 (mês 1-18): Exposição MHAB Casarão' },
+  { id: 'MC3A-CUSTEIO', nome: 'Custeio / Despesas operacionais' },
+  { id: 'MC3A-OUTROS', nome: 'Outros / Classificação complementar' },
 ];
 
 const COORD_EMAILS = [
