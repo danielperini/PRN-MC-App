@@ -119,14 +119,10 @@ Deno.serve(async (req) => {
       return json({ success: false, error: 'Solicitação não encontrada.' }, 404);
     }
 
-    if (!purchase.rubrica_id) {
-      return json({ success: false, error: 'Envio bloqueado: rubrica obrigatória.' }, 400);
-    }
-
     const valor = getPurchaseValue(purchase);
 
     // =========================
-    // APROVAR
+    // APROVAR (CORE CORRETO)
     // =========================
     if (action === 'aprovar') {
       const rubrica = await getRubrica(base44, purchase.rubrica_id);
@@ -152,19 +148,22 @@ Deno.serve(async (req) => {
 
       await syncAttachments(base44, updated, 'APROVADO');
 
+      // Disparar e-mail automático para setor financeiro (não bloqueia se falhar)
       try {
         await base44.asServiceRole.functions.invoke('notifyPurchaseApprovedToFinanceiro', {
-          purchaseId: purchase.id
+          purchaseId: purchase.id,
+          aprovadorEmail: body.aprovadorEmail || '',
+          aprovadorNome: body.aprovadorNome || '',
         });
-      } catch (e) {
-        console.warn('email fail', e);
+      } catch (emailErr) {
+        console.warn('E-mail financeiro não enviado:', emailErr?.message);
       }
 
       return json({ success: true, purchase: updated });
     }
 
     // =========================
-    // DESAPROVAR
+    // DESAPROVAR / REPROVAR
     // =========================
     if (action === 'desaprovar' || action === 'reprovar') {
       await estornarSeNecessario(base44, purchase, valor);
@@ -172,15 +171,16 @@ Deno.serve(async (req) => {
       const updated = await base44.asServiceRole.entities.PurchaseRequest.update(
         purchase.id,
         {
-          status: action === 'reprovar' ? 'RECUSADO' : 'AGUARDANDO_APROVACAO',
-          comentario_desaprovacao: comentario || '',
+          status: action === 'reprovar' ? 'RECUSADO' : 'SOLICITADO',
+          comentario_desaprovacao:
+            comentario || 'Desaprovado pela coordenação.',
           financeiro_lancado_em: null,
           rubrica_debitada_em: null,
           rubrica_debitada_valor: 0
         }
       );
 
-      await syncAttachments(base44, updated, action === 'reprovar' ? 'REPROVADO' : 'AGUARDANDO_APROVACAO');
+      await syncAttachments(base44, updated, action === 'reprovar' ? 'REPROVADO' : 'SOLICITADO');
 
       return json({ success: true, purchase: updated });
     }
@@ -195,7 +195,8 @@ Deno.serve(async (req) => {
         purchase.id,
         {
           status: 'DEVOLVIDO',
-          comentario_devolucao: comentario || '',
+          comentario_devolucao:
+            comentario || 'Devolvido pela coordenação.',
           financeiro_lancado_em: null,
           rubrica_debitada_em: null,
           rubrica_debitada_valor: 0
