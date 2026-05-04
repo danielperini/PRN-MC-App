@@ -162,9 +162,9 @@ export default function DocumentIntakeCard({
 
   async function handleSendToApproval() {
     const ia = intake.resultado_ia || {};
-    const rubrica_id = intake.rubrica_id_sugerida || ia.rubrica_id;
-    const centro_custo = intake.centro_custo || ia.centro_custo_sugerido;
-    const valor = parseValorBR(ia.nf_valor_total || ia.valor || ia.valor_total || 0);
+    const rubrica_id = intake.rubrica_id_sugerida || intake.rubrica_id || ia.rubrica_id;
+    const centro_custo = intake.centro_custo || ia.centro_custo_sugerido || ia.centro_custo;
+    const valor = parseValorBR(ia.nf_valor_total || ia.valor || ia.valor_total || intake.valor || 0);
 
     if (!rubrica_id || !centro_custo || !valor) {
       toast.error('Preencha rubrica, centro de custo e valor antes de enviar. Clique em "Editar" para revisar.');
@@ -174,16 +174,43 @@ export default function DocumentIntakeCard({
     setSendingApproval(true);
     try {
       const rubrica = await base44.entities.Rubrica.get(rubrica_id).catch(() => null);
-      const rubrica_nome = rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '';
+
+      const rubrica_nome =
+        rubrica?.rubrica ||
+        rubrica?.nome ||
+        rubrica?.descricao ||
+        intake.rubrica_nome_sugerida ||
+        ia.rubrica_nome ||
+        '';
+
+      const budgetline_id =
+        intake.budgetline_id ||
+        intake.budget_line_id ||
+        intake.linha_orcamentaria_id ||
+        ia.budgetline_id ||
+        ia.budget_line_id ||
+        ia.linha_orcamentaria_id ||
+        rubrica?.budgetline_id ||
+        rubrica?.budget_line_id ||
+        rubrica_id;
 
       const novaPurchase = await base44.entities.PurchaseRequest.create({
-        descricao_item: ia.descricao_servico || ia.nf_emitente_nome || fileName,
+        descricao_item: ia.descricao_servico || ia.descricao || ia.nf_emitente_nome || fileName,
         fornecedor_nome: ia.nf_emitente_nome || '',
+        fornecedor_cnpj: ia.nf_emitente_cpf_cnpj || '',
         fornecedor_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
         valor,
+        valor_solicitado: valor,
+        nf_valor_total: valor,
         rubrica_id,
         rubrica_nome,
+        budgetline_id,
+        budget_line_id: budgetline_id,
+        linha_orcamentaria_id: budgetline_id,
         centro_custo,
+        categoria: 'Nota Fiscal',
+        tipo_gasto: ia.tipo_gasto || intake.tipo_gasto || 'Nota Fiscal',
+        meta_id: ia.meta_id || intake.meta_id || 'MC3A-01',
         nota_fiscal_url: intake.arquivo_original_url || '',
         xml_url: intake.nf_xml_url || '',
         comprovante_pagamento_url: comprovanteUrl,
@@ -192,6 +219,7 @@ export default function DocumentIntakeCard({
         intake_id: intake.id,
         nf_numero: ia.nf_numero || '',
         nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || '',
+        observacoes: `NF ${ia.nf_numero || ''} - ${ia.nf_emitente_nome || fileName}`,
       });
 
       await base44.entities.DocumentIntake.update(intake.id, {
@@ -199,11 +227,17 @@ export default function DocumentIntakeCard({
         ocultar_entrada_unica: true,
         entidade_destino: 'PurchaseRequest',
         entidade_destino_id: novaPurchase?.id || '',
+        purchase_request_id: novaPurchase?.id || '',
+        budgetline_id,
+        budget_line_id: budgetline_id,
+        rubrica_id_sugerida: rubrica_id,
+        centro_custo,
       });
 
+      toast.success('Nota enviada para aprovação.');
       if (onSentToApproval) onSentToApproval(intake.id);
     } catch (e) {
-      toast.error('Erro ao enviar para aprovação: ' + e.message);
+      toast.error('Erro ao enviar para aprovação: ' + (e?.message || e));
     } finally {
       setSendingApproval(false);
     }
