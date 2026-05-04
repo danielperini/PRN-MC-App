@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -8,13 +8,25 @@ import { toast } from 'sonner';
 import TeamMemberForm from './TeamMemberForm';
 import TeamContractsPanel from './TeamContractsPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { isCoordenador } from '@/components/auth/permissions';
 
 export default function TeamManager() {
   const queryClient = useQueryClient();
 
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loadingUser, setLoadingUser] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+
+  useEffect(() => {
+    base44.auth.me()
+      .then((u) => setCurrentUser(u))
+      .catch(() => setCurrentUser(null))
+      .finally(() => setLoadingUser(false));
+  }, []);
+
+  const podeGerenciarEquipe = isCoordenador(currentUser);
 
   const {
     data: teamMembers = [],
@@ -23,12 +35,19 @@ export default function TeamManager() {
   } = useQuery({
     queryKey: ['team-members'],
     queryFn: async () => {
+      if (!podeGerenciarEquipe) return [];
       const res = await base44.entities.TeamMember.list();
       return Array.isArray(res) ? res : [];
     },
+    enabled: !!currentUser && podeGerenciarEquipe,
   });
 
   const handleDelete = async (id) => {
+    if (!podeGerenciarEquipe) {
+      toast.error('Acesso restrito à coordenação.');
+      return;
+    }
+
     if (!confirm('Deseja remover este membro?')) return;
 
     try {
@@ -49,11 +68,21 @@ export default function TeamManager() {
   };
 
   const handleEdit = (member) => {
+    if (!podeGerenciarEquipe) {
+      toast.error('Acesso restrito à coordenação.');
+      return;
+    }
+
     setEditingMember(member);
     setIsOpen(true);
   };
 
   const handleAdd = () => {
+    if (!podeGerenciarEquipe) {
+      toast.error('Acesso restrito à coordenação.');
+      return;
+    }
+
     setEditingMember(null);
     setIsOpen(true);
   };
@@ -62,6 +91,25 @@ export default function TeamManager() {
     await queryClient.invalidateQueries({ queryKey: ['team-members'] });
     await refetch();
   };
+
+  if (loadingUser) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Carregando equipe...
+      </div>
+    );
+  }
+
+  if (!podeGerenciarEquipe) {
+    return (
+      <Card>
+        <CardContent className="py-6 text-center text-sm text-muted-foreground">
+          Acesso restrito à coordenação.
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-4">
