@@ -121,6 +121,18 @@ function resolveFuncao(currentMember, targetUser) {
   ).trim();
 }
 
+function dedupById(items) {
+  const map = new Map();
+
+  (items || []).forEach((item) => {
+    if (item?.id && !map.has(item.id)) {
+      map.set(item.id, item);
+    }
+  });
+
+  return Array.from(map.values());
+}
+
 function MeusDadosInner() {
   const [user, setUser] = useState(null);
   const [coordGeral, setCoordGeral] = useState(false);
@@ -147,8 +159,36 @@ function MeusDadosInner() {
   }, []);
 
   const { data: teamData = [] } = useQuery({
-    queryKey: ['team-members', user?.email],
-    queryFn: () => base44.entities.TeamMember.list(),
+    queryKey: ['team-members', user?.email, coordGeral],
+    queryFn: async () => {
+      if (!user?.email) return [];
+
+      if (coordGeral) {
+        return await base44.entities.TeamMember.list();
+      }
+
+      const results = [];
+
+      try {
+        const byUserEmail = await base44.entities.TeamMember.filter({
+          user_email: user.email,
+        });
+        if (Array.isArray(byUserEmail)) results.push(...byUserEmail);
+      } catch (e) {
+        console.warn('Erro ao buscar TeamMember por user_email:', e);
+      }
+
+      try {
+        const byEmailPessoal = await base44.entities.TeamMember.filter({
+          email_pessoal: user.email,
+        });
+        if (Array.isArray(byEmailPessoal)) results.push(...byEmailPessoal);
+      } catch (e) {
+        console.warn('Erro ao buscar TeamMember por email_pessoal:', e);
+      }
+
+      return dedupById(results);
+    },
     enabled: !!user?.email,
   });
 
@@ -173,27 +213,35 @@ function MeusDadosInner() {
     if (!teamData?.length || !user?.email) return;
 
     if (!selectedUserEmail) {
-      const currentMember = teamData.find((m) => m.user_email === user.email);
+      const currentMember = teamData.find((m) => m.user_email === user.email || m.email_pessoal === user.email);
       if (currentMember) {
         setFormData((prev) => mergeWithoutOverwrite(prev, mapMemberToForm(currentMember)));
       }
 
-      if (user?.equipe) {
+      if (coordGeral && user?.equipe) {
         const teamColeagues = teamData.filter((m) => m.tipo_equipe === user.equipe && m.user_email !== user.email);
         setTeamMembers(teamColeagues);
+      } else {
+        setTeamMembers([]);
       }
     }
-  }, [teamData, user?.email, user?.equipe, selectedUserEmail, user]);
+  }, [teamData, user?.email, user?.equipe, selectedUserEmail, user, coordGeral]);
 
   useEffect(() => {
     if (!selectedUserEmail || !teamData.length) return;
-    const member = teamData.find((m) => m.user_email === selectedUserEmail);
+
+    if (!coordGeral) {
+      setSelectedUserEmail(null);
+      return;
+    }
+
+    const member = teamData.find((m) => m.user_email === selectedUserEmail || m.email_pessoal === selectedUserEmail);
     if (member) {
       setFormData(mapMemberToForm(member));
     } else {
       setFormData(EMPTY_FORM);
     }
-  }, [selectedUserEmail, teamData]);
+  }, [selectedUserEmail, teamData, coordGeral]);
 
   useEffect(() => {
     if (!targetEmail || isSponsor) return;
@@ -203,7 +251,7 @@ function MeusDadosInner() {
     const runAutoComplete = async () => {
       try {
         setAutoFillLoading(true);
-        const existingMember = teamData.find((m) => m.user_email === targetEmail);
+        const existingMember = teamData.find((m) => m.user_email === targetEmail || m.email_pessoal === targetEmail);
         const res = await base44.functions.invoke('ensureTeamMemberDataComplete', {
           team_member_id: existingMember?.id,
           user_email: targetEmail,
@@ -238,11 +286,15 @@ function MeusDadosInner() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      if (selectedUserEmail && !coordGeral) {
+        throw new Error('Acesso negado.');
+      }
+
       if (!selectedUserEmail) {
         await base44.auth.updateMe(formData);
       }
 
-      const currentMember = teamData.find((m) => m.user_email === targetEmail);
+      const currentMember = teamData.find((m) => m.user_email === targetEmail || m.email_pessoal === targetEmail);
       const funcaoResolvida = resolveFuncao(currentMember, targetUser);
 
       const teamPayload = {
@@ -274,7 +326,7 @@ function MeusDadosInner() {
         await base44.entities.TeamMember.create(teamPayload).catch(() => null);
       }
 
-      if (teamMembers.length > 0) {
+      if (coordGeral && teamMembers.length > 0) {
         await Promise.all(
           teamMembers.map((member) =>
             base44.entities.Notification.create({
