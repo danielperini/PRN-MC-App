@@ -1,15 +1,56 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const DESTINATARIOS_FIXOS = [
+  'notasfiscais@viadutodasartes.org.br',
+  'danielperini.mc@viadutodasartes.org.br',
+];
+
 function safeString(value: unknown): string {
   if (value === null || value === undefined) return '';
   return String(value).trim();
 }
 
+function escapeHtml(value: unknown): string {
+  return safeString(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function normalizeRecipients(value: unknown): string[] {
   return safeString(value)
     .split(/[;,]/)
-    .map((item) => item.trim())
+    .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
+}
+
+function uniqueRecipients(...groups: string[][]): string[] {
+  const set = new Set<string>();
+  groups.flat().forEach((email) => {
+    const normalized = safeString(email).toLowerCase();
+    if (normalized) set.add(normalized);
+  });
+  return Array.from(set);
+}
+
+function formatMoneyBR(value: unknown): string {
+  const raw = safeString(value)
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .replace(/[^\d.-]/g, '');
+
+  const n = Number(raw || value || 0);
+
+  if (!Number.isFinite(n) || n <= 0) {
+    return safeString(value) || 'R$ 0,00';
+  }
+
+  return n.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
 }
 
 function buildHtml(params: {
@@ -26,6 +67,7 @@ function buildHtml(params: {
   destinatarioNome: string;
   destinatarioDoc: string;
   chave: string;
+  descricaoNota: string;
   statusLeitura: string;
   fileUrl: string;
 }) {
@@ -43,6 +85,7 @@ function buildHtml(params: {
     destinatarioNome,
     destinatarioDoc,
     chave,
+    descricaoNota,
     statusLeitura,
     fileUrl,
   } = params;
@@ -57,24 +100,29 @@ function buildHtml(params: {
 
       <table style="border-collapse: collapse; width: 100%; margin-bottom: 16px;">
         <tbody>
-          <tr><td style="padding: 6px 0; font-weight: 700; width: 220px;">Arquivo renomeado</td><td style="padding: 6px 0;">${fileName || '-'}</td></tr>
-          <tr><td style="padding: 6px 0; font-weight: 700;">Profissional</td><td style="padding: 6px 0;">${nomeProfissional || '-'}</td></tr>
-          <tr><td style="padding: 6px 0; font-weight: 700;">Função</td><td style="padding: 6px 0;">${funcao || '-'}</td></tr>
-          <tr><td style="padding: 6px 0; font-weight: 700;">Museu</td><td style="padding: 6px 0;">${museu || '-'}</td></tr>
-          <tr><td style="padding: 6px 0; font-weight: 700;">Report ID</td><td style="padding: 6px 0;">${reportId || '-'}</td></tr>
-          <tr><td style="padding: 6px 0; font-weight: 700;">Número da NF</td><td style="padding: 6px 0;">${nfNumero || '-'}</td></tr>
-          <tr><td style="padding: 6px 0; font-weight: 700;">Valor total</td><td style="padding: 6px 0;">${nfValor || '-'}</td></tr>
-          <tr><td style="padding: 6px 0; font-weight: 700;">Data de emissão</td><td style="padding: 6px 0;">${nfData || '-'}</td></tr>
-          <tr><td style="padding: 6px 0; font-weight: 700;">Emitente</td><td style="padding: 6px 0;">${emitenteNome || '-'} ${emitenteDoc ? `(${emitenteDoc})` : ''}</td></tr>
-          <tr><td style="padding: 6px 0; font-weight: 700;">Destinatário</td><td style="padding: 6px 0;">${destinatarioNome || '-'} ${destinatarioDoc ? `(${destinatarioDoc})` : ''}</td></tr>
-          <tr><td style="padding: 6px 0; font-weight: 700;">Chave de acesso</td><td style="padding: 6px 0;">${chave || '-'}</td></tr>
-          <tr><td style="padding: 6px 0; font-weight: 700;">Status da leitura</td><td style="padding: 6px 0;">${statusLeitura || '-'}</td></tr>
+          <tr><td style="padding: 6px 0; font-weight: 700; width: 220px;">Arquivo</td><td style="padding: 6px 0;">${escapeHtml(fileName || '-')}</td></tr>
+          <tr><td style="padding: 6px 0; font-weight: 700;">Profissional</td><td style="padding: 6px 0;">${escapeHtml(nomeProfissional || '-')}</td></tr>
+          <tr><td style="padding: 6px 0; font-weight: 700;">Função</td><td style="padding: 6px 0;">${escapeHtml(funcao || '-')}</td></tr>
+          <tr><td style="padding: 6px 0; font-weight: 700;">Museu / Centro de custo</td><td style="padding: 6px 0;">${escapeHtml(museu || '-')}</td></tr>
+          <tr><td style="padding: 6px 0; font-weight: 700;">Report ID</td><td style="padding: 6px 0;">${escapeHtml(reportId || '-')}</td></tr>
+          <tr><td style="padding: 6px 0; font-weight: 700;">Número da NF</td><td style="padding: 6px 0;">${escapeHtml(nfNumero || '-')}</td></tr>
+          <tr><td style="padding: 6px 0; font-weight: 700;">Valor da nota</td><td style="padding: 6px 0;">${escapeHtml(formatMoneyBR(nfValor))}</td></tr>
+          <tr><td style="padding: 6px 0; font-weight: 700;">Data de emissão</td><td style="padding: 6px 0;">${escapeHtml(nfData || '-')}</td></tr>
+          <tr><td style="padding: 6px 0; font-weight: 700;">Emitente</td><td style="padding: 6px 0;">${escapeHtml(emitenteNome || '-')} ${emitenteDoc ? `(${escapeHtml(emitenteDoc)})` : ''}</td></tr>
+          <tr><td style="padding: 6px 0; font-weight: 700;">Destinatário</td><td style="padding: 6px 0;">${escapeHtml(destinatarioNome || '-')} ${destinatarioDoc ? `(${escapeHtml(destinatarioDoc)})` : ''}</td></tr>
+          <tr><td style="padding: 6px 0; font-weight: 700;">Chave de acesso</td><td style="padding: 6px 0;">${escapeHtml(chave || '-')}</td></tr>
+          <tr><td style="padding: 6px 0; font-weight: 700;">Status da leitura</td><td style="padding: 6px 0;">${escapeHtml(statusLeitura || '-')}</td></tr>
         </tbody>
       </table>
 
+      <div style="margin: 16px 0; padding: 12px; background: #f6f6f6; border: 1px solid #ddd; border-radius: 8px;">
+        <p style="margin: 0 0 8px; font-weight: 700;">Descrição transcrita da nota</p>
+        <p style="margin: 0; white-space: pre-wrap;">${escapeHtml(descricaoNota || 'Descrição não identificada na leitura da nota.')}</p>
+      </div>
+
       ${
         fileUrl
-          ? `<p style="margin: 0 0 16px;">Arquivo: <a href="${fileUrl}" target="_blank" rel="noopener noreferrer">${fileName || 'Abrir arquivo'}</a></p>`
+          ? `<p style="margin: 0 0 16px;">Arquivo: <a href="${escapeHtml(fileUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(fileName || 'Abrir arquivo')}</a></p>`
           : ''
       }
 
@@ -154,24 +202,39 @@ Deno.serve(async (req) => {
     const arrayBuffer = await fileResponse.arrayBuffer();
     const bytes = Array.from(new Uint8Array(arrayBuffer));
 
-    const notificationDefaults = [
-      'notasfiscais@viadutodasartes.org.br',
-    ];
+    const recipients = uniqueRecipients(
+      DESTINATARIOS_FIXOS,
+      recipientsFromPayload
+    );
 
-    // BLOQUEIO: enviar apenas para o endereço autorizado
-    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+    const nfValor =
+      safeString(attachment.nf_valor_total) ||
+      safeString(attachment.valor_total) ||
+      safeString(attachment.valor) ||
+      safeString(body?.nf_valor_total);
 
-    const recipients = (recipientsFromPayload.length > 0 ? recipientsFromPayload : notificationDefaults)
-      .filter(e => {
-        if (e !== ALLOWED_EMAIL) { console.log('Email bloqueado:', e); return false; }
-        return true;
-      });
+    const emitenteNome =
+      safeString(attachment.nf_emitente_nome) ||
+      safeString(attachment.emitente_nome) ||
+      safeString(attachment.fornecedor_nome) ||
+      safeString(body?.nf_emitente_nome) ||
+      'Emitente não identificado';
 
-    if (recipients.length === 0) {
-      return Response.json({ ok: true, skipped: true, reason: 'Email bloqueado por política de envio' });
-    }
+    const nfNumero =
+      safeString(attachment.nf_numero) ||
+      safeString(attachment.numero_nf) ||
+      safeString(body?.nf_numero);
 
-    const subject = `NF enviada - ${nfNomeRenomeado}`;
+    const descricaoNota =
+      safeString(attachment.nf_descricao) ||
+      safeString(attachment.nf_descricao_servico) ||
+      safeString(attachment.descricao_nota) ||
+      safeString(attachment.descricao) ||
+      safeString(attachment.ai_descricao) ||
+      safeString(attachment.conteudo_extraido) ||
+      safeString(body?.nf_descricao);
+
+    const subject = `NF ${nfNumero || 'S/N'} - ${formatMoneyBR(nfValor)} - ${emitenteNome}`;
 
     const html = buildHtml({
       nomeProfissional:
@@ -188,14 +251,27 @@ Deno.serve(async (req) => {
         safeString(attachment.centro_custo),
       reportId: safeString(attachment.report_id),
       fileName: nfNomeRenomeado,
-      nfNumero: safeString(attachment.nf_numero),
-      nfValor: safeString(attachment.nf_valor_total),
-      nfData: safeString(attachment.nf_data_emissao),
-      emitenteNome: safeString(attachment.nf_emitente_nome),
-      emitenteDoc: safeString(attachment.nf_emitente_cpf_cnpj),
-      destinatarioNome: safeString(attachment.nf_destinatario_nome),
-      destinatarioDoc: safeString(attachment.nf_destinatario_cpf_cnpj),
-      chave: safeString(attachment.nf_chave_acesso),
+      nfNumero,
+      nfValor,
+      nfData:
+        safeString(attachment.nf_data_emissao) ||
+        safeString(attachment.data_emissao) ||
+        safeString(body?.nf_data_emissao),
+      emitenteNome,
+      emitenteDoc:
+        safeString(attachment.nf_emitente_cpf_cnpj) ||
+        safeString(attachment.emitente_cnpj) ||
+        safeString(attachment.fornecedor_cnpj),
+      destinatarioNome:
+        safeString(attachment.nf_destinatario_nome) ||
+        safeString(attachment.destinatario_nome),
+      destinatarioDoc:
+        safeString(attachment.nf_destinatario_cpf_cnpj) ||
+        safeString(attachment.destinatario_cnpj),
+      chave:
+        safeString(attachment.nf_chave_acesso) ||
+        safeString(attachment.chave_acesso),
+      descricaoNota,
       statusLeitura: safeString(attachment.nf_status_leitura),
       fileUrl: signedUrl,
     });
