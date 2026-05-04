@@ -1,22 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2,
-  Eye, Send, RefreshCw, X, Download, ExternalLink, Link2, Plus, Receipt, AlertTriangle
+  Eye, Send, RefreshCw, X, Download, ExternalLink, Link2, Plus, Receipt
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { deleteIntake } from '@/lib/deleteIntegrado';
-
-const TIPO_LABEL = {
-  FOTO_ATIVIDADE: 'Foto',
-  NOTA_FISCAL_PDF: 'NF PDF',
-  NOTA_FISCAL_XML: 'NF XML',
-  DOCUMENTO_ADMINISTRATIVO: 'Doc. Adm.',
-  OUTRO: 'Outro',
-  PENDENTE: 'Pendente',
-};
 
 const STATUS_CONFIG = {
   ENVIADO: { label: 'Enviado', color: 'bg-blue-100 text-blue-700', icon: Clock },
@@ -27,6 +18,15 @@ const STATUS_CONFIG = {
   APROVADO: { label: 'Aprovado', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
   REJEITADO: { label: 'Rejeitado', color: 'bg-red-100 text-red-700', icon: AlertCircle },
   ERRO_PROCESSAMENTO: { label: 'Erro', color: 'bg-red-100 text-red-700', icon: AlertCircle },
+};
+
+const TIPO_LABEL = {
+  NOTA_FISCAL_PDF: 'NF PDF',
+  NOTA_FISCAL_XML: 'NF XML',
+  FOTO_ATIVIDADE: 'Foto',
+  DOCUMENTO_ADMINISTRATIVO: 'Documento',
+  OUTRO: 'Outro',
+  PENDENTE: 'Pendente',
 };
 
 function parseValorBR(v) {
