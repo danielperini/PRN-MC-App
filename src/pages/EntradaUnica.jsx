@@ -558,55 +558,73 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
   const isDocAdmin = tipo === 'DOCUMENTO_ADMINISTRATIVO';
 
   return (
-    <div className="w-full max-w-3xl mx-auto py-8 px-4 space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800 mb-1">Entrada de contratos, termos de compromisso e notas fiscais</h1>
-        <p className="text-sm text-slate-500 mb-6">
-          Envie contratos, termos de compromisso, notas fiscais em PDF e XML complementar.
-        </p>
+    <div className="min-h-screen bg-white overflow-y-auto" style={{ maxHeight: '100vh' }}>
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-8">
+        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold text-black tracking-tight">Entrada Única</h1>
+            <p className="text-gray-500 mt-1 text-sm">
+              Envie contratos, termos de compromisso, notas fiscais em PDF e XML complementar.
+            </p>
+          </div>
 
-        <DocumentUploadZone
-          onFilesSelected={handleFilesSelected}
-          uploading={uploading}
-          disabled={!user}
-        />
-      </div>
+          <div className="flex items-center gap-2 rounded-full border border-black bg-white px-3 py-1 text-xs font-medium text-black">
+            <Plus className="w-3.5 h-3.5" />
+            Documentos
+          </div>
+        </div>
 
-      <div>
-        <h2 className="text-base font-semibold text-slate-700 mb-3">
-          Documentos em análise
-          {!loadingIntakes && intakes.length > 0 && (
-            <span className="ml-2 text-sm font-normal text-slate-400">({intakes.length})</span>
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 md:p-6 shadow-sm">
+          <DocumentUploadZone
+            onFilesSelected={handleFilesSelected}
+            uploading={uploading}
+            disabled={!user}
+          />
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 md:p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-black tracking-tight">Documentos em análise</h2>
+              <p className="text-sm text-gray-500">Arquivos enviados que ainda precisam de revisão, vínculo ou aprovação.</p>
+            </div>
+
+            {!loadingIntakes && (
+              <span className="rounded-full border border-black bg-white px-3 py-1 text-xs font-medium text-black">
+                {intakes.length} pendente{intakes.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {loadingIntakes ? (
+            <div className="flex items-center justify-center py-12 text-gray-400">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              Carregando documentos...
+            </div>
+          ) : intakes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl">
+              <InboxIcon className="w-10 h-10 mb-3 text-gray-300" />
+              <p className="text-sm font-medium">Nenhum documento pendente</p>
+              <p className="text-xs mt-1">Faça o upload de arquivos acima para começar</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {intakes.map((intake) => (
+                <DocumentIntakeCard
+                  key={intake.id}
+                  intake={intake}
+                  onReview={handleReview}
+                  onDeleted={handleDeleted}
+                  onSentToApproval={handleSentToApproval}
+                  onReanalyse={handleReanalyse}
+                  onLinkXml={handleLinkXml}
+                  onAddXmlToPdf={handleAddXmlToPdf}
+                />
+              ))}
+            </div>
           )}
-        </h2>
+        </div>
 
-        {loadingIntakes ? (
-          <div className="flex items-center justify-center py-12 text-slate-400">
-            <Loader2 className="w-5 h-5 animate-spin mr-2" />
-            Carregando documentos...
-          </div>
-        ) : intakes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
-            <InboxIcon className="w-10 h-10 mb-3 text-slate-300" />
-            <p className="text-sm font-medium">Nenhum documento pendente</p>
-            <p className="text-xs mt-1">Faça o upload de arquivos acima para começar</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {intakes.map((intake) => (
-              <DocumentIntakeCard
-                key={intake.id}
-                intake={intake}
-                onReview={handleReview}
-                onDeleted={handleDeleted}
-                onSentToApproval={handleSentToApproval}
-                onReanalyse={handleReanalyse}
-                onLinkXml={handleLinkXml}
-                onAddXmlToPdf={handleAddXmlToPdf}
-              />
-            ))}
-          </div>
-        )}
       </div>
 
       {reviewIntake && isNF && (
