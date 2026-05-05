@@ -26,10 +26,7 @@ function UserCard({ user, onEdit, onPassword, onPermissions, onMessage, onDelete
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-
-        <span className="px-2 py-1 text-xs border rounded">
-          {role}
-        </span>
+        <span className="px-2 py-1 text-xs border rounded">{role}</span>
 
         <Button size="sm" variant="outline" onClick={() => onEdit(user)}>
           <Pencil className="w-4 h-4 mr-1" /> Editar
@@ -50,7 +47,6 @@ function UserCard({ user, onEdit, onPassword, onPermissions, onMessage, onDelete
         <Button size="sm" variant="outline" onClick={() => onDelete(user)}>
           <Trash2 className="w-4 h-4 mr-1 text-red-600" /> Excluir
         </Button>
-
       </div>
     </div>
   );
@@ -80,13 +76,12 @@ function PermissionsDialog({ user, open, onClose }) {
 
   async function handleSave() {
     setSaving(true);
-
     try {
       const payload = {
         base_role: role,
         user_email: normalizeEmail(user.email),
         user_name: user.full_name || user.nome,
-        ...permissions
+        ...permissions,
       };
 
       if (isCoord) {
@@ -117,24 +112,24 @@ function PermissionsDialog({ user, open, onClose }) {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Permissões</DialogTitle>
+          <DialogTitle>Permissões — {user.full_name || user.email}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-2">
           {Object.entries(permissions).map(([k, v]) => (
-            <label key={k} className="flex items-center gap-2">
+            <label key={k} className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={isCoord ? true : v}
                 disabled={isCoord}
                 onCheckedChange={() => toggle(k)}
               />
-              {k}
+              <span className="text-sm capitalize">{k.replace(/_/g, ' ')}</span>
             </label>
           ))}
         </div>
 
-        <Button onClick={handleSave} disabled={saving}>
-          Salvar
+        <Button onClick={handleSave} disabled={saving} className="mt-4 w-full">
+          {saving ? 'Salvando...' : 'Salvar'}
         </Button>
       </DialogContent>
     </Dialog>
@@ -143,26 +138,24 @@ function PermissionsDialog({ user, open, onClose }) {
 
 export default function UserManagement() {
   const queryClient = useQueryClient();
+  const [selected, setSelected] = useState(null);
+  const [modal, setModal] = useState(null);
+  const [search, setSearch] = useState('');
 
   const { data = [] } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
       const users = await base44.entities.User.list();
       const perms = await base44.entities.UserPermission.list();
-
       return users.map(u => ({
         ...u,
-        permission: perms.find(p => normalizeEmail(p.user_email) === normalizeEmail(u.email))
+        permission: perms.find(p => normalizeEmail(p.user_email) === normalizeEmail(u.email)),
       }));
-    }
+    },
   });
-
-  const [selected, setSelected] = useState(null);
-  const [modal, setModal] = useState(null);
 
   async function handleDelete(user) {
     if (!confirm('Excluir usuário?')) return;
-
     await base44.entities.User.delete(user.id);
     toast.success('Usuário excluído');
     queryClient.invalidateQueries(['users']);
@@ -173,21 +166,29 @@ export default function UserManagement() {
     setModal(type);
   }
 
+  const filtered = data.filter(u =>
+    !search ||
+    (u.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (u.email || '').toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div className="p-6 space-y-4">
-
       <div className="flex justify-between">
         <h1 className="text-xl font-semibold">Usuários</h1>
-
         <Button>
           <UserPlus className="w-4 h-4 mr-1" />
           Criar usuário
         </Button>
       </div>
 
-      <Input placeholder="Buscar usuário..." />
+      <Input
+        placeholder="Buscar usuário..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+      />
 
-      {data.map(user => (
+      {filtered.map(user => (
         <UserCard
           key={user.id}
           user={user}
@@ -206,152 +207,6 @@ export default function UserManagement() {
           onClose={() => setModal(null)}
         />
       )}
-
-    </div>
-  );
-}  const role = user.permission?.base_role || user.role || 'PROFISSIONAL';
-  const isCoord = role === 'COORDENADOR' || role === 'ADMIN';
-
-  const [permissions, setPermissions] = useState({
-    can_review_reports: user?.permission?.can_review_reports || false,
-    can_manage_users: user?.permission?.can_manage_users || false,
-    can_manage_files: user?.permission?.can_manage_files || false,
-    can_view_audit_log: user?.permission?.can_view_audit_log || false,
-    can_manage_platform: user?.permission?.can_manage_platform || false,
-    gestao_compras: user?.permission?.gestao_compras || false,
-    pode_aprovar_solicitacoes: user?.permission?.pode_aprovar_solicitacoes || false,
-    must_submit_monthly_reports: user?.permission?.must_submit_monthly_reports || false,
-  });
-
-  function toggle(key) {
-    setPermissions(prev => ({ ...prev, [key]: !prev[key] }));
-  }
-
-  async function handleSave() {
-    setSaving(true);
-
-    try {
-      const payload = {
-        base_role: role,
-        user_email: normalizeEmail(user.email),
-        user_name: user.full_name,
-        ...permissions
-      };
-
-      if (isCoord) {
-        Object.keys(payload).forEach(k => {
-          if (k.startsWith('can_') || k.includes('gestao') || k.includes('aprovar')) {
-            payload[k] = true;
-          }
-        });
-      }
-
-      if (user.permission?.id) {
-        await base44.entities.UserPermission.update(user.permission.id, payload);
-      } else {
-        await base44.entities.UserPermission.create(payload);
-      }
-
-      toast.success('Permissões atualizadas');
-      queryClient.invalidateQueries(['user-management']);
-      onSaved?.();
-      onClose();
-    } catch {
-      toast.error('Erro ao salvar permissões');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Permissões</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-2">
-          {Object.entries(permissions).map(([k, v]) => (
-            <label key={k} className="flex items-center gap-2">
-              <Checkbox
-                checked={isCoord ? true : v}
-                disabled={isCoord}
-                onCheckedChange={() => toggle(k)}
-              />
-              {k}
-            </label>
-          ))}
-        </div>
-
-        <Button onClick={handleSave} disabled={saving}>
-          Salvar
-        </Button>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export default function UserManagement() {
-  const queryClient = useQueryClient();
-
-  const { data = [] } = useQuery({
-    queryKey: ['users'],
-    queryFn: async () => {
-      const users = await base44.entities.User.list();
-      const perms = await base44.entities.UserPermission.list();
-
-      return users.map(u => ({
-        ...u,
-        permission: perms.find(p => normalizeEmail(p.user_email) === normalizeEmail(u.email))
-      }));
-    }
-  });
-
-  const [selected, setSelected] = useState(null);
-  const [showPermissions, setShowPermissions] = useState(false);
-
-  async function handleDelete(user) {
-    if (!confirm('Excluir usuário?')) return;
-
-    await base44.entities.User.delete(user.id);
-    toast.success('Excluído');
-    queryClient.invalidateQueries(['users']);
-  }
-
-  return (
-    <div className="p-6 space-y-4">
-
-      <div className="flex justify-between">
-        <h1 className="text-xl font-semibold">Usuários</h1>
-
-        <Button>
-          <UserPlus className="w-4 h-4 mr-1" />
-          Criar usuário
-        </Button>
-      </div>
-
-      <Input placeholder="Buscar usuário..." />
-
-      {data.map(user => (
-        <UserCard
-          key={user.id}
-          user={user}
-          onPermissions={(u) => {
-            setSelected(u);
-            setShowPermissions(true);
-          }}
-          onDelete={handleDelete}
-        />
-      ))}
-
-      {selected && (
-        <PermissionsDialog
-          user={selected}
-          open={showPermissions}
-          onClose={() => setShowPermissions(false)}
-        />
-      )}
-
     </div>
   );
 }
