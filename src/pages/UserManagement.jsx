@@ -1,135 +1,248 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2,
-  Eye, Send, RefreshCw, X, Download, ExternalLink, Link2, Plus, Receipt, AlertTriangle
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Search, UserPlus, Trash2, UserCheck, XCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
-import { deleteIntake } from '@/lib/deleteIntegrado';
+import InviteDialog from '@/components/users/InviteDialog';
 
-const STATUS_CONFIG = {
-  ENVIADO: { label: 'Enviado', color: 'bg-blue-100 text-blue-700', icon: Clock },
-  ANALISANDO_IA: { label: 'Analisando...', color: 'bg-yellow-100 text-yellow-700', icon: Loader2, spin: true },
-  AGUARDANDO_REVISAO: { label: 'Aguardando revisão', color: 'bg-orange-100 text-orange-700', icon: Eye },
-  RASCUNHO: { label: 'Rascunho', color: 'bg-slate-100 text-slate-600', icon: FileText },
-  ENVIADO_APROVACAO: { label: 'Enviado p/ aprovação', color: 'bg-purple-100 text-purple-700', icon: Send },
-  APROVADO: { label: 'Aprovado', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
-  REJEITADO: { label: 'Rejeitado', color: 'bg-red-100 text-red-700', icon: AlertCircle },
-  ERRO_PROCESSAMENTO: { label: 'Erro', color: 'bg-red-100 text-red-700', icon: AlertCircle },
-};
+const ROLE_OPTIONS = ['PROFISSIONAL', 'COORDENADOR', 'ADMIN', 'OBSERVADOR', 'PATROCINADOR'];
 
-function parseValorBR(v) {
-  const s = String(v || '0').trim().replace(/\s/g, '');
-  if (/^\d{1,3}(\.\d{3})*(,\d+)?$/.test(s)) {
-    return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
-  }
-  return parseFloat(s.replace(',', '.')) || 0;
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
 }
 
-function onlyDigits(v) {
-  return String(v || '').replace(/\D/g, '');
-}
-
-export default function DocumentIntakeCard({
-  intake,
-  onReview,
-  onDeleted,
-  onSentToApproval,
-  onReanalyse
-}) {
+function RegistrationCard({ item, onApprove, onReject }) {
+  const [role, setRole] = useState('PROFISSIONAL');
   const [loading, setLoading] = useState(false);
-  const [sendingApproval, setSendingApproval] = useState(false);
-  const [isDuplicado, setIsDuplicado] = useState(false);
 
-  const status = STATUS_CONFIG[intake.status_processamento] || STATUS_CONFIG.ENVIADO;
-  const Icon = status.icon;
-
-  const ia = intake.resultado_ia || {};
-  const valor = parseValorBR(ia.nf_valor_total || intake.valor || 0);
-
-  // =========================
-  // DETECÇÃO DE DUPLICIDADE (IA + BACKEND)
-  // =========================
-  useEffect(() => {
-    async function checkDuplicado() {
-      try {
-        const nf = onlyDigits(ia.nf_numero);
-        const cnpj = onlyDigits(ia.nf_emitente_cpf_cnpj);
-
-        if (!nf || !cnpj || !valor) return;
-
-        const lista = await base44.entities.PurchaseRequest.list('-created_date', 300);
-
-        const duplicado = (lista || []).some(p => {
-          return (
-            onlyDigits(p.nf_numero) === nf &&
-            onlyDigits(p.fornecedor_cnpj || p.fornecedor_cpf_cnpj) === cnpj &&
-            Math.abs(parseValorBR(p.valor || p.valor_solicitado) - valor) < 0.01
-          );
-        });
-
-        setIsDuplicado(duplicado);
-      } catch (e) {
-        console.error('erro duplicidade', e);
-      }
-    }
-
-    checkDuplicado();
-  }, []);
-
-  async function handleDelete() {
-    if (!confirm('Deletar documento?')) return;
+  async function handleApprove() {
     setLoading(true);
     try {
-      await deleteIntake(intake);
-      onDeleted?.(intake.id);
-    } catch (e) {
-      toast.error(e.message);
+      await onApprove(item, role);
     } finally {
       setLoading(false);
     }
   }
 
-  // =========================
-  // ENVIAR = MESMA AÇÃO DE APROVAÇÃO
-  // =========================
-  async function handleSend() {
-    if (isDuplicado) {
-      toast.error('Documento duplicado. Verifique antes de enviar.');
-      return;
-    }
-
-    setSendingApproval(true);
-
+  async function handleReject() {
+    setLoading(true);
     try {
-      const rubrica_id = intake.rubrica_id_sugerida;
-      const centro_custo = intake.centro_custo;
+      await onReject(item);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-      if (!rubrica_id) {
-        toast.error('Rubrica obrigatória.');
-        return;
+  return (
+    <div className="border rounded-xl p-4 bg-amber-50 border-amber-200 flex flex-col gap-3">
+      <div className="flex justify-between items-start">
+        <div>
+          <p className="font-semibold">{item.full_name || item.nome || 'Sem nome'}</p>
+          <p className="text-xs text-gray-600">{item.email}</p>
+          <p className="text-xs text-gray-500">
+            {[item.funcao, item.equipe, item.museu].filter(Boolean).join(' · ')}
+          </p>
+        </div>
+
+        <Badge className="bg-amber-100 text-amber-800">
+          <Clock className="w-3 h-3 mr-1" />
+          Pendente
+        </Badge>
+      </div>
+
+      <div className="flex gap-2">
+        <Select value={role} onValueChange={setRole}>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ROLE_OPTIONS.map((r) => (
+              <SelectItem key={r} value={r}>{r}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Button size="sm" onClick={handleApprove} disabled={loading}>
+          <UserCheck className="w-4 h-4 mr-1" />
+          Aprovar
+        </Button>
+
+        <Button size="sm" variant="outline" onClick={handleReject} disabled={loading}>
+          <XCircle className="w-4 h-4 mr-1" />
+          Recusar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function UserCard({ user, onDelete }) {
+  return (
+    <div className="border rounded-xl p-4 flex justify-between items-center bg-white">
+      <div>
+        <p className="font-medium">{user.full_name || user.nome || '-'}</p>
+        <p className="text-xs text-gray-500">{user.email}</p>
+      </div>
+
+      <Button size="sm" variant="outline" onClick={() => onDelete(user)}>
+        <Trash2 className="w-4 h-4" />
+      </Button>
+    </div>
+  );
+}
+
+export default function UserManagement() {
+  const [search, setSearch] = useState('');
+  const [showInvite, setShowInvite] = useState(false);
+  const queryClient = useQueryClient();
+
+  const { data = { users: [], registrations: [] }, isLoading } = useQuery({
+    queryKey: ['user-management'],
+    queryFn: async () => {
+      const [users, registrations] = await Promise.all([
+        base44.entities.User.list().catch(() => []),
+        base44.entities.UserRegistration.list('-created_date', 200).catch(() => []),
+      ]);
+
+      return {
+        users: users || [],
+        registrations: (registrations || []).filter((r) => {
+          const status = String(r.status || '').toUpperCase();
+          return !['APROVADO', 'RECUSADO', 'REJEITADO', 'CANCELADO'].includes(status);
+        }),
+      };
+    },
+  });
+
+  async function handleApprove(reg, role) {
+    try {
+      const email = normalizeEmail(reg.email);
+
+      const existing = await base44.entities.UserPermission
+        .filter({ user_email: email })
+        .catch(() => []);
+
+      const payload = {
+        user_email: email,
+        user_name: reg.full_name || reg.nome || email,
+        base_role: role,
+        status: 'ATIVO',
+        can_review_reports: role === 'COORDENADOR' || role === 'ADMIN',
+        can_manage_users: role === 'COORDENADOR' || role === 'ADMIN',
+        can_manage_files: role === 'COORDENADOR' || role === 'ADMIN',
+        can_view_audit_log: role === 'COORDENADOR' || role === 'ADMIN',
+        can_manage_platform: role === 'ADMIN',
+        gestao_compras: role === 'COORDENADOR' || role === 'ADMIN',
+        pode_aprovar_solicitacoes: role === 'COORDENADOR' || role === 'ADMIN',
+        must_submit_monthly_reports: role === 'PROFISSIONAL',
+      };
+
+      if (existing?.[0]?.id) {
+        await base44.entities.UserPermission.update(existing[0].id, payload);
+      } else {
+        await base44.entities.UserPermission.create(payload);
       }
 
-      const valorFinal = valor;
-
-      const pr = await base44.entities.PurchaseRequest.create({
-        descricao_item: ia.descricao_servico || ia.nf_emitente_nome,
-        fornecedor_nome: ia.nf_emitente_nome,
-        fornecedor_cnpj: ia.nf_emitente_cpf_cnpj,
-        valor: valorFinal,
-        valor_solicitado: valorFinal,
-        rubrica_id,
-        budgetline_id: rubrica_id,
-        centro_custo,
-        status: 'AGUARDANDO_APROVACAO',
-        origem: 'EntradaUnica',
-        intake_id: intake.id,
-        nf_numero: ia.nf_numero,
-        nf_valor_total: valorFinal,
+      await base44.entities.UserRegistration.update(reg.id, {
+        status: 'APROVADO',
+        aprovado_em: new Date().toISOString(),
+        role_aprovada: role,
       });
 
-      await base44.entities.DocumentIntake.update(intake.id, {
-        status_processamento: 'ENVIADO_APROVACAO',
-        entidade_destino_id: pr
+      toast.success('Solicitação aprovada.');
+      queryClient.invalidateQueries(['user-management']);
+    } catch (e) {
+      toast.error('Erro ao aprovar: ' + (e?.message || e));
+    }
+  }
+
+  async function handleReject(reg) {
+    try {
+      await base44.entities.UserRegistration.update(reg.id, {
+        status: 'RECUSADO',
+        recusado_em: new Date().toISOString(),
+      });
+
+      toast.success('Solicitação recusada.');
+      queryClient.invalidateQueries(['user-management']);
+    } catch (e) {
+      toast.error('Erro ao recusar.');
+    }
+  }
+
+  async function handleDelete(user) {
+    if (!confirm('Excluir usuário?')) return;
+
+    try {
+      await base44.entities.User.delete(user.id);
+      toast.success('Usuário removido.');
+      queryClient.invalidateQueries(['user-management']);
+    } catch (e) {
+      toast.error('Erro ao remover usuário.');
+    }
+  }
+
+  const filtered = data.users.filter((u) => {
+    const text = `${u.full_name || ''} ${u.nome || ''} ${u.email || ''}`.toLowerCase();
+    return text.includes(search.toLowerCase());
+  });
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-xl font-semibold">Usuários</h1>
+
+        <Button onClick={() => setShowInvite(true)}>
+          <UserPlus className="w-4 h-4 mr-1" />
+          Convidar
+        </Button>
+      </div>
+
+      <div className="relative">
+        <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+        <Input
+          className="pl-9"
+          placeholder="Buscar usuário..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      {data.registrations.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="font-medium">Solicitações de acesso</h2>
+
+          {data.registrations.map((r) => (
+            <RegistrationCard
+              key={r.id}
+              item={r}
+              onApprove={handleApprove}
+              onReject={handleReject}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {isLoading ? (
+          <div className="text-sm text-gray-400">Carregando...</div>
+        ) : (
+          filtered.map((u) => (
+            <UserCard key={u.id} user={u} onDelete={handleDelete} />
+          ))
+        )}
+      </div>
+
+      {showInvite && (
+        <InviteDialog
+          open={showInvite}
+          onClose={() => setShowInvite(false)}
+        />
+      )}
+    </div>
+  );
+}
