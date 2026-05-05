@@ -1,23 +1,66 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useCurrentUser } from '@/components/auth/useCurrentUser';
-import { isCoordenador, canManageUsers } from '@/components/auth/permissions';
-import InviteDialog from '@/components/users/InviteDialog';
-import { UserPlus, Settings, RefreshCw } from 'lucide-react';
+import { Pencil, Trash2, KeyRound, ShieldCheck, MessageSquare, UserPlus } from 'lucide-react';
+import { toast } from 'sonner';
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
 
+function UserCard({ user, onEdit, onPassword, onPermissions, onMessage, onDelete }) {
+  const role = user.permission?.base_role || user.role || 'PROFISSIONAL';
+
+  return (
+    <div className="border rounded-xl p-4 flex justify-between items-center">
+      <div>
+        <p className="font-medium">{user.full_name}</p>
+        <p className="text-xs text-gray-500">{user.email}</p>
+        <p className="text-xs text-gray-500">
+          {[user.area, user.equipe, user.funcao].filter(Boolean).join(' · ')}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+
+        <span className="px-2 py-1 text-xs border rounded">
+          {role}
+        </span>
+
+        <Button size="sm" variant="outline" onClick={() => onEdit(user)}>
+          <Pencil className="w-4 h-4 mr-1" /> Editar
+        </Button>
+
+        <Button size="sm" variant="outline" onClick={() => onPassword(user)}>
+          <KeyRound className="w-4 h-4 mr-1" /> Senha
+        </Button>
+
+        <Button size="sm" variant="outline" onClick={() => onPermissions(user)}>
+          <ShieldCheck className="w-4 h-4 mr-1" /> Permissões
+        </Button>
+
+        <Button size="sm" variant="outline" onClick={() => onMessage(user)}>
+          <MessageSquare className="w-4 h-4 mr-1" /> Mensagem
+        </Button>
+
+        <Button size="sm" variant="outline" onClick={() => onDelete(user)}>
+          <Trash2 className="w-4 h-4 mr-1 text-red-600" /> Excluir
+        </Button>
+
+      </div>
+    </div>
+  );
+}
+
 function PermissionsDialog({ user, open, onClose, onSaved }) {
+  const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
 
-  const role = user?.permission?.base_role || user?.role || 'PROFISSIONAL';
+  const role = user.permission?.base_role || user.role || 'PROFISSIONAL';
   const isCoord = role === 'COORDENADOR' || role === 'ADMIN';
 
   const [permissions, setPermissions] = useState({
@@ -32,41 +75,40 @@ function PermissionsDialog({ user, open, onClose, onSaved }) {
   });
 
   function toggle(key) {
-    setPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
+    setPermissions(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
   async function handleSave() {
     setSaving(true);
+
     try {
       const payload = {
         base_role: role,
-        user_email: normalizeEmail(user?.email),
-        user_name: user?.full_name || user?.email,
-        funcao: user?.funcao || '',
-        equipe: user?.equipe || '',
-        museu: user?.museu || '',
-        ...permissions,
+        user_email: normalizeEmail(user.email),
+        user_name: user.full_name,
+        ...permissions
       };
 
       if (isCoord) {
-        Object.keys(payload).forEach((k) => {
+        Object.keys(payload).forEach(k => {
           if (k.startsWith('can_') || k.includes('gestao') || k.includes('aprovar')) {
             payload[k] = true;
           }
         });
       }
 
-      if (user?.permission?.id) {
+      if (user.permission?.id) {
         await base44.entities.UserPermission.update(user.permission.id, payload);
       } else {
         await base44.entities.UserPermission.create(payload);
       }
 
-      toast.success('Permissões atualizadas com sucesso.');
+      toast.success('Permissões atualizadas');
+      queryClient.invalidateQueries(['user-management']);
       onSaved?.();
-      onClose?.();
-    } catch (e) {
-      toast.error('Erro ao salvar permissões.');
+      onClose();
+    } catch {
+      toast.error('Erro ao salvar permissões');
     } finally {
       setSaving(false);
     }
@@ -74,26 +116,26 @@ function PermissionsDialog({ user, open, onClose, onSaved }) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Permissões — {user?.full_name || user?.email}</DialogTitle>
+          <DialogTitle>Permissões</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-2 text-sm">
-          {Object.entries(permissions).map(([key, value]) => (
-            <label key={key} className="flex items-center gap-2 cursor-pointer">
+        <div className="space-y-2">
+          {Object.entries(permissions).map(([k, v]) => (
+            <label key={k} className="flex items-center gap-2">
               <Checkbox
-                checked={isCoord ? true : value}
+                checked={isCoord ? true : v}
                 disabled={isCoord}
-                onCheckedChange={() => toggle(key)}
+                onCheckedChange={() => toggle(k)}
               />
-              <span className="capitalize">{key.replace(/_/g, ' ')}</span>
+              {k}
             </label>
           ))}
         </div>
 
-        <Button onClick={handleSave} disabled={saving} className="w-full mt-4">
-          {saving ? 'Salvando...' : 'Salvar permissões'}
+        <Button onClick={handleSave} disabled={saving}>
+          Salvar
         </Button>
       </DialogContent>
     </Dialog>
@@ -101,137 +143,66 @@ function PermissionsDialog({ user, open, onClose, onSaved }) {
 }
 
 export default function UserManagement() {
-  const { user: currentUser } = useCurrentUser();
   const queryClient = useQueryClient();
-  const [showInvite, setShowInvite] = useState(false);
-  const [permissionsUser, setPermissionsUser] = useState(null);
 
-  const { data: users = [], isLoading: loadingUsers } = useQuery({
-    queryKey: ['users-management'],
-    queryFn: () => base44.entities.User.list(),
-    enabled: !!currentUser,
-  });
+  const { data = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const users = await base44.entities.User.list();
+      const perms = await base44.entities.UserPermission.list();
 
-  const { data: allPermissions = [] } = useQuery({
-    queryKey: ['user-permissions'],
-    queryFn: () => base44.entities.UserPermission.list(),
-    enabled: !!currentUser,
-  });
-
-  const usersWithPermissions = React.useMemo(() => {
-    const permMap = {};
-    for (const p of allPermissions) {
-      permMap[normalizeEmail(p.user_email)] = p;
+      return users.map(u => ({
+        ...u,
+        permission: perms.find(p => normalizeEmail(p.user_email) === normalizeEmail(u.email))
+      }));
     }
-    return users.map((u) => ({
-      ...u,
-      permission: permMap[normalizeEmail(u.email)] || null,
-    }));
-  }, [users, allPermissions]);
+  });
 
-  function handleRefresh() {
-    queryClient.invalidateQueries({ queryKey: ['users-management'] });
-    queryClient.invalidateQueries({ queryKey: ['user-permissions'] });
-  }
+  const [selected, setSelected] = useState(null);
+  const [showPermissions, setShowPermissions] = useState(false);
 
-  if (!canManageUsers(currentUser)) {
-    return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <p className="text-gray-500 text-sm">Acesso restrito.</p>
-      </div>
-    );
+  async function handleDelete(user) {
+    if (!confirm('Excluir usuário?')) return;
+
+    await base44.entities.User.delete(user.id);
+    toast.success('Excluído');
+    queryClient.invalidateQueries(['users']);
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestão de Usuários</h1>
-          <p className="text-sm text-gray-500 mt-1">Gerencie usuários e permissões do sistema</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleRefresh}
-            className="border rounded-lg px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Atualizar
-          </button>
-          <button
-            onClick={() => setShowInvite(true)}
-            className="bg-black text-white rounded-lg px-4 py-2 text-sm flex items-center gap-2 hover:bg-gray-800"
-          >
-            <UserPlus className="w-4 h-4" />
-            Convidar usuário
-          </button>
-        </div>
+    <div className="p-6 space-y-4">
+
+      <div className="flex justify-between">
+        <h1 className="text-xl font-semibold">Usuários</h1>
+
+        <Button>
+          <UserPlus className="w-4 h-4 mr-1" />
+          Criar usuário
+        </Button>
       </div>
 
-      {/* Tabela */}
-      {loadingUsers ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="w-6 h-6 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-        </div>
-      ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="text-left p-3 font-medium text-gray-700">Nome</th>
-                <th className="text-left p-3 font-medium text-gray-700">Email</th>
-                <th className="text-left p-3 font-medium text-gray-700">Papel</th>
-                <th className="text-left p-3 font-medium text-gray-700">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usersWithPermissions.map((u) => (
-                <tr key={u.id} className="border-t hover:bg-gray-50">
-                  <td className="p-3">{u.full_name || '—'}</td>
-                  <td className="p-3 text-gray-600">{u.email}</td>
-                  <td className="p-3">
-                    <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
-                      {u.permission?.base_role || u.role || 'PROFISSIONAL'}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <button
-                      onClick={() => setPermissionsUser(u)}
-                      className="border rounded px-2 py-1 text-xs hover:bg-gray-100 flex items-center gap-1"
-                    >
-                      <Settings className="w-3 h-3" />
-                      Permissões
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {usersWithPermissions.length === 0 && (
-            <div className="text-center py-8 text-gray-400 text-sm">
-              Nenhum usuário encontrado.
-            </div>
-          )}
-        </div>
-      )}
+      <Input placeholder="Buscar usuário..." />
 
-      {/* Dialogs */}
-      {showInvite && (
-        <InviteDialog
-          open={showInvite}
-          onClose={() => setShowInvite(false)}
-          currentUser={currentUser}
+      {data.map(user => (
+        <UserCard
+          key={user.id}
+          user={user}
+          onPermissions={(u) => {
+            setSelected(u);
+            setShowPermissions(true);
+          }}
+          onDelete={handleDelete}
         />
-      )}
+      ))}
 
-      {permissionsUser && (
+      {selected && (
         <PermissionsDialog
-          user={permissionsUser}
-          open={!!permissionsUser}
-          onClose={() => setPermissionsUser(null)}
-          onSaved={handleRefresh}
+          user={selected}
+          open={showPermissions}
+          onClose={() => setShowPermissions(false)}
         />
       )}
+
     </div>
   );
 }
