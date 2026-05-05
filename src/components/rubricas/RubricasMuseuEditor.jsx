@@ -91,6 +91,18 @@ function getRubricaSearchText(rubrica) {
   ].filter(Boolean).join(' '));
 }
 
+function isRubricaEducador(rubrica) {
+  const txt = getRubricaSearchText(rubrica);
+
+  return (
+    txt.includes('educador') ||
+    txt.includes('educadora') ||
+    txt.includes('educadores') ||
+    txt.includes('diaria educador') ||
+    txt.includes('diarias educador')
+  );
+}
+
 function isRubricaInstitucionalOuEquipe(rubrica) {
   const txt = getRubricaSearchText(rubrica);
 
@@ -144,7 +156,6 @@ function isRubricaTerritorialPorMuseu(rubrica) {
     txt.includes('programacao') ||
     txt.includes('oficina') ||
     txt.includes('educativ') ||
-    txt.includes('educador') ||
     txt.includes('mediacao') ||
     txt.includes('monitor') ||
     txt.includes('recepcao') ||
@@ -154,6 +165,9 @@ function isRubricaTerritorialPorMuseu(rubrica) {
     txt.includes('apresentac') ||
     txt.includes('cache') ||
     txt.includes('cultural') ||
+    txt.includes('noturno') ||
+    txt.includes('publicacao') ||
+    txt.includes('publicacoes') ||
     txt.includes('montagem') ||
     txt.includes('desmontagem') ||
     txt.includes('locacao') ||
@@ -174,10 +188,19 @@ function isRubricaTerritorialPorMuseu(rubrica) {
   );
 }
 
+
 function isRubricaCompartilhadaRateavel(rubrica) {
   const txt = getRubricaSearchText(rubrica);
+  const divisor = toNumber(rubrica?.divisor || rubrica?.divisao_museus || rubrica?.rateio_divisor);
 
   return (
+    divisor >= 3 ||
+    txt.includes('3 museus') ||
+    txt.includes('tres museus') ||
+    txt.includes('museus pbh') ||
+    txt.includes('rateio') ||
+    txt.includes('rateavel') ||
+    txt.includes('compartilhada') ||
     txt.includes('lanche') ||
     txt.includes('buffet') ||
     txt.includes('alimentacao') ||
@@ -200,6 +223,7 @@ function isRubricaCompartilhadaRateavel(rubrica) {
   );
 }
 
+
 function getRubricaTipoVisualizacao(rubrica) {
   if (isRubricaCompartilhadaRateavel(rubrica)) return 'rateada';
   if (isRubricaTerritorialPorMuseu(rubrica)) return 'museu';
@@ -209,6 +233,7 @@ function getRubricaTipoVisualizacao(rubrica) {
 function shouldShowRubrica(rubrica) {
   if (!rubrica) return false;
   if (isRubricaInstitucionalOuEquipe(rubrica)) return false;
+  if (isRubricaEducador(rubrica)) return false;
 
   return isRubricaTerritorialPorMuseu(rubrica) || isRubricaCompartilhadaRateavel(rubrica);
 }
@@ -218,6 +243,9 @@ function shouldHideCategoria(catKey) {
   return (
     key === 'equipe' ||
     key.includes('equipe') ||
+    key.includes('educador') ||
+    key.includes('diarias_educador') ||
+    key.includes('diarias educador') ||
     key.includes('coordenacao') ||
     key.includes('consultoria') ||
     key.includes('despesas_gerais') ||
