@@ -1,18 +1,30 @@
-// 🔥 ARQUIVO COMPLETO — COM ABA NOTURNO
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, RefreshCw, LayoutGrid } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { AlertCircle, Save, X, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
-import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
-import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
-import CardRubricaEditor from '@/components/rubricas/CardRubricaEditor';
 
-const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
-const ABAS = ['MHAB', 'MIS', 'MUMO', 'NOTURNO']; // 🔥 NOVO
+const CATEGORIAS_LABEL = {
+  comunicacao: 'Comunicação',
+  manutencao: 'Manutenção de Rotina',
+  educador: 'Educador',
+  diarias_educador: 'Diárias',
+  lanches: 'Lanches',
+  alimentacao_cartao: 'Alimentação (÷3 museus)',
+  material: 'Material',
+  acoes_educativas: 'Ações Educativas (÷3 museus)',
+  som_luz: 'Som e Luz',
+  exposicao: 'Exposição',
+  noturno: 'Noturno nos Museus',
+  publicacoes: 'Publicações',
+  consultorias: 'Consultorias',
+  despesas_gerais: 'Despesas Gerais',
+  outros: 'Outros',
+};
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -20,7 +32,46 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function normalizeText(value) {
+function fmt(v) {
+  return toNumber(v).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+}
+
+function getBarColor(pct) {
+  const p = toNumber(pct);
+  if (p >= 100) return 'bg-red-500';
+  if (p >= 80) return 'bg-orange-400';
+  if (p >= 60) return 'bg-yellow-400';
+  return 'bg-green-500';
+}
+
+function normalizeResumoMuseu(raw) {
+  return {
+    totalOrcado: toNumber(raw?.totalOrcado),
+    totalUtilizado: toNumber(raw?.totalUtilizado),
+    totalPago: toNumber(raw?.totalPago),
+    totalComprometido: toNumber(raw?.totalComprometido),
+    totalLancamentos: toNumber(raw?.totalLancamentos),
+    totalSaldo: toNumber(raw?.totalSaldo),
+    pct: toNumber(raw?.pct),
+  };
+}
+
+function sortRubricas(items) {
+  return [...items].sort((a, b) => {
+    const ga = String(a?.grupo || '').toLowerCase();
+    const gb = String(b?.grupo || '').toLowerCase();
+    if (ga !== gb) return ga.localeCompare(gb, 'pt-BR');
+
+    const na = String(a?.rubrica || '').toLowerCase();
+    const nb = String(b?.rubrica || '').toLowerCase();
+    return na.localeCompare(nb, 'pt-BR');
+  });
+}
+
+function normalizeForMatch(value) {
   return String(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -28,110 +79,667 @@ function normalizeText(value) {
     .trim();
 }
 
-// 🔥 filtro noturno
-function isRubricaNoturno(rubrica = {}) {
-  const txt = normalizeText([
+function getRubricaSearchText(rubrica) {
+  return normalizeForMatch([
     rubrica?.rubrica,
     rubrica?.nome,
     rubrica?.descricao,
     rubrica?.grupo,
-    rubrica?.categoria
-  ].join(' '));
-
-  return txt.includes('noturno');
+    rubrica?.categoria,
+    rubrica?.centro_custo,
+    rubrica?.meta_id,
+  ].filter(Boolean).join(' '));
 }
 
-export default function RubricasPorMuseu() {
-  const [abaAtiva, setAbaAtiva] = useState('MHAB');
-  const [showCardEditor, setShowCardEditor] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [refreshNonce, setRefreshNonce] = useState(0);
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    base44.auth.me().then(setCurrentUser).catch(() => {});
-  }, []);
-
-  const isCoordenador = currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
-
-  const handleRefresh = async () => {
-    await base44.functions.invoke('recalculateAllRubricas', {});
-    await queryClient.invalidateQueries();
-    setRefreshNonce(prev => prev + 1);
-    toast.success('Rubricas atualizadas');
-  };
+function isRubricaEducador(rubrica) {
+  const txt = getRubricaSearchText(rubrica);
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-6">
+    txt.includes('educador') ||
+    txt.includes('educadora') ||
+    txt.includes('educadores') ||
+    txt.includes('diaria educador') ||
+    txt.includes('diarias educador')
+  );
+}
 
-        {/* HEADER */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold text-black flex items-center gap-2">
-              <TrendingUp className="w-6 h-6" />
-              Rubricas por Museu
-            </h1>
-            <p className="text-gray-500 text-sm">
-              Acompanhamento orçamentário consolidado por museu.
+function isRubricaInstitucionalOuEquipe(rubrica) {
+  const txt = getRubricaSearchText(rubrica);
+
+  return (
+    txt.includes('coordenador') ||
+    txt.includes('coordenacao') ||
+    txt.includes('coord ') ||
+    txt.includes('coord.') ||
+    txt.includes('coord geral') ||
+
+    txt.includes('assistente') ||
+    txt.includes('assistente administrativo') ||
+    txt.includes('assistente de coordenacao') ||
+
+    txt.includes('analista') ||
+    txt.includes('analista adm') ||
+    txt.includes('analista financeira') ||
+    txt.includes('analista administrativo') ||
+
+    txt.includes('equipe') ||
+    txt.includes('equipe principal') ||
+
+    txt.includes('gestao') ||
+    txt.includes('administrativo') ||
+    txt.includes('adm ') ||
+    txt.includes('adm.') ||
+
+    txt.includes('consultoria') ||
+    txt.includes('consultorias') ||
+
+    txt.includes('assessoria juridica') ||
+    txt.includes('juridico') ||
+    txt.includes('contador') ||
+    txt.includes('contabilidade') ||
+
+    txt.includes('energia eletrica') ||
+    txt.includes('material escritorio')
+  );
+}
+
+function isRubricaTerritorialPorMuseu(rubrica) {
+  const txt = getRubricaSearchText(rubrica);
+
+  return (
+    txt.includes('mis') ||
+    txt.includes('mhab') ||
+    txt.includes('mumo') ||
+    txt.includes('3 museus') ||
+    txt.includes('museus pbh') ||
+    txt.includes('producao') ||
+    txt.includes('programacao') ||
+    txt.includes('oficina') ||
+    txt.includes('educativ') ||
+    txt.includes('mediacao') ||
+    txt.includes('monitor') ||
+    txt.includes('recepcao') ||
+    txt.includes('mostra') ||
+    txt.includes('peca em destaque') ||
+    txt.includes('exposicao') ||
+    txt.includes('apresentac') ||
+    txt.includes('cache') ||
+    txt.includes('cultural') ||
+    txt.includes('noturno') ||
+    txt.includes('publicacao') ||
+    txt.includes('publicacoes') ||
+    txt.includes('montagem') ||
+    txt.includes('desmontagem') ||
+    txt.includes('locacao') ||
+    txt.includes('equipamento') ||
+    txt.includes('som') ||
+    txt.includes('iluminacao') ||
+    txt.includes('infraestrutura') ||
+    txt.includes('cenografia') ||
+    txt.includes('expografia') ||
+    txt.includes('material') ||
+    txt.includes('impressao') ||
+    txt.includes('sinalizacao') ||
+    txt.includes('designer mhab') ||
+    txt.includes('fotografo mhab') ||
+    txt.includes('pesquisa e texto mhab') ||
+    txt.includes('revisao mhab') ||
+    txt.includes('traducao mhab')
+  );
+}
+
+
+function isRubricaCompartilhadaRateavel(rubrica) {
+  const txt = getRubricaSearchText(rubrica);
+  const divisor = toNumber(rubrica?.divisor || rubrica?.divisao_museus || rubrica?.rateio_divisor);
+
+  return (
+    divisor >= 3 ||
+    txt.includes('3 museus') ||
+    txt.includes('tres museus') ||
+    txt.includes('museus pbh') ||
+    txt.includes('rateio') ||
+    txt.includes('rateavel') ||
+    txt.includes('compartilhada') ||
+    txt.includes('lanche') ||
+    txt.includes('buffet') ||
+    txt.includes('alimentacao') ||
+    txt.includes('transporte') ||
+    txt.includes('vans') ||
+    txt.includes('comunicacao') ||
+    txt.includes('imprensa') ||
+    txt.includes('rede social') ||
+    txt.includes('redes sociais') ||
+    txt.includes('marketing') ||
+    txt.includes('designer') ||
+    txt.includes('fotografo') ||
+    txt.includes('foto') ||
+    txt.includes('video') ||
+    txt.includes('grafico') ||
+    txt.includes('graficos') ||
+    txt.includes('servicos graficos') ||
+    txt.includes('seguranca') ||
+    txt.includes('limpeza')
+  );
+}
+
+
+function getRubricaTipoVisualizacao(rubrica) {
+  if (isRubricaCompartilhadaRateavel(rubrica)) return 'rateada';
+  if (isRubricaTerritorialPorMuseu(rubrica)) return 'museu';
+  return 'oculta';
+}
+
+function shouldShowRubrica(rubrica) {
+  if (!rubrica) return false;
+  if (isRubricaInstitucionalOuEquipe(rubrica)) return false;
+  if (isRubricaEducador(rubrica)) return false;
+
+  return isRubricaTerritorialPorMuseu(rubrica) || isRubricaCompartilhadaRateavel(rubrica);
+}
+
+function shouldHideCategoria(catKey) {
+  const key = normalizeForMatch(catKey);
+  return (
+    key === 'equipe' ||
+    key.includes('equipe') ||
+    key.includes('educador') ||
+    key.includes('diarias_educador') ||
+    key.includes('diarias educador') ||
+    key.includes('coordenacao') ||
+    key.includes('consultoria') ||
+    key.includes('despesas_gerais') ||
+    key.includes('despesas gerais') ||
+    key.includes('administrativo')
+  );
+}
+
+export default function RubricasMuseuEditor({ museu, canEdit = false, refreshKey = 0 }) {
+  const queryClient = useQueryClient();
+  const [editingId, setEditingId] = useState(null);
+  const [editValues, setEditValues] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const { data: consolidado, isLoading, error } = useQuery({
+    queryKey: ['rubricas-consolidadas', museu, refreshKey],
+    queryFn: async () => {
+      const res = await base44.functions.invoke('getRubricasConsolidadas', {});
+      return res?.data || {};
+    },
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: true,
+  });
+
+  const porCategoria = useMemo(() => {
+    const cats = consolidado?.por_museu?.[museu];
+    if (!cats || typeof cats !== 'object') return [];
+
+    return Object.entries(cats)
+      .filter(([cat_key]) => !shouldHideCategoria(cat_key))
+      .map(([cat_key, rubricas]) => ({
+        cat_key,
+        label: CATEGORIAS_LABEL[cat_key] || cat_key,
+        rubricas: sortRubricas((Array.isArray(rubricas) ? rubricas : []).filter(shouldShowRubrica)),
+      }))
+      .filter((item) => item.rubricas.length > 0)
+      .sort((a, b) => {
+        const order = Object.keys(CATEGORIAS_LABEL);
+        const ai = order.indexOf(a.cat_key);
+        const bi = order.indexOf(b.cat_key);
+        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+      });
+  }, [consolidado, museu]);
+
+  const totais = useMemo(() => {
+    return normalizeResumoMuseu(consolidado?.totais_por_museu?.[museu] || {});
+  }, [consolidado, museu]);
+
+  const handleSave = async (rubrica) => {
+    setSaving(true);
+
+    const novoValor = parseFloat(editValues.valor_rubrica);
+
+    if (isNaN(novoValor) || novoValor < 0) {
+      toast.error('Valor inválido');
+      setSaving(false);
+      return;
+    }
+
+    try {
+      await base44.entities.Rubrica.update(rubrica.id, {
+        valor_rubrica: novoValor,
+      });
+
+      await Promise.all([
+        queryClient.invalidateQueries({
+          predicate: (q) => {
+            const k = Array.isArray(q.queryKey)
+              ? q.queryKey.join('|').toLowerCase()
+              : String(q.queryKey || '').toLowerCase();
+
+            return (
+              k.includes('rubrica') ||
+              k.includes('museu') ||
+              k.includes('budget') ||
+              k.includes('purchase') ||
+              k.includes('compra')
+            );
+          },
+        }),
+        base44.functions
+          .invoke('recalculateAllRubricas', {
+            trigger: 'update_valor_rubrica_editor',
+            rubricaId: rubrica.id,
+          })
+          .catch(() => null),
+      ]);
+
+      toast.success('Rubrica atualizada');
+      setEditingId(null);
+      setEditValues({});
+    } catch (e) {
+      console.error(e);
+      toast.error('Erro ao salvar');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="text-center py-16">
+        <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-600 rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-gray-400 text-sm">Carregando rubricas...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-16">
+        <AlertCircle className="w-10 h-10 text-red-300 mx-auto mb-3" />
+        <p className="text-red-500 text-sm">
+          Erro ao carregar dados: {error.message}
+        </p>
+      </div>
+    );
+  }
+
+  if (porCategoria.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <AlertCircle className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+        <p className="text-gray-500 text-sm font-medium">
+          Nenhuma rubrica operacional encontrada para {museu}
+        </p>
+        <p className="text-gray-400 text-xs mt-1">
+          Rubricas de equipe, coordenação, consultoria e gestão institucional foram ocultadas desta página.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <Card className="bg-blue-50 border-blue-100">
+          <CardContent className="p-4">
+            <p className="text-xs text-blue-600 font-medium mb-1">Total Previsto</p>
+            <p className="text-base font-bold text-blue-900">{fmt(totais.totalOrcado)}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-green-50 border-green-100">
+          <CardContent className="p-4">
+            <p className="text-xs text-green-700 font-medium mb-1">Pago</p>
+            <p className="text-base font-bold text-green-800">{fmt(totais.totalPago)}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-orange-50 border-orange-100">
+          <CardContent className="p-4">
+            <p className="text-xs text-orange-600 font-medium mb-1">Comprometido</p>
+            <p className="text-base font-bold text-orange-700">
+              {fmt(totais.totalComprometido)}
             </p>
-          </div>
+            <p className="text-[10px] text-orange-500 mt-0.5">aprovado p/ pagar</p>
+          </CardContent>
+        </Card>
 
-          <div className="flex gap-2">
-            <Button onClick={handleRefresh} variant="outline">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Recalcular
-            </Button>
+        <Card className="bg-sky-50 border-sky-100">
+          <CardContent className="p-4">
+            <p className="text-xs text-sky-600 font-medium mb-1">Lançamentos</p>
+            <p className="text-base font-bold text-sky-800">
+              {fmt(totais.totalLancamentos)}
+            </p>
+          </CardContent>
+        </Card>
 
-            {isCoordenador && (
-              <Button variant="outline" onClick={() => setShowCardEditor(true)}>
-                <LayoutGrid className="w-4 h-4 mr-2" />
-                Editor
-              </Button>
-            )}
-          </div>
-        </div>
+        <Card className="bg-amber-50 border-amber-100">
+          <CardContent className="p-4">
+            <p className="text-xs text-amber-600 font-medium mb-1">Total Utilizado</p>
+            <p className="text-base font-bold text-amber-900">
+              {fmt(totais.totalUtilizado)}
+            </p>
+            <p className="text-[10px] text-amber-500 mt-0.5">
+              pago + comprometido + lançamentos
+            </p>
+          </CardContent>
+        </Card>
 
-        {/* 🔥 ABAS */}
-        <Tabs value={abaAtiva} onValueChange={setAbaAtiva}>
-          <TabsList className="grid grid-cols-4 bg-gray-100 rounded-xl p-1">
+        <Card
+          className={`border ${
+            totais.totalSaldo < 0
+              ? 'bg-red-50 border-red-100'
+              : 'bg-gray-50 border-gray-100'
+          }`}
+        >
+          <CardContent className="p-4">
+            <p
+              className={`text-xs font-medium mb-1 ${
+                totais.totalSaldo < 0 ? 'text-red-600' : 'text-gray-600'
+              }`}
+            >
+              Saldo Disponível
+            </p>
+            <p
+              className={`text-base font-bold ${
+                totais.totalSaldo < 0 ? 'text-red-700' : 'text-gray-800'
+              }`}
+            >
+              {fmt(totais.totalSaldo)}
+            </p>
+            <p className="text-[10px] text-gray-400 mt-0.5">{totais.pct}% utilizado</p>
+          </CardContent>
+        </Card>
+      </div>
 
-            {ABAS.map((m) => (
-              <TabsTrigger
-                key={m}
-                value={m}
-                className="text-xs font-semibold rounded-lg data-[state=active]:bg-black data-[state=active]:text-white"
-              >
-                {m === 'NOTURNO' ? 'NOTURNO' : m}
-              </TabsTrigger>
-            ))}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {porCategoria.map(({ cat_key, label, rubricas }) => {
+          const catOrcado = Number(
+            rubricas.reduce((s, r) => s + toNumber(r.totalOrcado), 0).toFixed(2)
+          );
+          const catUtilizado = Number(
+            rubricas.reduce((s, r) => s + toNumber(r.valorUtilizado), 0).toFixed(2)
+          );
+          const catPago = Number(
+            rubricas.reduce((s, r) => s + toNumber(r.valorPago), 0).toFixed(2)
+          );
+          const catComprometido = Number(
+            rubricas.reduce((s, r) => s + toNumber(r.valorComprometido), 0).toFixed(2)
+          );
+          const catLancamentos = Number(
+            rubricas.reduce((s, r) => s + toNumber(r.valorLancamentos), 0).toFixed(2)
+          );
+          const catSaldo = Number((catOrcado - catUtilizado).toFixed(2));
+          const catPct =
+            catOrcado > 0
+              ? Number(((catUtilizado / catOrcado) * 100).toFixed(1))
+              : 0;
 
-          </TabsList>
+          return (
+            <Card key={cat_key} className="border border-gray-200">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle className="text-sm font-bold text-gray-800">
+                    {label}
+                  </CardTitle>
+                  <div className="flex gap-2 text-[11px]">
+                    <span className="text-gray-500">
+                      Prev:{' '}
+                      <span className="font-medium text-gray-700">{fmt(catOrcado)}</span>
+                    </span>
+                    <span
+                      className={
+                        catSaldo < 0
+                          ? 'text-red-600 font-semibold'
+                          : 'text-green-600 font-semibold'
+                      }
+                    >
+                      Saldo: {fmt(catSaldo)}
+                    </span>
+                  </div>
+                </div>
 
-          {/* 🔥 MUSEUS NORMAIS */}
-          {MUSEUS.map((m) => (
-            <TabsContent key={m} value={m} className="p-4">
-              <RubricasMuseuEditor
-                museu={m}
-                refreshKey={refreshNonce}
-              />
-            </TabsContent>
-          ))}
+                <div className="flex gap-3 text-[10px] text-gray-500 mt-1 flex-wrap">
+                  <span>
+                    ✅ Pago:{' '}
+                    <span className="text-green-700 font-medium">{fmt(catPago)}</span>
+                  </span>
+                  {catComprometido > 0 && (
+                    <span>
+                      🔒 Comprometido:{' '}
+                      <span className="text-orange-600 font-medium">
+                        {fmt(catComprometido)}
+                      </span>
+                    </span>
+                  )}
+                  {catLancamentos > 0 && (
+                    <span>
+                      🧾 Lançamentos:{' '}
+                      <span className="text-sky-700 font-medium">
+                        {fmt(catLancamentos)}
+                      </span>
+                    </span>
+                  )}
+                </div>
 
-          {/* 🔥 NOVA ABA NOTURNO */}
-          <TabsContent value="NOTURNO" className="p-4">
-            <RubricasMuseuEditor
-              museu="GERAL" // 🔥 usa todas
-              refreshKey={refreshNonce}
-              rubricaFilter={isRubricaNoturno}
-            />
-          </TabsContent>
+                <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                  <div
+                    className={`h-1.5 rounded-full ${getBarColor(catPct)}`}
+                    style={{ width: `${Math.min(catPct, 100)}%` }}
+                  />
+                </div>
+              </CardHeader>
 
-        </Tabs>
+              <CardContent className="px-4 pb-4">
+                <div className="space-y-2">
+                  {rubricas.map((rubrica) => {
+                    const pct = toNumber(rubrica.pct);
+                    const saldo =
+                      rubrica.saldo === null || rubrica.saldo === undefined
+                        ? Number(
+                            (
+                              toNumber(rubrica.totalOrcado) -
+                              toNumber(rubrica.valorUtilizado)
+                            ).toFixed(2)
+                          )
+                        : toNumber(rubrica.saldo);
+                    const valorPago = toNumber(rubrica.valorPago);
+                    const valorComprometido = toNumber(rubrica.valorComprometido);
+                    const valorLancamentos = toNumber(rubrica.valorLancamentos);
+                    const totalOrcado = toNumber(rubrica.totalOrcado);
+                    const valorRubricaOriginal = toNumber(rubrica.valor_rubrica);
+                    const divisor = toNumber(rubrica.divisor || 1);
+                    const isEditing = editingId === rubrica.id;
+                    const nomeRubrica = String(rubrica.rubrica || 'Rubrica').replace(
+                      / - (MIS|MUMO|MHAB)$/i,
+                      ''
+                    );
 
-        <GerenciarRubricasMuseuDialog />
-        <CardRubricaEditor open={showCardEditor} onClose={() => setShowCardEditor(false)} />
+                    return (
+                      <div
+                        key={rubrica.id}
+                        className="border border-gray-100 rounded-lg p-3 bg-gray-50 hover:bg-white transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-xs text-gray-900 leading-tight">
+                              {nomeRubrica}
+                            </h4>
 
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {rubrica.grupo ? (
+                                <span className="text-xs text-gray-600 font-medium">
+                                  {rubrica.grupo}
+                                </span>
+                              ) : null}
+
+                              {rubrica.centro_custo ? (
+                                <span className="text-[10px] text-gray-400">
+                                  CC origem: {rubrica.centro_custo}
+                                </span>
+                              ) : null}
+
+                              {getRubricaTipoVisualizacao(rubrica) === 'rateada' ? (
+                                <span className="text-[10px] bg-gray-100 text-gray-700 border border-gray-200 rounded px-1">
+                                  Compartilhada / rateável
+                                </span>
+                              ) : (
+                                <span className="text-[10px] bg-white text-gray-700 border border-gray-200 rounded px-1">
+                                  Específica por museu
+                                </span>
+                              )}
+
+                              {divisor > 1 ? (
+                                <span className="text-[10px] bg-gray-100 text-gray-700 border border-gray-200 rounded px-1">
+                                  ÷{divisor} museus • parte deste museu
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] px-1.5 py-0 ${
+                                saldo < 0
+                                  ? 'border-red-300 text-red-600'
+                                  : pct >= 80
+                                    ? 'border-orange-300 text-orange-600'
+                                    : 'border-green-300 text-green-600'
+                              }`}
+                            >
+                              {pct}%
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="w-full bg-gray-200 rounded-full h-1 mb-2">
+                          <div
+                            className={`h-1 rounded-full transition-all ${getBarColor(pct)}`}
+                            style={{ width: `${Math.min(pct, 100)}%` }}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                          <div>
+                            <p className="text-gray-400 text-[10px]">Previsto museu</p>
+                            {isEditing ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={editValues.valor_rubrica || ''}
+                                onChange={(e) =>
+                                  setEditValues((prev) => ({
+                                    ...prev,
+                                    valor_rubrica: e.target.value,
+                                  }))
+                                }
+                                className="w-full h-6 text-xs mt-0.5"
+                              />
+                            ) : (
+                              <p className="font-semibold text-gray-800">{fmt(totalOrcado)}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <p className="text-gray-400 text-[10px]">✅ Pago</p>
+                            <p className="font-semibold text-green-700">{fmt(valorPago)}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-gray-400 text-[10px]">🔒 Aprovado</p>
+                            <p
+                              className={`font-semibold ${
+                                valorComprometido > 0 ? 'text-orange-600' : 'text-gray-400'
+                              }`}
+                            >
+                              {fmt(valorComprometido)}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-gray-400 text-[10px]">🧾 Lançamentos</p>
+                            <p
+                              className={`font-semibold ${
+                                valorLancamentos > 0 ? 'text-sky-700' : 'text-gray-400'
+                              }`}
+                            >
+                              {fmt(valorLancamentos)}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-gray-400 text-[10px]">Saldo</p>
+                            <p
+                              className={`font-bold ${
+                                saldo < 0
+                                  ? 'text-red-600'
+                                  : saldo < totalOrcado * 0.2
+                                    ? 'text-orange-500'
+                                    : 'text-green-600'
+                              }`}
+                            >
+                              {fmt(saldo)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {!isEditing && (
+                          <div className="mt-2 text-[10px] text-gray-400">
+                            Valor original da rubrica: {fmt(valorRubricaOriginal)}
+                          </div>
+                        )}
+
+                        {canEdit &&
+                          (isEditing ? (
+                            <div className="flex gap-1 mt-2">
+                              <Button
+                                onClick={() => handleSave(rubrica)}
+                                disabled={saving}
+                                size="sm"
+                                className="flex-1 h-6 text-xs bg-green-600 hover:bg-green-700"
+                              >
+                                <Save className="w-3 h-3 mr-1" /> Salvar
+                              </Button>
+                              <Button
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingId(null);
+                                  setEditValues({});
+                                }}
+                                disabled={saving}
+                                size="sm"
+                                className="h-6 text-xs px-2"
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full h-5 text-[10px] mt-1 text-gray-400 hover:text-gray-700"
+                              onClick={() => {
+                                setEditingId(rubrica.id);
+                                setEditValues({
+                                  valor_rubrica: String(valorRubricaOriginal),
+                                });
+                              }}
+                            >
+                              <Pencil className="w-2.5 h-2.5 mr-1" /> Editar valor original
+                            </Button>
+                          ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
