@@ -202,25 +202,6 @@ function purchaseBelongsToUser(purchase, email) {
   return getPurchaseOwnerEmails(purchase).includes(normalizedEmail);
 }
 
-function getAttachmentOwnerEmails(attachment) {
-  return [
-    attachment?.created_by,
-    attachment?.user_email,
-    attachment?.requester_email,
-    attachment?.solicitante_email,
-    attachment?.email_solicitante,
-    attachment?.author_email,
-    attachment?.owner_email,
-    attachment?.uploadado_por
-  ].map(normalizeEmail).filter(Boolean);
-}
-
-function attachmentBelongsToUser(attachment, email) {
-  const normalizedEmail = normalizeEmail(email);
-  if (!normalizedEmail) return false;
-  return getAttachmentOwnerEmails(attachment).includes(normalizedEmail);
-}
-
 function extractRubricas(result) {
   if (Array.isArray(result)) return result;
   if (Array.isArray(result?.rubricas)) return result.rubricas;
@@ -269,10 +250,10 @@ async function carregarSolicitacoes({ isCoordenador, currentUser }) {
   }
 
   try {
-    const r = await base44.entities.PurchaseRequest.filter({ user_email: currentUser?.email }, '-created_date', 300);
-    if (Array.isArray(r)) resultados.push(...r);
+    const listaGeral = await base44.entities.PurchaseRequest.list('-created_date', 500);
+    resultados.push(...listaGeral.filter((p) => purchaseBelongsToUser(p, email)));
   } catch (error) {
-    console.error('Erro ao buscar PurchaseRequest por user_email:', error);
+    console.error('Erro ao buscar lista geral de PurchaseRequest:', error);
   }
 
   const dedup = new Map();
@@ -553,40 +534,9 @@ function ComprasInner() {
   });
 
   const { data: anexosCompras = [] } = useQuery({
-    queryKey: ['attachments-compras', isCoordenador, currentUser?.email],
+    queryKey: ['attachments-compras'],
     queryFn: async () => {
-      let list = [];
-
-      if (isCoordenador) {
-        list = await base44.entities.Attachment.list('-created_date', 500);
-      } else {
-        const resultados = [];
-
-        try {
-          const porUserEmail = await base44.entities.Attachment.filter(
-            { user_email: currentUser?.email },
-            '-created_date',
-            300
-          );
-          if (Array.isArray(porUserEmail)) resultados.push(...porUserEmail);
-        } catch (error) {
-          console.error('Erro ao buscar Attachment por user_email:', error);
-        }
-
-        try {
-          const porCreatedBy = await base44.entities.Attachment.filter(
-            { created_by: currentUser?.email },
-            '-created_date',
-            300
-          );
-          if (Array.isArray(porCreatedBy)) resultados.push(...porCreatedBy);
-        } catch (error) {
-          console.error('Erro ao buscar Attachment por created_by:', error);
-        }
-
-        list = resultados.filter((doc) => attachmentBelongsToUser(doc, currentUser?.email));
-      }
-
+      const list = await base44.entities.Attachment.list('-created_date', 500);
       const docs = dedupById((list || []).filter(isEntradaUnicaAttachment));
       return docs.sort((a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0));
     },
@@ -619,11 +569,8 @@ function ComprasInner() {
     refetch: refetchRubricas,
     isLoading: loadingRubricas
   } = useQuery({
-    queryKey: ['rubricas', isCoordenador],
-    queryFn: async () => {
-      if (!isCoordenador) return [];
-      return carregarRubricas();
-    },
+    queryKey: ['rubricas'],
+    queryFn: carregarRubricas,
     enabled: !!currentUser,
     staleTime: 0
   });
@@ -897,11 +844,6 @@ function ComprasInner() {
     }
   }
 
-  useEffect(() => {
-    if (!isCoordenador && tab === 'equipe') setTab('lista');
-    if (!isCoordenador && tab === 'rubricas') setTab('lista');
-  }, [isCoordenador, tab]);
-
   return (
     <div className="min-h-screen bg-white">
       <div className="mx-auto max-w-6xl px-4 py-4 md:px-6 md:py-8">
@@ -980,7 +922,7 @@ function ComprasInner() {
             { id: 'lista', label: 'Solicitações' },
             ...(isCoordenador ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
             { id: 'documentos', label: 'Documentos' },
-            ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : [])
+            { id: 'equipe', label: 'Equipe' }
           ].map((t) => (
             <button
               key={t.id}
@@ -1137,11 +1079,11 @@ function ComprasInner() {
 
         {tab === 'documentos' && (
           <div className="max-w-7xl space-y-6">
-            <GestaoDocumental currentUser={currentUser} isCoordenador={isCoordenador} />
+            <GestaoDocumental />
           </div>
         )}
 
-        {tab === 'equipe' && isCoordenador && <TeamManager budgetLines={budgetLines} />}
+        {tab === 'equipe' && <TeamManager budgetLines={budgetLines} />}
 
         {isCoordenador && (
           <div className="mt-8">

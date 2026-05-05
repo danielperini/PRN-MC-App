@@ -9,6 +9,7 @@ import { AlertCircle, Save, X, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CATEGORIAS_LABEL = {
+  equipe: 'Equipe e Coordenação (÷3 museus)',
   comunicacao: 'Comunicação',
   manutencao: 'Manutenção de Rotina',
   educador: 'Educador',
@@ -71,11 +72,6 @@ function sortRubricas(items) {
   });
 }
 
-function shouldHideCategoria(catKey) {
-  const key = String(catKey || '').toLowerCase();
-  return key === 'equipe' || key.includes('equipe') || key.includes('coordenacao') || key.includes('coordenação');
-}
-
 export default function RubricasMuseuEditor({ museu, canEdit = false, refreshKey = 0 }) {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState(null);
@@ -98,7 +94,6 @@ export default function RubricasMuseuEditor({ museu, canEdit = false, refreshKey
     if (!cats || typeof cats !== 'object') return [];
 
     return Object.entries(cats)
-      .filter(([cat_key]) => !shouldHideCategoria(cat_key))
       .map(([cat_key, rubricas]) => ({
         cat_key,
         label: CATEGORIAS_LABEL[cat_key] || cat_key,
@@ -393,10 +388,10 @@ export default function RubricasMuseuEditor({ museu, canEdit = false, refreshKey
 
                             <div className="flex flex-wrap gap-2 mt-1">
                               {rubrica.grupo ? (
-                                <span className="text-xs text-gray-600 font-medium">
-                                  {rubrica.grupo}
-                                </span>
-                              ) : null}
+                                 <span className="text-xs text-gray-600 font-medium">
+                                   {rubrica.grupo}
+                                 </span>
+                               ) : null}
 
                               {rubrica.centro_custo ? (
                                 <span className="text-[10px] text-gray-400">

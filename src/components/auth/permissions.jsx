@@ -1,205 +1,158 @@
-// 🔒 CONTROLE CENTRAL DE PERMISSÕES (NÃO ALTERAR SEM NECESSIDADE)
+/**
+ * Política central de permissões do sistema Museus Centro
+ * Referenciar este arquivo em todos os componentes que precisam verificar permissões.
+ */
 
-function normalizeRole(user) {
-  return String(
-    user?.base_role ||
-    user?.permission?.base_role ||
-    user?.permissions?.base_role ||
-    user?.role ||
-    ''
-  ).trim().toUpperCase();
-}
+export const COORD_GERAL_EMAIL = 'daniel@periniprojetos.com.br';
 
-function normalizeEmailValue(value) {
-  return String(value || '').trim().toLowerCase();
-}
+export const AUTO_APPROVED_DOMAINS = [
+  '@viadutodasartes.org.br',
+  '@periniprojetos.com.br',
+  '@pbh.gov.br',
+];
 
-function normalizeEmail(user) {
-  return normalizeEmailValue(user?.email || user?.user_email);
-}
-
-function truthy(value) {
-  return value === true || value === 'true' || value === 1 || value === '1';
-}
-
+/**
+ * Verifica se o usuário é o Coordenador Geral (Daniel Perini)
+ * Único com poder total de gestão de usuários.
+ */
 export function isCoordGeral(user) {
   if (!user) return false;
-
-  const role = normalizeRole(user);
-  const email = normalizeEmail(user);
-
   return (
-    role === 'ADMIN' ||
-    role === 'COORD_GERAL' ||
-    role === 'COORDENADOR_GERAL' ||
-    email === 'daniel@periniprojetos.com.br' ||
-    email === 'danielperini.mc@viadutodasartes.org.br'
+    user.email === COORD_GERAL_EMAIL ||
+    user.can_manage_users === true
   );
 }
 
+/**
+ * Verifica se o usuário é coordenador (qualquer tipo, inclui coord geral)
+ */
 export function isCoordenador(user) {
   if (!user) return false;
-
-  const role = normalizeRole(user);
-
-  return (
-    isCoordGeral(user) ||
-    role === 'COORDENADOR' ||
-    role === 'COORD_COMUNICACAO' ||
-    role === 'COORD_ADMINISTRATIVA' ||
-    role === 'COORD_PRODUCAO' ||
-    truthy(user?.can_review_reports) ||
-    truthy(user?.can_manage_users) ||
-    truthy(user?.gestao_compras) ||
-    truthy(user?.pode_aprovar_solicitacoes)
-  );
+  if (isCoordGeral(user)) return true;
+  return [
+    'COORDENADOR',
+    'ADMIN',
+    'admin',
+    'COORD_PRODUCAO',
+    'COORD_ADMINISTRATIVA',
+    'COORD_COMUNICACAO',
+    'COORD_PROGRAMACAO',
+    'CONSULTORIA_PROGRAMACAO',
+  ].includes(user.role);
 }
 
-export function isProfissional(user) {
-  if (!user) return false;
-  return !isCoordenador(user) && !!normalizeEmail(user);
+/**
+ * Verifica se o email pertence a um domínio com aprovação automática
+ */
+export function isAutoApprovedDomain(email) {
+  if (!email) return false;
+  const lower = email.toLowerCase();
+  return AUTO_APPROVED_DOMAINS.some(domain => lower.endsWith(domain));
 }
 
-export function canViewAll(user) {
-  return isCoordenador(user);
+/**
+ * Verifica se o usuário pode editar um relatório
+ */
+export function canEditReport(currentUser, reportAuthorEmail) {
+  if (!currentUser) return false;
+  if (currentUser.email === reportAuthorEmail) return true;
+  return isCoordenador(currentUser);
 }
 
-export function canViewOwnData(user, record) {
-  if (!user || !record) return false;
-  if (isCoordenador(user)) return true;
-
-  const userEmail = normalizeEmail(user);
-
-  return (
-    normalizeEmailValue(record?.user_email) === userEmail ||
-    normalizeEmailValue(record?.email) === userEmail ||
-    normalizeEmailValue(record?.created_by) === userEmail ||
-    normalizeEmailValue(record?.created_by_email) === userEmail ||
-    normalizeEmailValue(record?.uploadado_por) === userEmail ||
-    normalizeEmailValue(record?.uploaded_by) === userEmail ||
-    normalizeEmailValue(record?.uploaded_by_email) === userEmail ||
-    normalizeEmailValue(record?.author_email) === userEmail ||
-    normalizeEmailValue(record?.owner_email) === userEmail ||
-    normalizeEmailValue(record?.solicitante_email) === userEmail ||
-    normalizeEmailValue(record?.requester_email) === userEmail ||
-    normalizeEmailValue(record?.profissional_email) === userEmail ||
-    normalizeEmailValue(record?.prestador_email) === userEmail ||
-    normalizeEmailValue(record?.team_member_email) === userEmail ||
-    normalizeEmailValue(record?.responsavel_email) === userEmail
-  );
-}
-
-export function canEditOwnData(user, record) {
-  if (!user || !record) return false;
-  if (isCoordenador(user)) return true;
-  return canViewOwnData(user, record);
-}
-
-export function canViewPurchase(user, purchase) {
-  return canViewOwnData(user, purchase);
-}
-
-export function canEditPurchase(user, purchase) {
-  if (isCoordenador(user)) return true;
-  const status = String(purchase?.status || '').toUpperCase();
-  return canViewOwnData(user, purchase) && ['', 'RASCUNHO', 'SOLICITADO', 'DEVOLVIDO'].includes(status);
-}
-
-export function canViewPayment(user, payment) {
-  return canViewOwnData(user, payment);
-}
-
-export function canEditPayment(user, payment) {
-  if (isCoordenador(user)) return true;
-  const status = String(payment?.status || '').toUpperCase();
-  return canViewOwnData(user, payment) && ['', 'RASCUNHO', 'PENDENTE', 'DEVOLVIDO'].includes(status);
-}
-
-export function canViewDocument(user, doc) {
-  return canViewOwnData(user, doc);
-}
-
-export function canEditDocument(user, doc) {
-  if (isCoordenador(user)) return true;
-  const status = String(doc?.status || doc?.status_processamento || '').toUpperCase();
-  return canViewOwnData(user, doc) && ['', 'RASCUNHO', 'ENVIADO', 'AGUARDANDO_REVISAO', 'DEVOLVIDO', 'ERRO_PROCESSAMENTO'].includes(status);
-}
-
-export function canManageTeam(user) {
-  return isCoordenador(user);
-}
-
-export function canViewDashboard(user) {
-  return !!normalizeEmail(user);
-}
-
-export function canAccessEntradaUnica(user) {
-  return !!normalizeEmail(user);
-}
-
-export function canAccessRelatorios(user) {
-  return !!normalizeEmail(user);
-}
-
-export function canAccessCompras(user) {
-  return !!normalizeEmail(user);
-}
-
-export function canAccessMeusDados(user) {
-  return !!normalizeEmail(user);
-}
-
-export function canViewRubricas(user) {
-  return isCoordenador(user);
-}
-
-export function canApprove(user) {
-  return isCoordenador(user);
-}
-
+/**
+ * Verifica se o usuário pode gerenciar usuários (aprovar, editar, excluir permissões)
+ * COORDENADOR também pode quando tem can_manage_users = true
+ */
 export function canManageUsers(user) {
+  if (!user) return false;
+  return isCoordGeral(user) || user.can_manage_users === true || isCoordenador(user);
+}
+
+/**
+ * Verifica se o usuário pode gerenciar permissões de outros usuários
+ * Qualquer COORDENADOR ou ADMIN pode editar permissões
+ */
+export function canManagePermissions(user) {
+  if (!user) return false;
   return isCoordenador(user);
 }
 
-export function canManageFiles(user) {
-  return isCoordenador(user) || truthy(user?.can_manage_files);
+/**
+ * Todos os usuários autenticados podem acessar a área Equipe.
+ */
+export function canAccessEquipe(user) {
+  return !!user;
 }
 
-export function canReviewReports(user) {
-  return isCoordenador(user) || truthy(user?.can_review_reports);
+/**
+ * Usuário comum pode editar apenas o próprio perfil de equipe.
+ * Coordenadores podem editar qualquer perfil.
+ */
+export function canEditOwnTeamProfile(user, targetEmail) {
+  if (!user || !targetEmail) return false;
+  if (isCoordenador(user)) return true;
+  return String(user.email || '').toLowerCase() === String(targetEmail || '').toLowerCase();
 }
 
-export function canSubmitReports(user) {
-  return !!normalizeEmail(user);
+/**
+ * Apenas coordenadores podem editar todos os perfis da equipe.
+ */
+export function canEditAllTeamProfiles(user) {
+  if (!user) return false;
+  return isCoordenador(user);
 }
 
-export function canManagePurchases(user) {
-  return isCoordenador(user) || truthy(user?.gestao_compras);
+/**
+ * Regra consolidada para edição de perfil de equipe.
+ */
+export function canEditTeamProfile(user, targetEmail) {
+  if (!user) return false;
+  if (canEditAllTeamProfiles(user)) return true;
+  return canEditOwnTeamProfile(user, targetEmail);
 }
 
-export function canApprovePurchases(user) {
-  return isCoordenador(user) || truthy(user?.pode_aprovar_solicitacoes);
+/**
+ * Regra consolidada para visualização de perfil de equipe.
+ * Todos acessam a área; usuário comum vê apenas o próprio perfil;
+ * coordenadores visualizam todos.
+ */
+export function canViewTeamProfile(user, targetEmail) {
+  if (!user) return false;
+  if (isCoordenador(user)) return true;
+  if (!targetEmail) return false;
+  return String(user.email || '').toLowerCase() === String(targetEmail || '').toLowerCase();
 }
 
-export function buildUserFilter(user) {
-  if (isCoordenador(user)) return {};
-  return { user_email: normalizeEmail(user) };
+/**
+ * Verifica se o usuário é um PATROCINADOR (leitura apenas, dados aprovados)
+ */
+export function isPatrocinador(user) {
+  if (!user) return false;
+  return user.role === 'PATROCINADOR' || user.base_role === 'PATROCINADOR';
 }
 
-export function filterOwnRecords(user, records = []) {
-  if (isCoordenador(user)) return records || [];
-  return (records || []).filter((record) => canViewOwnData(user, record));
-}
+/**
+ * Permissões específicas do PATROCINADOR
+ */
+export const PATROCINADOR_PERMISSIONS = {
+  can_view_sponsor_dashboard: true,
+  can_view_approved_reports: true,
+  can_view_approved_programacao: true,
+  can_view_public_gallery: true,
+  can_view_budget_summary: true,
+  can_view_project_kpis: true,
+  can_manage_users: false,
+  can_manage_platform: false,
+  can_manage_files: false,
+  can_manage_equipes: false,
+  can_review_reports: false,
+  gestao_compras: false,
+  can_view_audit_log: false,
+};
 
-export function mergeUserWithPermission(user, permission) {
-  return {
-    ...(user || {}),
-    ...(permission || {}),
-    permission: permission || null,
-    base_role: permission?.base_role || user?.base_role || user?.role,
-    area: permission?.area || user?.area || user?.museu || '',
-    museu: permission?.museu || permission?.area || user?.museu || user?.area || '',
-    equipe: permission?.equipe || user?.equipe || '',
-    funcao: permission?.funcao || user?.funcao || '',
-  };
+/**
+ * Verifica se um usuário PATROCINADOR pode acessar uma permissão específica
+ */
+export function canSponsorAccess(permission) {
+  return PATROCINADOR_PERMISSIONS[permission] === true;
 }

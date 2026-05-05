@@ -22,31 +22,20 @@ function formatBRL(value) {
   })}`;
 }
 
-const DEFAULT_STATUS_CONFIG = {
-  RASCUNHO:       { label: 'Rascunho',        color: 'bg-gray-100 text-gray-700' },
-  SOLICITADO:     { label: 'Solicitado',       color: 'bg-blue-100 text-blue-700' },
-  APROVADO_COORD: { label: 'Aprovado Coord.',  color: 'bg-yellow-100 text-yellow-700' },
-  APROVADO_ADMIN: { label: 'Aprovado Admin',   color: 'bg-green-100 text-green-700' },
-  RECUSADO:       { label: 'Recusado',         color: 'bg-red-100 text-red-700' },
-  CANCELADO:      { label: 'Cancelado',        color: 'bg-gray-100 text-gray-500' },
-  PAGO:           { label: 'Pago',             color: 'bg-emerald-100 text-emerald-700' },
-};
-
 export default function PurchaseCard({
   purchase,
-  budgetLines = [],
+  budgetLines,
   statusConfig,
   isCoordenador,
   isAdmin,
   onRefresh,
 }) {
-  const resolvedStatusConfig = statusConfig || DEFAULT_STATUS_CONFIG;
 
   const queryClient = useQueryClient();
   const [actionLoading, setActionLoading] = useState(false);
   const [teamPayment, setTeamPayment] = useState(null);
 
-  const statusInfo = resolvedStatusConfig[purchase.status] || {
+  const statusInfo = statusConfig[purchase.status] || {
     label: purchase.status,
     color: 'bg-gray-100 text-gray-700'
   };

@@ -1,426 +1,398 @@
-import React, { useEffect } from 'react';
+import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
-import RequireAuth from '../components/auth/RequireAuth';
-import { useCurrentUser } from '../components/auth/useCurrentUser';
-import { Link } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
-import {
-  FileText, Plus, Clock, CheckCircle, AlertCircle,
-  Send, Eye, Archive, ChevronRight, LayoutDashboard, User, RotateCw, AlertTriangle, X, Copy } from
-'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import CoordDashboard from '../components/dashboard/CoordDashboard';
-import DashboardPatrocinador from '../pages/DashboardPatrocinador';
-import AdvancedFilters from '../components/dashboard/AdvancedFilters';
-import ComplianceStats from '../components/dashboard/ComplianceStats';
-import WidgetCustomizer from '../components/dashboard/WidgetCustomizer';
-import { useWidgetPreferences } from '../components/dashboard/useWidgetPreferences';
-import ActivityMetricsWidget from '../components/dashboard/ActivityMetricsWidget';
-import OpportunityMetricsWidget from '../components/dashboard/OpportunityMetricsWidget';
-import NewsCarousel from '../components/dashboard/NewsCarousel';
-import DuplicateReportsModal from '../components/dashboard/DuplicateReportsModal';
-import { usePullToRefresh } from '../hooks/usePullToRefresh';
-import ExecutiveIndicators from '../components/dashboard/ExecutiveIndicators';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Search, UserPlus, Save, Users, KeyRound, Pencil, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import InviteDialog from '@/components/users/InviteDialog';
 
-const STATUS_CONFIG = {
-  DRAFT: { label: 'Rascunho', color: 'bg-white text-black border border-black', icon: Clock },
-  SUBMITTED: { label: 'Enviado', color: 'bg-white text-black border border-black', icon: Send },
-  IN_REVIEW: { label: 'Em Revisão', color: 'bg-white text-black border border-black', icon: Eye },
-  RETURNED: { label: 'Devolvido', color: 'bg-black text-white border border-black', icon: AlertCircle },
-  APPROVED: { label: 'Aprovado', color: 'bg-black text-white border border-black', icon: CheckCircle },
-  ARCHIVED: { label: 'Arquivado', color: 'bg-gray-200 text-black border border-black', icon: Archive }
+const ROLE_LABELS = {
+  ADMIN: 'admin', admin: 'admin',
+  COORDENADOR: 'coordenador',
+  PROFISSIONAL: 'profissional',
+  PATROCINADOR: 'patrocinador',
+  OBSERVADOR: 'observador',
+  user: 'usuário',
 };
 
-function DashboardInner() {
-  const { user: currentUser, isLoading: userLoading, isCoordenador } = useCurrentUser();
-  const { widgets, loaded: widgetsLoaded, toggleWidget, resetToDefault } = useWidgetPreferences();
-  const [view, setView] = React.useState('coordenador');
-  const [showSponsorView, setShowSponsorView] = React.useState(false);
-  const [filters, setFilters] = React.useState({ museu: '', status: '' });
-  const [isRefreshing, setIsRefreshing] = React.useState(false);
-  const [showDuplicates, setShowDuplicates] = React.useState(false);
-  const [dismissedDataWarning, setDismissedDataWarning] = React.useState(false);
+const ROLE_COLORS = {
+  ADMIN: 'bg-black text-white', admin: 'bg-black text-white',
+  COORDENADOR: 'bg-blue-100 text-blue-800',
+  PROFISSIONAL: 'bg-gray-100 text-gray-700',
+  PATROCINADOR: 'bg-purple-100 text-purple-700',
+  OBSERVADOR: 'bg-teal-100 text-teal-700',
+  user: 'bg-gray-100 text-gray-700',
+};
 
-  // Current month/year for compliance stats
-  const now = new Date();
-  const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-  const currentMonth = monthNames[now.getMonth()];
-  const currentYear = now.getFullYear();
+const PERMISSION_GROUPS = [
+  { key: 'can_review_reports', label: 'Revisar relatórios' },
+  { key: 'can_manage_users', label: 'Gerenciar usuários' },
+  { key: 'can_manage_files', label: 'Gerenciar arquivos' },
+  { key: 'can_view_audit_log', label: 'Ver auditoria' },
+  { key: 'can_manage_platform', label: 'Gerenciar plataforma' },
+  { key: 'gestao_compras', label: 'Gestão de compras' },
+  { key: 'pode_aprovar_solicitacoes', label: 'Aprovar solicitações' },
+  { key: 'can_curate_news', label: 'Curadoria de notícias' },
+  { key: 'must_submit_monthly_reports', label: 'Enviar relatório mensal' },
+];
 
-  const { data: myTeamMember } = useQuery({
-    queryKey: ['my-team-member-dashboard', currentUser?.email],
-    queryFn: () => base44.entities.TeamMember.filter({ user_email: currentUser.email }),
-    enabled: !!currentUser?.email && !userLoading,
-    select: data => data?.[0] ?? null,
+function EditDialog({ user, onClose }) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({
+    full_name: user.full_name || '',
+    role: user.role || 'user',
+    funcao: user.funcao || '',
+    equipe: user.equipe || '',
   });
+  const [saving, setSaving] = useState(false);
 
-  const dadosCompletos = React.useMemo(() => {
-    const src = myTeamMember || currentUser || {};
-    return !!(src.cpf && src.telefone && src.email_pessoal && src.banco && src.agencia && src.conta);
-  }, [myTeamMember, currentUser]);
-
-  const { data: myReports = [], isLoading: loadingMy, refetch: refetchMy } = useQuery({
-    queryKey: ['my-reports', currentUser?.email],
-    queryFn: async () => {
-      if (!currentUser?.email) return [];
-      try {
-        const data = await base44.entities.Report.filter({ created_by: currentUser.email }, '-created_date');
-        return Array.isArray(data) ? data : [];
-      } catch {
-        return [];
-      }
-    },
-    enabled: !!currentUser?.email && !userLoading
-  });
-
-  const { data: allReports = [], isLoading: loadingAll, refetch: refetchAll } = useQuery({
-    queryKey: ['all-reports'],
-    queryFn: async () => {
-      try {
-        const data = await base44.entities.Report.list('-created_date', 200);
-        return Array.isArray(data) ? data : [];
-      } catch {
-        return [];
-      }
-    },
-    enabled: isCoordenador
-  });
-
-  const { data: rubricas = [] } = useQuery({
-    queryKey: ['dashboard-rubricas'],
-    queryFn: async () => {
-      try {
-        const data = await base44.entities.Rubrica.list('rubrica', 1000);
-        return Array.isArray(data) ? data.filter(r => r.ativo !== false) : [];
-      } catch {
-        return [];
-      }
-    },
-    enabled: !!currentUser?.email
-  });
-
-  // Subscrições em tempo real para atualizar números quando dados são excluídos/alterados
-  React.useEffect(() => {
-    const unsubReport = base44.entities.Report.subscribe(() => {
-      refetchMy();
-      if (isCoordenador) refetchAll();
-    });
-    const unsubActivity = base44.entities.Activity.subscribe(() => {
-      refetchMy();
-      if (isCoordenador) refetchAll();
-    });
-    return () => {
-      unsubReport();
-      unsubActivity();
-    };
-  }, [isCoordenador]);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
+  async function save() {
+    setSaving(true);
     try {
-      if (showCoordView) {
-        await refetchAll();
-      } else {
-        await refetchMy();
-      }
-      // Force toast feedback
-      const event = new CustomEvent('dashboardRefreshed');
-      window.dispatchEvent(event);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  const { containerRef, isPulling, pullDistance } = usePullToRefresh(handleRefresh);
-
-  const showCoordView = isCoordenador && view === 'coordenador';
-  const showDedicatedProfView = !isCoordenador;
-  const displayReports = React.useMemo(() => {
-    let reports = showCoordView ? allReports : myReports;
-    if (!Array.isArray(reports)) return [];
-    return reports;
-  }, [showCoordView, allReports, myReports]);
-
-  // Aplicar filtros
-  const filteredReports = React.useMemo(() => {
-    let reports = displayReports;
-    if (filters.museu) {
-      reports = reports.filter((r) => r.museu === filters.museu);
-    }
-    if (filters.status) {
-      reports = reports.filter((r) => r.status === filters.status);
-    }
-    return reports;
-  }, [displayReports, filters.museu, filters.status]);
-
-  const recentReports = filteredReports.slice(0, 8);
-  const isLoading = showCoordView ? loadingAll : loadingMy || userLoading;
-
-  const activityStats = React.useMemo(() => {
-    let totalAtividades = 0;
-    let totalPublico = 0;
-    filteredReports.forEach(r => {
-      const atividades = Array.isArray(r.atividades) ? r.atividades : [];
-      atividades.forEach(a => {
-        const vezes = Number(a.quantas_vezes_ocorreu || 1);
-        const publicoMedio = Number(a.publico_medio || 0);
-        totalAtividades += vezes;
-        totalPublico += vezes * publicoMedio;
-      });
-    });
-    return { totalAtividades, totalPublico };
-  }, [filteredReports]);
-
-  const stats = React.useMemo(() => [
-    { label: 'Relatórios', value: filteredReports.length },
-    { label: 'Pendentes', value: filteredReports.filter(r => r.status !== 'APPROVED').length },
-    { label: 'Aprovados', value: filteredReports.filter(r => r.status === 'APPROVED').length },
-    { label: 'Atividades', value: activityStats.totalAtividades },
-    { label: 'Público', value: activityStats.totalPublico }
-  ], [filteredReports, activityStats]);
+      await base44.entities.User.update(user.id, form);
+      toast.success('Usuário atualizado!');
+      queryClient.invalidateQueries(['user-management']);
+      onClose();
+    } catch (e) { toast.error('Erro: ' + e.message); }
+    setSaving(false);
+  }
 
   return (
-    <div className="min-h-screen bg-white overflow-y-auto" ref={containerRef} style={{ maxHeight: '100vh' }}>
-      {isPulling && (
-        <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center h-16 bg-gradient-to-b from-blue-50 to-transparent">
-          <div className="text-center">
-            <div className="w-6 h-6 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin mx-auto" 
-              style={{ transform: `scaleY(${Math.min(pullDistance / 80, 1)})` }} 
-            />
-            <p className="text-xs text-blue-600 mt-1">
-              {pullDistance < 80 ? 'Puxe para atualizar' : 'Solte para atualizar'}
-            </p>
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Editar — {user.full_name || user.email}</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div>
+            <Label className="text-sm mb-1 block">Nome completo</Label>
+            <Input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} />
+          </div>
+          <div>
+            <Label className="text-sm mb-1 block">Função</Label>
+            <Select value={form.funcao} onValueChange={v => setForm({ ...form, funcao: v })}>
+              <SelectTrigger><SelectValue placeholder="Selecione a função" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Coordenação Geral">Coordenação Geral</SelectItem>
+                <SelectItem value="Coordenação de Comunicação">Coordenação de Comunicação</SelectItem>
+                <SelectItem value="Educador">Educador</SelectItem>
+                <SelectItem value="Produtor Cultural">Produtor Cultural</SelectItem>
+                <SelectItem value="Comunicador">Comunicador</SelectItem>
+                <SelectItem value="Administrador">Administrador</SelectItem>
+                <SelectItem value="Outro">Outro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-sm mb-1 block">Equipe</Label>
+            <Select value={form.equipe} onValueChange={v => setForm({ ...form, equipe: v })}>
+              <SelectTrigger><SelectValue placeholder="Selecione a equipe" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Coordenação">Coordenação</SelectItem>
+                <SelectItem value="Comunicação">Comunicação</SelectItem>
+                <SelectItem value="Educativo">Educativo</SelectItem>
+                <SelectItem value="Produção">Produção</SelectItem>
+                <SelectItem value="Administração">Administração</SelectItem>
+                <SelectItem value="Outra">Outra</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-sm mb-1 block">Papel</Label>
+            <Select value={form.role} onValueChange={v => setForm({ ...form, role: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="user">Usuário</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
-      )}
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold text-black tracking-tight">
-              {showSponsorView ? 'Painel Observador' : showCoordView ? 'Painel da Coordenação' : 'Meu Painel'}
-            </h1>
-            <p className="text-gray-500 mt-1 text-sm">
-              {showSponsorView
-                ? 'Visão institucional do projeto — somente leitura'
-                : showCoordView
-                ? 'Visão consolidada de todos os relatórios e atividades'
-                : `Olá, ${currentUser?.full_name || ''}! Gerencie seus relatórios mensais.`}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {!showCoordView && widgetsLoaded && (
-              <WidgetCustomizer
-                widgets={widgets}
-                onToggleWidget={toggleWidget}
-                onReset={resetToDefault}
-              />
-            )}
-            {isCoordenador && (
-              <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => { setView('coordenador'); setShowSponsorView(false); }}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === 'coordenador' && !showSponsorView ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-                >
-                  <LayoutDashboard className="w-3.5 h-3.5" />Coordenação
-                </button>
-                <button
-                  onClick={() => { setView('profissional'); setShowSponsorView(false); }}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === 'profissional' && !showSponsorView ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-                >
-                  <User className="w-3.5 h-3.5" />Meus Relatórios
-                </button>
-                <button
-                  onClick={() => setShowSponsorView(!showSponsorView)}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${showSponsorView ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-                >
-                  <Eye className="w-3.5 h-3.5" />Observador
-                </button>
-              </div>
-            )}
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="border-gray-200"
-              title="Atualizar dados dos últimos 30 dias"
-            >
-              <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </Button>
-            {!showSponsorView && (
-              <Link to={createPageUrl('ReportEditor')}>
-                <Button className="bg-black hover:bg-gray-800 text-white gap-2">
-                  <Plus className="w-4 h-4" />Novo Relatório
-                </Button>
-              </Link>
-            )}
-          </div>
+        <div className="flex gap-2 pt-2">
+          <Button onClick={save} disabled={saving} className="flex-1">{saving ? 'Salvando...' : 'Salvar'}</Button>
+          <Button variant="outline" onClick={onClose} className="flex-1">Cancelar</Button>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
-        {/* Aviso fixo - Atualizar Dados */}
-         {!dadosCompletos && !showSponsorView && !dismissedDataWarning && (
-           <div className="mb-4 p-4 bg-white border-2 border-black rounded-xl flex items-start gap-3">
-             <AlertTriangle className="w-5 h-5 text-black flex-shrink-0 mt-0.5" />
-             <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-               <div>
-                 <h3 className="text-sm font-semibold text-black">⚠️ Atualize seus dados</h3>
-                 <p className="text-gray-700 text-xs mt-0.5">
-                   Preencha seus dados pessoais e bancários no formulário de cadastro.
-                 </p>
-               </div>
-               <Link to={createPageUrl('MeusDados')} className="flex-shrink-0">
-                 <Button size="sm" className="bg-black hover:bg-gray-900 text-white text-xs font-medium">
-                   Preencher meus dados →
-                 </Button>
-               </Link>
-             </div>
-             <button
-               onClick={() => setDismissedDataWarning(true)}
-               className="flex-shrink-0 text-black hover:text-gray-700 transition-colors ml-1"
-               title="Dispensar aviso"
-             >
-               <X className="w-4 h-4" />
-             </button>
-           </div>
-         )}
+function PasswordDialog({ user, onClose }) {
+  return (
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Senha — {user.full_name || user.email}</DialogTitle></DialogHeader>
+        <div className="py-3 space-y-3">
+          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            Alteração de senha automática requer plano Builder+. Oriente o usuário a usar o fluxo de redefinição de senha.
+          </p>
+          <Input placeholder="Nova senha (indisponível neste plano)" disabled />
+        </div>
+        <Button variant="outline" onClick={onClose} className="w-full">Fechar</Button>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
-        {/* Botão buscar duplicados - só coordenadores */}
-        {isCoordenador && !showSponsorView && (
-          <>
-            <div className="flex justify-end mb-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowDuplicates(true)}
-                className="gap-2 text-xs border-gray-200 text-gray-600 hover:text-orange-600 hover:border-orange-300"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                Verificar relatórios duplicados
-              </Button>
-            </div>
-            <DuplicateReportsModal open={showDuplicates} onClose={() => setShowDuplicates(false)} />
-          </>
-        )}
+function PermissionsDialog({ user, permissions, onClose }) {
+  const queryClient = useQueryClient();
+  const [role, setRole] = useState(permissions?.base_role || 'PROFISSIONAL');
+  const [perms, setPerms] = useState(permissions || {});
+  const [saving, setSaving] = useState(false);
 
-        {/* Carrossel de Notícias */}
-        <NewsCarousel />
+  async function save() {
+    setSaving(true);
+    try {
+      const data = { ...perms, base_role: role, user_email: user.email, user_name: user.full_name };
+      if (perms?.id) {
+        await base44.entities.UserPermission.update(perms.id, data);
+      } else {
+        await base44.entities.UserPermission.create(data);
+      }
+      toast.success('Permissões salvas!');
+      queryClient.invalidateQueries(['user-management']);
+      onClose();
+    } catch (e) { toast.error('Erro: ' + e.message); }
+    setSaving(false);
+  }
 
-        {/* Visão Patrocinador */}
-        {showSponsorView ? (
-          <>
-            <ExecutiveIndicators reports={allReports} rubricas={rubricas} />
-            <div className="mt-8">
-              <DashboardPatrocinador />
-            </div>
-          </>
-        ) : showCoordView ? (
-          <>
-            <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
-            <CoordDashboard reports={allReports} isLoading={loadingAll} />
-            <ExecutiveIndicators reports={allReports} rubricas={rubricas} />
-          </>
-        ) : (
+  return (
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Permissões — {user.full_name || user.email}</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
           <div>
-            {/* Filtros */}
-            <AdvancedFilters onFilterChange={setFilters} activeFilters={filters} />
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
-              {stats.map(s => (
-                <div key={s.label} className="p-4 border border-gray-200 rounded-xl">
-                  <p className="text-2xl font-semibold text-black">{s.value}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+            <Label className="text-sm font-semibold mb-2 block">Papel principal</Label>
+            <Select value={role} onValueChange={setRole}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
+                <SelectItem value="COORDENADOR">Coordenador</SelectItem>
+                <SelectItem value="ADMIN">Administrador</SelectItem>
+                <SelectItem value="OBSERVADOR">Observador (somente leitura)</SelectItem>
+                <SelectItem value="PATROCINADOR">Patrocinador</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-sm font-semibold mb-2 block">Permissões específicas</Label>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {PERMISSION_GROUPS.map(p => (
+                <div key={p.key} className="flex items-center gap-3">
+                  <Checkbox
+                    id={p.key}
+                    checked={perms[p.key] === true}
+                    onCheckedChange={v => setPerms(prev => ({ ...prev, [p.key]: v }))}
+                  />
+                  <label htmlFor={p.key} className="text-sm text-gray-700 cursor-pointer">{p.label}</label>
                 </div>
               ))}
             </div>
-
-            {/* Widgets Dinâmicos */}
-            {widgetsLoaded && (
-              <div className="space-y-8">
-                {widgets.activityMetrics.enabled && (
-                  <div>
-                    <h2 className="text-lg font-medium text-black mb-4">{widgets.activityMetrics.title}</h2>
-                    <ActivityMetricsWidget reports={filteredReports} />
-                  </div>
-                )}
-
-                {widgets.opportunityMetrics.enabled && (
-                  <div>
-                    <h2 className="text-lg font-medium text-black mb-4">{widgets.opportunityMetrics.title}</h2>
-                    <OpportunityMetricsWidget reports={filteredReports} />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Recentes */}
-            {widgets.recentReports.enabled && (
-              <>
-                <div className="flex items-center justify-between mb-4 mt-8">
-                  <h2 className="text-lg font-medium text-black">{widgets.recentReports.title}</h2>
-                  <Link to={createPageUrl('Relatorios')}>
-                    <Button variant="ghost" size="sm" className="text-gray-500 gap-1">
-                      Ver todos <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </Link>
-                </div>
-
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {isLoading ? (
-                    <div className="col-span-full text-center py-20 text-gray-400">Carregando...</div>
-                  ) : recentReports.length === 0 ? (
-                    <div className="col-span-full text-center py-16 border-2 border-dashed border-black rounded-2xl bg-white">
-                      <FileText className="w-12 h-12 text-black mx-auto mb-4 opacity-50" />
-                      <p className="text-black font-medium">Sem dados disponíveis</p>
-                      <p className="text-gray-600 text-sm mt-1">Crie um novo relatório para começar</p>
-                    </div>
-                  ) : (
-                    recentReports.map(report => {
-                      const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.DRAFT;
-                      const StatusIcon = cfg.icon;
-                      const atividades = Array.isArray(report.atividades) ? report.atividades : [];
-                      const nMeta = atividades.filter(a => a.classificacao === 'META').length;
-                      const nRot  = atividades.filter(a => a.classificacao === 'ROTINA').length;
-                      const nExt  = atividades.filter(a => a.classificacao === 'EXTRA').length;
-                      return (
-                        <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block group">
-                          <div className="h-full p-5 rounded-2xl border-2 border-black hover:shadow-md transition-all bg-white">
-                            <div className="flex items-center justify-between mb-4">
-                              <Badge className={`${cfg.color} font-normal gap-1`}>
-                                <StatusIcon className="w-3 h-3" />{cfg.label}
-                              </Badge>
-                              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
-                            </div>
-                            <h3 className="font-semibold text-black text-base leading-tight">
-                              {report.mes_referencia} {report.ano}
-                            </h3>
-                            <p className="text-sm text-gray-500 mt-1 truncate">{report.author_name}</p>
-                            <p className="text-xs text-gray-400 mt-0.5">{report.museu}</p>
-                            {(nMeta + nRot + nExt) > 0 && (
-                              <div className="flex gap-1.5 mt-4 flex-wrap">
-                                {nMeta > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>}
-                                {nRot > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>}
-                                {nExt > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>}
-                              </div>
-                            )}
-                          </div>
-                        </Link>
-                      );
-                    })
-                  )}
-                </div>
-              </>
-            )}
           </div>
+        </div>
+        <div className="flex gap-2 pt-2">
+          <Button onClick={save} disabled={saving} className="flex-1 gap-2">
+            <Save className="w-4 h-4" />
+            {saving ? 'Salvando...' : 'Salvar'}
+          </Button>
+          <Button variant="outline" onClick={onClose} className="flex-1">Cancelar</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function UserCard({ user, onEdit, onPassword, onPermissions, onRoleChange, onDelete }) {
+  const role = user.permissions?.base_role || user.role || 'user';
+  const initials = (user.full_name || user.email || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const funcao = user.funcao || null;
+  const equipe = user.equipe || null;
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center gap-4 border border-gray-200 rounded-2xl px-5 py-4 bg-white hover:bg-gray-50 transition-colors">
+      {/* Avatar + info */}
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="w-10 h-10 rounded-full bg-gray-900 text-white flex items-center justify-center text-sm font-semibold flex-shrink-0">
+          {initials}
+        </div>
+        <div className="min-w-0">
+          <p className="font-semibold text-gray-900 truncate">{user.full_name || '—'}</p>
+          {funcao && <p className="text-xs text-gray-600 truncate">{funcao}</p>}
+          <p className="text-xs text-gray-500 truncate">{user.email}</p>
+          {user.numero_matricula && (
+            <p className="text-xs text-gray-400 font-mono mt-0.5">{user.numero_matricula}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Role select + equipe badges + actions */}
+      <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+        {equipe && (
+          <Badge className="text-xs px-2.5 py-0.5 bg-slate-100 text-slate-600">{equipe}</Badge>
         )}
+
+        {/* Inline role selector */}
+        <Select value={role} onValueChange={v => onRoleChange(user, v)}>
+          <SelectTrigger className={`h-7 text-xs px-2.5 border-0 font-medium ${ROLE_COLORS[role] || ROLE_COLORS.user}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
+            <SelectItem value="COORDENADOR">Coordenador</SelectItem>
+            <SelectItem value="ADMIN">Administrador</SelectItem>
+            <SelectItem value="OBSERVADOR">Observador</SelectItem>
+            <SelectItem value="PATROCINADOR">Patrocinador</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => onEdit(user)}>
+          <Pencil className="w-3 h-3" />
+          Editar
+        </Button>
+        <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => onPassword(user)}>
+          <KeyRound className="w-3 h-3" />
+          Senha
+        </Button>
+        <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => onPermissions(user)}>
+          Permissões
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5 text-xs h-8 border-red-200 text-red-600 hover:bg-red-50"
+          onClick={() => onDelete(user)}
+        >
+          <Trash2 className="w-3 h-3" />
+          Excluir
+        </Button>
       </div>
     </div>
   );
 }
 
-export default function Dashboard() {
-  return <RequireAuth><DashboardInner /></RequireAuth>;
+export default function UserManagement() {
+  const [search, setSearch] = useState('');
+  const [editingUser, setEditingUser] = useState(null);
+  const [passwordUser, setPasswordUser] = useState(null);
+  const [permissionsUser, setPermissionsUser] = useState(null);
+  const [showInvite, setShowInvite] = useState(false);
+  const [deletingUser, setDeletingUser] = useState(null);
+  const queryClient = useQueryClient();
+
+  const { data = [], isLoading } = useQuery({
+    queryKey: ['user-management'],
+    queryFn: async () => {
+      const [users, permissions] = await Promise.all([
+        base44.entities.User.list(),
+        base44.entities.UserPermission.list(),
+      ]);
+      return users.map(u => ({
+        ...u,
+        permissions: permissions.find(p => p.user_email === u.email) || null,
+      }));
+    },
+  });
+
+  async function handleDelete(user) {
+    if (!window.confirm(`Tem certeza que deseja excluir o usuário "${user.full_name || user.email}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      if (user.permissions?.id) {
+        await base44.entities.UserPermission.delete(user.permissions.id);
+      }
+      await base44.entities.User.delete(user.id);
+      toast.success('Usuário excluído com sucesso.');
+      queryClient.invalidateQueries(['user-management']);
+    } catch (e) { toast.error('Erro ao excluir: ' + e.message); }
+  }
+
+  async function handleRoleChange(user, newRole) {
+    try {
+      const perms = user.permissions;
+      const d = { base_role: newRole, user_email: user.email, user_name: user.full_name };
+      if (perms?.id) {
+        await base44.entities.UserPermission.update(perms.id, { ...perms, ...d });
+      } else {
+        await base44.entities.UserPermission.create(d);
+      }
+      toast.success(`Papel alterado para ${newRole}`);
+      queryClient.invalidateQueries(['user-management']);
+    } catch (e) { toast.error('Erro: ' + e.message); }
+  }
+
+  const filtered = data.filter(u =>
+    (u.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (u.email || '').toLowerCase().includes(search.toLowerCase())
+  );
+
+  const cadastroUrl = `${window.location.origin}/Cadastro`;
+
+  return (
+    <div className="min-h-screen bg-white">
+      <div className="max-w-4xl mx-auto px-4 md:px-6 py-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Users className="w-5 h-5 text-black" />
+              <h1 className="text-2xl font-semibold text-black">Gestão de Usuários</h1>
+            </div>
+            <p className="text-sm text-gray-500">{data.length} usuário(s) cadastrado(s)</p>
+          </div>
+          <Button onClick={() => setShowInvite(true)} className="gap-2">
+            <UserPlus className="w-4 h-4" />
+            Convidar
+          </Button>
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-5">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            placeholder="Buscar por nome ou email..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-10 bg-gray-50 border-gray-200"
+          />
+        </div>
+
+        {/* List */}
+        {isLoading ? (
+          <div className="text-center py-16 text-gray-400">Carregando usuários...</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">Nenhum usuário encontrado</div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map(u => (
+              <UserCard
+                key={u.id}
+                user={u}
+                onEdit={setEditingUser}
+                onPassword={setPasswordUser}
+                onPermissions={setPermissionsUser}
+                onRoleChange={handleRoleChange}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {editingUser && <EditDialog user={editingUser} onClose={() => setEditingUser(null)} />}
+      {passwordUser && <PasswordDialog user={passwordUser} onClose={() => setPasswordUser(null)} />}
+      {permissionsUser && (
+        <PermissionsDialog
+          user={permissionsUser}
+          permissions={permissionsUser.permissions}
+          onClose={() => setPermissionsUser(null)}
+        />
+      )}
+      {showInvite && (
+        <InviteDialog open={showInvite} onClose={() => setShowInvite(false)} cadastroUrl={cadastroUrl} />
+      )}
+    </div>
+  );
 }
