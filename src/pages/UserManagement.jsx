@@ -7,7 +7,19 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Search, UserPlus, Trash2, UserCheck, XCircle, Clock, Save } from 'lucide-react';
+import {
+  Search,
+  UserPlus,
+  Trash2,
+  UserCheck,
+  XCircle,
+  Clock,
+  Save,
+  Pencil,
+  KeyRound,
+  ShieldCheck,
+  MessageSquare
+} from 'lucide-react';
 import { toast } from 'sonner';
 import InviteDialog from '@/components/users/InviteDialog';
 
@@ -109,7 +121,7 @@ function RegistrationCard({ item, onApprove, onReject }) {
   );
 }
 
-function UserCard({ user, onDelete }) {
+function UserCard({ user, onEdit, onPassword, onPermissions, onMessage, onDelete }) {
   const role = user.permission?.base_role || user.role || user.role_aprovada || 'PROFISSIONAL';
 
   return (
@@ -125,16 +137,24 @@ function UserCard({ user, onDelete }) {
       <div className="flex items-center gap-2 flex-wrap">
         <Badge variant="outline">{role}</Badge>
 
-        <Button size="sm" variant="outline">
+        <Button size="sm" variant="outline" onClick={() => onEdit(user)}>
+          <Pencil className="w-4 h-4 mr-1" />
           Editar
         </Button>
 
-        <Button size="sm" variant="outline">
+        <Button size="sm" variant="outline" onClick={() => onPassword(user)}>
+          <KeyRound className="w-4 h-4 mr-1" />
           Senha
         </Button>
 
-        <Button size="sm" variant="outline">
+        <Button size="sm" variant="outline" onClick={() => onPermissions(user)}>
+          <ShieldCheck className="w-4 h-4 mr-1" />
           Permissões
+        </Button>
+
+        <Button size="sm" variant="outline" onClick={() => onMessage(user)}>
+          <MessageSquare className="w-4 h-4 mr-1" />
+          Mensagem
         </Button>
 
         <Button size="sm" variant="outline" onClick={() => onDelete(user)} className="text-red-600">
@@ -234,7 +254,7 @@ function CreateUserDialog({ open, onClose, onCreated }) {
         }
       }
 
-      toast.success('Usuário registrado.');
+      toast.success('Usuário registrado com sucesso.');
       onCreated?.();
       onClose?.();
     } catch (e) {
@@ -329,10 +349,280 @@ function CreateUserDialog({ open, onClose, onCreated }) {
   );
 }
 
+function EditUserDialog({ user, open, onClose, onSaved }) {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    full_name: user.full_name || user.nome || '',
+    funcao: user.funcao || '',
+    equipe: user.equipe || '',
+    area: user.area || user.museu || 'Geral',
+  });
+
+  async function handleSave() {
+    setSaving(true);
+
+    try {
+      if (user.is_registration_user && user.registration_id) {
+        await base44.entities.UserRegistration.update(user.registration_id, {
+          full_name: form.full_name,
+          nome: form.full_name,
+          funcao: form.funcao,
+          equipe: form.equipe,
+          area: form.area,
+          museu: form.area,
+        });
+      } else {
+        await base44.entities.User.update(user.id, {
+          full_name: form.full_name,
+          nome: form.full_name,
+          funcao: form.funcao,
+          equipe: form.equipe,
+          area: form.area,
+          museu: form.area,
+        });
+      }
+
+      if (user.permission?.id) {
+        await base44.entities.UserPermission.update(user.permission.id, {
+          user_name: form.full_name,
+          funcao: form.funcao,
+          equipe: form.equipe,
+          area: form.area,
+          museu: form.area,
+        });
+      }
+
+      toast.success('Usuário atualizado com sucesso.');
+      onSaved?.();
+      onClose?.();
+    } catch (e) {
+      toast.error('Erro ao editar usuário.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Editar usuário</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div>
+            <Label>Nome</Label>
+            <Input value={form.full_name} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} />
+          </div>
+
+          <div>
+            <Label>Área</Label>
+            <Select value={form.area} onValueChange={(v) => setForm((f) => ({ ...f, area: v }))}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AREA_OPTIONS.map((area) => (
+                  <SelectItem key={area} value={area}>{area}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Equipe</Label>
+            <Select value={form.equipe} onValueChange={(v) => setForm((f) => ({ ...f, equipe: v }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar equipe" />
+              </SelectTrigger>
+              <SelectContent>
+                {EQUIPE_OPTIONS.map((equipe) => (
+                  <SelectItem key={equipe} value={equipe}>{equipe}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Função</Label>
+            <Input value={form.funcao} onChange={(e) => setForm((f) => ({ ...f, funcao: e.target.value }))} />
+          </div>
+
+          <Button onClick={handleSave} disabled={saving} className="w-full">
+            {saving ? 'Salvando...' : 'Salvar alterações'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PasswordDialog({ user, open, onClose }) {
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Senha</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-3">
+            Para alterar senha, envie convite/redefinição pelo Base44. Usuário: {user?.email}
+          </p>
+
+          <Button
+            className="w-full"
+            onClick={() => {
+              toast.success('Oriente o usuário a usar redefinição de senha no login.');
+              onClose?.();
+            }}
+          >
+            Entendi
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PermissionsDialog({ user, open, onClose, onSaved }) {
+  const [saving, setSaving] = useState(false);
+  const [role, setRole] = useState(user.permission?.base_role || user.role || user.role_aprovada || 'PROFISSIONAL');
+
+  async function handleSave() {
+    setSaving(true);
+
+    try {
+      const payload = {
+        ...rolePayload(role),
+        user_email: normalizeEmail(user.email),
+        user_name: user.full_name || user.nome || user.email,
+        funcao: user.funcao || '',
+        equipe: user.equipe || '',
+        area: user.area || user.museu || '',
+        museu: user.area || user.museu || '',
+      };
+
+      if (user.permission?.id) {
+        await base44.entities.UserPermission.update(user.permission.id, payload);
+      } else {
+        await base44.entities.UserPermission.create(payload);
+      }
+
+      toast.success('Permissões atualizadas com sucesso.');
+      onSaved?.();
+      onClose?.();
+    } catch (e) {
+      toast.error('Erro ao salvar permissões.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Permissões</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <Label>Perfil</Label>
+          <Select value={role} onValueChange={setRole}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ROLE_OPTIONS.map((r) => (
+                <SelectItem key={r} value={r}>{r}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button onClick={handleSave} disabled={saving} className="w-full">
+            {saving ? 'Salvando...' : 'Salvar permissões'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MessageDialog({ user, open, onClose }) {
+  const [sending, setSending] = useState(false);
+  const [mensagem, setMensagem] = useState('');
+
+  async function handleSend() {
+    if (!mensagem.trim()) {
+      toast.error('Digite uma mensagem.');
+      return;
+    }
+
+    setSending(true);
+
+    try {
+      try {
+        await base44.entities.SystemMessage.create({
+          user_email: normalizeEmail(user.email),
+          user_name: user.full_name || user.nome || user.email,
+          titulo: 'Mensagem da coordenação',
+          mensagem,
+          status: 'ENVIADA',
+          lida: false,
+        });
+      } catch (e) {
+        await base44.entities.Notification.create({
+          user_email: normalizeEmail(user.email),
+          title: 'Mensagem da coordenação',
+          message: mensagem,
+          status: 'ENVIADA',
+          read: false,
+        });
+      }
+
+      toast.success('Mensagem enviada com sucesso.');
+      onClose?.();
+    } catch (e) {
+      toast.error('Erro ao enviar mensagem.');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Enviar mensagem</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500">{user?.email}</p>
+
+          <textarea
+            value={mensagem}
+            onChange={(e) => setMensagem(e.target.value)}
+            className="w-full border rounded-md p-2 text-sm min-h-[120px]"
+            placeholder="Digite a mensagem..."
+          />
+
+          <Button onClick={handleSend} disabled={sending} className="w-full">
+            {sending ? 'Enviando...' : 'Enviar mensagem'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function UserManagement() {
   const [search, setSearch] = useState('');
   const [showInvite, setShowInvite] = useState(false);
   const [showCreateUser, setShowCreateUser] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [passwordUser, setPasswordUser] = useState(null);
+  const [permissionsUser, setPermissionsUser] = useState(null);
+  const [messageUser, setMessageUser] = useState(null);
   const queryClient = useQueryClient();
 
   const { data = { users: [], registrations: [] }, isLoading } = useQuery({
@@ -458,10 +748,10 @@ export default function UserManagement() {
         await base44.entities.User.delete(user.id);
       }
 
-      toast.success('Usuário removido.');
+      toast.success('Usuário excluído com sucesso.');
       queryClient.invalidateQueries(['user-management']);
     } catch (e) {
-      toast.error('Erro ao remover usuário.');
+      toast.error('Erro ao excluir usuário.');
     }
   }
 
@@ -523,6 +813,10 @@ export default function UserManagement() {
             <UserCard
               key={u.id}
               user={u}
+              onEdit={setEditingUser}
+              onPassword={setPasswordUser}
+              onPermissions={setPermissionsUser}
+              onMessage={setMessageUser}
               onDelete={handleDelete}
             />
           ))
@@ -542,6 +836,40 @@ export default function UserManagement() {
           open={showCreateUser}
           onClose={() => setShowCreateUser(false)}
           onCreated={() => queryClient.invalidateQueries(['user-management'])}
+        />
+      )}
+
+      {editingUser && (
+        <EditUserDialog
+          user={editingUser}
+          open={!!editingUser}
+          onClose={() => setEditingUser(null)}
+          onSaved={() => queryClient.invalidateQueries(['user-management'])}
+        />
+      )}
+
+      {passwordUser && (
+        <PasswordDialog
+          user={passwordUser}
+          open={!!passwordUser}
+          onClose={() => setPasswordUser(null)}
+        />
+      )}
+
+      {permissionsUser && (
+        <PermissionsDialog
+          user={permissionsUser}
+          open={!!permissionsUser}
+          onClose={() => setPermissionsUser(null)}
+          onSaved={() => queryClient.invalidateQueries(['user-management'])}
+        />
+      )}
+
+      {messageUser && (
+        <MessageDialog
+          user={messageUser}
+          open={!!messageUser}
+          onClose={() => setMessageUser(null)}
         />
       )}
     </div>
