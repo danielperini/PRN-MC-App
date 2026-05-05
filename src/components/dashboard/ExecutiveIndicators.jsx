@@ -17,7 +17,7 @@ function CardSection({ title, children, empty }) {
 }
 
 function getDataAtividade(a) {
-  return a?.data_realizacao || a?.data_programacao || a?.data || a?.created_date || null;
+  return a?.data_realizacao || a?.data_programacao || a?.data_inicio || a?.data || a?.created_date || null;
 }
 
 function getPublicoAtividade(a) {
@@ -44,68 +44,107 @@ function getPublicoAtividade(a) {
   return publicoMedio * vezes;
 }
 
-export default function ExecutiveIndicators({ reports = [], programacao = [] }) {
+function isReportAprovado(report) {
+  const status = String(report?.status || '').trim().toUpperCase();
+  return status === 'APPROVED' || status === 'APROVADO';
+}
+
+function getPeriodoAnterior() {
   const now = new Date();
-  const mesAtual = now.getMonth() + 1;
-  const anoAtual = now.getFullYear();
+  const mesAnteriorIndex = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+  const anoAnterior = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
 
-  const todasAtividades = [
-    ...(reports || []).flatMap(r => Array.isArray(r.atividades) ? r.atividades : []),
-    ...(programacao || [])
-  ];
+  return {
+    mesIndex: mesAnteriorIndex,
+    mesNumero: mesAnteriorIndex + 1,
+    mesNome: MONTH_ORDER[mesAnteriorIndex],
+    ano: anoAnterior,
+  };
+}
 
-  const atividadesMesAtual = React.useMemo(() => {
-    return todasAtividades.filter(a => {
-      const dataField = getDataAtividade(a);
-      if (!dataField) return false;
+function deduplicarAtividades(atividades) {
+  const seen = new Set();
 
-      const d = new Date(dataField);
-      if (Number.isNaN(d.getTime())) return false;
+  return (atividades || []).filter((a) => {
+    const titulo = String(a?.titulo || a?.nome || a?.descricao || '').trim().toLowerCase();
+    const data = String(getDataAtividade(a) || '').trim();
 
-      return d.getMonth() + 1 === mesAtual && d.getFullYear() === anoAtual;
-    }).length;
-  }, [todasAtividades, mesAtual, anoAtual]);
+    if (!titulo && !data) return true;
+
+    const key = `${titulo}|${data}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function atividadePertenceAoPeriodo(a, periodo) {
+  const dataField = getDataAtividade(a);
+  if (!dataField) return true;
+
+  const d = new Date(dataField);
+  if (Number.isNaN(d.getTime())) return true;
+
+  return d.getMonth() + 1 === periodo.mesNumero && d.getFullYear() === periodo.ano;
+}
+
+export default function ExecutiveIndicators({ reports = [], programacao = [] }) {
+  const periodoAnterior = React.useMemo(() => getPeriodoAnterior(), []);
+
+  const reportsAprovadosMesAnterior = React.useMemo(() => {
+    return (reports || []).filter((r) => {
+      if (!isReportAprovado(r)) return false;
+
+      const mesReferencia = String(r?.mes_referencia || r?.mes || '').trim();
+      const anoReferencia = Number(r?.ano || r?.ano_referencia || periodoAnterior.ano);
+
+      return mesReferencia === periodoAnterior.mesNome && anoReferencia === periodoAnterior.ano;
+    });
+  }, [reports, periodoAnterior]);
+
+  const atividadesMesAnterior = React.useMemo(() => {
+    const atividades = reportsAprovadosMesAnterior.flatMap((r) => Array.isArray(r.atividades) ? r.atividades : []);
+    const filtradasPorData = atividades.filter((a) => atividadePertenceAoPeriodo(a, periodoAnterior));
+    return deduplicarAtividades(filtradasPorData);
+  }, [reportsAprovadosMesAnterior, periodoAnterior]);
+
+  const todasAtividadesAprovadas = React.useMemo(() => {
+    const atividadesRelatorios = (reports || [])
+      .filter(isReportAprovado)
+      .flatMap((r) => Array.isArray(r.atividades) ? r.atividades : []);
+
+    return deduplicarAtividades(atividadesRelatorios);
+  }, [reports]);
 
   const publicoTotal = React.useMemo(() => {
-    return todasAtividades.reduce((sum, a) => sum + getPublicoAtividade(a), 0);
-  }, [todasAtividades]);
+    return todasAtividadesAprovadas.reduce((sum, a) => sum + getPublicoAtividade(a), 0);
+  }, [todasAtividadesAprovadas]);
 
-  const publicoMesAtual = React.useMemo(() => {
-    return todasAtividades.reduce((sum, a) => {
-      const dataField = getDataAtividade(a);
-      if (!dataField) return sum;
-
-      const d = new Date(dataField);
-      if (Number.isNaN(d.getTime())) return sum;
-
-      const isMesAtual = d.getMonth() + 1 === mesAtual && d.getFullYear() === anoAtual;
-      if (!isMesAtual) return sum;
-
-      return sum + getPublicoAtividade(a);
-    }, 0);
-  }, [todasAtividades, mesAtual, anoAtual]);
+  const publicoMesAnterior = React.useMemo(() => {
+    return atividadesMesAnterior.reduce((sum, a) => sum + getPublicoAtividade(a), 0);
+  }, [atividadesMesAnterior]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-      <CardSection title="Atividades (mês)">
+      <CardSection title={`Atividades (${periodoAnterior.mesNome}/${periodoAnterior.ano} aprovadas)`}>
         <div className="text-3xl font-bold text-black">
-          {atividadesMesAtual.toLocaleString('pt-BR')}
+          {atividadesMesAnterior.length.toLocaleString('pt-BR')}
         </div>
       </CardSection>
 
-      <CardSection title="Atividades (acumulado)">
+      <CardSection title="Atividades (acumulado aprovado)">
         <div className="text-3xl font-bold text-black">
-          {todasAtividades.length.toLocaleString('pt-BR')}
+          {todasAtividadesAprovadas.length.toLocaleString('pt-BR')}
         </div>
       </CardSection>
 
-      <CardSection title="Público Total">
+      <CardSection title="Público Total (aprovado)">
         <div className="text-3xl font-bold text-black">
           {Math.round(publicoTotal).toLocaleString('pt-BR')}
         </div>
         <p className="text-xs text-gray-500 mt-1">
-          {Math.round(publicoMesAtual).toLocaleString('pt-BR')} este mês
+          {Math.round(publicoMesAnterior).toLocaleString('pt-BR')} em {periodoAnterior.mesNome}/{periodoAnterior.ano}
         </p>
       </CardSection>
 
