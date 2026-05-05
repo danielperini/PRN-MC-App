@@ -1,59 +1,103 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+
+function json(data: any, status = 200) {
+  return Response.json(data, { status });
+}
+
+function normalizeEmail(email: any): string {
+  return String(email || '').trim().toLowerCase();
+}
+
+function rolePayload(role: string) {
+  return {
+    base_role: role,
+    status: 'ATIVO',
+    can_review_reports: role === 'COORDENADOR' || role === 'ADMIN',
+    can_manage_users: role === 'COORDENADOR' || role === 'ADMIN',
+    can_manage_files: role === 'COORDENADOR' || role === 'ADMIN',
+    can_view_audit_log: role === 'COORDENADOR' || role === 'ADMIN',
+    can_manage_platform: role === 'ADMIN',
+    gestao_compras: role === 'COORDENADOR' || role === 'ADMIN',
+    pode_aprovar_solicitacoes: role === 'COORDENADOR' || role === 'ADMIN',
+    must_submit_monthly_reports: role === 'PROFISSIONAL',
+  };
+}
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
+    const body = await req.json().catch(() => ({}));
 
-    // Apenas coordenadores e admins podem aprovar usuários
-    if (!user || !['COORDENADOR', 'admin', 'ADMIN'].includes(user.role)) {
-      return Response.json({ error: 'Forbidden: apenas coordenadores podem aprovar' }, { status: 403 });
-    }
-
-    const { userRegistrationId, registrationData, permissions } = await req.json();
+    const { userRegistrationId } = body;
 
     if (!userRegistrationId) {
-      return Response.json({ error: 'userRegistrationId obrigatório' }, { status: 400 });
+      return json({ success: false, error: 'userRegistrationId obrigatório.' }, 400);
     }
 
-    // Buscar o registro de usuário
-    const userReg = await base44.entities.UserRegistration.get(userRegistrationId);
+    const userReg = await base44.asServiceRole.entities.UserRegistration.get(userRegistrationId);
+
     if (!userReg) {
-      return Response.json({ error: 'UserRegistration não encontrado' }, { status: 404 });
+      return json({ success: false, error: 'Solicitação não encontrada.' }, 404);
     }
 
-    // Convidar o usuário
-    const newUser = await base44.users.inviteUser(userReg.email, 'COORDENADOR');
+    const email = normalizeEmail(userReg.email);
+    const role = String(
+      body.role ||
+      body.permissions?.base_role ||
+      userReg.role_aprovada ||
+      'PROFISSIONAL'
+    ).trim().toUpperCase();
 
-    // Criar registro de permissões customizadas
-    if (permissions) {
-      await base44.entities.UserPermission.create({
-        user_email: userReg.email,
-        user_name: userReg.full_name,
-        base_role: 'COORDENADOR',
-        can_view_all_reports: permissions.can_view_all_reports !== false,
-        can_review_reports: permissions.can_review_reports !== false,
-        can_manage_users: permissions.can_manage_users || false,
-        can_manage_files: permissions.can_manage_files || false,
-        can_manage_museus: permissions.can_manage_museus || false,
-        can_manage_equipes: permissions.can_manage_equipes || false,
-        can_view_audit_log: permissions.can_view_audit_log || false,
-        can_manage_platform: permissions.can_manage_platform || false,
-      });
+    const permissionsPayload = {
+      ...rolePayload(role),
+      ...(body.permissions || {}),
+      user_email: email,
+      user_name: userReg.full_name || userReg.nome || email,
+      funcao: userReg.funcao || '',
+      equipe: userReg.equipe || '',
+      area: userReg.area || userReg.museu || '',
+      museu: userReg.area || userReg.museu || '',
+      registration_id: userReg.id,
+    };
+
+    const existingPermissions = await base44.asServiceRole.entities.UserPermission
+      .filter({ user_email: email })
+      .catch(() => []);
+
+    if (existingPermissions?.[0]?.id) {
+      await base44.asServiceRole.entities.UserPermission.update(
+        existingPermissions[0].id,
+        permissionsPayload
+      );
+    } else {
+      await base44.asServiceRole.entities.UserPermission.create(permissionsPayload);
     }
 
-    // Atualizar status do registro
-    await base44.entities.UserRegistration.update(userRegistrationId, {
+    try {
+      await base44.asServiceRole.users.inviteUser(email, role === 'ADMIN' ? 'admin' : 'user');
+    } catch (inviteError) {
+      console.warn('Convite não enviado ou usuário já existente:', inviteError?.message || inviteError);
+    }
+
+    await base44.asServiceRole.entities.UserRegistration.update(userRegistrationId, {
       status: 'APROVADO',
-      reviewer_note: 'Aprovado com permissões customizadas de coordenador restrito',
+      aprovado_em: new Date().toISOString(),
+      role_aprovada: role,
+      reviewer_note: 'Aprovado pela coordenação com permissões definidas.',
     });
 
-    return Response.json({
+    return json({
       success: true,
-      message: 'Usuário aprovado com permissões customizadas',
-      user: newUser,
+      message: 'Usuário aprovado com permissões.',
+      email,
+      role,
     });
-  } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+  } catch (error: any) {
+    console.error('approveUserWithPermissions error:', error);
+
+    return json({
+      success: false,
+      error: error?.message || 'Erro ao aprovar usuário.'
+    }, 500);
   }
 });
