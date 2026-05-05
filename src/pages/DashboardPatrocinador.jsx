@@ -1,28 +1,82 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Calendar, Users, TrendingUp, Target, Award, RotateCw, Filter, Wallet } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
+import {
+  Calendar,
+  Users,
+  Wallet,
+  TrendingUp,
+  Target,
+  RotateCw,
+  MapPin,
+  Activity,
+  Landmark,
+  Clock
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import NewsCarousel from '@/components/dashboard/NewsCarousel';
-import RubricaSelectorPanel from '@/components/patrocinador/RubricaSelectorPanel';
 import AgendaCard from '@/components/patrocinador/AgendaCard';
 import DataSyncAuditPanel from '@/components/dashboard/DataSyncAuditPanel';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTheme } from '@/context/ThemeContext';
 
-const CHART_COLORS = ['#6366f1','#f97316','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16','#14b8a6'];
-const CHART_COLORS_MUSEUBH = ['#2E6F95','#7A1E2C','#D9C6A5','#5FA8D3','#8B4513','#4B0082','#D4A574','#654321'];
-const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(v || 0);
+const CHART_COLORS = ['#111827', '#4B5563', '#9CA3AF', '#D1D5DB'];
+const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
 
-const getAtividadeDate = (atividade) => {
-  const raw = atividade?.data_realizacao || atividade?.data_programacao || atividade?.data || atividade?.created_date || atividade?.updated_date;
+const fmtBRL = (v) =>
+  new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0
+  }).format(Number(v || 0));
+
+const fmtInt = (v) =>
+  Math.round(Number(v || 0)).toLocaleString('pt-BR');
+
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function getDateValue(item) {
+  const raw =
+    item?.data_realizacao ||
+    item?.data_programacao ||
+    item?.data_inicio ||
+    item?.data ||
+    item?.inicio ||
+    item?.created_date ||
+    item?.updated_date;
+
   if (!raw) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(raw))) {
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  const br = String(raw).match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) {
+    const d = new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
   const d = new Date(raw);
   return Number.isNaN(d.getTime()) ? null : d;
-};
+}
 
-const getAtividadePublico = (atividade) => {
+function getActivityPublico(atividade) {
   const publicoDireto =
     Number(atividade?.publico_total) ||
     Number(atividade?.publico_estimado) ||
@@ -44,7 +98,58 @@ const getAtividadePublico = (atividade) => {
     1;
 
   return publicoMedio * ocorrencias;
-};
+}
+
+function getProgramacaoTitle(item) {
+  return (
+    item?.nome_acao ||
+    item?.titulo ||
+    item?.atividade ||
+    item?.nome ||
+    item?.evento ||
+    'Atividade programada'
+  );
+}
+
+function getProgramacaoMuseu(item) {
+  return item?.museu || item?.centro_custo || item?.local_museu || item?.equipamento || item?.local || 'Museus Centro';
+}
+
+function KpiCard({ icon: Icon, label, value, helper, dark = false }) {
+  return (
+    <div className={`rounded-2xl border p-5 shadow-sm min-w-0 ${
+      dark ? 'bg-black text-white border-black' : 'bg-white text-black border-gray-200'
+    }`}>
+      <div className="flex items-center gap-2 mb-3">
+        <Icon className={`w-4 h-4 ${dark ? 'text-white' : 'text-gray-500'}`} />
+        <span className={`text-[11px] uppercase tracking-wide font-semibold ${dark ? 'text-gray-300' : 'text-gray-500'}`}>
+          {label}
+        </span>
+      </div>
+      <p className={`text-3xl font-bold leading-tight truncate ${dark ? 'text-white' : 'text-black'}`}>
+        {value}
+      </p>
+      {helper && (
+        <p className={`text-xs mt-1 truncate ${dark ? 'text-gray-300' : 'text-gray-500'}`}>
+          {helper}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SectionCard({ title, children, className = '' }) {
+  return (
+    <Card className={`rounded-2xl border-gray-200 shadow-sm ${className}`}>
+      <CardContent className="p-5">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-4">
+          {title}
+        </h3>
+        {children}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function DashboardPatrocinador() {
   const { themeId } = useTheme();
@@ -52,126 +157,203 @@ export default function DashboardPatrocinador() {
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
   const isFetchingRef = useRef(false);
-  const [filterTipoAtividade, setFilterTipoAtividade] = useState('todas');
-  const [chartTypeOrcamento, setChartTypeOrcamento] = useState('bar');
-  const chartColors = themeId === 'museubh' ? CHART_COLORS_MUSEUBH : CHART_COLORS;
+
   const [data, setData] = useState({
     periodo: '',
-    museus: ['MIS', 'MHAB', 'MUMO'],
     totalAtividadesMes: 0,
     totalAtividadesAno: 0,
     totalPublico: 0,
     publicoMes: 0,
+    atividadesPrevistasMes: 0,
     atividades: [],
+    programacao: [],
+    proximaAgenda: null,
+    agendaDoDia: [],
     rubricas: [],
     dadosMensais: [],
     dadosClassificacao: [],
-    totalOrcado: 0,
+    comparativoMuseu: [],
+    totalOrcado: 1320000,
     totalUtilizado: 0,
-    saldoTotal: 0,
+    saldoTotal: 1320000,
     percentualExecucao: 0,
-    hasData: false,
+    hasData: false
   });
 
   const loadDashboardData = useCallback(async (silent = false) => {
     if (isFetchingRef.current) return;
+
     isFetchingRef.current = true;
+
     if (!silent) setLoading(true);
     else setRefreshing(true);
+
     try {
+      const hoje = new Date();
+      const hojeInicio = startOfDay(hoje);
+      const mesAtual = hoje.getMonth();
+      const anoAtual = hoje.getFullYear();
+
       const [reportsRaw, programacaoRaw, rubricasRaw] = await Promise.all([
-        base44.entities.Report.filter({ status: 'APPROVED' }, '-updated_date', 200),
-        base44.entities.Programacao.list('-data_realizacao', 200).catch(() => []),
-        base44.entities.Rubrica.list('ordem_exibicao', 300),
+        base44.entities.Report.filter({ status: 'APPROVED' }, '-updated_date', 300).catch(() => []),
+        base44.entities.Programacao.list('-data_realizacao', 1000).catch(() => []),
+        base44.entities.Rubrica.list('ordem_exibicao', 1000).catch(() => [])
       ]);
 
-      const todasAsAtividades = [
-        ...(reportsRaw || []).filter(r => r.atividades).flatMap(r => r.atividades || []),
-        ...(programacaoRaw || [])
-      ];
+      const reports = Array.isArray(reportsRaw) ? reportsRaw : [];
+      const programacao = (Array.isArray(programacaoRaw) ? programacaoRaw : []).filter((item) => {
+        const status = String(item?.status || item?.situacao || '').toUpperCase();
+        return !['CANCELADO', 'CANCELADA', 'INATIVO', 'INATIVA'].includes(status);
+      });
+
+      const atividadesRelatorios = reports.flatMap((report) => {
+        const atividades = Array.isArray(report?.atividades) ? report.atividades : [];
+        return atividades.map((atividade) => ({
+          ...atividade,
+          _source: 'report',
+          _museu: report?.museu,
+          _reportMonth: report?.mes_referencia,
+          _reportYear: report?.ano,
+          _date: getDateValue(atividade) || getDateValue(report)
+        }));
+      });
+
+      const atividadesProgramacao = programacao.map((item) => ({
+        ...item,
+        _source: 'programacao',
+        _museu: getProgramacaoMuseu(item),
+        _date: getDateValue(item)
+      }));
+
+      const todasAsAtividades = [...atividadesRelatorios, ...atividadesProgramacao];
+
+      const atividadesMes = todasAsAtividades.filter((item) => {
+        const d = item?._date;
+        if (!d) return false;
+        return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+      });
+
+      const programacaoMes = atividadesProgramacao.filter((item) => {
+        const d = item?._date;
+        if (!d) return false;
+        return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+      });
+
+      const agendaHoje = atividadesProgramacao
+        .filter((item) => item?._date && startOfDay(item._date).getTime() === hojeInicio.getTime())
+        .sort((a, b) => String(a.horario || '').localeCompare(String(b.horario || '')));
+
+      const futuras = atividadesProgramacao
+        .filter((item) => item?._date && startOfDay(item._date).getTime() >= hojeInicio.getTime())
+        .sort((a, b) => startOfDay(a._date).getTime() - startOfDay(b._date).getTime());
+
+      const proximaAgenda = agendaHoje[0] || futuras[0] || null;
 
       const atividadesPorMes = {};
-      todasAsAtividades.forEach((a) => {
-        const d = getAtividadeDate(a);
+      todasAsAtividades.forEach((item) => {
+        const d = item?._date;
         if (!d) return;
+
         const chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        if (!atividadesPorMes[chave]) atividadesPorMes[chave] = { mes: chave, atividades: 0, publico: 0 };
+
+        if (!atividadesPorMes[chave]) {
+          atividadesPorMes[chave] = {
+            mes: chave,
+            atividades: 0,
+            publico: 0
+          };
+        }
+
         atividadesPorMes[chave].atividades += 1;
-        atividadesPorMes[chave].publico += getAtividadePublico(a);
-      });
-      const dadosMensais = Object.values(atividadesPorMes).sort((a, b) => a.mes.localeCompare(b.mes)).slice(-12);
-
-      const mesReferencia = dadosMensais.length > 0 ? dadosMensais[dadosMensais.length - 1].mes : null;
-      const [anoReferencia, mesReferenciaNumero] = mesReferencia
-        ? mesReferencia.split('-').map(Number)
-        : [new Date().getFullYear(), new Date().getMonth() + 1];
-
-      const atividadesMes = todasAsAtividades.filter((a) => {
-        const d = getAtividadeDate(a);
-        if (!d) return false;
-        return d.getMonth() + 1 === mesReferenciaNumero && d.getFullYear() === anoReferencia;
+        atividadesPorMes[chave].publico += getActivityPublico(item);
       });
 
-      const publicoMes = atividadesMes.reduce((sum, a) => sum + getAtividadePublico(a), 0);
-      const totalPublico = todasAsAtividades.reduce((sum, a) => sum + getAtividadePublico(a), 0);
+      const dadosMensais = Object.values(atividadesPorMes)
+        .sort((a, b) => a.mes.localeCompare(b.mes))
+        .slice(-6)
+        .map((item) => ({
+          ...item,
+          atividades: Math.round(item.atividades),
+          publico: Math.round(item.publico)
+        }));
 
-      const atividadesClassificacao = {};
-      atividadesMes.forEach((a) => {
-        const c = a?.classificacao || 'Outro';
-        atividadesClassificacao[c] = (atividadesClassificacao[c] || 0) + 1;
+      const classificacao = {};
+      atividadesRelatorios.forEach((item) => {
+        const nome = String(item?.classificacao || 'Outro').toUpperCase();
+        classificacao[nome] = (classificacao[nome] || 0) + 1;
       });
-      const dadosClassificacao = Object.entries(atividadesClassificacao).map(([nome, quantidade]) => ({
-        nome, quantidade,
-        display: nome === 'META' ? 'Metas' : nome === 'ROTINA' ? 'Rotina' : nome === 'EXTRA' ? 'Extra' : nome
+
+      const dadosClassificacao = Object.entries(classificacao).map(([nome, quantidade]) => ({
+        nome,
+        quantidade,
+        display:
+          nome === 'META'
+            ? 'Metas'
+            : nome === 'ROTINA'
+              ? 'Rotina'
+              : nome === 'EXTRA'
+                ? 'Extra'
+                : nome
       }));
 
-      // Rubricas — apenas ativas, deduplicadas
+      const comparativoMuseu = MUSEUS.map((museu) => {
+        const items = todasAsAtividades.filter((item) => String(item?._museu || '').toUpperCase().includes(museu));
+        const relatorios = reports.filter((r) => r.museu === museu || r.museu_secundario === museu).length;
+
+        return {
+          museu,
+          relatorios,
+          atividades: items.length,
+          publico: Math.round(items.reduce((sum, item) => sum + getActivityPublico(item), 0))
+        };
+      });
+
       const TOTAL_OFICIAL = 1320000;
       const rubricasUnicas = new Map();
-      (rubricasRaw || []).forEach((r) => {
-        if (r?.ativo === false) return;
-        if (r?.id && !rubricasUnicas.has(r.id)) rubricasUnicas.set(r.id, r);
-      });
-      const rubricasAgrupadas = {};
-      rubricasUnicas.forEach((r) => {
-        const grupo = r?.grupo || 'Outros';
-        if (!rubricasAgrupadas[grupo]) rubricasAgrupadas[grupo] = { nome: grupo, previsto: 0, utilizado: 0, saldo: 0 };
-        const previsto = Number(r?.valor_rubrica || 0);
-        const utilizado = Number(r?.valor_utilizado || 0);
-        rubricasAgrupadas[grupo].previsto += previsto;
-        rubricasAgrupadas[grupo].utilizado += utilizado;
-        rubricasAgrupadas[grupo].saldo += (previsto - utilizado);
-      });
-      const rubricasData = Object.values(rubricasAgrupadas).map((r) => ({
-        ...r, previsto: Number(r.previsto.toFixed(2)), utilizado: Number(r.utilizado.toFixed(2)), saldo: Number(r.saldo.toFixed(2))
-      }));
 
-      const atividadesPorTipo = {};
-      atividadesMes.forEach((a) => {
-        const tipo = a?.tipo_atividade || a?.tipo_programacao || 'Outro';
-        atividadesPorTipo[tipo] = (atividadesPorTipo[tipo] || 0) + 1;
+      (rubricasRaw || []).forEach((rubrica) => {
+        if (rubrica?.ativo === false) return;
+        if (rubrica?.id && !rubricasUnicas.has(rubrica.id)) {
+          rubricasUnicas.set(rubrica.id, rubrica);
+        }
       });
-      const atividades = Object.entries(atividadesPorTipo).filter(([, c]) => c > 0).map(([tipo, quantidade]) => ({ tipo, quantidade }));
 
-      const totalUtilizado = rubricasData.reduce((sum, r) => sum + r.utilizado, 0);
-      const totalOrcado = TOTAL_OFICIAL;
+      const totalUtilizado = Array.from(rubricasUnicas.values()).reduce(
+        (sum, rubrica) => sum + Number(rubrica?.valor_utilizado || 0),
+        0
+      );
+
       const saldoTotal = TOTAL_OFICIAL - totalUtilizado;
-      const percentualExecucao = Number((totalUtilizado / TOTAL_OFICIAL * 100).toFixed(1));
+      const percentualExecucao = TOTAL_OFICIAL > 0 ? Number(((totalUtilizado / TOTAL_OFICIAL) * 100).toFixed(1)) : 0;
+
+      const publicoMes = Math.round(atividadesMes.reduce((sum, item) => sum + getActivityPublico(item), 0));
+      const totalPublico = Math.round(todasAsAtividades.reduce((sum, item) => sum + getActivityPublico(item), 0));
 
       setData({
-        periodo: `${mesReferenciaNumero}/${anoReferencia}`,
-        museus: ['MIS', 'MHAB', 'MUMO'],
+        periodo: `${String(mesAtual + 1).padStart(2, '0')}/${anoAtual}`,
         totalAtividadesMes: atividadesMes.length,
         totalAtividadesAno: todasAsAtividades.length,
-        totalPublico, publicoMes,
-        percentualExecucao, atividades,
-        rubricas: rubricasData, totalOrcado, totalUtilizado, saldoTotal,
-        dadosMensais, dadosClassificacao,
-        hasData: reportsRaw?.length > 0 || todasAsAtividades.length > 0
+        totalPublico,
+        publicoMes,
+        atividadesPrevistasMes: programacaoMes.length,
+        atividades: atividadesMes,
+        programacao,
+        agendaDoDia: agendaHoje,
+        proximaAgenda,
+        rubricas: Array.from(rubricasUnicas.values()),
+        dadosMensais,
+        dadosClassificacao,
+        comparativoMuseu,
+        totalOrcado: TOTAL_OFICIAL,
+        totalUtilizado,
+        saldoTotal,
+        percentualExecucao,
+        hasData: reports.length > 0 || todasAsAtividades.length > 0
       });
+
       setLastUpdate(new Date());
     } catch (error) {
-      console.error('Erro ao carregar dashboard patrocinador:', error);
+      console.error('Erro ao carregar dashboard observador:', error);
     } finally {
       isFetchingRef.current = false;
       setLoading(false);
@@ -182,42 +364,71 @@ export default function DashboardPatrocinador() {
   useEffect(() => {
     loadDashboardData(false);
 
-    // Polling a cada 60s em background (sem spinner)
     const interval = setInterval(() => loadDashboardData(true), 60000);
 
-    // Subscrições em tempo real
-    const unsubscribeReports = base44.entities.Report.subscribe((e) => {
-      if (e.type === 'create' || e.type === 'update') loadDashboardData(true);
-    });
-    const unsubscribeActivities = base44.entities.Activity.subscribe((e) => {
-      if (e.type === 'create' || e.type === 'update') loadDashboardData(true);
-    });
-    const unsubscribeRubricas = base44.entities.Rubrica.subscribe((e) => {
-      if (e.type === 'update') loadDashboardData(true);
-    });
-    const unsubscribePayments = base44.entities.TeamPayment.subscribe((e) => {
-      if (e.type === 'create' || e.type === 'update') loadDashboardData(true);
-    });
-    const unsubscribePurchases = base44.entities.PurchaseRequest.subscribe((e) => {
-      if (e.type === 'create' || e.type === 'update') loadDashboardData(true);
-    });
+    const unsubscribers = [
+      base44.entities.Report.subscribe?.(() => loadDashboardData(true)),
+      base44.entities.Activity.subscribe?.(() => loadDashboardData(true)),
+      base44.entities.Programacao.subscribe?.(() => loadDashboardData(true)),
+      base44.entities.Rubrica.subscribe?.(() => loadDashboardData(true)),
+      base44.entities.TeamPayment.subscribe?.(() => loadDashboardData(true)),
+      base44.entities.PurchaseRequest.subscribe?.(() => loadDashboardData(true))
+    ].filter(Boolean);
 
     return () => {
       clearInterval(interval);
-      unsubscribeReports();
-      unsubscribeActivities();
-      unsubscribeRubricas();
-      unsubscribePayments();
-      unsubscribePurchases();
+      unsubscribers.forEach((unsubscribe) => {
+        try {
+          unsubscribe?.();
+        } catch {}
+      });
     };
   }, [loadDashboardData]);
 
+  const chartColors = themeId === 'museubh' ? ['#111827', '#374151', '#6B7280', '#D1D5DB'] : CHART_COLORS;
+
+  const renderProximaAgenda = useMemo(() => {
+    if (!data.proximaAgenda) {
+      return (
+        <p className="text-sm text-gray-500">
+          Nenhuma atividade futura cadastrada na programação.
+        </p>
+      );
+    }
+
+    const item = data.proximaAgenda;
+    const date = item?._date;
+
+    return (
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-2xl font-bold text-black">
+              {date ? date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'}
+            </p>
+            <p className="text-sm font-semibold text-black line-clamp-2 mt-1">
+              {getProgramacaoTitle(item)}
+            </p>
+            <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+              <MapPin className="w-3 h-3" />
+              {getProgramacaoMuseu(item)}
+            </p>
+          </div>
+
+          <div className="rounded-full border border-black px-3 py-1 text-[11px] font-semibold text-black">
+            {data.agendaDoDia.length > 0 ? 'Hoje' : 'Próxima'}
+          </div>
+        </div>
+      </div>
+    );
+  }, [data.proximaAgenda, data.agendaDoDia.length]);
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-[280px]">
         <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto" />
-          <p className="text-slate-600 text-base">Carregando painel...</p>
+          <div className="w-8 h-8 border-2 border-gray-200 border-t-black rounded-full animate-spin mx-auto" />
+          <p className="text-gray-500 text-sm">Carregando painel...</p>
         </div>
       </div>
     );
@@ -225,74 +436,164 @@ export default function DashboardPatrocinador() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div style={{
-        background: themeId === 'museubh' 
-          ? 'linear-gradient(135deg, #2E6F95 0%, #7A1E2C 100%)'
-          : 'linear-gradient(135deg, #111827 0%, #374151 100%)',
-        color: 'white'
-      }} className="rounded-2xl p-8">
-        <div className="flex items-start justify-between flex-wrap gap-6">
-          <div>
-            <p style={{ color: themeId === 'museubh' ? '#D9C6A5' : '#9CA3AF' }} className="text-xs font-bold uppercase tracking-widest mb-2">Painel Observador</p>
-            <h1 className="text-4xl font-extrabold mb-2 tracking-tight">Museus Centro</h1>
-            <p style={{ color: themeId === 'museubh' ? '#D9C6A5' : '#D1D5DB' }} className="text-base">{data.museus.join(' · ')} &nbsp;|&nbsp; Período: {data.periodo}</p>
-          </div>
-          <div className="text-right">
-            <p style={{ color: themeId === 'museubh' ? '#D9C6A5' : '#9CA3AF' }} className="text-xs uppercase tracking-widest mb-1">Orçamento oficial</p>
-            <p className="text-3xl font-bold">R$ 1.320.000</p>
-            <Button size="sm" variant="outline" onClick={() => loadDashboardData(false)} disabled={loading || refreshing}
-              className="mt-3 border-white/30 text-white hover:bg-white/10 gap-1.5 text-xs bg-transparent">
-              <RotateCw className={`w-3.5 h-3.5 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
-              {loading ? 'Carregando...' : refreshing ? 'Atualizando...' : 'Atualizar'}
-            </Button>
-            {lastUpdate && (
-              <p style={{ color: themeId === 'museubh' ? '#D9C6A5' : '#818CF8' }} className="text-xs mt-1 flex items-center gap-1">
-                {refreshing && <RotateCw className="w-2.5 h-2.5 animate-spin inline" />}
-                Atualizado {lastUpdate.toLocaleTimeString('pt-BR')}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
       {!data.hasData && (
-        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-5 text-base text-amber-800 font-medium">
-          ⚠️ Sem dados disponíveis. Sincronize relatórios aprovados e atividades para visualizar métricas.
+        <div className="bg-white border border-black rounded-2xl p-5 text-sm text-black font-medium">
+          Sem dados disponíveis. Sincronize relatórios aprovados e atividades para visualizar métricas.
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div style={{
-          background: themeId === 'museubh'
-            ? 'linear-gradient(135deg, #2E6F95 0%, #5FA8D3 100%)'
-            : 'linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%)'
-        }} className="rounded-2xl p-6 text-white shadow-lg">
-          <div className="flex items-center gap-2 mb-3">
-            <Calendar className="w-5 h-5" style={{ opacity: 0.8 }} />
-            <p className="text-xs font-bold uppercase tracking-wide" style={{ opacity: 0.9 }}>Atividades (mês)</p>
-          </div>
-          <p className="text-5xl font-extrabold">{data.totalAtividadesMes}</p>
-          <p className="text-sm mt-2" style={{ opacity: 0.8 }}>{data.totalAtividadesAno} no acumulado total</p>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          icon={Activity}
+          label="Atividades do mês"
+          value={fmtInt(data.totalAtividadesMes)}
+          helper={`${fmtInt(data.totalAtividadesAno)} no acumulado`}
+          dark
+        />
 
-        <div style={{
-          background: themeId === 'museubh'
-            ? 'linear-gradient(135deg, #D9C6A5 0%, #7A1E2C 100%)'
-            : 'linear-gradient(135deg, #10B981 0%, #047857 100%)'
-        }} className="rounded-2xl p-6 text-white shadow-lg">
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="w-5 h-5" style={{ opacity: 0.8 }} />
-            <p className="text-xs font-bold uppercase tracking-wide" style={{ opacity: 0.9 }}>Público Total</p>
-          </div>
-          <p className="text-5xl font-extrabold">{Math.round(data.totalPublico).toLocaleString('pt-BR')}</p>
-          <p className="text-sm mt-2" style={{ opacity: 0.8 }}>{Math.round(data.publicoMes).toLocaleString('pt-BR')} este mês</p>
-        </div>
+        <KpiCard
+          icon={Calendar}
+          label="Previstas na agenda"
+          value={fmtInt(data.atividadesPrevistasMes)}
+          helper={`período ${data.periodo}`}
+          dark
+        />
+
+        <KpiCard
+          icon={Users}
+          label="Público total"
+          value={fmtInt(data.totalPublico)}
+          helper={`${fmtInt(data.publicoMes)} no mês`}
+        />
+
+        <KpiCard
+          icon={TrendingUp}
+          label="Execução orçamentária"
+          value={`${data.percentualExecucao}%`}
+          helper={`${fmtBRL(data.totalUtilizado)} utilizado`}
+        />
       </div>
 
-      {/* Painel de Notícias */}
-      <NewsCarousel />
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <SectionCard title="Próxima agenda">
+          {renderProximaAgenda}
+        </SectionCard>
+
+        <SectionCard title="Orçamento oficial">
+          <div className="space-y-3">
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">Previsto</span>
+              <span className="font-semibold text-black">{fmtBRL(data.totalOrcado)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">Utilizado</span>
+              <span className="font-semibold text-black">{fmtBRL(data.totalUtilizado)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">Saldo</span>
+              <span className="font-semibold text-black">{fmtBRL(data.saldoTotal)}</span>
+            </div>
+            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-1.5 rounded-full bg-black"
+                style={{ width: `${Math.min(data.percentualExecucao, 100)}%` }}
+              />
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Museus acompanhados">
+          <div className="grid grid-cols-3 gap-2">
+            {MUSEUS.map((museu) => {
+              const item = data.comparativoMuseu.find((x) => x.museu === museu) || {};
+              return (
+                <div key={museu} className="rounded-xl border border-gray-200 p-3">
+                  <p className="text-sm font-bold text-black">{museu}</p>
+                  <p className="text-xs text-gray-500 mt-1">{fmtInt(item.atividades)} atividades</p>
+                  <p className="text-xs text-gray-500">{fmtInt(item.publico)} público</p>
+                </div>
+              );
+            })}
+          </div>
+        </SectionCard>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <SectionCard title="Atividades por mês">
+          {data.dadosMensais.length === 0 ? (
+            <p className="text-sm text-gray-400">Sem dados disponíveis.</p>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.dadosMensais}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="atividades" fill="#111827" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Classificação de atividades">
+          {data.dadosClassificacao.length === 0 ? (
+            <p className="text-sm text-gray-400">Sem dados disponíveis.</p>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={data.dadosClassificacao}
+                    dataKey="quantidade"
+                    nameKey="display"
+                    outerRadius={86}
+                    innerRadius={48}
+                    paddingAngle={3}
+                  >
+                    {data.dadosClassificacao.map((entry, index) => (
+                      <Cell key={entry.nome} fill={chartColors[index % chartColors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </SectionCard>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <SectionCard title="Agenda">
+          <AgendaCard programacao={data.programacao} />
+        </SectionCard>
+
+        <SectionCard title="Auditoria de sincronização">
+          <DataSyncAuditPanel />
+        </SectionCard>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 flex-wrap text-xs text-gray-500">
+        <span>
+          Dados sincronizados com relatórios aprovados, programação, rubricas e solicitações financeiras.
+        </span>
+
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => loadDashboardData(false)}
+          disabled={loading || refreshing}
+          className="border-gray-200 text-black hover:bg-gray-50 gap-1.5"
+        >
+          <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+          {refreshing ? 'Atualizando...' : 'Atualizar painel'}
+        </Button>
+
+        {lastUpdate && (
+          <span>Atualizado {lastUpdate.toLocaleTimeString('pt-BR')}</span>
+        )}
+      </div>
     </div>
   );
 }
