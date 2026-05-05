@@ -1,6 +1,6 @@
 import React from 'react';
 import { base44 } from '@/api/base44Client';
-import { Activity, Wallet, BarChart3, CalendarDays, Target } from 'lucide-react';
+import { Activity, Wallet, BarChart3, CalendarDays, MapPin } from 'lucide-react';
 
 const MONTH_ORDER = [
   'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -16,6 +16,25 @@ function toInt(value) {
 
 function fmtInt(value) {
   return toInt(value).toLocaleString('pt-BR');
+}
+
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function sameDay(a, b) {
+  if (!a || !b) return false;
+  return startOfDay(a).getTime() === startOfDay(b).getTime();
+}
+
+function formatDateBR(date) {
+  if (!date) return '—';
+  return date.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+  });
 }
 
 function getProgramacaoDate(item) {
@@ -44,6 +63,28 @@ function getProgramacaoDate(item) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+function getProgramacaoTitle(item) {
+  return (
+    item?.nome_acao ||
+    item?.titulo ||
+    item?.atividade ||
+    item?.nome ||
+    item?.evento ||
+    'Atividade programada'
+  );
+}
+
+function getProgramacaoMuseu(item) {
+  return (
+    item?.museu ||
+    item?.centro_custo ||
+    item?.local_museu ||
+    item?.equipamento ||
+    item?.local ||
+    'Museus Centro'
+  );
+}
+
 function MiniBar({ label, value, max, color = 'bg-black' }) {
   const safeValue = toInt(value);
   const safeMax = Math.max(toInt(max), 1);
@@ -62,22 +103,6 @@ function MiniBar({ label, value, max, color = 'bg-black' }) {
   );
 }
 
-function PercentBar({ value }) {
-  const pct = Math.max(0, Math.min(Number(value || 0), 100));
-
-  return (
-    <div className="mt-3">
-      <div className="flex justify-between text-xs text-gray-500 mb-1">
-        <span>Conclusão</span>
-        <span>{pct.toFixed(0)}%</span>
-      </div>
-      <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
-        <div className="h-1 rounded-full bg-black transition-all" style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
 function CardSection({ title, children, empty, className = '' }) {
   return (
     <div className={`border border-gray-200 rounded-2xl p-4 bg-white shadow-sm ${className}`}>
@@ -89,7 +114,7 @@ function CardSection({ title, children, empty, className = '' }) {
   );
 }
 
-function KpiCard({ label, value, icon: Icon, highlight = false, helper, progress }) {
+function KpiCard({ label, value, icon: Icon, highlight = false, helper }) {
   return (
     <div className={`p-5 border rounded-2xl transition-all shadow-sm min-w-0 ${
       highlight
@@ -110,79 +135,132 @@ function KpiCard({ label, value, icon: Icon, highlight = false, helper, progress
           {helper}
         </p>
       )}
-      {typeof progress === 'number' && !highlight && <PercentBar value={progress} />}
     </div>
   );
 }
 
-function isMetaActivity(atividade) {
-  const classificacao = String(atividade?.classificacao || '').trim().toUpperCase();
-  const metaId = String(atividade?.meta_id || atividade?.meta || '').trim().toUpperCase();
-  return classificacao === 'META' || metaId.startsWith('MC3A-') || metaId.startsWith('META');
-}
+function AgendaKpiCard({ agendaItems = [], agendaDate, agendaIndex }) {
+  const current = agendaItems.length > 0 ? agendaItems[agendaIndex % agendaItems.length] : null;
+  const hoje = new Date();
+  const isHoje = agendaDate && sameDay(agendaDate, hoje);
 
-function isConcluida(atividade) {
-  const status = String(
-    atividade?.status ||
-    atividade?.situacao ||
-    atividade?.andamento ||
-    atividade?.resultado ||
-    ''
-  ).trim().toUpperCase();
+  return (
+    <div className="p-5 border border-gray-200 rounded-2xl transition-all shadow-sm min-w-0 bg-white hover:shadow-md">
+      <div className="flex items-center gap-2 mb-3 min-w-0">
+        <CalendarDays className="w-4 h-4 flex-shrink-0 text-gray-500" />
+        <span className="text-[11px] font-semibold uppercase tracking-wide truncate text-gray-500">
+          {isHoje ? 'Agenda de hoje' : 'Próxima agenda'}
+        </span>
+      </div>
 
-  if (['CONCLUIDO', 'CONCLUÍDO', 'REALIZADO', 'REALIZADA', 'FINALIZADO', 'FINALIZADA', 'APROVADO', 'APPROVED'].includes(status)) {
-    return true;
-  }
+      {current ? (
+        <>
+          <p className="text-3xl font-bold leading-tight truncate text-black">
+            {formatDateBR(agendaDate)}
+          </p>
+          <p className="text-xs mt-1 truncate text-gray-500">
+            {getProgramacaoTitle(current)}
+          </p>
+          <p className="text-xs mt-1 truncate text-black font-semibold flex items-center gap-1">
+            <MapPin className="w-3 h-3 flex-shrink-0" />
+            {getProgramacaoMuseu(current)}
+          </p>
 
-  const percentual = Number(
-    atividade?.percentual_conclusao ||
-    atividade?.percentual_execucao ||
-    atividade?.progresso ||
-    0
+          {agendaItems.length > 1 && (
+            <div className="flex items-center gap-1 mt-3">
+              {agendaItems.map((_, idx) => (
+                <span
+                  key={idx}
+                  className={`h-1 rounded-full transition-all ${
+                    idx === agendaIndex % agendaItems.length ? 'w-5 bg-black' : 'w-1.5 bg-gray-300'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="text-3xl font-bold leading-tight truncate text-black">—</p>
+          <p className="text-xs mt-1 truncate text-gray-500">sem atividade futura</p>
+        </>
+      )}
+    </div>
   );
-
-  if (Number.isFinite(percentual) && percentual >= 100) return true;
-
-  return false;
 }
 
 export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
   const TOTAL_PREVISTO = 1320000;
   const [atividadesPrevistasMes, setAtividadesPrevistasMes] = React.useState(0);
+  const [agendaItems, setAgendaItems] = React.useState([]);
+  const [agendaDate, setAgendaDate] = React.useState(null);
+  const [agendaIndex, setAgendaIndex] = React.useState(0);
 
   React.useEffect(() => {
     let mounted = true;
 
-    async function carregarProgramacaoMesAtual() {
+    async function carregarProgramacao() {
       try {
         const hoje = new Date();
+        const hojeInicio = startOfDay(hoje);
         const mesAtual = hoje.getMonth();
         const anoAtual = hoje.getFullYear();
 
         const lista = await base44.entities.Programacao.list('-data_realizacao', 1000).catch(() => []);
 
-        const total = (lista || []).filter((item) => {
+        const ativos = (lista || []).filter((item) => {
+          const status = String(item?.status || item?.situacao || '').toUpperCase();
+          return !['CANCELADO', 'CANCELADA', 'INATIVO', 'INATIVA'].includes(status);
+        });
+
+        const totalMes = ativos.filter((item) => {
           const d = getProgramacaoDate(item);
           if (!d) return false;
-
-          const status = String(item?.status || item?.situacao || '').toUpperCase();
-          if (['CANCELADO', 'CANCELADA', 'INATIVO', 'INATIVA'].includes(status)) return false;
-
           return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
         }).length;
 
-        if (mounted) setAtividadesPrevistasMes(total);
+        const futuras = ativos
+          .map((item) => ({ item, date: getProgramacaoDate(item) }))
+          .filter(({ date }) => date && startOfDay(date).getTime() >= hojeInicio.getTime())
+          .sort((a, b) => startOfDay(a.date).getTime() - startOfDay(b.date).getTime());
+
+        const targetDate = futuras[0]?.date || null;
+        const itemsMesmoDia = targetDate
+          ? futuras.filter(({ date }) => sameDay(date, targetDate)).map(({ item }) => item)
+          : [];
+
+        if (mounted) {
+          setAtividadesPrevistasMes(totalMes);
+          setAgendaDate(targetDate);
+          setAgendaItems(itemsMesmoDia);
+          setAgendaIndex(0);
+        }
       } catch {
-        if (mounted) setAtividadesPrevistasMes(0);
+        if (mounted) {
+          setAtividadesPrevistasMes(0);
+          setAgendaDate(null);
+          setAgendaItems([]);
+          setAgendaIndex(0);
+        }
       }
     }
 
-    carregarProgramacaoMesAtual();
+    carregarProgramacao();
 
     return () => {
       mounted = false;
     };
   }, []);
+
+  React.useEffect(() => {
+    if (agendaItems.length <= 1) return undefined;
+
+    const timer = window.setInterval(() => {
+      setAgendaIndex((prev) => (prev + 1) % agendaItems.length);
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [agendaItems.length]);
 
   const activitiesByMonth = React.useMemo(() => {
     const map = {};
@@ -209,34 +287,6 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
         atividades: toInt(map[m].atividades),
         publico: toInt(map[m].publico),
       }));
-  }, [reports]);
-
-  const metasStats = React.useMemo(() => {
-    let totalMetas = 0;
-    let metasConcluidas = 0;
-
-    reports.forEach((report) => {
-      (Array.isArray(report.atividades) ? report.atividades : []).forEach((atividade) => {
-        if (!isMetaActivity(atividade)) return;
-
-        const vezes = Number(atividade?.quantas_vezes_ocorreu || 1);
-        const peso = Number.isFinite(vezes) && vezes > 0 ? vezes : 1;
-
-        totalMetas += peso;
-
-        if (isConcluida(atividade)) {
-          metasConcluidas += peso;
-        }
-      });
-    });
-
-    const percentual = totalMetas > 0 ? (metasConcluidas / totalMetas) * 100 : 0;
-
-    return {
-      totalMetas: toInt(totalMetas),
-      metasConcluidas: toInt(metasConcluidas),
-      percentual,
-    };
   }, [reports]);
 
   const classificacaoStats = React.useMemo(() => {
@@ -318,7 +368,7 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
         <div>
           <h2 className="text-lg font-semibold text-black">Indicadores Executivos</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Síntese operacional, agenda, metas, museus e execução financeira.
+            Síntese operacional, agenda, museus e execução financeira.
           </p>
         </div>
       </div>
@@ -340,12 +390,10 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
           helper="mês atual na agenda"
         />
 
-        <KpiCard
-          label="Metas concluídas"
-          value={`${metasStats.percentual.toFixed(0)}%`}
-          icon={Target}
-          helper={`${fmtInt(metasStats.metasConcluidas)} de ${fmtInt(metasStats.totalMetas)} metas`}
-          progress={metasStats.percentual}
+        <AgendaKpiCard
+          agendaItems={agendaItems}
+          agendaDate={agendaDate}
+          agendaIndex={agendaIndex}
         />
 
         <KpiCard
