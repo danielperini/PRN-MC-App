@@ -28,7 +28,7 @@ import {
 import { toast } from 'sonner';
 import { toastMessages } from '@/lib/toastMessages';
 
-// 🔥 NOVO — garante inteiro
+// 🔥 GARANTIA GLOBAL DE INTEIRO
 function inteiro(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return 0;
@@ -61,7 +61,7 @@ function exportCSV(reports) {
           r.status || '',
           a.nome || '',
           a.classificacao || '',
-          inteiro(a.publico_total ?? a.publico_estimado ?? 0),
+          inteiro(a.publico_total ?? a.publico_estimado ?? 0), // 🔥 CORREÇÃO
           a.equipe_responsavel || '',
           a.acessibilidade || '',
           a.parceria || ''
@@ -107,7 +107,7 @@ function RelatoriosInner() {
     enabled: !!currentUser
   });
 
-  // 🔥 CORREÇÃO AQUI
+  // 🔥 NORMALIZAÇÃO SEM ALTERAR ESTRUTURA
   const normalizedReports = reports.map(r => ({
     ...r,
     atividades: (r.atividades || []).map(a => ({
@@ -174,7 +174,7 @@ function RelatoriosInner() {
               <div className="mt-3 text-sm text-gray-600">
                 {(report.atividades || []).map((a, i) => (
                   <div key={i}>
-                    {a.nome} — Público: <strong>{a.publico_total}</strong>
+                    {a.nome} — Público: <strong>{inteiro(a.publico_total)}</strong>
                   </div>
                 ))}
               </div>
