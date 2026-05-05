@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, ExternalLink, Newspaper, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 const FONTE_COLORS = {
   portal_museus_centro: 'bg-emerald-600',
@@ -61,6 +60,16 @@ const FALLBACK_ITEMS = [
     tags: ['Patrimônio Cultural'],
     _tipo: 'fallback',
   },
+  {
+    id: 'fallback-4',
+    titulo: 'Programação e memória institucional',
+    resumo: 'Destaques do projeto podem ser publicados como momentos internos e exibidos automaticamente no painel.',
+    imagem_url: '',
+    link: '',
+    fonte: 'fallback',
+    tags: ['Curadoria'],
+    _tipo: 'fallback',
+  },
 ];
 
 function todayBR() {
@@ -104,12 +113,89 @@ function seededShuffle(items = [], seedText = '') {
   return arr;
 }
 
+function getVisibleItems(items, startIndex, count = 4) {
+  if (!items.length) return [];
+  const visible = [];
+  const total = Math.min(count, items.length);
+  for (let i = 0; i < total; i += 1) {
+    visible.push(items[(startIndex + i) % items.length]);
+  }
+  return visible;
+}
+
+function NewsCard({ item, today }) {
+  const isMomento = item._tipo === 'momento';
+  const fonteClass = FONTE_COLORS[item.fonte] || 'bg-gray-700';
+  const fonteLabel = FONTE_LABELS[item.fonte] || 'Notícia';
+
+  return (
+    <div className="relative min-h-[220px] rounded-2xl overflow-hidden bg-white border-2 border-black group">
+      <div className={`absolute inset-x-0 top-0 h-1 ${fonteClass}`} />
+
+      {item.imagem_url ? (
+        <div
+          className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+          style={{ backgroundImage: `url(${item.imagem_url})`, opacity: 0.12 }}
+        />
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-white" />
+      )}
+
+      <div className="relative z-10 h-full flex flex-col p-5">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full text-white bg-black">
+              {isMomento ? '✦ Destaque' : `📡 ${fonteLabel}`}
+            </span>
+            {(item.tags || []).slice(0, 2).map((tag) => (
+              <span
+                key={tag}
+                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${TAG_COLORS[tag] || 'bg-gray-100 text-gray-600 border-gray-300'}`}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <h3 className="text-base md:text-lg font-bold text-black leading-snug line-clamp-2 mb-2 flex-shrink-0">
+          {item.titulo}
+        </h3>
+
+        <p className="text-sm text-gray-700 leading-relaxed line-clamp-3 flex-1">
+          {item.resumo}
+        </p>
+
+        <div className="flex items-center justify-between gap-2 mt-4">
+          <span className="text-[11px] text-gray-600 font-mono truncate">
+            {item.data_publicacao || today}
+          </span>
+          {item.link ? (
+            <a
+              href={item.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-black hover:bg-gray-800 px-3 py-1.5 rounded-full transition-all border border-black flex-shrink-0"
+            >
+              Ver matéria <ExternalLink className="w-3 h-3" />
+            </a>
+          ) : (
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-black border border-black px-3 py-1.5 rounded-full bg-white flex-shrink-0">
+              <Newspaper className="w-3 h-3" /> Destaque
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function NewsCarousel({ items: itemsProp = null }) {
   const today = todayBR();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [autoPlay, setAutoPlay] = useState(true);
   const [isSelecting, setIsSelecting] = useState(false);
-  const [selectedTags, setSelectedTags] = useState([]);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -142,7 +228,7 @@ export default function NewsCarousel({ items: itemsProp = null }) {
       return seededShuffle(deduplicateByLinkOrTitle(normalizeItems(published)), today).slice(0, 20);
     },
     enabled: !itemsProp || itemsProp.length === 0,
-    refetchInterval: 30000,
+    refetchInterval: 60000,
     staleTime: 0,
   });
 
@@ -184,26 +270,14 @@ export default function NewsCarousel({ items: itemsProp = null }) {
     const sourceItems = propsItems.length > 0 ? propsItems : [...momentos, ...newsItems];
     const withFallback = sourceItems.length > 0 ? sourceItems : FALLBACK_ITEMS;
 
-    const filtered = selectedTags.length > 0
-      ? withFallback.filter((item) => (item.tags || []).some((tag) => selectedTags.includes(tag)))
-      : withFallback;
-
-    return filtered.length > 0 ? filtered : withFallback;
-  }, [itemsProp, momentos, newsHighlights, selectedTags]);
-
-  const allAvailableTags = useMemo(() => {
-    const tags = new Set();
-    [...momentos, ...normalizeItems(newsHighlights), ...FALLBACK_ITEMS].forEach((item) => {
-      (item.tags || []).forEach((tag) => tags.add(tag));
-    });
-    return Array.from(tags).sort();
-  }, [momentos, newsHighlights]);
+    return seededShuffle(deduplicateByLinkOrTitle(withFallback), today).slice(0, 20);
+  }, [itemsProp, momentos, newsHighlights, today]);
 
   useEffect(() => {
-    if (!autoPlay || allItems.length <= 1) return undefined;
+    if (!autoPlay || allItems.length <= 4) return undefined;
     const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % allItems.length);
-    }, 7000);
+      setCurrentIndex((prev) => (prev + 4) % allItems.length);
+    }, 15000);
     return () => clearInterval(timer);
   }, [autoPlay, allItems.length]);
 
@@ -220,28 +294,24 @@ export default function NewsCarousel({ items: itemsProp = null }) {
       });
       await queryClient.invalidateQueries({ queryKey: ['dashboard-news-carousel-real'] });
       await refetchNews();
+      setCurrentIndex(0);
     } finally {
       setIsSelecting(false);
     }
   }, [isSelecting, queryClient, refetchNews]);
 
-  function toggleTag(tag) {
-    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
-    setCurrentIndex(0);
-  }
-
-  function goTo(idx) {
-    setCurrentIndex(idx);
-  }
-
   function goPrev(e) {
     e.stopPropagation();
-    setCurrentIndex((currentIndex - 1 + allItems.length) % allItems.length);
+    setCurrentIndex((currentIndex - 4 + allItems.length) % allItems.length);
   }
 
   function goNext(e) {
     e.stopPropagation();
-    setCurrentIndex((currentIndex + 1) % allItems.length);
+    setCurrentIndex((currentIndex + 4) % allItems.length);
+  }
+
+  function goToPage(pageIndex) {
+    setCurrentIndex(pageIndex * 4);
   }
 
   if (loadingNews && allItems.length === 0) {
@@ -253,151 +323,20 @@ export default function NewsCarousel({ items: itemsProp = null }) {
     );
   }
 
-  const current = allItems[currentIndex] || allItems[0] || FALLBACK_ITEMS[0];
-  const isMomento = current._tipo === 'momento';
-  const fonteClass = FONTE_COLORS[current.fonte] || 'bg-gray-700';
-  const fonteLabel = FONTE_LABELS[current.fonte] || 'Notícia';
-  const indicatorItems = allItems.slice(0, 12);
+  const visibleItems = getVisibleItems(allItems, currentIndex, 4);
+  const pageCount = Math.max(1, Math.ceil(allItems.length / 4));
+  const currentPage = Math.floor(currentIndex / 4);
 
   return (
     <div className="w-full mb-8">
-      {allAvailableTags.length > 0 && (
-        <div className="mb-4 flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Filtrar:</span>
-          {allAvailableTags.map((tag) => (
-            <button
-              key={tag}
-              type="button"
-              onClick={() => toggleTag(tag)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-full border-2 transition-all ${
-                selectedTags.includes(tag)
-                  ? `${TAG_COLORS[tag] || 'bg-gray-200 text-black border-black'}`
-                  : 'bg-gray-100 text-gray-600 border-gray-300 hover:border-gray-400'
-              }`}
-            >
-              {tag}
-            </button>
-          ))}
-          {selectedTags.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setSelectedTags([])}
-              className="px-2 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-900 transition-all"
-            >
-              ✕ Limpar
-            </button>
-          )}
-        </div>
-      )}
-
-      <div
-        className="relative w-full rounded-2xl overflow-hidden h-56 group bg-white border-2 border-black"
-        onMouseEnter={() => setAutoPlay(false)}
-        onMouseLeave={() => setAutoPlay(true)}
-      >
-        <div className={`absolute inset-y-0 left-0 w-1 ${fonteClass}`} />
-
-        {current.imagem_url ? (
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${current.imagem_url})`, opacity: 0.12 }}
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-white" />
-        )}
-
-        <div className="relative z-10 h-full flex flex-col p-6">
-          <div className="flex items-start justify-between gap-3 mb-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full text-white bg-black">
-                {isMomento ? '✦ Destaque' : `📡 ${fonteLabel}`}
-              </span>
-              {(current.tags || []).slice(0, 2).map((tag) => (
-                <span
-                  key={tag}
-                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${TAG_COLORS[tag] || 'bg-gray-100 text-gray-600 border-gray-300'}`}
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-
-            {indicatorItems.length > 1 && (
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                {indicatorItems.map((_, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => goTo(idx)}
-                    className={`rounded-full transition-all duration-300 ${
-                      idx === currentIndex ? 'bg-black w-5 h-1.5' : 'bg-gray-300 hover:bg-gray-400 w-1.5 h-1.5'
-                    }`}
-                    aria-label={`Ir para destaque ${idx + 1}`}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          <h3 className="text-xl font-bold text-black leading-snug line-clamp-2 mb-2 flex-shrink-0">
-            {current.titulo}
-          </h3>
-
-          <p className="text-sm text-gray-700 leading-relaxed line-clamp-2 flex-1">
-            {current.resumo}
+      <div className="flex items-center justify-between mb-3 px-1">
+        <div>
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Destaques e Notícias</p>
+          <p className="text-[11px] text-gray-500">
+            Curadoria diária de até 20 notícias · troca automática a cada 15 segundos
           </p>
-
-          <div className="flex items-center justify-between mt-3">
-            <span className="text-xs text-gray-600 font-mono">
-              {current.data_publicacao || today}
-            </span>
-            {current.link ? (
-              <a
-                href={current.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="flex items-center gap-1.5 text-xs font-semibold text-white bg-black hover:bg-gray-800 px-3 py-1.5 rounded-full transition-all border border-black"
-              >
-                Ver matéria <ExternalLink className="w-3 h-3" />
-              </a>
-            ) : (
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-black border border-black px-3 py-1.5 rounded-full bg-white">
-                <Newspaper className="w-3 h-3" /> Destaque interno
-              </span>
-            )}
-          </div>
         </div>
 
-        {allItems.length > 1 && (
-          <>
-            <button
-              type="button"
-              className="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-white border-2 border-black text-black rounded-full p-1.5 z-20"
-              onClick={goPrev}
-              aria-label="Destaque anterior"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-white border-2 border-black text-black rounded-full p-1.5 z-20"
-              onClick={goNext}
-              aria-label="Próximo destaque"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between mt-2 px-1">
-        <p className="text-xs text-black font-medium">
-          {newsHighlights.length > 0
-            ? `${newsHighlights.length} notícia${newsHighlights.length > 1 ? 's' : ''} selecionada${newsHighlights.length > 1 ? 's' : ''}`
-            : 'Destaques do projeto'}
-          {momentos.length > 0 && ` + ${momentos.length} interno${momentos.length > 1 ? 's' : ''}`}
-        </p>
         <button
           type="button"
           onClick={selectTodayNews}
@@ -407,6 +346,64 @@ export default function NewsCarousel({ items: itemsProp = null }) {
           <RefreshCw className={`w-3 h-3 ${isSelecting ? 'animate-spin' : ''}`} />
           {isSelecting ? 'Atualizando...' : 'Atualizar com IA'}
         </button>
+      </div>
+
+      <div
+        className="relative group"
+        onMouseEnter={() => setAutoPlay(false)}
+        onMouseLeave={() => setAutoPlay(true)}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {visibleItems.map((item, idx) => (
+            <NewsCard key={`${item.id || item.link || item.titulo}-${idx}`} item={item} today={today} />
+          ))}
+        </div>
+
+        {allItems.length > 4 && (
+          <>
+            <button
+              type="button"
+              className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-white border-2 border-black text-black rounded-full p-1.5 z-20"
+              onClick={goPrev}
+              aria-label="Destaques anteriores"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              className="absolute right-0 top-1/2 translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-white border-2 border-black text-black rounded-full p-1.5 z-20"
+              onClick={goNext}
+              aria-label="Próximos destaques"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </>
+        )}
+      </div>
+
+      {pageCount > 1 && (
+        <div className="flex items-center justify-center gap-1.5 mt-4">
+          {Array.from({ length: pageCount }).map((_, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => goToPage(idx)}
+              className={`rounded-full transition-all duration-300 ${
+                idx === currentPage ? 'bg-black w-6 h-1.5' : 'bg-gray-300 hover:bg-gray-400 w-1.5 h-1.5'
+              }`}
+              aria-label={`Ir para grupo de notícias ${idx + 1}`}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mt-2 px-1">
+        <p className="text-xs text-black font-medium">
+          {newsHighlights.length > 0
+            ? `${Math.min(20, newsHighlights.length)} notícia${newsHighlights.length > 1 ? 's' : ''} em curadoria diária`
+            : 'Destaques do projeto'}
+          {momentos.length > 0 && ` + ${momentos.length} interno${momentos.length > 1 ? 's' : ''}`}
+        </p>
       </div>
     </div>
   );
