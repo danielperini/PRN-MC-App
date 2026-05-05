@@ -292,11 +292,48 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       .map((r) => ({ museu: r.museu, valor: parseFloat(r.valor) }));
   }
 
+  async function resolverPdfAttachmentId() {
+    const direto =
+      intake?.entidade_destino_attachment_id ||
+      intake?.attachment_id ||
+      intake?.pdf_attachment_id ||
+      intake?.nf_pdf_attachment_id ||
+      (intake?.entidade_destino === 'Attachment' ? intake?.entidade_destino_id : '');
+
+    if (direto) return direto;
+
+    const purchaseId =
+      intake?.purchase_request_id ||
+      intake?.purchase_id ||
+      (intake?.entidade_destino === 'PurchaseRequest' ? intake?.entidade_destino_id : '');
+
+    if (!purchaseId) return '';
+
+    try {
+      const byPurchaseRequest = await base44.entities.Attachment.filter(
+        { purchase_request_id: purchaseId },
+        '-created_date',
+        10
+      );
+      if (byPurchaseRequest?.[0]?.id) return byPurchaseRequest[0].id;
+    } catch (_) {}
+
+    try {
+      const byPurchase = await base44.entities.Attachment.filter(
+        { purchase_id: purchaseId },
+        '-created_date',
+        10
+      );
+      if (byPurchase?.[0]?.id) return byPurchase[0].id;
+    } catch (_) {}
+
+    return '';
+  }
+
   async function handleVincularXML() {
-    if (!selectedXmlId || !intake.entidade_destino_id) {
+    if (!selectedXmlId) {
       toast({
-        title: 'Não foi possível vincular XML',
-        description: 'O PDF ainda não possui Attachment associado.',
+        title: 'Selecione um XML para vincular.',
         variant: 'destructive',
         duration: 3000,
       });
@@ -306,9 +343,21 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     setLinkingXml(true);
 
     try {
+      const pdfAttachmentId = await resolverPdfAttachmentId();
+
+      if (!pdfAttachmentId) {
+        toast({
+          title: 'Não foi possível vincular XML',
+          description: 'O PDF ainda não possui Attachment associado. Envie para aprovação para criar o vínculo.',
+          variant: 'destructive',
+          duration: 3000,
+        });
+        return;
+      }
+
       const xml = await base44.entities.Attachment.get(selectedXmlId);
 
-      await base44.entities.Attachment.update(intake.entidade_destino_id, {
+      await base44.entities.Attachment.update(pdfAttachmentId, {
         nf_xml_attachment_id: xml.id,
         nf_revisado: true,
         nf_categoria: 'nota_fiscal',
@@ -322,7 +371,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       });
 
       await base44.entities.Attachment.update(xml.id, {
-        nf_pdf_attachment_id: intake.entidade_destino_id,
+        nf_pdf_attachment_id: pdfAttachmentId,
         nf_revisado: true,
         nf_categoria: 'nota_fiscal',
         nf_numero: form.nf_numero,
@@ -330,6 +379,13 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         nf_data_emissao: form.nf_data_emissao,
         nf_emitente_nome: form.nf_emitente_nome,
         nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+      });
+
+      await base44.entities.DocumentIntake.update(intake.id, {
+        nf_xml_attachment_id: xml.id,
+        nf_pdf_attachment_id: pdfAttachmentId,
+        attachment_id: pdfAttachmentId,
+        entidade_destino_attachment_id: pdfAttachmentId,
       });
 
       toast({
@@ -518,13 +574,19 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         observacoes: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
       });
 
-      await base44.entities.Attachment.create({
+      const attachment = await base44.entities.Attachment.create({
         report_id: '',
         purchase_id: pr.id,
         purchase_request_id: pr.id,
+        document_intake_id: intake.id,
+        intake_id: intake.id,
+        user_email: user?.email || '',
+        created_by: user?.email || '',
+        uploadado_por: user?.email || '',
         file_name: form.file_name_final,
         file_type: intake.mime_type,
         file_url: intake.arquivo_original_url,
+        arquivo_original_url: intake.arquivo_original_url,
         description: 'Entrada Única - Nota Fiscal',
         nf_categoria: 'nota_fiscal',
         nf_numero: form.nf_numero,
@@ -541,6 +603,17 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         rubrica_nome: rubricaNome,
       });
 
+      await base44.entities.PurchaseRequest.update(pr.id, {
+        file_url: intake.arquivo_original_url,
+        arquivo_url: intake.arquivo_original_url,
+        nota_fiscal_url: intake.arquivo_original_url,
+        nf_pdf_url: intake.arquivo_original_url,
+        attachment_id: attachment?.id || '',
+        nf_pdf_attachment_id: attachment?.id || '',
+        document_intake_id: intake.id,
+        intake_id: intake.id,
+      });
+
       if (aprovarDireto) {
         if (dividirEntreMuseus && rateioPayload && rateioPayload.length > 0) {
           await debitarRubricas(rateioPayload);
@@ -553,6 +626,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         status_processamento: aprovarDireto ? 'APROVADO' : 'ENVIADO_APROVACAO',
         entidade_destino: 'PurchaseRequest',
         entidade_destino_id: pr.id,
+        purchase_request_id: pr.id,
+        purchase_id: pr.id,
+        attachment_id: attachment?.id || '',
+        nf_pdf_attachment_id: attachment?.id || '',
+        entidade_destino_attachment_id: attachment?.id || '',
+        arquivo_vinculado_url: intake.arquivo_original_url,
         centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
         rubrica_id_sugerida: form.rubrica_id,
         rubrica_nome_sugerida: rubricaNome,
@@ -561,6 +640,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           ...ia,
           ...form,
           categoria: 'Nota Fiscal',
+          purchase_request_id: pr.id,
+          attachment_id: attachment?.id || '',
+          nf_pdf_attachment_id: attachment?.id || '',
+          arquivo_vinculado_url: intake.arquivo_original_url,
           rateio_museus: rateioPayload,
           dividir_entre_museus: dividirEntreMuseus,
         },
