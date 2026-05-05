@@ -14,7 +14,7 @@ export default function ComplianceStats({ currentMonth, currentYear }) {
     queryFn: async () => {
       const data = await base44.asServiceRole.entities.UserPermission.list('-created_date', 500);
       return Array.isArray(data) ? data : [];
-    },
+    }
   });
 
   const { data: allReports = [] } = useQuery({
@@ -22,7 +22,7 @@ export default function ComplianceStats({ currentMonth, currentYear }) {
     queryFn: async () => {
       const data = await base44.entities.Report.list('-updated_date', 500);
       return Array.isArray(data) ? data : [];
-    },
+    }
   });
 
   const { data: exemptions = [] } = useQuery({
@@ -34,30 +34,30 @@ export default function ComplianceStats({ currentMonth, currentYear }) {
         500
       );
       return Array.isArray(data) ? data : [];
-    },
+    }
   });
 
-  const exemptedEmails = new Set(exemptions.map(e => e.user_email));
+  const exemptedEmails = new Set(exemptions.map((e) => e.user_email));
   const obligatedUsers = userPermissions.filter(
-    p => p.must_submit_monthly_report && !exemptedEmails.has(p.user_email)
+    (p) => p.must_submit_monthly_report && !exemptedEmails.has(p.user_email)
   );
-  const submittedReports = allReports.filter(r => {
+  const submittedReports = allReports.filter((r) => {
     const reportDate = r.updated_date || r.created_date;
     const isIn30Days = reportDate >= thirtyDaysAgoISO;
     return (r.status === 'SUBMITTED' || r.status === 'IN_REVIEW' || r.status === 'APPROVED') && isIn30Days;
   });
-  const approvedReports = submittedReports.filter(r => r.status === 'APPROVED');
+  const approvedReports = submittedReports.filter((r) => r.status === 'APPROVED');
 
   const totalObligated = obligatedUsers.length;
   const totalSubmitted = submittedReports.length;
   const totalApproved = approvedReports.length;
 
-  const percentSubmitted = totalObligated > 0 ? Math.round((totalSubmitted / totalObligated) * 100) : 0;
-  const percentApproved = totalObligated > 0 ? Math.round((totalApproved / totalObligated) * 100) : 0;
+  const percentSubmitted = totalObligated > 0 ? Math.round(totalSubmitted / totalObligated * 100) : 0;
+  const percentApproved = totalObligated > 0 ? Math.round(totalApproved / totalObligated * 100) : 0;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mb-8">
-      <div className="p-5 rounded-xl border border-gray-100 bg-white">
+      <div className="p-5 rounded-xl border border-gray-100 bg-white hidden">
          <div className="flex items-center justify-between mb-2">
            <BarChart3 className="w-5 h-5 text-gray-400" />
            <span className="text-sm font-medium text-gray-500">Relatórios Enviados</span>
@@ -65,6 +65,6 @@ export default function ComplianceStats({ currentMonth, currentYear }) {
          <p className="text-2xl font-bold text-black">{totalSubmitted}</p>
          <p className="text-xs text-gray-500 mt-1">de {totalObligated} mensais</p>
        </div>
-    </div>
-  );
+    </div>);
+
 }
