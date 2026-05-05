@@ -9,7 +9,6 @@ import { AlertCircle, Save, X, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CATEGORIAS_LABEL = {
-  equipe: 'Equipe e Coordenação (÷3 museus)',
   comunicacao: 'Comunicação',
   manutencao: 'Manutenção de Rotina',
   educador: 'Educador',
@@ -72,6 +71,142 @@ function sortRubricas(items) {
   });
 }
 
+function normalizeForMatch(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function getRubricaSearchText(rubrica) {
+  return normalizeForMatch([
+    rubrica?.rubrica,
+    rubrica?.nome,
+    rubrica?.descricao,
+    rubrica?.grupo,
+    rubrica?.categoria,
+    rubrica?.centro_custo,
+    rubrica?.meta_id,
+  ].filter(Boolean).join(' '));
+}
+
+function isRubricaInstitucionalOuEquipe(rubrica) {
+  const txt = getRubricaSearchText(rubrica);
+
+  return (
+    txt.includes('coordenador') ||
+    txt.includes('coordenacao') ||
+    txt.includes('coord geral') ||
+    txt.includes('assistente administrativo') ||
+    txt.includes('assistente de coordenacao') ||
+    txt.includes('analista adm') ||
+    txt.includes('analista financeira') ||
+    txt.includes('equipe principal') ||
+    txt.includes('gestao') ||
+    txt.includes('administrativo') ||
+    txt.includes('consultoria') ||
+    txt.includes('consultorias') ||
+    txt.includes('assessoria juridica') ||
+    txt.includes('contador') ||
+    txt.includes('contabilidade') ||
+    txt.includes('energia eletrica') ||
+    txt.includes('material escritorio')
+  );
+}
+
+function isRubricaTerritorialPorMuseu(rubrica) {
+  const txt = getRubricaSearchText(rubrica);
+
+  return (
+    txt.includes('mis') ||
+    txt.includes('mhab') ||
+    txt.includes('mumo') ||
+    txt.includes('3 museus') ||
+    txt.includes('museus pbh') ||
+    txt.includes('producao') ||
+    txt.includes('programacao') ||
+    txt.includes('oficina') ||
+    txt.includes('educativ') ||
+    txt.includes('educador') ||
+    txt.includes('mediacao') ||
+    txt.includes('monitor') ||
+    txt.includes('recepcao') ||
+    txt.includes('mostra') ||
+    txt.includes('peca em destaque') ||
+    txt.includes('exposicao') ||
+    txt.includes('apresentac') ||
+    txt.includes('cache') ||
+    txt.includes('cultural') ||
+    txt.includes('montagem') ||
+    txt.includes('desmontagem') ||
+    txt.includes('locacao') ||
+    txt.includes('equipamento') ||
+    txt.includes('som') ||
+    txt.includes('iluminacao') ||
+    txt.includes('infraestrutura') ||
+    txt.includes('cenografia') ||
+    txt.includes('expografia') ||
+    txt.includes('material') ||
+    txt.includes('impressao') ||
+    txt.includes('sinalizacao') ||
+    txt.includes('designer mhab') ||
+    txt.includes('fotografo mhab') ||
+    txt.includes('pesquisa e texto mhab') ||
+    txt.includes('revisao mhab') ||
+    txt.includes('traducao mhab')
+  );
+}
+
+function isRubricaCompartilhadaRateavel(rubrica) {
+  const txt = getRubricaSearchText(rubrica);
+
+  return (
+    txt.includes('lanche') ||
+    txt.includes('buffet') ||
+    txt.includes('alimentacao') ||
+    txt.includes('transporte') ||
+    txt.includes('vans') ||
+    txt.includes('comunicacao') ||
+    txt.includes('imprensa') ||
+    txt.includes('rede social') ||
+    txt.includes('marketing') ||
+    txt.includes('designer') ||
+    txt.includes('fotografo') ||
+    txt.includes('video') ||
+    txt.includes('grafico') ||
+    txt.includes('servicos graficos') ||
+    txt.includes('seguranca') ||
+    txt.includes('limpeza')
+  );
+}
+
+function getRubricaTipoVisualizacao(rubrica) {
+  if (isRubricaCompartilhadaRateavel(rubrica)) return 'rateada';
+  if (isRubricaTerritorialPorMuseu(rubrica)) return 'museu';
+  return 'oculta';
+}
+
+function shouldShowRubrica(rubrica) {
+  if (!rubrica) return false;
+  if (isRubricaInstitucionalOuEquipe(rubrica)) return false;
+
+  return isRubricaTerritorialPorMuseu(rubrica) || isRubricaCompartilhadaRateavel(rubrica);
+}
+
+function shouldHideCategoria(catKey) {
+  const key = normalizeForMatch(catKey);
+  return (
+    key === 'equipe' ||
+    key.includes('equipe') ||
+    key.includes('coordenacao') ||
+    key.includes('consultoria') ||
+    key.includes('despesas_gerais') ||
+    key.includes('despesas gerais') ||
+    key.includes('administrativo')
+  );
+}
+
 export default function RubricasMuseuEditor({ museu, canEdit = false, refreshKey = 0 }) {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState(null);
@@ -94,10 +229,11 @@ export default function RubricasMuseuEditor({ museu, canEdit = false, refreshKey
     if (!cats || typeof cats !== 'object') return [];
 
     return Object.entries(cats)
+      .filter(([cat_key]) => !shouldHideCategoria(cat_key))
       .map(([cat_key, rubricas]) => ({
         cat_key,
         label: CATEGORIAS_LABEL[cat_key] || cat_key,
-        rubricas: sortRubricas(Array.isArray(rubricas) ? rubricas : []),
+        rubricas: sortRubricas((Array.isArray(rubricas) ? rubricas : []).filter(shouldShowRubrica)),
       }))
       .filter((item) => item.rubricas.length > 0)
       .sort((a, b) => {
@@ -388,10 +524,10 @@ export default function RubricasMuseuEditor({ museu, canEdit = false, refreshKey
 
                             <div className="flex flex-wrap gap-2 mt-1">
                               {rubrica.grupo ? (
-                                 <span className="text-xs text-gray-600 font-medium">
-                                   {rubrica.grupo}
-                                 </span>
-                               ) : null}
+                                <span className="text-xs text-gray-600 font-medium">
+                                  {rubrica.grupo}
+                                </span>
+                              ) : null}
 
                               {rubrica.centro_custo ? (
                                 <span className="text-[10px] text-gray-400">
@@ -399,8 +535,18 @@ export default function RubricasMuseuEditor({ museu, canEdit = false, refreshKey
                                 </span>
                               ) : null}
 
+                              {getRubricaTipoVisualizacao(rubrica) === 'rateada' ? (
+                                <span className="text-[10px] bg-gray-100 text-gray-700 border border-gray-200 rounded px-1">
+                                  Compartilhada / rateável
+                                </span>
+                              ) : (
+                                <span className="text-[10px] bg-white text-gray-700 border border-gray-200 rounded px-1">
+                                  Específica por museu
+                                </span>
+                              )}
+
                               {divisor > 1 ? (
-                                <span className="text-[10px] bg-blue-50 text-blue-600 border border-blue-100 rounded px-1">
+                                <span className="text-[10px] bg-gray-100 text-gray-700 border border-gray-200 rounded px-1">
                                   ÷{divisor} museus • parte deste museu
                                 </span>
                               ) : null}
