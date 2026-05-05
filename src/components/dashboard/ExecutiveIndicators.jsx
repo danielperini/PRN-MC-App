@@ -1,6 +1,6 @@
 import React from 'react';
 import { base44 } from '@/api/base44Client';
-import { Activity, Wallet, UserRound, BarChart3, CalendarDays } from 'lucide-react';
+import { Activity, Wallet, BarChart3, CalendarDays, Target } from 'lucide-react';
 
 const MONTH_ORDER = [
   'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -55,8 +55,24 @@ function MiniBar({ label, value, max, color = 'bg-black' }) {
         <span className="truncate max-w-[60%]">{label}</span>
         <span className="font-semibold text-black">{fmtInt(safeValue)}</span>
       </div>
-      <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
+        <div className={`h-1 rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function PercentBar({ value }) {
+  const pct = Math.max(0, Math.min(Number(value || 0), 100));
+
+  return (
+    <div className="mt-3">
+      <div className="flex justify-between text-xs text-gray-500 mb-1">
+        <span>Conclusão</span>
+        <span>{pct.toFixed(0)}%</span>
+      </div>
+      <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
+        <div className="h-1 rounded-full bg-black transition-all" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -73,7 +89,7 @@ function CardSection({ title, children, empty, className = '' }) {
   );
 }
 
-function KpiCard({ label, value, icon: Icon, highlight = false, helper }) {
+function KpiCard({ label, value, icon: Icon, highlight = false, helper, progress }) {
   return (
     <div className={`p-5 border rounded-2xl transition-all shadow-sm min-w-0 ${
       highlight
@@ -94,11 +110,43 @@ function KpiCard({ label, value, icon: Icon, highlight = false, helper }) {
           {helper}
         </p>
       )}
+      {typeof progress === 'number' && !highlight && <PercentBar value={progress} />}
     </div>
   );
 }
 
-export default function ExecutiveIndicators({ reports = [], rubricas = [], teamMembers = [], team = [] }) {
+function isMetaActivity(atividade) {
+  const classificacao = String(atividade?.classificacao || '').trim().toUpperCase();
+  const metaId = String(atividade?.meta_id || atividade?.meta || '').trim().toUpperCase();
+  return classificacao === 'META' || metaId.startsWith('MC3A-') || metaId.startsWith('META');
+}
+
+function isConcluida(atividade) {
+  const status = String(
+    atividade?.status ||
+    atividade?.situacao ||
+    atividade?.andamento ||
+    atividade?.resultado ||
+    ''
+  ).trim().toUpperCase();
+
+  if (['CONCLUIDO', 'CONCLUÍDO', 'REALIZADO', 'REALIZADA', 'FINALIZADO', 'FINALIZADA', 'APROVADO', 'APPROVED'].includes(status)) {
+    return true;
+  }
+
+  const percentual = Number(
+    atividade?.percentual_conclusao ||
+    atividade?.percentual_execucao ||
+    atividade?.progresso ||
+    0
+  );
+
+  if (Number.isFinite(percentual) && percentual >= 100) return true;
+
+  return false;
+}
+
+export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
   const TOTAL_PREVISTO = 1320000;
   const [atividadesPrevistasMes, setAtividadesPrevistasMes] = React.useState(0);
 
@@ -124,7 +172,7 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [], teamM
         }).length;
 
         if (mounted) setAtividadesPrevistasMes(total);
-      } catch (e) {
+      } catch {
         if (mounted) setAtividadesPrevistasMes(0);
       }
     }
@@ -161,6 +209,34 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [], teamM
         atividades: toInt(map[m].atividades),
         publico: toInt(map[m].publico),
       }));
+  }, [reports]);
+
+  const metasStats = React.useMemo(() => {
+    let totalMetas = 0;
+    let metasConcluidas = 0;
+
+    reports.forEach((report) => {
+      (Array.isArray(report.atividades) ? report.atividades : []).forEach((atividade) => {
+        if (!isMetaActivity(atividade)) return;
+
+        const vezes = Number(atividade?.quantas_vezes_ocorreu || 1);
+        const peso = Number.isFinite(vezes) && vezes > 0 ? vezes : 1;
+
+        totalMetas += peso;
+
+        if (isConcluida(atividade)) {
+          metasConcluidas += peso;
+        }
+      });
+    });
+
+    const percentual = totalMetas > 0 ? (metasConcluidas / totalMetas) * 100 : 0;
+
+    return {
+      totalMetas: toInt(totalMetas),
+      metasConcluidas: toInt(metasConcluidas),
+      percentual,
+    };
   }, [reports]);
 
   const classificacaoStats = React.useMemo(() => {
@@ -230,9 +306,6 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [], teamM
   const maxMuseuAtiv = Math.max(...comparativoMuseu.map(m => m.atividades), 1);
   const maxMuseuPub = Math.max(...comparativoMuseu.map(m => m.publico), 1);
 
-  const equipeList = Array.isArray(teamMembers) && teamMembers.length > 0 ? teamMembers : team;
-  const totalEquipe = Array.isArray(equipeList) ? equipeList.filter(m => m?.ativo !== false).length : 0;
-
   const fmtBRL = (v) => Number(v || 0).toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -245,7 +318,7 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [], teamM
         <div>
           <h2 className="text-lg font-semibold text-black">Indicadores Executivos</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Síntese operacional, agenda, museus e execução financeira.
+            Síntese operacional, agenda, metas, museus e execução financeira.
           </p>
         </div>
       </div>
@@ -268,10 +341,11 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [], teamM
         />
 
         <KpiCard
-          label="Equipe"
-          value={fmtInt(totalEquipe)}
-          icon={UserRound}
-          helper="membros ativos"
+          label="Metas concluídas"
+          value={`${metasStats.percentual.toFixed(0)}%`}
+          icon={Target}
+          helper={`${fmtInt(metasStats.metasConcluidas)} de ${fmtInt(metasStats.totalMetas)} metas`}
+          progress={metasStats.percentual}
         />
 
         <KpiCard
