@@ -7,24 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import {
-  Search,
-  UserPlus,
-  Trash2,
-  UserCheck,
-  XCircle,
-  Clock,
-  Pencil,
-  KeyRound,
-  ShieldCheck,
-  Save
-} from 'lucide-react';
+import { Search, UserPlus, Trash2, UserCheck, XCircle, Clock, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import InviteDialog from '@/components/users/InviteDialog';
 
 const ROLE_OPTIONS = ['PROFISSIONAL', 'COORDENADOR', 'ADMIN', 'OBSERVADOR', 'PATROCINADOR'];
 const AREA_OPTIONS = ['MHAB', 'MUMO', 'MIS', 'Geral', 'Observador'];
-
 const EQUIPE_OPTIONS = [
   'PV',
   'Produção Viaduto das Artes',
@@ -121,12 +109,12 @@ function RegistrationCard({ item, onApprove, onReject }) {
   );
 }
 
-function UserCard({ user, onEdit, onPassword, onPermissions, onDelete }) {
+function UserCard({ user, onDelete }) {
   const role = user.permission?.base_role || user.role || 'PROFISSIONAL';
 
   return (
-    <div className="border rounded-xl p-4 bg-white flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-      <div className="min-w-0">
+    <div className="border rounded-xl p-4 flex flex-col md:flex-row md:justify-between md:items-center gap-3 bg-white">
+      <div>
         <p className="font-medium">{user.full_name || user.nome || '-'}</p>
         <p className="text-xs text-gray-500">{user.email}</p>
         <p className="text-xs text-gray-500 mt-1">
@@ -134,21 +122,18 @@ function UserCard({ user, onEdit, onPassword, onPermissions, onDelete }) {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Badge variant="outline">{role}</Badge>
 
-        <Button size="sm" variant="outline" onClick={() => onEdit(user)}>
-          <Pencil className="w-4 h-4 mr-1" />
+        <Button size="sm" variant="outline">
           Editar
         </Button>
 
-        <Button size="sm" variant="outline" onClick={() => onPassword(user)}>
-          <KeyRound className="w-4 h-4 mr-1" />
+        <Button size="sm" variant="outline">
           Senha
         </Button>
 
-        <Button size="sm" variant="outline" onClick={() => onPermissions(user)}>
-          <ShieldCheck className="w-4 h-4 mr-1" />
+        <Button size="sm" variant="outline">
           Permissões
         </Button>
 
@@ -190,59 +175,53 @@ function CreateUserDialog({ open, onClose, onCreated }) {
     setSaving(true);
 
     try {
-      try {
-        await base44.entities.User.create({
-          full_name: form.full_name,
-          nome: form.full_name,
-          email,
-          login,
-          password: form.senha,
-          senha_inicial: form.senha,
-          role: 'user',
-          funcao: form.funcao,
-          equipe: form.equipe,
-          area: form.area,
-          museu: form.area,
-          status: 'ATIVO',
-        });
-      } catch (e) {
-        await base44.entities.UserRegistration.create({
-          full_name: form.full_name,
-          nome: form.full_name,
-          email,
-          login,
-          senha_inicial: form.senha,
-          funcao: form.funcao,
-          equipe: form.equipe,
-          area: form.area,
-          museu: form.area,
-          status: 'APROVADO',
-          aprovado_em: new Date().toISOString(),
-          role_aprovada: form.role,
-        });
-      }
-
-      const existing = await base44.entities.UserPermission
-        .filter({ user_email: email })
-        .catch(() => []);
-
-      const permissionPayload = {
-        ...rolePayload(form.role),
-        user_email: email,
-        user_name: form.full_name,
+      const payload = {
+        full_name: form.full_name,
+        nome: form.full_name,
+        email,
+        login,
+        senha: form.senha,
+        senha_inicial: form.senha,
+        role: form.role,
         funcao: form.funcao,
         equipe: form.equipe,
         area: form.area,
         museu: form.area,
+        permissions: rolePayload(form.role),
       };
 
-      if (existing?.[0]?.id) {
-        await base44.entities.UserPermission.update(existing[0].id, permissionPayload);
-      } else {
-        await base44.entities.UserPermission.create(permissionPayload);
+      try {
+        await base44.functions.invoke('createUserByCoordinator', payload);
+      } catch (functionError) {
+        await base44.entities.UserRegistration.create({
+          ...payload,
+          status: 'APROVADO',
+          aprovado_em: new Date().toISOString(),
+          role_aprovada: form.role,
+        });
+
+        const existing = await base44.entities.UserPermission
+          .filter({ user_email: email })
+          .catch(() => []);
+
+        const permissionPayload = {
+          ...rolePayload(form.role),
+          user_email: email,
+          user_name: form.full_name,
+          funcao: form.funcao,
+          equipe: form.equipe,
+          area: form.area,
+          museu: form.area,
+        };
+
+        if (existing?.[0]?.id) {
+          await base44.entities.UserPermission.update(existing[0].id, permissionPayload);
+        } else {
+          await base44.entities.UserPermission.create(permissionPayload);
+        }
       }
 
-      toast.success('Usuário criado.');
+      toast.success('Usuário registrado. Se o plano permitir, o convite foi enviado pelo Base44.');
       onCreated?.();
       onClose?.();
     } catch (e) {
@@ -337,228 +316,10 @@ function CreateUserDialog({ open, onClose, onCreated }) {
   );
 }
 
-function EditUserDialog({ user, open, onClose, onSaved }) {
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    full_name: user.full_name || user.nome || '',
-    funcao: user.funcao || '',
-    equipe: user.equipe || '',
-    area: user.area || user.museu || 'Geral',
-    role: user.permission?.base_role || 'PROFISSIONAL',
-  });
-
-  function update(key, value) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  async function handleSave() {
-    setSaving(true);
-
-    try {
-      await base44.entities.User.update(user.id, {
-        full_name: form.full_name,
-        nome: form.full_name,
-        funcao: form.funcao,
-        equipe: form.equipe,
-        area: form.area,
-        museu: form.area,
-      });
-
-      const email = normalizeEmail(user.email);
-      const existing = await base44.entities.UserPermission
-        .filter({ user_email: email })
-        .catch(() => []);
-
-      const payload = {
-        ...rolePayload(form.role),
-        user_email: email,
-        user_name: form.full_name,
-        funcao: form.funcao,
-        equipe: form.equipe,
-        area: form.area,
-        museu: form.area,
-      };
-
-      if (existing?.[0]?.id) {
-        await base44.entities.UserPermission.update(existing[0].id, payload);
-      } else {
-        await base44.entities.UserPermission.create(payload);
-      }
-
-      toast.success('Usuário atualizado.');
-      onSaved?.();
-      onClose?.();
-    } catch (e) {
-      toast.error('Erro ao salvar usuário.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Editar usuário</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-3">
-          <div>
-            <Label>Nome</Label>
-            <Input value={form.full_name} onChange={(e) => update('full_name', e.target.value)} />
-          </div>
-
-          <div>
-            <Label>Perfil</Label>
-            <Select value={form.role} onValueChange={(v) => update('role', v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ROLE_OPTIONS.map((r) => (
-                  <SelectItem key={r} value={r}>{r}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>Área</Label>
-            <Select value={form.area} onValueChange={(v) => update('area', v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {AREA_OPTIONS.map((area) => (
-                  <SelectItem key={area} value={area}>{area}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>Equipe</Label>
-            <Select value={form.equipe} onValueChange={(v) => update('equipe', v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecionar equipe" />
-              </SelectTrigger>
-              <SelectContent>
-                {EQUIPE_OPTIONS.map((equipe) => (
-                  <SelectItem key={equipe} value={equipe}>{equipe}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>Função</Label>
-            <Input value={form.funcao} onChange={(e) => update('funcao', e.target.value)} />
-          </div>
-
-          <Button onClick={handleSave} disabled={saving} className="w-full">
-            {saving ? 'Salvando...' : 'Salvar'}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function PasswordDialog({ user, open, onClose }) {
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Alterar senha</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-3">
-          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-3">
-            Alteração direta de senha depende dos recursos nativos do Base44. Use convite ou redefinição de senha.
-          </p>
-          <p className="text-xs text-gray-500">{user?.email}</p>
-          <Button variant="outline" onClick={onClose} className="w-full">Fechar</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function PermissionsDialog({ user, open, onClose, onSaved }) {
-  const [saving, setSaving] = useState(false);
-  const [role, setRole] = useState(user.permission?.base_role || 'PROFISSIONAL');
-
-  async function handleSave() {
-    setSaving(true);
-
-    try {
-      const email = normalizeEmail(user.email);
-      const existing = await base44.entities.UserPermission
-        .filter({ user_email: email })
-        .catch(() => []);
-
-      const payload = {
-        ...rolePayload(role),
-        user_email: email,
-        user_name: user.full_name || user.nome || email,
-        funcao: user.funcao || '',
-        equipe: user.equipe || '',
-        area: user.area || user.museu || '',
-        museu: user.area || user.museu || '',
-      };
-
-      if (existing?.[0]?.id) {
-        await base44.entities.UserPermission.update(existing[0].id, payload);
-      } else {
-        await base44.entities.UserPermission.create(payload);
-      }
-
-      toast.success('Permissões atualizadas.');
-      onSaved?.();
-      onClose?.();
-    } catch (e) {
-      toast.error('Erro ao salvar permissões.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Permissões</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-3">
-          <Label>Perfil</Label>
-          <Select value={role} onValueChange={setRole}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ROLE_OPTIONS.map((r) => (
-                <SelectItem key={r} value={r}>{r}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Button onClick={handleSave} disabled={saving} className="w-full">
-            {saving ? 'Salvando...' : 'Salvar permissões'}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 export default function UserManagement() {
   const [search, setSearch] = useState('');
   const [showInvite, setShowInvite] = useState(false);
   const [showCreateUser, setShowCreateUser] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [passwordUser, setPasswordUser] = useState(null);
-  const [permissionsUser, setPermissionsUser] = useState(null);
   const queryClient = useQueryClient();
 
   const { data = { users: [], registrations: [] }, isLoading } = useQuery({
@@ -589,33 +350,40 @@ export default function UserManagement() {
     try {
       const email = normalizeEmail(reg.email);
 
-      const existing = await base44.entities.UserPermission
-        .filter({ user_email: email })
-        .catch(() => []);
+      try {
+        await base44.functions.invoke('approveUserWithPermissions', {
+          userRegistrationId: reg.id,
+          permissions: rolePayload(role),
+        });
+      } catch (functionError) {
+        const existing = await base44.entities.UserPermission
+          .filter({ user_email: email })
+          .catch(() => []);
 
-      const payload = {
-        ...rolePayload(role),
-        user_email: email,
-        user_name: reg.full_name || reg.nome || email,
-        funcao: reg.funcao || '',
-        equipe: reg.equipe || '',
-        area: reg.area || reg.museu || '',
-        museu: reg.area || reg.museu || '',
-      };
+        const payload = {
+          ...rolePayload(role),
+          user_email: email,
+          user_name: reg.full_name || reg.nome || email,
+          funcao: reg.funcao || '',
+          equipe: reg.equipe || '',
+          area: reg.area || reg.museu || '',
+          museu: reg.area || reg.museu || '',
+        };
 
-      if (existing?.[0]?.id) {
-        await base44.entities.UserPermission.update(existing[0].id, payload);
-      } else {
-        await base44.entities.UserPermission.create(payload);
+        if (existing?.[0]?.id) {
+          await base44.entities.UserPermission.update(existing[0].id, payload);
+        } else {
+          await base44.entities.UserPermission.create(payload);
+        }
+
+        await base44.entities.UserRegistration.update(reg.id, {
+          status: 'APROVADO',
+          aprovado_em: new Date().toISOString(),
+          role_aprovada: role,
+        });
       }
 
-      await base44.entities.UserRegistration.update(reg.id, {
-        status: 'APROVADO',
-        aprovado_em: new Date().toISOString(),
-        role_aprovada: role,
-      });
-
-      toast.success('Solicitação aprovada.');
+      toast.success('Usuário aprovado.');
       queryClient.invalidateQueries(['user-management']);
     } catch (e) {
       toast.error('Erro ao aprovar.');
@@ -656,6 +424,8 @@ export default function UserManagement() {
     const text = `${u.full_name || ''} ${u.nome || ''} ${u.email || ''} ${u.funcao || ''} ${u.equipe || ''}`.toLowerCase();
     return text.includes(search.toLowerCase());
   });
+
+  const cadastroUrl = `${window.location.origin}/Cadastro`;
 
   return (
     <div className="p-6 space-y-6">
@@ -708,9 +478,6 @@ export default function UserManagement() {
             <UserCard
               key={u.id}
               user={u}
-              onEdit={setEditingUser}
-              onPassword={setPasswordUser}
-              onPermissions={setPermissionsUser}
               onDelete={handleDelete}
             />
           ))
@@ -721,6 +488,7 @@ export default function UserManagement() {
         <InviteDialog
           open={showInvite}
           onClose={() => setShowInvite(false)}
+          cadastroUrl={cadastroUrl}
         />
       )}
 
@@ -729,32 +497,6 @@ export default function UserManagement() {
           open={showCreateUser}
           onClose={() => setShowCreateUser(false)}
           onCreated={() => queryClient.invalidateQueries(['user-management'])}
-        />
-      )}
-
-      {editingUser && (
-        <EditUserDialog
-          user={editingUser}
-          open={!!editingUser}
-          onClose={() => setEditingUser(null)}
-          onSaved={() => queryClient.invalidateQueries(['user-management'])}
-        />
-      )}
-
-      {passwordUser && (
-        <PasswordDialog
-          user={passwordUser}
-          open={!!passwordUser}
-          onClose={() => setPasswordUser(null)}
-        />
-      )}
-
-      {permissionsUser && (
-        <PermissionsDialog
-          user={permissionsUser}
-          open={!!permissionsUser}
-          onClose={() => setPermissionsUser(null)}
-          onSaved={() => queryClient.invalidateQueries(['user-management'])}
         />
       )}
     </div>
