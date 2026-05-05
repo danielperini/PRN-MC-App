@@ -57,14 +57,14 @@ export default function ComplianceStats({ currentMonth, currentYear }) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mb-8">
-      <div className="p-5 rounded-xl border border-gray-100 bg-white hidden">
-         <div className="flex items-center justify-between mb-2">
-           <BarChart3 className="w-5 h-5 text-gray-400" />
-           <span className="text-sm font-medium text-gray-500">Relatórios Enviados</span>
-         </div>
-         <p className="text-2xl font-bold text-black">{totalSubmitted}</p>
-         <p className="text-xs text-gray-500 mt-1">de {totalObligated} mensais</p>
-       </div>
+      
+
+
+
+
+
+
+      
     </div>);
 
 }
