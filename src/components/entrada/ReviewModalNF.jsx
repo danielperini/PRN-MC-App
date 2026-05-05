@@ -210,6 +210,26 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     return rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '';
   }
 
+  function getIntakeFileUrl() {
+    return (
+      intake?.arquivo_original_url ||
+      intake?.file_url ||
+      intake?.url ||
+      intake?.documento_url ||
+      intake?.attachment_url ||
+      intake?.pdf_url ||
+      intake?.storage_url ||
+      intake?.resultado_ia?.arquivo_original_url ||
+      intake?.resultado_ia?.file_url ||
+      intake?.resultado_ia?.pdf_url ||
+      ''
+    );
+  }
+
+  function getIntakeFileType() {
+    return intake?.mime_type || intake?.file_type || intake?.tipo_mime || 'application/pdf';
+  }
+
   function getBudgetlineId(rubricaId) {
     const rubrica = rubricas.find((r) => r.id === rubricaId);
     return (
@@ -535,6 +555,17 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       const rateioPayload = getRateioPayload();
       const rubricaNome = getRubricaNome(form.rubrica_id);
       const budgetlineId = getBudgetlineId(form.rubrica_id);
+      const fileUrl = getIntakeFileUrl();
+
+      if (!fileUrl) {
+        toast({
+          title: 'Arquivo original não localizado',
+          description: 'O documento foi analisado, mas a URL do PDF não foi encontrada para vincular à solicitação.',
+          variant: 'destructive',
+          duration: 4000,
+        });
+        return;
+      }
 
       const duplicada = await verificarDuplicidadeNF({
         nf_numero: form.nf_numero,
@@ -572,6 +603,18 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         linha_orcamentaria_id: budgetlineId,
         status: aprovarDireto ? 'APROVADO_COORD' : 'AGUARDANDO_APROVACAO',
         observacoes: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
+        file_url: fileUrl,
+        arquivo_url: fileUrl,
+        documento_url: fileUrl,
+        nota_fiscal_url: fileUrl,
+        nf_pdf_url: fileUrl,
+        pdf_url: fileUrl,
+        attachment_url: fileUrl,
+        document_intake_id: intake.id,
+        intake_id: intake.id,
+        user_email: user?.email || '',
+        created_by: user?.email || '',
+        solicitante_email: user?.email || '',
       });
 
       const attachment = await base44.entities.Attachment.create({
@@ -584,9 +627,11 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         created_by: user?.email || '',
         uploadado_por: user?.email || '',
         file_name: form.file_name_final,
-        file_type: intake.mime_type,
-        file_url: intake.arquivo_original_url,
-        arquivo_original_url: intake.arquivo_original_url,
+        file_type: getIntakeFileType(),
+        file_url: fileUrl,
+        arquivo_original_url: fileUrl,
+        documento_url: fileUrl,
+        nota_fiscal_url: fileUrl,
         description: 'Entrada Única - Nota Fiscal',
         nf_categoria: 'nota_fiscal',
         nf_numero: form.nf_numero,
@@ -604,10 +649,13 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       });
 
       await base44.entities.PurchaseRequest.update(pr.id, {
-        file_url: intake.arquivo_original_url,
-        arquivo_url: intake.arquivo_original_url,
-        nota_fiscal_url: intake.arquivo_original_url,
-        nf_pdf_url: intake.arquivo_original_url,
+        file_url: fileUrl,
+        arquivo_url: fileUrl,
+        documento_url: fileUrl,
+        nota_fiscal_url: fileUrl,
+        nf_pdf_url: fileUrl,
+        pdf_url: fileUrl,
+        attachment_url: fileUrl,
         attachment_id: attachment?.id || '',
         nf_pdf_attachment_id: attachment?.id || '',
         document_intake_id: intake.id,
@@ -631,7 +679,9 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         attachment_id: attachment?.id || '',
         nf_pdf_attachment_id: attachment?.id || '',
         entidade_destino_attachment_id: attachment?.id || '',
-        arquivo_vinculado_url: intake.arquivo_original_url,
+        arquivo_vinculado_url: fileUrl,
+        file_url: fileUrl,
+        nota_fiscal_url: fileUrl,
         centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
         rubrica_id_sugerida: form.rubrica_id,
         rubrica_nome_sugerida: rubricaNome,
@@ -643,7 +693,9 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           purchase_request_id: pr.id,
           attachment_id: attachment?.id || '',
           nf_pdf_attachment_id: attachment?.id || '',
-          arquivo_vinculado_url: intake.arquivo_original_url,
+          arquivo_vinculado_url: fileUrl,
+        file_url: fileUrl,
+        nota_fiscal_url: fileUrl,
           rateio_museus: rateioPayload,
           dividir_entre_museus: dividirEntreMuseus,
         },
