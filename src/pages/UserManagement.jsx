@@ -1,7 +1,13 @@
-// 🔧 ALTERAÇÃO: PERMISSÕES COM CHECKBOX + CONTROLE REAL
+// 🔧 IMPORTANTE: ADICIONE ESTE IMPORT NO TOPO
+import { Checkbox } from '@/components/ui/checkbox';
+
+// 🔧 SUBSTITUA APENAS ESTE COMPONENTE NO SEU ARQUIVO
 
 function PermissionsDialog({ user, open, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
+
+  const role = user.permission?.base_role || user.role || user.role_aprovada || 'PROFISSIONAL';
+  const isCoord = role === 'COORDENADOR' || role === 'ADMIN';
 
   const [permissions, setPermissions] = useState({
     can_review_reports: user?.permission?.can_review_reports || false,
@@ -13,9 +19,6 @@ function PermissionsDialog({ user, open, onClose, onSaved }) {
     pode_aprovar_solicitacoes: user?.permission?.pode_aprovar_solicitacoes || false,
     must_submit_monthly_reports: user?.permission?.must_submit_monthly_reports || false,
   });
-
-  const role = user.permission?.base_role || user.role || user.role_aprovada || 'PROFISSIONAL';
-  const isCoord = role === 'COORDENADOR' || role === 'ADMIN';
 
   function toggle(key) {
     setPermissions((prev) => ({
@@ -39,10 +42,14 @@ function PermissionsDialog({ user, open, onClose, onSaved }) {
         ...permissions,
       };
 
-      // 🔒 Coordenador recebe tudo automaticamente
+      // 🔒 Coordenador = acesso total
       if (isCoord) {
         Object.keys(payload).forEach((k) => {
-          if (k.startsWith('can_') || k.includes('gestao') || k.includes('aprovar')) {
+          if (
+            k.startsWith('can_') ||
+            k.includes('gestao') ||
+            k.includes('aprovar')
+          ) {
             payload[k] = true;
           }
         });
@@ -54,7 +61,7 @@ function PermissionsDialog({ user, open, onClose, onSaved }) {
         await base44.entities.UserPermission.create(payload);
       }
 
-      toast.success('Permissões atualizadas.');
+      toast.success('Permissões atualizadas com sucesso.');
       onSaved?.();
       onClose?.();
     } catch (e) {
@@ -75,12 +82,13 @@ function PermissionsDialog({ user, open, onClose, onSaved }) {
 
           {Object.entries(permissions).map(([key, value]) => (
             <label key={key} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
+              
+              <Checkbox
                 checked={isCoord ? true : value}
                 disabled={isCoord}
-                onChange={() => toggle(key)}
+                onCheckedChange={() => toggle(key)}
               />
+
               <span className="capitalize">
                 {key.replace(/_/g, ' ')}
               </span>
