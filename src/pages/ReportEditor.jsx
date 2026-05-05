@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import ReportTabsNavigation from '@/components/reports/ReportTabsNavigation';
 import AtividadesSection from '@/components/reports/AtividadesSection';
@@ -37,16 +37,6 @@ const MESES = [
 
 const MUSEUS = ['MIS', 'MHAB', 'MUMO', 'Atuação Geral'];
 const EQUIPES = ['Comunicação', 'Coordenação', 'Administração', 'Educativo', 'Produção'];
-
-function formatarNumeroResumo(texto) {
-  if (!texto) return texto;
-
-  return String(texto).replace(/\d{1,3}(?:\.\d{3})*,\d+/g, (match) => {
-    const numero = Number(match.replace(/\./g, '').replace(',', '.'));
-    if (!Number.isFinite(numero)) return match;
-    return Math.round(numero).toLocaleString('pt-BR');
-  });
-}
 
 export default function ReportEditor() {
   const navigate = useNavigate();
@@ -173,7 +163,7 @@ export default function ReportEditor() {
       equipe: report?.equipe ?? '',
       mes_referencia: report?.mes_referencia ?? '',
       ano: report?.ano ?? new Date().getFullYear(),
-      resumo_periodo: formatarNumeroResumo(report?.resumo_periodo ?? ''),
+      resumo_periodo: report?.resumo_periodo ?? '',
       resumo_executivo: report?.resumo_executivo ?? '',
       avaliacao_pontos_positivos: report?.avaliacao_pontos_positivos ?? '',
       avaliacao_desafios: report?.avaliacao_desafios ?? '',
@@ -201,7 +191,7 @@ export default function ReportEditor() {
       equipe: form.equipe ?? '',
       mes_referencia: form.mes_referencia ?? '',
       ano: Number(form.ano) || new Date().getFullYear(),
-      resumo_periodo: formatarNumeroResumo(form.resumo_periodo ?? ''),
+      resumo_periodo: form.resumo_periodo ?? '',
       resumo_executivo: form.resumo_executivo ?? '',
       avaliacao_pontos_positivos: form.avaliacao_pontos_positivos ?? '',
       avaliacao_desafios: form.avaliacao_desafios ?? '',
@@ -258,7 +248,7 @@ export default function ReportEditor() {
         toast.success('Relatório salvo com sucesso!');
       }
 
-      setForm((prev) => ({ ...prev, ...payload, status: nextStatus || prev.status }));
+      setForm((prev) => ({ ...prev, status: nextStatus || prev.status }));
       setReport((prev) => (prev ? { ...prev, ...payload } : prev));
     } catch (error) {
       toast.error('Erro ao salvar relatório');
@@ -439,12 +429,7 @@ export default function ReportEditor() {
               <Textarea
                 id="resumo_periodo"
                 value={form.resumo_periodo}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    resumo_periodo: formatarNumeroResumo(e.target.value),
-                  }))
-                }
+                onChange={(e) => setForm((prev) => ({ ...prev, resumo_periodo: e.target.value }))}
                 placeholder="Descreva o resumo do período"
                 className="min-h-[150px] text-base p-4"
               />
