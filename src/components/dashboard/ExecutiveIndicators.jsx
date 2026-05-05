@@ -1,5 +1,6 @@
 import React from 'react';
-import { Activity, Users, Wallet, UserRound, BarChart3 } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
+import { Activity, Wallet, UserRound, BarChart3, CalendarDays } from 'lucide-react';
 
 const MONTH_ORDER = [
   'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -15,6 +16,32 @@ function toInt(value) {
 
 function fmtInt(value) {
   return toInt(value).toLocaleString('pt-BR');
+}
+
+function getProgramacaoDate(item) {
+  const raw =
+    item?.data_realizacao ||
+    item?.data_programacao ||
+    item?.data_inicio ||
+    item?.data ||
+    item?.inicio ||
+    '';
+
+  if (!raw) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(raw))) {
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  const br = String(raw).match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) {
+    const d = new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 function MiniBar({ label, value, max, color = 'bg-black' }) {
@@ -73,6 +100,41 @@ function KpiCard({ label, value, icon: Icon, highlight = false, helper }) {
 
 export default function ExecutiveIndicators({ reports = [], rubricas = [], teamMembers = [], team = [] }) {
   const TOTAL_PREVISTO = 1320000;
+  const [atividadesPrevistasMes, setAtividadesPrevistasMes] = React.useState(0);
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    async function carregarProgramacaoMesAtual() {
+      try {
+        const hoje = new Date();
+        const mesAtual = hoje.getMonth();
+        const anoAtual = hoje.getFullYear();
+
+        const lista = await base44.entities.Programacao.list('-data_realizacao', 1000).catch(() => []);
+
+        const total = (lista || []).filter((item) => {
+          const d = getProgramacaoDate(item);
+          if (!d) return false;
+
+          const status = String(item?.status || item?.situacao || '').toUpperCase();
+          if (['CANCELADO', 'CANCELADA', 'INATIVO', 'INATIVA'].includes(status)) return false;
+
+          return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+        }).length;
+
+        if (mounted) setAtividadesPrevistasMes(total);
+      } catch (e) {
+        if (mounted) setAtividadesPrevistasMes(0);
+      }
+    }
+
+    carregarProgramacaoMesAtual();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const activitiesByMonth = React.useMemo(() => {
     const map = {};
@@ -183,7 +245,7 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [], teamM
         <div>
           <h2 className="text-lg font-semibold text-black">Indicadores Executivos</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Síntese operacional, público, museus e execução financeira.
+            Síntese operacional, agenda, museus e execução financeira.
           </p>
         </div>
       </div>
@@ -194,15 +256,15 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [], teamM
           value={fmtInt(ultimoMes.atividades)}
           icon={Activity}
           highlight
-          helper="mês mais recente"
+          helper="relatórios aprovados"
         />
 
         <KpiCard
-          label={`Público ${ultimoMes.mes}`}
-          value={fmtInt(ultimoMes.publico)}
-          icon={Users}
+          label="Atividades previstas"
+          value={fmtInt(atividadesPrevistasMes)}
+          icon={CalendarDays}
           highlight
-          helper="número inteiro"
+          helper="mês atual na agenda"
         />
 
         <KpiCard
