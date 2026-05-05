@@ -97,19 +97,35 @@ function isRubricaInstitucionalOuEquipe(rubrica) {
   return (
     txt.includes('coordenador') ||
     txt.includes('coordenacao') ||
+    txt.includes('coord ') ||
+    txt.includes('coord.') ||
     txt.includes('coord geral') ||
+
+    txt.includes('assistente') ||
     txt.includes('assistente administrativo') ||
     txt.includes('assistente de coordenacao') ||
+
+    txt.includes('analista') ||
     txt.includes('analista adm') ||
     txt.includes('analista financeira') ||
+    txt.includes('analista administrativo') ||
+
+    txt.includes('equipe') ||
     txt.includes('equipe principal') ||
+
     txt.includes('gestao') ||
     txt.includes('administrativo') ||
+    txt.includes('adm ') ||
+    txt.includes('adm.') ||
+
     txt.includes('consultoria') ||
     txt.includes('consultorias') ||
+
     txt.includes('assessoria juridica') ||
+    txt.includes('juridico') ||
     txt.includes('contador') ||
     txt.includes('contabilidade') ||
+
     txt.includes('energia eletrica') ||
     txt.includes('material escritorio')
   );
@@ -170,11 +186,14 @@ function isRubricaCompartilhadaRateavel(rubrica) {
     txt.includes('comunicacao') ||
     txt.includes('imprensa') ||
     txt.includes('rede social') ||
+    txt.includes('redes sociais') ||
     txt.includes('marketing') ||
     txt.includes('designer') ||
     txt.includes('fotografo') ||
+    txt.includes('foto') ||
     txt.includes('video') ||
     txt.includes('grafico') ||
+    txt.includes('graficos') ||
     txt.includes('servicos graficos') ||
     txt.includes('seguranca') ||
     txt.includes('limpeza')
@@ -324,10 +343,10 @@ export default function RubricasMuseuEditor({ museu, canEdit = false, refreshKey
       <div className="text-center py-16">
         <AlertCircle className="w-10 h-10 text-gray-300 mx-auto mb-3" />
         <p className="text-gray-500 text-sm font-medium">
-          Nenhuma rubrica encontrada para {museu}
+          Nenhuma rubrica operacional encontrada para {museu}
         </p>
         <p className="text-gray-400 text-xs mt-1">
-          Use "Configurar vínculos" para associar rubricas a este museu.
+          Rubricas de equipe, coordenação, consultoria e gestão institucional foram ocultadas desta página.
         </p>
       </div>
     );
