@@ -1,212 +1,426 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import RequireAuth from '../components/auth/RequireAuth';
+import { useCurrentUser } from '../components/auth/useCurrentUser';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+import {
+  FileText, Plus, Clock, CheckCircle, AlertCircle,
+  Send, Eye, Archive, ChevronRight, LayoutDashboard, User, RotateCw, AlertTriangle, X, Copy } from
+'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Pencil, Trash2, KeyRound, ShieldCheck, MessageSquare, UserPlus } from 'lucide-react';
-import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
+import CoordDashboard from '../components/dashboard/CoordDashboard';
+import DashboardPatrocinador from '../pages/DashboardPatrocinador';
+import AdvancedFilters from '../components/dashboard/AdvancedFilters';
+import ComplianceStats from '../components/dashboard/ComplianceStats';
+import WidgetCustomizer from '../components/dashboard/WidgetCustomizer';
+import { useWidgetPreferences } from '../components/dashboard/useWidgetPreferences';
+import ActivityMetricsWidget from '../components/dashboard/ActivityMetricsWidget';
+import OpportunityMetricsWidget from '../components/dashboard/OpportunityMetricsWidget';
+import NewsCarousel from '../components/dashboard/NewsCarousel';
+import DuplicateReportsModal from '../components/dashboard/DuplicateReportsModal';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import ExecutiveIndicators from '../components/dashboard/ExecutiveIndicators';
 
-function normalizeEmail(email) {
-  return String(email || '').trim().toLowerCase();
-}
+const STATUS_CONFIG = {
+  DRAFT: { label: 'Rascunho', color: 'bg-white text-black border border-black', icon: Clock },
+  SUBMITTED: { label: 'Enviado', color: 'bg-white text-black border border-black', icon: Send },
+  IN_REVIEW: { label: 'Em Revisão', color: 'bg-white text-black border border-black', icon: Eye },
+  RETURNED: { label: 'Devolvido', color: 'bg-black text-white border border-black', icon: AlertCircle },
+  APPROVED: { label: 'Aprovado', color: 'bg-black text-white border border-black', icon: CheckCircle },
+  ARCHIVED: { label: 'Arquivado', color: 'bg-gray-200 text-black border border-black', icon: Archive }
+};
 
-function UserCard({ user, onEdit, onPassword, onPermissions, onMessage, onDelete }) {
-  const role = user.permission?.base_role || user.role || 'PROFISSIONAL';
+function DashboardInner() {
+  const { user: currentUser, isLoading: userLoading, isCoordenador } = useCurrentUser();
+  const { widgets, loaded: widgetsLoaded, toggleWidget, resetToDefault } = useWidgetPreferences();
+  const [view, setView] = React.useState('coordenador');
+  const [showSponsorView, setShowSponsorView] = React.useState(false);
+  const [filters, setFilters] = React.useState({ museu: '', status: '' });
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [showDuplicates, setShowDuplicates] = React.useState(false);
+  const [dismissedDataWarning, setDismissedDataWarning] = React.useState(false);
 
-  return (
-    <div className="border rounded-xl p-4 flex justify-between items-center">
-      <div>
-        <p className="font-medium">{user.full_name || user.nome || '-'}</p>
-        <p className="text-xs text-gray-500">{user.email}</p>
-        <p className="text-xs text-gray-500">
-          {[user.area, user.equipe, user.funcao].filter(Boolean).join(' · ')}
-        </p>
-      </div>
+  // Current month/year for compliance stats
+  const now = new Date();
+  const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const currentMonth = monthNames[now.getMonth()];
+  const currentYear = now.getFullYear();
 
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="px-2 py-1 text-xs border rounded">{role}</span>
-
-        <Button size="sm" variant="outline" onClick={() => onEdit(user)}>
-          <Pencil className="w-4 h-4 mr-1" /> Editar
-        </Button>
-
-        <Button size="sm" variant="outline" onClick={() => onPassword(user)}>
-          <KeyRound className="w-4 h-4 mr-1" /> Senha
-        </Button>
-
-        <Button size="sm" variant="outline" onClick={() => onPermissions(user)}>
-          <ShieldCheck className="w-4 h-4 mr-1" /> Permissões
-        </Button>
-
-        <Button size="sm" variant="outline" onClick={() => onMessage(user)}>
-          <MessageSquare className="w-4 h-4 mr-1" /> Mensagem
-        </Button>
-
-        <Button size="sm" variant="outline" onClick={() => onDelete(user)}>
-          <Trash2 className="w-4 h-4 mr-1 text-red-600" /> Excluir
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function PermissionsDialog({ user, open, onClose }) {
-  const queryClient = useQueryClient();
-  const [saving, setSaving] = useState(false);
-
-  const role = user.permission?.base_role || user.role || 'PROFISSIONAL';
-  const isCoord = role === 'COORDENADOR' || role === 'ADMIN';
-
-  const [permissions, setPermissions] = useState({
-    can_review_reports: user?.permission?.can_review_reports || false,
-    can_manage_users: user?.permission?.can_manage_users || false,
-    can_manage_files: user?.permission?.can_manage_files || false,
-    can_view_audit_log: user?.permission?.can_view_audit_log || false,
-    can_manage_platform: user?.permission?.can_manage_platform || false,
-    gestao_compras: user?.permission?.gestao_compras || false,
-    pode_aprovar_solicitacoes: user?.permission?.pode_aprovar_solicitacoes || false,
-    must_submit_monthly_reports: user?.permission?.must_submit_monthly_reports || false,
+  const { data: myTeamMember } = useQuery({
+    queryKey: ['my-team-member-dashboard', currentUser?.email],
+    queryFn: () => base44.entities.TeamMember.filter({ user_email: currentUser.email }),
+    enabled: !!currentUser?.email && !userLoading,
+    select: data => data?.[0] ?? null,
   });
 
-  function toggle(key) {
-    setPermissions(prev => ({ ...prev, [key]: !prev[key] }));
-  }
+  const dadosCompletos = React.useMemo(() => {
+    const src = myTeamMember || currentUser || {};
+    return !!(src.cpf && src.telefone && src.email_pessoal && src.banco && src.agencia && src.conta);
+  }, [myTeamMember, currentUser]);
 
-  async function handleSave() {
-    setSaving(true);
+  const { data: myReports = [], isLoading: loadingMy, refetch: refetchMy } = useQuery({
+    queryKey: ['my-reports', currentUser?.email],
+    queryFn: async () => {
+      if (!currentUser?.email) return [];
+      try {
+        const data = await base44.entities.Report.filter({ created_by: currentUser.email }, '-created_date');
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!currentUser?.email && !userLoading
+  });
+
+  const { data: allReports = [], isLoading: loadingAll, refetch: refetchAll } = useQuery({
+    queryKey: ['all-reports'],
+    queryFn: async () => {
+      try {
+        const data = await base44.entities.Report.list('-created_date', 200);
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: isCoordenador
+  });
+
+  const { data: rubricas = [] } = useQuery({
+    queryKey: ['dashboard-rubricas'],
+    queryFn: async () => {
+      try {
+        const data = await base44.entities.Rubrica.list('rubrica', 1000);
+        return Array.isArray(data) ? data.filter(r => r.ativo !== false) : [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!currentUser?.email
+  });
+
+  // Subscrições em tempo real para atualizar números quando dados são excluídos/alterados
+  React.useEffect(() => {
+    const unsubReport = base44.entities.Report.subscribe(() => {
+      refetchMy();
+      if (isCoordenador) refetchAll();
+    });
+    const unsubActivity = base44.entities.Activity.subscribe(() => {
+      refetchMy();
+      if (isCoordenador) refetchAll();
+    });
+    return () => {
+      unsubReport();
+      unsubActivity();
+    };
+  }, [isCoordenador]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
     try {
-      const payload = {
-        base_role: role,
-        user_email: normalizeEmail(user.email),
-        user_name: user.full_name || user.nome,
-        ...permissions,
-      };
-
-      if (isCoord) {
-        Object.keys(payload).forEach(k => {
-          if (k.startsWith('can_') || k.includes('gestao') || k.includes('aprovar')) {
-            payload[k] = true;
-          }
-        });
-      }
-
-      if (user.permission?.id) {
-        await base44.entities.UserPermission.update(user.permission.id, payload);
+      if (showCoordView) {
+        await refetchAll();
       } else {
-        await base44.entities.UserPermission.create(payload);
+        await refetchMy();
       }
-
-      toast.success('Permissões atualizadas');
-      queryClient.invalidateQueries(['users']);
-      onClose();
-    } catch {
-      toast.error('Erro ao salvar permissões');
+      // Force toast feedback
+      const event = new CustomEvent('dashboardRefreshed');
+      window.dispatchEvent(event);
     } finally {
-      setSaving(false);
+      setIsRefreshing(false);
     }
-  }
+  };
+
+  const { containerRef, isPulling, pullDistance } = usePullToRefresh(handleRefresh);
+
+  const showCoordView = isCoordenador && view === 'coordenador';
+  const showDedicatedProfView = !isCoordenador;
+  const displayReports = React.useMemo(() => {
+    let reports = showCoordView ? allReports : myReports;
+    if (!Array.isArray(reports)) return [];
+    return reports;
+  }, [showCoordView, allReports, myReports]);
+
+  // Aplicar filtros
+  const filteredReports = React.useMemo(() => {
+    let reports = displayReports;
+    if (filters.museu) {
+      reports = reports.filter((r) => r.museu === filters.museu);
+    }
+    if (filters.status) {
+      reports = reports.filter((r) => r.status === filters.status);
+    }
+    return reports;
+  }, [displayReports, filters.museu, filters.status]);
+
+  const recentReports = filteredReports.slice(0, 8);
+  const isLoading = showCoordView ? loadingAll : loadingMy || userLoading;
+
+  const activityStats = React.useMemo(() => {
+    let totalAtividades = 0;
+    let totalPublico = 0;
+    filteredReports.forEach(r => {
+      const atividades = Array.isArray(r.atividades) ? r.atividades : [];
+      atividades.forEach(a => {
+        const vezes = Number(a.quantas_vezes_ocorreu || 1);
+        const publicoMedio = Number(a.publico_medio || 0);
+        totalAtividades += vezes;
+        totalPublico += vezes * publicoMedio;
+      });
+    });
+    return { totalAtividades, totalPublico };
+  }, [filteredReports]);
+
+  const stats = React.useMemo(() => [
+    { label: 'Relatórios', value: filteredReports.length },
+    { label: 'Pendentes', value: filteredReports.filter(r => r.status !== 'APPROVED').length },
+    { label: 'Aprovados', value: filteredReports.filter(r => r.status === 'APPROVED').length },
+    { label: 'Atividades', value: activityStats.totalAtividades },
+    { label: 'Público', value: activityStats.totalPublico }
+  ], [filteredReports, activityStats]);
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Permissões — {user.full_name || user.email}</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-2">
-          {Object.entries(permissions).map(([k, v]) => (
-            <label key={k} className="flex items-center gap-2 cursor-pointer">
-              <Checkbox
-                checked={isCoord ? true : v}
-                disabled={isCoord}
-                onCheckedChange={() => toggle(k)}
+    <div className="min-h-screen bg-white overflow-y-auto" ref={containerRef} style={{ maxHeight: '100vh' }}>
+      {isPulling && (
+        <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center h-16 bg-gradient-to-b from-blue-50 to-transparent">
+          <div className="text-center">
+            <div className="w-6 h-6 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin mx-auto" 
+              style={{ transform: `scaleY(${Math.min(pullDistance / 80, 1)})` }} 
+            />
+            <p className="text-xs text-blue-600 mt-1">
+              {pullDistance < 80 ? 'Puxe para atualizar' : 'Solte para atualizar'}
+            </p>
+          </div>
+        </div>
+      )}
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold text-black tracking-tight">
+              {showSponsorView ? 'Painel Observador' : showCoordView ? 'Painel da Coordenação' : 'Meu Painel'}
+            </h1>
+            <p className="text-gray-500 mt-1 text-sm">
+              {showSponsorView
+                ? 'Visão institucional do projeto — somente leitura'
+                : showCoordView
+                ? 'Visão consolidada de todos os relatórios e atividades'
+                : `Olá, ${currentUser?.full_name || ''}! Gerencie seus relatórios mensais.`}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {!showCoordView && widgetsLoaded && (
+              <WidgetCustomizer
+                widgets={widgets}
+                onToggleWidget={toggleWidget}
+                onReset={resetToDefault}
               />
-              <span className="text-sm capitalize">{k.replace(/_/g, ' ')}</span>
-            </label>
-          ))}
+            )}
+            {isCoordenador && (
+              <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => { setView('coordenador'); setShowSponsorView(false); }}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === 'coordenador' && !showSponsorView ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />Coordenação
+                </button>
+                <button
+                  onClick={() => { setView('profissional'); setShowSponsorView(false); }}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === 'profissional' && !showSponsorView ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <User className="w-3.5 h-3.5" />Meus Relatórios
+                </button>
+                <button
+                  onClick={() => setShowSponsorView(!showSponsorView)}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${showSponsorView ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <Eye className="w-3.5 h-3.5" />Observador
+                </button>
+              </div>
+            )}
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="border-gray-200"
+              title="Atualizar dados dos últimos 30 dias"
+            >
+              <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </Button>
+            {!showSponsorView && (
+              <Link to={createPageUrl('ReportEditor')}>
+                <Button className="bg-black hover:bg-gray-800 text-white gap-2">
+                  <Plus className="w-4 h-4" />Novo Relatório
+                </Button>
+              </Link>
+            )}
+          </div>
         </div>
 
-        <Button onClick={handleSave} disabled={saving} className="mt-4 w-full">
-          {saving ? 'Salvando...' : 'Salvar'}
-        </Button>
-      </DialogContent>
-    </Dialog>
+        {/* Aviso fixo - Atualizar Dados */}
+         {!dadosCompletos && !showSponsorView && !dismissedDataWarning && (
+           <div className="mb-4 p-4 bg-white border-2 border-black rounded-xl flex items-start gap-3">
+             <AlertTriangle className="w-5 h-5 text-black flex-shrink-0 mt-0.5" />
+             <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+               <div>
+                 <h3 className="text-sm font-semibold text-black">⚠️ Atualize seus dados</h3>
+                 <p className="text-gray-700 text-xs mt-0.5">
+                   Preencha seus dados pessoais e bancários no formulário de cadastro.
+                 </p>
+               </div>
+               <Link to={createPageUrl('MeusDados')} className="flex-shrink-0">
+                 <Button size="sm" className="bg-black hover:bg-gray-900 text-white text-xs font-medium">
+                   Preencher meus dados →
+                 </Button>
+               </Link>
+             </div>
+             <button
+               onClick={() => setDismissedDataWarning(true)}
+               className="flex-shrink-0 text-black hover:text-gray-700 transition-colors ml-1"
+               title="Dispensar aviso"
+             >
+               <X className="w-4 h-4" />
+             </button>
+           </div>
+         )}
+
+        {/* Botão buscar duplicados - só coordenadores */}
+        {isCoordenador && !showSponsorView && (
+          <>
+            <div className="flex justify-end mb-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDuplicates(true)}
+                className="gap-2 text-xs border-gray-200 text-gray-600 hover:text-orange-600 hover:border-orange-300"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                Verificar relatórios duplicados
+              </Button>
+            </div>
+            <DuplicateReportsModal open={showDuplicates} onClose={() => setShowDuplicates(false)} />
+          </>
+        )}
+
+        {/* Carrossel de Notícias */}
+        <NewsCarousel />
+
+        {/* Visão Patrocinador */}
+        {showSponsorView ? (
+          <>
+            <ExecutiveIndicators reports={allReports} rubricas={rubricas} />
+            <div className="mt-8">
+              <DashboardPatrocinador />
+            </div>
+          </>
+        ) : showCoordView ? (
+          <>
+            <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
+            <CoordDashboard reports={allReports} isLoading={loadingAll} />
+            <ExecutiveIndicators reports={allReports} rubricas={rubricas} />
+          </>
+        ) : (
+          <div>
+            {/* Filtros */}
+            <AdvancedFilters onFilterChange={setFilters} activeFilters={filters} />
+
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+              {stats.map(s => (
+                <div key={s.label} className="p-4 border border-gray-200 rounded-xl">
+                  <p className="text-2xl font-semibold text-black">{s.value}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Widgets Dinâmicos */}
+            {widgetsLoaded && (
+              <div className="space-y-8">
+                {widgets.activityMetrics.enabled && (
+                  <div>
+                    <h2 className="text-lg font-medium text-black mb-4">{widgets.activityMetrics.title}</h2>
+                    <ActivityMetricsWidget reports={filteredReports} />
+                  </div>
+                )}
+
+                {widgets.opportunityMetrics.enabled && (
+                  <div>
+                    <h2 className="text-lg font-medium text-black mb-4">{widgets.opportunityMetrics.title}</h2>
+                    <OpportunityMetricsWidget reports={filteredReports} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Recentes */}
+            {widgets.recentReports.enabled && (
+              <>
+                <div className="flex items-center justify-between mb-4 mt-8">
+                  <h2 className="text-lg font-medium text-black">{widgets.recentReports.title}</h2>
+                  <Link to={createPageUrl('Relatorios')}>
+                    <Button variant="ghost" size="sm" className="text-gray-500 gap-1">
+                      Ver todos <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                </div>
+
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {isLoading ? (
+                    <div className="col-span-full text-center py-20 text-gray-400">Carregando...</div>
+                  ) : recentReports.length === 0 ? (
+                    <div className="col-span-full text-center py-16 border-2 border-dashed border-black rounded-2xl bg-white">
+                      <FileText className="w-12 h-12 text-black mx-auto mb-4 opacity-50" />
+                      <p className="text-black font-medium">Sem dados disponíveis</p>
+                      <p className="text-gray-600 text-sm mt-1">Crie um novo relatório para começar</p>
+                    </div>
+                  ) : (
+                    recentReports.map(report => {
+                      const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.DRAFT;
+                      const StatusIcon = cfg.icon;
+                      const atividades = Array.isArray(report.atividades) ? report.atividades : [];
+                      const nMeta = atividades.filter(a => a.classificacao === 'META').length;
+                      const nRot  = atividades.filter(a => a.classificacao === 'ROTINA').length;
+                      const nExt  = atividades.filter(a => a.classificacao === 'EXTRA').length;
+                      return (
+                        <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block group">
+                          <div className="h-full p-5 rounded-2xl border-2 border-black hover:shadow-md transition-all bg-white">
+                            <div className="flex items-center justify-between mb-4">
+                              <Badge className={`${cfg.color} font-normal gap-1`}>
+                                <StatusIcon className="w-3 h-3" />{cfg.label}
+                              </Badge>
+                              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
+                            </div>
+                            <h3 className="font-semibold text-black text-base leading-tight">
+                              {report.mes_referencia} {report.ano}
+                            </h3>
+                            <p className="text-sm text-gray-500 mt-1 truncate">{report.author_name}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{report.museu}</p>
+                            {(nMeta + nRot + nExt) > 0 && (
+                              <div className="flex gap-1.5 mt-4 flex-wrap">
+                                {nMeta > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>}
+                                {nRot > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>}
+                                {nExt > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>}
+                              </div>
+                            )}
+                          </div>
+                        </Link>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
-export default function UserManagement() {
-  const queryClient = useQueryClient();
-  const [selected, setSelected] = useState(null);
-  const [modal, setModal] = useState(null);
-  const [search, setSearch] = useState('');
-
-  const { data = [] } = useQuery({
-    queryKey: ['users'],
-    queryFn: async () => {
-      const users = await base44.entities.User.list();
-      const perms = await base44.entities.UserPermission.list();
-      return users.map(u => ({
-        ...u,
-        permission: perms.find(p => normalizeEmail(p.user_email) === normalizeEmail(u.email)),
-      }));
-    },
-  });
-
-  async function handleDelete(user) {
-    if (!confirm('Excluir usuário?')) return;
-    await base44.entities.User.delete(user.id);
-    toast.success('Usuário excluído');
-    queryClient.invalidateQueries(['users']);
-  }
-
-  function openModal(type, user) {
-    setSelected(user);
-    setModal(type);
-  }
-
-  const filtered = data.filter(u =>
-    !search ||
-    (u.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
-    (u.email || '').toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <div className="p-6 space-y-4">
-      <div className="flex justify-between">
-        <h1 className="text-xl font-semibold">Usuários</h1>
-        <Button>
-          <UserPlus className="w-4 h-4 mr-1" />
-          Criar usuário
-        </Button>
-      </div>
-
-      <Input
-        placeholder="Buscar usuário..."
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-      />
-
-      {filtered.map(user => (
-        <UserCard
-          key={user.id}
-          user={user}
-          onEdit={(u) => openModal('edit', u)}
-          onPassword={(u) => openModal('password', u)}
-          onPermissions={(u) => openModal('permissions', u)}
-          onMessage={(u) => openModal('message', u)}
-          onDelete={handleDelete}
-        />
-      ))}
-
-      {modal === 'permissions' && selected && (
-        <PermissionsDialog
-          user={selected}
-          open={true}
-          onClose={() => setModal(null)}
-        />
-      )}
-    </div>
-  );
+export default function Dashboard() {
+  return <RequireAuth><DashboardInner /></RequireAuth>;
 }
