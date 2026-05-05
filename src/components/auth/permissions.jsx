@@ -1,4 +1,4 @@
-// 🔒 CONTROLE CENTRAL DE PERMISSÕES
+// 🔒 CONTROLE CENTRAL DE PERMISSÕES (NÃO ALTERAR SEM NECESSIDADE)
 
 function normalizeRole(user) {
   return String(
@@ -7,9 +7,7 @@ function normalizeRole(user) {
     user?.permissions?.base_role ||
     user?.role ||
     ''
-  )
-    .trim()
-    .toUpperCase();
+  ).trim().toUpperCase();
 }
 
 function normalizeEmailValue(value) {
@@ -52,38 +50,14 @@ export function isCoordenador(user) {
     role === 'COORD_PRODUCAO' ||
     truthy(user?.can_review_reports) ||
     truthy(user?.can_manage_users) ||
-    truthy(user?.pode_aprovar_solicitacoes) ||
-    truthy(user?.gestao_compras)
+    truthy(user?.gestao_compras) ||
+    truthy(user?.pode_aprovar_solicitacoes)
   );
 }
 
 export function isProfissional(user) {
   if (!user) return false;
   return !isCoordenador(user) && !!normalizeEmail(user);
-}
-
-export function isObservador(user) {
-  return normalizeRole(user) === 'OBSERVADOR';
-}
-
-export function canViewDashboard(user) {
-  return !!user?.email || !!user?.user_email;
-}
-
-export function canAccessEntradaUnica(user) {
-  return !!user?.email || !!user?.user_email;
-}
-
-export function canAccessRelatorios(user) {
-  return !!user?.email || !!user?.user_email;
-}
-
-export function canAccessCompras(user) {
-  return !!user?.email || !!user?.user_email;
-}
-
-export function canAccessMeusDados(user) {
-  return !!user?.email || !!user?.user_email;
 }
 
 export function canViewAll(user) {
@@ -95,30 +69,24 @@ export function canViewOwnData(user, record) {
   if (isCoordenador(user)) return true;
 
   const userEmail = normalizeEmail(user);
-  if (!userEmail) return false;
 
-  const candidates = [
-    record?.user_email,
-    record?.email,
-    record?.created_by,
-    record?.created_by_email,
-    record?.uploadado_por,
-    record?.uploaded_by,
-    record?.uploaded_by_email,
-    record?.author_email,
-    record?.owner_email,
-    record?.solicitante_email,
-    record?.requester_email,
-    record?.profissional_email,
-    record?.prestador_email,
-    record?.fornecedor_email,
-    record?.team_member_email,
-    record?.userEmail,
-    record?.email_usuario,
-    record?.responsavel_email,
-  ];
-
-  return candidates.some((value) => normalizeEmailValue(value) === userEmail);
+  return (
+    normalizeEmailValue(record?.user_email) === userEmail ||
+    normalizeEmailValue(record?.email) === userEmail ||
+    normalizeEmailValue(record?.created_by) === userEmail ||
+    normalizeEmailValue(record?.created_by_email) === userEmail ||
+    normalizeEmailValue(record?.uploadado_por) === userEmail ||
+    normalizeEmailValue(record?.uploaded_by) === userEmail ||
+    normalizeEmailValue(record?.uploaded_by_email) === userEmail ||
+    normalizeEmailValue(record?.author_email) === userEmail ||
+    normalizeEmailValue(record?.owner_email) === userEmail ||
+    normalizeEmailValue(record?.solicitante_email) === userEmail ||
+    normalizeEmailValue(record?.requester_email) === userEmail ||
+    normalizeEmailValue(record?.profissional_email) === userEmail ||
+    normalizeEmailValue(record?.prestador_email) === userEmail ||
+    normalizeEmailValue(record?.team_member_email) === userEmail ||
+    normalizeEmailValue(record?.responsavel_email) === userEmail
+  );
 }
 
 export function canEditOwnData(user, record) {
@@ -133,11 +101,8 @@ export function canViewPurchase(user, purchase) {
 
 export function canEditPurchase(user, purchase) {
   if (isCoordenador(user)) return true;
-
   const status = String(purchase?.status || '').toUpperCase();
-  const editableStatuses = ['', 'RASCUNHO', 'SOLICITADO', 'DEVOLVIDO'];
-
-  return canViewOwnData(user, purchase) && editableStatuses.includes(status);
+  return canViewOwnData(user, purchase) && ['', 'RASCUNHO', 'SOLICITADO', 'DEVOLVIDO'].includes(status);
 }
 
 export function canViewPayment(user, payment) {
@@ -146,11 +111,8 @@ export function canViewPayment(user, payment) {
 
 export function canEditPayment(user, payment) {
   if (isCoordenador(user)) return true;
-
   const status = String(payment?.status || '').toUpperCase();
-  const editableStatuses = ['', 'RASCUNHO', 'DEVOLVIDO', 'PENDENTE'];
-
-  return canViewOwnData(user, payment) && editableStatuses.includes(status);
+  return canViewOwnData(user, payment) && ['', 'RASCUNHO', 'PENDENTE', 'DEVOLVIDO'].includes(status);
 }
 
 export function canViewDocument(user, doc) {
@@ -159,15 +121,32 @@ export function canViewDocument(user, doc) {
 
 export function canEditDocument(user, doc) {
   if (isCoordenador(user)) return true;
-
   const status = String(doc?.status || doc?.status_processamento || '').toUpperCase();
-  const editableStatuses = ['', 'RASCUNHO', 'ENVIADO', 'AGUARDANDO_REVISAO', 'DEVOLVIDO', 'ERRO_PROCESSAMENTO'];
-
-  return canViewOwnData(user, doc) && editableStatuses.includes(status);
+  return canViewOwnData(user, doc) && ['', 'RASCUNHO', 'ENVIADO', 'AGUARDANDO_REVISAO', 'DEVOLVIDO', 'ERRO_PROCESSAMENTO'].includes(status);
 }
 
 export function canManageTeam(user) {
   return isCoordenador(user);
+}
+
+export function canViewDashboard(user) {
+  return !!normalizeEmail(user);
+}
+
+export function canAccessEntradaUnica(user) {
+  return !!normalizeEmail(user);
+}
+
+export function canAccessRelatorios(user) {
+  return !!normalizeEmail(user);
+}
+
+export function canAccessCompras(user) {
+  return !!normalizeEmail(user);
+}
+
+export function canAccessMeusDados(user) {
+  return !!normalizeEmail(user);
 }
 
 export function canViewRubricas(user) {
@@ -186,20 +165,12 @@ export function canManageFiles(user) {
   return isCoordenador(user) || truthy(user?.can_manage_files);
 }
 
-export function canViewAuditLog(user) {
-  return isCoordenador(user) || truthy(user?.can_view_audit_log);
-}
-
-export function canManagePlatform(user) {
-  return isCoordGeral(user) || truthy(user?.can_manage_platform);
-}
-
 export function canReviewReports(user) {
   return isCoordenador(user) || truthy(user?.can_review_reports);
 }
 
 export function canSubmitReports(user) {
-  return !!user?.email || !!user?.user_email;
+  return !!normalizeEmail(user);
 }
 
 export function canManagePurchases(user) {
@@ -218,14 +189,6 @@ export function buildUserFilter(user) {
 export function filterOwnRecords(user, records = []) {
   if (isCoordenador(user)) return records || [];
   return (records || []).filter((record) => canViewOwnData(user, record));
-}
-
-export function getUserArea(user) {
-  return user?.area || user?.museu || user?.centro_custo || '';
-}
-
-export function getUserEquipe(user) {
-  return user?.equipe || user?.team || '';
 }
 
 export function mergeUserWithPermission(user, permission) {
