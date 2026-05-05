@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -208,6 +208,18 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   function getRubricaNome(rubricaId) {
     const rubrica = rubricas.find((r) => r.id === rubricaId);
     return rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '';
+  }
+
+  function getBudgetlineId(rubricaId) {
+    const rubrica = rubricas.find((r) => r.id === rubricaId);
+    return (
+      rubrica?.budgetline_id ||
+      rubrica?.budget_line_id ||
+      rubrica?.linha_orcamentaria_id ||
+      rubrica?.budgetLineId ||
+      rubricaId ||
+      ''
+    );
   }
 
   useEffect(() => {
@@ -466,6 +478,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     try {
       const rateioPayload = getRateioPayload();
       const rubricaNome = getRubricaNome(form.rubrica_id);
+      const budgetlineId = getBudgetlineId(form.rubrica_id);
 
       const duplicada = await verificarDuplicidadeNF({
         nf_numero: form.nf_numero,
@@ -498,7 +511,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
         rubrica_id: form.rubrica_id,
         rubrica_nome: rubricaNome,
-        status: aprovarDireto ? 'APROVADO_COORD' : 'SOLICITADO',
+        budgetline_id: budgetlineId,
+        budget_line_id: budgetlineId,
+        linha_orcamentaria_id: budgetlineId,
+        status: aprovarDireto ? 'APROVADO_COORD' : 'AGUARDANDO_APROVACAO',
         observacoes: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
       });
 
@@ -525,10 +541,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         rubrica_nome: rubricaNome,
       });
 
-      if (dividirEntreMuseus && rateioPayload && rateioPayload.length > 0) {
-        await debitarRubricas(rateioPayload);
-      } else {
-        await debitarRubricaSimples(valorTotal);
+      if (aprovarDireto) {
+        if (dividirEntreMuseus && rateioPayload && rateioPayload.length > 0) {
+          await debitarRubricas(rateioPayload);
+        } else {
+          await debitarRubricaSimples(valorTotal);
+        }
       }
 
       await base44.entities.DocumentIntake.update(intake.id, {
@@ -639,10 +657,15 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-start justify-between">
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-500" />
-              Conferência de Nota Fiscal
-            </DialogTitle>
+            <div>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-500" />
+                Conferência de Nota Fiscal
+              </DialogTitle>
+              <DialogDescription>
+                Revise os dados extraídos pela IA, vincule rubrica e envie a nota para aprovação.
+              </DialogDescription>
+            </div>
             <a href="/GuiaNotaFiscal" target="_blank" rel="noopener noreferrer">
               <Button variant="outline" size="sm" className="text-xs h-8">
                 <BookOpen className="w-3 h-3 mr-1" />
@@ -899,7 +922,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           </div>
 
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
-            ⚡ Ao enviar, o valor será debitado imediatamente da(s) rubrica(s) correspondente(s), atualizando o valor realizado e o saldo disponível.
+            ⚡ Ao enviar para aprovação, a solicitação ficará pendente. O débito na rubrica ocorre na aprovação.
           </div>
 
           {errosFiltrados.length > 0 && (
