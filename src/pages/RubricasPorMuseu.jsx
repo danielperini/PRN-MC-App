@@ -66,7 +66,15 @@ function isRubricaValida(rubrica = {}) {
     texto.includes('contador') ||
     texto.includes('contabilidade') ||
     texto.includes('energia eletrica') ||
-    texto.includes('material escritorio')
+    texto.includes('material escritorio') ||
+    texto.includes('educador') ||
+    texto.includes('educadora') ||
+    texto.includes('educadores') ||
+    texto.includes('diaria educador') ||
+    texto.includes('diarias educador') ||
+    texto.includes('diárias educador') ||
+    texto.includes('diaria de educador') ||
+    texto.includes('diarias de educador')
   ) {
     return false;
   }
@@ -81,7 +89,6 @@ function isRubricaValida(rubrica = {}) {
     texto.includes('programacao') ||
     texto.includes('oficina') ||
     texto.includes('educativ') ||
-    texto.includes('educador') ||
     texto.includes('mediacao') ||
     texto.includes('monitor') ||
     texto.includes('recepcao') ||
@@ -166,6 +173,77 @@ function extractResumoMapFromSource(source) {
       };
     });
   }
+
+  return result;
+}
+
+
+function extractResumoMapFromRubricas(source) {
+  const result = {};
+
+  if (!source?.por_museu || typeof source.por_museu !== 'object') return result;
+
+  MUSEUS.forEach((museu) => {
+    const categorias = source.por_museu?.[museu];
+    if (!categorias || typeof categorias !== 'object') return;
+
+    const acc = {
+      museu,
+      totalOrcado: 0,
+      totalUtilizado: 0,
+      totalPago: 0,
+      totalLancamentos: 0,
+      totalSaldo: 0,
+      pct: 0,
+    };
+
+    Object.entries(categorias).forEach(([catKey, rubricas]) => {
+      const cat = normalizeText(catKey);
+
+      if (
+        cat.includes('equipe') ||
+        cat.includes('educador') ||
+        cat.includes('diarias_educador') ||
+        cat.includes('diarias educador') ||
+        cat.includes('diárias educador') ||
+        cat.includes('coordenacao') ||
+        cat.includes('gestao') ||
+        cat.includes('administrativo') ||
+        cat.includes('consultoria')
+      ) {
+        return;
+      }
+
+      (Array.isArray(rubricas) ? rubricas : [])
+        .filter(isRubricaValida)
+        .forEach((rubrica) => {
+          const totalOrcado = toNumber(rubrica?.totalOrcado ?? rubrica?.valor_rubrica);
+          const totalUtilizado = toNumber(rubrica?.valorUtilizado ?? rubrica?.valor_utilizado);
+          const totalPago = toNumber(rubrica?.valorPago ?? rubrica?.valor_pago);
+          const totalLancamentos = toNumber(rubrica?.valorLancamentos ?? rubrica?.valor_lancamentos);
+          const totalSaldo = rubrica?.saldo !== undefined && rubrica?.saldo !== null
+            ? toNumber(rubrica.saldo)
+            : totalOrcado - totalUtilizado;
+
+          acc.totalOrcado += totalOrcado;
+          acc.totalUtilizado += totalUtilizado;
+          acc.totalPago += totalPago;
+          acc.totalLancamentos += totalLancamentos;
+          acc.totalSaldo += totalSaldo;
+        });
+    });
+
+    acc.totalOrcado = Number(acc.totalOrcado.toFixed(2));
+    acc.totalUtilizado = Number(acc.totalUtilizado.toFixed(2));
+    acc.totalPago = Number(acc.totalPago.toFixed(2));
+    acc.totalLancamentos = Number(acc.totalLancamentos.toFixed(2));
+    acc.totalSaldo = Number(acc.totalSaldo.toFixed(2));
+    acc.pct = acc.totalOrcado > 0
+      ? Number(((acc.totalUtilizado / acc.totalOrcado) * 100).toFixed(2))
+      : 0;
+
+    result[museu] = acc;
+  });
 
   return result;
 }
@@ -305,8 +383,14 @@ export default function RubricasPorMuseu() {
   });
 
   const resumoPorMuseu = useMemo(() => {
-    const baseMap = extractResumoMapFromSource(consolidado);
-    const recalcMap = extractResumoMapFromSource(lastRecalcResponse);
+    const baseRubricasMap = extractResumoMapFromRubricas(consolidado);
+    const recalcRubricasMap = extractResumoMapFromRubricas(lastRecalcResponse);
+    const baseMap = Object.keys(baseRubricasMap).length > 0
+      ? baseRubricasMap
+      : extractResumoMapFromSource(consolidado);
+    const recalcMap = Object.keys(recalcRubricasMap).length > 0
+      ? recalcRubricasMap
+      : extractResumoMapFromSource(lastRecalcResponse);
     const merged = { ...baseMap, ...recalcMap };
 
     return MUSEUS.map((m) => {
