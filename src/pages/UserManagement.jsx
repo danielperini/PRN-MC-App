@@ -7,11 +7,35 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Search, UserPlus, Trash2, UserCheck, XCircle, Clock, Save } from 'lucide-react';
+import {
+  Search,
+  UserPlus,
+  Trash2,
+  UserCheck,
+  XCircle,
+  Clock,
+  Pencil,
+  KeyRound,
+  ShieldCheck,
+  Save
+} from 'lucide-react';
 import { toast } from 'sonner';
 import InviteDialog from '@/components/users/InviteDialog';
 
 const ROLE_OPTIONS = ['PROFISSIONAL', 'COORDENADOR', 'ADMIN', 'OBSERVADOR', 'PATROCINADOR'];
+const AREA_OPTIONS = ['MHAB', 'MUMO', 'MIS', 'Geral', 'Observador'];
+
+const EQUIPE_OPTIONS = [
+  'PV',
+  'Produção Viaduto das Artes',
+  'Produção',
+  'Coordenação',
+  'Comunicação',
+  'Educativo',
+  'Administrativo',
+  'Financeiro',
+  'Observador'
+];
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
@@ -61,7 +85,7 @@ function RegistrationCard({ item, onApprove, onReject }) {
           <p className="font-semibold">{item.full_name || item.nome || 'Sem nome'}</p>
           <p className="text-xs text-gray-600">{item.email}</p>
           <p className="text-xs text-gray-500">
-            {[item.funcao, item.equipe, item.museu].filter(Boolean).join(' · ')}
+            {[item.funcao, item.equipe, item.area || item.museu].filter(Boolean).join(' · ')}
           </p>
         </div>
 
@@ -97,17 +121,42 @@ function RegistrationCard({ item, onApprove, onReject }) {
   );
 }
 
-function UserCard({ user, onDelete }) {
+function UserCard({ user, onEdit, onPassword, onPermissions, onDelete }) {
+  const role = user.permission?.base_role || user.role || 'PROFISSIONAL';
+
   return (
-    <div className="border rounded-xl p-4 flex justify-between items-center bg-white">
-      <div>
+    <div className="border rounded-xl p-4 bg-white flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div className="min-w-0">
         <p className="font-medium">{user.full_name || user.nome || '-'}</p>
         <p className="text-xs text-gray-500">{user.email}</p>
+        <p className="text-xs text-gray-500 mt-1">
+          {[user.area || user.museu, user.equipe, user.funcao].filter(Boolean).join(' · ')}
+        </p>
       </div>
 
-      <Button size="sm" variant="outline" onClick={() => onDelete(user)}>
-        <Trash2 className="w-4 h-4" />
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="outline">{role}</Badge>
+
+        <Button size="sm" variant="outline" onClick={() => onEdit(user)}>
+          <Pencil className="w-4 h-4 mr-1" />
+          Editar
+        </Button>
+
+        <Button size="sm" variant="outline" onClick={() => onPassword(user)}>
+          <KeyRound className="w-4 h-4 mr-1" />
+          Senha
+        </Button>
+
+        <Button size="sm" variant="outline" onClick={() => onPermissions(user)}>
+          <ShieldCheck className="w-4 h-4 mr-1" />
+          Permissões
+        </Button>
+
+        <Button size="sm" variant="outline" onClick={() => onDelete(user)} className="text-red-600">
+          <Trash2 className="w-4 h-4 mr-1" />
+          Excluir
+        </Button>
+      </div>
     </div>
   );
 }
@@ -122,7 +171,7 @@ function CreateUserDialog({ open, onClose, onCreated }) {
     role: 'PROFISSIONAL',
     funcao: '',
     equipe: '',
-    museu: '',
+    area: 'Geral',
   });
 
   function update(key, value) {
@@ -141,10 +190,8 @@ function CreateUserDialog({ open, onClose, onCreated }) {
     setSaving(true);
 
     try {
-      let createdUser = null;
-
       try {
-        createdUser = await base44.entities.User.create({
+        await base44.entities.User.create({
           full_name: form.full_name,
           nome: form.full_name,
           email,
@@ -154,7 +201,8 @@ function CreateUserDialog({ open, onClose, onCreated }) {
           role: 'user',
           funcao: form.funcao,
           equipe: form.equipe,
-          museu: form.museu,
+          area: form.area,
+          museu: form.area,
           status: 'ATIVO',
         });
       } catch (e) {
@@ -166,7 +214,8 @@ function CreateUserDialog({ open, onClose, onCreated }) {
           senha_inicial: form.senha,
           funcao: form.funcao,
           equipe: form.equipe,
-          museu: form.museu,
+          area: form.area,
+          museu: form.area,
           status: 'APROVADO',
           aprovado_em: new Date().toISOString(),
           role_aprovada: form.role,
@@ -183,7 +232,8 @@ function CreateUserDialog({ open, onClose, onCreated }) {
         user_name: form.full_name,
         funcao: form.funcao,
         equipe: form.equipe,
-        museu: form.museu,
+        area: form.area,
+        museu: form.area,
       };
 
       if (existing?.[0]?.id) {
@@ -192,7 +242,7 @@ function CreateUserDialog({ open, onClose, onCreated }) {
         await base44.entities.UserPermission.create(permissionPayload);
       }
 
-      toast.success(createdUser ? 'Usuário criado.' : 'Usuário registrado e permissões criadas.');
+      toast.success('Usuário criado.');
       onCreated?.();
       onClose?.();
     } catch (e) {
@@ -245,18 +295,36 @@ function CreateUserDialog({ open, onClose, onCreated }) {
           </div>
 
           <div>
-            <Label>Função</Label>
-            <Input value={form.funcao} onChange={(e) => update('funcao', e.target.value)} />
+            <Label>Área</Label>
+            <Select value={form.area} onValueChange={(v) => update('area', v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AREA_OPTIONS.map((area) => (
+                  <SelectItem key={area} value={area}>{area}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
             <Label>Equipe</Label>
-            <Input value={form.equipe} onChange={(e) => update('equipe', e.target.value)} />
+            <Select value={form.equipe} onValueChange={(v) => update('equipe', v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar equipe" />
+              </SelectTrigger>
+              <SelectContent>
+                {EQUIPE_OPTIONS.map((equipe) => (
+                  <SelectItem key={equipe} value={equipe}>{equipe}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
-            <Label>Museu</Label>
-            <Input value={form.museu} onChange={(e) => update('museu', e.target.value)} />
+            <Label>Função</Label>
+            <Input value={form.funcao} onChange={(e) => update('funcao', e.target.value)} placeholder="Ex: Produtor Cultural, Comunicador" />
           </div>
 
           <Button onClick={handleCreate} disabled={saving} className="w-full">
@@ -269,22 +337,246 @@ function CreateUserDialog({ open, onClose, onCreated }) {
   );
 }
 
+function EditUserDialog({ user, open, onClose, onSaved }) {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    full_name: user.full_name || user.nome || '',
+    funcao: user.funcao || '',
+    equipe: user.equipe || '',
+    area: user.area || user.museu || 'Geral',
+    role: user.permission?.base_role || 'PROFISSIONAL',
+  });
+
+  function update(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+
+    try {
+      await base44.entities.User.update(user.id, {
+        full_name: form.full_name,
+        nome: form.full_name,
+        funcao: form.funcao,
+        equipe: form.equipe,
+        area: form.area,
+        museu: form.area,
+      });
+
+      const email = normalizeEmail(user.email);
+      const existing = await base44.entities.UserPermission
+        .filter({ user_email: email })
+        .catch(() => []);
+
+      const payload = {
+        ...rolePayload(form.role),
+        user_email: email,
+        user_name: form.full_name,
+        funcao: form.funcao,
+        equipe: form.equipe,
+        area: form.area,
+        museu: form.area,
+      };
+
+      if (existing?.[0]?.id) {
+        await base44.entities.UserPermission.update(existing[0].id, payload);
+      } else {
+        await base44.entities.UserPermission.create(payload);
+      }
+
+      toast.success('Usuário atualizado.');
+      onSaved?.();
+      onClose?.();
+    } catch (e) {
+      toast.error('Erro ao salvar usuário.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Editar usuário</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div>
+            <Label>Nome</Label>
+            <Input value={form.full_name} onChange={(e) => update('full_name', e.target.value)} />
+          </div>
+
+          <div>
+            <Label>Perfil</Label>
+            <Select value={form.role} onValueChange={(v) => update('role', v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTIONS.map((r) => (
+                  <SelectItem key={r} value={r}>{r}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Área</Label>
+            <Select value={form.area} onValueChange={(v) => update('area', v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AREA_OPTIONS.map((area) => (
+                  <SelectItem key={area} value={area}>{area}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Equipe</Label>
+            <Select value={form.equipe} onValueChange={(v) => update('equipe', v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar equipe" />
+              </SelectTrigger>
+              <SelectContent>
+                {EQUIPE_OPTIONS.map((equipe) => (
+                  <SelectItem key={equipe} value={equipe}>{equipe}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Função</Label>
+            <Input value={form.funcao} onChange={(e) => update('funcao', e.target.value)} />
+          </div>
+
+          <Button onClick={handleSave} disabled={saving} className="w-full">
+            {saving ? 'Salvando...' : 'Salvar'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PasswordDialog({ user, open, onClose }) {
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Alterar senha</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-3">
+            Alteração direta de senha depende dos recursos nativos do Base44. Use convite ou redefinição de senha.
+          </p>
+          <p className="text-xs text-gray-500">{user?.email}</p>
+          <Button variant="outline" onClick={onClose} className="w-full">Fechar</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PermissionsDialog({ user, open, onClose, onSaved }) {
+  const [saving, setSaving] = useState(false);
+  const [role, setRole] = useState(user.permission?.base_role || 'PROFISSIONAL');
+
+  async function handleSave() {
+    setSaving(true);
+
+    try {
+      const email = normalizeEmail(user.email);
+      const existing = await base44.entities.UserPermission
+        .filter({ user_email: email })
+        .catch(() => []);
+
+      const payload = {
+        ...rolePayload(role),
+        user_email: email,
+        user_name: user.full_name || user.nome || email,
+        funcao: user.funcao || '',
+        equipe: user.equipe || '',
+        area: user.area || user.museu || '',
+        museu: user.area || user.museu || '',
+      };
+
+      if (existing?.[0]?.id) {
+        await base44.entities.UserPermission.update(existing[0].id, payload);
+      } else {
+        await base44.entities.UserPermission.create(payload);
+      }
+
+      toast.success('Permissões atualizadas.');
+      onSaved?.();
+      onClose?.();
+    } catch (e) {
+      toast.error('Erro ao salvar permissões.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Permissões</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <Label>Perfil</Label>
+          <Select value={role} onValueChange={setRole}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ROLE_OPTIONS.map((r) => (
+                <SelectItem key={r} value={r}>{r}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button onClick={handleSave} disabled={saving} className="w-full">
+            {saving ? 'Salvando...' : 'Salvar permissões'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function UserManagement() {
   const [search, setSearch] = useState('');
   const [showInvite, setShowInvite] = useState(false);
   const [showCreateUser, setShowCreateUser] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [passwordUser, setPasswordUser] = useState(null);
+  const [permissionsUser, setPermissionsUser] = useState(null);
   const queryClient = useQueryClient();
 
   const { data = { users: [], registrations: [] }, isLoading } = useQuery({
     queryKey: ['user-management'],
     queryFn: async () => {
-      const [users, registrations] = await Promise.all([
+      const [users, registrations, permissions] = await Promise.all([
         base44.entities.User.list().catch(() => []),
         base44.entities.UserRegistration.list('-created_date', 200).catch(() => []),
+        base44.entities.UserPermission.list().catch(() => []),
       ]);
 
+      const usersWithPermission = (users || []).map((user) => ({
+        ...user,
+        permission: (permissions || []).find((p) => normalizeEmail(p.user_email) === normalizeEmail(user.email)) || null,
+      }));
+
       return {
-        users: users || [],
+        users: usersWithPermission,
         registrations: (registrations || []).filter((r) => {
           const status = String(r.status || '').toUpperCase();
           return !['APROVADO', 'RECUSADO', 'REJEITADO', 'CANCELADO'].includes(status);
@@ -305,6 +597,10 @@ export default function UserManagement() {
         ...rolePayload(role),
         user_email: email,
         user_name: reg.full_name || reg.nome || email,
+        funcao: reg.funcao || '',
+        equipe: reg.equipe || '',
+        area: reg.area || reg.museu || '',
+        museu: reg.area || reg.museu || '',
       };
 
       if (existing?.[0]?.id) {
@@ -322,7 +618,7 @@ export default function UserManagement() {
       toast.success('Solicitação aprovada.');
       queryClient.invalidateQueries(['user-management']);
     } catch (e) {
-      toast.error('Erro ao aprovar: ' + (e?.message || e));
+      toast.error('Erro ao aprovar.');
     }
   }
 
@@ -344,6 +640,10 @@ export default function UserManagement() {
     if (!confirm('Excluir usuário?')) return;
 
     try {
+      if (user.permission?.id) {
+        await base44.entities.UserPermission.delete(user.permission.id);
+      }
+
       await base44.entities.User.delete(user.id);
       toast.success('Usuário removido.');
       queryClient.invalidateQueries(['user-management']);
@@ -353,7 +653,7 @@ export default function UserManagement() {
   }
 
   const filtered = data.users.filter((u) => {
-    const text = `${u.full_name || ''} ${u.nome || ''} ${u.email || ''}`.toLowerCase();
+    const text = `${u.full_name || ''} ${u.nome || ''} ${u.email || ''} ${u.funcao || ''} ${u.equipe || ''}`.toLowerCase();
     return text.includes(search.toLowerCase());
   });
 
@@ -405,7 +705,14 @@ export default function UserManagement() {
           <div className="text-sm text-gray-400">Carregando...</div>
         ) : (
           filtered.map((u) => (
-            <UserCard key={u.id} user={u} onDelete={handleDelete} />
+            <UserCard
+              key={u.id}
+              user={u}
+              onEdit={setEditingUser}
+              onPassword={setPasswordUser}
+              onPermissions={setPermissionsUser}
+              onDelete={handleDelete}
+            />
           ))
         )}
       </div>
@@ -422,6 +729,32 @@ export default function UserManagement() {
           open={showCreateUser}
           onClose={() => setShowCreateUser(false)}
           onCreated={() => queryClient.invalidateQueries(['user-management'])}
+        />
+      )}
+
+      {editingUser && (
+        <EditUserDialog
+          user={editingUser}
+          open={!!editingUser}
+          onClose={() => setEditingUser(null)}
+          onSaved={() => queryClient.invalidateQueries(['user-management'])}
+        />
+      )}
+
+      {passwordUser && (
+        <PasswordDialog
+          user={passwordUser}
+          open={!!passwordUser}
+          onClose={() => setPasswordUser(null)}
+        />
+      )}
+
+      {permissionsUser && (
+        <PermissionsDialog
+          user={permissionsUser}
+          open={!!permissionsUser}
+          onClose={() => setPermissionsUser(null)}
+          onSaved={() => queryClient.invalidateQueries(['user-management'])}
         />
       )}
     </div>
