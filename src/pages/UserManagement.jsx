@@ -110,7 +110,7 @@ function RegistrationCard({ item, onApprove, onReject }) {
 }
 
 function UserCard({ user, onDelete }) {
-  const role = user.permission?.base_role || user.role || 'PROFISSIONAL';
+  const role = user.permission?.base_role || user.role || user.role_aprovada || 'PROFISSIONAL';
 
   return (
     <div className="border rounded-xl p-4 flex flex-col md:flex-row md:justify-between md:items-center gap-3 bg-white">
@@ -193,12 +193,25 @@ function CreateUserDialog({ open, onClose, onCreated }) {
       try {
         await base44.functions.invoke('createUserByCoordinator', payload);
       } catch (functionError) {
-        await base44.entities.UserRegistration.create({
-          ...payload,
-          status: 'APROVADO',
-          aprovado_em: new Date().toISOString(),
-          role_aprovada: form.role,
-        });
+        const existingRegistration = await base44.entities.UserRegistration
+          .filter({ email })
+          .catch(() => []);
+
+        if (existingRegistration?.[0]?.id) {
+          await base44.entities.UserRegistration.update(existingRegistration[0].id, {
+            ...payload,
+            status: 'APROVADO',
+            aprovado_em: new Date().toISOString(),
+            role_aprovada: form.role,
+          });
+        } else {
+          await base44.entities.UserRegistration.create({
+            ...payload,
+            status: 'APROVADO',
+            aprovado_em: new Date().toISOString(),
+            role_aprovada: form.role,
+          });
+        }
 
         const existing = await base44.entities.UserPermission
           .filter({ user_email: email })
@@ -221,7 +234,7 @@ function CreateUserDialog({ open, onClose, onCreated }) {
         }
       }
 
-      toast.success('Usuário registrado. Se o plano permitir, o convite foi enviado pelo Base44.');
+      toast.success('Usuário registrado.');
       onCreated?.();
       onClose?.();
     } catch (e) {
@@ -334,10 +347,33 @@ export default function UserManagement() {
       const usersWithPermission = (users || []).map((user) => ({
         ...user,
         permission: (permissions || []).find((p) => normalizeEmail(p.user_email) === normalizeEmail(user.email)) || null,
+        is_registration_user: false,
       }));
 
+      const approvedRegistrationsAsUsers = (registrations || [])
+        .filter((r) => String(r.status || '').toUpperCase() === 'APROVADO')
+        .filter((r) => {
+          const email = normalizeEmail(r.email);
+          return !(users || []).some((u) => normalizeEmail(u.email) === email);
+        })
+        .map((r) => ({
+          id: `registration-${r.id}`,
+          registration_id: r.id,
+          full_name: r.full_name || r.nome || '',
+          nome: r.nome || r.full_name || '',
+          email: r.email,
+          funcao: r.funcao || '',
+          equipe: r.equipe || '',
+          area: r.area || r.museu || '',
+          museu: r.area || r.museu || '',
+          role: r.role_aprovada || 'PROFISSIONAL',
+          role_aprovada: r.role_aprovada || 'PROFISSIONAL',
+          is_registration_user: true,
+          permission: (permissions || []).find((p) => normalizeEmail(p.user_email) === normalizeEmail(r.email)) || null,
+        }));
+
       return {
-        users: usersWithPermission,
+        users: [...usersWithPermission, ...approvedRegistrationsAsUsers],
         registrations: (registrations || []).filter((r) => {
           const status = String(r.status || '').toUpperCase();
           return !['APROVADO', 'RECUSADO', 'REJEITADO', 'CANCELADO'].includes(status);
@@ -353,6 +389,7 @@ export default function UserManagement() {
       try {
         await base44.functions.invoke('approveUserWithPermissions', {
           userRegistrationId: reg.id,
+          role,
           permissions: rolePayload(role),
         });
       } catch (functionError) {
@@ -412,7 +449,15 @@ export default function UserManagement() {
         await base44.entities.UserPermission.delete(user.permission.id);
       }
 
-      await base44.entities.User.delete(user.id);
+      if (user.is_registration_user && user.registration_id) {
+        await base44.entities.UserRegistration.update(user.registration_id, {
+          status: 'CANCELADO',
+          cancelado_em: new Date().toISOString(),
+        });
+      } else {
+        await base44.entities.User.delete(user.id);
+      }
+
       toast.success('Usuário removido.');
       queryClient.invalidateQueries(['user-management']);
     } catch (e) {
