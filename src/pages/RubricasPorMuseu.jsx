@@ -174,8 +174,36 @@ export default function RubricasPorMuseu() {
   const fmt = (v) =>
     toNumber(v).toLocaleString('pt-BR', {
       style: 'currency',
-      currency: 'BRL'
+      currency: 'BRL',
+      maximumFractionDigits: 0
     });
+
+  const fmtPct = (v) => `${Number(v || 0).toFixed(1)}%`;
+
+  const totaisGerais = useMemo(() => {
+    return resumoPorMuseu.reduce(
+      (acc, item) => {
+        acc.totalOrcado += toNumber(item.totalOrcado);
+        acc.totalUtilizado += toNumber(item.totalUtilizado);
+        acc.totalPago += toNumber(item.totalPago);
+        acc.totalLancamentos += toNumber(item.totalLancamentos);
+        acc.totalSaldo += toNumber(item.totalSaldo);
+        return acc;
+      },
+      {
+        totalOrcado: 0,
+        totalUtilizado: 0,
+        totalPago: 0,
+        totalLancamentos: 0,
+        totalSaldo: 0
+      }
+    );
+  }, [resumoPorMuseu]);
+
+  const percentualGeral =
+    totaisGerais.totalOrcado > 0
+      ? (totaisGerais.totalUtilizado / totaisGerais.totalOrcado) * 100
+      : 0;
 
   const refreshAllRubricaData = async () => {
     await Promise.all([
@@ -233,169 +261,205 @@ export default function RubricasPorMuseu() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-10">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-gray-600" />
-            Rubricas por Museu
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Acompanhamento orçamentário por museu
-          </p>
-        </div>
+    <div className="min-h-screen bg-white">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold text-black tracking-tight flex items-center gap-2">
+              <TrendingUp className="w-6 h-6 text-black" />
+              Rubricas por Museu
+            </h1>
+            <p className="text-gray-500 mt-1 text-sm">
+              Acompanhamento orçamentário consolidado por museu.
+            </p>
+          </div>
 
-        <div className="flex gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Recalcular
-          </Button>
-
-          {isCoordenador && (
+          <div className="flex gap-2 flex-wrap">
             <Button
               variant="outline"
-              className="gap-2"
-              onClick={() => setShowCardEditor(true)}
+              className="gap-2 border-gray-200 text-black hover:bg-gray-50"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
             >
-              <LayoutGrid className="w-4 h-4" />
-              Editor de Cards
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Recalcular
             </Button>
-          )}
+
+            {isCoordenador && (
+              <Button
+                variant="outline"
+                className="gap-2 border-gray-200 text-black hover:bg-gray-50"
+                onClick={() => setShowCardEditor(true)}
+              >
+                <LayoutGrid className="w-4 h-4" />
+                Editor de Cards
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {resumoPorMuseu.map(
-          ({
-            museu,
-            totalOrcado,
-            totalUtilizado,
-            totalPago,
-            totalLancamentos,
-            totalSaldo,
-            pct
-          }) => (
-            <Card
-              key={museu}
-              className={`cursor-pointer transition-all border-2 ${
-                museuAtivo === museu
-                  ? 'border-gray-800 shadow-md'
-                  : 'border-gray-200 hover:border-gray-400'
-              }`}
-              onClick={() => setMuseuAtivo(museu)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold text-base text-gray-900">{museu}</span>
-                  <span
-                    className={`text-sm font-bold ${
-                      pct >= 80 ? 'text-red-600' : 'text-gray-500'
-                    }`}
-                  >
-                    {pct}%
-                  </span>
-                </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="rounded-2xl border border-black bg-black text-white p-4 shadow-sm">
+            <p className="text-[11px] uppercase tracking-wide text-gray-300 font-semibold">Execução geral</p>
+            <p className="text-3xl font-bold mt-2">{fmtPct(percentualGeral)}</p>
+            <p className="text-xs text-gray-300 mt-1">utilizado sobre previsto</p>
+          </div>
 
-                <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
-                  <div
-                    className={`h-2 rounded-full transition-all ${
-                      pct >= 100
-                        ? 'bg-red-500'
-                        : pct >= 80
-                          ? 'bg-orange-400'
-                          : 'bg-green-500'
-                    }`}
-                    style={{ width: `${Math.min(pct, 100)}%` }}
-                  />
-                </div>
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">Previsto</p>
+            <p className="text-2xl font-bold text-black mt-2">{fmt(totaisGerais.totalOrcado)}</p>
+            <p className="text-xs text-gray-500 mt-1">soma dos museus</p>
+          </div>
 
-                {isLoading && !lastRecalcResponse ? (
-                  <div className="space-y-1.5">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className="h-3 bg-gray-100 rounded animate-pulse" />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-1 text-xs">
-                    <div className="flex justify-between text-gray-600">
-                      <span>Previsto</span>
-                      <span className="font-medium">{fmt(totalOrcado)}</span>
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">Utilizado</p>
+            <p className="text-2xl font-bold text-black mt-2">{fmt(totaisGerais.totalUtilizado)}</p>
+            <p className="text-xs text-gray-500 mt-1">pagos e lançamentos</p>
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">Saldo</p>
+            <p className={`text-2xl font-bold mt-2 ${totaisGerais.totalSaldo < 0 ? 'text-red-600' : 'text-black'}`}>
+              {fmt(totaisGerais.totalSaldo)}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">saldo disponível</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {resumoPorMuseu.map(
+            ({
+              museu,
+              totalOrcado,
+              totalUtilizado,
+              totalPago,
+              totalLancamentos,
+              totalSaldo,
+              pct
+            }) => {
+              const ativo = museuAtivo === museu;
+              const progressWidth = `${Math.min(toNumber(pct), 100)}%`;
+
+              return (
+                <Card
+                  key={museu}
+                  className={`cursor-pointer transition-all rounded-2xl shadow-sm ${
+                    ativo
+                      ? 'border-black bg-black text-white shadow-md'
+                      : 'border-gray-200 bg-white hover:border-black hover:shadow-md'
+                  }`}
+                  onClick={() => setMuseuAtivo(museu)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div>
+                        <p className={`text-[11px] font-semibold uppercase tracking-wide ${ativo ? 'text-gray-300' : 'text-gray-500'}`}>
+                          Museu
+                        </p>
+                        <h2 className={`text-2xl font-bold leading-tight ${ativo ? 'text-white' : 'text-black'}`}>
+                          {museu}
+                        </h2>
+                      </div>
+
+                      <div className="text-right">
+                        <p className={`text-[11px] uppercase tracking-wide font-semibold ${ativo ? 'text-gray-300' : 'text-gray-500'}`}>
+                          Execução
+                        </p>
+                        <p className={`text-xl font-bold ${ativo ? 'text-white' : 'text-black'}`}>
+                          {fmtPct(pct)}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="flex justify-between text-gray-600">
-                      <span>✅ Pago</span>
-                      <span className="font-medium text-green-700">
-                        {fmt(totalPago)}
-                      </span>
+                    <div className={`w-full h-1 rounded-full overflow-hidden mb-4 ${ativo ? 'bg-white/20' : 'bg-gray-100'}`}>
+                      <div
+                        className={`h-1 rounded-full transition-all ${ativo ? 'bg-white' : 'bg-black'}`}
+                        style={{ width: progressWidth }}
+                      />
                     </div>
 
-                    {totalLancamentos > 0 && (
-                      <div className="flex justify-between text-gray-600">
-                        <span>🧾 Lançamentos</span>
-                        <span className="font-medium text-blue-700">
-                          {fmt(totalLancamentos)}
-                        </span>
+                    {isLoading && !lastRecalcResponse ? (
+                      <div className="space-y-2">
+                        {[1, 2, 3, 4].map((i) => (
+                          <div key={i} className={`h-3 rounded animate-pulse ${ativo ? 'bg-white/20' : 'bg-gray-100'}`} />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-2 text-xs">
+                        <div className={`flex justify-between ${ativo ? 'text-gray-300' : 'text-gray-500'}`}>
+                          <span>Previsto</span>
+                          <span className={`font-semibold ${ativo ? 'text-white' : 'text-black'}`}>{fmt(totalOrcado)}</span>
+                        </div>
+
+                        <div className={`flex justify-between ${ativo ? 'text-gray-300' : 'text-gray-500'}`}>
+                          <span>Pago</span>
+                          <span className={`font-semibold ${ativo ? 'text-white' : 'text-black'}`}>{fmt(totalPago)}</span>
+                        </div>
+
+                        {totalLancamentos > 0 && (
+                          <div className={`flex justify-between ${ativo ? 'text-gray-300' : 'text-gray-500'}`}>
+                            <span>Lançamentos</span>
+                            <span className={`font-semibold ${ativo ? 'text-white' : 'text-black'}`}>{fmt(totalLancamentos)}</span>
+                          </div>
+                        )}
+
+                        <div className={`flex justify-between ${ativo ? 'text-gray-300' : 'text-gray-500'}`}>
+                          <span>Utilizado</span>
+                          <span className={`font-semibold ${ativo ? 'text-white' : 'text-black'}`}>{fmt(totalUtilizado)}</span>
+                        </div>
+
+                        <div className={`flex justify-between border-t pt-2 mt-2 ${ativo ? 'border-white/20 text-gray-300' : 'border-gray-100 text-gray-500'}`}>
+                          <span className="font-semibold">Saldo</span>
+                          <span className={`font-bold ${ativo ? 'text-white' : totalSaldo < 0 ? 'text-red-600' : 'text-black'}`}>
+                            {fmt(totalSaldo)}
+                          </span>
+                        </div>
                       </div>
                     )}
+                  </CardContent>
+                </Card>
+              );
+            }
+          )}
+        </div>
 
-                    <div className="flex justify-between text-gray-600">
-                      <span>Utilizado</span>
-                      <span className="font-medium">{fmt(totalUtilizado)}</span>
-                    </div>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3">
+          <Tabs value={museuAtivo} onValueChange={setMuseuAtivo}>
+            <TabsList className="grid grid-cols-3 w-full max-w-md bg-gray-100 rounded-xl p-1">
+              {MUSEUS.map((m) => (
+                <TabsTrigger
+                  key={m}
+                  value={m}
+                  className="font-semibold data-[state=active]:bg-black data-[state=active]:text-white rounded-lg"
+                >
+                  {m}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-                    <div className="flex justify-between border-t pt-1 mt-1">
-                      <span className="font-semibold text-gray-700">Saldo</span>
-                      <span
-                        className={`font-bold ${
-                          totalSaldo < 0 ? 'text-red-600' : 'text-green-600'
-                        }`}
-                      >
-                        {fmt(totalSaldo)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        )}
+            {MUSEUS.map((m) => (
+              <TabsContent key={`${m}-${refreshNonce}`} value={m} className="mt-4">
+                <RubricasMuseuEditor
+                  key={`${m}-${refreshNonce}`}
+                  museu={m}
+                  canEdit={canEdit}
+                  refreshKey={refreshNonce}
+                />
+              </TabsContent>
+            ))}
+          </Tabs>
+        </div>
+
+        <GerenciarRubricasMuseuDialog
+          open={showGerenciar}
+          onClose={() => setShowGerenciar(false)}
+        />
+
+        <CardRubricaEditor
+          open={showCardEditor}
+          onClose={() => setShowCardEditor(false)}
+        />
       </div>
-
-      <Tabs value={museuAtivo} onValueChange={setMuseuAtivo}>
-        <TabsList className="grid grid-cols-3 w-full max-w-sm">
-          {MUSEUS.map((m) => (
-            <TabsTrigger key={m} value={m} className="font-semibold">
-              {m}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        {MUSEUS.map((m) => (
-          <TabsContent key={`${m}-${refreshNonce}`} value={m} className="mt-4">
-            <RubricasMuseuEditor
-              key={`${m}-${refreshNonce}`}
-              museu={m}
-              canEdit={canEdit}
-              refreshKey={refreshNonce}
-            />
-          </TabsContent>
-        ))}
-      </Tabs>
-
-      <GerenciarRubricasMuseuDialog
-        open={showGerenciar}
-        onClose={() => setShowGerenciar(false)}
-      />
-
-      <CardRubricaEditor
-        open={showCardEditor}
-        onClose={() => setShowCardEditor(false)}
-      />
     </div>
   );
 }
