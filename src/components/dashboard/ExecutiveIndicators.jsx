@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Users, Wallet, AlertTriangle, UserRound, BarChart3 } from 'lucide-react';
+import { Activity, Users, Wallet, UserRound, BarChart3 } from 'lucide-react';
 
 const MONTH_ORDER = [
   'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -17,7 +17,7 @@ function fmtInt(value) {
   return toInt(value).toLocaleString('pt-BR');
 }
 
-function MiniBar({ label, value, max, color = 'bg-black', suffix = '' }) {
+function MiniBar({ label, value, max, color = 'bg-black' }) {
   const safeValue = toInt(value);
   const safeMax = Math.max(toInt(max), 1);
   const pct = Math.min((safeValue / safeMax) * 100, 100);
@@ -26,7 +26,7 @@ function MiniBar({ label, value, max, color = 'bg-black', suffix = '' }) {
     <div className="mb-2.5">
       <div className="flex justify-between text-xs text-gray-600 mb-1">
         <span className="truncate max-w-[60%]">{label}</span>
-        <span className="font-semibold text-black">{fmtInt(safeValue)}{suffix}</span>
+        <span className="font-semibold text-black">{fmtInt(safeValue)}</span>
       </div>
       <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
         <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${pct}%` }} />
@@ -48,22 +48,22 @@ function CardSection({ title, children, empty, className = '' }) {
 
 function KpiCard({ label, value, icon: Icon, highlight = false, helper }) {
   return (
-    <div className={`p-5 border rounded-2xl transition-all shadow-sm ${
+    <div className={`p-5 border rounded-2xl transition-all shadow-sm min-w-0 ${
       highlight
         ? 'border-black bg-black text-white shadow-md'
         : 'border-gray-200 bg-white hover:shadow-md'
     }`}>
-      <div className="flex items-center gap-2 mb-3">
-        {Icon && <Icon className={`w-4 h-4 ${highlight ? 'text-white' : 'text-gray-500'}`} />}
-        <span className={`text-xs font-semibold uppercase tracking-wide ${highlight ? 'text-gray-300' : 'text-gray-500'}`}>
+      <div className="flex items-center gap-2 mb-3 min-w-0">
+        {Icon && <Icon className={`w-4 h-4 flex-shrink-0 ${highlight ? 'text-white' : 'text-gray-500'}`} />}
+        <span className={`text-[11px] font-semibold uppercase tracking-wide truncate ${highlight ? 'text-gray-300' : 'text-gray-500'}`}>
           {label}
         </span>
       </div>
-      <p className={`text-3xl font-bold leading-tight ${highlight ? 'text-white' : 'text-black'}`}>
+      <p className={`text-3xl font-bold leading-tight truncate ${highlight ? 'text-white' : 'text-black'}`}>
         {value}
       </p>
       {helper && (
-        <p className={`text-xs mt-1 ${highlight ? 'text-gray-300' : 'text-gray-500'}`}>
+        <p className={`text-xs mt-1 truncate ${highlight ? 'text-gray-300' : 'text-gray-500'}`}>
           {helper}
         </p>
       )}
@@ -71,7 +71,7 @@ function KpiCard({ label, value, icon: Icon, highlight = false, helper }) {
   );
 }
 
-export default function ExecutiveIndicators({ reports = [], rubricas = [], teamMembers = [], team = [], pendencias = null }) {
+export default function ExecutiveIndicators({ reports = [], rubricas = [], teamMembers = [], team = [] }) {
   const TOTAL_PREVISTO = 1320000;
 
   const activitiesByMonth = React.useMemo(() => {
@@ -171,15 +171,6 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [], teamM
   const equipeList = Array.isArray(teamMembers) && teamMembers.length > 0 ? teamMembers : team;
   const totalEquipe = Array.isArray(equipeList) ? equipeList.filter(m => m?.ativo !== false).length : 0;
 
-  const pendenciasCalculadas = React.useMemo(() => {
-    if (typeof pendencias === 'number') return toInt(pendencias);
-
-    return reports.filter(r => {
-      const status = String(r.status || '').toUpperCase();
-      return status && !['APPROVED', 'APROVADO', 'ARCHIVED', 'ARQUIVADO'].includes(status);
-    }).length;
-  }, [reports, pendencias]);
-
   const fmtBRL = (v) => Number(v || 0).toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -197,7 +188,7 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [], teamM
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
         <KpiCard
           label={`Atividades ${ultimoMes.mes}`}
           value={fmtInt(ultimoMes.atividades)}
@@ -233,13 +224,6 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [], teamM
           value={fmtBRL(orcamento.totalUtilizado)}
           icon={Wallet}
           helper="valor realizado"
-        />
-
-        <KpiCard
-          label="Pendências"
-          value={fmtInt(pendenciasCalculadas)}
-          icon={AlertTriangle}
-          helper="relatórios em aberto"
         />
       </div>
 
