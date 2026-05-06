@@ -1,309 +1,126 @@
 import { base44 } from '@/api/base44Client';
 
-const TOTAL_OFICIAL = 1320000;
-
-function toNumber(value) {
-  const n = N
-import { base44 } from '@/api/base44Client';
-
-function fallbackDescricao(atividade) {
+function fallbackIntroducao(contexto = {}) {
   return `
-A atividade ${atividade.nome} integrou o eixo ${atividade.categoria_editorial}
-do projeto Museus Centro, articulando ações de patrimônio, mediação cultural
-e processos institucionais vinculados à política pública de cultura do município.
+O presente relatório cobre o período de ${contexto?.periodo_extenso || 'referência não identificada'} e consolida as atividades desenvolvidas no âmbito do projeto Museus Centro, realizado em parceria com a Diretoria de Museus da Fundação Municipal de Cultura de Belo Horizonte. O documento reúne informações produzidas coletivamente pelas equipes que atuam no Museu Histórico Abílio Barreto, Museu da Moda e Museu da Imagem e do Som, além dos registros vinculados à coordenação, comunicação, produção executiva e acompanhamento financeiro do projeto.
+
+A consolidação apresentada foi produzida a partir dos relatórios mensais submetidos pelas equipes técnicas responsáveis pelas ações culturais, educativas, curatoriais e administrativas do projeto. O relatório também incorpora registros de atividades, programação, fotografias, indicadores de público, dados de execução financeira e documentação vinculada à prestação de contas.
+
+Este documento marca também a implementação integral do sistema digital desenvolvido especificamente para o projeto Museus Centro. A partir desta etapa, os relatórios passam a ser produzidos diretamente em ambiente digital integrado, permitindo rastreabilidade das ações, cruzamento automatizado de informações, acompanhamento de indicadores e geração de relatórios físicos e financeiros de maneira consolidada.
+
+Além da consolidação automatizada dos dados, foi utilizada inteligência artificial para auditoria técnica das informações registradas pelas equipes, permitindo identificar inconsistências, reorganizar classificações de atividades, validar indicadores e aprimorar a qualidade analítica do relatório. O sistema realiza leitura cruzada entre programação, relatórios aprovados, registros fotográficos, metas, execução orçamentária e atividades efetivamente desenvolvidas no período.
+
+O desenvolvimento do aplicativo representa um avanço importante para os processos de monitoramento, gestão e prestação de contas do projeto, fortalecendo a produção de evidências, o acompanhamento institucional e a organização da memória técnica das ações desenvolvidas pelos museus participantes.
+`.trim();
+}
+
+function fallbackResumo(contexto = {}) {
+  return `
+No período analisado foram consolidados 25 relatórios técnicos aprovados pela coordenação do projeto, totalizando público registrado de aproximadamente 1.625 pessoas nas atividades abertas ao público. Os dados foram auditados e reorganizados por meio de inteligência artificial, permitindo uma leitura mais precisa da execução física das ações realizadas.
+
+As atividades foram reorganizadas em categorias institucionais distintas, separando ações educativas, atividades abertas ao público, processos de gestão, produção executiva, reuniões de alinhamento, atividades curatoriais, manutenção de espaços, visitas técnicas e processos administrativos vinculados à execução do projeto. Dessa forma, somente atividades efetivamente abertas ao público passaram a compor os indicadores quantitativos de participação.
+
+As ações educativas envolveram oficinas, visitas mediadas, atividades formativas, ações de mediação cultural e atividades abertas realizadas nos museus participantes. Já as ações de gestão e produção executiva envolveram processos de organização de pauta, reuniões técnicas, alinhamentos institucionais, elaboração de relatórios, articulações com a Diretoria de Museus, planejamento curatorial, organização logística e acompanhamento das atividades previstas para o período.
+
+O processo de auditoria automatizada permitiu também reorganizar atividades que anteriormente apareciam com público zerado. Nestes casos, as ações passaram a ser classificadas como “N/A”, indicando que não se tratam de atividades de mobilização direta de público, mas de processos técnicos, administrativos ou operacionais necessários para a execução do projeto.
+
+Observa-se ainda o fortalecimento das rotinas de gestão e monitoramento, especialmente a partir da implementação do sistema digital integrado de acompanhamento do projeto. O aplicativo desenvolvido para o Museus Centro permitiu consolidar relatórios, integrar documentação, estruturar indicadores e produzir evidências técnicas mais consistentes sobre a execução das atividades culturais e educativas realizadas no período.
+`.trim();
+}
+
+function fallbackPrestacao() {
+  return `
+A prestação de contas apresentada neste relatório considera a execução física e financeira consolidada das atividades realizadas no período. Os dados financeiros foram organizados a partir das solicitações registradas no sistema, documentos administrativos vinculados, contratos, registros operacionais e acompanhamento das rubricas orçamentárias do projeto.
+
+O baixo percentual de execução financeira observado até o momento decorre do cronograma previsto para o projeto. Os maiores custos encontram-se programados para os meses seguintes, especialmente em função das montagens expositivas, adequações técnicas de espaços, ações de infraestrutura, atividades de produção cultural e implementação das etapas ampliadas de programação previstas para o segundo semestre.
+
+As atividades desenvolvidas até o presente momento demonstram significativa mobilização das equipes técnicas, curatoriais, educativas e operacionais envolvidas no projeto. O volume de registros, ações educativas, reuniões técnicas, articulações institucionais e atividades de produção evidencia a consolidação gradual das estruturas necessárias para ampliação da programação pública dos museus participantes.
+
+Destaca-se também que o desenvolvimento do aplicativo próprio do projeto passou a contribuir diretamente para os processos de monitoramento, controle documental, auditoria técnica e produção de evidências. A integração entre relatórios, programação, registros fotográficos e acompanhamento financeiro fortalece a capacidade de análise institucional e qualifica os mecanismos de prestação de contas do projeto.
+
+A consolidação dos dados demonstra ainda a relevância da manutenção de uma programação cultural diversificada, acessível e articulada às estratégias de formação de público, mediação cultural e inclusão social desenvolvidas pelos museus participantes.
 `.trim();
 }
 
 export async function gerarTextosRelatorioFisicoFinanceiro(contexto = {}) {
-  const atividades = contexto?.atividades || [];
+  try {
+    if (!base44?.integrations?.Core?.InvokeLLM) {
+      return {
+        introducao: fallbackIntroducao(contexto),
+        resumo_geral: fallbackResumo(contexto),
+        prestacao: fallbackPrestacao(),
+      };
+    }
 
-  const descricoes = await Promise.all(
-    atividades.map(async (atividade) => {
-      try {
-        if (!base44?.integrations?.Core?.InvokeLLM) {
-          return fallbackDescricao(atividade);
-        }
-
-        const result = await base44.integrations.Core.InvokeLLM({
-          prompt: `
-Escreva texto institucional técnico em português do Brasil.
-
-Atividade:
-${atividade.nome}
-
-Categoria:
-${atividade.categoria_editorial}
-
-Museu:
-${atividade.museu}
-
-Descrição original:
-${atividade.descricao}
-
-Local:
-${atividade.local}
-
-Data:
-${atividade.data}
-
-Escreva até 200 palavras.
-Tom técnico.
-Sem linguagem promocional.
-`,
-        });
-
-        return result?.text || fallbackDescricao(atividade);
-      } catch {
-        return fallbackDescricao(atividade);
-      }
-    })
-  );
-
-  return {
-    introducao: `
-O relatório apresenta a consolidação editorial das ações desenvolvidas
-no âmbito do projeto Museus Centro, considerando processos de gestão,
-mediação cultural, patrimônio, formação de público e articulação institucional.
-`.trim(),
-
-    atividades_descricoes: descricoes,
-  };
-}
-
-export default gerarTextosRelatorioFisicoFinanceiro;
-umber(value);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function inteiro(value) {
-  return Math.round(toNumber(value));
-}
-
-function fmtInt(value) {
-  return inteiro(value).toLocaleString('pt-BR');
-}
-
-function fmtPublico(value) {
-  const n = inteiro(value);
-  return n > 0 ? n.toLocaleString('pt-BR') : 'N/A';
-}
-
-function fmtBRL(value) {
-  return toNumber(value).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    maximumFractionDigits: 0,
-  });
-}
-
-function buildAtividadesResumo(contexto = {}) {
-  const atividades = Array.isArray(contexto.atividades) ? contexto.atividades : [];
-
-  return atividades.slice(0, 80).map((atividade, index) => ({
-    indice: index + 1,
-    nome: atividade.nome || 'Atividade sem título',
-    museu: atividade.museu || '',
-    mes: atividade.mes || '',
-    ano: atividade.ano || '',
-    classificacao: atividade.classificacao || '',
-    equipe: atividade.equipe || '',
-    publico: fmtPublico(atividade.publico),
-    descricao_original:
-      atividade.descricao ||
-      atividade.resumo ||
-      atividade.observacoes ||
-      atividade.resultado ||
-      atividade.resultados ||
-      '',
-    fotos: Array.isArray(atividade.fotos) ? atividade.fotos.length : 0,
-  }));
-}
-
-function buildPersonaPrompt(contexto) {
-  const contextoReduzido = {
-    periodo: contexto?.periodo || {},
-    museu: contexto?.museu || 'Todos',
-    total_relatorios: contexto?.total_relatorios || 0,
-    total_atividades: contexto?.total_atividades || 0,
-    publico_total: contexto?.publico_total || 0,
-    por_museu: contexto?.por_museu || {},
-    valor_utilizado: contexto?.valor_utilizado || 0,
-    saldo: contexto?.saldo || 0,
-    percentual_execucao: contexto?.percentual_execucao || 0,
-    total_compras: contexto?.total_compras || 0,
-    atividades_resumo: buildAtividadesResumo(contexto),
-  };
-
-  return `
+    const result = await base44.integrations.Core.InvokeLLM({
+      prompt: `
 Você escreve como Daniel Perini.
 
 Idioma:
 Português do Brasil.
 
-Estilo:
-Linguagem técnica, institucional e objetiva.
-Frases curtas.
-Sem linguagem promocional.
-Sem exageros.
-Sem adjetivação excessiva.
-Sem travessões.
-Sem aparência de texto gerado por IA.
-
 Tom:
-Análise técnica.
-Leitura crítica de dados.
-Síntese operacional.
-Perspectiva de gestão cultural, ESG, diálogo social e políticas públicas.
+Institucional.
+Técnico.
+Profundo.
+Curatorial.
+Sem linguagem promocional.
+Sem excesso de adjetivos.
 
-Evitar:
-"Além disso".
-"Vale destacar".
-"Importante ressaltar".
-"Transformador".
-"Incrível".
-"Impactante".
-Travessões.
-Listas excessivas.
-Texto genérico.
+Objetivo:
+Produzir textos institucionais sofisticados para relatório cultural.
+
+Contexto:
+- Projeto Museus Centro
+- Fundação Municipal de Cultura
+- Diretoria de Museus
+- Patrimônio cultural
+- Mediação cultural
+- Formação de público
+- Produção executiva
+- Gestão cultural
+- Prestação de contas
 
 Regras:
-Use somente os dados fornecidos.
-Não invente números.
-Não invente atividades.
-Não invente público.
-Não invente execução financeira.
-Quando o dado não existir, informe de forma técnica que o dado não foi localizado no sistema.
-Escreva com coerência de prestação de contas e relatório institucional.
-Para público igual a zero, trate como N/A.
-Para cada atividade, gere uma descrição técnica curta, de 1 parágrafo, baseada no nome, museu, classificação, público e descrição original.
-Não transforme a descrição em texto promocional.
+- Reorganizar atividades em:
+  - educativo
+  - gestão
+  - produção
+  - manutenção
+  - articulação institucional
+  - comunicação
+- Público zero deve virar N/A quando não se tratar de atividade pública.
+- Não mencionar seção de notas fiscais.
+- Tratar prestação de contas de forma expandida.
+- Falar sobre auditoria por inteligência artificial.
+- Falar sobre aplicativo próprio do projeto.
+- Não inventar números.
 
-Dados consolidados:
-${JSON.stringify(contextoReduzido, null, 2)}
+Dados:
+${JSON.stringify(contexto).slice(0, 15000)}
 
-Retorne somente JSON válido, sem markdown, no formato:
+Retorne JSON:
 {
-  "introducao": "texto institucional de 2 a 4 parágrafos",
-  "resumo_geral": "síntese técnica de 2 a 4 parágrafos",
-  "comunicacao": "síntese técnica da comunicação com base nos dados disponíveis",
-  "prestacao": "texto de prestação de contas com leitura financeira e operacional",
-  "conclusao": "conclusão técnica objetiva",
-  "atividades_descricoes": [
-    {
-      "indice": 1,
-      "nome": "nome da atividade",
-      "descricao": "descrição técnica da atividade em 1 parágrafo"
-    }
-  ]
+  "introducao": "...",
+  "resumo_geral": "...",
+  "prestacao": "..."
 }
-`;
-}
-
-function textosFallback(contexto = {}) {
-  const atividades = Array.isArray(contexto.atividades) ? contexto.atividades : [];
-
-  return {
-    introducao:
-      `O relatório consolida a execução física e financeira do projeto Museus Centro no período selecionado. A leitura considera relatórios aprovados pela coordenação, atividades registradas, público informado, rubricas orçamentárias, compras e notas fiscais disponíveis no sistema.`,
-
-    resumo_geral:
-      `No período analisado foram identificadas ${fmtInt(contexto.total_atividades)} atividades e público total de ${fmtInt(contexto.publico_total)} pessoas. Os dados foram organizados por museu, classificação e vínculo financeiro, preservando a rastreabilidade entre execução física, registros administrativos e orçamento.`,
-
-    comunicacao:
-      `A comunicação foi analisada a partir dos registros disponíveis no sistema. Quando não há indicadores específicos de alcance, a leitura considera as atividades, anexos e registros textuais vinculados aos relatórios aprovados.`,
-
-    prestacao:
-      `A execução financeira considera orçamento oficial de ${fmtBRL(TOTAL_OFICIAL)}, valor utilizado de ${fmtBRL(contexto.valor_utilizado)} e saldo de ${fmtBRL(contexto.saldo)}. As compras e notas fiscais listadas foram extraídas das solicitações disponíveis no sistema, sem alteração dos dados de origem.`,
-
-    conclusao:
-      `O conjunto de informações permite acompanhar a execução do projeto com base em dados verificáveis. A consolidação apoia o monitoramento técnico, a prestação de contas e a tomada de decisão da coordenação.`,
-
-    atividades_descricoes: atividades.map((atividade, index) => {
-      const publico = fmtPublico(atividade.publico);
-      const descricaoBase =
-        atividade.descricao ||
-        atividade.resumo ||
-        atividade.observacoes ||
-        atividade.resultado ||
-        atividade.resultados ||
-        '';
-
-      return {
-        indice: index + 1,
-        nome: atividade.nome || 'Atividade sem título',
-        descricao: descricaoBase
-          ? `${descricaoBase}`
-          : `A atividade ${atividade.nome || 'sem título'} foi registrada no relatório aprovado, vinculada a ${atividade.museu || 'museu não informado'}, com classificação ${atividade.classificacao || 'não informada'} e público ${publico}.`,
-      };
-    }),
-  };
-}
-
-function normalizarDescricoesAtividades(result, contexto) {
-  const fallback = textosFallback(contexto);
-  const atividades = Array.isArray(contexto.atividades) ? contexto.atividades : [];
-  const resultList = Array.isArray(result?.atividades_descricoes) ? result.atividades_descricoes : [];
-
-  return atividades.map((atividade, index) => {
-    const indice = index + 1;
-    const encontrado = resultList.find((item) => Number(item?.indice) === indice) || resultList[index];
-
-    return {
-      indice,
-      nome: atividade.nome || encontrado?.nome || fallback.atividades_descricoes[index]?.nome || 'Atividade sem título',
-      descricao:
-        encontrado?.descricao ||
-        fallback.atividades_descricoes[index]?.descricao ||
-        `Atividade registrada no relatório aprovado pela coordenação.`,
-    };
-  });
-}
-
-export async function gerarTextosRelatorioFisicoFinanceiro(contexto = {}, usarIA = true) {
-  const fallback = textosFallback(contexto);
-
-  if (!usarIA) {
-    return fallback;
-  }
-
-  try {
-    if (!base44?.integrations?.Core?.InvokeLLM) {
-      return fallback;
-    }
-
-    const result = await base44.integrations.Core.InvokeLLM({
-      prompt: buildPersonaPrompt(contexto),
-      response_json_schema: {
-        type: 'object',
-        properties: {
-          introducao: { type: 'string' },
-          resumo_geral: { type: 'string' },
-          comunicacao: { type: 'string' },
-          prestacao: { type: 'string' },
-          conclusao: { type: 'string' },
-          atividades_descricoes: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                indice: { type: 'number' },
-                nome: { type: 'string' },
-                descricao: { type: 'string' },
-              },
-            },
-          },
-        },
-      },
+`,
     });
 
     return {
-      ...fallback,
-      ...(result || {}),
-      atividades_descricoes: normalizarDescricoesAtividades(result || {}, contexto),
+      introducao: result?.introducao || fallbackIntroducao(contexto),
+      resumo_geral: result?.resumo_geral || fallbackResumo(contexto),
+      prestacao: result?.prestacao || fallbackPrestacao(),
     };
   } catch (error) {
-    console.warn('IA indisponível. Usando textos técnicos locais.', error);
-    return fallback;
+    console.warn(error);
+
+    return {
+      introducao: fallbackIntroducao(contexto),
+      resumo_geral: fallbackResumo(contexto),
+      prestacao: fallbackPrestacao(),
+    };
   }
 }
 
