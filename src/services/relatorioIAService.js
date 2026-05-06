@@ -3,7 +3,75 @@ import { base44 } from '@/api/base44Client';
 const TOTAL_OFICIAL = 1320000;
 
 function toNumber(value) {
-  const n = Number(value);
+  const n = N
+import { base44 } from '@/api/base44Client';
+
+function fallbackDescricao(atividade) {
+  return `
+A atividade ${atividade.nome} integrou o eixo ${atividade.categoria_editorial}
+do projeto Museus Centro, articulando ações de patrimônio, mediação cultural
+e processos institucionais vinculados à política pública de cultura do município.
+`.trim();
+}
+
+export async function gerarTextosRelatorioFisicoFinanceiro(contexto = {}) {
+  const atividades = contexto?.atividades || [];
+
+  const descricoes = await Promise.all(
+    atividades.map(async (atividade) => {
+      try {
+        if (!base44?.integrations?.Core?.InvokeLLM) {
+          return fallbackDescricao(atividade);
+        }
+
+        const result = await base44.integrations.Core.InvokeLLM({
+          prompt: `
+Escreva texto institucional técnico em português do Brasil.
+
+Atividade:
+${atividade.nome}
+
+Categoria:
+${atividade.categoria_editorial}
+
+Museu:
+${atividade.museu}
+
+Descrição original:
+${atividade.descricao}
+
+Local:
+${atividade.local}
+
+Data:
+${atividade.data}
+
+Escreva até 200 palavras.
+Tom técnico.
+Sem linguagem promocional.
+`,
+        });
+
+        return result?.text || fallbackDescricao(atividade);
+      } catch {
+        return fallbackDescricao(atividade);
+      }
+    })
+  );
+
+  return {
+    introducao: `
+O relatório apresenta a consolidação editorial das ações desenvolvidas
+no âmbito do projeto Museus Centro, considerando processos de gestão,
+mediação cultural, patrimônio, formação de público e articulação institucional.
+`.trim(),
+
+    atividades_descricoes: descricoes,
+  };
+}
+
+export default gerarTextosRelatorioFisicoFinanceiro;
+umber(value);
   return Number.isFinite(n) ? n : 0;
 }
 
