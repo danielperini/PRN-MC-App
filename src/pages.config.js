@@ -38,6 +38,7 @@ import PlataformaAdmin from './pages/PlataformaAdmin';
 import PlataformaConfig from './pages/PlataformaConfig';
 import PrestacaoDeContas from './pages/PrestacaoDeContas';
 import RelatorioMeta from './pages/RelatorioMeta';
+import RelatorioPreview from './pages/RelatorioPreview';
 import Relatorios from './pages/Relatorios';
 import ReportEditor from './pages/ReportEditor';
 import Rubricas from './pages/Rubricas';
@@ -84,6 +85,7 @@ export const PAGES = {
   PlataformaConfig,
   PrestacaoDeContas,
   RelatorioMeta,
+  RelatorioPreview,
   Relatorios,
   ReportEditor,
   Rubricas,
