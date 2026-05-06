@@ -42,6 +42,100 @@ function inteiro(value) {
   return Math.round(n);
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatReportPublico(value) {
+  return inteiro(value).toLocaleString('pt-BR');
+}
+
+function buildFallbackReportHtml(report) {
+  const atividades = Array.isArray(report?.atividades) ? report.atividades : [];
+  const titulo = `Relatório ${report?.mes_referencia || ''} ${report?.ano || ''}`.trim();
+  const totalPublico = atividades.reduce(
+    (sum, atividade) => sum + inteiro(atividade?.publico_total ?? atividade?.publico_estimado ?? 0),
+    0
+  );
+
+  const atividadesHtml = atividades.length > 0
+    ? atividades.map((atividade, index) => `
+      <section class="atividade">
+        <h3>${index + 1}. ${escapeHtml(atividade?.nome || atividade?.titulo || 'Atividade')}</h3>
+        ${atividade?.classificacao ? `<p><strong>Classificação:</strong> ${escapeHtml(atividade.classificacao)}</p>` : ''}
+        ${atividade?.descricao ? `<p><strong>Descrição:</strong> ${escapeHtml(atividade.descricao)}</p>` : ''}
+        <p><strong>Público:</strong> ${formatReportPublico(atividade?.publico_total ?? atividade?.publico_estimado ?? 0)}</p>
+      </section>
+    `).join('')
+    : '<p>Nenhuma atividade cadastrada neste relatório.</p>';
+
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(titulo || 'Relatório')}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; color: #111; margin: 32px; line-height: 1.45; }
+    header { border-bottom: 2px solid #111; padding-bottom: 16px; margin-bottom: 24px; }
+    h1 { font-size: 24px; margin: 0 0 8px; }
+    h2 { font-size: 18px; margin: 24px 0 10px; }
+    h3 { font-size: 15px; margin: 0 0 8px; }
+    p { margin: 4px 0; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; }
+    .box { border: 1px solid #ddd; border-radius: 10px; padding: 12px; margin: 12px 0; }
+    .atividade { border: 1px solid #ddd; border-radius: 10px; padding: 12px; margin: 10px 0; break-inside: avoid; }
+    .assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 64px; }
+    .linha { border-top: 1px solid #111; padding-top: 8px; text-align: center; font-size: 12px; }
+    @media print { body { margin: 18mm; } button { display: none; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>${escapeHtml(titulo || 'Relatório')}</h1>
+    <div class="grid">
+      <p><strong>Profissional:</strong> ${escapeHtml(report?.author_name || '')}</p>
+      <p><strong>Museu:</strong> ${escapeHtml(report?.museu || '')}</p>
+      <p><strong>Equipe:</strong> ${escapeHtml(report?.equipe || '')}</p>
+      <p><strong>Status:</strong> ${escapeHtml(report?.status || '')}</p>
+    </div>
+  </header>
+
+  <section class="box">
+    <h2>Resumo</h2>
+    <p><strong>Total de atividades:</strong> ${formatReportPublico(atividades.length)}</p>
+    <p><strong>Público total:</strong> ${formatReportPublico(totalPublico)}</p>
+  </section>
+
+  ${report?.resumo_periodo ? `<section class="box"><h2>Resumo do Período</h2><p>${escapeHtml(report.resumo_periodo)}</p></section>` : ''}
+  ${report?.resumo_executivo ? `<section class="box"><h2>Resumo Executivo</h2><p>${escapeHtml(report.resumo_executivo)}</p></section>` : ''}
+
+  <section>
+    <h2>Atividades</h2>
+    ${atividadesHtml}
+  </section>
+
+  <section class="assinaturas">
+    <div class="linha">Responsável pelo relatório</div>
+    <div class="linha">Coordenação</div>
+  </section>
+
+  <script>window.onload = () => setTimeout(() => window.print(), 300);</script>
+</body>
+</html>`;
+}
+
+function isFunctionNotFoundError(error) {
+  const status = error?.response?.status || error?.status;
+  const message = String(error?.message || '').toLowerCase();
+  return status === 404 || message.includes('404') || message.includes('not found');
+}
+
 function exportCSV(reports) {
   try {
     if (!Array.isArray(reports) || reports.length === 0) {
@@ -279,9 +373,19 @@ function RelatoriosInner() {
         return;
       }
 
-      toast.error('O backend não retornou HTML nem URL do PDF.');
+      const fallbackHtml = buildFallbackReportHtml(report);
+      openPdfHtml(fallbackHtml, fileName);
+      toast.warning('Função de PDF sem retorno. Abrindo versão local para impressão.');
     } catch (err) {
       console.error('Erro ao exportar PDF individual:', err);
+
+      if (isFunctionNotFoundError(err)) {
+        const fallbackHtml = buildFallbackReportHtml(report);
+        openPdfHtml(fallbackHtml, `relatorio_${report.id}`);
+        toast.warning('Função generateSingleReportPDF não encontrada. Abrindo versão local para impressão.');
+        return;
+      }
+
       toast.error(`Erro ao exportar PDF: ${err?.message || 'tente novamente'}`);
     } finally {
       setExportingSingleId(null);
