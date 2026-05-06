@@ -1,65 +1,64 @@
-const TOTAL_OFICIAL = 1320000;
 
-function toNumber(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
+const CATEGORIAS = {
+  governanca: ['reunião', 'alinhamento', 'demus', 'dipc', 'planejamento', 'gestão'],
+  producao: ['produção', 'montagem', 'logística', 'som', 'luz'],
+  comunicacao: ['card', 'release', 'comunicação', 'instagram'],
+  formacao_publico: ['oficina', 'mediação', 'visita', 'simpósio', 'samba aula', 'espetáculo'],
+};
 
-function inteiro(value) {
-  return Math.round(toNumber(value));
-}
+function detectarCategoria(texto = '') {
+  const lower = texto.toLowerCase();
 
-function parseDate(value) {
-  if (!value) return null;
-
-  if (/^\d{4}-\d{2}-\d{2}/.test(String(value))) {
-    const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? null : d;
+  for (const [categoria, termos] of Object.entries(CATEGORIAS)) {
+    if (termos.some((t) => lower.includes(t))) {
+      return categoria;
+    }
   }
 
-  const br = String(value).match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-  if (br) {
-    const d = new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return 'institucional';
 }
 
-function dateInRange(value, from, to) {
-  const d = parseDate(value);
-  if (!d) return false;
+export function buildRelatorioFisicoFinanceiroContext({
+  reportsRaw = [],
+  attachmentsRaw = [],
+}) {
+  const atividades = [];
 
-  const start = new Date(from);
-  start.setHours(0, 0, 0, 0);
+  reportsRaw.forEach((report) => {
+    (report?.atividades || []).forEach((atividade) => {
+      const textoBase = [
+        atividade?.nome,
+        atividade?.descricao,
+        atividade?.classificacao,
+      ].join(' ');
 
-  const end = new Date(to);
-  end.setHours(23, 59, 59, 999);
+      const categoria_editorial = detectarCategoria(textoBase);
 
-  return d >= start && d <= end;
+      atividades.push({
+        nome: atividade?.nome || 'Atividade',
+        descricao: atividade?.descricao || '',
+        museu: report?.museu || '',
+        data: atividade?.data || report?.created_date || '',
+        local: atividade?.local || '',
+        publico:
+          categoria_editorial === 'formacao_publico'
+            ? Number(atividade?.publico || 0)
+            : 'N/A',
+        categoria_editorial,
+        fotos: (attachmentsRaw || []).filter((a) =>
+          String(a?.atividade_nome || '').includes(atividade?.nome || '')
+        ),
+      });
+    });
+  });
+
+  return {
+    total_atividades: atividades.length,
+    atividades,
+  };
 }
 
-function normalizeMuseu(value) {
-  const raw = String(value || '').toUpperCase();
-
-  if (raw.includes('MHAB') || raw.includes('ABILIO') || raw.includes('ABÍLIO')) return 'MHAB';
-  if (raw.includes('MIS') || raw.includes('IMAGEM E SOM')) return 'MIS';
-  if (raw.includes('MUMO') || raw.includes('MODA')) return 'MUMO';
-
-  return value || 'Atuação Geral';
-}
-
-function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function isApprovedReport(report) {
+export default buildRelatorioFisicoFinanceiroContext;
   const status = String(report?.status || '').trim().toUpperCase();
   return ['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN'].includes(status);
 }
