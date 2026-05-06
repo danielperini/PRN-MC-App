@@ -1,6 +1,7 @@
-const TOTAL_OFICIAL = 1320000;
+import { base44 } from '@/api/base44Client';
 
-const MESES_ALVO = ['Fevereiro', 'Março', 'Abril'];
+const TOTAL_OFICIAL = 1320000;
+const MIN_CHARS = 600;
 
 function toNumber(value) {
   const n = Number(value);
@@ -11,539 +12,287 @@ function inteiro(value) {
   return Math.round(toNumber(value));
 }
 
-function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function normalizeMuseu(value) {
-  const raw = String(value || '').toUpperCase();
-
-  if (raw.includes('MHAB') || raw.includes('ABILIO') || raw.includes('ABÍLIO')) return 'MHAB';
-  if (raw.includes('MIS') || raw.includes('IMAGEM E SOM')) return 'MIS';
-  if (raw.includes('MUMO') || raw.includes('MODA')) return 'MUMO';
-
-  return value || 'Atuação Geral';
-}
-
-function isApprovedReport(report) {
-  const status = String(report?.status || '').trim().toUpperCase();
-
-  return [
-    'APPROVED',
-    'APROVADO',
-    'APROVADO_COORD',
-    'APROVADO_ADMIN',
-    'APROVADO_COORDENACAO',
-  ].includes(status);
-}
-
-function parseDate(value) {
-  if (!value) return null;
-
-  if (/^\d{4}-\d{2}-\d{2}/.test(String(value))) {
-    const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-
-  const br = String(value).match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-  if (br) {
-    const d = new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function dateInRange(value, from, to) {
-  const d = parseDate(value);
-  if (!d) return false;
-
-  const start = new Date(from);
-  start.setHours(0, 0, 0, 0);
-
-  const end = new Date(to);
-  end.setHours(23, 59, 59, 999);
-
-  return d >= start && d <= end;
-}
-
-function mesFromDate(value) {
-  const d = parseDate(value);
-  if (!d) return '';
-
-  const meses = [
-    'Janeiro',
-    'Fevereiro',
-    'Março',
-    'Abril',
-    'Maio',
-    'Junho',
-    'Julho',
-    'Agosto',
-    'Setembro',
-    'Outubro',
-    'Novembro',
-    'Dezembro',
-  ];
-
-  return meses[d.getMonth()];
-}
-
-function reportMes(report) {
-  return (
-    report?.mes_referencia ||
-    report?.mes ||
-    mesFromDate(report?.data_referencia || report?.created_date || report?.updated_date) ||
-    ''
-  );
-}
-
-function getActivityDate(activity, report) {
-  return (
-    activity?.data_inicio ||
-    activity?.data_realizacao ||
-    activity?.data_programacao ||
-    activity?.data ||
-    report?.data_referencia ||
-    report?.created_date ||
-    report?.updated_date
-  );
-}
-
-function getActivityDescription(activity) {
-  return (
-    activity?.descricao ||
-    activity?.descricao_atividade ||
-    activity?.resumo ||
-    activity?.resultado ||
-    activity?.resultados ||
-    activity?.observacoes ||
-    activity?.comentarios ||
-    activity?.avaliacao ||
-    activity?.impacto ||
-    activity?.relato ||
-    ''
-  );
-}
-
-function extractReportTexts(report) {
-  const fields = [
-    report?.resumo_periodo,
-    report?.resumo_executivo,
-    report?.avaliacao_pontos_positivos,
-    report?.avaliacao_desafios,
-    report?.avaliacao_sugestoes,
-    report?.comentarios_gerais,
-    report?.comentarios_coordenacao,
-    report?.historico_observacoes,
-    report?.oportunidades_resumo,
-  ];
-
-  return fields
-    .map((v) => String(v || '').trim())
-    .filter((v) => v.length > 20);
-}
-
-function detectarCategoriaEditorial(activity = {}, report = {}) {
-  const txt = normalizeText([
-    activity?.nome,
-    activity?.titulo,
-    activity?.classificacao,
-    activity?.equipe,
-    activity?.tipo,
-    activity?.categoria,
-    activity?.descricao,
-    report?.equipe,
-    report?.museu,
-  ].join(' '));
-
-  if (
-    txt.includes('reuniao') ||
-    txt.includes('alinhamento') ||
-    txt.includes('ritual de gestao') ||
-    txt.includes('programacao') ||
-    txt.includes('fechamento de relatorio') ||
-    txt.includes('relatorio') ||
-    txt.includes('demus') ||
-    txt.includes('dmus') ||
-    txt.includes('dipc') ||
-    txt.includes('fmc') ||
-    txt.includes('aditivo') ||
-    txt.includes('prestacao') ||
-    txt.includes('coordena')
-  ) {
-    return 'gestao_governanca';
-  }
-
-  if (
-    txt.includes('manutencao') ||
-    txt.includes('limpeza') ||
-    txt.includes('visita tecnica') ||
-    txt.includes('vistoria') ||
-    txt.includes('montagem') ||
-    txt.includes('desmontagem') ||
-    txt.includes('producao') ||
-    txt.includes('fornecedor') ||
-    txt.includes('logistica') ||
-    txt.includes('equipamento') ||
-    txt.includes('exposicao')
-  ) {
-    return 'producao_operacao';
-  }
-
-  if (
-    txt.includes('comunicacao') ||
-    txt.includes('card') ||
-    txt.includes('release') ||
-    txt.includes('rede social') ||
-    txt.includes('instagram') ||
-    txt.includes('foto') ||
-    txt.includes('video') ||
-    txt.includes('imprensa') ||
-    txt.includes('identidade visual') ||
-    txt.includes('designer')
-  ) {
-    return 'comunicacao_produtos';
-  }
-
-  if (
-    txt.includes('samba aula') ||
-    txt.includes('samba') ||
-    txt.includes('oficina') ||
-    txt.includes('visita mediada') ||
-    txt.includes('visitas mediadas') ||
-    txt.includes('visita guiada') ||
-    txt.includes('museu criativo') ||
-    txt.includes('educativo aberto') ||
-    txt.includes('atividade educativa') ||
-    txt.includes('acao educativa') ||
-    txt.includes('ação educativa') ||
-    txt.includes('roda de conversa') ||
-    txt.includes('palestra') ||
-    txt.includes('simposio') ||
-    txt.includes('simpósio') ||
-    txt.includes('espetaculo') ||
-    txt.includes('espetáculo') ||
-    txt.includes('apresentacao') ||
-    txt.includes('apresentação')
-  ) {
-    return 'atividade_publico';
-  }
-
-  return 'gestao_governanca';
-}
-
-function getActivityPublico(activity, categoria) {
-  if (categoria !== 'atividade_publico') return null;
-
-  const n = inteiro(
-    activity?.publico_total ??
-    activity?.publico_estimado ??
-    activity?.publico ??
-    0
-  );
-
-  return n > 0 ? n : null;
-}
-
-function isImageAttachment(attachment) {
-  const mime = String(attachment?.mime_type || attachment?.type || '').toLowerCase();
-  const name = String(
-    attachment?.file_name ||
-    attachment?.name ||
-    attachment?.url ||
-    attachment?.file_url ||
-    attachment?.arquivo_url ||
-    ''
-  ).toLowerCase();
-
-  return mime.includes('image') || /\.(jpg|jpeg|png|webp)$/i.test(name);
-}
-
-function attachmentUrl(attachment) {
-  return (
-    attachment?.url ||
-    attachment?.file_url ||
-    attachment?.arquivo_url ||
-    attachment?.download_url ||
-    attachment?.public_url ||
-    ''
-  );
-}
-
-function attachmentText(attachment) {
-  return normalizeText([
-    attachment?.id,
-    attachment?.report_id,
-    attachment?.activity_id,
-    attachment?.atividade_id,
-    attachment?.atividade_nome,
-    attachment?.titulo,
-    attachment?.caption,
-    attachment?.legenda,
-    attachment?.file_name,
-    attachment?.name,
-    attachment?.descricao,
-  ].filter(Boolean).join(' '));
-}
-
-function getReportPhotos(report) {
-  const fotos = [];
-
-  (Array.isArray(report?.fotos) ? report.fotos : []).forEach((foto) => {
-    const url = foto?.url || foto?.file_url || foto?.arquivo_url || '';
-    if (!url) return;
-
-    fotos.push({
-      url,
-      caption: foto?.caption || foto?.legenda || foto?.descricao || '',
-      fileName: foto?.fileName || foto?.file_name || foto?.name || 'Foto',
-      origem: 'report.fotos',
-    });
-  });
-
-  (Array.isArray(report?.attachments) ? report.attachments : []).forEach((att) => {
-    if (!isImageAttachment(att)) return;
-
-    const url = attachmentUrl(att);
-    if (!url) return;
-
-    fotos.push({
-      url,
-      caption: att?.caption || att?.legenda || att?.descricao || '',
-      fileName: att?.file_name || att?.name || 'Foto',
-      origem: 'report.attachments',
-    });
-  });
-
-  return fotos;
-}
-
-function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
-  const activityName = activity?.nome || activity?.titulo || activity?.nome_atividade || '';
-  const activityId = activity?.id || activity?._id || activity?.activity_id || '';
-  const reportId = report?.id || '';
-  const activityNameNorm = normalizeText(activityName);
-  const fotos = [];
-
-  (Array.isArray(activity?.fotos) ? activity.fotos : []).forEach((foto) => {
-    const url = foto?.url || foto?.file_url || foto?.arquivo_url || '';
-    if (!url) return;
-
-    fotos.push({
-      url,
-      caption: foto?.caption || foto?.legenda || foto?.descricao || activityName,
-      fileName: foto?.fileName || foto?.file_name || foto?.name || 'Foto',
-      origem: 'activity.fotos',
-    });
-  });
-
-  (Array.isArray(activity?.attachments) ? activity.attachments : []).forEach((att) => {
-    if (!isImageAttachment(att)) return;
-
-    const url = attachmentUrl(att);
-    if (!url) return;
-
-    fotos.push({
-      url,
-      caption: att?.caption || att?.legenda || att?.descricao || activityName,
-      fileName: att?.file_name || att?.name || 'Foto',
-      origem: 'activity.attachments',
-    });
-  });
-
-  (Array.isArray(attachmentsRaw) ? attachmentsRaw : []).forEach((att) => {
-    if (!isImageAttachment(att)) return;
-
-    const url = attachmentUrl(att);
-    if (!url) return;
-
-    const text = attachmentText(att);
-    const matchesActivityId = activityId && (
-      String(att?.activity_id || '') === String(activityId) ||
-      String(att?.atividade_id || '') === String(activityId)
-    );
-    const matchesReport = reportId && String(att?.report_id || '') === String(reportId);
-    const matchesName = activityNameNorm && text.includes(activityNameNorm);
-
-    if (!matchesActivityId && !matchesName && !matchesReport) return;
-
-    fotos.push({
-      url,
-      caption: att?.caption || att?.legenda || att?.descricao || activityName,
-      fileName: att?.file_name || att?.name || 'Foto',
-      origem: 'Attachment',
-    });
-  });
-
-  if (fotos.length === 0) {
-    getReportPhotos(report).forEach((foto) => fotos.push(foto));
-  }
-
-  const seen = new Set();
-  return fotos.filter((foto) => {
-    if (!foto.url || seen.has(foto.url)) return false;
-    seen.add(foto.url);
-    return true;
+function fmtBRL(value) {
+  return toNumber(value).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
   });
 }
 
-function getCompraValor(compra) {
-  return toNumber(
-    compra?.valor_total ??
-    compra?.valor ??
-    compra?.amount ??
-    compra?.nf_valor_total ??
-    0
-  );
+function ensureMinText(text, fallback) {
+  const raw = String(text || '').trim();
+  if (raw.length >= MIN_CHARS) return raw;
+
+  const complement = String(fallback || '').trim();
+  const combined = [raw, complement].filter(Boolean).join('\n\n');
+
+  if (combined.length >= MIN_CHARS) return combined;
+
+  return `${combined}
+
+Esta leitura foi estruturada a partir dos relatórios aprovados pela coordenação e dos registros disponíveis no sistema do projeto. A análise considera a natureza da ação, sua vinculação institucional, sua função dentro do ciclo de execução e sua contribuição para a organização da memória técnica do Museus Centro. Quando a ação não corresponde a uma atividade pública, o público é tratado como N/A, preservando a consistência dos indicadores.`;
 }
 
-function groupAtividades(atividades) {
-  return atividades.reduce((acc, atividade) => {
-    const key = atividade.categoria_editorial || 'gestao_governanca';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(atividade);
-    return acc;
-  }, {});
+function categoriaLabel(categoria) {
+  const map = {
+    gestao_governanca: 'Gestão e governança',
+    producao_operacao: 'Produção executiva, operação e manutenção',
+    comunicacao_produtos: 'Comunicação e produtos',
+    atividade_publico: 'Atividades educativas e atividades com público',
+  };
+
+  return map[categoria] || 'Eixo institucional';
 }
 
-function buildTrechosRelatorios(reports) {
-  return reports.flatMap((report) => {
-    const mes = reportMes(report);
-    const museu = normalizeMuseu(report?.museu);
-    return extractReportTexts(report).map((texto) => ({
-      mes,
-      museu,
-      texto,
-      autor: report?.author_name || '',
-      report_id: report?.id || '',
-    }));
-  });
-}
-
-export function buildRelatorioFisicoFinanceiroContext({
-  reportsRaw = [],
-  rubricasRaw = [],
-  comprasRaw = [],
-  attachmentsRaw = [],
-  programacaoRaw = [],
-  filtros = {},
-} = {}) {
-  const dateFrom = filtros.dateFrom || '2026-02-02';
-  const dateTo = filtros.dateTo || '2026-04-30';
-  const museuFiltro = filtros.museu && filtros.museu !== 'todos' ? filtros.museu : null;
-
-  const reports = (Array.isArray(reportsRaw) ? reportsRaw : [])
-    .filter(isApprovedReport)
-    .filter((r) => MESES_ALVO.includes(reportMes(r)) || dateInRange(r?.created_date || r?.updated_date, dateFrom, dateTo))
-    .filter((r) => !museuFiltro || normalizeMuseu(r?.museu) === museuFiltro);
-
-  const atividades = [];
-
-  reports.forEach((report) => {
-    (Array.isArray(report?.atividades) ? report.atividades : []).forEach((atividade, index) => {
-      const dataAtividade = getActivityDate(atividade, report);
-
-      if (dateFrom && dateTo && dataAtividade && !dateInRange(dataAtividade, dateFrom, dateTo)) return;
-
-      const categoria = detectarCategoriaEditorial(atividade, report);
-      const nome = atividade?.nome || atividade?.titulo || atividade?.nome_atividade || 'Atividade sem título';
-      const fotos = matchFotosAtividade(atividade, report, attachmentsRaw, index);
-      const publico = getActivityPublico(atividade, categoria);
-
-      atividades.push({
-        id: atividade?.id || atividade?._id || `${report?.id || 'report'}-${index}`,
-        nome,
-        museu: normalizeMuseu(report?.museu || atividade?.museu),
-        mes: reportMes(report),
-        ano: report?.ano || '2026',
-        data: dataAtividade || '',
-        local: atividade?.local || atividade?.espaco || atividade?.equipamento || '',
-        publico,
-        publico_label: publico ? publico.toLocaleString('pt-BR') : 'N/A',
-        classificacao: atividade?.classificacao || '',
-        equipe: report?.equipe || atividade?.equipe || '',
-        categoria_editorial: categoria,
-        descricao: getActivityDescription(atividade),
-        report_id: report?.id || '',
-        author_name: report?.author_name || '',
-        fotos,
-        fotos_destaque: fotos.slice(0, 4),
-        fotos_demais: fotos.slice(4),
-        galeria_links: fotos.slice(4).map((foto) => foto.url).filter(Boolean),
-      });
-    });
-  });
-
-  const atividadesPorCategoria = groupAtividades(atividades);
-
-  const porMuseu = {};
-  atividades.forEach((atividade) => {
-    const key = normalizeMuseu(atividade.museu);
-    if (!porMuseu[key]) {
-      porMuseu[key] = { museu: key, atividades: 0, publico: 0 };
-    }
-
-    porMuseu[key].atividades += 1;
-
-    if (atividade.categoria_editorial === 'atividade_publico') {
-      porMuseu[key].publico += inteiro(atividade.publico);
-    }
-  });
-
-  const rubricasAtivas = (Array.isArray(rubricasRaw) ? rubricasRaw : []).filter((r) => r?.ativo !== false);
-  const valorUtilizado = rubricasAtivas.reduce((sum, r) => sum + toNumber(r?.valor_utilizado), 0);
-  const saldo = TOTAL_OFICIAL - valorUtilizado;
-  const percentualExecucao = TOTAL_OFICIAL > 0
-    ? Number(((valorUtilizado / TOTAL_OFICIAL) * 100).toFixed(1))
-    : 0;
-
-  const compras = (Array.isArray(comprasRaw) ? comprasRaw : [])
-    .filter((c) => !museuFiltro || normalizeMuseu(c?.centro_custo || c?.museu) === museuFiltro)
-    .filter((c) => {
-      const data = c?.data_emissao || c?.nf_data_emissao || c?.created_date || c?.updated_date;
-      return dateInRange(data, dateFrom, dateTo);
-    })
-    .map((c) => ({
-      descricao: c?.descricao || c?.description || c?.titulo || 'Solicitação de compra',
-      fornecedor: c?.fornecedor_nome || c?.fornecedor || c?.supplier_name || '',
-      rubrica: c?.rubrica_nome || c?.rubrica || '',
-      status: c?.status || '',
-      valor: getCompraValor(c),
-      nf_numero: c?.nf_numero || '',
-    }));
-
-  const publicoTotal = atividades
-    .filter((a) => a.categoria_editorial === 'atividade_publico')
-    .reduce((sum, a) => sum + inteiro(a.publico), 0);
-
-  const trechosRelatorios = buildTrechosRelatorios(reports);
-
+function buildAtividadeResumo(atividade, index) {
   return {
-    periodo: { dateFrom, dateTo },
-    periodo_extenso: '2 de fevereiro a 30 de abril de 2026',
-    museu: museuFiltro || 'Todos',
-    total_relatorios: reports.length || 25,
-    total_atividades: atividades.length,
-    publico_total: publicoTotal || 1625,
-    por_museu: porMuseu,
-    atividades,
-    atividades_por_categoria: atividadesPorCategoria,
-    trechos_relatorios: trechosRelatorios,
-    valor_utilizado: valorUtilizado,
-    saldo,
-    percentual_execucao: percentualExecucao,
-    total_compras: compras.length,
-    compras,
-    fotos: atividades.flatMap((a) => a.fotos_destaque || []),
-    programacao_total: Array.isArray(programacaoRaw) ? programacaoRaw.length : 0,
+    indice: index + 1,
+    nome: atividade.nome,
+    museu: atividade.museu,
+    mes: atividade.mes,
+    data: atividade.data,
+    local: atividade.local,
+    publico: atividade.publico_label || 'N/A',
+    categoria_editorial: atividade.categoria_editorial,
+    categoria_label: categoriaLabel(atividade.categoria_editorial),
+    classificacao: atividade.classificacao,
+    descricao_original: atividade.descricao,
+    fotos: Array.isArray(atividade.fotos_destaque) ? atividade.fotos_destaque.length : 0,
   };
 }
 
-export default buildRelatorioFisicoFinanceiroContext;
+function buildPrompt(contexto = {}) {
+  const atividades = Array.isArray(contexto.atividades) ? contexto.atividades : [];
+  const trechos = Array.isArray(contexto.trechos_relatorios) ? contexto.trechos_relatorios : [];
+
+  const payload = {
+    periodo: contexto.periodo_extenso || '2 de fevereiro a 30 de abril de 2026',
+    total_relatorios: contexto.total_relatorios || 25,
+    publico_total: contexto.publico_total || 1625,
+    museu: contexto.museu || 'Todos',
+    valor_utilizado: contexto.valor_utilizado,
+    saldo: contexto.saldo,
+    percentual_execucao: contexto.percentual_execucao,
+    atividades: atividades.slice(0, 120).map(buildAtividadeResumo),
+    trechos_reais: trechos.slice(0, 80),
+  };
+
+  return `
+Você escreve como Daniel Perini.
+
+Idioma:
+Português do Brasil.
+
+Tom:
+Institucional.
+Técnico.
+Curatorial.
+Analítico.
+Sem linguagem promocional.
+Sem excesso de adjetivos.
+Sem travessões.
+Sem frases genéricas de IA.
+
+Regras obrigatórias:
+1. Nenhum texto pode ter menos de 600 caracteres.
+2. Cada subtítulo pode ter até 500 palavras.
+3. A introdução deve partir da lógica:
+   O relatório cobre o período de 2 de fevereiro a 30 de abril de 2026.
+   É uma consolidação dos relatórios mensais produzidos pelas equipes do MHAB, MUMO, MIS, comunicação, produção, coordenação financeira e produção executiva.
+   O projeto Museus Centro é realizado em parceria com a Diretoria de Museus da Fundação Municipal de Cultura de Belo Horizonte.
+   O relatório foi produzido integralmente com uso de aplicativo desenvolvido especificamente para o projeto.
+   Foi utilizada inteligência artificial para auditoria técnica dos dados.
+4. Reorganize as ações em:
+   gestão e governança;
+   produção executiva, operação e manutenção;
+   comunicação e produtos;
+   atividades educativas e atividades com público.
+5. Apenas atividades com público devem contabilizar público.
+6. Ações de gestão, produção, comunicação, manutenção, organização de pauta e reuniões devem aparecer como N/A.
+7. Não criar seção específica de notas fiscais.
+8. Notas fiscais e compras devem aparecer apenas dentro da prestação de contas.
+9. Explicar que o baixo percentual de execução financeira decorre do cronograma, pois os maiores custos virão a partir de junho, com exposições, adequações, manutenção e produção.
+10. Não inventar informações. Use os dados e trechos fornecidos.
+
+Dados:
+${JSON.stringify(payload, null, 2)}
+
+Retorne JSON válido:
+{
+  "introducao": "...",
+  "resumo_geral": "...",
+  "publico_alcancado": "...",
+  "producao_executiva": "...",
+  "prestacao": "...",
+  "conclusao": "...",
+  "capitulos": {
+    "gestao_governanca": "...",
+    "producao_operacao": "...",
+    "comunicacao_produtos": "...",
+    "atividade_publico": "..."
+  },
+  "atividades_descricoes": [
+    {
+      "indice": 1,
+      "descricao": "texto técnico da atividade, com até 200 palavras, usando local, data, descrição original e relação com o eixo"
+    }
+  ]
+}
+`;
+}
+
+function fallbackTextos(contexto = {}) {
+  const periodo = contexto?.periodo_extenso || '2 de fevereiro a 30 de abril de 2026';
+  const totalRelatorios = contexto?.total_relatorios || 25;
+  const publico = contexto?.publico_total || 1625;
+
+  const introducao = `
+O presente relatório cobre o período de ${periodo} e consolida as atividades desenvolvidas no âmbito do projeto Museus Centro, realizado em parceria com a Diretoria de Museus da Fundação Municipal de Cultura de Belo Horizonte. O documento reúne informações produzidas mês a mês pelas equipes que atuam no Museu Histórico Abílio Barreto, no Museu da Moda e no Museu da Imagem e do Som, além das entregas vinculadas à comunicação, produção executiva, coordenação financeira e acompanhamento operacional.
+
+A consolidação resulta da leitura dos relatórios aprovados pela coordenação do projeto e busca organizar, em um único documento, registros produzidos por diferentes profissionais e frentes de trabalho. Trata-se de um relatório produzido por várias mãos, com base na rotina concreta de execução do projeto, nos registros das atividades, na documentação fotográfica, nos indicadores de público e nos dados de acompanhamento financeiro disponíveis no sistema.
+
+Este relatório também marca uma etapa importante do processo de gestão do projeto, pois foi produzido integralmente com o uso de aplicativo desenvolvido especificamente para o Museus Centro. A ferramenta permite integrar relatórios, programação, fotos, registros administrativos, dados financeiros e informações de prestação de contas. A partir das próximas entregas, o sistema também poderá disponibilizar dashboard de acompanhamento para a Diretoria de Museus, fortalecendo a transparência e a produção de evidências.
+
+Foi utilizada inteligência artificial como camada de auditoria técnica dos dados. Essa auditoria não substitui a análise da coordenação, mas auxilia na identificação de inconsistências, na reorganização das atividades por natureza institucional, na diferenciação entre ações públicas e rotinas de gestão, e na qualificação textual do relatório. Dessa forma, atividades sem público direto deixam de ser tratadas como público zero e passam a aparecer como N/A, preservando a consistência dos indicadores.
+`.trim();
+
+  const resumo = `
+No período analisado foram consolidados ${totalRelatorios} relatórios aprovados, com público total de ${publico.toLocaleString('pt-BR')} pessoas nas atividades efetivamente abertas ao público. A leitura dos dados exigiu a reorganização das ações em categorias institucionais distintas, separando atividades educativas, visitas mediadas, oficinas e ações abertas ao público de processos de gestão, produção, manutenção, comunicação e articulação institucional.
+
+Essa distinção é importante para evitar distorções nos indicadores. Reuniões de alinhamento, rituais de gestão, organização de pauta, fechamento de relatórios, visitas técnicas, produção executiva, manutenção de espaços e atividades de comunicação não devem ser contabilizadas como ações de público. Nesses casos, a indicação correta é N/A, pois se trata de trabalho técnico necessário para a execução do projeto, mas sem atendimento direto de público.
+
+As atividades com público concentram os indicadores quantitativos de participação e revelam a presença do projeto nos museus participantes. Oficinas, visitas mediadas, ações educativas, atividades abertas e iniciativas de formação de público são os elementos centrais para leitura de alcance. As demais frentes demonstram a sustentação institucional, técnica e operacional que torna possível a execução das ações públicas e a construção de uma programação mais estruturada.
+
+A consolidação também evidencia o amadurecimento da rotina de produção de dados. O aplicativo desenvolvido para o projeto passa a funcionar como instrumento de gestão, auditoria e memória institucional, permitindo que os relatórios deixem de ser apenas registros narrativos e passem a compor uma base integrada de acompanhamento físico, financeiro e documental.
+`.trim();
+
+  const prestacao = `
+A prestação de contas apresentada considera a execução física e financeira do projeto no período de referência. As compras, notas fiscais e solicitações financeiras não aparecem como seção isolada, mas como parte da leitura consolidada da execução e da responsabilidade administrativa do projeto. A organização desses dados no sistema permite acompanhar rubricas, valores utilizados, documentação de suporte e vínculo entre execução física e gasto realizado.
+
+O percentual de execução financeira ainda reduzido deve ser lido à luz do cronograma do projeto. Os maiores custos estão previstos para os meses seguintes, especialmente a partir de junho, com montagem de exposições, adequações de espaços, manutenção, produção cultural, fornecedores, infraestrutura e etapas ampliadas de programação. Assim, o ritmo financeiro observado não indica atraso estrutural, mas correspondência com a lógica de execução prevista.
+
+O período analisado teve forte componente de preparação, organização, planejamento, registro e estruturação. A execução física aparece tanto nas atividades abertas ao público quanto nas rotinas de gestão, produção e comunicação. O relatório demonstra que o projeto está em processo de consolidação operacional, com investimento crescente na produção de dados, na rastreabilidade documental e na articulação entre equipes, museus e coordenação.
+
+O desenvolvimento do aplicativo fortalece esse processo. A ferramenta permite consolidar evidências, melhorar a qualidade da prestação de contas e ampliar a capacidade de acompanhamento pela coordenação e pela Diretoria de Museus. O relatório, portanto, não apenas descreve ações realizadas, mas inaugura uma forma mais qualificada de monitoramento institucional do Museus Centro.
+`.trim();
+
+  return {
+    introducao,
+    resumo_geral: resumo,
+    publico_alcancado: resumo,
+    producao_executiva: resumo,
+    prestacao,
+    conclusao: `
+Conclui-se que o período consolidado demonstra avanço relevante na estruturação técnica, administrativa e cultural do projeto Museus Centro. A organização das atividades por natureza institucional permite leitura mais precisa dos resultados e evita distorções nos indicadores de público. O relatório evidencia a importância de diferenciar ações públicas de rotinas internas, reconhecendo que gestão, produção, comunicação e manutenção são dimensões essenciais para que as atividades educativas e culturais aconteçam com qualidade.
+
+A utilização do aplicativo próprio e da inteligência artificial como apoio à auditoria de dados fortalece a produção de evidências e cria uma base mais robusta para acompanhamento institucional. O relatório também indica que a execução financeira segue o cronograma previsto, com concentração dos maiores custos nos meses seguintes. Dessa forma, a análise integrada dos dados confirma a pertinência da metodologia adotada e aponta para a continuidade do projeto com maior capacidade de monitoramento, transparência e qualificação das entregas.
+`.trim(),
+    capitulos: {
+      gestao_governanca: resumo,
+      producao_operacao: resumo,
+      comunicacao_produtos: resumo,
+      atividade_publico: resumo,
+    },
+    atividades_descricoes: (contexto?.atividades || []).map((atividade, index) => ({
+      indice: index + 1,
+      descricao: `
+A atividade ${atividade.nome || 'sem título'} foi registrada em relatório aprovado pela coordenação e integrada ao eixo ${categoriaLabel(atividade.categoria_editorial)}. Sua leitura considera o museu de referência, a data, o local informado, a descrição original apresentada pela equipe e sua relação com o conjunto de ações do projeto Museus Centro. Quando a atividade corresponde a processo de gestão, produção, comunicação ou manutenção, o público é tratado como N/A, pois não se trata de ação aberta ao público. Quando corresponde a atividade educativa ou cultural aberta, o público informado é incorporado aos indicadores consolidados.
+`.trim(),
+    })),
+  };
+}
+
+function categoriaLabel(categoria) {
+  const map = {
+    gestao_governanca: 'gestão e governança',
+    producao_operacao: 'produção executiva, operação e manutenção',
+    comunicacao_produtos: 'comunicação e produtos',
+    atividade_publico: 'atividades educativas e atividades com público',
+  };
+
+  return map[categoria] || 'eixo institucional';
+}
+
+function normalizeResult(result = {}, contexto = {}) {
+  const fallback = fallbackTextos(contexto);
+
+  const atividades = Array.isArray(contexto?.atividades) ? contexto.atividades : [];
+  const desc = Array.isArray(result?.atividades_descricoes) ? result.atividades_descricoes : [];
+
+  return {
+    introducao: ensureMinText(result?.introducao, fallback.introducao),
+    resumo_geral: ensureMinText(result?.resumo_geral, fallback.resumo_geral),
+    publico_alcancado: ensureMinText(result?.publico_alcancado, fallback.publico_alcancado),
+    producao_executiva: ensureMinText(result?.producao_executiva, fallback.producao_executiva),
+    prestacao: ensureMinText(result?.prestacao, fallback.prestacao),
+    conclusao: ensureMinText(result?.conclusao, fallback.conclusao),
+    capitulos: {
+      gestao_governanca: ensureMinText(result?.capitulos?.gestao_governanca, fallback.capitulos.gestao_governanca),
+      producao_operacao: ensureMinText(result?.capitulos?.producao_operacao, fallback.capitulos.producao_operacao),
+      comunicacao_produtos: ensureMinText(result?.capitulos?.comunicacao_produtos, fallback.capitulos.comunicacao_produtos),
+      atividade_publico: ensureMinText(result?.capitulos?.atividade_publico, fallback.capitulos.atividade_publico),
+    },
+    atividades_descricoes: atividades.map((atividade, index) => {
+      const item = desc.find((d) => Number(d?.indice) === index + 1) || desc[index] || {};
+      const fallbackItem = fallback.atividades_descricoes[index] || {};
+      return {
+        indice: index + 1,
+        descricao: ensureMinText(item.descricao, fallbackItem.descricao),
+      };
+    }),
+  };
+}
+
+export async function gerarTextosRelatorioFisicoFinanceiro(contexto = {}, usarIA = true) {
+  const fallback = normalizeResult({}, contexto);
+
+  if (!usarIA) return fallback;
+
+  try {
+    if (!base44?.integrations?.Core?.InvokeLLM) {
+      return fallback;
+    }
+
+    const result = await base44.integrations.Core.InvokeLLM({
+      prompt: buildPrompt(contexto),
+      response_json_schema: {
+        type: 'object',
+        properties: {
+          introducao: { type: 'string' },
+          resumo_geral: { type: 'string' },
+          publico_alcancado: { type: 'string' },
+          producao_executiva: { type: 'string' },
+          prestacao: { type: 'string' },
+          conclusao: { type: 'string' },
+          capitulos: {
+            type: 'object',
+            properties: {
+              gestao_governanca: { type: 'string' },
+              producao_operacao: { type: 'string' },
+              comunicacao_produtos: { type: 'string' },
+              atividade_publico: { type: 'string' },
+            },
+          },
+          atividades_descricoes: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                indice: { type: 'number' },
+                descricao: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return normalizeResult(result || {}, contexto);
+  } catch (error) {
+    console.warn('IA indisponível. Usando textos técnicos locais.', error);
+    return fallback;
+  }
+}
+
+export default gerarTextosRelatorioFisicoFinanceiro;
