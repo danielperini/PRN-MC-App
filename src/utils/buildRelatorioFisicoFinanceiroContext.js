@@ -39,6 +39,8 @@ function isApprovedReport(report) {
     'APROVADO_COORD',
     'APROVADO_ADMIN',
     'APROVADO_COORDENACAO',
+    'SUBMITTED',
+    'ENVIADO',
   ].includes(status);
 }
 
@@ -104,12 +106,14 @@ function reportMes(report) {
   );
 }
 
-function getActivityDate(activity, report) {
+function getActivityDate(activity, report, agendaItem) {
   return (
     activity?.data_inicio ||
     activity?.data_realizacao ||
     activity?.data_programacao ||
     activity?.data ||
+    agendaItem?.data_inicio ||
+    agendaItem?.data_realizacao ||
     report?.data_referencia ||
     report?.created_date ||
     report?.updated_date
@@ -165,17 +169,23 @@ function detectarCategoriaEditorial(activity = {}, report = {}) {
 
   if (
     txt.includes('reuniao') ||
+    txt.includes('reunião') ||
     txt.includes('alinhamento') ||
     txt.includes('ritual de gestao') ||
+    txt.includes('ritual de gestão') ||
     txt.includes('programacao') ||
+    txt.includes('programação') ||
     txt.includes('fechamento de relatorio') ||
+    txt.includes('fechamento de relatório') ||
     txt.includes('relatorio') ||
+    txt.includes('relatório') ||
     txt.includes('demus') ||
     txt.includes('dmus') ||
     txt.includes('dipc') ||
     txt.includes('fmc') ||
     txt.includes('aditivo') ||
     txt.includes('prestacao') ||
+    txt.includes('prestação') ||
     txt.includes('coordena')
   ) {
     return 'gestao_governanca';
@@ -183,28 +193,36 @@ function detectarCategoriaEditorial(activity = {}, report = {}) {
 
   if (
     txt.includes('manutencao') ||
+    txt.includes('manutenção') ||
     txt.includes('limpeza') ||
     txt.includes('visita tecnica') ||
+    txt.includes('visita técnica') ||
     txt.includes('vistoria') ||
     txt.includes('montagem') ||
     txt.includes('desmontagem') ||
     txt.includes('producao') ||
+    txt.includes('produção') ||
     txt.includes('fornecedor') ||
     txt.includes('logistica') ||
+    txt.includes('logística') ||
     txt.includes('equipamento') ||
-    txt.includes('exposicao')
+    txt.includes('exposicao') ||
+    txt.includes('exposição')
   ) {
     return 'producao_operacao';
   }
 
   if (
     txt.includes('comunicacao') ||
+    txt.includes('comunicação') ||
     txt.includes('card') ||
     txt.includes('release') ||
     txt.includes('rede social') ||
+    txt.includes('redes sociais') ||
     txt.includes('instagram') ||
     txt.includes('foto') ||
     txt.includes('video') ||
+    txt.includes('vídeo') ||
     txt.includes('imprensa') ||
     txt.includes('identidade visual') ||
     txt.includes('designer')
@@ -325,6 +343,37 @@ function getReportPhotos(report) {
   return fotos;
 }
 
+function matchAgenda(activity, report, programacaoRaw) {
+  const title = normalizeText(activity?.nome || activity?.titulo || activity?.nome_atividade || '');
+  const museu = normalizeMuseu(report?.museu || activity?.museu);
+
+  if (!title) return null;
+
+  const candidatos = Array.isArray(programacaoRaw) ? programacaoRaw : [];
+
+  let best = null;
+  let bestScore = 0;
+
+  candidatos.forEach((item) => {
+    const itemTitle = normalizeText(item?.titulo || item?.nome || item?.atividade || '');
+    const itemMuseu = normalizeMuseu(item?.museu || item?.equipamento || item?.local);
+    let score = 0;
+
+    if (itemTitle && (itemTitle.includes(title) || title.includes(itemTitle))) score += 50;
+    title.split(' ').filter((w) => w.length > 3).forEach((w) => {
+      if (itemTitle.includes(w)) score += 5;
+    });
+    if (museu && itemMuseu && museu === itemMuseu) score += 10;
+
+    if (score > bestScore) {
+      best = item;
+      bestScore = score;
+    }
+  });
+
+  return bestScore >= 20 ? best : null;
+}
+
 function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
   const activityName = activity?.nome || activity?.titulo || activity?.nome_atividade || '';
   const activityId = activity?.id || activity?._id || activity?.activity_id || '';
@@ -427,12 +476,23 @@ function buildTrechosRelatorios(reports) {
   });
 }
 
+function conhecimentoTextos(conhecimentoRaw) {
+  return (Array.isArray(conhecimentoRaw) ? conhecimentoRaw : [])
+    .map((item) => ({
+      titulo: item?.titulo || item?.title || item?.nome || '',
+      texto: item?.conteudo || item?.content || item?.texto || item?.descricao || '',
+    }))
+    .filter((item) => item.titulo || item.texto)
+    .slice(0, 80);
+}
+
 export function buildRelatorioFisicoFinanceiroContext({
   reportsRaw = [],
   rubricasRaw = [],
   comprasRaw = [],
   attachmentsRaw = [],
   programacaoRaw = [],
+  conhecimentoRaw = [],
   filtros = {},
 } = {}) {
   const dateFrom = filtros.dateFrom || '2026-02-02';
@@ -448,23 +508,32 @@ export function buildRelatorioFisicoFinanceiroContext({
 
   reports.forEach((report) => {
     (Array.isArray(report?.atividades) ? report.atividades : []).forEach((atividade, index) => {
-      const dataAtividade = getActivityDate(atividade, report);
+      const agenda = matchAgenda(atividade, report, programacaoRaw);
+      const dataAtividade = getActivityDate(atividade, report, agenda);
 
       if (dateFrom && dateTo && dataAtividade && !dateInRange(dataAtividade, dateFrom, dateTo)) return;
 
       const categoria = detectarCategoriaEditorial(atividade, report);
-      const nome = atividade?.nome || atividade?.titulo || atividade?.nome_atividade || 'Atividade sem título';
-      const fotos = matchFotosAtividade(atividade, report, attachmentsRaw, index);
+      const nome = atividade?.nome || atividade?.titulo || atividade?.nome_atividade || agenda?.titulo || 'Atividade sem título';
       const publico = getActivityPublico(atividade, categoria);
+
+      const isVisitaMediadaZerada = categoria === 'atividade_publico' &&
+        !publico &&
+        normalizeText(nome).includes('visita mediada');
+
+      if (isVisitaMediadaZerada) return;
+
+      const fotos = matchFotosAtividade(atividade, report, attachmentsRaw, index);
 
       atividades.push({
         id: atividade?.id || atividade?._id || `${report?.id || 'report'}-${index}`,
         nome,
-        museu: normalizeMuseu(report?.museu || atividade?.museu),
+        museu: normalizeMuseu(report?.museu || atividade?.museu || agenda?.museu),
         mes: reportMes(report),
         ano: report?.ano || '2026',
         data: dataAtividade || '',
-        local: atividade?.local || atividade?.espaco || atividade?.equipamento || '',
+        local: atividade?.local || atividade?.espaco || atividade?.equipamento || agenda?.local || '',
+        sinopse_agenda: agenda?.sinopse || agenda?.descricao || '',
         publico,
         publico_label: publico ? publico.toLocaleString('pt-BR') : 'N/A',
         classificacao: atividade?.classificacao || '',
@@ -536,6 +605,7 @@ export function buildRelatorioFisicoFinanceiroContext({
     atividades,
     atividades_por_categoria: atividadesPorCategoria,
     trechos_relatorios: trechosRelatorios,
+    conhecimento: conhecimentoTextos(conhecimentoRaw),
     valor_utilizado: valorUtilizado,
     saldo,
     percentual_execucao: percentualExecucao,
