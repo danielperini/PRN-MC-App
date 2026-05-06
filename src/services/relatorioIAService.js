@@ -15,6 +15,11 @@ function fmtInt(value) {
   return inteiro(value).toLocaleString('pt-BR');
 }
 
+function fmtPublico(value) {
+  const n = inteiro(value);
+  return n > 0 ? n.toLocaleString('pt-BR') : 'N/A';
+}
+
 function fmtBRL(value) {
   return toNumber(value).toLocaleString('pt-BR', {
     style: 'currency',
@@ -23,7 +28,44 @@ function fmtBRL(value) {
   });
 }
 
+function buildAtividadesResumo(contexto = {}) {
+  const atividades = Array.isArray(contexto.atividades) ? contexto.atividades : [];
+
+  return atividades.slice(0, 80).map((atividade, index) => ({
+    indice: index + 1,
+    nome: atividade.nome || 'Atividade sem título',
+    museu: atividade.museu || '',
+    mes: atividade.mes || '',
+    ano: atividade.ano || '',
+    classificacao: atividade.classificacao || '',
+    equipe: atividade.equipe || '',
+    publico: fmtPublico(atividade.publico),
+    descricao_original:
+      atividade.descricao ||
+      atividade.resumo ||
+      atividade.observacoes ||
+      atividade.resultado ||
+      atividade.resultados ||
+      '',
+    fotos: Array.isArray(atividade.fotos) ? atividade.fotos.length : 0,
+  }));
+}
+
 function buildPersonaPrompt(contexto) {
+  const contextoReduzido = {
+    periodo: contexto?.periodo || {},
+    museu: contexto?.museu || 'Todos',
+    total_relatorios: contexto?.total_relatorios || 0,
+    total_atividades: contexto?.total_atividades || 0,
+    publico_total: contexto?.publico_total || 0,
+    por_museu: contexto?.por_museu || {},
+    valor_utilizado: contexto?.valor_utilizado || 0,
+    saldo: contexto?.saldo || 0,
+    percentual_execucao: contexto?.percentual_execucao || 0,
+    total_compras: contexto?.total_compras || 0,
+    atividades_resumo: buildAtividadesResumo(contexto),
+  };
+
   return `
 Você escreve como Daniel Perini.
 
@@ -64,9 +106,12 @@ Não invente público.
 Não invente execução financeira.
 Quando o dado não existir, informe de forma técnica que o dado não foi localizado no sistema.
 Escreva com coerência de prestação de contas e relatório institucional.
+Para público igual a zero, trate como N/A.
+Para cada atividade, gere uma descrição técnica curta, de 1 parágrafo, baseada no nome, museu, classificação, público e descrição original.
+Não transforme a descrição em texto promocional.
 
 Dados consolidados:
-${JSON.stringify(contexto, null, 2)}
+${JSON.stringify(contextoReduzido, null, 2)}
 
 Retorne somente JSON válido, sem markdown, no formato:
 {
@@ -74,15 +119,24 @@ Retorne somente JSON válido, sem markdown, no formato:
   "resumo_geral": "síntese técnica de 2 a 4 parágrafos",
   "comunicacao": "síntese técnica da comunicação com base nos dados disponíveis",
   "prestacao": "texto de prestação de contas com leitura financeira e operacional",
-  "conclusao": "conclusão técnica objetiva"
+  "conclusao": "conclusão técnica objetiva",
+  "atividades_descricoes": [
+    {
+      "indice": 1,
+      "nome": "nome da atividade",
+      "descricao": "descrição técnica da atividade em 1 parágrafo"
+    }
+  ]
 }
 `;
 }
 
 function textosFallback(contexto = {}) {
+  const atividades = Array.isArray(contexto.atividades) ? contexto.atividades : [];
+
   return {
     introducao:
-      `O relatório consolida a execução física e financeira do projeto Museus Centro no período selecionado. A leitura considera relatórios aprovados, atividades registradas, público informado, rubricas orçamentárias, compras e notas fiscais disponíveis no sistema.`,
+      `O relatório consolida a execução física e financeira do projeto Museus Centro no período selecionado. A leitura considera relatórios aprovados pela coordenação, atividades registradas, público informado, rubricas orçamentárias, compras e notas fiscais disponíveis no sistema.`,
 
     resumo_geral:
       `No período analisado foram identificadas ${fmtInt(contexto.total_atividades)} atividades e público total de ${fmtInt(contexto.publico_total)} pessoas. Os dados foram organizados por museu, classificação e vínculo financeiro, preservando a rastreabilidade entre execução física, registros administrativos e orçamento.`,
@@ -95,17 +149,58 @@ function textosFallback(contexto = {}) {
 
     conclusao:
       `O conjunto de informações permite acompanhar a execução do projeto com base em dados verificáveis. A consolidação apoia o monitoramento técnico, a prestação de contas e a tomada de decisão da coordenação.`,
+
+    atividades_descricoes: atividades.map((atividade, index) => {
+      const publico = fmtPublico(atividade.publico);
+      const descricaoBase =
+        atividade.descricao ||
+        atividade.resumo ||
+        atividade.observacoes ||
+        atividade.resultado ||
+        atividade.resultados ||
+        '';
+
+      return {
+        indice: index + 1,
+        nome: atividade.nome || 'Atividade sem título',
+        descricao: descricaoBase
+          ? `${descricaoBase}`
+          : `A atividade ${atividade.nome || 'sem título'} foi registrada no relatório aprovado, vinculada a ${atividade.museu || 'museu não informado'}, com classificação ${atividade.classificacao || 'não informada'} e público ${publico}.`,
+      };
+    }),
   };
 }
 
+function normalizarDescricoesAtividades(result, contexto) {
+  const fallback = textosFallback(contexto);
+  const atividades = Array.isArray(contexto.atividades) ? contexto.atividades : [];
+  const resultList = Array.isArray(result?.atividades_descricoes) ? result.atividades_descricoes : [];
+
+  return atividades.map((atividade, index) => {
+    const indice = index + 1;
+    const encontrado = resultList.find((item) => Number(item?.indice) === indice) || resultList[index];
+
+    return {
+      indice,
+      nome: atividade.nome || encontrado?.nome || fallback.atividades_descricoes[index]?.nome || 'Atividade sem título',
+      descricao:
+        encontrado?.descricao ||
+        fallback.atividades_descricoes[index]?.descricao ||
+        `Atividade registrada no relatório aprovado pela coordenação.`,
+    };
+  });
+}
+
 export async function gerarTextosRelatorioFisicoFinanceiro(contexto = {}, usarIA = true) {
+  const fallback = textosFallback(contexto);
+
   if (!usarIA) {
-    return textosFallback(contexto);
+    return fallback;
   }
 
   try {
     if (!base44?.integrations?.Core?.InvokeLLM) {
-      return textosFallback(contexto);
+      return fallback;
     }
 
     const result = await base44.integrations.Core.InvokeLLM({
@@ -118,19 +213,30 @@ export async function gerarTextosRelatorioFisicoFinanceiro(contexto = {}, usarIA
           comunicacao: { type: 'string' },
           prestacao: { type: 'string' },
           conclusao: { type: 'string' },
+          atividades_descricoes: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                indice: { type: 'number' },
+                nome: { type: 'string' },
+                descricao: { type: 'string' },
+              },
+            },
+          },
         },
       },
     });
 
     return {
-      ...textosFallback(contexto),
+      ...fallback,
       ...(result || {}),
+      atividades_descricoes: normalizarDescricoesAtividades(result || {}, contexto),
     };
   } catch (error) {
     console.warn('IA indisponível. Usando textos técnicos locais.', error);
-    return textosFallback(contexto);
+    return fallback;
   }
 }
 
 export default gerarTextosRelatorioFisicoFinanceiro;
-
