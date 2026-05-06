@@ -50,6 +50,15 @@ function normalizeMuseu(value) {
   return value || 'Atuação Geral';
 }
 
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function isApprovedReport(report) {
   const status = String(report?.status || '').trim().toUpperCase();
   return ['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN'].includes(status);
@@ -76,6 +85,36 @@ function getActivityPublico(activity) {
   );
 }
 
+function getActivityDescription(activity) {
+  return (
+    activity?.descricao ||
+    activity?.descricao_atividade ||
+    activity?.resumo ||
+    activity?.resultado ||
+    activity?.resultados ||
+    activity?.observacoes ||
+    activity?.comentarios ||
+    activity?.avaliacao ||
+    activity?.impacto ||
+    ''
+  );
+}
+
+function getActivityKey(activity, report, index) {
+  const parts = [
+    activity?.id,
+    activity?.nome,
+    activity?.titulo,
+    activity?.nome_atividade,
+    report?.id,
+    report?.mes_referencia,
+    report?.ano,
+    index,
+  ];
+
+  return normalizeText(parts.filter(Boolean).join(' '));
+}
+
 function getCompraValor(compra) {
   return toNumber(
     compra?.valor_total ??
@@ -99,6 +138,138 @@ function isImageAttachment(attachment) {
   return mime.includes('image') || /\.(jpg|jpeg|png|webp)$/i.test(name);
 }
 
+function attachmentUrl(attachment) {
+  return (
+    attachment?.url ||
+    attachment?.file_url ||
+    attachment?.arquivo_url ||
+    attachment?.download_url ||
+    attachment?.public_url ||
+    ''
+  );
+}
+
+function attachmentText(attachment) {
+  return normalizeText([
+    attachment?.id,
+    attachment?.report_id,
+    attachment?.activity_id,
+    attachment?.atividade_id,
+    attachment?.atividade_nome,
+    attachment?.titulo,
+    attachment?.caption,
+    attachment?.legenda,
+    attachment?.file_name,
+    attachment?.name,
+    attachment?.descricao,
+  ].filter(Boolean).join(' '));
+}
+
+function getReportPhotos(report) {
+  const fotos = [];
+
+  (Array.isArray(report?.fotos) ? report.fotos : []).forEach((foto) => {
+    const url = foto?.url || foto?.file_url || foto?.arquivo_url || '';
+    if (!url) return;
+
+    fotos.push({
+      url,
+      caption: foto?.caption || foto?.legenda || foto?.descricao || '',
+      fileName: foto?.fileName || foto?.file_name || foto?.name || 'Foto',
+      origem: 'report.fotos',
+    });
+  });
+
+  (Array.isArray(report?.attachments) ? report.attachments : []).forEach((att) => {
+    if (!isImageAttachment(att)) return;
+    const url = attachmentUrl(att);
+    if (!url) return;
+
+    fotos.push({
+      url,
+      caption: att?.caption || att?.legenda || att?.descricao || '',
+      fileName: att?.file_name || att?.name || 'Foto',
+      origem: 'report.attachments',
+    });
+  });
+
+  return fotos;
+}
+
+function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
+  const activityName = activity?.nome || activity?.titulo || activity?.nome_atividade || '';
+  const activityId = activity?.id || activity?._id || activity?.activity_id || '';
+  const reportId = report?.id || '';
+  const key = getActivityKey(activity, report, activityIndex);
+  const activityNameNorm = normalizeText(activityName);
+
+  const fotos = [];
+
+  (Array.isArray(activity?.fotos) ? activity.fotos : []).forEach((foto) => {
+    const url = foto?.url || foto?.file_url || foto?.arquivo_url || '';
+    if (!url) return;
+
+    fotos.push({
+      url,
+      caption: foto?.caption || foto?.legenda || foto?.descricao || activityName,
+      fileName: foto?.fileName || foto?.file_name || foto?.name || 'Foto',
+      origem: 'activity.fotos',
+    });
+  });
+
+  (Array.isArray(activity?.attachments) ? activity.attachments : []).forEach((att) => {
+    if (!isImageAttachment(att)) return;
+    const url = attachmentUrl(att);
+    if (!url) return;
+
+    fotos.push({
+      url,
+      caption: att?.caption || att?.legenda || att?.descricao || activityName,
+      fileName: att?.file_name || att?.name || 'Foto',
+      origem: 'activity.attachments',
+    });
+  });
+
+  const anexos = Array.isArray(attachmentsRaw) ? attachmentsRaw : [];
+
+  anexos.forEach((att) => {
+    if (!isImageAttachment(att)) return;
+
+    const url = attachmentUrl(att);
+    if (!url) return;
+
+    const text = attachmentText(att);
+    const matchesActivityId = activityId && (
+      String(att?.activity_id || '') === String(activityId) ||
+      String(att?.atividade_id || '') === String(activityId)
+    );
+
+    const matchesReport = reportId && String(att?.report_id || '') === String(reportId);
+    const matchesName = activityNameNorm && text.includes(activityNameNorm);
+    const matchesKey = key && text.includes(key);
+
+    if (!matchesActivityId && !matchesName && !matchesKey && !matchesReport) return;
+
+    fotos.push({
+      url,
+      caption: att?.caption || att?.legenda || att?.descricao || activityName,
+      fileName: att?.file_name || att?.name || 'Foto',
+      origem: 'Attachment',
+    });
+  });
+
+  if (fotos.length === 0) {
+    getReportPhotos(report).forEach((foto) => fotos.push(foto));
+  }
+
+  const seen = new Set();
+  return fotos.filter((foto) => {
+    if (!foto.url || seen.has(foto.url)) return false;
+    seen.add(foto.url);
+    return true;
+  });
+}
+
 export function buildRelatorioFisicoFinanceiroContext({
   reportsRaw = [],
   rubricasRaw = [],
@@ -118,19 +289,34 @@ export function buildRelatorioFisicoFinanceiroContext({
   const atividades = [];
 
   reports.forEach((report) => {
-    (Array.isArray(report?.atividades) ? report.atividades : []).forEach((atividade) => {
+    (Array.isArray(report?.atividades) ? report.atividades : []).forEach((atividade, index) => {
       const dataAtividade = getActivityDate(atividade, report);
 
       if (dateFrom && dateTo && !dateInRange(dataAtividade, dateFrom, dateTo)) return;
 
+      const nome = atividade?.nome || atividade?.titulo || atividade?.nome_atividade || 'Atividade sem título';
+      const fotos = matchFotosAtividade(atividade, report, attachmentsRaw, index);
+      const fotosDestaque = fotos.slice(0, 4);
+      const fotosDemais = fotos.slice(4);
+
       atividades.push({
-        nome: atividade?.nome || atividade?.titulo || atividade?.nome_atividade || 'Atividade sem título',
+        id: atividade?.id || atividade?._id || `${report?.id || 'report'}-${index}`,
+        nome,
         museu: normalizeMuseu(report?.museu || atividade?.museu),
         mes: report?.mes_referencia || '',
         ano: report?.ano || '',
+        data: dataAtividade || '',
         publico: getActivityPublico(atividade),
+        publico_label: getActivityPublico(atividade) > 0 ? inteiro(getActivityPublico(atividade)).toLocaleString('pt-BR') : 'N/A',
         classificacao: atividade?.classificacao || '',
         equipe: report?.equipe || atividade?.equipe || '',
+        descricao: getActivityDescription(atividade),
+        report_id: report?.id || '',
+        author_name: report?.author_name || '',
+        fotos,
+        fotos_destaque: fotosDestaque,
+        fotos_demais: fotosDemais,
+        galeria_links: fotosDemais.map((foto) => foto.url).filter(Boolean),
       });
     });
   });
@@ -169,15 +355,7 @@ export function buildRelatorioFisicoFinanceiroContext({
       nf_numero: c?.nf_numero || '',
     }));
 
-  const fotos = (Array.isArray(attachmentsRaw) ? attachmentsRaw : [])
-    .filter(isImageAttachment)
-    .slice(0, 80)
-    .map((a) => ({
-      url: a?.url || a?.file_url || a?.arquivo_url || '',
-      caption: a?.caption || a?.legenda || '',
-      fileName: a?.file_name || a?.name || 'Foto',
-    }))
-    .filter((a) => a.url);
+  const fotos = atividades.flatMap((a) => a.fotos_destaque || []);
 
   return {
     periodo: { dateFrom, dateTo },
@@ -199,4 +377,3 @@ export function buildRelatorioFisicoFinanceiroContext({
 }
 
 export default buildRelatorioFisicoFinanceiroContext;
-
