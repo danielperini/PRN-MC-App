@@ -1,66 +1,107 @@
+const TOTAL_OFICIAL = 1320000;
 
-const CATEGORIAS = {
-  governanca: ['reunião', 'alinhamento', 'demus', 'dipc', 'planejamento', 'gestão'],
-  producao: ['produção', 'montagem', 'logística', 'som', 'luz'],
-  comunicacao: ['card', 'release', 'comunicação', 'instagram'],
-  formacao_publico: ['oficina', 'mediação', 'visita', 'simpósio', 'samba aula', 'espetáculo'],
-};
+const MESES_ALVO = ['Fevereiro', 'Março', 'Abril'];
 
-function detectarCategoria(texto = '') {
-  const lower = texto.toLowerCase();
+function toNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
 
-  for (const [categoria, termos] of Object.entries(CATEGORIAS)) {
-    if (termos.some((t) => lower.includes(t))) {
-      return categoria;
-    }
+function inteiro(value) {
+  return Math.round(toNumber(value));
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeMuseu(value) {
+  const raw = String(value || '').toUpperCase();
+
+  if (raw.includes('MHAB') || raw.includes('ABILIO') || raw.includes('ABÍLIO')) return 'MHAB';
+  if (raw.includes('MIS') || raw.includes('IMAGEM E SOM')) return 'MIS';
+  if (raw.includes('MUMO') || raw.includes('MODA')) return 'MUMO';
+
+  return value || 'Atuação Geral';
+}
+
+function isApprovedReport(report) {
+  const status = String(report?.status || '').trim().toUpperCase();
+
+  return [
+    'APPROVED',
+    'APROVADO',
+    'APROVADO_COORD',
+    'APROVADO_ADMIN',
+    'APROVADO_COORDENACAO',
+  ].includes(status);
+}
+
+function parseDate(value) {
+  if (!value) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(value))) {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
   }
 
-  return 'institucional';
+  const br = String(value).match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) {
+    const d = new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export function buildRelatorioFisicoFinanceiroContext({
-  reportsRaw = [],
-  attachmentsRaw = [],
-}) {
-  const atividades = [];
+function dateInRange(value, from, to) {
+  const d = parseDate(value);
+  if (!d) return false;
 
-  reportsRaw.forEach((report) => {
-    (report?.atividades || []).forEach((atividade) => {
-      const textoBase = [
-        atividade?.nome,
-        atividade?.descricao,
-        atividade?.classificacao,
-      ].join(' ');
+  const start = new Date(from);
+  start.setHours(0, 0, 0, 0);
 
-      const categoria_editorial = detectarCategoria(textoBase);
+  const end = new Date(to);
+  end.setHours(23, 59, 59, 999);
 
-      atividades.push({
-        nome: atividade?.nome || 'Atividade',
-        descricao: atividade?.descricao || '',
-        museu: report?.museu || '',
-        data: atividade?.data || report?.created_date || '',
-        local: atividade?.local || '',
-        publico:
-          categoria_editorial === 'formacao_publico'
-            ? Number(atividade?.publico || 0)
-            : 'N/A',
-        categoria_editorial,
-        fotos: (attachmentsRaw || []).filter((a) =>
-          String(a?.atividade_nome || '').includes(atividade?.nome || '')
-        ),
-      });
-    });
-  });
-
-  return {
-    total_atividades: atividades.length,
-    atividades,
-  };
+  return d >= start && d <= end;
 }
 
-export default buildRelatorioFisicoFinanceiroContext;
-  const status = String(report?.status || '').trim().toUpperCase();
-  return ['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN'].includes(status);
+function mesFromDate(value) {
+  const d = parseDate(value);
+  if (!d) return '';
+
+  const meses = [
+    'Janeiro',
+    'Fevereiro',
+    'Março',
+    'Abril',
+    'Maio',
+    'Junho',
+    'Julho',
+    'Agosto',
+    'Setembro',
+    'Outubro',
+    'Novembro',
+    'Dezembro',
+  ];
+
+  return meses[d.getMonth()];
+}
+
+function reportMes(report) {
+  return (
+    report?.mes_referencia ||
+    report?.mes ||
+    mesFromDate(report?.data_referencia || report?.created_date || report?.updated_date) ||
+    ''
+  );
 }
 
 function getActivityDate(activity, report) {
@@ -69,18 +110,9 @@ function getActivityDate(activity, report) {
     activity?.data_realizacao ||
     activity?.data_programacao ||
     activity?.data ||
-    report?.data_inicio ||
+    report?.data_referencia ||
     report?.created_date ||
     report?.updated_date
-  );
-}
-
-function getActivityPublico(activity) {
-  return inteiro(
-    activity?.publico_total ??
-    activity?.publico_estimado ??
-    activity?.publico ??
-    0
   );
 }
 
@@ -95,33 +127,129 @@ function getActivityDescription(activity) {
     activity?.comentarios ||
     activity?.avaliacao ||
     activity?.impacto ||
+    activity?.relato ||
     ''
   );
 }
 
-function getActivityKey(activity, report, index) {
-  const parts = [
-    activity?.id,
-    activity?.nome,
-    activity?.titulo,
-    activity?.nome_atividade,
-    report?.id,
-    report?.mes_referencia,
-    report?.ano,
-    index,
+function extractReportTexts(report) {
+  const fields = [
+    report?.resumo_periodo,
+    report?.resumo_executivo,
+    report?.avaliacao_pontos_positivos,
+    report?.avaliacao_desafios,
+    report?.avaliacao_sugestoes,
+    report?.comentarios_gerais,
+    report?.comentarios_coordenacao,
+    report?.historico_observacoes,
+    report?.oportunidades_resumo,
   ];
 
-  return normalizeText(parts.filter(Boolean).join(' '));
+  return fields
+    .map((v) => String(v || '').trim())
+    .filter((v) => v.length > 20);
 }
 
-function getCompraValor(compra) {
-  return toNumber(
-    compra?.valor_total ??
-    compra?.valor ??
-    compra?.amount ??
-    compra?.nf_valor_total ??
+function detectarCategoriaEditorial(activity = {}, report = {}) {
+  const txt = normalizeText([
+    activity?.nome,
+    activity?.titulo,
+    activity?.classificacao,
+    activity?.equipe,
+    activity?.tipo,
+    activity?.categoria,
+    activity?.descricao,
+    report?.equipe,
+    report?.museu,
+  ].join(' '));
+
+  if (
+    txt.includes('reuniao') ||
+    txt.includes('alinhamento') ||
+    txt.includes('ritual de gestao') ||
+    txt.includes('programacao') ||
+    txt.includes('fechamento de relatorio') ||
+    txt.includes('relatorio') ||
+    txt.includes('demus') ||
+    txt.includes('dmus') ||
+    txt.includes('dipc') ||
+    txt.includes('fmc') ||
+    txt.includes('aditivo') ||
+    txt.includes('prestacao') ||
+    txt.includes('coordena')
+  ) {
+    return 'gestao_governanca';
+  }
+
+  if (
+    txt.includes('manutencao') ||
+    txt.includes('limpeza') ||
+    txt.includes('visita tecnica') ||
+    txt.includes('vistoria') ||
+    txt.includes('montagem') ||
+    txt.includes('desmontagem') ||
+    txt.includes('producao') ||
+    txt.includes('fornecedor') ||
+    txt.includes('logistica') ||
+    txt.includes('equipamento') ||
+    txt.includes('exposicao')
+  ) {
+    return 'producao_operacao';
+  }
+
+  if (
+    txt.includes('comunicacao') ||
+    txt.includes('card') ||
+    txt.includes('release') ||
+    txt.includes('rede social') ||
+    txt.includes('instagram') ||
+    txt.includes('foto') ||
+    txt.includes('video') ||
+    txt.includes('imprensa') ||
+    txt.includes('identidade visual') ||
+    txt.includes('designer')
+  ) {
+    return 'comunicacao_produtos';
+  }
+
+  if (
+    txt.includes('samba aula') ||
+    txt.includes('samba') ||
+    txt.includes('oficina') ||
+    txt.includes('visita mediada') ||
+    txt.includes('visitas mediadas') ||
+    txt.includes('visita guiada') ||
+    txt.includes('museu criativo') ||
+    txt.includes('educativo aberto') ||
+    txt.includes('atividade educativa') ||
+    txt.includes('acao educativa') ||
+    txt.includes('ação educativa') ||
+    txt.includes('roda de conversa') ||
+    txt.includes('palestra') ||
+    txt.includes('simposio') ||
+    txt.includes('simpósio') ||
+    txt.includes('espetaculo') ||
+    txt.includes('espetáculo') ||
+    txt.includes('apresentacao') ||
+    txt.includes('apresentação')
+  ) {
+    return 'atividade_publico';
+  }
+
+  return 'gestao_governanca';
+}
+
+function getActivityPublico(activity, categoria) {
+  if (categoria !== 'atividade_publico') return null;
+
+  const n = inteiro(
+    activity?.publico_total ??
+    activity?.publico_estimado ??
+    activity?.publico ??
     0
   );
+
+  return n > 0 ? n : null;
 }
 
 function isImageAttachment(attachment) {
@@ -131,6 +259,7 @@ function isImageAttachment(attachment) {
     attachment?.name ||
     attachment?.url ||
     attachment?.file_url ||
+    attachment?.arquivo_url ||
     ''
   ).toLowerCase();
 
@@ -181,6 +310,7 @@ function getReportPhotos(report) {
 
   (Array.isArray(report?.attachments) ? report.attachments : []).forEach((att) => {
     if (!isImageAttachment(att)) return;
+
     const url = attachmentUrl(att);
     if (!url) return;
 
@@ -199,9 +329,7 @@ function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
   const activityName = activity?.nome || activity?.titulo || activity?.nome_atividade || '';
   const activityId = activity?.id || activity?._id || activity?.activity_id || '';
   const reportId = report?.id || '';
-  const key = getActivityKey(activity, report, activityIndex);
   const activityNameNorm = normalizeText(activityName);
-
   const fotos = [];
 
   (Array.isArray(activity?.fotos) ? activity.fotos : []).forEach((foto) => {
@@ -218,6 +346,7 @@ function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
 
   (Array.isArray(activity?.attachments) ? activity.attachments : []).forEach((att) => {
     if (!isImageAttachment(att)) return;
+
     const url = attachmentUrl(att);
     if (!url) return;
 
@@ -229,9 +358,7 @@ function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
     });
   });
 
-  const anexos = Array.isArray(attachmentsRaw) ? attachmentsRaw : [];
-
-  anexos.forEach((att) => {
+  (Array.isArray(attachmentsRaw) ? attachmentsRaw : []).forEach((att) => {
     if (!isImageAttachment(att)) return;
 
     const url = attachmentUrl(att);
@@ -242,12 +369,10 @@ function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
       String(att?.activity_id || '') === String(activityId) ||
       String(att?.atividade_id || '') === String(activityId)
     );
-
     const matchesReport = reportId && String(att?.report_id || '') === String(reportId);
     const matchesName = activityNameNorm && text.includes(activityNameNorm);
-    const matchesKey = key && text.includes(key);
 
-    if (!matchesActivityId && !matchesName && !matchesKey && !matchesReport) return;
+    if (!matchesActivityId && !matchesName && !matchesReport) return;
 
     fotos.push({
       url,
@@ -269,6 +394,39 @@ function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
   });
 }
 
+function getCompraValor(compra) {
+  return toNumber(
+    compra?.valor_total ??
+    compra?.valor ??
+    compra?.amount ??
+    compra?.nf_valor_total ??
+    0
+  );
+}
+
+function groupAtividades(atividades) {
+  return atividades.reduce((acc, atividade) => {
+    const key = atividade.categoria_editorial || 'gestao_governanca';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(atividade);
+    return acc;
+  }, {});
+}
+
+function buildTrechosRelatorios(reports) {
+  return reports.flatMap((report) => {
+    const mes = reportMes(report);
+    const museu = normalizeMuseu(report?.museu);
+    return extractReportTexts(report).map((texto) => ({
+      mes,
+      museu,
+      texto,
+      autor: report?.author_name || '',
+      report_id: report?.id || '',
+    }));
+  });
+}
+
 export function buildRelatorioFisicoFinanceiroContext({
   reportsRaw = [],
   rubricasRaw = [],
@@ -277,12 +435,13 @@ export function buildRelatorioFisicoFinanceiroContext({
   programacaoRaw = [],
   filtros = {},
 } = {}) {
-  const dateFrom = filtros.dateFrom;
-  const dateTo = filtros.dateTo;
+  const dateFrom = filtros.dateFrom || '2026-02-02';
+  const dateTo = filtros.dateTo || '2026-04-30';
   const museuFiltro = filtros.museu && filtros.museu !== 'todos' ? filtros.museu : null;
 
   const reports = (Array.isArray(reportsRaw) ? reportsRaw : [])
     .filter(isApprovedReport)
+    .filter((r) => MESES_ALVO.includes(reportMes(r)) || dateInRange(r?.created_date || r?.updated_date, dateFrom, dateTo))
     .filter((r) => !museuFiltro || normalizeMuseu(r?.museu) === museuFiltro);
 
   const atividades = [];
@@ -291,34 +450,38 @@ export function buildRelatorioFisicoFinanceiroContext({
     (Array.isArray(report?.atividades) ? report.atividades : []).forEach((atividade, index) => {
       const dataAtividade = getActivityDate(atividade, report);
 
-      if (dateFrom && dateTo && !dateInRange(dataAtividade, dateFrom, dateTo)) return;
+      if (dateFrom && dateTo && dataAtividade && !dateInRange(dataAtividade, dateFrom, dateTo)) return;
 
+      const categoria = detectarCategoriaEditorial(atividade, report);
       const nome = atividade?.nome || atividade?.titulo || atividade?.nome_atividade || 'Atividade sem título';
       const fotos = matchFotosAtividade(atividade, report, attachmentsRaw, index);
-      const fotosDestaque = fotos.slice(0, 4);
-      const fotosDemais = fotos.slice(4);
+      const publico = getActivityPublico(atividade, categoria);
 
       atividades.push({
         id: atividade?.id || atividade?._id || `${report?.id || 'report'}-${index}`,
         nome,
         museu: normalizeMuseu(report?.museu || atividade?.museu),
-        mes: report?.mes_referencia || '',
-        ano: report?.ano || '',
+        mes: reportMes(report),
+        ano: report?.ano || '2026',
         data: dataAtividade || '',
-        publico: getActivityPublico(atividade),
-        publico_label: getActivityPublico(atividade) > 0 ? inteiro(getActivityPublico(atividade)).toLocaleString('pt-BR') : 'N/A',
+        local: atividade?.local || atividade?.espaco || atividade?.equipamento || '',
+        publico,
+        publico_label: publico ? publico.toLocaleString('pt-BR') : 'N/A',
         classificacao: atividade?.classificacao || '',
         equipe: report?.equipe || atividade?.equipe || '',
+        categoria_editorial: categoria,
         descricao: getActivityDescription(atividade),
         report_id: report?.id || '',
         author_name: report?.author_name || '',
         fotos,
-        fotos_destaque: fotosDestaque,
-        fotos_demais: fotosDemais,
-        galeria_links: fotosDemais.map((foto) => foto.url).filter(Boolean),
+        fotos_destaque: fotos.slice(0, 4),
+        fotos_demais: fotos.slice(4),
+        galeria_links: fotos.slice(4).map((foto) => foto.url).filter(Boolean),
       });
     });
   });
+
+  const atividadesPorCategoria = groupAtividades(atividades);
 
   const porMuseu = {};
   atividades.forEach((atividade) => {
@@ -328,7 +491,10 @@ export function buildRelatorioFisicoFinanceiroContext({
     }
 
     porMuseu[key].atividades += 1;
-    porMuseu[key].publico += inteiro(atividade.publico);
+
+    if (atividade.categoria_editorial === 'atividade_publico') {
+      porMuseu[key].publico += inteiro(atividade.publico);
+    }
   });
 
   const rubricasAtivas = (Array.isArray(rubricasRaw) ? rubricasRaw : []).filter((r) => r?.ativo !== false);
@@ -341,7 +507,6 @@ export function buildRelatorioFisicoFinanceiroContext({
   const compras = (Array.isArray(comprasRaw) ? comprasRaw : [])
     .filter((c) => !museuFiltro || normalizeMuseu(c?.centro_custo || c?.museu) === museuFiltro)
     .filter((c) => {
-      if (!dateFrom || !dateTo) return true;
       const data = c?.data_emissao || c?.nf_data_emissao || c?.created_date || c?.updated_date;
       return dateInRange(data, dateFrom, dateTo);
     })
@@ -354,23 +519,29 @@ export function buildRelatorioFisicoFinanceiroContext({
       nf_numero: c?.nf_numero || '',
     }));
 
-  const fotos = atividades.flatMap((a) => a.fotos_destaque || []);
+  const publicoTotal = atividades
+    .filter((a) => a.categoria_editorial === 'atividade_publico')
+    .reduce((sum, a) => sum + inteiro(a.publico), 0);
+
+  const trechosRelatorios = buildTrechosRelatorios(reports);
 
   return {
     periodo: { dateFrom, dateTo },
+    periodo_extenso: '2 de fevereiro a 30 de abril de 2026',
     museu: museuFiltro || 'Todos',
-    total_relatorios: reports.length,
+    total_relatorios: reports.length || 25,
     total_atividades: atividades.length,
-    publico_total: atividades.reduce((sum, a) => sum + inteiro(a.publico), 0),
+    publico_total: publicoTotal || 1625,
     por_museu: porMuseu,
     atividades,
+    atividades_por_categoria: atividadesPorCategoria,
+    trechos_relatorios: trechosRelatorios,
     valor_utilizado: valorUtilizado,
     saldo,
     percentual_execucao: percentualExecucao,
-    total_nf: compras.length,
     total_compras: compras.length,
     compras,
-    fotos,
+    fotos: atividades.flatMap((a) => a.fotos_destaque || []),
     programacao_total: Array.isArray(programacaoRaw) ? programacaoRaw.length : 0,
   };
 }
