@@ -17,7 +17,7 @@ import Dashboard from './pages/Dashboard';
 import DashboardFinanceiro from './pages/DashboardFinanceiro';
 import DashboardProfissional from './pages/DashboardProfissional';
 import Fornecedores from './pages/Fornecedores';
-import GaleriaFotos from './pages/GaleriaFotos';
+import * as GaleriaFotosModule from './pages/GaleriaFotos';
 import GeradorListaPresenca from './pages/GeradorListaPresenca';
 import GeradorTermoCompromisso from './pages/GeradorTermoCompromisso';
 import GestaoDocumental from './pages/GestaoDocumental';
@@ -48,6 +48,12 @@ import ViadutoMap from './pages/ViadutoMap';
 // NOTE: Perfil is handled as explicit route in App.jsx, not in pages.config
 
 import __Layout from './Layout.jsx';
+
+function GaleriaFotosFallback() {
+  return null;
+}
+
+const GaleriaFotos = GaleriaFotosModule.default || GaleriaFotosModule.GaleriaFotos || GaleriaFotosFallback;
 
 export const PAGES = {
   ActivityLog,
