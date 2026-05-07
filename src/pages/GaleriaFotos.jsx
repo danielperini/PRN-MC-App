@@ -11,6 +11,32 @@ import { toastMessages } from '@/lib/toastMessages';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'gif', 'bmp', 'avif'];
 
+const MUSEUM_SECTIONS = {
+  MHAB: {
+    key: 'MHAB',
+    title: 'MHAB — Museu Histórico Abílio Barreto',
+    shortTitle: 'MHAB',
+    address: 'Av. Prudente de Morais, 202 — Cidade Jardim',
+    coordinates: '-19.936787, -43.947651',
+  },
+  MIS: {
+    key: 'MIS',
+    title: 'MIS — Museu da Imagem e do Som de Belo Horizonte',
+    shortTitle: 'MIS',
+    address: 'Av. Álvares Cabral, 560 — Lourdes/Centro',
+    coordinates: '-19.927057, -43.940157',
+  },
+  MUMO: {
+    key: 'MUMO',
+    title: 'MUMO — Museu da Moda de Belo Horizonte',
+    shortTitle: 'MUMO',
+    address: 'Rua da Bahia, 1149 — Centro',
+    coordinates: '-19.924875, -43.937250',
+  },
+};
+
+const SECTION_ORDER = ['MHAB', 'MIS', 'MUMO'];
+
 function isImageByFileName(fileName = '') {
   const ext = String(fileName).split('.').pop()?.toLowerCase() || '';
   return IMAGE_EXTENSIONS.includes(ext);
@@ -90,7 +116,6 @@ function dmsToDecimal(value) {
 
 function extractGeoCoordinates(item = {}) {
   const meta = parseMetadata(item);
-
   const latRaw = firstValue(item, ['latitude', 'lat', 'gps_latitude']) || firstValue(meta, ['latitude', 'lat', 'gps_latitude', 'GPSLatitude', 'gps.GPSLatitude', 'GPS.GPSLatitude']);
   const lngRaw = firstValue(item, ['longitude', 'lng', 'lon', 'gps_longitude']) || firstValue(meta, ['longitude', 'lng', 'lon', 'gps_longitude', 'GPSLongitude', 'gps.GPSLongitude', 'GPS.GPSLongitude']);
 
@@ -144,6 +169,15 @@ function activityPlace(activity = {}) {
   return activity.local || activity.localizacao || activity.localização || activity.espaco || activity.equipamento || activity.museu || activity.centro_custo || '';
 }
 
+function normalizeMuseum(value) {
+  const text = normalizeText(value);
+  if (!text) return '';
+  if (text.includes('mhab') || text.includes('abilio') || text.includes('historico')) return 'MHAB';
+  if (text.includes('mis') || text.includes('imagem') || text.includes('som')) return 'MIS';
+  if (text.includes('mumo') || text.includes('moda')) return 'MUMO';
+  return '';
+}
+
 function buildActivityMaps(reports = [], programacao = []) {
   const byId = new Map();
   const byText = [];
@@ -158,7 +192,7 @@ function buildActivityMaps(reports = [], programacao = []) {
     id: item.id,
     title: activityTitle(item),
     date: activityDate(item),
-    museu: item.museu || item.centro_custo || item.equipamento || '',
+    museu: normalizeMuseum(item.museu || item.centro_custo || item.equipamento || item.local) || item.museu || item.centro_custo || item.equipamento || '',
     local: activityPlace(item),
     source: 'Programação'
   }));
@@ -169,11 +203,10 @@ function buildActivityMaps(reports = [], programacao = []) {
         id: item.id || item.atividade_id || item.programacao_id || `${report.id || 'report'}-${idx}`,
         title: activityTitle(item),
         date: activityDate(item) || `${report.mes_referencia || ''}/${report.ano || ''}`,
-        museu: item.museu || report.museu || '',
+        museu: normalizeMuseum(item.museu || report.museu || item.centro_custo || item.local) || item.museu || report.museu || '',
         local: activityPlace(item) || report.museu || '',
         source: report.author_name ? `Relatório — ${report.author_name}` : 'Relatório'
       };
-
       add(activity);
       [item.id, item.atividade_id, item.programacao_id, item.activity_id, item.id_programacao].filter(Boolean).forEach((id) => byId.set(String(id), activity));
     });
@@ -184,18 +217,7 @@ function buildActivityMaps(reports = [], programacao = []) {
 
 function resolveActivity(item = {}, maps) {
   const meta = parseMetadata(item);
-  const ids = [
-    item.atividade_id,
-    item.activity_id,
-    item.programacao_id,
-    item.id_atividade,
-    item.vinculo_atividade_id,
-    item.linked_activity_id,
-    item.report_activity_id,
-    meta.atividade_id,
-    meta.activity_id,
-    meta.programacao_id
-  ].filter(Boolean);
+  const ids = [item.atividade_id, item.activity_id, item.programacao_id, item.id_atividade, item.vinculo_atividade_id, item.linked_activity_id, item.report_activity_id, meta.atividade_id, meta.activity_id, meta.programacao_id].filter(Boolean);
 
   for (const id of ids) {
     const found = maps.byId.get(String(id));
@@ -221,8 +243,34 @@ function captionFor(item = {}, activity = null) {
   return String(item.descricao || item.description || item.file_name || item.fileName || 'Foto da galeria');
 }
 
-function geoLine(image = {}) {
-  return image.geoCoordinates ? `Lat/Lon: ${image.geoCoordinates}` : 'Lat/Lon: sem metadata GPS';
+function resolveMuseumSection({ item = {}, report = null, linkedActivity = null, metadataLocation = '' }) {
+  const values = [
+    item.museu,
+    item.centro_custo,
+    item.local,
+    item.localizacao,
+    item.descricao,
+    item.description,
+    item.legenda,
+    item.file_name,
+    report?.museu,
+    report?.museu_secundario,
+    linkedActivity?.museu,
+    linkedActivity?.local,
+    metadataLocation,
+  ];
+
+  for (const value of values) {
+    const found = normalizeMuseum(value);
+    if (found) return found;
+  }
+
+  return 'MHAB';
+}
+
+function museumGeoLine(sectionKey) {
+  const section = MUSEUM_SECTIONS[sectionKey] || MUSEUM_SECTIONS.MHAB;
+  return `Lat/Lon: ${section.coordinates}`;
 }
 
 function uniqueByFileUrl(items = []) {
@@ -239,8 +287,10 @@ function mapPhoto(item, activityMaps, report = null, prefix = 'media') {
   const linkedActivity = resolveActivity(item, activityMaps);
   const metadataDate = extractPhotoDate(item);
   const metadataLocation = extractLocation(item);
-  const geoCoordinates = extractGeoCoordinates(item);
-  const localizacao = metadataLocation || linkedActivity?.local || item.museu || report?.museu || '';
+  const metadataCoordinates = extractGeoCoordinates(item);
+  const sectionKey = resolveMuseumSection({ item, report, linkedActivity, metadataLocation });
+  const section = MUSEUM_SECTIONS[sectionKey] || MUSEUM_SECTIONS.MHAB;
+  const localizacao = metadataLocation || linkedActivity?.local || item.museu || report?.museu || section.shortTitle;
   const timestamp = normalizeDate(metadataDate || item.created_at || item.created_date || item.updated_date);
 
   return {
@@ -252,13 +302,58 @@ function mapPhoto(item, activityMaps, report = null, prefix = 'media') {
     reportLabel: report ? `${report.author_name || 'Relatório'} — ${report.mes_referencia || ''}/${report.ano || ''}` : (item.origem === 'relatorio' ? 'Relatório' : (item.origem || 'Galeria')),
     description: item.descricao || item.description || '',
     legenda: captionFor(item, linkedActivity),
-    museu: item.museu || linkedActivity?.museu || report?.museu || '',
+    museu: section.shortTitle,
+    sectionKey,
+    sectionTitle: section.title,
+    sectionAddress: section.address,
+    sectionCoordinates: section.coordinates,
     localizacao,
     metadataLocation,
-    geoCoordinates,
+    metadataCoordinates,
+    geoCoordinates: metadataCoordinates || section.coordinates,
     metadataDate,
     linkedActivity,
   };
+}
+
+function PhotoCard({ image, onClick }) {
+  return (
+    <button
+      key={image.id}
+      type="button"
+      onClick={onClick}
+      className="group overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
+    >
+      <div className="relative aspect-square overflow-hidden bg-gray-100">
+        <img
+          src={image.fileUrl}
+          alt={image.legenda || image.fileName}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+        />
+      </div>
+      <div className="p-3 space-y-2">
+        <p className="line-clamp-2 text-sm font-semibold leading-snug text-black">
+          {image.legenda || image.fileName}
+        </p>
+        {image.linkedActivity?.title && (
+          <p className="line-clamp-1 text-xs text-gray-600 flex items-center gap-1">
+            <LinkIcon className="w-3 h-3 flex-shrink-0" />
+            {image.linkedActivity.title}
+          </p>
+        )}
+        <div className="space-y-1 text-[11px] text-gray-500">
+          <p className="font-medium text-gray-600">{image.museu}</p>
+          <p className="font-mono text-[10px] text-gray-500">Lat/Lon: {image.geoCoordinates}</p>
+          {image.localizacao && (
+            <p className="inline-flex items-center gap-1">
+              <MapPin className="w-3 h-3" />
+              {image.localizacao}
+            </p>
+          )}
+        </div>
+      </div>
+    </button>
+  );
 }
 
 function GaleriaFotosInner() {
@@ -268,7 +363,7 @@ function GaleriaFotosInner() {
   const [sortBy, setSortBy] = useState('recent');
 
   const { data: images = [], isLoading } = useQuery({
-    queryKey: ['galeria-fotos-v7-coordenadas-visiveis', currentUser?.email],
+    queryKey: ['galeria-fotos-v8-sessoes-por-museu', currentUser?.email],
     queryFn: async () => {
       const allImages = [];
       let reports = [];
@@ -328,6 +423,7 @@ function GaleriaFotosInner() {
       String(img.museu || '').toLowerCase().includes(q) ||
       String(img.localizacao || '').toLowerCase().includes(q) ||
       String(img.geoCoordinates || '').toLowerCase().includes(q) ||
+      String(img.sectionTitle || '').toLowerCase().includes(q) ||
       String(img.linkedActivity?.title || '').toLowerCase().includes(q)
     );
   }), [images, searchTerm]);
@@ -339,6 +435,18 @@ function GaleriaFotosInner() {
     if (sortBy === 'name-desc') return b.fileName.localeCompare(a.fileName);
     return 0;
   }), [filteredImages, sortBy]);
+
+  const groupedImages = useMemo(() => {
+    const groups = SECTION_ORDER.map((key) => ({ key, section: MUSEUM_SECTIONS[key], images: [] }));
+    const byKey = Object.fromEntries(groups.map((group) => [group.key, group]));
+
+    sortedImages.forEach((image) => {
+      const key = MUSEUM_SECTIONS[image.sectionKey] ? image.sectionKey : 'MHAB';
+      byKey[key].images.push(image);
+    });
+
+    return groups.filter((group) => group.images.length > 0);
+  }, [sortedImages]);
 
   const currentImageIndex = selectedImage ? sortedImages.findIndex((img) => img.id === selectedImage.id) : -1;
   const handlePrevImage = () => currentImageIndex > 0 && setSelectedImage(sortedImages[currentImageIndex - 1]);
@@ -363,7 +471,7 @@ function GaleriaFotosInner() {
         <div className="mb-8">
           <h1 className="text-3xl font-semibold text-black tracking-tight mb-2">Galeria de Fotos</h1>
           <p className="text-gray-600">
-            {sortedImages.length} {sortedImages.length === 1 ? 'imagem' : 'imagens'} com legenda, atividade vinculada, localização e coordenadas quando disponíveis no metadata
+            {sortedImages.length} {sortedImages.length === 1 ? 'imagem' : 'imagens'} organizadas por museu, com vínculo a atividades e relatórios.
           </p>
         </div>
 
@@ -405,43 +513,28 @@ function GaleriaFotosInner() {
             <p className="text-sm text-gray-500 mt-1">As fotos vinculadas a relatórios aprovados aparecerão aqui.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {sortedImages.map((image) => (
-              <button
-                key={image.id}
-                type="button"
-                onClick={() => setSelectedImage(image)}
-                className="group overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
-              >
-                <div className="relative aspect-square overflow-hidden bg-gray-100">
-                  <img
-                    src={image.fileUrl}
-                    alt={image.legenda || image.fileName}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                  />
-                </div>
-                <div className="p-3 space-y-2">
-                  <p className="line-clamp-2 text-sm font-semibold leading-snug text-black">
-                    {image.legenda || image.fileName}
-                  </p>
-                  {image.linkedActivity?.title && (
-                    <p className="line-clamp-1 text-xs text-gray-600 flex items-center gap-1">
-                      <LinkIcon className="w-3 h-3 flex-shrink-0" />
-                      {image.linkedActivity.title}
-                    </p>
-                  )}
-                  <div className="space-y-1 text-[11px] text-gray-500">
-                    {image.museu && <p className="font-medium text-gray-600">{image.museu}</p>}
-                    <p className="font-mono text-[10px] text-gray-500">{geoLine(image)}</p>
-                    {image.localizacao && (
-                      <p className="inline-flex items-center gap-1">
-                        <MapPin className="w-3 h-3" />
-                        {image.localizacao}
-                      </p>
-                    )}
+          <div className="space-y-10">
+            {groupedImages.map(({ key, section, images: sectionImages }) => (
+              <section key={key} className="space-y-4">
+                <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                    <div>
+                      <h2 className="text-xl font-semibold text-black">{section.title}</h2>
+                      <p className="mt-1 text-xs text-gray-500">{sectionImages.length} {sectionImages.length === 1 ? 'foto vinculada' : 'fotos vinculadas'}</p>
+                    </div>
+                    <div className="text-left md:text-right">
+                      <p className="text-sm text-gray-700">{section.address}</p>
+                      <p className="font-mono text-xs text-gray-500">Lat/Lon: {section.coordinates}</p>
+                    </div>
                   </div>
                 </div>
-              </button>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                  {sectionImages.map((image) => (
+                    <PhotoCard key={image.id} image={image} onClick={() => setSelectedImage(image)} />
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
         )}
@@ -482,6 +575,13 @@ function GaleriaFotosInner() {
                   )}
                 </div>
 
+                <div className="rounded-xl border border-white/20 bg-white/5 p-3 text-sm">
+                  <p className="text-xs uppercase tracking-wide text-white/60 mb-1">Seção do museu</p>
+                  <p className="font-semibold text-white">{selectedImage.sectionTitle}</p>
+                  <p className="mt-1 text-xs text-white/75">{selectedImage.sectionAddress}</p>
+                  <p className="mt-1 font-mono text-xs text-white/75">Lat/Lon: {selectedImage.sectionCoordinates}</p>
+                </div>
+
                 {selectedImage.linkedActivity?.title && (
                   <div className="rounded-xl border border-white/20 bg-white/5 p-3 text-sm">
                     <p className="text-xs uppercase tracking-wide text-white/60 mb-1">Atividade vinculada</p>
@@ -489,16 +589,10 @@ function GaleriaFotosInner() {
                     <div className="mt-2 flex flex-wrap gap-3 text-xs text-white/75">
                       {selectedImage.linkedActivity.source && <span>{selectedImage.linkedActivity.source}</span>}
                       {selectedImage.linkedActivity.date && (
-                        <span className="inline-flex items-center gap-1">
-                          <CalendarDays className="w-3 h-3" />
-                          {formatDateBR(selectedImage.linkedActivity.date)}
-                        </span>
+                        <span className="inline-flex items-center gap-1"><CalendarDays className="w-3 h-3" />{formatDateBR(selectedImage.linkedActivity.date)}</span>
                       )}
                       {selectedImage.linkedActivity.local && (
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {selectedImage.linkedActivity.local}
-                        </span>
+                        <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{selectedImage.linkedActivity.local}</span>
                       )}
                     </div>
                   </div>
@@ -507,20 +601,13 @@ function GaleriaFotosInner() {
                 <div className="space-y-1 text-xs opacity-85">
                   {selectedImage.reportLabel && <p>{selectedImage.reportLabel}</p>}
                   {selectedImage.museu && <p>{selectedImage.museu}</p>}
-                  <p className="font-mono text-[11px] text-white/80">{geoLine(selectedImage)}</p>
+                  <p className="font-mono text-[11px] text-white/80">Lat/Lon: {selectedImage.geoCoordinates}</p>
                   {selectedImage.localizacao && (
-                    <p className="flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      {selectedImage.localizacao}
-                      {selectedImage.metadataLocation && <span className="opacity-60">metadata</span>}
-                      {selectedImage.geoCoordinates && <span className="opacity-60">GPS</span>}
-                    </p>
+                    <p className="flex items-center gap-1"><MapPin className="w-3 h-3" />{selectedImage.localizacao}</p>
                   )}
+                  {selectedImage.metadataCoordinates && <p className="font-mono text-[11px] text-white/60">GPS original: {selectedImage.metadataCoordinates}</p>}
                   {selectedImage.metadataDate && (
-                    <p className="flex items-center gap-1">
-                      <CalendarDays className="w-3 h-3" />
-                      {formatDateBR(selectedImage.metadataDate)}
-                    </p>
+                    <p className="flex items-center gap-1"><CalendarDays className="w-3 h-3" />{formatDateBR(selectedImage.metadataDate)}</p>
                   )}
                 </div>
               </div>
