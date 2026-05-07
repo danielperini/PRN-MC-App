@@ -25,12 +25,12 @@ import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import ExecutiveIndicators from '../components/dashboard/ExecutiveIndicators';
 
 const STATUS_CONFIG = {
-  DRAFT: { label: 'Rascunho', color: 'bg-white text-black border border-black', icon: Clock },
-  SUBMITTED: { label: 'Enviado', color: 'bg-white text-black border border-black', icon: Send },
-  IN_REVIEW: { label: 'Em Revisão', color: 'bg-white text-black border border-black', icon: Eye },
+  DRAFT: { label: 'Rascunho', color: 'bg-white text-black border border-gray-300', icon: Clock },
+  SUBMITTED: { label: 'Enviado', color: 'bg-white text-black border border-gray-300', icon: Send },
+  IN_REVIEW: { label: 'Em Revisão', color: 'bg-white text-black border border-gray-300', icon: Eye },
   RETURNED: { label: 'Devolvido', color: 'bg-black text-white border border-black', icon: AlertCircle },
   APPROVED: { label: 'Aprovado', color: 'bg-black text-white border border-black', icon: CheckCircle },
-  ARCHIVED: { label: 'Arquivado', color: 'bg-gray-200 text-black border border-black', icon: Archive }
+  ARCHIVED: { label: 'Arquivado', color: 'bg-gray-100 text-black border border-gray-300', icon: Archive }
 };
 
 function DashboardInner() {
@@ -184,12 +184,12 @@ function DashboardInner() {
   return (
     <div className="min-h-screen bg-white overflow-y-auto" ref={containerRef} style={{ maxHeight: '100vh' }}>
       {isPulling && (
-        <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center h-16 bg-gradient-to-b from-blue-50 to-transparent">
+        <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center h-16 bg-gradient-to-b from-gray-50 to-transparent">
           <div className="text-center">
-            <div className="w-6 h-6 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin mx-auto" 
+            <div className="w-6 h-6 border-2 border-gray-300 border-t-black rounded-full animate-spin mx-auto" 
               style={{ transform: `scaleY(${Math.min(pullDistance / 80, 1)})` }} 
             />
-            <p className="text-xs text-blue-600 mt-1">
+            <p className="text-xs text-black mt-1">
               {pullDistance < 80 ? 'Puxe para atualizar' : 'Solte para atualizar'}
             </p>
           </div>
@@ -219,7 +219,7 @@ function DashboardInner() {
               />
             )}
             {isCoordenador && (
-              <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+              <div className="flex border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                 <button
                   onClick={() => { setView('coordenador'); setShowSponsorView(false); }}
                   className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === 'coordenador' && !showSponsorView ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
@@ -245,14 +245,14 @@ function DashboardInner() {
               size="icon" 
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="border-gray-200"
+              className="border-gray-200 shadow-sm hover:bg-gray-50"
               title="Atualizar dados dos últimos 30 dias"
             >
               <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
             {!showSponsorView && (
               <Link to={createPageUrl('ReportEditor')}>
-                <Button className="bg-black hover:bg-gray-800 text-white gap-2">
+                <Button className="bg-black hover:bg-gray-800 text-white gap-2 shadow-sm">
                   <Plus className="w-4 h-4" />Novo Relatório
                 </Button>
               </Link>
@@ -262,7 +262,7 @@ function DashboardInner() {
 
         {/* Aviso fixo - Atualizar Dados */}
          {!dadosCompletos && !showSponsorView && !dismissedDataWarning && (
-           <div className="mb-4 p-4 bg-white border-2 border-black rounded-xl flex items-start gap-3">
+           <div className="mb-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm flex items-start gap-3">
              <AlertTriangle className="w-5 h-5 text-black flex-shrink-0 mt-0.5" />
              <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                <div>
@@ -272,7 +272,7 @@ function DashboardInner() {
                  </p>
                </div>
                <Link to={createPageUrl('MeusDados')} className="flex-shrink-0">
-                 <Button size="sm" className="bg-black hover:bg-gray-900 text-white text-xs font-medium">
+                 <Button size="sm" className="bg-black hover:bg-gray-900 text-white text-xs font-medium shadow-sm">
                    Preencher meus dados →
                  </Button>
                </Link>
@@ -290,12 +290,12 @@ function DashboardInner() {
         {/* Botão buscar duplicados - só coordenadores */}
         {isCoordenador && !showSponsorView && (
           <>
-            <div className="flex justify-end mb-2">
+            <div className="flex justify-end mb-3">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowDuplicates(true)}
-                className="gap-2 text-xs border-gray-200 text-gray-600 hover:text-orange-600 hover:border-orange-300"
+                className="gap-2 text-xs border-gray-200 text-gray-600 shadow-sm hover:bg-gray-50 hover:text-black"
               >
                 <Copy className="w-3.5 h-3.5" />
                 Verificar relatórios duplicados
@@ -330,7 +330,7 @@ function DashboardInner() {
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
               {stats.map(s => (
-                <div key={s.label} className="p-4 border border-gray-200 rounded-xl">
+                <div key={s.label} className="p-4 border border-gray-200 rounded-2xl bg-white shadow-sm">
                   <p className="text-2xl font-semibold text-black">{s.value}</p>
                   <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
                 </div>
@@ -362,7 +362,7 @@ function DashboardInner() {
                 <div className="flex items-center justify-between mb-4 mt-8">
                   <h2 className="text-lg font-medium text-black">{widgets.recentReports.title}</h2>
                   <Link to={createPageUrl('Relatorios')}>
-                    <Button variant="ghost" size="sm" className="text-gray-500 gap-1">
+                    <Button variant="ghost" size="sm" className="text-gray-500 gap-1 hover:text-black hover:bg-gray-50">
                       Ver todos <ChevronRight className="w-4 h-4" />
                     </Button>
                   </Link>
@@ -372,7 +372,7 @@ function DashboardInner() {
                   {isLoading ? (
                     <div className="col-span-full text-center py-20 text-gray-400">Carregando...</div>
                   ) : recentReports.length === 0 ? (
-                    <div className="col-span-full text-center py-16 border-2 border-dashed border-black rounded-2xl bg-white">
+                    <div className="col-span-full text-center py-16 border border-dashed border-gray-300 rounded-2xl bg-white shadow-sm">
                       <FileText className="w-12 h-12 text-black mx-auto mb-4 opacity-50" />
                       <p className="text-black font-medium">Sem dados disponíveis</p>
                       <p className="text-gray-600 text-sm mt-1">Crie um novo relatório para começar</p>
@@ -387,7 +387,7 @@ function DashboardInner() {
                       const nExt  = atividades.filter(a => a.classificacao === 'EXTRA').length;
                       return (
                         <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block group">
-                          <div className="h-full p-5 rounded-2xl border-2 border-black hover:shadow-md transition-all bg-white">
+                          <div className="h-full p-5 rounded-2xl border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all bg-white shadow-sm">
                             <div className="flex items-center justify-between mb-4">
                               <Badge className={`${cfg.color} font-normal gap-1`}>
                                 <StatusIcon className="w-3 h-3" />{cfg.label}
@@ -401,9 +401,9 @@ function DashboardInner() {
                             <p className="text-xs text-gray-400 mt-0.5">{report.museu}</p>
                             {(nMeta + nRot + nExt) > 0 && (
                               <div className="flex gap-1.5 mt-4 flex-wrap">
-                                {nMeta > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>}
-                                {nRot > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>}
-                                {nExt > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black text-black font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>}
+                                {nMeta > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-gray-300 text-black font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>}
+                                {nRot > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-gray-300 text-black font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>}
+                                {nExt > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-gray-300 text-black font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>}
                               </div>
                             )}
                           </div>
