@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { ExternalLink, Newspaper, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ExternalLink, Newspaper, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const FALLBACK_NEWS = [
@@ -77,30 +77,30 @@ function normalizeNews(item) {
 
 function NewsCard({ item }) {
   return (
-    <div className="group min-w-0 rounded-xl border border-black/70 bg-white p-2.5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-black hover:shadow-md">
-      <div className="flex h-full min-h-[92px] flex-col">
-        <div className="mb-1.5 flex items-center justify-between gap-2">
-          <span className="truncate rounded-full border border-black/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-black">
+    <article className="group min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md">
+      <div className="flex h-full min-h-[210px] flex-col">
+        <div className="mb-5 flex items-center justify-between gap-2">
+          <span className="truncate rounded-full border border-gray-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-black shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
             {item.fonte}
           </span>
 
           {item.tags?.[0] && (
-            <span className="hidden truncate rounded-full border border-black/40 px-1.5 py-0.5 text-[9px] font-semibold text-gray-600 sm:inline">
+            <span className="hidden truncate rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[10px] font-semibold text-gray-600 sm:inline">
               {item.tags[0]}
             </span>
           )}
         </div>
 
-        <h3 className="line-clamp-1 text-xs font-bold leading-tight text-black">
+        <h3 className="line-clamp-2 text-lg font-bold leading-tight text-black">
           {item.titulo}
         </h3>
 
-        <p className="mt-1 line-clamp-1 flex-1 text-[11px] leading-snug text-gray-700">
+        <p className="mt-4 line-clamp-4 flex-1 text-sm leading-relaxed text-gray-700">
           {item.resumo}
         </p>
 
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <span className="truncate text-[10px] text-gray-500">
+        <div className="mt-8 flex items-center justify-between gap-3">
+          <span className="truncate text-sm text-gray-500">
             {item.data_publicacao || todayBR()}
           </span>
 
@@ -109,18 +109,18 @@ function NewsCard({ item }) {
               href={item.link}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-full border border-black/70 px-2 py-0.5 text-[10px] font-semibold text-black transition-colors hover:bg-black hover:text-white"
+              className="inline-flex items-center gap-1.5 rounded-full border border-black bg-white px-3 py-1.5 text-sm font-semibold text-black transition-colors hover:bg-black hover:text-white"
             >
-              Ver <ExternalLink className="h-3 w-3" />
+              Ver <ExternalLink className="h-4 w-4" />
             </a>
           ) : (
-            <span className="inline-flex items-center gap-1 rounded-full border border-black/70 px-2 py-0.5 text-[10px] font-semibold text-black">
-              <Newspaper className="h-3 w-3" /> Interno
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-black bg-white px-3 py-1.5 text-sm font-semibold text-black">
+              <Newspaper className="h-4 w-4" /> Interno
             </span>
           )}
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -175,6 +175,22 @@ export default function NewsCarousel() {
     return Array.from({ length: Math.min(4, items.length) }, (_, i) => items[(offset + i) % items.length]);
   }, [items, offset]);
 
+  const groupCount = Math.ceil(items.length / 4);
+  const activeGroup = Math.floor(offset / 4);
+
+  function goPrevious() {
+    if (!items.length) return;
+    setOffset((prev) => {
+      const next = prev - 4;
+      return next < 0 ? Math.max((groupCount - 1) * 4, 0) : next;
+    });
+  }
+
+  function goNext() {
+    if (!items.length) return;
+    setOffset((prev) => (prev + 4) % items.length);
+  }
+
   async function handleUpdateWithIA() {
     setUpdating(true);
 
@@ -193,13 +209,13 @@ export default function NewsCarousel() {
   if (!visibleItems.length) return null;
 
   return (
-    <section className="mb-6 rounded-2xl border border-black/70 bg-white p-3 shadow-sm">
-      <div className="mb-2 flex items-center justify-between gap-3">
+    <section className="relative mb-8 rounded-[1.35rem] border border-gray-200 bg-white px-8 py-7 shadow-[0_18px_45px_rgba(15,23,42,0.06)] sm:px-10 lg:px-14">
+      <div className="mb-7 flex items-center justify-between gap-3">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-widest text-black">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-black">
             Notícias e destaques
           </p>
-          <p className="text-[10px] text-gray-500">
+          <p className="mt-1 text-xs text-gray-500">
             Curadoria diária com rotação automática a cada 15 segundos
           </p>
         </div>
@@ -210,31 +226,53 @@ export default function NewsCarousel() {
           size="sm"
           onClick={handleUpdateWithIA}
           disabled={updating}
-          className="h-7 border-black/70 px-2 text-[10px] text-black hover:bg-black hover:text-white"
+          className="h-9 rounded-xl border-gray-200 bg-white px-3 text-xs text-black shadow-sm hover:bg-black hover:text-white"
         >
-          <RefreshCw className={`mr-1 h-3 w-3 ${updating ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${updating ? 'animate-spin' : ''}`} />
           IA
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      {items.length > 4 && (
+        <button
+          type="button"
+          aria-label="Notícias anteriores"
+          onClick={goPrevious}
+          className="absolute left-0 top-1/2 z-10 hidden h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-black shadow-lg transition-all hover:-translate-x-[55%] hover:bg-gray-50 lg:flex"
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </button>
+      )}
+
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {visibleItems.map((item, idx) => (
           <NewsCard key={`${item.titulo}-${idx}-${offset}`} item={item} />
         ))}
       </div>
 
       {items.length > 4 && (
-        <div className="mt-2 flex justify-center gap-1">
-          {Array.from({ length: Math.ceil(items.length / 4) }).map((_, idx) => {
-            const active = Math.floor(offset / 4) === idx;
+        <button
+          type="button"
+          aria-label="Próximas notícias"
+          onClick={goNext}
+          className="absolute right-0 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-black shadow-lg transition-all hover:translate-x-[55%] hover:bg-gray-50 lg:flex"
+        >
+          <ChevronRight className="h-6 w-6" />
+        </button>
+      )}
+
+      {items.length > 4 && (
+        <div className="mt-7 flex justify-center gap-3">
+          {Array.from({ length: groupCount }).map((_, idx) => {
+            const active = activeGroup === idx;
             return (
               <button
                 key={idx}
                 type="button"
                 aria-label={`Ir para grupo ${idx + 1}`}
                 onClick={() => setOffset((idx * 4) % items.length)}
-                className={`h-1.5 rounded-full transition-all ${
-                  active ? 'w-5 bg-black' : 'w-1.5 bg-gray-300 hover:bg-gray-500'
+                className={`h-2.5 w-2.5 rounded-full transition-all ${
+                  active ? 'bg-black' : 'bg-gray-300 hover:bg-gray-500'
                 }`}
               />
             );
