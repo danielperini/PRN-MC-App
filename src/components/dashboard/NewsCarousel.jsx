@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { base44 } from '@/api/base44Client'
-import { ExternalLink, Newspaper } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ExternalLink, Newspaper } from 'lucide-react'
 
 export default function NewsCarousel() {
   const [items, setItems] = useState([])
@@ -35,73 +35,137 @@ export default function NewsCarousel() {
 
   // 🔁 rotação a cada 15s
   useEffect(() => {
+    if (!items.length) return undefined
+
     const i = setInterval(() => {
       setIndex(prev => (prev + 4) % items.length)
     }, 15000)
 
     return () => clearInterval(i)
-  }, [items])
+  }, [items.length])
 
   // 📦 grupo de 4 cards
   const visible = useMemo(() => {
-    return items.slice(index, index + 4)
+    if (!items.length) return []
+
+    return Array.from(
+      { length: Math.min(4, items.length) },
+      (_, i) => items[(index + i) % items.length]
+    )
   }, [items, index])
+
+  const groupCount = Math.ceil(items.length / 4)
+  const activeGroup = Math.floor(index / 4)
+
+  function goPrevious() {
+    if (!items.length) return
+    setIndex(prev => {
+      const next = prev - 4
+      return next < 0 ? Math.max((groupCount - 1) * 4, 0) : next
+    })
+  }
+
+  function goNext() {
+    if (!items.length) return
+    setIndex(prev => (prev + 4) % items.length)
+  }
 
   if (!visible.length) return null
 
   return (
-    <div className="w-full border-2 border-black rounded-2xl p-4 bg-white">
+    <section className="relative w-full rounded-[1.35rem] border border-gray-200 bg-white px-5 py-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)] sm:px-7 lg:px-10">
+      {items.length > 4 && (
+        <button
+          type="button"
+          aria-label="Notícias anteriores"
+          onClick={goPrevious}
+          className="absolute left-0 top-1/2 z-10 hidden h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-black shadow-lg transition-all hover:-translate-x-[55%] hover:bg-gray-50 lg:flex"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+      )}
 
-      <div className="grid grid-cols-4 gap-3">
-
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {visible.map((item, i) => (
-          <div
-            key={i}
-            className="border-2 border-black rounded-xl p-3 flex flex-col justify-between bg-white hover:bg-gray-50 transition-all"
+          <article
+            key={`${item?.titulo || 'noticia'}-${i}-${index}`}
+            className="group min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
           >
-            {/* header */}
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase px-2 py-0.5 border border-black rounded-full">
-                📡 {item.fonte}
-              </span>
-            </div>
-
-            {/* título */}
-            <h3 className="text-sm font-bold text-black leading-tight line-clamp-1">
-              {item.titulo}
-            </h3>
-
-            {/* resumo */}
-            <p className="text-xs text-gray-700 line-clamp-1 mt-1">
-              {item.resumo}
-            </p>
-
-            {/* footer */}
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-[10px] text-gray-600">
-                {item.data_publicacao}
-              </span>
-
-              {item.link ? (
-                <a
-                  href={item.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[10px] border border-black px-2 py-0.5 rounded-full flex items-center gap-1 hover:bg-black hover:text-white transition-all"
-                >
-                  Ver <ExternalLink className="w-3 h-3" />
-                </a>
-              ) : (
-                <span className="text-[10px] border border-black px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <Newspaper className="w-3 h-3" /> Interno
+            <div className="flex h-full min-h-[210px] flex-col">
+              <div className="mb-5 flex items-center justify-between gap-2">
+                <span className="truncate rounded-full border border-gray-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-black shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                  📡 {item.fonte}
                 </span>
-              )}
-            </div>
-          </div>
-        ))}
 
+                {item.tags?.[0] && (
+                  <span className="hidden truncate rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[10px] font-semibold text-gray-600 sm:inline">
+                    {item.tags[0]}
+                  </span>
+                )}
+              </div>
+
+              <h3 className="line-clamp-2 text-lg font-bold leading-tight text-black">
+                {item.titulo}
+              </h3>
+
+              <p className="mt-4 line-clamp-4 flex-1 text-sm leading-relaxed text-gray-700">
+                {item.resumo}
+              </p>
+
+              <div className="mt-8 flex items-center justify-between gap-3">
+                <span className="truncate text-sm text-gray-500">
+                  {item.data_publicacao}
+                </span>
+
+                {item.link ? (
+                  <a
+                    href={item.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-black bg-white px-3 py-1.5 text-sm font-semibold text-black transition-colors hover:bg-black hover:text-white"
+                  >
+                    Ver <ExternalLink className="h-4 w-4" />
+                  </a>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-black bg-white px-3 py-1.5 text-sm font-semibold text-black">
+                    <Newspaper className="h-4 w-4" /> Interno
+                  </span>
+                )}
+              </div>
+            </div>
+          </article>
+        ))}
       </div>
 
-    </div>
+      {items.length > 4 && (
+        <button
+          type="button"
+          aria-label="Próximas notícias"
+          onClick={goNext}
+          className="absolute right-0 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-black shadow-lg transition-all hover:translate-x-[55%] hover:bg-gray-50 lg:flex"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      )}
+
+      {items.length > 4 && (
+        <div className="mt-7 flex justify-center gap-3">
+          {Array.from({ length: groupCount }).map((_, idx) => {
+            const active = activeGroup === idx
+            return (
+              <button
+                key={idx}
+                type="button"
+                aria-label={`Ir para grupo ${idx + 1}`}
+                onClick={() => setIndex((idx * 4) % items.length)}
+                className={`h-2.5 w-2.5 rounded-full transition-all ${
+                  active ? 'bg-black' : 'bg-gray-300 hover:bg-gray-500'
+                }`}
+              />
+            )
+          })}
+        </div>
+      )}
+    </section>
   )
 }
