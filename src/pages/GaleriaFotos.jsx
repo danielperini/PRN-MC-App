@@ -221,6 +221,10 @@ function captionFor(item = {}, activity = null) {
   return String(item.descricao || item.description || item.file_name || item.fileName || 'Foto da galeria');
 }
 
+function geoLine(image = {}) {
+  return image.geoCoordinates ? `Lat/Lon: ${image.geoCoordinates}` : 'Lat/Lon: sem metadata GPS';
+}
+
 function uniqueByFileUrl(items = []) {
   const seen = new Set();
   return items.filter((item) => {
@@ -264,7 +268,7 @@ function GaleriaFotosInner() {
   const [sortBy, setSortBy] = useState('recent');
 
   const { data: images = [], isLoading } = useQuery({
-    queryKey: ['galeria-fotos-v6-legendas-localizacao-coordenadas', currentUser?.email],
+    queryKey: ['galeria-fotos-v7-coordenadas-visiveis', currentUser?.email],
     queryFn: async () => {
       const allImages = [];
       let reports = [];
@@ -426,13 +430,14 @@ function GaleriaFotosInner() {
                       {image.linkedActivity.title}
                     </p>
                   )}
-                  <div className="flex flex-wrap gap-2 text-[11px] text-gray-500">
-                    {image.museu && <span>{image.museu}</span>}
-                    {(image.localizacao || image.geoCoordinates) && (
-                      <span className="inline-flex items-center gap-1">
+                  <div className="space-y-1 text-[11px] text-gray-500">
+                    {image.museu && <p className="font-medium text-gray-600">{image.museu}</p>}
+                    <p className="font-mono text-[10px] text-gray-500">{geoLine(image)}</p>
+                    {image.localizacao && (
+                      <p className="inline-flex items-center gap-1">
                         <MapPin className="w-3 h-3" />
-                        {[image.localizacao, image.geoCoordinates].filter(Boolean).join(' · ')}
-                      </span>
+                        {image.localizacao}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -499,22 +504,23 @@ function GaleriaFotosInner() {
                   </div>
                 )}
 
-                <div className="flex flex-wrap gap-4 text-xs opacity-85 items-center">
-                  {selectedImage.reportLabel && <span>{selectedImage.reportLabel}</span>}
-                  {selectedImage.museu && <span>{selectedImage.museu}</span>}
-                  {(selectedImage.localizacao || selectedImage.geoCoordinates) && (
-                    <span className="flex items-center gap-1">
+                <div className="space-y-1 text-xs opacity-85">
+                  {selectedImage.reportLabel && <p>{selectedImage.reportLabel}</p>}
+                  {selectedImage.museu && <p>{selectedImage.museu}</p>}
+                  <p className="font-mono text-[11px] text-white/80">{geoLine(selectedImage)}</p>
+                  {selectedImage.localizacao && (
+                    <p className="flex items-center gap-1">
                       <MapPin className="w-3 h-3" />
-                      {[selectedImage.localizacao, selectedImage.geoCoordinates].filter(Boolean).join(' · ')}
+                      {selectedImage.localizacao}
                       {selectedImage.metadataLocation && <span className="opacity-60">metadata</span>}
                       {selectedImage.geoCoordinates && <span className="opacity-60">GPS</span>}
-                    </span>
+                    </p>
                   )}
                   {selectedImage.metadataDate && (
-                    <span className="flex items-center gap-1">
+                    <p className="flex items-center gap-1">
                       <CalendarDays className="w-3 h-3" />
                       {formatDateBR(selectedImage.metadataDate)}
-                    </span>
+                    </p>
                   )}
                 </div>
               </div>
