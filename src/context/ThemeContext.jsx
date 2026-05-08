@@ -53,7 +53,7 @@ export const THEMES = {
   miro: {
     id: 'miro',
     nome: 'Tema Miro',
-    descricao: 'Paleta moderna e colorida com azul primário, amarelo destaque e cores vibrantes.',
+    descricao: 'Paleta moderna e colorida com azul primario, amarelo destaque e cores vibrantes.',
     vars: {
       '--cor-primaria': '#4262FF',
       '--cor-secundaria': '#FFD02F',
@@ -76,6 +76,32 @@ export const THEMES = {
     },
     preview: ['#4262FF', '#FFD02F', '#2ECC71', '#FF5C5C'],
   },
+  nuit: {
+    id: 'nuit',
+    nome: 'Tema Nuit',
+    descricao: 'Tema escuro para uso noturno e economia de energia.',
+    vars: {
+      '--cor-primaria': '#ffffff',
+      '--cor-secundaria': '#a1a1aa',
+      '--cor-sucesso': '#22c55e',
+      '--cor-alerta': '#f59e0b',
+      '--cor-fundo': '#050505',
+      '--cor-fundo-secundario': '#111111',
+      '--cor-texto': '#f5f5f5',
+      '--cor-texto-secundario': '#d4d4d8',
+      '--cor-card': '#111111',
+      '--cor-destaque': '#ffffff',
+      '--cor-borda': '#27272a',
+      '--cor-borda-clara': '#3f3f46',
+      '--cor-nav': '#000000',
+      '--cor-nav-texto': '#ffffff',
+      '--cor-btn-primario': '#ffffff',
+      '--cor-btn-primario-texto': '#000000',
+      '--cor-btn-primario-hover': '#d4d4d8',
+      '--cor-accent': '#60a5fa',
+    },
+    preview: ['#050505', '#111111', '#f5f5f5', '#60a5fa'],
+  },
 };
 
 const ThemeContext = createContext();
@@ -91,7 +117,7 @@ export function ThemeProvider({ children }) {
     Object.entries(theme.vars).forEach(([key, val]) => {
       root.style.setProperty(key, val);
     });
-    // Mark body with theme class for CSS overrides
+    root.setAttribute('data-theme', id);
     document.body.setAttribute('data-theme', id);
   };
 
