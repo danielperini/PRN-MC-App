@@ -35,7 +35,11 @@ function normalizeLoose(v) {
 }
 
 function toNumber(v) {
-  const n = Number(String(v || '').replace(',', '.'));
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  const raw = String(v || '').trim();
+  if (!raw) return 0;
+  const normalized = raw.replace(/R\$/gi, '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
+  const n = Number(normalized);
   return Number.isNaN(n) ? 0 : n;
 }
 
@@ -101,21 +105,20 @@ function getDocDate(doc) {
 function fmtDate(v) {
   if (!v) return '—';
   const d = new Date(v);
-  if (isNaN(d)) return '—';
+  if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
 function getMonthKey(doc) {
   const d = new Date(getDocDate(doc));
-  if (isNaN(d)) return 'sem-data';
+  if (Number.isNaN(d.getTime())) return 'sem-data';
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 function getMonthLabel(monthKey) {
   if (monthKey === 'sem-data') return 'Sem data';
   const [year, month] = monthKey.split('-').map(Number);
-  const d = new Date(year, month - 1, 1);
-  return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  return new Date(year, month - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 }
 
 function getLinkedPurchaseIds(doc) {
@@ -153,16 +156,19 @@ function getExplicitPairIds(doc) {
 function getBaseFileKey(doc) {
   return normalizeLoose(getFileName(doc)
     .replace(/\.[^.]+$/, '')
-    .replace(/\b(pdf|xml|recibo|comprovante|pagamento|boleto|pix|nfe|nfse|nf|nota|fiscal)\b/gi, ''));
+    .replace(/\b(pdf|xml|recibo|comprovante|pagamento|boleto|pix|nfe|nfse|nf|nota|fiscal|museus|centro)\b/gi, ''));
 }
 
 function getFallbackFiscalKey(doc) {
   const nf = normalizeLoose(doc?.nf_numero || doc?.numero_nf || doc?.nota_numero || '');
   const cnpj = normalizeLoose(doc?.nf_emitente_cpf_cnpj || doc?.fornecedor_cpf_cnpj || doc?.fornecedor_cnpj || '');
+  const fornecedor = normalizeLoose(doc?.nf_emitente_nome || doc?.fornecedor_nome || '');
   const valor = toNumber(doc?.nf_valor_total || doc?.valor_total || doc?.valor || 0);
 
-  if (nf && cnpj) return `nf-${nf}-${cnpj}-${valor || ''}`;
-  if (nf) return `nf-${nf}-${valor || ''}`;
+  if (nf && cnpj) return `nf-${nf}-${cnpj}`;
+  if (nf && fornecedor) return `nf-${nf}-${fornecedor}`;
+  if (nf && valor) return `nf-${nf}-${valor}`;
+  if (nf) return `nf-${nf}`;
 
   const base = getBaseFileKey(doc);
   if (base && base.length >= 6) return `base-${base}`;
@@ -173,11 +179,7 @@ function getFallbackFiscalKey(doc) {
 function getDuplicateKey(doc) {
   const url = normalizeText(getFileUrl(doc));
   if (url) return `url:${url}`;
-
-  const fiscal = getFallbackFiscalKey(doc);
-  const tipo = getTipo(doc);
-  const name = normalizeLoose(getFileName(doc));
-  return `${tipo}:${fiscal}:${name}`;
+  return `${getTipo(doc)}:${getFallbackFiscalKey(doc)}:${getBaseFileKey(doc)}`;
 }
 
 function findDuplicateGroups(docs) {
@@ -194,23 +196,38 @@ function findDuplicateGroups(docs) {
     .map((items) => [...items].sort((a, b) => new Date(getDocDate(a) || 0) - new Date(getDocDate(b) || 0)));
 }
 
+function scoreDoc(doc) {
+  return (
+    (getExplicitPairIds(doc).length ? 10 : 0) +
+    (getLinkedPurchaseIds(doc).length ? 5 : 0) +
+    (getFileUrl(doc) ? 2 : 0)
+  );
+}
+
 function isXmlVinculado(doc) {
   return getTipo(doc) === 'XML' && !!(doc?.nf_pdf_intake_id || doc?.nf_xml_vinculado_a || doc?.nf_pdf_url);
 }
 
 function filtrarEDeduplicar(docs) {
-  const map = new Map();
+  const grouped = new Map();
 
   (docs || []).forEach((doc) => {
     if (!doc?.id) return;
     if (doc?.status_registro === 'DELETADO') return;
     if (isImagem(doc)) return;
 
-    const key = doc.id;
-    if (!map.has(key)) map.set(key, doc);
+    const key = getDuplicateKey(doc);
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(doc);
   });
 
-  return Array.from(map.values()).sort((a, b) => new Date(getDocDate(b) || 0) - new Date(getDocDate(a) || 0));
+  return Array.from(grouped.values())
+    .map((items) => [...items].sort((a, b) => {
+      const diff = scoreDoc(b) - scoreDoc(a);
+      if (diff !== 0) return diff;
+      return new Date(getDocDate(b) || 0) - new Date(getDocDate(a) || 0);
+    })[0])
+    .sort((a, b) => new Date(getDocDate(b) || 0) - new Date(getDocDate(a) || 0));
 }
 
 function getPairTitle(docs) {
@@ -263,34 +280,41 @@ function connectComponents(nodes, edges) {
 
 function buildDocumentGroups(docs) {
   const docsById = new Map((docs || []).map((doc) => [String(doc.id), doc]));
-  const explicitEdges = [];
-  const groupedByFallback = new Map();
+  const edges = [];
+  const groupedByFiscal = new Map();
+  const groupedByPurchase = new Map();
 
   (docs || []).forEach((doc) => {
     const docId = String(doc.id);
+
     getExplicitPairIds(doc).forEach((linkedId) => {
-      if (docsById.has(linkedId)) explicitEdges.push([docId, linkedId]);
+      if (docsById.has(linkedId)) edges.push([docId, linkedId]);
     });
 
-    if (getExplicitPairIds(doc).length === 0) {
-      const fallbackKey = getFallbackFiscalKey(doc);
-      if (!groupedByFallback.has(fallbackKey)) groupedByFallback.set(fallbackKey, []);
-      groupedByFallback.get(fallbackKey).push(docId);
-    }
+    getLinkedPurchaseIds(doc).forEach((purchaseId) => {
+      if (!groupedByPurchase.has(purchaseId)) groupedByPurchase.set(purchaseId, []);
+      groupedByPurchase.get(purchaseId).push(docId);
+    });
+
+    const fiscalKey = getFallbackFiscalKey(doc);
+    if (!groupedByFiscal.has(fiscalKey)) groupedByFiscal.set(fiscalKey, []);
+    groupedByFiscal.get(fiscalKey).push(docId);
   });
 
-  groupedByFallback.forEach((ids) => {
-    if (ids.length > 1) {
-      ids.slice(1).forEach((id) => explicitEdges.push([ids[0], id]));
-    }
+  [...groupedByFiscal.values(), ...groupedByPurchase.values()].forEach((ids) => {
+    if (ids.length > 1) ids.slice(1).forEach((id) => edges.push([ids[0], id]));
   });
 
-  const components = connectComponents((docs || []).map((doc) => String(doc.id)), explicitEdges);
+  const components = connectComponents((docs || []).map((doc) => String(doc.id)), edges);
+
   const pairs = components.map((ids) => {
-    const pairDocs = ids.map((id) => docsById.get(id)).filter(Boolean).sort((a, b) => {
-      const order = { PDF: 1, XML: 2, RECIBO: 3, DOC: 4 };
-      return (order[getTipo(a)] || 9) - (order[getTipo(b)] || 9);
-    });
+    const pairDocs = ids
+      .map((id) => docsById.get(id))
+      .filter(Boolean)
+      .sort((a, b) => {
+        const order = { PDF: 1, XML: 2, RECIBO: 3, DOC: 4 };
+        return (order[getTipo(a)] || 9) - (order[getTipo(b)] || 9);
+      });
 
     return {
       key: ids.sort().join('-'),
@@ -364,6 +388,7 @@ function VincularXmlModal({ xmlDoc, pdfsDisponiveis, onConfirm, onClose }) {
                   ? `R$ ${Number(pdf.nf_valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
                   : '';
                 const vinculado = !!pdf?.nf_xml_intake_id || !!pdf?.nf_xml_url;
+
                 return (
                   <button
                     key={pdf.id}
@@ -383,6 +408,7 @@ function VincularXmlModal({ xmlDoc, pdfsDisponiveis, onConfirm, onClose }) {
               })}
             </div>
           )}
+
           <div className="flex justify-end">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
           </div>
@@ -410,22 +436,27 @@ function EditarSolicitacaoModal({ purchase, onChange, onSave, onClose, saving })
             <label className="mb-1 block text-xs font-medium text-gray-600">Descrição</label>
             <Input value={purchase.descricao_item || ''} onChange={(e) => onChange({ ...purchase, descricao_item: e.target.value })} />
           </div>
+
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Fornecedor</label>
             <Input value={purchase.fornecedor_nome || ''} onChange={(e) => onChange({ ...purchase, fornecedor_nome: e.target.value })} />
           </div>
+
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Centro de custo</label>
             <Input value={purchase.centro_custo || ''} onChange={(e) => onChange({ ...purchase, centro_custo: e.target.value })} />
           </div>
+
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">NF número</label>
             <Input value={purchase.nf_numero || ''} onChange={(e) => onChange({ ...purchase, nf_numero: e.target.value })} />
           </div>
+
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Valor solicitado</label>
             <Input value={purchase.valor_solicitado ?? purchase.valor_total ?? purchase.valor ?? ''} onChange={(e) => onChange({ ...purchase, valor_solicitado: e.target.value })} />
           </div>
+
           <div className="md:col-span-2">
             <label className="mb-1 block text-xs font-medium text-gray-600">Observações</label>
             <Input value={purchase.observacoes || ''} onChange={(e) => onChange({ ...purchase, observacoes: e.target.value })} />
@@ -482,29 +513,34 @@ export default function GestaoDocumental() {
     queryFn: async () => base44.entities.Attachment.list('-created_date', 500)
   });
 
+  const documentosBase = useMemo(() => (
+    (todosDocumentos || []).filter((doc) => doc?.id && doc?.status_registro !== 'DELETADO' && !isImagem(doc))
+  ), [todosDocumentos]);
+
   const documentos = useMemo(() => filtrarEDeduplicar(todosDocumentos), [todosDocumentos]);
-  const duplicateGroups = useMemo(() => findDuplicateGroups(documentos), [documentos]);
+  const duplicateGroups = useMemo(() => findDuplicateGroups(documentosBase), [documentosBase]);
   const duplicateIds = useMemo(() => new Set(duplicateGroups.flatMap((group) => group.map((doc) => doc.id))), [duplicateGroups]);
 
   const pdfsDisponiveis = useMemo(() =>
-    (todosDocumentos || []).filter((d) => {
-      if (d?.status_registro === 'DELETADO') return false;
-      if (isImagem(d)) return false;
-      return getTipo(d) === 'PDF';
-    }).sort((a, b) => new Date(getDocDate(b) || 0) - new Date(getDocDate(a) || 0))
-  , [todosDocumentos]);
+    documentosBase
+      .filter((d) => getTipo(d) === 'PDF')
+      .sort((a, b) => new Date(getDocDate(b) || 0) - new Date(getDocDate(a) || 0))
+  , [documentosBase]);
 
   async function handleVincularXml(pdfDoc) {
     if (!vincularXml || !pdfDoc) return;
+
     try {
       await base44.entities.Attachment.update(pdfDoc.id, {
         nf_xml_intake_id: vincularXml.id,
         nf_xml_url: getFileUrl(vincularXml),
       });
+
       await base44.entities.Attachment.update(vincularXml.id, {
         nf_pdf_intake_id: pdfDoc.id,
         nf_pdf_url: getFileUrl(pdfDoc),
       });
+
       toast.success('XML vinculado ao PDF com sucesso.');
       setVincularXml(null);
       queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
@@ -515,11 +551,7 @@ export default function GestaoDocumental() {
 
   const filtrados = useMemo(() => {
     const s = normalizeText(search);
-    let base = documentos;
-
-    if (showDuplicatesOnly) {
-      base = base.filter((doc) => duplicateIds.has(doc.id));
-    }
+    let base = showDuplicatesOnly ? documentosBase.filter((doc) => duplicateIds.has(doc.id)) : documentos;
 
     if (!s) return base;
 
@@ -530,23 +562,26 @@ export default function GestaoDocumental() {
       normalizeText(getTipo(doc)).includes(s) ||
       normalizeText(getCategoria(doc)).includes(s)
     );
-  }, [documentos, search, showDuplicatesOnly, duplicateIds]);
+  }, [documentos, documentosBase, search, showDuplicatesOnly, duplicateIds]);
 
   const gruposMensais = useMemo(() => buildDocumentGroups(filtrados), [filtrados]);
 
   async function handleDelete(doc) {
     if (!window.confirm('Remover documento e solicitações vinculadas?')) return;
+
     try {
       if (doc.report_id) {
         const pr = await base44.entities.PurchaseRequest.get(doc.report_id).catch(() => null);
         if (pr) await deletePurchaseRequest(pr);
       }
+
       try {
         await base44.entities.Attachment.delete(doc.id);
       } catch {
         await base44.entities.Attachment.update(doc.id, { status_registro: 'DELETADO' });
       }
-      toast.success('Registro deletado e rubrica estornada com sucesso.');
+
+      toast.success('Documento removido.');
       queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
     } catch (e) {
       toast.error('Erro ao deletar: ' + e.message);
@@ -555,6 +590,7 @@ export default function GestaoDocumental() {
 
   async function handleDeleteDuplicates() {
     const docsParaApagar = duplicateGroups.flatMap((group) => group.slice(1));
+
     if (docsParaApagar.length === 0) {
       toast.info('Nenhum arquivo repetido encontrado.');
       return;
@@ -570,6 +606,7 @@ export default function GestaoDocumental() {
           await base44.entities.Attachment.update(doc.id, { status_registro: 'DELETADO' });
         }
       }
+
       toast.success(`${docsParaApagar.length} arquivos repetidos apagados.`);
       queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
     } catch (e) {
@@ -579,6 +616,7 @@ export default function GestaoDocumental() {
 
   async function openEditPurchase(pair) {
     const purchaseId = pair?.purchaseIds?.[0];
+
     if (!purchaseId) {
       toast.warning('Esta linha não possui solicitação vinculada.');
       return;
@@ -594,7 +632,9 @@ export default function GestaoDocumental() {
 
   async function handleSavePurchase() {
     if (!editingPurchase?.id) return;
+
     setSavingPurchase(true);
+
     try {
       await base44.entities.PurchaseRequest.update(editingPurchase.id, {
         descricao_item: editingPurchase.descricao_item || '',
@@ -604,6 +644,7 @@ export default function GestaoDocumental() {
         valor_solicitado: toNumber(editingPurchase.valor_solicitado),
         observacoes: editingPurchase.observacoes || ''
       });
+
       toast.success('Solicitação vinculada atualizada.');
       setEditingPurchase(null);
       queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
@@ -629,6 +670,7 @@ export default function GestaoDocumental() {
             {duplicateGroups.reduce((acc, group) => acc + group.length - 1, 0)} repetidos
           </span>
         </div>
+
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
@@ -640,6 +682,7 @@ export default function GestaoDocumental() {
             <Copy className="h-3.5 w-3.5" />
             {showDuplicatesOnly ? 'Ver todos' : 'Pesquisar repetidos'}
           </Button>
+
           <Button
             type="button"
             variant="outline"
@@ -650,6 +693,7 @@ export default function GestaoDocumental() {
             <Trash2 className="h-3.5 w-3.5" />
             Apagar repetidos
           </Button>
+
           <div className="relative w-72 max-w-full">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
             <Input
@@ -692,45 +736,70 @@ export default function GestaoDocumental() {
                       <th className="px-3 py-2.5 text-center font-medium text-gray-600">Ações</th>
                     </tr>
                   </thead>
+
                   <tbody>
                     {grupo.pairs.map((pair, idx) => (
-                      <tr key={`${grupo.monthKey}-${pair.key}`} className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                      <tr
+                        key={`${grupo.monthKey}-${pair.key}`}
+                        className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
+                      >
                         <td className="px-3 py-2.5 align-top">
                           <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${PAIR_COLOR[pair.type] || PAIR_COLOR['Sem par']}`}>
                             {pair.type}
                           </span>
                         </td>
+
                         <td className="px-3 py-2.5 align-top">
                           <p className="max-w-[260px] truncate font-medium text-gray-900" title={pair.title}>{pair.title}</p>
                           <p className="text-xs text-gray-400">{pair.categoria}</p>
                         </td>
+
                         <td className="px-3 py-2.5 align-top text-gray-600">
                           <p className="max-w-[180px] truncate" title={pair.fornecedor}>{pair.fornecedor}</p>
                         </td>
+
                         <td className="px-3 py-2.5 align-top text-xs tabular-nums text-gray-500">{fmtDate(pair.date)}</td>
+
                         <td className="px-3 py-2.5 align-top">
                           <div className="flex flex-wrap gap-2">
                             {pair.docs.map((doc) => <DocumentoLink key={doc.id} doc={doc} />)}
                           </div>
                         </td>
+
                         <td className="px-3 py-2.5 align-top">
                           <div className="flex items-center justify-center gap-1">
-                            <button onClick={() => openEditPurchase(pair)} title="Editar solicitação vinculada" className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-black">
+                            <button
+                              onClick={() => openEditPurchase(pair)}
+                              title="Editar solicitação vinculada"
+                              className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-black"
+                            >
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
+
                             {pair.docs.map((doc) => {
                               const tipo = getTipo(doc);
+
                               return (
                                 <React.Fragment key={doc.id}>
                                   {tipo === 'XML' && !isXmlVinculado(doc) && (
-                                    <button onClick={() => setVincularXml(doc)} title="Vincular XML ao PDF" className="rounded p-1 text-blue-400 hover:bg-blue-50 hover:text-blue-700">
+                                    <button
+                                      onClick={() => setVincularXml(doc)}
+                                      title="Vincular XML ao PDF"
+                                      className="rounded p-1 text-blue-400 hover:bg-blue-50 hover:text-blue-700"
+                                    >
                                       <Link2 className="h-3.5 w-3.5" />
                                     </button>
                                   )}
+
                                   {tipo === 'XML' && isXmlVinculado(doc) && (
                                     <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
                                   )}
-                                  <button onClick={() => handleDelete(doc)} title={`Deletar ${getFileName(doc)}`} className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-600">
+
+                                  <button
+                                    onClick={() => handleDelete(doc)}
+                                    title={`Deletar ${getFileName(doc)}`}
+                                    className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-600"
+                                  >
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </button>
                                 </React.Fragment>
