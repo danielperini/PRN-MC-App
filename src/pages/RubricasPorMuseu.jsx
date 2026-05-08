@@ -1,13 +1,10 @@
-// 🔥 ARQUIVO COMPLETO — COM ABA NOTURNO
-// Versão consolidada restaurada
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { TrendingUp, RefreshCw, LayoutGrid } from 'lucide-react';
+import { TrendingUp, RefreshCw, LayoutGrid, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
@@ -23,6 +20,17 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function normalizeMuseu(value) {
+  const raw = String(value || '').trim().toUpperCase();
+
+  if (!raw) return '';
+  if (raw === 'MIS') return 'MIS';
+  if (raw === 'MHAB') return 'MHAB';
+  if (raw === 'MUMO') return 'MUMO';
+
+  return raw;
+}
+
 function normalizeText(value) {
   return String(value || '')
     .normalize('NFD')
@@ -32,115 +40,509 @@ function normalizeText(value) {
 }
 
 function isRubricaNoturno(rubrica = {}) {
-  const txt = normalizeText([
+  const texto = normalizeText([
     rubrica?.rubrica,
     rubrica?.nome,
     rubrica?.descricao,
     rubrica?.grupo,
-    rubrica?.categoria
-  ].join(' '));
+    rubrica?.categoria,
+    rubrica?.centro_custo,
+    rubrica?.meta_id,
+    rubrica?.observacao_uso,
+  ].filter(Boolean).join(' '));
 
-  return txt.includes('noturno');
+  return texto.includes('noturno');
 }
 
-function KpiCard({ label, value, helper }) {
+function isRubricaValida(rubrica = {}) {
+  const texto = normalizeText([
+    rubrica?.rubrica,
+    rubrica?.nome,
+    rubrica?.descricao,
+    rubrica?.grupo,
+    rubrica?.categoria,
+    rubrica?.centro_custo,
+    rubrica?.meta_id,
+  ].filter(Boolean).join(' '));
+
+  if (
+    texto.includes('coordenador') ||
+    texto.includes('coordenacao') ||
+    texto.includes('coord ') ||
+    texto.includes('coord.') ||
+    texto.includes('assistente') ||
+    texto.includes('analista') ||
+    texto.includes('equipe') ||
+    texto.includes('gestao') ||
+    texto.includes('administrativo') ||
+    texto.includes('adm ') ||
+    texto.includes('adm.') ||
+    texto.includes('consultoria') ||
+    texto.includes('consultorias') ||
+    texto.includes('juridico') ||
+    texto.includes('contador') ||
+    texto.includes('contabilidade') ||
+    texto.includes('energia eletrica') ||
+    texto.includes('material escritorio') ||
+    texto.includes('educador') ||
+    texto.includes('educadora') ||
+    texto.includes('educadores') ||
+    texto.includes('diaria educador') ||
+    texto.includes('diarias educador') ||
+    texto.includes('diárias educador') ||
+    texto.includes('diaria de educador') ||
+    texto.includes('diarias de educador')
+  ) {
+    return false;
+  }
+
   return (
-    <Card className="rounded-2xl border-gray-200 shadow-sm">
+    texto.includes('mis') ||
+    texto.includes('mhab') ||
+    texto.includes('mumo') ||
+    texto.includes('3 museus') ||
+    texto.includes('museus pbh') ||
+    texto.includes('producao') ||
+    texto.includes('programacao') ||
+    texto.includes('oficina') ||
+    texto.includes('educativ') ||
+    texto.includes('mediacao') ||
+    texto.includes('monitor') ||
+    texto.includes('recepcao') ||
+    texto.includes('mostra') ||
+    texto.includes('exposicao') ||
+    texto.includes('apresentac') ||
+    texto.includes('cache') ||
+    texto.includes('cultural') ||
+    texto.includes('montagem') ||
+    texto.includes('desmontagem') ||
+    texto.includes('locacao') ||
+    texto.includes('equipamento') ||
+    texto.includes('som') ||
+    texto.includes('iluminacao') ||
+    texto.includes('infraestrutura') ||
+    texto.includes('cenografia') ||
+    texto.includes('expografia') ||
+    texto.includes('material') ||
+    texto.includes('impressao') ||
+    texto.includes('sinalizacao') ||
+    texto.includes('lanche') ||
+    texto.includes('buffet') ||
+    texto.includes('alimentacao') ||
+    texto.includes('transporte') ||
+    texto.includes('vans') ||
+    texto.includes('comunicacao') ||
+    texto.includes('imprensa') ||
+    texto.includes('rede social') ||
+    texto.includes('redes sociais') ||
+    texto.includes('marketing') ||
+    texto.includes('designer') ||
+    texto.includes('fotografo') ||
+    texto.includes('video') ||
+    texto.includes('grafico') ||
+    texto.includes('graficos') ||
+    texto.includes('servicos graficos') ||
+    texto.includes('seguranca') ||
+    texto.includes('limpeza') ||
+    texto.includes('noturno')
+  );
+}
+
+function extractResumoMapFromSource(source) {
+  const result = {};
+
+  if (!source) return result;
+
+  const totaisPorMuseu = source?.totais_por_museu;
+  if (totaisPorMuseu && typeof totaisPorMuseu === 'object' && !Array.isArray(totaisPorMuseu)) {
+    Object.entries(totaisPorMuseu).forEach(([key, dados]) => {
+      const museu = normalizeMuseu(key);
+      if (!MUSEUS.includes(museu)) return;
+
+      result[museu] = {
+        museu,
+        totalOrcado: toNumber(dados?.totalOrcado),
+        totalUtilizado: toNumber(dados?.totalUtilizado),
+        totalPago: toNumber(dados?.totalPago),
+        totalLancamentos: toNumber(dados?.totalLancamentos),
+        totalSaldo: toNumber(dados?.totalSaldo),
+        pct: dados?.pct !== undefined && dados?.pct !== null ? toNumber(dados.pct) : null
+      };
+    });
+  }
+
+  const sumarioPorMuseu = source?.sumario_por_museu || source?.sumario?.sumario_por_museu || [];
+
+  if (Array.isArray(sumarioPorMuseu)) {
+    sumarioPorMuseu.forEach((item) => {
+      const museu = normalizeMuseu(item?.museu);
+      if (!MUSEUS.includes(museu)) return;
+
+      result[museu] = {
+        museu,
+        totalOrcado: toNumber(item?.valor_orcado),
+        totalUtilizado: toNumber(item?.valor_utilizado),
+        totalPago: toNumber(item?.valor_pago),
+        totalLancamentos: toNumber(item?.valor_lancamentos),
+        totalSaldo: toNumber(item?.saldo),
+        pct: toNumber(item?.valor_orcado) > 0
+          ? Number(((toNumber(item?.valor_utilizado) / toNumber(item?.valor_orcado)) * 100).toFixed(2))
+          : 0
+      };
+    });
+  }
+
+  return result;
+}
+
+function extractResumoMapFromRubricas(source) {
+  const result = {};
+
+  if (!source?.por_museu || typeof source.por_museu !== 'object') return result;
+
+  MUSEUS.forEach((museu) => {
+    const categorias = source.por_museu?.[museu];
+    if (!categorias || typeof categorias !== 'object') return;
+
+    const acc = {
+      museu,
+      totalOrcado: 0,
+      totalUtilizado: 0,
+      totalPago: 0,
+      totalLancamentos: 0,
+      totalSaldo: 0,
+      pct: 0,
+    };
+
+    Object.entries(categorias).forEach(([catKey, rubricas]) => {
+      const cat = normalizeText(catKey);
+
+      if (
+        cat.includes('equipe') ||
+        cat.includes('educador') ||
+        cat.includes('diarias_educador') ||
+        cat.includes('diarias educador') ||
+        cat.includes('diárias educador') ||
+        cat.includes('coordenacao') ||
+        cat.includes('gestao') ||
+        cat.includes('administrativo') ||
+        cat.includes('consultoria')
+      ) {
+        return;
+      }
+
+      (Array.isArray(rubricas) ? rubricas : [])
+        .filter(isRubricaValida)
+        .forEach((rubrica) => {
+          const totalOrcado = toNumber(rubrica?.totalOrcado ?? rubrica?.valor_rubrica);
+          const totalUtilizado = toNumber(rubrica?.valorUtilizado ?? rubrica?.valor_utilizado);
+          const totalPago = toNumber(rubrica?.valorPago ?? rubrica?.valor_pago);
+          const totalLancamentos = toNumber(rubrica?.valorLancamentos ?? rubrica?.valor_lancamentos);
+          const totalSaldo = rubrica?.saldo !== undefined && rubrica?.saldo !== null
+            ? toNumber(rubrica.saldo)
+            : totalOrcado - totalUtilizado;
+
+          acc.totalOrcado += totalOrcado;
+          acc.totalUtilizado += totalUtilizado;
+          acc.totalPago += totalPago;
+          acc.totalLancamentos += totalLancamentos;
+          acc.totalSaldo += totalSaldo;
+        });
+    });
+
+    acc.totalOrcado = Number(acc.totalOrcado.toFixed(2));
+    acc.totalUtilizado = Number(acc.totalUtilizado.toFixed(2));
+    acc.totalPago = Number(acc.totalPago.toFixed(2));
+    acc.totalLancamentos = Number(acc.totalLancamentos.toFixed(2));
+    acc.totalSaldo = Number(acc.totalSaldo.toFixed(2));
+    acc.pct = acc.totalOrcado > 0
+      ? Number(((acc.totalUtilizado / acc.totalOrcado) * 100).toFixed(2))
+      : 0;
+
+    result[museu] = acc;
+  });
+
+  return result;
+}
+
+class SafeBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, errorMessage: '' };
+  }
+
+  static getDerivedStateFromError(error) {
+    return {
+      hasError: true,
+      errorMessage: error?.message || 'Erro interno ao carregar esta seção.',
+    };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('Erro em RubricasPorMuseu:', error, info);
+  }
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false, errorMessage: '' });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold">Não foi possível carregar esta aba.</p>
+              <p className="text-sm mt-1">
+                {this.state.errorMessage}
+              </p>
+              <p className="text-xs mt-2 text-amber-700">
+                A página principal foi preservada para evitar tela branca. Verifique o componente RubricasMuseuEditor ou a resposta das functions.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+function KpiCard({ label, value, helper, dark = false }) {
+  return (
+    <div
+      className={`rounded-2xl border p-5 shadow-sm min-w-0 ${
+        dark
+          ? 'bg-black border-black text-white shadow-md'
+          : 'bg-white border-gray-200 text-black hover:shadow-md transition-shadow'
+      }`}
+    >
+      <p className={`text-[11px] uppercase tracking-wide font-semibold ${dark ? 'text-gray-300' : 'text-gray-500'}`}>
+        {label}
+      </p>
+      <p className={`text-3xl font-bold mt-3 leading-tight truncate ${dark ? 'text-white' : 'text-black'}`}>
+        {value}
+      </p>
+      {helper && (
+        <p className={`text-xs mt-1 truncate ${dark ? 'text-gray-300' : 'text-gray-500'}`}>
+          {helper}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function MuseuResumoCard({ item, active, onClick, fmt, fmtPct }) {
+  const progressWidth = `${Math.min(toNumber(item.pct), 100)}%`;
+
+  return (
+    <Card
+      className={`cursor-pointer transition-all rounded-2xl shadow-sm ${
+        active
+          ? 'border-black bg-black text-white shadow-md'
+          : 'border-gray-200 bg-white hover:border-black hover:shadow-md'
+      }`}
+      onClick={onClick}
+    >
       <CardContent className="p-5">
-        <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-500">
-          {label}
-        </p>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <p className={`text-[11px] font-semibold uppercase tracking-wide ${active ? 'text-gray-300' : 'text-gray-500'}`}>
+              Museu
+            </p>
+            <h2 className={`text-3xl font-bold leading-tight mt-1 ${active ? 'text-white' : 'text-black'}`}>
+              {item.museu}
+            </h2>
+          </div>
 
-        <p className="text-3xl font-bold mt-3 leading-tight text-black">
-          {value}
-        </p>
+          <div className="text-right">
+            <p className={`text-[11px] uppercase tracking-wide font-semibold ${active ? 'text-gray-300' : 'text-gray-500'}`}>
+              Execução
+            </p>
+            <p className={`text-2xl font-bold mt-1 ${active ? 'text-white' : 'text-black'}`}>
+              {fmtPct(item.pct)}
+            </p>
+          </div>
+        </div>
 
-        {helper && (
-          <p className="text-xs mt-1 text-gray-500">
-            {helper}
-          </p>
-        )}
+        <div className={`w-full h-1 rounded-full overflow-hidden mb-4 ${active ? 'bg-white/20' : 'bg-gray-100'}`}>
+          <div
+            className={`h-1 rounded-full transition-all ${active ? 'bg-white' : 'bg-black'}`}
+            style={{ width: progressWidth }}
+          />
+        </div>
+
+        <div className="space-y-3 text-xs">
+          <div className={`flex justify-between ${active ? 'text-gray-300' : 'text-gray-500'}`}>
+            <span>Previsto</span>
+            <span className={`font-semibold ${active ? 'text-white' : 'text-black'}`}>{fmt(item.totalOrcado)}</span>
+          </div>
+
+          <div className={`flex justify-between ${active ? 'text-gray-300' : 'text-gray-500'}`}>
+            <span>Pago</span>
+            <span className={`font-semibold ${active ? 'text-white' : 'text-black'}`}>{fmt(item.totalPago)}</span>
+          </div>
+
+          <div className={`flex justify-between ${active ? 'text-gray-300' : 'text-gray-500'}`}>
+            <span>Utilizado</span>
+            <span className={`font-semibold ${active ? 'text-white' : 'text-black'}`}>{fmt(item.totalUtilizado)}</span>
+          </div>
+
+          <div className={`flex justify-between border-t pt-3 mt-3 ${active ? 'border-white/20 text-gray-300' : 'border-gray-100 text-gray-500'}`}>
+            <span className="font-semibold">Saldo</span>
+            <span className={`font-bold ${active ? 'text-white' : item.totalSaldo < 0 ? 'text-red-600' : 'text-black'}`}>
+              {fmt(item.totalSaldo)}
+            </span>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
 }
 
+function EditorAba({ aba, canEdit, refreshNonce }) {
+  if (aba === 'NOTURNO') {
+    return (
+      <RubricasMuseuEditor
+        key={`NOTURNO-${refreshNonce}`}
+        museu="GERAL"
+        canEdit={canEdit}
+        refreshKey={refreshNonce}
+        rubricaFilter={isRubricaNoturno}
+      />
+    );
+  }
+
+  return (
+    <RubricasMuseuEditor
+      key={`${aba}-${refreshNonce}`}
+      museu={aba}
+      canEdit={canEdit}
+      refreshKey={refreshNonce}
+      rubricaFilter={isRubricaValida}
+    />
+  );
+}
+
 export default function RubricasPorMuseu() {
   const [abaAtiva, setAbaAtiva] = useState('MHAB');
+  const [showGerenciar, setShowGerenciar] = useState(false);
   const [showCardEditor, setShowCardEditor] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [userPermission, setUserPermission] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
-
+  const [lastRecalcResponse, setLastRecalcResponse] = useState(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    base44.auth.me().then(setCurrentUser).catch(() => {});
+    let active = true;
+
+    base44.auth
+      .me()
+      .then(async (user) => {
+        if (!active) return;
+
+        setCurrentUser(user || null);
+
+        if (user?.email && base44?.entities?.UserPermission?.filter) {
+          try {
+            const perms = await base44.entities.UserPermission.filter({ user_email: user.email });
+            if (active) setUserPermission(perms?.[0] || null);
+          } catch (error) {
+            console.warn('Permissões indisponíveis em RubricasPorMuseu:', error);
+            if (active) setUserPermission(null);
+          }
+        }
+      })
+      .catch((error) => {
+        console.warn('Usuário indisponível em RubricasPorMuseu:', error);
+        if (active) setCurrentUser(null);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const isCoordenador =
-    currentUser &&
-    ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
+  const isCoordenador = currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
 
-  const { data: consolidado = {} } = useQuery({
+  const canEdit =
+    isCoordenador ||
+    userPermission?.pode_gerenciar_rubricas ||
+    userPermission?.gestao_compras;
+
+  const { data: consolidado = {}, refetch: refetchConsolidado, isError: consolidadoError } = useQuery({
     queryKey: ['rubricas-consolidadas', refreshNonce],
     queryFn: async () => {
-      const res = await base44.functions.invoke(
-        'getRubricasConsolidadas',
-        {}
-      );
-
-      return res?.data || {};
+      try {
+        if (!base44?.functions?.invoke) return {};
+        const res = await base44.functions.invoke('getRubricasConsolidadas', {});
+        return res?.data || {};
+      } catch (error) {
+        console.warn('getRubricasConsolidadas indisponível:', error);
+        return {};
+      }
     },
     staleTime: 0,
     gcTime: 0,
+    refetchOnWindowFocus: true
   });
 
   const resumoPorMuseu = useMemo(() => {
+    const baseRubricasMap = extractResumoMapFromRubricas(consolidado);
+    const recalcRubricasMap = extractResumoMapFromRubricas(lastRecalcResponse);
+    const baseMap = Object.keys(baseRubricasMap).length > 0
+      ? baseRubricasMap
+      : extractResumoMapFromSource(consolidado);
+    const recalcMap = Object.keys(recalcRubricasMap).length > 0
+      ? recalcRubricasMap
+      : extractResumoMapFromSource(lastRecalcResponse);
+    const merged = { ...baseMap, ...recalcMap };
+
     return MUSEUS.map((m) => {
-      const categorias = consolidado?.por_museu?.[m] || {};
-
-      let totalOrcado = 0;
-      let totalUtilizado = 0;
-      let totalSaldo = 0;
-
-      Object.values(categorias).forEach((items) => {
-        if (!Array.isArray(items)) return;
-
-        items.forEach((item) => {
-          totalOrcado += toNumber(item?.totalOrcado);
-          totalUtilizado += toNumber(item?.valorUtilizado);
-          totalSaldo += toNumber(item?.saldo);
-        });
-      });
+      const dados = merged[m] || {};
+      const totalOrcado = toNumber(dados.totalOrcado);
+      const totalUtilizado = toNumber(dados.totalUtilizado);
+      const totalPago = toNumber(dados.totalPago);
+      const totalLancamentos = toNumber(dados.totalLancamentos);
+      const totalSaldo = toNumber(dados.totalSaldo);
 
       const pct =
-        totalOrcado > 0
-          ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(1))
-          : 0;
+        dados.pct !== undefined && dados.pct !== null
+          ? toNumber(dados.pct)
+          : totalOrcado > 0
+            ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(2))
+            : 0;
 
-      return {
-        museu: m,
-        totalOrcado,
-        totalUtilizado,
-        totalSaldo,
-        pct,
-      };
+      return { museu: m, totalOrcado, totalUtilizado, totalPago, totalLancamentos, totalSaldo, pct };
     });
-  }, [consolidado]);
+  }, [consolidado, lastRecalcResponse]);
+
+  const fmt = (v) =>
+    toNumber(v).toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      maximumFractionDigits: 0
+    });
+
+  const fmtPct = (v) => `${Number(v || 0).toFixed(1)}%`;
 
   const totaisGerais = useMemo(() => {
     return resumoPorMuseu.reduce(
       (acc, item) => {
-        acc.totalOrcado += item.totalOrcado;
-        acc.totalUtilizado += item.totalUtilizado;
-        acc.totalSaldo += item.totalSaldo;
+        acc.totalOrcado += toNumber(item.totalOrcado);
+        acc.totalUtilizado += toNumber(item.totalUtilizado);
+        acc.totalPago += toNumber(item.totalPago);
+        acc.totalLancamentos += toNumber(item.totalLancamentos);
+        acc.totalSaldo += toNumber(item.totalSaldo);
         return acc;
       },
-      {
-        totalOrcado: 0,
-        totalUtilizado: 0,
-        totalSaldo: 0,
-      }
+      { totalOrcado: 0, totalUtilizado: 0, totalPago: 0, totalLancamentos: 0, totalSaldo: 0 }
     );
   }, [resumoPorMuseu]);
 
@@ -149,128 +551,207 @@ export default function RubricasPorMuseu() {
       ? (totaisGerais.totalUtilizado / totaisGerais.totalOrcado) * 100
       : 0;
 
-  const fmt = (v) =>
-    toNumber(v).toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      maximumFractionDigits: 0,
+  const refreshAllRubricaData = async () => {
+    await queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = Array.isArray(query.queryKey)
+          ? query.queryKey.join('|').toLowerCase()
+          : String(query.queryKey || '').toLowerCase();
+
+        return (
+          key.includes('rubrica') ||
+          key.includes('budget') ||
+          key.includes('compra') ||
+          key.includes('purchase') ||
+          key.includes('museu')
+        );
+      }
     });
 
-  const fmtPct = (v) => `${Number(v || 0).toFixed(1)}%`;
+    try {
+      await refetchConsolidado();
+    } catch (error) {
+      console.warn('Erro ao recarregar consolidado:', error);
+    }
+
+    setRefreshNonce((prev) => prev + 1);
+  };
 
   const handleRefresh = async () => {
+    setIsRefreshing(true);
+
     try {
-      await base44.functions.invoke('recalculateAllRubricas', {});
-      await queryClient.invalidateQueries();
+      let data = null;
 
-      setRefreshNonce((prev) => prev + 1);
+      try {
+        if (base44?.functions?.invoke) {
+          const res = await base44.functions.invoke('recalculateAllRubricas', {
+            trigger: 'manual_refresh_rubricas_por_museu'
+          });
+          data = res?.data || null;
+        }
+      } catch (error) {
+        console.warn('recalculateAllRubricas indisponível:', error);
+      }
 
-      toast.success('Rubricas atualizadas');
+      setLastRecalcResponse(data);
+      await refreshAllRubricaData();
+
+      const inconsistencias =
+        toNumber(data?.sumario?.compras_pagas_nao_vinculadas) +
+        toNumber(data?.sumario?.compras_inconsistentes_museu) +
+        toNumber(data?.sumario?.lancamentos_sem_rubrica) +
+        toNumber(data?.sumario?.lancamentos_inconsistentes_museu);
+
+      if (inconsistencias > 0) {
+        toast.warning(`Recalculo concluído com ${inconsistencias} inconsistência(s) detectada(s)`);
+      } else if (data) {
+        toast.success('Rubricas recalculadas e tela atualizada com sucesso');
+      } else {
+        toast.warning('Tela atualizada. Recalculo backend indisponível no momento.');
+      }
     } catch (e) {
+      toast.error('Erro ao atualizar rubricas');
       console.error(e);
-      toast.error('Erro ao recalcular rubricas');
+    } finally {
+      setIsRefreshing(false);
     }
   };
+
+  const resumoAtivo = resumoPorMuseu.find((item) => item.museu === abaAtiva);
 
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-6">
-
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-semibold text-black flex items-center gap-2">
-              <TrendingUp className="w-6 h-6" />
+            <h1 className="text-3xl font-semibold text-black tracking-tight flex items-center gap-2">
+              <TrendingUp className="w-6 h-6 text-black" />
               Rubricas por Museu
             </h1>
-
-            <p className="text-gray-500 text-sm">
+            <p className="text-gray-500 mt-1 text-sm">
               Acompanhamento orçamentário consolidado por museu.
             </p>
           </div>
 
           <div className="flex gap-2 flex-wrap">
-            <Button onClick={handleRefresh} variant="outline">
-              <RefreshCw className="w-4 h-4 mr-2" />
+            <Button
+              variant="outline"
+              className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               Recalcular
             </Button>
 
             {isCoordenador && (
-              <Button
-                variant="outline"
-                onClick={() => setShowCardEditor(true)}
-              >
-                <LayoutGrid className="w-4 h-4 mr-2" />
-                Editor
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl"
+                  onClick={() => setShowGerenciar(true)}
+                >
+                  Gerenciar
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl"
+                  onClick={() => setShowCardEditor(true)}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                  Editor de Cards
+                </Button>
+              </>
             )}
           </div>
         </div>
+
+        {consolidadoError && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            O consolidado financeiro não respondeu, mas a página foi preservada para evitar tela branca.
+          </div>
+        )}
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiCard
             label="Execução geral"
             value={fmtPct(percentualGeral)}
             helper="utilizado sobre previsto"
+            dark
           />
-
-          <KpiCard
-            label="Previsto"
-            value={fmt(totaisGerais.totalOrcado)}
-            helper="soma dos museus"
-          />
-
-          <KpiCard
-            label="Utilizado"
-            value={fmt(totaisGerais.totalUtilizado)}
-            helper="compras e lançamentos"
-          />
-
-          <KpiCard
-            label="Saldo"
-            value={fmt(totaisGerais.totalSaldo)}
-            helper="saldo disponível"
-          />
+          <KpiCard label="Previsto" value={fmt(totaisGerais.totalOrcado)} helper="soma dos museus" />
+          <KpiCard label="Utilizado" value={fmt(totaisGerais.totalUtilizado)} helper="pagos e lançamentos" />
+          <KpiCard label="Saldo" value={fmt(totaisGerais.totalSaldo)} helper="saldo disponível" />
         </div>
 
-        <Tabs value={abaAtiva} onValueChange={setAbaAtiva}>
-
-          <TabsList className="grid grid-cols-4 bg-gray-100 rounded-xl p-1">
-            {ABAS.map((m) => (
-              <TabsTrigger
-                key={m}
-                value={m}
-                className="text-xs font-semibold rounded-lg data-[state=active]:bg-black data-[state=active]:text-white"
-              >
-                {m}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-
-          {MUSEUS.map((m) => (
-            <TabsContent key={m} value={m} className="p-4">
-              <RubricasMuseuEditor
-                museu={m}
-                refreshKey={refreshNonce}
-              />
-            </TabsContent>
-          ))}
-
-          <TabsContent value="NOTURNO" className="p-4">
-            <RubricasMuseuEditor
-              museu="GERAL"
-              refreshKey={refreshNonce}
-              rubricaFilter={isRubricaNoturno}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {resumoPorMuseu.map((item) => (
+            <MuseuResumoCard
+              key={item.museu}
+              item={item}
+              active={abaAtiva === item.museu}
+              onClick={() => setAbaAtiva(item.museu)}
+              fmt={fmt}
+              fmtPct={fmtPct}
             />
-          </TabsContent>
+          ))}
+        </div>
 
-        </Tabs>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-base font-semibold text-black">
+                {abaAtiva === 'NOTURNO' ? 'Rubricas do Noturno' : 'Detalhamento por Museu'}
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {abaAtiva === 'NOTURNO'
+                  ? 'Visualização das rubricas relacionadas ao Noturno nos Museus.'
+                  : 'Visualização e edição das rubricas operacionais, específicas e rateáveis.'}
+              </p>
+              {abaAtiva !== 'NOTURNO' && resumoAtivo && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {abaAtiva}: previsto {fmt(resumoAtivo.totalOrcado)} · utilizado {fmt(resumoAtivo.totalUtilizado)} · saldo {fmt(resumoAtivo.totalSaldo)}
+                </p>
+              )}
+            </div>
 
-        <GerenciarRubricasMuseuDialog />
+            <Tabs value={abaAtiva} onValueChange={setAbaAtiva}>
+              <TabsList className="grid grid-cols-4 bg-gray-100 rounded-xl p-1 w-[340px]">
+                {ABAS.map((m) => (
+                  <TabsTrigger
+                    key={m}
+                    value={m}
+                    className="text-xs font-semibold rounded-lg data-[state=active]:bg-black data-[state=active]:text-white"
+                  >
+                    {m}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
+
+          <Tabs value={abaAtiva} onValueChange={setAbaAtiva}>
+            {ABAS.map((aba) => (
+              <TabsContent key={`${aba}-${refreshNonce}`} value={aba} className="m-0 p-4 bg-white">
+                <SafeBoundary resetKey={`${aba}-${refreshNonce}`}>
+                  <EditorAba aba={aba} canEdit={canEdit} refreshNonce={refreshNonce} />
+                </SafeBoundary>
+              </TabsContent>
+            ))}
+          </Tabs>
+        </div>
+
+        <GerenciarRubricasMuseuDialog
+          open={showGerenciar}
+          onClose={() => setShowGerenciar(false)}
+        />
+
         <CardRubricaEditor
           open={showCardEditor}
           onClose={() => setShowCardEditor(false)}
         />
-
       </div>
     </div>
   );
