@@ -17,6 +17,7 @@ import Dashboard from './pages/Dashboard';
 import DashboardFinanceiro from './pages/DashboardFinanceiro';
 import DashboardProfissional from './pages/DashboardProfissional';
 import Fornecedores from './pages/Fornecedores';
+import GaleriaFotos from './pages/GaleriaFotos';
 import GeradorListaPresenca from './pages/GeradorListaPresenca';
 import GeradorTermoCompromisso from './pages/GeradorTermoCompromisso';
 import GestaoDocumental from './pages/GestaoDocumental';
@@ -44,15 +45,10 @@ import Rubricas from './pages/Rubricas';
 import RubricasPorMuseu from './pages/RubricasPorMuseu';
 import UserManagement from './pages/UserManagement';
 import ViadutoMap from './pages/ViadutoMap';
-// NOTE: Perfil is handled as explicit route in App.jsx, not in pages.config
-// NOTE: GaleriaFotos removida temporariamente do pages.config para desbloquear build.
-// A página será reativada após restauração validada do export default.
+
+// NOTE: Perfil is handled as explicit route in App.jsx
 
 import __Layout from './Layout.jsx';
-
-function GaleriaFotos() {
-  return null;
-}
 
 export const PAGES = {
   ActivityLog,
