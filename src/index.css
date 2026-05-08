@@ -6,625 +6,214 @@
   :root {
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
+
     --card: 0 0% 100%;
     --card-foreground: 0 0% 3.9%;
+
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
+
     --primary: 0 0% 9%;
     --primary-foreground: 0 0% 98%;
+
     --secondary: 0 0% 96.1%;
     --secondary-foreground: 0 0% 9%;
+
     --muted: 0 0% 96.1%;
     --muted-foreground: 0 0% 45.1%;
+
     --accent: 0 0% 96.1%;
     --accent-foreground: 0 0% 9%;
+
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
+
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
     --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-    
-    /* Variáveis de tema padrão */
-    --cor-primaria: #111111;
-    --cor-secundaria: #6b7280;
-    --cor-sucesso: #10b981;
-    --cor-alerta: #f59e0b;
-    --cor-fundo: #f8fafc;
-    --cor-fundo-secundario: #f3f4f6;
-    --cor-texto: #0f172a;
-    --cor-texto-secundario: #6b7280;
-    --cor-card: #ffffff;
-    --cor-destaque: #1e293b;
-    --cor-borda: #e2e8f0;
-    --cor-borda-clara: #e2e8f0;
-    --cor-nav: #ffffff;
-    --cor-nav-texto: #1e293b;
-    --cor-btn-primario: #111111;
-    --cor-btn-primario-texto: #ffffff;
-    --cor-btn-primario-hover: #374151;
-    --cor-accent: #3b82f6;
-  }
 
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-}
-
-
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
+    --radius: 0.75rem;
   }
 
   body {
     @apply bg-background text-foreground;
   }
+
+  * {
+    border-color: hsl(var(--border));
+  }
 }
 
-/* ====== Sistema de Temas ====== */
-:root {
-  --cor-primaria: 0 0% 9%;
-  --cor-secundaria: 0 0% 42%;
-  --cor-fundo: 0 0% 98%;
-  --cor-texto: 240 9% 6%;
-  --cor-card: 0 0% 100%;
-  --cor-destaque: 240 6% 10%;
-  --cor-borda: 220 13% 91%;
-  --cor-nav: 0 0% 100%;
-  --cor-nav-texto: 240 6% 10%;
-  --cor-btn-primario: 0 0% 9%;
-  --cor-btn-primario-texto: 0 0% 98%;
-  --cor-btn-primario-hover: 0 0% 27%;
-  --cor-accent: 217 92% 58%;
+/* ===================================== */
+/* THEME NUIT */
+/* ===================================== */
+
+[data-theme="nuit"] {
+  --background: 240 10% 3%;
+  --foreground: 0 0% 96%;
+
+  --card: 240 6% 8%;
+  --card-foreground: 0 0% 96%;
+
+  --popover: 240 6% 8%;
+  --popover-foreground: 0 0% 96%;
+
+  --primary: 0 0% 100%;
+  --primary-foreground: 240 10% 3%;
+
+  --secondary: 240 5% 14%;
+  --secondary-foreground: 0 0% 96%;
+
+  --muted: 240 5% 14%;
+  --muted-foreground: 240 5% 70%;
+
+  --accent: 240 5% 14%;
+  --accent-foreground: 0 0% 96%;
+
+  --destructive: 0 72% 50%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 240 4% 18%;
+  --input: 240 4% 18%;
+  --ring: 240 5% 84%;
+
+  --sidebar-background: #050505;
+  --sidebar-foreground: #ffffff;
+  --sidebar-border: #27272a;
+
+  color-scheme: dark;
 }
 
-/* Tema Museu BH */
-[data-theme="museubh"] {
-  --cor-primaria: #2E6F95;
-  --cor-secundaria: #5FA8D3;
-  --cor-fundo: #F5F5F5;
-  --cor-fundo-secundario: #F5F5F5;
-  --cor-texto: #111111;
-  --cor-texto-secundario: #6b7280;
-  --cor-card: #FFFFFF;
-  --cor-destaque: #7A1E2C;
-  --cor-borda: #D9C6A5;
-  --cor-borda-clara: #D9C6A5;
-  --cor-nav: #2E6F95;
-  --cor-nav-texto: #FFFFFF;
-  --cor-btn-primario: #2E6F95;
-  --cor-btn-primario-texto: #FFFFFF;
-  --cor-btn-primario-hover: #1d5a7a;
-  --cor-accent: #5FA8D3;
-  
-  /* Cores de status */
-  --cor-sucesso: #10b981;
-  --cor-sucesso-light: #d1fae5;
-  --cor-alerta: #f59e0b;
-  --cor-alerta-light: #fef3c7;
-  --cor-erro: #ef4444;
-  --cor-erro-light: #fee2e2;
-  --cor-info: #3b82f6;
-  --cor-info-light: #dbeafe;
-  
-  /* Sidebar */
-  --sidebar-background: #111111;
-  --sidebar-foreground: #FFFFFF;
-  --sidebar-primary: #2E6F95;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #2B2F42;
-  --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #333333;
+[data-theme="nuit"] body,
+[data-theme="nuit"] #root {
+  background: #050505 !important;
+  color: #f5f5f5 !important;
 }
 
-/* Tema Miro */
-[data-theme="miro"] {
-  --cor-primaria: #4262FF;
-  --cor-secundaria: #FFD02F;
-  --cor-sucesso: #2ECC71;
-  --cor-alerta: #FF5C5C;
-  --cor-erro: #FF5C5C;
-  --cor-fundo: #F5F6FA;
-  --cor-fundo-secundario: #F5F6FA;
-  --cor-texto: #2B2D42;
-  --cor-texto-secundario: #A0A4B8;
-  --cor-card: #FFFFFF;
-  --cor-destaque: #FF5C5C;
-  --cor-borda: #E6E8F0;
-  --cor-borda-clara: #E6E8F0;
-  --cor-nav: #4262FF;
-  --cor-nav-texto: #FFFFFF;
-  --cor-btn-primario: #4262FF;
-  --cor-btn-primario-texto: #FFFFFF;
-  --cor-btn-primario-hover: #314BC2;
-  --cor-accent: #FFD02F;
-  
-  /* Sidebar escuro Miro */
-  --sidebar-background: #111111;
-  --sidebar-foreground: #FFFFFF;
-  --sidebar-primary: #7A1E2C;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #2B2F42;
-  --sidebar-accent-foreground: #E6E8F0;
-  --sidebar-border: #333333;
-}
+/* backgrounds */
 
-/* Aplicações globais do Tema Miro */
-[data-theme="miro"] .bg-slate-50,
-[data-theme="miro"] .bg-gray-50,
-[data-theme="miro"] .bg-white {
-  background-color: var(--cor-fundo) !important;
-}
-
-[data-theme="miro"] .text-slate-900,
-[data-theme="miro"] .text-gray-900,
-[data-theme="miro"] .text-black {
-  color: var(--cor-texto) !important;
-}
-
-[data-theme="miro"] .border-gray-200,
-[data-theme="miro"] .border-slate-200 {
-  border-color: var(--cor-borda) !important;
-}
-
-[data-theme="miro"] .bg-blue-600,
-[data-theme="miro"] .bg-blue-500,
-[data-theme="miro"] .bg-primary {
-  background-color: var(--cor-primaria) !important;
-}
-
-[data-theme="miro"] .text-blue-600 {
-  color: var(--cor-primaria) !important;
-}
-
-[data-theme="miro"] .bg-green-50,
-[data-theme="miro"] .bg-green-100 {
-  background-color: rgba(46, 204, 113, 0.1) !important;
-}
-
-[data-theme="miro"] .text-green-700,
-[data-theme="miro"] .text-green-600 {
-  color: var(--cor-sucesso) !important;
-}
-
-[data-theme="miro"] .bg-red-50,
-[data-theme="miro"] .bg-red-100 {
-  background-color: rgba(255, 92, 92, 0.1) !important;
-}
-
-[data-theme="miro"] .text-red-600,
-[data-theme="miro"] .text-red-700 {
-  color: var(--cor-alerta) !important;
-}
-
-[data-theme="miro"] .bg-yellow-50,
-[data-theme="miro"] .bg-yellow-100 {
-  background-color: rgba(255, 208, 47, 0.1) !important;
-}
-
-[data-theme="miro"] .text-yellow-600 {
-  color: var(--cor-secundaria) !important;
-}
-
-/* ===== TEMA MIRO - GLOBAL ===== */
-
-/* Sidebar e backgrounds escuros */
-[data-theme="miro"] .bg-slate-900,
-[data-theme="miro"] .bg-gray-900 {
+[data-theme="nuit"] .bg-white,
+[data-theme="nuit"] .bg-background,
+[data-theme="nuit"] .bg-card,
+[data-theme="nuit"] .bg-popover,
+[data-theme="nuit"] .bg-muted,
+[data-theme="nuit"] .bg-gray-50,
+[data-theme="nuit"] .bg-gray-100,
+[data-theme="nuit"] .bg-slate-50,
+[data-theme="nuit"] .bg-slate-100 {
   background-color: #111111 !important;
 }
 
-[data-theme="miro"] .bg-slate-800,
-[data-theme="miro"] .bg-gray-800,
-[data-theme="miro"] .hover\:bg-slate-800:hover,
-[data-theme="miro"] .hover\:bg-gray-800:hover {
-  background-color: #1a1a1a !important;
-}
-
-[data-theme="miro"] .bg-slate-700,
-[data-theme="miro"] .hover\:bg-slate-700:hover {
-  background-color: #333333 !important;
-}
-
-/* Bordas */
-[data-theme="miro"] .border-slate-800,
-[data-theme="miro"] .border-gray-800 {
-  border-color: #333333 !important;
-}
-
-[data-theme="miro"] .border-slate-700,
-[data-theme="miro"] .border-gray-700 {
-  border-color: #2B2F42 !important;
-}
-
-/* Backgrounds claros */
-[data-theme="miro"] .bg-slate-50,
-[data-theme="miro"] .bg-gray-50 {
-  background-color: #F5F6FA !important;
-}
-
-[data-theme="miro"] .bg-white,
-[data-theme="miro"] .bg-slate-100,
-[data-theme="miro"] .bg-gray-100 {
-  background-color: #FFFFFF !important;
-}
-
-/* Textos */
-[data-theme="miro"] .text-slate-900,
-[data-theme="miro"] .text-gray-900,
-[data-theme="miro"] .text-black {
-  color: #2B2D42 !important;
-}
-
-[data-theme="miro"] .text-slate-800,
-[data-theme="miro"] .text-gray-800 {
-  color: #2B2D42 !important;
-}
-
-[data-theme="miro"] .text-slate-700,
-[data-theme="miro"] .text-gray-700 {
-  color: #4A4D5C !important;
-}
-
-[data-theme="miro"] .text-slate-600,
-[data-theme="miro"] .text-gray-600 {
-  color: #6B7280 !important;
-}
-
-[data-theme="miro"] .text-slate-500,
-[data-theme="miro"] .text-gray-500 {
-  color: #A0A4B8 !important;
-}
-
-[data-theme="miro"] .text-slate-400,
-[data-theme="miro"] .text-gray-400 {
-  color: #A0A4B8 !important;
-}
-
-[data-theme="miro"] .text-slate-300,
-[data-theme="miro"] .text-gray-300 {
-  color: #D1D5DB !important;
-}
-
-[data-theme="miro"] .text-slate-200,
-[data-theme="miro"] .text-gray-200 {
-  color: #E5E7EB !important;
-}
-
-[data-theme="miro"] .text-white {
-  color: #FFFFFF !important;
-}
-
-/* Cores primárias e secundárias */
-[data-theme="miro"] .bg-blue-600,
-[data-theme="miro"] .bg-blue-500 {
-  background-color: #4262FF !important;
-}
-
-[data-theme="miro"] .text-blue-600,
-[data-theme="miro"] .text-blue-500 {
-  color: #4262FF !important;
-}
-
-[data-theme="miro"] .hover\:bg-blue-600:hover,
-[data-theme="miro"] .hover\:bg-blue-500:hover {
-  background-color: #314BC2 !important;
-}
-
-/* Amarelo destaque */
-[data-theme="miro"] .bg-yellow-500,
-[data-theme="miro"] .bg-yellow-600,
-[data-theme="miro"] .bg-amber-500 {
-  background-color: #FFD02F !important;
-}
-
-[data-theme="miro"] .text-yellow-500,
-[data-theme="miro"] .text-yellow-600,
-[data-theme="miro"] .text-amber-500 {
-  color: #FFD02F !important;
-}
-
-/* Status: Sucesso (Verde) */
-[data-theme="miro"] .bg-green-50,
-[data-theme="miro"] .bg-green-100 {
-  background-color: rgba(46, 204, 113, 0.1) !important;
-}
-
-[data-theme="miro"] .bg-green-500,
-[data-theme="miro"] .bg-green-600 {
-  background-color: #2ECC71 !important;
-}
-
-[data-theme="miro"] .text-green-600,
-[data-theme="miro"] .text-green-700 {
-  color: #2ECC71 !important;
-}
-
-[data-theme="miro"] .border-green-200,
-[data-theme="miro"] .border-green-500 {
-  border-color: #2ECC71 !important;
-}
-
-/* Status: Alerta/Erro (Vermelho) */
-[data-theme="miro"] .bg-red-50,
-[data-theme="miro"] .bg-red-100 {
-  background-color: rgba(255, 92, 92, 0.1) !important;
-}
+/* sidebar */
 
-[data-theme="miro"] .bg-red-500,
-[data-theme="miro"] .bg-red-600 {
-  background-color: #FF5C5C !important;
+[data-theme="nuit"] aside,
+[data-theme="nuit"] .sidebar,
+[data-theme="nuit"] .bg-slate-900,
+[data-theme="nuit"] .bg-gray-900 {
+  background: #000000 !important;
+  color: #ffffff !important;
 }
 
-[data-theme="miro"] .text-red-600,
-[data-theme="miro"] .text-red-700 {
-  color: #FF5C5C !important;
-}
-
-[data-theme="miro"] .border-red-200,
-[data-theme="miro"] .border-red-500 {
-  border-color: #FF5C5C !important;
-}
-
-/* Info (Azul) */
-[data-theme="miro"] .bg-blue-50,
-[data-theme="miro"] .bg-blue-100 {
-  background-color: rgba(66, 98, 255, 0.1) !important;
-}
-
-[data-theme="miro"] .border-blue-200,
-[data-theme="miro"] .border-blue-500 {
-  border-color: #4262FF !important;
-}
-
-/* === FIM TEMA MIRO === */
-
-/* ===== TEMA MUSEU BH - GLOBAL ===== */
-
-/* Backgrounds principais */
-[data-theme="museubh"] body,
-[data-theme="museubh"] .bg-slate-50,
-[data-theme="museubh"] .bg-gray-50 {
-  background-color: #F5F5F5 !important;
-}
-
-[data-theme="museubh"] .bg-white,
-[data-theme="museubh"] .bg-slate-100,
-[data-theme="museubh"] .bg-gray-100 {
-  background-color: #FFFFFF !important;
-}
-
-/* Sidebar e backgrounds escuros */
-[data-theme="museubh"] .bg-slate-900,
-[data-theme="museubh"] .bg-gray-900 {
-  background-color: #111111 !important;
-}
-
-[data-theme="museubh"] .bg-slate-800,
-[data-theme="museubh"] .bg-gray-800,
-[data-theme="museubh"] .hover\:bg-slate-800:hover,
-[data-theme="museubh"] .hover\:bg-gray-800:hover {
-  background-color: #1a1a1a !important;
-}
-
-[data-theme="museubh"] .bg-slate-700,
-[data-theme="museubh"] .hover\:bg-slate-700:hover {
-  background-color: #2E6F95 !important;
-}
-
-/* Bordas */
-[data-theme="museubh"] .border-slate-800,
-[data-theme="museubh"] .border-gray-800 {
-  border-color: #333333 !important;
-}
-
-[data-theme="museubh"] .border-slate-200,
-[data-theme="museubh"] .border-gray-200 {
-  border-color: #D9C6A5 !important;
-}
-
-[data-theme="museubh"] .border-slate-300,
-[data-theme="museubh"] .border-gray-300 {
-  border-color: #E5D7C3 !important;
-}
-
-/* Textos */
-[data-theme="museubh"] .text-slate-900,
-[data-theme="museubh"] .text-gray-900,
-[data-theme="museubh"] .text-black {
-  color: #111111 !important;
-}
-
-[data-theme="museubh"] .text-slate-800,
-[data-theme="museubh"] .text-gray-800 {
-  color: #2E6F95 !important;
-}
-
-[data-theme="museubh"] .text-slate-700,
-[data-theme="museubh"] .text-gray-700 {
-  color: #5FA8D3 !important;
-}
-
-[data-theme="museubh"] .text-slate-600,
-[data-theme="museubh"] .text-gray-600 {
-  color: #6b7280 !important;
-}
-
-[data-theme="museubh"] .text-slate-500,
-[data-theme="museubh"] .text-gray-500 {
-  color: #9CA3AF !important;
-}
-
-[data-theme="museubh"] .text-slate-400,
-[data-theme="museubh"] .text-gray-400 {
-  color: #A0A4B8 !important;
-}
-
-[data-theme="museubh"] .text-slate-300,
-[data-theme="museubh"] .text-gray-300 {
-  color: #D1D5DB !important;
-}
+/* textos */
 
-[data-theme="museubh"] .text-white {
-  color: #FFFFFF !important;
+[data-theme="nuit"] .text-black,
+[data-theme="nuit"] .text-gray-900,
+[data-theme="nuit"] .text-gray-800,
+[data-theme="nuit"] .text-slate-900,
+[data-theme="nuit"] .text-slate-800 {
+  color: #f5f5f5 !important;
 }
 
-/* Cores primárias */
-[data-theme="museubh"] .bg-blue-600,
-[data-theme="museubh"] .bg-blue-500 {
-  background-color: #2E6F95 !important;
+[data-theme="nuit"] .text-gray-700,
+[data-theme="nuit"] .text-gray-600,
+[data-theme="nuit"] .text-slate-700,
+[data-theme="nuit"] .text-slate-600,
+[data-theme="nuit"] .text-muted-foreground {
+  color: #d4d4d8 !important;
 }
 
-[data-theme="museubh"] .text-blue-600,
-[data-theme="museubh"] .text-blue-500,
-[data-theme="museubh"] .text-primary {
-  color: #2E6F95 !important;
-}
-
-[data-theme="museubh"] .hover\:bg-blue-600:hover,
-[data-theme="museubh"] .hover\:bg-blue-500:hover {
-  background-color: #1d5a7a !important;
-}
+/* bordas */
 
-[data-theme="museubh"] .border-blue-500,
-[data-theme="museubh"] .ring-blue-200 {
-  border-color: #2E6F95 !important;
+[data-theme="nuit"] .border,
+[data-theme="nuit"] .border-gray-200,
+[data-theme="nuit"] .border-gray-300,
+[data-theme="nuit"] .border-slate-200,
+[data-theme="nuit"] .border-slate-300 {
+  border-color: #27272a !important;
 }
 
-/* Cores secundárias (Azul claro) */
-[data-theme="museubh"] .bg-cyan-500,
-[data-theme="museubh"] .bg-cyan-600 {
-  background-color: #5FA8D3 !important;
-}
+/* inputs */
 
-[data-theme="museubh"] .text-cyan-600 {
-  color: #5FA8D3 !important;
+[data-theme="nuit"] input,
+[data-theme="nuit"] textarea,
+[data-theme="nuit"] select {
+  background: #111111 !important;
+  color: #f5f5f5 !important;
+  border-color: #27272a !important;
 }
 
-/* Status: Sucesso (Verde) */
-[data-theme="museubh"] .bg-green-50,
-[data-theme="museubh"] .bg-green-100 {
-  background-color: #d1fae5 !important;
-}
+/* botões */
 
-[data-theme="museubh"] .bg-green-500,
-[data-theme="museubh"] .bg-green-600 {
-  background-color: #10b981 !important;
+[data-theme="nuit"] .bg-primary,
+[data-theme="nuit"] .bg-blue-500,
+[data-theme="nuit"] .bg-blue-600 {
+  background: #27272a !important;
+  color: #ffffff !important;
 }
 
-[data-theme="museubh"] .text-green-600,
-[data-theme="museubh"] .text-green-700 {
-  color: #10b981 !important;
+[data-theme="nuit"] .hover\:bg-blue-600:hover,
+[data-theme="nuit"] .hover\:bg-slate-800:hover,
+[data-theme="nuit"] .hover\:bg-gray-800:hover {
+  background: #3f3f46 !important;
 }
 
-[data-theme="museubh"] .border-green-200,
-[data-theme="museubh"] .border-green-500 {
-  border-color: #10b981 !important;
-}
+/* cards */
 
-/* Status: Alerta (Amarelo/Âmbar) */
-[data-theme="museubh"] .bg-yellow-50,
-[data-theme="museubh"] .bg-yellow-100,
-[data-theme="museubh"] .bg-amber-100 {
-  background-color: #fef3c7 !important;
+[data-theme="nuit"] .shadow,
+[data-theme="nuit"] .shadow-sm,
+[data-theme="nuit"] .shadow-md,
+[data-theme="nuit"] .shadow-lg,
+[data-theme="nuit"] .shadow-xl {
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04),
+    0 10px 30px rgba(0,0,0,0.45) !important;
 }
 
-[data-theme="museubh"] .bg-yellow-500,
-[data-theme="museubh"] .bg-yellow-600,
-[data-theme="museubh"] .bg-amber-600 {
-  background-color: #f59e0b !important;
-}
+/* tabelas */
 
-[data-theme="museubh"] .text-yellow-600,
-[data-theme="museubh"] .text-yellow-700,
-[data-theme="museubh"] .text-amber-700 {
-  color: #f59e0b !important;
+[data-theme="nuit"] table {
+  background: #111111 !important;
 }
 
-/* Status: Erro (Vermelho) */
-[data-theme="museubh"] .bg-red-50,
-[data-theme="museubh"] .bg-red-100 {
-  background-color: #fee2e2 !important;
+[data-theme="nuit"] tr,
+[data-theme="nuit"] td,
+[data-theme="nuit"] th {
+  border-color: #27272a !important;
 }
 
-[data-theme="museubh"] .bg-red-500,
-[data-theme="museubh"] .bg-red-600 {
-  background-color: #ef4444 !important;
-}
+/* hover */
 
-[data-theme="museubh"] .text-red-600,
-[data-theme="museubh"] .text-red-700 {
-  color: #ef4444 !important;
+[data-theme="nuit"] .hover\:bg-gray-100:hover,
+[data-theme="nuit"] .hover\:bg-slate-100:hover {
+  background: #18181b !important;
 }
 
-[data-theme="museubh"] .border-red-200,
-[data-theme="museubh"] .border-red-500 {
-  border-color: #ef4444 !important;
-}
+/* scroll */
 
-/* Info (Azul) */
-[data-theme="museubh"] .bg-blue-50,
-[data-theme="museubh"] .bg-blue-100 {
-  background-color: #dbeafe !important;
+[data-theme="nuit"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
 }
 
-[data-theme="museubh"] .text-blue-700 {
-  color: #3b82f6 !important;
+[data-theme="nuit"] ::-webkit-scrollbar-track {
+  background: #050505;
 }
 
-/* Badges coloridos */
-[data-theme="museubh"] .bg-emerald-50 {
-  background-color: #d1fae5 !important;
+[data-theme="nuit"] ::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 999px;
 }
 
-[data-theme="museubh"] .text-emerald-700 {
-  color: #10b981 !important;
+[data-theme="nuit"] ::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
 }
-
-/* === FIM TEMA MUSEU BH === */
