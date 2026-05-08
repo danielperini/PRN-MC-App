@@ -74,18 +74,21 @@ function renderFotosAtividade(atividade) {
     </figure>
   `).join('');
 
-  const linksHtml = demais.length > 0 ? `
+  const demaisHtml = demais.map((foto, index) => {
+    const caption = foto.caption || foto.fileName || `Foto adicional ${index + 1}`;
+
+    return `
+      <a class="more-photo-thumb" href="${escapeHtml(foto.url || '')}" target="_blank" rel="noopener noreferrer">
+        <img src="${escapeHtml(foto.url || '')}" alt="${escapeHtml(caption)}" />
+        <span>${escapeHtml(caption)}</span>
+      </a>
+    `;
+  }).join('');
+
+  const linksHtml = demaisHtml ? `
     <div class="more-photos">
       <p class="more-title">Demais fotos vinculadas à atividade</p>
-      <ol>
-        ${demais.map((foto, index) => `
-          <li>
-            <a href="${escapeHtml(foto.url || '')}" target="_blank" rel="noopener noreferrer">
-              ${escapeHtml(foto.caption || foto.fileName || `Foto adicional ${index + 1}`)}
-            </a>
-          </li>
-        `).join('')}
-      </ol>
+      <div class="more-photo-grid">${demaisHtml}</div>
     </div>
   ` : '';
 
@@ -99,11 +102,47 @@ function renderFotosAtividade(atividade) {
   `;
 }
 
+function cleanText(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getOriginalActivityText(atividade = {}) {
+  return cleanText(
+    atividade.descricao_original ||
+      atividade.descricao ||
+      atividade.relato ||
+      atividade.observacoes ||
+      atividade.observação ||
+      atividade.resultados ||
+      atividade.resultado ||
+      atividade.sintese ||
+      atividade.sinopse ||
+      ''
+  );
+}
+
 function getDescricaoAtividade(textos, atividade, index) {
   const descricoes = Array.isArray(textos?.atividades_descricoes) ? textos.atividades_descricoes : [];
   const byIndex = descricoes.find((item) => Number(item?.indice) === index + 1) || descricoes[index];
+  const generated = cleanText(byIndex?.descricao);
+  const original = getOriginalActivityText(atividade);
 
-  return byIndex?.descricao || atividade?.descricao || 'Atividade registrada no relatório aprovado pela coordenação.';
+  if (generated) return generated;
+  if (original) return original;
+
+  const partes = [
+    atividade?.nome
+      ? `A atividade ${atividade.nome} foi consolidada a partir dos relatórios aprovados do período.`
+      : 'Atividade consolidada a partir dos relatórios aprovados do período.',
+    atividade?.publico && atividade.publico !== 'N/A'
+      ? `O público informado foi de ${fmtPublico(atividade.publico)} participante(s).`
+      : '',
+    atividade?.local ? `Local informado: ${atividade.local}.` : '',
+  ].filter(Boolean);
+
+  return partes.join(' ');
 }
 
 function renderAtividadesPorCategoria(contexto, textos, categoria) {
@@ -489,11 +528,38 @@ export function montarHtmlRelatorioFisicoFinanceiro({
     margin-bottom: 8px;
   }
 
-  .more-photos ol {
-    margin: 0;
-    padding-left: 18px;
-    font-size: 12px;
-    line-height: 1.7;
+  .more-photo-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 10px;
+  }
+
+  .more-photo-thumb {
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: white;
+    color: #333;
+    text-decoration: none;
+    page-break-inside: avoid;
+  }
+
+  .more-photo-thumb img {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+    display: block;
+    background: #f3f4f6;
+  }
+
+  .more-photo-thumb span {
+    display: block;
+    padding: 8px 10px;
+    font-size: 10.5px;
+    line-height: 1.35;
+    color: #444;
   }
 
   .no-photo {
