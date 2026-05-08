@@ -1,0 +1,108 @@
+[data-theme="nuit"] {
+  --background: 240 10% 3%;
+  --foreground: 0 0% 96%;
+  --card: 240 6% 8%;
+  --card-foreground: 0 0% 96%;
+  --popover: 240 6% 8%;
+  --popover-foreground: 0 0% 96%;
+  --primary: 0 0% 100%;
+  --primary-foreground: 240 10% 3%;
+  --secondary: 240 5% 14%;
+  --secondary-foreground: 0 0% 96%;
+  --muted: 240 5% 14%;
+  --muted-foreground: 240 5% 70%;
+  --accent: 240 5% 14%;
+  --accent-foreground: 0 0% 96%;
+  --border: 240 4% 18%;
+  --input: 240 4% 18%;
+  --ring: 240 5% 84%;
+  --cor-primaria: #ffffff;
+  --cor-secundaria: #a1a1aa;
+  --cor-fundo: #050505;
+  --cor-fundo-secundario: #111111;
+  --cor-texto: #f5f5f5;
+  --cor-texto-secundario: #d4d4d8;
+  --cor-card: #111111;
+  --cor-destaque: #ffffff;
+  --cor-borda: #27272a;
+  --cor-nav: #000000;
+  --cor-nav-texto: #ffffff;
+  --cor-btn-primario: #ffffff;
+  --cor-btn-primario-texto: #000000;
+  --cor-btn-primario-hover: #d4d4d8;
+  --cor-accent: #60a5fa;
+  color-scheme: dark;
+}
+
+[data-theme="nuit"] body,
+[data-theme="nuit"] #root,
+[data-theme="nuit"] .bg-white,
+[data-theme="nuit"] .bg-background,
+[data-theme="nuit"] .bg-gray-50,
+[data-theme="nuit"] .bg-gray-100,
+[data-theme="nuit"] .bg-slate-50,
+[data-theme="nuit"] .bg-slate-100 {
+  background-color: #050505 !important;
+  color: #f5f5f5 !important;
+}
+
+[data-theme="nuit"] .bg-card,
+[data-theme="nuit"] .bg-popover,
+[data-theme="nuit"] .bg-muted {
+  background-color: #111111 !important;
+  color: #f5f5f5 !important;
+}
+
+[data-theme="nuit"] aside,
+[data-theme="nuit"] .bg-slate-900,
+[data-theme="nuit"] .bg-gray-900 {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="nuit"] .text-black,
+[data-theme="nuit"] .text-gray-900,
+[data-theme="nuit"] .text-gray-800,
+[data-theme="nuit"] .text-slate-900,
+[data-theme="nuit"] .text-slate-800 {
+  color: #f5f5f5 !important;
+}
+
+[data-theme="nuit"] .text-gray-700,
+[data-theme="nuit"] .text-gray-600,
+[data-theme="nuit"] .text-gray-500,
+[data-theme="nuit"] .text-slate-700,
+[data-theme="nuit"] .text-slate-600,
+[data-theme="nuit"] .text-slate-500,
+[data-theme="nuit"] .text-muted-foreground {
+  color: #d4d4d8 !important;
+}
+
+[data-theme="nuit"] .border,
+[data-theme="nuit"] .border-gray-200,
+[data-theme="nuit"] .border-gray-300,
+[data-theme="nuit"] .border-slate-200,
+[data-theme="nuit"] .border-slate-300 {
+  border-color: #27272a !important;
+}
+
+[data-theme="nuit"] input,
+[data-theme="nuit"] textarea,
+[data-theme="nuit"] select {
+  background-color: #111111 !important;
+  color: #f5f5f5 !important;
+  border-color: #27272a !important;
+}
+
+[data-theme="nuit"] .bg-blue-500,
+[data-theme="nuit"] .bg-blue-600,
+[data-theme="nuit"] .bg-primary {
+  background-color: #27272a !important;
+  color: #ffffff !important;
+}
+
+[data-theme="nuit"] .text-blue-600,
+[data-theme="nuit"] .text-blue-500,
+[data-theme="nuit"] .text-primary {
+  color: #93c5fd !important;
+}
