@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
 import { CalendarDays, ChevronLeft, ChevronRight, Download, Images, LinkIcon, Loader2, MapPin, X } from 'lucide-react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toastMessages } from '@/lib/toastMessages';
@@ -278,7 +278,7 @@ function resolveMuseumSection({ item = {}, report = null, linkedActivity = null,
 function uniqueByFileUrl(items = []) {
   const seen = new Set();
   return items.filter((item) => {
-    const key = item?.fileUrl || '';
+    const key = item?.fileUrl || item?.fileName || item?.id || '';
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -296,9 +296,9 @@ function mapPhoto(item, activityMaps, report = null, prefix = 'media') {
   const timestamp = normalizeDate(metadataDate || item.created_at || item.created_date || item.updated_date);
 
   return {
-    id: `${prefix}-${item.id}`,
-    fileName: item.file_name || 'imagem',
-    fileUrl: item.file_url,
+    id: `${prefix}-${item.id || item.file_url || item.fileUrl || item.url || item.file_name || item.fileName || Math.random().toString(36).slice(2)}`,
+    fileName: item.file_name || item.fileName || item.name || 'imagem',
+    fileUrl: item.file_url || item.fileUrl || item.url || item.download_url || item.public_url || '',
     timestamp,
     date: timestamp.split('T')[0],
     reportLabel: report ? `${report.author_name || 'Relatório'} — ${report.mes_referencia || ''}/${report.ano || ''}` : (item.origem === 'relatorio' ? 'Relatório' : (item.origem || 'Galeria')),
@@ -409,7 +409,7 @@ function GaleriaFotosInner() {
         toastMessages.warning('Erro ao carregar imagens da galeria');
       }
 
-      return uniqueByFileUrl(allImages).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      return uniqueByFileUrl(allImages).filter((image) => Boolean(image.fileUrl)).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     },
     enabled: !!currentUser?.email,
   });
@@ -541,8 +541,12 @@ function GaleriaFotosInner() {
         )}
       </div>
 
-      <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+      <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
         <DialogContent className="max-w-5xl w-full p-0 bg-black border-0 overflow-hidden">
+          <DialogTitle className="sr-only">Visualização da foto selecionada</DialogTitle>
+          <DialogDescription className="sr-only">
+            Janela de visualização ampliada da foto, com legenda, vínculo de atividade, localização e opção de abrir o arquivo original.
+          </DialogDescription>
           {selectedImage && (
             <div className="relative">
               <button type="button" onClick={() => setSelectedImage(null)} className="absolute right-3 top-3 z-20 rounded-full bg-black/70 p-2 text-white hover:bg-black" aria-label="Fechar">
