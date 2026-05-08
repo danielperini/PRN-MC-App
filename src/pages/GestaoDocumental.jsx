@@ -12,10 +12,7 @@ import {
   ExternalLink,
   Download,
   Link2,
-  CheckCircle2,
-  Pencil,
-  Copy,
-  Save
+  CheckCircle2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { deletePurchaseRequest } from '@/lib/deleteIntegrado';
@@ -118,16 +115,6 @@ function getMonthLabel(monthKey) {
   return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 }
 
-function getLinkedPurchaseIds(doc) {
-  return [
-    doc?.purchase_id,
-    doc?.purchase_request_id,
-    doc?.purchaseRequestId,
-    doc?.solicitacao_id,
-    doc?.report_id
-  ].filter(Boolean).map(String);
-}
-
 function getExplicitPairIds(doc) {
   return [
     doc?.nf_pdf_intake_id,
@@ -170,30 +157,6 @@ function getFallbackFiscalKey(doc) {
   return `avulso-${doc.id}`;
 }
 
-function getDuplicateKey(doc) {
-  const url = normalizeText(getFileUrl(doc));
-  if (url) return `url:${url}`;
-
-  const fiscal = getFallbackFiscalKey(doc);
-  const tipo = getTipo(doc);
-  const name = normalizeLoose(getFileName(doc));
-  return `${tipo}:${fiscal}:${name}`;
-}
-
-function findDuplicateGroups(docs) {
-  const map = new Map();
-
-  (docs || []).forEach((doc) => {
-    const key = getDuplicateKey(doc);
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(doc);
-  });
-
-  return Array.from(map.values())
-    .filter((items) => items.length > 1)
-    .map((items) => [...items].sort((a, b) => new Date(getDocDate(a) || 0) - new Date(getDocDate(b) || 0)));
-}
-
 function isXmlVinculado(doc) {
   return getTipo(doc) === 'XML' && !!(doc?.nf_pdf_intake_id || doc?.nf_xml_vinculado_a || doc?.nf_pdf_url);
 }
@@ -206,7 +169,7 @@ function filtrarEDeduplicar(docs) {
     if (doc?.status_registro === 'DELETADO') return;
     if (isImagem(doc)) return;
 
-    const key = doc.id;
+    const key = getFileUrl(doc) || doc.id;
     if (!map.has(key)) map.set(key, doc);
   });
 
@@ -300,7 +263,6 @@ function buildDocumentGroups(docs) {
       date: getDocDate(pairDocs[0]),
       fornecedor: getFornecedor(pairDocs[0]),
       categoria: getCategoria(pairDocs[0]),
-      purchaseIds: Array.from(new Set(pairDocs.flatMap(getLinkedPurchaseIds))),
       monthKey: getMonthKey(pairDocs[0]),
     };
   });
@@ -392,58 +354,6 @@ function VincularXmlModal({ xmlDoc, pdfsDisponiveis, onConfirm, onClose }) {
   );
 }
 
-function EditarSolicitacaoModal({ purchase, onChange, onSave, onClose, saving }) {
-  if (!purchase) return null;
-
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Pencil className="h-4 w-4" />
-            Editar dados da solicitação vinculada
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-gray-600">Descrição</label>
-            <Input value={purchase.descricao_item || ''} onChange={(e) => onChange({ ...purchase, descricao_item: e.target.value })} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Fornecedor</label>
-            <Input value={purchase.fornecedor_nome || ''} onChange={(e) => onChange({ ...purchase, fornecedor_nome: e.target.value })} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Centro de custo</label>
-            <Input value={purchase.centro_custo || ''} onChange={(e) => onChange({ ...purchase, centro_custo: e.target.value })} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">NF número</label>
-            <Input value={purchase.nf_numero || ''} onChange={(e) => onChange({ ...purchase, nf_numero: e.target.value })} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Valor solicitado</label>
-            <Input value={purchase.valor_solicitado ?? purchase.valor_total ?? purchase.valor ?? ''} onChange={(e) => onChange({ ...purchase, valor_solicitado: e.target.value })} />
-          </div>
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-gray-600">Observações</label>
-            <Input value={purchase.observacoes || ''} onChange={(e) => onChange({ ...purchase, observacoes: e.target.value })} />
-          </div>
-        </div>
-
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
-          <Button onClick={onSave} disabled={saving} className="gap-2">
-            <Save className="h-4 w-4" />
-            {saving ? 'Salvando...' : 'Salvar'}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function DocumentoLink({ doc }) {
   const tipo = getTipo(doc);
   const tipoConf = TIPO_CONFIG[tipo] || TIPO_CONFIG.DOC;
@@ -473,9 +383,6 @@ export default function GestaoDocumental() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [vincularXml, setVincularXml] = useState(null);
-  const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
-  const [editingPurchase, setEditingPurchase] = useState(null);
-  const [savingPurchase, setSavingPurchase] = useState(false);
 
   const { data: todosDocumentos = [], isLoading } = useQuery({
     queryKey: ['gestao-documental'],
@@ -483,8 +390,6 @@ export default function GestaoDocumental() {
   });
 
   const documentos = useMemo(() => filtrarEDeduplicar(todosDocumentos), [todosDocumentos]);
-  const duplicateGroups = useMemo(() => findDuplicateGroups(documentos), [documentos]);
-  const duplicateIds = useMemo(() => new Set(duplicateGroups.flatMap((group) => group.map((doc) => doc.id))), [duplicateGroups]);
 
   const pdfsDisponiveis = useMemo(() =>
     (todosDocumentos || []).filter((d) => {
@@ -515,22 +420,15 @@ export default function GestaoDocumental() {
 
   const filtrados = useMemo(() => {
     const s = normalizeText(search);
-    let base = documentos;
-
-    if (showDuplicatesOnly) {
-      base = base.filter((doc) => duplicateIds.has(doc.id));
-    }
-
-    if (!s) return base;
-
-    return base.filter((doc) =>
+    if (!s) return documentos;
+    return documentos.filter((doc) =>
       normalizeText(getFileName(doc)).includes(s) ||
       normalizeText(getFornecedor(doc)).includes(s) ||
       normalizeText(doc?.nf_numero || '').includes(s) ||
       normalizeText(getTipo(doc)).includes(s) ||
       normalizeText(getCategoria(doc)).includes(s)
     );
-  }, [documentos, search, showDuplicatesOnly, duplicateIds]);
+  }, [documentos, search]);
 
   const gruposMensais = useMemo(() => buildDocumentGroups(filtrados), [filtrados]);
 
@@ -553,112 +451,25 @@ export default function GestaoDocumental() {
     }
   }
 
-  async function handleDeleteDuplicates() {
-    const docsParaApagar = duplicateGroups.flatMap((group) => group.slice(1));
-    if (docsParaApagar.length === 0) {
-      toast.info('Nenhum arquivo repetido encontrado.');
-      return;
-    }
-
-    if (!window.confirm(`Apagar ${docsParaApagar.length} arquivos repetidos mantendo sempre o primeiro registro?`)) return;
-
-    try {
-      for (const doc of docsParaApagar) {
-        try {
-          await base44.entities.Attachment.delete(doc.id);
-        } catch {
-          await base44.entities.Attachment.update(doc.id, { status_registro: 'DELETADO' });
-        }
-      }
-      toast.success(`${docsParaApagar.length} arquivos repetidos apagados.`);
-      queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
-    } catch (e) {
-      toast.error('Erro ao apagar repetidos: ' + e.message);
-    }
-  }
-
-  async function openEditPurchase(pair) {
-    const purchaseId = pair?.purchaseIds?.[0];
-    if (!purchaseId) {
-      toast.warning('Esta linha não possui solicitação vinculada.');
-      return;
-    }
-
-    try {
-      const purchase = await base44.entities.PurchaseRequest.get(purchaseId);
-      setEditingPurchase(purchase);
-    } catch (e) {
-      toast.error('Não foi possível abrir a solicitação vinculada: ' + e.message);
-    }
-  }
-
-  async function handleSavePurchase() {
-    if (!editingPurchase?.id) return;
-    setSavingPurchase(true);
-    try {
-      await base44.entities.PurchaseRequest.update(editingPurchase.id, {
-        descricao_item: editingPurchase.descricao_item || '',
-        fornecedor_nome: editingPurchase.fornecedor_nome || '',
-        centro_custo: editingPurchase.centro_custo || '',
-        nf_numero: editingPurchase.nf_numero || '',
-        valor_solicitado: toNumber(editingPurchase.valor_solicitado),
-        observacoes: editingPurchase.observacoes || ''
-      });
-      toast.success('Solicitação vinculada atualizada.');
-      setEditingPurchase(null);
-      queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
-      queryClient.invalidateQueries({ queryKey: ['purchases'] });
-    } catch (e) {
-      toast.error('Erro ao salvar solicitação: ' + e.message);
-    } finally {
-      setSavingPurchase(false);
-    }
-  }
-
   return (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-gray-500" />
           <span className="font-semibold text-gray-800">Documentos</span>
           <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{filtrados.length}</span>
           <span className="hidden rounded-full bg-white border border-gray-200 px-2 py-0.5 text-xs text-gray-500 sm:inline-flex">
             {gruposMensais.reduce((acc, g) => acc + g.pairs.length, 0)} pares/listas
           </span>
-          <span className="rounded-full bg-white border border-gray-200 px-2 py-0.5 text-xs text-gray-500">
-            {duplicateGroups.reduce((acc, group) => acc + group.length - 1, 0)} repetidos
-          </span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant={showDuplicatesOnly ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setShowDuplicatesOnly((v) => !v)}
-            className="gap-1.5"
-          >
-            <Copy className="h-3.5 w-3.5" />
-            {showDuplicatesOnly ? 'Ver todos' : 'Pesquisar repetidos'}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleDeleteDuplicates}
-            className="gap-1.5 text-red-700 hover:text-red-800"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Apagar repetidos
-          </Button>
-          <div className="relative w-72 max-w-full">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
-            <Input
-              className="pl-8 h-8 text-sm"
-              placeholder="Buscar arquivo, fornecedor, NF..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+        <div className="relative w-72 max-w-full">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+          <Input
+            className="pl-8 h-8 text-sm"
+            placeholder="Buscar arquivo, fornecedor, NF..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
       </div>
 
@@ -681,7 +492,7 @@ export default function GestaoDocumental() {
               </div>
 
               <div className="overflow-x-auto rounded-xl border border-gray-200">
-                <table className="w-full min-w-[1080px] border-collapse text-sm">
+                <table className="w-full min-w-[980px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50 text-left">
                       <th className="px-3 py-2.5 font-medium text-gray-600">Tipo</th>
@@ -715,9 +526,6 @@ export default function GestaoDocumental() {
                         </td>
                         <td className="px-3 py-2.5 align-top">
                           <div className="flex items-center justify-center gap-1">
-                            <button onClick={() => openEditPurchase(pair)} title="Editar solicitação vinculada" className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-black">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
                             {pair.docs.map((doc) => {
                               const tipo = getTipo(doc);
                               return (
@@ -754,16 +562,6 @@ export default function GestaoDocumental() {
           pdfsDisponiveis={pdfsDisponiveis}
           onConfirm={handleVincularXml}
           onClose={() => setVincularXml(null)}
-        />
-      )}
-
-      {editingPurchase && (
-        <EditarSolicitacaoModal
-          purchase={editingPurchase}
-          onChange={setEditingPurchase}
-          onSave={handleSavePurchase}
-          onClose={() => setEditingPurchase(null)}
-          saving={savingPurchase}
         />
       )}
     </div>
