@@ -1,5 +1,7 @@
 const TOTAL_OFICIAL = 1320000;
 
+const memoriaRedacional = new Set();
+
 function toNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -36,14 +38,62 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
+function normalizarTexto(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function assinaturaParagrafo(value) {
+  return normalizarTexto(value)
+    .split(' ')
+    .filter((word) => word.length > 3)
+    .slice(0, 28)
+    .join(' ');
+}
+
+function similaridadeTexto(a, b) {
+  const wa = new Set(normalizarTexto(a).split(' ').filter((w) => w.length > 4));
+  const wb = new Set(normalizarTexto(b).split(' ').filter((w) => w.length > 4));
+  if (wa.size === 0 || wb.size === 0) return 0;
+  let comum = 0;
+  wa.forEach((w) => {
+    if (wb.has(w)) comum += 1;
+  });
+  return comum / Math.min(wa.size, wb.size);
+}
+
+function paragrafoJaUsado(paragrafo) {
+  const assinatura = assinaturaParagrafo(paragrafo);
+  if (!assinatura || assinatura.length < 24) return false;
+  if (memoriaRedacional.has(assinatura)) return true;
+
+  for (const item of memoriaRedacional) {
+    if (similaridadeTexto(assinatura, item) >= 0.82) return true;
+  }
+
+  memoriaRedacional.add(assinatura);
+  return false;
+}
+
 function paragraphize(text) {
   const raw = String(text || '').trim();
   if (!raw) return '<p>Texto não disponível para esta seção.</p>';
 
-  return raw
+  const paragrafos = raw
     .split(/\n{2,}|\r?\n/)
     .map((p) => p.trim())
     .filter(Boolean)
+    .filter((p) => !paragrafoJaUsado(p));
+
+  if (paragrafos.length === 0) return '';
+
+  return paragrafos
     .map((p) => `<p>${escapeHtml(p)}</p>`)
     .join('');
 }
@@ -226,6 +276,8 @@ export function montarHtmlRelatorioFisicoFinanceiro({
   secoesSelecionadas = [],
   filtros = {},
 } = {}) {
+  memoriaRedacional.clear();
+
   const periodo = escapeHtml(contexto.periodo_extenso || '2 de fevereiro a 30 de abril de 2026');
   const museu = escapeHtml(filtros.museu || contexto.museu || 'Todos os museus');
   const percentualExecucao = toNumber(contexto.percentual_execucao).toFixed(1).replace('.', ',');
