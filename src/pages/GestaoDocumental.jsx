@@ -156,7 +156,8 @@ function getExplicitPairIds(doc) {
 function getBaseFileKey(doc) {
   return normalizeLoose(getFileName(doc)
     .replace(/\.[^.]+$/, '')
-    .replace(/\b(pdf|xml|recibo|comprovante|pagamento|boleto|pix|nfe|nfse|nf|nota|fiscal|museus|centro)\b/gi, ''));
+    .replace(/\([0-9]+\)/g, '')
+    .replace(/\b(pdf|xml|recibo|comprovante|pagamento|boleto|pix|nfe|nfse|nf|nota|fiscal|museus|centro|servico|serviço)\b/gi, ''));
 }
 
 function getFallbackFiscalKey(doc) {
@@ -200,12 +201,54 @@ function scoreDoc(doc) {
   return (
     (getExplicitPairIds(doc).length ? 10 : 0) +
     (getLinkedPurchaseIds(doc).length ? 5 : 0) +
-    (getFileUrl(doc) ? 2 : 0)
+    (getFileUrl(doc) ? 2 : 0) +
+    (doc?.nf_numero ? 1 : 0)
   );
+}
+
+function preferBestDoc(items) {
+  return [...(items || [])].sort((a, b) => {
+    const diff = scoreDoc(b) - scoreDoc(a);
+    if (diff !== 0) return diff;
+    return new Date(getDocDate(b) || 0) - new Date(getDocDate(a) || 0);
+  })[0];
+}
+
+function uniqueBy(items, getKey) {
+  const map = new Map();
+  (items || []).forEach((item) => {
+    const key = getKey(item);
+    if (!map.has(key)) {
+      map.set(key, item);
+      return;
+    }
+
+    map.set(key, preferBestDoc([map.get(key), item]));
+  });
+  return Array.from(map.values());
 }
 
 function isXmlVinculado(doc) {
   return getTipo(doc) === 'XML' && !!(doc?.nf_pdf_intake_id || doc?.nf_xml_vinculado_a || doc?.nf_pdf_url);
+}
+
+function isReciboVinculado(doc) {
+  return getTipo(doc) === 'RECIBO' && !!(doc?.pdf_recibo_id || doc?.comprovante_pdf_id || doc?.documento_pai_id || doc?.nf_pdf_url);
+}
+
+function isDocumentoVinculado(doc) {
+  if (getTipo(doc) === 'XML') return isXmlVinculado(doc);
+  if (getTipo(doc) === 'RECIBO') return isReciboVinculado(doc);
+
+  return !!(
+    doc?.nf_xml_intake_id ||
+    doc?.nf_xml_url ||
+    doc?.recibo_pdf_id ||
+    doc?.comprovante_url ||
+    doc?.documento_pai_id ||
+    doc?.pair_id ||
+    doc?.par_id
+  );
 }
 
 function filtrarEDeduplicar(docs) {
@@ -222,11 +265,7 @@ function filtrarEDeduplicar(docs) {
   });
 
   return Array.from(grouped.values())
-    .map((items) => [...items].sort((a, b) => {
-      const diff = scoreDoc(b) - scoreDoc(a);
-      if (diff !== 0) return diff;
-      return new Date(getDocDate(b) || 0) - new Date(getDocDate(a) || 0);
-    })[0])
+    .map((items) => preferBestDoc(items))
     .sort((a, b) => new Date(getDocDate(b) || 0) - new Date(getDocDate(a) || 0));
 }
 
@@ -243,8 +282,12 @@ function getPairTitle(docs) {
 function getPairType(docs) {
   const tipos = new Set(docs.map(getTipo));
   if (tipos.has('PDF') && tipos.has('XML')) return 'XML + PDF';
-  if (tipos.has('RECIBO') && tipos.has('PDF')) return 'Recibo + PDF';
+  if (tipos.has('PDF') && tipos.has('RECIBO')) return 'Recibo + PDF';
   return 'Sem par';
+}
+
+function getPairDocKey(doc) {
+  return `${getTipo(doc)}:${getDuplicateKey(doc)}`;
 }
 
 function connectComponents(nodes, edges) {
@@ -308,16 +351,18 @@ function buildDocumentGroups(docs) {
   const components = connectComponents((docs || []).map((doc) => String(doc.id)), edges);
 
   const pairs = components.map((ids) => {
-    const pairDocs = ids
-      .map((id) => docsById.get(id))
-      .filter(Boolean)
-      .sort((a, b) => {
-        const order = { PDF: 1, XML: 2, RECIBO: 3, DOC: 4 };
-        return (order[getTipo(a)] || 9) - (order[getTipo(b)] || 9);
-      });
+    const pairDocs = uniqueBy(
+      ids
+        .map((id) => docsById.get(id))
+        .filter(Boolean),
+      getPairDocKey
+    ).sort((a, b) => {
+      const order = { PDF: 1, XML: 2, RECIBO: 3, DOC: 4 };
+      return (order[getTipo(a)] || 9) - (order[getTipo(b)] || 9);
+    });
 
     return {
-      key: ids.sort().join('-'),
+      key: pairDocs.map((doc) => doc.id).sort().join('-'),
       docs: pairDocs,
       title: getPairTitle(pairDocs),
       type: getPairType(pairDocs),
@@ -326,6 +371,9 @@ function buildDocumentGroups(docs) {
       categoria: getCategoria(pairDocs[0]),
       purchaseIds: Array.from(new Set(pairDocs.flatMap(getLinkedPurchaseIds))),
       monthKey: getMonthKey(pairDocs[0]),
+      hasPdf: pairDocs.some((doc) => getTipo(doc) === 'PDF'),
+      hasXml: pairDocs.some((doc) => getTipo(doc) === 'XML'),
+      hasRecibo: pairDocs.some((doc) => getTipo(doc) === 'RECIBO')
     };
   });
 
@@ -507,6 +555,7 @@ export default function GestaoDocumental() {
   const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState(null);
   const [savingPurchase, setSavingPurchase] = useState(false);
+  const [selectedAssociationByPair, setSelectedAssociationByPair] = useState({});
 
   const { data: todosDocumentos = [], isLoading } = useQuery({
     queryKey: ['gestao-documental'],
@@ -527,6 +576,17 @@ export default function GestaoDocumental() {
       .sort((a, b) => new Date(getDocDate(b) || 0) - new Date(getDocDate(a) || 0))
   , [documentosBase]);
 
+  const arquivosDesvinculados = useMemo(() => {
+    const docs = documentosBase.filter((doc) => ['XML', 'RECIBO'].includes(getTipo(doc)) && !isDocumentoVinculado(doc));
+    return uniqueBy(docs, getDuplicateKey)
+      .sort((a, b) => new Date(getDocDate(b) || 0) - new Date(getDocDate(a) || 0));
+  }, [documentosBase]);
+
+  async function refreshDocumentos() {
+    await queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
+    await queryClient.invalidateQueries({ queryKey: ['attachments-compras'] });
+  }
+
   async function handleVincularXml(pdfDoc) {
     if (!vincularXml || !pdfDoc) return;
 
@@ -539,13 +599,61 @@ export default function GestaoDocumental() {
       await base44.entities.Attachment.update(vincularXml.id, {
         nf_pdf_intake_id: pdfDoc.id,
         nf_pdf_url: getFileUrl(pdfDoc),
+        nf_xml_vinculado_a: pdfDoc.id
       });
 
       toast.success('XML vinculado ao PDF com sucesso.');
       setVincularXml(null);
-      queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
+      await refreshDocumentos();
     } catch (e) {
       toast.error('Erro ao vincular: ' + e.message);
+    }
+  }
+
+  async function handleAssociarArquivo(pair) {
+    const targetId = selectedAssociationByPair[pair.key];
+    const selectedDoc = arquivosDesvinculados.find((doc) => doc.id === targetId);
+    const pdfDoc = pair.docs.find((doc) => getTipo(doc) === 'PDF');
+
+    if (!selectedDoc || !pdfDoc) {
+      toast.warning('Selecione um XML ou recibo desvinculado.');
+      return;
+    }
+
+    try {
+      const tipo = getTipo(selectedDoc);
+      const selectedUrl = getFileUrl(selectedDoc);
+      const pdfUrl = getFileUrl(pdfDoc);
+
+      if (tipo === 'XML') {
+        await base44.entities.Attachment.update(pdfDoc.id, {
+          nf_xml_intake_id: selectedDoc.id,
+          nf_xml_url: selectedUrl,
+        });
+
+        await base44.entities.Attachment.update(selectedDoc.id, {
+          nf_pdf_intake_id: pdfDoc.id,
+          nf_pdf_url: pdfUrl,
+          nf_xml_vinculado_a: pdfDoc.id,
+        });
+      } else {
+        await base44.entities.Attachment.update(pdfDoc.id, {
+          recibo_pdf_id: selectedDoc.id,
+          comprovante_url: selectedUrl,
+        });
+
+        await base44.entities.Attachment.update(selectedDoc.id, {
+          pdf_recibo_id: pdfDoc.id,
+          documento_pai_id: pdfDoc.id,
+          nf_pdf_url: pdfUrl,
+        });
+      }
+
+      toast.success(`${tipo} associado ao PDF.`);
+      setSelectedAssociationByPair((prev) => ({ ...prev, [pair.key]: '' }));
+      await refreshDocumentos();
+    } catch (e) {
+      toast.error('Erro ao associar: ' + e.message);
     }
   }
 
@@ -582,7 +690,7 @@ export default function GestaoDocumental() {
       }
 
       toast.success('Documento removido.');
-      queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
+      await refreshDocumentos();
     } catch (e) {
       toast.error('Erro ao deletar: ' + e.message);
     }
@@ -608,7 +716,7 @@ export default function GestaoDocumental() {
       }
 
       toast.success(`${docsParaApagar.length} arquivos repetidos apagados.`);
-      queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
+      await refreshDocumentos();
     } catch (e) {
       toast.error('Erro ao apagar repetidos: ' + e.message);
     }
@@ -647,8 +755,8 @@ export default function GestaoDocumental() {
 
       toast.success('Solicitação vinculada atualizada.');
       setEditingPurchase(null);
-      queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
-      queryClient.invalidateQueries({ queryKey: ['purchases'] });
+      await refreshDocumentos();
+      await queryClient.invalidateQueries({ queryKey: ['purchases'] });
     } catch (e) {
       toast.error('Erro ao salvar solicitação: ' + e.message);
     } finally {
@@ -668,6 +776,9 @@ export default function GestaoDocumental() {
           </span>
           <span className="rounded-full bg-white border border-gray-200 px-2 py-0.5 text-xs text-gray-500">
             {duplicateGroups.reduce((acc, group) => acc + group.length - 1, 0)} repetidos
+          </span>
+          <span className="rounded-full bg-white border border-gray-200 px-2 py-0.5 text-xs text-gray-500">
+            {arquivosDesvinculados.length} XML/recibos desvinculados
           </span>
         </div>
 
@@ -725,7 +836,7 @@ export default function GestaoDocumental() {
               </div>
 
               <div className="overflow-x-auto rounded-xl border border-gray-200">
-                <table className="w-full min-w-[1080px] border-collapse text-sm">
+                <table className="w-full min-w-[1180px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50 text-left">
                       <th className="px-3 py-2.5 font-medium text-gray-600">Tipo</th>
@@ -738,77 +849,115 @@ export default function GestaoDocumental() {
                   </thead>
 
                   <tbody>
-                    {grupo.pairs.map((pair, idx) => (
-                      <tr
-                        key={`${grupo.monthKey}-${pair.key}`}
-                        className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
-                      >
-                        <td className="px-3 py-2.5 align-top">
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${PAIR_COLOR[pair.type] || PAIR_COLOR['Sem par']}`}>
-                            {pair.type}
-                          </span>
-                        </td>
+                    {grupo.pairs.map((pair, idx) => {
+                      const precisaAssociar = pair.hasPdf && !pair.hasXml && !pair.hasRecibo;
 
-                        <td className="px-3 py-2.5 align-top">
-                          <p className="max-w-[260px] truncate font-medium text-gray-900" title={pair.title}>{pair.title}</p>
-                          <p className="text-xs text-gray-400">{pair.categoria}</p>
-                        </td>
+                      return (
+                        <tr
+                          key={`${grupo.monthKey}-${pair.key}`}
+                          className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
+                        >
+                          <td className="px-3 py-2.5 align-top">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${PAIR_COLOR[pair.type] || PAIR_COLOR['Sem par']}`}>
+                              {pair.type}
+                            </span>
+                          </td>
 
-                        <td className="px-3 py-2.5 align-top text-gray-600">
-                          <p className="max-w-[180px] truncate" title={pair.fornecedor}>{pair.fornecedor}</p>
-                        </td>
+                          <td className="px-3 py-2.5 align-top">
+                            <p className="max-w-[260px] truncate font-medium text-gray-900" title={pair.title}>{pair.title}</p>
+                            <p className="text-xs text-gray-400">{pair.categoria}</p>
+                          </td>
 
-                        <td className="px-3 py-2.5 align-top text-xs tabular-nums text-gray-500">{fmtDate(pair.date)}</td>
+                          <td className="px-3 py-2.5 align-top text-gray-600">
+                            <p className="max-w-[180px] truncate" title={pair.fornecedor}>{pair.fornecedor}</p>
+                          </td>
 
-                        <td className="px-3 py-2.5 align-top">
-                          <div className="flex flex-wrap gap-2">
-                            {pair.docs.map((doc) => <DocumentoLink key={doc.id} doc={doc} />)}
-                          </div>
-                        </td>
+                          <td className="px-3 py-2.5 align-top text-xs tabular-nums text-gray-500">{fmtDate(pair.date)}</td>
 
-                        <td className="px-3 py-2.5 align-top">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => openEditPurchase(pair)}
-                              title="Editar solicitação vinculada"
-                              className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-black"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
+                          <td className="px-3 py-2.5 align-top">
+                            <div className="flex flex-wrap gap-2">
+                              {pair.docs.map((doc) => <DocumentoLink key={doc.id} doc={doc} />)}
+                            </div>
+                          </td>
 
-                            {pair.docs.map((doc) => {
-                              const tipo = getTipo(doc);
-
-                              return (
-                                <React.Fragment key={doc.id}>
-                                  {tipo === 'XML' && !isXmlVinculado(doc) && (
-                                    <button
-                                      onClick={() => setVincularXml(doc)}
-                                      title="Vincular XML ao PDF"
-                                      className="rounded p-1 text-blue-400 hover:bg-blue-50 hover:text-blue-700"
-                                    >
-                                      <Link2 className="h-3.5 w-3.5" />
-                                    </button>
-                                  )}
-
-                                  {tipo === 'XML' && isXmlVinculado(doc) && (
-                                    <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                                  )}
-
-                                  <button
-                                    onClick={() => handleDelete(doc)}
-                                    title={`Deletar ${getFileName(doc)}`}
-                                    className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-600"
+                          <td className="px-3 py-2.5 align-top">
+                            <div className="flex flex-col items-stretch gap-2">
+                              {precisaAssociar && (
+                                <div className="flex min-w-[320px] items-center gap-2">
+                                  <select
+                                    value={selectedAssociationByPair[pair.key] || ''}
+                                    onChange={(e) => setSelectedAssociationByPair((prev) => ({ ...prev, [pair.key]: e.target.value }))}
+                                    className="h-8 min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700"
                                   >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
-                                </React.Fragment>
-                              );
-                            })}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                                    <option value="">XML/recibo desvinculado...</option>
+                                    {arquivosDesvinculados.map((doc) => (
+                                      <option key={doc.id} value={doc.id}>
+                                        {getTipo(doc)} — {getFileName(doc)}
+                                      </option>
+                                    ))}
+                                  </select>
+
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleAssociarArquivo(pair)}
+                                    className="h-8 gap-1.5 whitespace-nowrap text-xs"
+                                  >
+                                    <Link2 className="h-3.5 w-3.5" />
+                                    Associar XML/Recibo
+                                  </Button>
+                                </div>
+                              )}
+
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  onClick={() => openEditPurchase(pair)}
+                                  title="Editar solicitação vinculada"
+                                  className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-black"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+
+                                {pair.docs.map((doc) => {
+                                  const tipo = getTipo(doc);
+
+                                  return (
+                                    <React.Fragment key={doc.id}>
+                                      {tipo === 'XML' && !isXmlVinculado(doc) && (
+                                        <button
+                                          onClick={() => setVincularXml(doc)}
+                                          title="Vincular XML ao PDF"
+                                          className="rounded p-1 text-blue-400 hover:bg-blue-50 hover:text-blue-700"
+                                        >
+                                          <Link2 className="h-3.5 w-3.5" />
+                                        </button>
+                                      )}
+
+                                      {tipo === 'XML' && isXmlVinculado(doc) && (
+                                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                                      )}
+
+                                      {tipo === 'RECIBO' && isReciboVinculado(doc) && (
+                                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                                      )}
+
+                                      <button
+                                        onClick={() => handleDelete(doc)}
+                                        title={`Deletar ${getFileName(doc)}`}
+                                        className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-600"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
