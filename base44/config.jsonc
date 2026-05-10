@@ -1,0 +1,9 @@
+{
+  "name": "Museus Centro - Relat\u00f3rio Mensal",
+  "site": {
+    "installCommand": "npm install",
+    "buildCommand": "npm run build",
+    "serveCommand": "npm run dev",
+    "outputDirectory": "./dist"
+  }
+}
