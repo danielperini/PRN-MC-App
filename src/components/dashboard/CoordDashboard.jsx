@@ -54,6 +54,15 @@ export default function CoordDashboard({ reports = [], isLoading }) {
   const [filterClasse, setFilterClasse] = useState('');
   const [filterTipoAtiv, setFilterTipoAtiv] = useState('');
 
+  const isDarkTheme =
+    typeof document !== 'undefined' &&
+    (
+      document.documentElement.getAttribute('data-theme') === 'nuit' ||
+      document.body.getAttribute('data-theme') === 'nuit'
+    );
+
+  const publicoLineColor = isDarkTheme ? '#ffffff' : '#000000';
+
   // Filtrar relatórios por data
   const reportsFiltrados = useMemo(() => {
     return reports.filter((r) => {
@@ -488,7 +497,22 @@ export default function CoordDashboard({ reports = [], isLoading }) {
               formatter={(v) => [Math.round(v).toLocaleString('pt-BR'), 'Público']}
               contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
             
-              <Line type="monotone" dataKey="publico" stroke="#000000" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+              <Line
+                type="monotone"
+                dataKey="publico"
+                stroke={publicoLineColor}
+                strokeWidth={2}
+                dot={{
+                  r: 4,
+                  fill: publicoLineColor,
+                  stroke: publicoLineColor
+                }}
+                activeDot={{
+                  r: 6,
+                  fill: publicoLineColor,
+                  stroke: publicoLineColor
+                }}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
