@@ -5,7 +5,7 @@ const THEME_KEY = 'museu_centro_tema';
 export const THEMES = {
   atual: {
     id: 'atual',
-    nome: 'Tema Atual',
+    nome: 'Viaduto das Artes',
     descricao: 'Esquema de cores minimalista original do sistema.',
     vars: {
       '--cor-primaria': '#111111',
@@ -26,7 +26,7 @@ export const THEMES = {
   },
   museubh: {
     id: 'museubh',
-    nome: 'Tema Museu BH',
+    nome: 'Museus Centro',
     descricao: 'Paleta inspirada na Pampulha, Museu da Moda, MHAB e MIS.',
     vars: {
       '--cor-primaria': '#2E6F95',
@@ -52,7 +52,7 @@ export const THEMES = {
   },
   miro: {
     id: 'miro',
-    nome: 'Tema Miro',
+    nome: 'DEMUS',
     descricao: 'Paleta moderna e colorida com azul primario, amarelo destaque e cores vibrantes.',
     vars: {
       '--cor-primaria': '#4262FF',
@@ -78,7 +78,7 @@ export const THEMES = {
   },
   nuit: {
     id: 'nuit',
-    nome: 'Tema Nuit',
+    nome: 'NOTURNO NOS MUSEUS',
     descricao: 'Tema escuro para uso noturno e economia de energia.',
     vars: {
       '--cor-primaria': '#ffffff',
