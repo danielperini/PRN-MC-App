@@ -1,32 +1,75 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { base44 } from '@/api/base44Client'
-import { ChevronLeft, ChevronRight, ExternalLink, Newspaper } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Newspaper
+} from 'lucide-react'
 
 export default function NewsCarousel() {
   const [items, setItems] = useState([])
   const [index, setIndex] = useState(0)
 
-  // 🔁 carregar notícias (máx 20)
+  // 🔁 carregar SOMENTE notícias publicadas no LeitorNoticias
   useEffect(() => {
     async function load() {
       try {
-        const news = await base44.entities.NewsHighlight.list('-data_publicacao', 50)
+        let noticias = []
 
-        const curated = (news || [])
+        // 🔥 tenta entidade principal do LeitorNoticias
+        try {
+          noticias = await base44.entities.Noticia.filter({
+            status: 'PUBLICADO'
+          })
+        } catch (e) {
+          console.warn('Entidade Noticia indisponível, tentando NewsHighlight')
+
+          // 🔥 fallback seguro
+          noticias = await base44.entities.NewsHighlight.list(
+            '-data_publicacao',
+            50
+          )
+        }
+
+        const curated = (Array.isArray(noticias) ? noticias : [])
+          .filter((n) => {
+            return (
+              n?.status === 'PUBLICADO' ||
+              n?.publicado === true ||
+              !n?.status
+            )
+          })
+          .sort((a, b) => {
+            const da = new Date(
+              b?.data_publicacao || b?.created_date || 0
+            )
+
+            const db = new Date(
+              a?.data_publicacao || a?.created_date || 0
+            )
+
+            return da - db
+          })
           .slice(0, 20)
-          .map(n => ({
-            titulo: n.titulo,
-            resumo: n.resumo,
-            link: n.link,
-            data_publicacao: n.data_publicacao,
-            imagem: n.imagem_url,
-            tags: n.tags || [],
-            fonte: n.fonte || 'Notícia'
+          .map((n) => ({
+            titulo: n?.titulo || 'Sem título',
+            resumo: n?.resumo || n?.conteudo_resumido || '',
+            link: n?.link || n?.url || '#',
+            data_publicacao: n?.data_publicacao,
+            imagem:
+              n?.imagem ||
+              n?.imagem_url ||
+              n?.thumbnail ||
+              null,
+            tags: Array.isArray(n?.tags) ? n.tags : [],
+            fonte: n?.fonte || 'Museus Centro'
           }))
 
         setItems(curated)
       } catch (e) {
-        console.error(e)
+        console.error('Erro ao carregar notícias:', e)
+        setItems([])
       }
     }
 
@@ -38,7 +81,7 @@ export default function NewsCarousel() {
     if (!items.length) return undefined
 
     const i = setInterval(() => {
-      setIndex(prev => (prev + 4) % items.length)
+      setIndex((prev) => (prev + 4) % items.length)
     }, 15000)
 
     return () => clearInterval(i)
@@ -59,21 +102,26 @@ export default function NewsCarousel() {
 
   function goPrevious() {
     if (!items.length) return
-    setIndex(prev => {
+
+    setIndex((prev) => {
       const next = prev - 4
-      return next < 0 ? Math.max((groupCount - 1) * 4, 0) : next
+
+      return next < 0
+        ? Math.max((groupCount - 1) * 4, 0)
+        : next
     })
   }
 
   function goNext() {
     if (!items.length) return
-    setIndex(prev => (prev + 4) % items.length)
+    setIndex((prev) => (prev + 4) % items.length)
   }
 
   if (!visible.length) return null
 
   return (
     <section className="relative w-full rounded-[1.35rem] border border-gray-200 bg-white px-5 py-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)] sm:px-7 lg:px-10">
+
       {items.length > 4 && (
         <button
           type="button"
@@ -85,13 +133,33 @@ export default function NewsCarousel() {
         </button>
       )}
 
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-black p-2 text-white">
+            <Newspaper className="h-5 w-5" />
+          </div>
+
+          <div>
+            <h2 className="text-lg font-bold text-black">
+              Notícias Publicadas
+            </h2>
+
+            <p className="text-sm text-gray-500">
+              Conteúdo publicado no módulo LeitorNoticias
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+
         {visible.map((item, i) => (
           <article
             key={`${item?.titulo || 'noticia'}-${i}-${index}`}
             className="group min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
           >
             <div className="flex h-full min-h-[210px] flex-col">
+
               <div className="mb-5 flex items-center justify-between gap-2">
                 <span className="truncate rounded-full border border-gray-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-black shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
                   📡 {item.fonte}
@@ -104,6 +172,17 @@ export default function NewsCarousel() {
                 )}
               </div>
 
+              {item.imagem && (
+                <div className="mb-4 overflow-hidden rounded-xl border border-gray-100">
+                  <img
+                    src={item.imagem}
+                    alt={item?.titulo || 'Notícia'}
+                    className="h-44 w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                    loading="lazy"
+                  />
+                </div>
+              )}
+
               <h3 className="line-clamp-2 text-lg font-bold leading-tight text-black">
                 {item.titulo}
               </h3>
@@ -113,11 +192,14 @@ export default function NewsCarousel() {
               </p>
 
               <div className="mt-8 flex items-center justify-between gap-3">
+
                 <span className="truncate text-sm text-gray-500">
-                  {item.data_publicacao}
+                  {item?.data_publicacao
+                    ? new Date(item.data_publicacao).toLocaleDateString('pt-BR')
+                    : ''}
                 </span>
 
-                {item.link ? (
+                {item.link && item.link !== '#' ? (
                   <a
                     href={item.link}
                     target="_blank"
@@ -131,10 +213,12 @@ export default function NewsCarousel() {
                     <Newspaper className="h-4 w-4" /> Interno
                   </span>
                 )}
+
               </div>
             </div>
           </article>
         ))}
+
       </div>
 
       {items.length > 4 && (
@@ -150,8 +234,10 @@ export default function NewsCarousel() {
 
       {items.length > 4 && (
         <div className="mt-7 flex justify-center gap-3">
+
           {Array.from({ length: groupCount }).map((_, idx) => {
             const active = activeGroup === idx
+
             return (
               <button
                 key={idx}
@@ -159,13 +245,17 @@ export default function NewsCarousel() {
                 aria-label={`Ir para grupo ${idx + 1}`}
                 onClick={() => setIndex((idx * 4) % items.length)}
                 className={`h-2.5 w-2.5 rounded-full transition-all ${
-                  active ? 'bg-black' : 'bg-gray-300 hover:bg-gray-500'
+                  active
+                    ? 'bg-black'
+                    : 'bg-gray-300 hover:bg-gray-500'
                 }`}
               />
             )
           })}
+
         </div>
       )}
+
     </section>
   )
 }
