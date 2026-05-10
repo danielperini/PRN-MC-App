@@ -52,7 +52,7 @@ export const THEMES = {
   },
   miro: {
     id: 'miro',
-    nome: 'DEMUS',
+    nome: 'Museus BH',
     descricao: 'Paleta moderna e colorida com azul primario, amarelo destaque e cores vibrantes.',
     vars: {
       '--cor-primaria': '#4262FF',
@@ -78,7 +78,7 @@ export const THEMES = {
   },
   nuit: {
     id: 'nuit',
-    nome: 'NOTURNO NOS MUSEUS',
+    nome: 'Noturno nos Museus',
     descricao: 'Tema escuro para uso noturno e economia de energia.',
     vars: {
       '--cor-primaria': '#ffffff',
