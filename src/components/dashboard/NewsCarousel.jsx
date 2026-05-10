@@ -15,21 +15,180 @@ function escapeSvgText(value = '') {
     .replace(/"/g, '&quot;')
 }
 
+function pickIllustrationTheme(item = {}) {
+  const text = `${item?.titulo || ''} ${item?.resumo || ''} ${(item?.tags || []).join(' ')} ${item?.fonte || ''}`
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+
+  if (
+    text.includes('museu') ||
+    text.includes('exposicao') ||
+    text.includes('galeria') ||
+    text.includes('arte')
+  ) {
+    return {
+      tag: 'Museu',
+      emoji: '🏛️',
+      colors: ['#111827', '#7c2d12', '#f59e0b'],
+      shapes: 'frames'
+    }
+  }
+
+  if (
+    text.includes('natureza') ||
+    text.includes('paisagem') ||
+    text.includes('parque') ||
+    text.includes('jardim') ||
+    text.includes('territorio')
+  ) {
+    return {
+      tag: 'Paisagem',
+      emoji: '🌿',
+      colors: ['#064e3b', '#047857', '#a7f3d0'],
+      shapes: 'landscape'
+    }
+  }
+
+  if (
+    text.includes('educacao') ||
+    text.includes('oficina') ||
+    text.includes('formacao') ||
+    text.includes('escola')
+  ) {
+    return {
+      tag: 'Educação',
+      emoji: '📚',
+      colors: ['#1e3a8a', '#2563eb', '#bfdbfe'],
+      shapes: 'books'
+    }
+  }
+
+  if (
+    text.includes('cidade') ||
+    text.includes('bh') ||
+    text.includes('belo horizonte') ||
+    text.includes('urbano') ||
+    text.includes('rua')
+  ) {
+    return {
+      tag: 'Cidade',
+      emoji: '🌆',
+      colors: ['#312e81', '#6366f1', '#c7d2fe'],
+      shapes: 'city'
+    }
+  }
+
+  if (
+    text.includes('tecnologia') ||
+    text.includes('digital') ||
+    text.includes('ia') ||
+    text.includes('dados')
+  ) {
+    return {
+      tag: 'Tecnologia',
+      emoji: '💡',
+      colors: ['#0f172a', '#0ea5e9', '#bae6fd'],
+      shapes: 'network'
+    }
+  }
+
+  if (
+    text.includes('patrimonio') ||
+    text.includes('memoria') ||
+    text.includes('historico') ||
+    text.includes('historia')
+  ) {
+    return {
+      tag: 'Patrimônio',
+      emoji: '🗿',
+      colors: ['#422006', '#ca8a04', '#fde68a'],
+      shapes: 'archive'
+    }
+  }
+
+  return {
+    tag: 'Cultura',
+    emoji: '✨',
+    colors: ['#111827', '#4b5563', '#e5e7eb'],
+    shapes: 'abstract'
+  }
+}
+
 function makeGeneratedImage(item = {}) {
+  const theme = pickIllustrationTheme(item)
+
   const title = escapeSvgText(item?.titulo || 'Notícia')
   const source = escapeSvgText(item?.fonte || 'Museus Centro')
-  const tag = escapeSvgText(item?.tags?.[0] || 'Cultura')
+  const tag = escapeSvgText(item?.tags?.[0] || theme.tag)
+
+  const [c1, c2, c3] = theme.colors
+
+  const visual = {
+    frames: `
+      <rect x="82" y="210" width="150" height="105" rx="14" fill="#ffffff" opacity="0.14"/>
+      <rect x="260" y="190" width="180" height="135" rx="16" fill="#ffffff" opacity="0.20"/>
+      <rect x="480" y="215" width="150" height="100" rx="14" fill="#ffffff" opacity="0.12"/>
+      <line x1="60" y1="350" x2="840" y2="350" stroke="#ffffff" stroke-opacity="0.20" stroke-width="8"/>
+    `,
+
+    landscape: `
+      <circle cx="725" cy="145" r="58" fill="#ffffff" opacity="0.28"/>
+      <path d="M0 390 C160 300 240 330 370 260 C520 170 640 270 900 190 L900 520 L0 520 Z" fill="#ffffff" opacity="0.16"/>
+      <path d="M0 430 C220 340 340 400 520 310 C680 230 760 320 900 260 L900 520 L0 520 Z" fill="#ffffff" opacity="0.22"/>
+    `,
+
+    books: `
+      <rect x="95" y="250" width="95" height="170" rx="10" fill="#ffffff" opacity="0.20"/>
+      <rect x="210" y="220" width="95" height="200" rx="10" fill="#ffffff" opacity="0.14"/>
+      <rect x="325" y="270" width="95" height="150" rx="10" fill="#ffffff" opacity="0.22"/>
+      <circle cx="690" cy="275" r="75" fill="#ffffff" opacity="0.12"/>
+    `,
+
+    city: `
+      <rect x="70" y="250" width="80" height="190" rx="8" fill="#ffffff" opacity="0.15"/>
+      <rect x="175" y="190" width="105" height="250" rx="8" fill="#ffffff" opacity="0.20"/>
+      <rect x="310" y="235" width="90" height="205" rx="8" fill="#ffffff" opacity="0.13"/>
+      <rect x="430" y="165" width="120" height="275" rx="8" fill="#ffffff" opacity="0.18"/>
+      <rect x="585" y="270" width="90" height="170" rx="8" fill="#ffffff" opacity="0.14"/>
+    `,
+
+    network: `
+      <circle cx="160" cy="260" r="24" fill="#ffffff" opacity="0.22"/>
+      <circle cx="320" cy="190" r="18" fill="#ffffff" opacity="0.18"/>
+      <circle cx="475" cy="300" r="28" fill="#ffffff" opacity="0.22"/>
+      <circle cx="665" cy="210" r="20" fill="#ffffff" opacity="0.18"/>
+      <line x1="160" y1="260" x2="320" y2="190" stroke="#ffffff" stroke-opacity="0.20" stroke-width="6"/>
+      <line x1="320" y1="190" x2="475" y2="300" stroke="#ffffff" stroke-opacity="0.20" stroke-width="6"/>
+      <line x1="475" y1="300" x2="665" y2="210" stroke="#ffffff" stroke-opacity="0.20" stroke-width="6"/>
+    `,
+
+    archive: `
+      <rect x="95" y="220" width="270" height="180" rx="18" fill="#ffffff" opacity="0.14"/>
+      <rect x="125" y="250" width="210" height="22" rx="11" fill="#ffffff" opacity="0.22"/>
+      <rect x="125" y="295" width="170" height="18" rx="9" fill="#ffffff" opacity="0.18"/>
+      <rect x="125" y="335" width="195" height="18" rx="9" fill="#ffffff" opacity="0.18"/>
+      <circle cx="680" cy="290" r="82" fill="#ffffff" opacity="0.11"/>
+    `,
+
+    abstract: `
+      <circle cx="160" cy="245" r="92" fill="#ffffff" opacity="0.13"/>
+      <circle cx="760" cy="135" r="110" fill="#ffffff" opacity="0.10"/>
+      <rect x="375" y="235" width="190" height="120" rx="32" fill="#ffffff" opacity="0.14" transform="rotate(-8 470 295)"/>
+    `
+  }[theme.shapes]
 
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
       <defs>
         <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#111827"/>
-          <stop offset="55%" stop-color="#374151"/>
-          <stop offset="100%" stop-color="#0f172a"/>
+          <stop offset="0%" stop-color="${c1}"/>
+          <stop offset="58%" stop-color="${c2}"/>
+          <stop offset="100%" stop-color="${c3}"/>
         </linearGradient>
+
         <radialGradient id="r" cx="80%" cy="10%" r="80%">
-          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"/>
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.24"/>
           <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
         </radialGradient>
       </defs>
@@ -37,43 +196,51 @@ function makeGeneratedImage(item = {}) {
       <rect width="900" height="520" fill="url(#g)"/>
       <rect width="900" height="520" fill="url(#r)"/>
 
-      <circle cx="735" cy="95" r="90" fill="#ffffff" opacity="0.08"/>
-      <circle cx="810" cy="180" r="42" fill="#ffffff" opacity="0.08"/>
+      ${visual}
 
-      <rect x="52" y="54" width="190" height="38" rx="19" fill="#ffffff" opacity="0.14"/>
+      <rect
+        x="52"
+        y="52"
+        width="240"
+        height="42"
+        rx="21"
+        fill="#ffffff"
+        opacity="0.16"
+      />
 
       <text
         x="76"
-        y="79"
+        y="80"
         font-family="Arial, Helvetica, sans-serif"
-        font-size="18"
+        font-size="19"
         font-weight="700"
         fill="#ffffff"
       >
-        ${source}
+        ${theme.emoji} ${source}
       </text>
 
       <text
         x="58"
-        y="174"
+        y="154"
         font-family="Arial, Helvetica, sans-serif"
         font-size="24"
-        font-weight="700"
-        fill="#d1d5db"
+        font-weight="800"
+        fill="#ffffff"
+        opacity="0.86"
       >
         ${tag}
       </text>
 
-      <foreignObject x="54" y="205" width="760" height="210">
+      <foreignObject x="56" y="178" width="770" height="210">
         <div
           xmlns="http://www.w3.org/1999/xhtml"
           style="
             font-family: Arial, Helvetica, sans-serif;
             color: white;
-            font-size: 46px;
+            font-size: 42px;
             line-height: 1.08;
-            font-weight: 800;
-            letter-spacing: -1.2px;
+            font-weight: 850;
+            letter-spacing: -1px;
           "
         >
           ${title}
@@ -86,9 +253,10 @@ function makeGeneratedImage(item = {}) {
         font-family="Arial, Helvetica, sans-serif"
         font-size="18"
         font-weight="600"
-        fill="#e5e7eb"
+        fill="#ffffff"
+        opacity="0.80"
       >
-        Imagem gerada automaticamente a partir do texto
+        Imagem ilustrativa gerada automaticamente
       </text>
     </svg>
   `
@@ -119,7 +287,6 @@ export default function NewsCarousel() {
   const [items, setItems] = useState([])
   const [index, setIndex] = useState(0)
 
-  // 🔁 carregar SOMENTE notícias publicadas no LeitorNoticias
   useEffect(() => {
     async function load() {
       try {
@@ -130,17 +297,16 @@ export default function NewsCarousel() {
             status: 'PUBLICADO'
           })
         } catch (e) {
-          console.warn(
-            'Entidade Noticia indisponível, tentando NewsHighlight'
-          )
-
           noticias = await base44.entities.NewsHighlight.list(
             '-data_publicacao',
             50
           )
         }
 
-        const curated = (Array.isArray(noticias) ? noticias : [])
+        const curated = (Array.isArray(noticias)
+          ? noticias
+          : []
+        )
           .filter((n) => {
             return (
               n?.status === 'PUBLICADO' ||
@@ -150,11 +316,15 @@ export default function NewsCarousel() {
           })
           .sort((a, b) => {
             const da = new Date(
-              b?.data_publicacao || b?.created_date || 0
+              b?.data_publicacao ||
+              b?.created_date ||
+              0
             )
 
             const db = new Date(
-              a?.data_publicacao || a?.created_date || 0
+              a?.data_publicacao ||
+              a?.created_date ||
+              0
             )
 
             return da - db
@@ -163,14 +333,21 @@ export default function NewsCarousel() {
           .map((n) => {
             const item = {
               titulo: n?.titulo || 'Sem título',
+
               resumo:
                 n?.resumo ||
                 n?.conteudo_resumido ||
                 n?.descricao ||
                 '',
-              link: n?.link || n?.url || '#',
+
+              link:
+                n?.link ||
+                n?.url ||
+                '#',
+
               data_publicacao:
-                n?.data_publicacao || n?.created_date,
+                n?.data_publicacao ||
+                n?.created_date,
 
               imagem: getOriginalImage(n),
 
@@ -178,7 +355,9 @@ export default function NewsCarousel() {
                 ? n.tags
                 : [],
 
-              fonte: n?.fonte || 'Museus Centro'
+              fonte:
+                n?.fonte ||
+                'Museus Centro'
             }
 
             return {
@@ -188,18 +367,17 @@ export default function NewsCarousel() {
                 item.imagem ||
                 n?.imagem_ia ||
                 n?.imagem_gerada ||
-                makeGeneratedImage(item),
-
-              imagemGerada:
-                !item.imagem &&
-                !n?.imagem_ia &&
-                !n?.imagem_gerada
+                makeGeneratedImage(item)
             }
           })
 
         setItems(curated)
       } catch (e) {
-        console.error('Erro ao carregar notícias:', e)
+        console.error(
+          'Erro ao carregar notícias:',
+          e
+        )
+
         setItems([])
       }
     }
@@ -207,7 +385,6 @@ export default function NewsCarousel() {
     load()
   }, [])
 
-  // 🔁 rotação automática
   useEffect(() => {
     if (!items.length) return undefined
 
@@ -218,7 +395,6 @@ export default function NewsCarousel() {
     return () => clearInterval(i)
   }, [items.length])
 
-  // 📦 grupo de 4 cards
   const visible = useMemo(() => {
     if (!items.length) return []
 
@@ -245,6 +421,7 @@ export default function NewsCarousel() {
 
   function goNext() {
     if (!items.length) return
+
     setIndex((prev) => (prev + 4) % items.length)
   }
 
@@ -265,7 +442,9 @@ export default function NewsCarousel() {
       )}
 
       <div className="mb-5 flex items-center justify-between gap-4">
+
         <div className="flex items-center gap-3">
+
           <div className="rounded-xl bg-black p-2 text-white">
             <Newspaper className="h-5 w-5" />
           </div>
@@ -279,7 +458,9 @@ export default function NewsCarousel() {
               Conteúdo publicado no módulo LeitorNoticias
             </p>
           </div>
+
         </div>
+
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
@@ -302,13 +483,13 @@ export default function NewsCarousel() {
                     {item.tags[0]}
                   </span>
                 )}
+
               </div>
 
-              {/* IMAGEM ORIGINAL OU GERADA */}
               <div className="mb-3 overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
 
                 <img
-                  src={item.imagem}
+                  src={item.imagem || makeGeneratedImage(item)}
                   alt={item?.titulo || 'Notícia'}
                   className="h-32 w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
                   loading="lazy"
@@ -357,6 +538,7 @@ export default function NewsCarousel() {
                 )}
 
               </div>
+
             </div>
           </article>
         ))}
