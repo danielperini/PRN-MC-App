@@ -4,8 +4,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import {
-  AlertCircle, CheckCircle, Trash2, Edit, Eye, Download,
-  ChevronRight, Lock, FileText, Users
+  Trash2,
+  Eye,
+  Lock,
+  FileText,
+  Users,
+  CheckCircle,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,7 +24,6 @@ const STATUS_CONFIG = {
 
 export default function PendingApprovalsPanel() {
   const queryClient = useQueryClient();
-  const [selectedReport, setSelectedReport] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
   // Fetch pending users registrations
@@ -34,8 +37,38 @@ export default function PendingApprovalsPanel() {
     queryKey: ['pending-reports'],
     queryFn: async () => {
       const all = await base44.entities.Report.list('-created_date', 500);
-      return all.filter(r => ['SUBMITTED', 'IN_REVIEW'].includes(r.status));
+      return all.filter((r) => ['SUBMITTED', 'IN_REVIEW'].includes(r.status));
     },
+  });
+
+  // Approve user registration
+  const approveUserMutation = useMutation({
+    mutationFn: async (userId) => {
+      const user = pendingUsers.find((item) => item.id === userId);
+
+      await base44.entities.UserRegistration.update(userId, {
+        status: 'APROVADO',
+        aprovado_em: new Date().toISOString(),
+      });
+
+      try {
+        await base44.entities.AuditLog.create({
+          action: 'APPROVE',
+          entity_type: 'USER_REGISTRATION',
+          entity_id: userId,
+          actor_email: 'system',
+          actor_name: 'Coordenador',
+          details: `Usuário aprovado via painel de aprovações${user?.email ? `: ${user.email}` : ''}`,
+        });
+      } catch (error) {
+        console.warn('Auditoria de aprovação de usuário não registrada:', error);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pending-users'] });
+      toast.success('Usuário aprovado com sucesso');
+    },
+    onError: (err) => toast.error('Erro ao aprovar: ' + (err?.message || 'erro desconhecido')),
   });
 
   // Delete report mutation
@@ -56,19 +89,37 @@ export default function PendingApprovalsPanel() {
       toast.success('Relatório deletado com sucesso');
       setShowDeleteConfirm(null);
     },
-    onError: (err) => toast.error('Erro ao deletar: ' + err.message),
+    onError: (err) => toast.error('Erro ao deletar: ' + (err?.message || 'erro desconhecido')),
   });
 
   // Reject user registration
   const rejectUserMutation = useMutation({
     mutationFn: async (userId) => {
-      await base44.entities.UserRegistration.update(userId, { status: 'REJEITADO' });
+      const user = pendingUsers.find((item) => item.id === userId);
+
+      await base44.entities.UserRegistration.update(userId, {
+        status: 'REJEITADO',
+        rejeitado_em: new Date().toISOString(),
+      });
+
+      try {
+        await base44.entities.AuditLog.create({
+          action: 'REJECT',
+          entity_type: 'USER_REGISTRATION',
+          entity_id: userId,
+          actor_email: 'system',
+          actor_name: 'Coordenador',
+          details: `Solicitação de usuário rejeitada via painel de aprovações${user?.email ? `: ${user.email}` : ''}`,
+        });
+      } catch (error) {
+        console.warn('Auditoria de rejeição de usuário não registrada:', error);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-users'] });
       toast.success('Solicitação rejeitada');
     },
-    onError: (err) => toast.error('Erro: ' + err.message),
+    onError: (err) => toast.error('Erro: ' + (err?.message || 'erro desconhecido')),
   });
 
   const totalPending = pendingUsers.length + pendingReports.length;
@@ -94,9 +145,13 @@ export default function PendingApprovalsPanel() {
               <Users className="w-4 h-4" />
               Usuários Aguardando ({pendingUsers.length})
             </h3>
+
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {pendingUsers.map(user => (
-                <div key={user.id} className="bg-white p-3 rounded-lg flex items-start justify-between">
+              {pendingUsers.map((user) => (
+                <div
+                  key={user.id}
+                  className="bg-white p-3 rounded-lg flex items-start justify-between gap-3"
+                >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-black truncate">{user.full_name}</p>
                     <p className="text-xs text-gray-500 truncate">{user.email}</p>
@@ -104,15 +159,28 @@ export default function PendingApprovalsPanel() {
                       {user.funcao} • {user.museu}
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-red-600 border-red-200 text-xs ml-2 flex-shrink-0"
-                    onClick={() => rejectUserMutation.mutate(user.id)}
-                    disabled={rejectUserMutation.isPending}
-                  >
-                    Rejeitar
-                  </Button>
+
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                      onClick={() => approveUserMutation.mutate(user.id)}
+                      disabled={approveUserMutation.isPending || rejectUserMutation.isPending}
+                    >
+                      <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                      Aprovar
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 border-red-200 text-xs"
+                      onClick={() => rejectUserMutation.mutate(user.id)}
+                      disabled={rejectUserMutation.isPending || approveUserMutation.isPending}
+                    >
+                      Rejeitar
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -126,8 +194,9 @@ export default function PendingApprovalsPanel() {
               <FileText className="w-4 h-4" />
               Relatórios em Revisão ({pendingReports.length})
             </h3>
+
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {pendingReports.map(report => (
+              {pendingReports.map((report) => (
                 <div key={report.id} className="bg-white p-3 rounded-lg">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
@@ -135,6 +204,7 @@ export default function PendingApprovalsPanel() {
                       <p className="text-xs text-gray-500">
                         {report.mes_referencia} {report.ano} • {report.museu}
                       </p>
+
                       <Badge
                         className="mt-1 text-xs"
                         style={{
@@ -145,12 +215,14 @@ export default function PendingApprovalsPanel() {
                         {STATUS_CONFIG[report.status]?.label}
                       </Badge>
                     </div>
+
                     <div className="flex gap-1 flex-shrink-0">
                       <Link to={createPageUrl(`ReportEditor?id=${report.id}`)}>
                         <Button size="icon" variant="ghost" className="h-8 w-8">
                           <Eye className="w-4 h-4 text-blue-600" />
                         </Button>
                       </Link>
+
                       <Button
                         size="icon"
                         variant="ghost"
@@ -174,13 +246,16 @@ export default function PendingApprovalsPanel() {
           <DialogHeader>
             <DialogTitle>Confirmar Exclusão</DialogTitle>
           </DialogHeader>
+
           <p className="text-sm text-gray-600">
             Tem certeza que deseja deletar este relatório? Esta ação não pode ser desfeita.
           </p>
+
           <div className="flex justify-end gap-3 mt-4">
             <Button variant="outline" onClick={() => setShowDeleteConfirm(null)}>
               Cancelar
             </Button>
+
             <Button
               className="bg-red-600 hover:bg-red-700 text-white"
               onClick={() => deleteReportMutation.mutate(showDeleteConfirm)}
