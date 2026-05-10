@@ -1,110 +1,110 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { base44 } from '@/api/base44Client'
+import React, { useEffect, useMemo, useState } from 'react';
+import { base44 } from '@/api/base44Client';
 import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  Newspaper
-} from 'lucide-react'
+  Newspaper } from
+'lucide-react';
 
 function escapeSvgText(value = '') {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+  return String(value).
+  replace(/&/g, '&amp;').
+  replace(/</g, '&lt;').
+  replace(/>/g, '&gt;').
+  replace(/"/g, '&quot;');
 }
 
 function pickIllustrationTheme(item = {}) {
-  const text = `${item?.titulo || ''} ${item?.resumo || ''} ${(item?.tags || []).join(' ')} ${item?.fonte || ''}`
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
+  const text = `${item?.titulo || ''} ${item?.resumo || ''} ${(item?.tags || []).join(' ')} ${item?.fonte || ''}`.
+  normalize('NFD').
+  replace(/[\u0300-\u036f]/g, '').
+  toLowerCase();
 
   if (
-    text.includes('museu') ||
-    text.includes('exposicao') ||
-    text.includes('galeria') ||
-    text.includes('arte')
-  ) {
+  text.includes('museu') ||
+  text.includes('exposicao') ||
+  text.includes('galeria') ||
+  text.includes('arte'))
+  {
     return {
       tag: 'Museu',
       emoji: '🏛️',
       colors: ['#111827', '#7c2d12', '#f59e0b'],
       shapes: 'frames'
-    }
+    };
   }
 
   if (
-    text.includes('natureza') ||
-    text.includes('paisagem') ||
-    text.includes('parque') ||
-    text.includes('jardim') ||
-    text.includes('territorio')
-  ) {
+  text.includes('natureza') ||
+  text.includes('paisagem') ||
+  text.includes('parque') ||
+  text.includes('jardim') ||
+  text.includes('territorio'))
+  {
     return {
       tag: 'Paisagem',
       emoji: '🌿',
       colors: ['#064e3b', '#047857', '#a7f3d0'],
       shapes: 'landscape'
-    }
+    };
   }
 
   if (
-    text.includes('educacao') ||
-    text.includes('oficina') ||
-    text.includes('formacao') ||
-    text.includes('escola')
-  ) {
+  text.includes('educacao') ||
+  text.includes('oficina') ||
+  text.includes('formacao') ||
+  text.includes('escola'))
+  {
     return {
       tag: 'Educação',
       emoji: '📚',
       colors: ['#1e3a8a', '#2563eb', '#bfdbfe'],
       shapes: 'books'
-    }
+    };
   }
 
   if (
-    text.includes('cidade') ||
-    text.includes('bh') ||
-    text.includes('belo horizonte') ||
-    text.includes('urbano') ||
-    text.includes('rua')
-  ) {
+  text.includes('cidade') ||
+  text.includes('bh') ||
+  text.includes('belo horizonte') ||
+  text.includes('urbano') ||
+  text.includes('rua'))
+  {
     return {
       tag: 'Cidade',
       emoji: '🌆',
       colors: ['#312e81', '#6366f1', '#c7d2fe'],
       shapes: 'city'
-    }
+    };
   }
 
   if (
-    text.includes('tecnologia') ||
-    text.includes('digital') ||
-    text.includes('ia') ||
-    text.includes('dados')
-  ) {
+  text.includes('tecnologia') ||
+  text.includes('digital') ||
+  text.includes('ia') ||
+  text.includes('dados'))
+  {
     return {
       tag: 'Tecnologia',
       emoji: '💡',
       colors: ['#0f172a', '#0ea5e9', '#bae6fd'],
       shapes: 'network'
-    }
+    };
   }
 
   if (
-    text.includes('patrimonio') ||
-    text.includes('memoria') ||
-    text.includes('historico') ||
-    text.includes('historia')
-  ) {
+  text.includes('patrimonio') ||
+  text.includes('memoria') ||
+  text.includes('historico') ||
+  text.includes('historia'))
+  {
     return {
       tag: 'Patrimônio',
       emoji: '🗿',
       colors: ['#422006', '#ca8a04', '#fde68a'],
       shapes: 'archive'
-    }
+    };
   }
 
   return {
@@ -112,17 +112,17 @@ function pickIllustrationTheme(item = {}) {
     emoji: '✨',
     colors: ['#111827', '#4b5563', '#e5e7eb'],
     shapes: 'abstract'
-  }
+  };
 }
 
 function makeGeneratedImage(item = {}) {
-  const theme = pickIllustrationTheme(item)
+  const theme = pickIllustrationTheme(item);
 
-  const title = escapeSvgText(item?.titulo || 'Notícia')
-  const source = escapeSvgText(item?.fonte || 'Museus Centro')
-  const tag = escapeSvgText(item?.tags?.[0] || theme.tag)
+  const title = escapeSvgText(item?.titulo || 'Notícia');
+  const source = escapeSvgText(item?.fonte || 'Museus Centro');
+  const tag = escapeSvgText(item?.tags?.[0] || theme.tag);
 
-  const [c1, c2, c3] = theme.colors
+  const [c1, c2, c3] = theme.colors;
 
   const visual = {
     frames: `
@@ -176,7 +176,7 @@ function makeGeneratedImage(item = {}) {
       <circle cx="760" cy="135" r="110" fill="#ffffff" opacity="0.10"/>
       <rect x="375" y="235" width="190" height="120" rx="32" fill="#ffffff" opacity="0.14" transform="rotate(-8 470 295)"/>
     `
-  }[theme.shapes]
+  }[theme.shapes];
 
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
@@ -259,9 +259,9 @@ function makeGeneratedImage(item = {}) {
         Imagem ilustrativa gerada automaticamente
       </text>
     </svg>
-  `
+  `;
 
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
 function getOriginalImage(n = {}) {
@@ -279,167 +279,167 @@ function getOriginalImage(n = {}) {
     n?.imagem ||
     n?.imagem_url ||
     n?.url_imagem ||
-    null
-  )
+    null);
+
 }
 
 export default function NewsCarousel() {
-  const [items, setItems] = useState([])
-  const [index, setIndex] = useState(0)
+  const [items, setItems] = useState([]);
+  const [index, setIndex] = useState(0);
 
   useEffect(() => {
     async function load() {
       try {
-        let noticias = []
+        let noticias = [];
 
         try {
           noticias = await base44.entities.Noticia.filter({
             status: 'PUBLICADO'
-          })
+          });
         } catch (e) {
           noticias = await base44.entities.NewsHighlight.list(
             '-data_publicacao',
             50
-          )
+          );
         }
 
-        const curated = (Array.isArray(noticias)
-          ? noticias
-          : []
-        )
-          .filter((n) => {
-            return (
-              n?.status === 'PUBLICADO' ||
-              n?.publicado === true ||
-              !n?.status
-            )
-          })
-          .sort((a, b) => {
-            const da = new Date(
-              b?.data_publicacao ||
-              b?.created_date ||
-              0
-            )
+        const curated = (Array.isArray(noticias) ?
+        noticias :
+        []).
 
-            const db = new Date(
-              a?.data_publicacao ||
-              a?.created_date ||
-              0
-            )
+        filter((n) => {
+          return (
+            n?.status === 'PUBLICADO' ||
+            n?.publicado === true ||
+            !n?.status);
 
-            return da - db
-          })
-          .slice(0, 20)
-          .map((n) => {
-            const item = {
-              titulo: n?.titulo || 'Sem título',
+        }).
+        sort((a, b) => {
+          const da = new Date(
+            b?.data_publicacao ||
+            b?.created_date ||
+            0
+          );
 
-              resumo:
-                n?.resumo ||
-                n?.conteudo_resumido ||
-                n?.descricao ||
-                '',
+          const db = new Date(
+            a?.data_publicacao ||
+            a?.created_date ||
+            0
+          );
 
-              link:
-                n?.link ||
-                n?.url ||
-                '#',
+          return da - db;
+        }).
+        slice(0, 20).
+        map((n) => {
+          const item = {
+            titulo: n?.titulo || 'Sem título',
 
-              data_publicacao:
-                n?.data_publicacao ||
-                n?.created_date,
+            resumo:
+            n?.resumo ||
+            n?.conteudo_resumido ||
+            n?.descricao ||
+            '',
 
-              imagem: getOriginalImage(n),
+            link:
+            n?.link ||
+            n?.url ||
+            '#',
 
-              tags: Array.isArray(n?.tags)
-                ? n.tags
-                : [],
+            data_publicacao:
+            n?.data_publicacao ||
+            n?.created_date,
 
-              fonte:
-                n?.fonte ||
-                'Museus Centro'
-            }
+            imagem: getOriginalImage(n),
 
-            return {
-              ...item,
+            tags: Array.isArray(n?.tags) ?
+            n.tags :
+            [],
 
-              imagem:
-                item.imagem ||
-                n?.imagem_ia ||
-                n?.imagem_gerada ||
-                makeGeneratedImage(item)
-            }
-          })
+            fonte:
+            n?.fonte ||
+            'Museus Centro'
+          };
 
-        setItems(curated)
+          return {
+            ...item,
+
+            imagem:
+            item.imagem ||
+            n?.imagem_ia ||
+            n?.imagem_gerada ||
+            makeGeneratedImage(item)
+          };
+        });
+
+        setItems(curated);
       } catch (e) {
         console.error(
           'Erro ao carregar notícias:',
           e
-        )
+        );
 
-        setItems([])
+        setItems([]);
       }
     }
 
-    load()
-  }, [])
+    load();
+  }, []);
 
   useEffect(() => {
-    if (!items.length) return undefined
+    if (!items.length) return undefined;
 
     const i = setInterval(() => {
-      setIndex((prev) => (prev + 4) % items.length)
-    }, 15000)
+      setIndex((prev) => (prev + 4) % items.length);
+    }, 15000);
 
-    return () => clearInterval(i)
-  }, [items.length])
+    return () => clearInterval(i);
+  }, [items.length]);
 
   const visible = useMemo(() => {
-    if (!items.length) return []
+    if (!items.length) return [];
 
     return Array.from(
       { length: Math.min(4, items.length) },
       (_, i) => items[(index + i) % items.length]
-    )
-  }, [items, index])
+    );
+  }, [items, index]);
 
-  const groupCount = Math.ceil(items.length / 4)
-  const activeGroup = Math.floor(index / 4)
+  const groupCount = Math.ceil(items.length / 4);
+  const activeGroup = Math.floor(index / 4);
 
   function goPrevious() {
-    if (!items.length) return
+    if (!items.length) return;
 
     setIndex((prev) => {
-      const next = prev - 4
+      const next = prev - 4;
 
-      return next < 0
-        ? Math.max((groupCount - 1) * 4, 0)
-        : next
-    })
+      return next < 0 ?
+      Math.max((groupCount - 1) * 4, 0) :
+      next;
+    });
   }
 
   function goNext() {
-    if (!items.length) return
+    if (!items.length) return;
 
-    setIndex((prev) => (prev + 4) % items.length)
+    setIndex((prev) => (prev + 4) % items.length);
   }
 
-  if (!visible.length) return null
+  if (!visible.length) return null;
 
   return (
     <section className="relative w-full rounded-[1.35rem] border border-gray-200 bg-white px-5 py-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)] sm:px-7 lg:px-10">
 
-      {items.length > 4 && (
-        <button
-          type="button"
-          aria-label="Notícias anteriores"
-          onClick={goPrevious}
-          className="absolute left-0 top-1/2 z-10 hidden h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-black shadow-lg transition-all hover:-translate-x-[55%] hover:bg-gray-50 lg:flex"
-        >
+      {items.length > 4 &&
+      <button
+        type="button"
+        aria-label="Notícias anteriores"
+        onClick={goPrevious}
+        className="absolute left-0 top-1/2 z-10 hidden h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-black shadow-lg transition-all hover:-translate-x-[55%] hover:bg-gray-50 lg:flex">
+        
           <ChevronLeft className="h-5 w-5" />
         </button>
-      )}
+      }
 
       <div className="mb-5 flex items-center justify-between gap-4">
 
@@ -465,11 +465,11 @@ export default function NewsCarousel() {
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
 
-        {visible.map((item, i) => (
-          <article
-            key={`${item?.titulo || 'noticia'}-${i}-${index}`}
-            className="group min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
-          >
+        {visible.map((item, i) =>
+        <article
+          key={`${item?.titulo || 'noticia'}-${i}-${index}`}
+          className="group min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md">
+          
             <div className="flex h-full min-h-[150px] flex-col">
 
               <div className="mb-3 flex items-center justify-between gap-2">
@@ -478,26 +478,26 @@ export default function NewsCarousel() {
                   📡 {item.fonte}
                 </span>
 
-                {item.tags?.[0] && (
-                  <span className="hidden truncate rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-[9px] font-semibold text-gray-600 sm:inline">
+                {item.tags?.[0] &&
+              <span className="hidden truncate rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-[9px] font-semibold text-gray-600 sm:inline">
                     {item.tags[0]}
                   </span>
-                )}
+              }
 
               </div>
 
               <div className="mb-3 overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
 
                 <img
-                  src={item.imagem || makeGeneratedImage(item)}
-                  alt={item?.titulo || 'Notícia'}
-                  className="h-32 w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-                  loading="lazy"
-                  onError={(event) => {
-                    event.currentTarget.src =
-                      makeGeneratedImage(item)
-                  }}
-                />
+                src={item.imagem || makeGeneratedImage(item)}
+                alt={item?.titulo || 'Notícia'}
+                className="h-32 w-full object-cover transition-transform duration-500 group-hover:scale-[1.02] hidden"
+                loading="lazy"
+                onError={(event) => {
+                  event.currentTarget.src =
+                  makeGeneratedImage(item);
+                }} />
+              
 
               </div>
 
@@ -505,83 +505,83 @@ export default function NewsCarousel() {
                 {item.titulo}
               </h3>
 
-              {item.resumo && (
-                <p className="mt-3 line-clamp-3 flex-1 text-xs leading-relaxed text-gray-700">
+              {item.resumo &&
+            <p className="mt-3 line-clamp-3 flex-1 text-xs leading-relaxed text-gray-700">
                   {item.resumo}
                 </p>
-              )}
+            }
 
               <div className="mt-5 flex items-center justify-between gap-3">
 
                 <span className="truncate text-xs text-gray-500">
-                  {item?.data_publicacao
-                    ? new Date(
-                        item.data_publicacao
-                      ).toLocaleDateString('pt-BR')
-                    : ''}
+                  {item?.data_publicacao ?
+                new Date(
+                  item.data_publicacao
+                ).toLocaleDateString('pt-BR') :
+                ''}
                 </span>
 
-                {item.link && item.link !== '#' ? (
-                  <a
-                    href={item.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded-full border border-black bg-white px-2.5 py-1 text-xs font-semibold text-black transition-colors hover:bg-black hover:text-white"
-                  >
+                {item.link && item.link !== '#' ?
+              <a
+                href={item.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-full border border-black bg-white px-2.5 py-1 text-xs font-semibold text-black transition-colors hover:bg-black hover:text-white">
+                
                     Ver <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-black bg-white px-2.5 py-1 text-xs font-semibold text-black">
+                  </a> :
+
+              <span className="inline-flex items-center gap-1 rounded-full border border-black bg-white px-2.5 py-1 text-xs font-semibold text-black">
                     <Newspaper className="h-3.5 w-3.5" />
                     Interno
                   </span>
-                )}
+              }
 
               </div>
 
             </div>
           </article>
-        ))}
+        )}
 
       </div>
 
-      {items.length > 4 && (
-        <button
-          type="button"
-          aria-label="Próximas notícias"
-          onClick={goNext}
-          className="absolute right-0 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-black shadow-lg transition-all hover:translate-x-[55%] hover:bg-gray-50 lg:flex"
-        >
+      {items.length > 4 &&
+      <button
+        type="button"
+        aria-label="Próximas notícias"
+        onClick={goNext}
+        className="absolute right-0 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-black shadow-lg transition-all hover:translate-x-[55%] hover:bg-gray-50 lg:flex">
+        
           <ChevronRight className="h-5 w-5" />
         </button>
-      )}
+      }
 
-      {items.length > 4 && (
-        <div className="mt-6 flex justify-center gap-3">
+      {items.length > 4 &&
+      <div className="mt-6 flex justify-center gap-3">
 
           {Array.from({ length: groupCount }).map((_, idx) => {
-            const active = activeGroup === idx
+          const active = activeGroup === idx;
 
-            return (
-              <button
-                key={idx}
-                type="button"
-                aria-label={`Ir para grupo ${idx + 1}`}
-                onClick={() =>
-                  setIndex((idx * 4) % items.length)
-                }
-                className={`h-2.5 w-2.5 rounded-full transition-all ${
-                  active
-                    ? 'bg-black'
-                    : 'bg-gray-300 hover:bg-gray-500'
-                }`}
-              />
-            )
-          })}
+          return (
+            <button
+              key={idx}
+              type="button"
+              aria-label={`Ir para grupo ${idx + 1}`}
+              onClick={() =>
+              setIndex(idx * 4 % items.length)
+              }
+              className={`h-2.5 w-2.5 rounded-full transition-all ${
+              active ?
+              'bg-black' :
+              'bg-gray-300 hover:bg-gray-500'}`
+              } />);
+
+
+        })}
 
         </div>
-      )}
+      }
 
-    </section>
-  )
+    </section>);
+
 }
