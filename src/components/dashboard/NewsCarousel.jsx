@@ -15,6 +15,14 @@ function escapeSvgText(value = '') {
   replace(/"/g, '&quot;');
 }
 
+function normalizeText(value = '') {
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 function pickIllustrationTheme(item = {}) {
   const text = `${item?.titulo || ''} ${item?.resumo || ''} ${(item?.tags || []).join(' ')} ${item?.fonte || ''}`.
   normalize('NFD').
@@ -283,106 +291,140 @@ function getOriginalImage(n = {}) {
 
 }
 
+function isPublishedNews(item = {}) {
+  if (!item?.id) return false;
+  if (item?.ativo === false) return false;
+  if (item?.deleted === true || item?.deletado === true || item?.removido === true) return false;
+
+  const status = String(item?.status_curadoria || item?.status || '').toUpperCase();
+
+  return status === 'PUBLICADO_AUTO' || status === 'APROVADO_MANUAL' || status === 'PUBLICADO';
+}
+
+function normalizeNewsItem(n = {}) {
+  const item = {
+    id: n?.id,
+    titulo: n?.titulo || 'Sem título',
+
+    resumo:
+    n?.resumo ||
+    n?.conteudo_resumido ||
+    n?.descricao ||
+    '',
+
+    link:
+    n?.link ||
+    n?.url ||
+    '#',
+
+    data_publicacao:
+    n?.data_publicacao ||
+    n?.created_date,
+
+    imagem: getOriginalImage(n),
+
+    tags: Array.isArray(n?.tags) ?
+    n.tags :
+    [],
+
+    fonte:
+    n?.fonte ||
+    'Museus Centro',
+
+    status_curadoria: n?.status_curadoria || n?.status || '',
+    ativo: n?.ativo !== false,
+    updated_date: n?.updated_date || n?.modified_date || n?.created_date || ''
+  };
+
+  return {
+    ...item,
+
+    imagem:
+    item.imagem ||
+    n?.imagem_ia ||
+    n?.imagem_gerada ||
+    makeGeneratedImage(item)
+  };
+}
+
+function sortByPublishedDate(a, b) {
+  const da = new Date(
+    b?.data_publicacao ||
+    b?.updated_date ||
+    0
+  );
+
+  const db = new Date(
+    a?.data_publicacao ||
+    a?.updated_date ||
+    0
+  );
+
+  return da - db;
+}
+
 export default function NewsCarousel() {
   const [items, setItems] = useState([]);
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
+    let isMounted = true;
+
     async function load() {
       try {
-        let noticias = [];
+        const noticias = await base44.entities.NewsHighlight.filter(
+          { ativo: true },
+          '-created_date',
+          100
+        );
 
-        try {
-          noticias = await base44.entities.Noticia.filter({
-            status: 'PUBLICADO'
-          });
-        } catch (e) {
-          noticias = await base44.entities.NewsHighlight.list(
-            '-data_publicacao',
-            50
-          );
-        }
+        const curated = (Array.isArray(noticias) ? noticias : [])
+          .filter(isPublishedNews)
+          .filter((n) => normalizeText(n?.titulo) !== normalizeText('Porto submerso egípcio pode levar ao túmulo de Cleópatra'))
+          .sort(sortByPublishedDate)
+          .slice(0, 20)
+          .map(normalizeNewsItem);
 
-        const curated = (Array.isArray(noticias) ?
-        noticias :
-        []).
-
-        filter((n) => {
-          return (
-            n?.status === 'PUBLICADO' ||
-            n?.publicado === true ||
-            !n?.status);
-
-        }).
-        sort((a, b) => {
-          const da = new Date(
-            b?.data_publicacao ||
-            b?.created_date ||
-            0
-          );
-
-          const db = new Date(
-            a?.data_publicacao ||
-            a?.created_date ||
-            0
-          );
-
-          return da - db;
-        }).
-        slice(0, 20).
-        map((n) => {
-          const item = {
-            titulo: n?.titulo || 'Sem título',
-
-            resumo:
-            n?.resumo ||
-            n?.conteudo_resumido ||
-            n?.descricao ||
-            '',
-
-            link:
-            n?.link ||
-            n?.url ||
-            '#',
-
-            data_publicacao:
-            n?.data_publicacao ||
-            n?.created_date,
-
-            imagem: getOriginalImage(n),
-
-            tags: Array.isArray(n?.tags) ?
-            n.tags :
-            [],
-
-            fonte:
-            n?.fonte ||
-            'Museus Centro'
-          };
-
-          return {
-            ...item,
-
-            imagem:
-            item.imagem ||
-            n?.imagem_ia ||
-            n?.imagem_gerada ||
-            makeGeneratedImage(item)
-          };
-        });
+        if (!isMounted) return;
 
         setItems(curated);
+        setIndex((currentIndex) => {
+          if (!curated.length) return 0;
+          return currentIndex >= curated.length ? 0 : currentIndex;
+        });
       } catch (e) {
         console.error(
-          'Erro ao carregar notícias:',
+          'Erro ao carregar notícias publicadas do LeitorNoticias:',
           e
         );
 
-        setItems([]);
+        if (isMounted) setItems([]);
       }
     }
 
     load();
+
+    const interval = setInterval(load, 30000);
+
+    const handleFocus = () => load();
+    const handleVisibility = () => {
+      if (!document.hidden) load();
+    };
+    const handleStorage = (event) => {
+      if (!event?.key || event.key.includes('news') || event.key.includes('noticia')) load();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('storage', handleStorage);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('storage', handleStorage);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   useEffect(() => {
@@ -467,7 +509,7 @@ export default function NewsCarousel() {
 
         {visible.map((item, i) =>
         <article
-          key={`${item?.titulo || 'noticia'}-${i}-${index}`}
+          key={`${item?.id || item?.titulo || 'noticia'}-${i}-${index}`}
           className="group min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md">
           
             <div className="flex h-full min-h-[150px] flex-col">
