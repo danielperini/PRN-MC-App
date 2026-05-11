@@ -11,145 +11,162 @@ import {
   Globe2,
   Share2,
   Sparkles,
-  TrendingUp } from
-'lucide-react';
+  TrendingUp,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { base44 } from '@/api/base44Client';
 
+const DAYS_WINDOW = 60;
+
 const FOLDER_IDS = {
   RELEASES_CLIPPING: '1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
   IMAGENS: '1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
-  REDES_SOCIAIS: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_'
+  REDES_SOCIAIS: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
 };
 
 const DRIVE_FOLDERS = [
-{
-  id: FOLDER_IDS.RELEASES_CLIPPING,
-  name: 'Releases e Clipping',
-  url: 'https://drive.google.com/drive/folders/1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
-  defaultCategory: 'RELEASE'
-},
-{
-  id: FOLDER_IDS.IMAGENS,
-  name: 'Imagens',
-  url: 'https://drive.google.com/drive/folders/1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
-  defaultCategory: 'FOTOGRAFIA'
-},
-{
-  id: FOLDER_IDS.REDES_SOCIAIS,
-  name: 'Redes Sociais',
-  url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
-  defaultCategory: 'POSTS'
-}];
-
+  {
+    id: FOLDER_IDS.RELEASES_CLIPPING,
+    name: 'Releases e Clipping',
+    url: 'https://drive.google.com/drive/folders/1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
+    defaultCategory: 'RELEASE',
+  },
+  {
+    id: FOLDER_IDS.IMAGENS,
+    name: 'Imagens',
+    url: 'https://drive.google.com/drive/folders/1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
+    defaultCategory: 'FOTOGRAFIA',
+  },
+  {
+    id: FOLDER_IDS.REDES_SOCIAIS,
+    name: 'Redes Sociais',
+    url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
+    defaultCategory: 'POSTS',
+  },
+];
 
 const KEYWORDS = [
-'Museus Centro',
-'Viaduto das Artes',
-'Museu Histórico Abílio Barreto',
-'MHAB',
-'Museu da Moda',
-'MUMO',
-'Museu da Imagem e do Som',
-'MIS BH',
-'Noturno nos Museus'];
-
+  'Museus Centro',
+  'Viaduto das Artes',
+  'Museu Histórico Abílio Barreto',
+  'Abílio Barreto',
+  'MHAB',
+  'Museu da Moda',
+  'MUMO',
+  'Museu da Imagem e do Som',
+  'MIS BH',
+  'Noturno nos Museus',
+  'Semana Nacional de Museus',
+  'Fundação Municipal de Cultura',
+];
 
 const SEEDED_CLIPPING = [
-{
-  id: 'pbh-semana-museus-2026-05',
-  title: '24ª Semana Nacional de Museus agita a programação de maio em BH',
-  sourceName: 'PBH Notícias',
-  sourceType: 'Imprensa institucional',
-  publishedDate: '2026-05-05',
-  relevance: 'Alta',
-  platform: 'Site',
-  relatedTo: ['Museus Centro', 'MIS BH', 'MHAB', 'MUMO'],
-  url: 'https://prefeitura.pbh.gov.br/noticias/24a-semana-nacional-de-museus-agita-programacao-de-maio-em-bh',
-  summary: 'Matéria institucional com programação de maio e menção direta aos espaços do Museus Centro.'
-},
-{
-  id: 'pbh-museus-centro-abril-2026',
-  title: 'Projeto Museus Centro traz experimentações visuais e manuais em abril',
-  sourceName: 'PBH Notícias',
-  sourceType: 'Imprensa institucional',
-  publishedDate: '2026-04-01',
-  relevance: 'Alta',
-  platform: 'Site',
-  relatedTo: ['Museus Centro', 'Programação'],
-  url: 'https://prefeitura.pbh.gov.br/noticias/projeto-museus-centro-traz-experimentacoes-visuais-e-manuais-em-abril',
-  summary: 'Divulgação direta da programação do projeto Museus Centro em abril.'
-},
-{
-  id: 'culturadoria-museus-centro-abril-2026',
-  title: 'Museus Centro com inscrições abertas para oficinas e experiências',
-  sourceName: 'Culturadoria',
-  sourceType: 'Mídia cultural',
-  publishedDate: '2026-04-10',
-  relevance: 'Alta',
-  platform: 'Site',
-  relatedTo: ['Museus Centro', 'Oficinas'],
-  url: 'https://culturadoria.com.br/museus-centro-em-abril/',
-  summary: 'Publicação de agenda cultural com foco em oficinas e experiências do Museus Centro.'
-},
-{
-  id: 'culturadoria-semana-museus-2026-05',
-  title: 'Semana Nacional de Museus movimenta espaços culturais de BH',
-  sourceName: 'Culturadoria',
-  sourceType: 'Mídia cultural',
-  publishedDate: '2026-05-06',
-  relevance: 'Alta',
-  platform: 'Site',
-  relatedTo: ['MIS BH', 'MUMO', 'MHAB', 'Museus Centro'],
-  url: 'https://culturadoria.com.br/semana-dos-museus-em-bh/',
-  summary: 'Cobertura cultural sobre a Semana Nacional de Museus e programação dos espaços.'
-},
-{
-  id: 'bheventos-semana-museus-2026-05',
-  title: '24ª Semana Nacional de Museus agita a programação do Museus Centro',
-  sourceName: 'BH Eventos',
-  sourceType: 'Agenda cultural',
-  publishedDate: '2026-05-06',
-  relevance: 'Média/Alta',
-  platform: 'Site',
-  relatedTo: ['Museus Centro', 'Semana Nacional de Museus'],
-  url: 'https://www.bheventos.com.br/noticia/05-06-2026-24-semana-nacional-de-museus-agita-a-programacao-de-maio-do-museus-centro',
-  summary: 'Agenda cultural com chamada para programação do Museus Centro.'
-},
-{
-  id: 'portal-belohorizonte-museus-centro',
-  title: 'Portal oficial de notícias Museus Centro',
-  sourceName: 'Portal Belo Horizonte',
-  sourceType: 'Canal institucional',
-  publishedDate: '2026-04-15',
-  relevance: 'Média',
-  platform: 'Site',
-  relatedTo: ['Museus Centro'],
-  url: 'https://portalbelohorizonte.com.br/museuscentro/2025/noticias',
-  summary: 'Página agregadora institucional de notícias e conteúdos do projeto.'
-},
-{
-  id: 'reddit-bh-museus-2026',
-  title: 'Discussão espontânea sobre museus em BH',
-  sourceName: 'Reddit Belo Horizonte',
-  sourceType: 'Rede social',
-  publishedDate: '2026-04-20',
-  relevance: 'Média',
-  platform: 'Reddit',
-  relatedTo: ['Museu da Moda', 'MIS BH', 'Museus de BH'],
-  url: 'https://www.reddit.com/r/BeloHorizonte/comments/1rb4q2y/museus_em_bh/',
-  summary: 'Menções espontâneas a museus de Belo Horizonte em comunidade aberta.'
-}];
-
+  {
+    id: 'pbh-semana-museus-2026-05',
+    title: '24ª Semana Nacional de Museus agita a programação de maio em BH',
+    sourceName: 'PBH Notícias',
+    sourceType: 'Imprensa institucional',
+    publishedDate: '2026-05-05',
+    relevance: 'Alta',
+    platform: 'Site',
+    relatedTo: ['Museus Centro', 'MIS BH', 'MHAB', 'MUMO', 'Viaduto das Artes'],
+    url: 'https://prefeitura.pbh.gov.br/noticias/24a-semana-nacional-de-museus-agita-programacao-de-maio-em-bh',
+    summary: 'Publicação recente da PBH sobre a programação de maio, com menção direta ao projeto Museus Centro, MIS BH, MHAB, MUMO e Viaduto das Artes.',
+  },
+  {
+    id: 'bheventos-semana-museus-2026-05',
+    title: '24ª Semana nacional de museus agita a programação de maio do Museus Centro',
+    sourceName: 'BH Eventos',
+    sourceType: 'Agenda cultural',
+    publishedDate: '2026-05-06',
+    relevance: 'Alta',
+    platform: 'Site',
+    relatedTo: ['Museus Centro', 'Semana Nacional de Museus', 'MIS BH', 'MHAB', 'MUMO'],
+    url: 'https://www.bheventos.com.br/noticia/05-06-2026-24-semana-nacional-de-museus-agita-a-programacao-de-maio-do-museus-centro',
+    summary: 'Reprodução em agenda cultural da programação de maio do Museus Centro e dos museus municipais envolvidos.',
+  },
+  {
+    id: 'culturadoria-semana-museus-2026-05',
+    title: 'Semana Nacional de Museus movimenta espaços culturais de BH',
+    sourceName: 'Culturadoria',
+    sourceType: 'Mídia cultural',
+    publishedDate: '2026-05-06',
+    relevance: 'Alta',
+    platform: 'Site',
+    relatedTo: ['MIS BH', 'MUMO', 'MHAB', 'Museus Centro'],
+    url: 'https://culturadoria.com.br/semana-dos-museus-em-bh/',
+    summary: 'Cobertura cultural sobre a Semana Nacional de Museus e a programação dos espaços associados ao Museus Centro.',
+  },
+  {
+    id: 'pbh-projeto-museus-centro-2026-04',
+    title: 'Projeto Museus Centro',
+    sourceName: 'PBH / Fundação Municipal de Cultura',
+    sourceType: 'Institucional',
+    publishedDate: '2026-04-09',
+    relevance: 'Alta',
+    platform: 'Site',
+    relatedTo: ['Museus Centro', 'Viaduto das Artes', 'MHAB', 'MIS BH', 'MUMO'],
+    url: 'https://prefeitura.pbh.gov.br/fundacao-municipal-de-cultura/projeto-museus-centro',
+    summary: 'Página institucional atualizada em abril de 2026, descrevendo o projeto, os museus participantes e a parceria com o Viaduto das Artes.',
+  },
+  {
+    id: 'portal-bh-museus-centro-2026-04',
+    title: 'Museus Centro - página oficial no Portal Belo Horizonte',
+    sourceName: 'Portal Belo Horizonte',
+    sourceType: 'Canal institucional',
+    publishedDate: '2026-04-10',
+    relevance: 'Média/Alta',
+    platform: 'Site',
+    relatedTo: ['Museus Centro', 'MHAB', 'MIS BH', 'MUMO', 'Viaduto das Artes'],
+    url: 'https://portalbelohorizonte.com.br/en/node/44715',
+    summary: 'Página oficial com apresentação do projeto, programação regular e descrição dos museus participantes.',
+  },
+  {
+    id: 'pbh-museus-centro-abril-2026',
+    title: 'Projeto Museus Centro traz experimentações visuais e manuais em abril',
+    sourceName: 'PBH Notícias',
+    sourceType: 'Imprensa institucional',
+    publishedDate: '2026-04-01',
+    relevance: 'Alta',
+    platform: 'Site',
+    relatedTo: ['Museus Centro', 'Programação', 'MIS BH', 'MHAB', 'MUMO', 'Viaduto das Artes'],
+    url: 'https://prefeitura.pbh.gov.br/noticias/projeto-museus-centro-traz-experimentacoes-visuais-e-manuais-em-abril',
+    summary: 'Divulgação direta da programação do projeto Museus Centro em abril, com atividades nos três museus.',
+  },
+  {
+    id: 'culturadoria-museus-centro-abril-2026',
+    title: 'Museus Centro com inscrições abertas para oficinas e experiências',
+    sourceName: 'Culturadoria',
+    sourceType: 'Mídia cultural',
+    publishedDate: '2026-04-10',
+    relevance: 'Alta',
+    platform: 'Site',
+    relatedTo: ['Museus Centro', 'Oficinas', 'Programação'],
+    url: 'https://culturadoria.com.br/museus-centro-em-abril/',
+    summary: 'Publicação de agenda cultural com foco em oficinas e experiências do Museus Centro.',
+  },
+  {
+    id: 'reddit-bh-museus-2026-04',
+    title: 'Discussão espontânea sobre museus em BH',
+    sourceName: 'Reddit Belo Horizonte',
+    sourceType: 'Rede social',
+    publishedDate: '2026-04-20',
+    relevance: 'Média',
+    platform: 'Reddit',
+    relatedTo: ['Museu da Moda', 'MIS BH', 'Museus de BH'],
+    url: 'https://www.reddit.com/r/BeloHorizonte/comments/1rb4q2y/museus_em_bh/',
+    summary: 'Menções espontâneas a museus de Belo Horizonte em comunidade aberta, úteis para monitoramento social.',
+  },
+];
 
 const ZERO_SUMMARY = {
   releases: 0,
   imagens: 0,
   clipping: 0,
-  posts: 0
+  posts: 0,
 };
 
 const STATIC_ITEMS = DRIVE_FOLDERS.map((folder) => ({
@@ -162,22 +179,48 @@ const STATIC_ITEMS = DRIVE_FOLDERS.map((folder) => ({
   sourceFolderName: folder.name,
   sourceFolderId: folder.id,
   sourceFolderPath: folder.name,
-  isFolderShortcut: true
+  isFolderShortcut: true,
 }));
 
 function normalizeText(value = '') {
-  return String(value).
-  normalize('NFD').
-  replace(/[\u0300-\u036f]/g, '').
-  toLowerCase().
-  trim();
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function parseDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isWithinLastDays(value, days = DAYS_WINDOW) {
+  const date = parseDate(value);
+  if (!date) return false;
+  const start = new Date();
+  start.setDate(start.getDate() - days);
+  start.setHours(0, 0, 0, 0);
+  return date >= start;
 }
 
 function formatDate(value) {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
+  const date = parseDate(value);
+  if (!date) return '—';
   return date.toLocaleDateString('pt-BR');
+}
+
+function getMonthKey(value) {
+  const date = parseDate(value);
+  if (!date) return 'sem-data';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getMonthLabel(key) {
+  if (key === 'sem-data') return 'Sem data';
+  const [year, month] = key.split('-').map(Number);
+  return new Date(year, month - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 }
 
 function formatMonth(value) {
@@ -203,7 +246,7 @@ function getCategoryLabel(category) {
     RELEASE: 'Releases',
     FOTOGRAFIA: 'Imagens',
     CLIPPING: 'Clipping',
-    POSTS: 'Posts'
+    POSTS: 'Posts',
   };
   return map[category] || 'Arquivo';
 }
@@ -233,7 +276,7 @@ function normalizeDriveFile(file, sourceFolder) {
     sourceFolderId: folderId,
     sourceFolderPath: folderPath,
     driveRootFolderId: rootFolderId,
-    isFolderShortcut: false
+    isFolderShortcut: false,
   };
 }
 
@@ -242,7 +285,7 @@ function buildLocalSummary(files = []) {
     releases: files.filter((file) => file.category === 'RELEASE').length,
     imagens: files.filter((file) => file.category === 'FOTOGRAFIA').length,
     clipping: files.filter((file) => file.category === 'CLIPPING').length,
-    posts: files.filter((file) => file.category === 'POSTS').length
+    posts: files.filter((file) => file.category === 'POSTS').length,
   };
 }
 
@@ -253,7 +296,7 @@ function normalizeSummary(summary) {
     releases: Number(summary.releases || summary.RELEASES || 0),
     imagens: Number(summary.imagens || summary.images || summary.FOTOGRAFIA || 0),
     clipping: Number(summary.clipping || summary.CLIPPING || 0),
-    posts: Number(summary.posts || summary.POSTS || 0)
+    posts: Number(summary.posts || summary.POSTS || 0),
   };
 }
 
@@ -281,7 +324,7 @@ async function syncViaBase44Function(action = 'sync') {
 
   return {
     files,
-    summary: Object.values(summary).some((value) => Number(value || 0) > 0) ? summary : buildLocalSummary(files)
+    summary: Object.values(summary).some((value) => Number(value || 0) > 0) ? summary : buildLocalSummary(files),
   };
 }
 
@@ -297,6 +340,23 @@ function detectMentions(item) {
   return KEYWORDS.filter((keyword) => text.includes(normalizeText(keyword)) || (item.relatedTo || []).some((tag) => normalizeText(tag).includes(normalizeText(keyword))));
 }
 
+function groupClippingByMonth(items = []) {
+  const grouped = items.reduce((acc, item) => {
+    const key = getMonthKey(item.publishedDate);
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+
+  return Object.entries(grouped)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([key, monthItems]) => ({
+      key,
+      label: getMonthLabel(key),
+      items: monthItems.sort((a, b) => (parseDate(b.publishedDate)?.getTime() || 0) - (parseDate(a.publishedDate)?.getTime() || 0)),
+    }));
+}
+
 function ClippingRow({ item }) {
   const mentions = detectMentions(item);
 
@@ -307,9 +367,9 @@ function ClippingRow({ item }) {
         <p className="line-clamp-2 text-sm font-semibold text-gray-900">{item.title}</p>
         <p className="line-clamp-2 text-xs text-gray-500 mt-1">{item.summary}</p>
         <div className="flex flex-wrap gap-1 mt-2">
-          {mentions.slice(0, 3).map((tag) =>
-          <Badge key={tag} variant="outline" className="text-[10px] bg-white">{tag}</Badge>
-          )}
+          {mentions.slice(0, 4).map((tag) => (
+            <Badge key={tag} variant="outline" className="text-[10px] bg-white">{tag}</Badge>
+          ))}
         </div>
       </td>
       <td className="px-3 py-3 align-top">
@@ -323,14 +383,14 @@ function ClippingRow({ item }) {
           <ExternalLink className="w-4 h-4" />
         </a>
       </td>
-    </tr>);
-
+    </tr>
+  );
 }
 
 function KpiCard({ label, value, helper, icon: Icon, dark = false }) {
   return (
     <Card className={`rounded-2xl shadow-sm ${dark ? 'bg-black border-black text-white' : 'bg-white border-gray-200 text-black'}`}>
-      <CardContent className="p-4 hidden">
+      <CardContent className="p-4">
         <div className="flex items-center gap-2 mb-3">
           <Icon className={`w-4 h-4 ${dark ? 'text-white' : 'text-gray-500'}`} />
           <p className={`text-[11px] font-semibold uppercase tracking-wide ${dark ? 'text-gray-300' : 'text-gray-500'}`}>{label}</p>
@@ -338,8 +398,8 @@ function KpiCard({ label, value, helper, icon: Icon, dark = false }) {
         <p className={`text-3xl font-bold ${dark ? 'text-white' : 'text-black'}`}>{value}</p>
         {helper && <p className={`text-xs mt-1 ${dark ? 'text-gray-300' : 'text-gray-500'}`}>{helper}</p>}
       </CardContent>
-    </Card>);
-
+    </Card>
+  );
 }
 
 export default function ComunicacaoVisibilidade() {
@@ -350,16 +410,22 @@ export default function ComunicacaoVisibilidade() {
   const [clippingItems, setClippingItems] = useState(SEEDED_CLIPPING);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState(null);
-  const [syncMessage, setSyncMessage] = useState('Clipping consolidado com base nas publicações identificadas no último mês.');
+  const [syncMessage, setSyncMessage] = useState('Clipping consolidado dos últimos 60 dias com base nas palavras-chave do projeto.');
+
+  const recentClipping = useMemo(() => {
+    return clippingItems.filter((item) => isWithinLastDays(item.publishedDate, DAYS_WINDOW));
+  }, [clippingItems]);
 
   const filteredClipping = useMemo(() => {
     const q = normalizeText(query);
-    return clippingItems.filter((item) => {
+    return recentClipping.filter((item) => {
       const sourceMatch = sourceFilter === 'TODOS' || item.platform === sourceFilter || item.sourceType === sourceFilter;
       const searchable = normalizeText([item.title, item.sourceName, item.sourceType, item.platform, item.summary, ...(item.relatedTo || [])].join(' '));
       return sourceMatch && (!q || searchable.includes(q));
     });
-  }, [clippingItems, query, sourceFilter]);
+  }, [recentClipping, query, sourceFilter]);
+
+  const clippingByMonth = useMemo(() => groupClippingByMonth(filteredClipping), [filteredClipping]);
 
   const clippingSummary = useMemo(() => {
     const total = filteredClipping.length;
@@ -382,7 +448,7 @@ export default function ComunicacaoVisibilidade() {
     if (isSyncing) return;
 
     setIsSyncing(true);
-    if (!silent) setSyncMessage('Sincronizando clipping e acervo de comunicação...');
+    if (!silent) setSyncMessage('Sincronizando clipping dos últimos 60 dias e acervo de comunicação...');
 
     try {
       let mergedFiles = [];
@@ -402,7 +468,9 @@ export default function ComunicacaoVisibilidade() {
       try {
         const clippingResponse = await base44.functions.invoke('searchComunicacaoClipping', {
           keywords: KEYWORDS,
-          periodo: 'ultimo_mes'
+          periodo: 'ultimos_60_dias',
+          days: DAYS_WINDOW,
+          include_social: true,
         });
         const payload = extractPayload(clippingResponse);
         const found = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
@@ -417,7 +485,7 @@ export default function ComunicacaoVisibilidade() {
             platform: item.platform || item.plataforma || 'Web',
             relatedTo: item.relatedTo || item.tags || item.mencoes || [],
             url: item.url || item.link || '#',
-            summary: item.summary || item.resumo || 'Publicação identificada por busca assistida por IA.'
+            summary: item.summary || item.resumo || 'Publicação identificada por busca assistida por IA.',
           })));
         }
       } catch (clippingError) {
@@ -425,7 +493,7 @@ export default function ComunicacaoVisibilidade() {
       }
 
       setLastSync(new Date());
-      setSyncMessage('Painel atualizado. Quando a função IA estiver disponível, novas publicações serão incorporadas automaticamente.');
+      setSyncMessage('Painel atualizado. Lista aberta limitada aos últimos 60 dias e agrupada por mês.');
     } catch (error) {
       console.error('Erro ao sincronizar Comunicação:', error);
       setItems(STATIC_ITEMS);
@@ -457,7 +525,7 @@ export default function ComunicacaoVisibilidade() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard label="Publicações" value={clippingSummary.total} helper="último mês" icon={Newspaper} dark />
+        <KpiCard label="Publicações" value={clippingSummary.total} helper="últimos 60 dias" icon={Newspaper} dark />
         <KpiCard label="Alta relevância" value={clippingSummary.alta} helper="menção direta" icon={TrendingUp} />
         <KpiCard label="Redes sociais" value={clippingSummary.sociais} helper="menções sociais" icon={Share2} />
         <KpiCard label="Veículos" value={clippingSummary.veiculos} helper="fontes distintas" icon={Globe2} />
@@ -471,60 +539,74 @@ export default function ComunicacaoVisibilidade() {
                 <Sparkles className="w-4 h-4 text-black" />
                 <h2 className="text-lg font-semibold text-black">Painel de notícias e publicações</h2>
               </div>
-              <p className="text-xs text-gray-500 mt-1">Busca por menções a Museus Centro, Viaduto das Artes, MHAB, MUMO, MIS BH e Noturno nos Museus.</p>
+              <p className="text-xs text-gray-500 mt-1">Lista aberta somente dos últimos 60 dias, agrupada por mês, com busca por todas as palavras-chave do projeto.</p>
             </div>
 
             <div className="flex flex-wrap gap-2">
               <div className="relative w-full sm:w-72">
                 <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
-                <Input className="h-9 pl-8 text-sm" placeholder="Buscar publicação, veículo ou museu..." value={query} onChange={(event) => setQuery(event.target.value)} />
+                <Input className="h-9 pl-8 text-sm" placeholder="Buscar publicação, veículo, palavra-chave..." value={query} onChange={(event) => setQuery(event.target.value)} />
               </div>
               <select
                 value={sourceFilter}
                 onChange={(event) => setSourceFilter(event.target.value)}
-                className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700">
-                
+                className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700"
+              >
                 <option value="TODOS">Todas as fontes</option>
                 <option value="Site">Sites</option>
                 <option value="Reddit">Redes sociais</option>
                 <option value="Imprensa institucional">Institucional</option>
                 <option value="Mídia cultural">Mídia cultural</option>
                 <option value="Agenda cultural">Agenda cultural</option>
+                <option value="Canal institucional">Canal institucional</option>
               </select>
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full min-w-[860px] table-fixed border-collapse text-sm">
-              <colgroup>
-                <col className="w-[10%]" />
-                <col className="w-[36%]" />
-                <col className="w-[18%]" />
-                <col className="w-[11%]" />
-                <col className="w-[11%]" />
-                <col className="w-[8%]" />
-              </colgroup>
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50 text-left">
-                  <th className="px-3 py-2 text-xs font-medium text-gray-600">Data</th>
-                  <th className="px-3 py-2 text-xs font-medium text-gray-600">Publicação</th>
-                  <th className="px-3 py-2 text-xs font-medium text-gray-600">Veículo</th>
-                  <th className="px-3 py-2 text-xs font-medium text-gray-600">Relevância</th>
-                  <th className="px-3 py-2 text-xs font-medium text-gray-600">Origem</th>
-                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-600">Link</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredClipping.length === 0 ?
-                <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-sm text-gray-500">Nenhuma publicação encontrada para o filtro selecionado.</td>
-                  </tr> :
-
-                filteredClipping.map((item) => <ClippingRow key={item.id} item={item} />)
-                }
-              </tbody>
-            </table>
+          <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+            <span className="font-semibold text-gray-800">Palavras-chave monitoradas:</span> {KEYWORDS.join(' · ')}
           </div>
+
+          {clippingByMonth.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">Nenhuma publicação encontrada para os filtros selecionados nos últimos 60 dias.</div>
+          ) : (
+            <div className="space-y-5">
+              {clippingByMonth.map((group) => (
+                <section key={group.key} className="space-y-2">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <h3 className="text-sm font-semibold capitalize text-black">{group.label}</h3>
+                    <Badge variant="outline" className="bg-white">{group.items.length} publicação(ões)</Badge>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-xl border border-gray-200">
+                    <table className="w-full min-w-[860px] table-fixed border-collapse text-sm">
+                      <colgroup>
+                        <col className="w-[10%]" />
+                        <col className="w-[36%]" />
+                        <col className="w-[18%]" />
+                        <col className="w-[11%]" />
+                        <col className="w-[11%]" />
+                        <col className="w-[8%]" />
+                      </colgroup>
+                      <thead>
+                        <tr className="border-b border-gray-200 bg-gray-50 text-left">
+                          <th className="px-3 py-2 text-xs font-medium text-gray-600">Data</th>
+                          <th className="px-3 py-2 text-xs font-medium text-gray-600">Publicação</th>
+                          <th className="px-3 py-2 text-xs font-medium text-gray-600">Veículo</th>
+                          <th className="px-3 py-2 text-xs font-medium text-gray-600">Relevância</th>
+                          <th className="px-3 py-2 text-xs font-medium text-gray-600">Origem</th>
+                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-600">Link</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.items.map((item) => <ClippingRow key={item.id} item={item} />)}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-500">
             <span>{syncMessage}</span>
@@ -550,19 +632,19 @@ export default function ComunicacaoVisibilidade() {
             <Badge variant="outline" className="bg-white">{items.length} item(ns)</Badge>
           </div>
 
-          {Object.keys(groupedByMonth).length === 0 ?
-          <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">Nenhum arquivo encontrado.</div> :
-
-          Object.entries(groupedByMonth).map(([month, files]) =>
-          <section key={month} className="space-y-3">
+          {Object.keys(groupedByMonth).length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">Nenhum arquivo encontrado.</div>
+          ) : (
+            Object.entries(groupedByMonth).map(([month, files]) => (
+              <section key={month} className="space-y-3">
                 <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-2">
                   <h3 className="text-sm font-semibold text-slate-900 capitalize">{month}</h3>
                   <Badge variant="outline" className="bg-white">{files.length} item(ns)</Badge>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {files.map((file) =>
-              <a key={`${file.sourceFolderId}-${file.id}`} href={file.url} target="_blank" rel="noreferrer" className="block">
+                  {files.map((file) => (
+                    <a key={`${file.sourceFolderId}-${file.id}`} href={file.url} target="_blank" rel="noreferrer" className="block">
                       <Card className="h-full border-slate-200 bg-white hover:border-slate-400 hover:shadow-sm transition-all">
                         <CardContent className="p-4 space-y-3">
                           <div className="flex items-start justify-between gap-3">
@@ -581,13 +663,13 @@ export default function ComunicacaoVisibilidade() {
                         </CardContent>
                       </Card>
                     </a>
-              )}
+                  ))}
                 </div>
               </section>
-          )
-          }
+            ))
+          )}
         </CardContent>
       </Card>
-    </div>);
-
+    </div>
+  );
 }
