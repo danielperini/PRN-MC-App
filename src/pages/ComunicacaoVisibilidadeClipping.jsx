@@ -1,1 +1,1 @@
-REPLACED_MANUALLY
+export { default } from './ComunicacaoVisibilidade';
