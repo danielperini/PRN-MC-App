@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   FileText,
   Users,
+  Folder,
   Image,
   Settings,
   Bot,
@@ -41,118 +42,104 @@ const NAV_GROUPS = [
   },
 
   {
-    label: 'Operação',
+    label: 'Trabalho',
     items: [
       {
         path: 'EntradaUnica',
-        label: 'Entrada Única',
+        label: 'Entrada Única de Documentos',
         icon: Inbox,
         roles: ['all'],
       },
-      {
-        path: 'Compras',
-        label: 'Financeiro',
-        icon: ShoppingCart,
-        roles: ['all'],
-      },
+
       {
         path: 'Relatorios',
         label: 'Relatórios',
         icon: FileText,
         roles: ['all'],
       },
+
       {
         path: 'CoordReview',
-        label: 'Aprovação de Relatórios',
+        label: 'Revisão de relatórios',
         icon: Eye,
         roles: ['coord', 'admin'],
       },
+
+      {
+        path: 'Compras',
+        label: 'Compras e Pagamentos',
+        icon: ShoppingCart,
+        roles: ['all'],
+      },
+    ],
+  },
+
+  {
+    label: 'Museu Centro',
+    items: [
       {
         path: 'Agenda',
         label: 'Agenda Museu Centro',
         icon: CalendarDays,
         roles: ['all'],
       },
-      {
-        path: 'RubricasPorMuseu',
-        label: 'Rubricas por Museu',
-        icon: DollarSign,
-        roles: ['coord', 'admin'],
-      },
-    ],
-  },
 
-  {
-    label: 'Comunicação',
-    items: [
-      {
-        path: 'ComunicacaoVisibilidade',
-        label: 'Comunicação',
-        icon: Newspaper,
-        roles: ['all'],
-      },
       {
         path: 'GaleriaFotos',
         label: 'Galeria',
         icon: Image,
         roles: ['all'],
       },
+
       {
-        path: 'ProgramacaoEspelho',
-        label: 'Programação e Divulgação',
-        subtitle:
-          'Links • Minibios • Divulgação • Imagens aprovadas',
-        icon: Star,
-        roles: ['all'],
-      },
-      {
-        path: 'LeitorNoticias',
-        label: 'Notícias',
+        path: 'ComunicacaoVisibilidade',
+        label: 'Comunicação',
         icon: Newspaper,
         roles: ['all'],
       },
-    ],
-  },
 
-  {
-    label: 'Ferramentas',
-    items: [
       {
-        path: 'AssistentePlanejamento',
-        label: 'Assistente IA',
-        icon: Bot,
-        roles: ['all'],
-      },
-      {
-        path: 'GeradorListaPresenca',
-        label: 'Lista de Presença',
-        icon: CheckSquare,
-        roles: ['all'],
-      },
-      {
-        path: 'GeradorTermoCompromisso',
-        label: 'Termo de Compromisso',
-        icon: FileText,
+        path: 'RubricasPorMuseu',
+        label: 'Rubricas por museu',
+        icon: DollarSign,
         roles: ['coord', 'admin'],
       },
+
       {
-        path: 'Manual',
-        label: 'Manual e Ajuda',
-        icon: HelpCircle,
+        path: 'ProgramacaoEspelho',
+        label: 'Informações Completas da Programação',
+        subtitle:
+          'Link de imagens • Minibios • Material de divulgação aprovado',
+        icon: Star,
         roles: ['all'],
       },
     ],
   },
 
   {
-    label: 'Administração',
+    label: 'Meus dados',
     items: [
+      {
+        path: 'MeusDados',
+        label: 'Meus dados',
+        icon: User,
+        roles: ['all'],
+      },
+
+      {
+        path: 'Aparencia',
+        label: 'Aparência',
+        icon: Palette,
+        roles: ['all'],
+      },
+
       {
         path: 'Mensagens',
         label: 'Mensagens',
         icon: MessageSquare,
         roles: ['coord', 'admin'],
       },
+
       {
         path: 'UserManagement',
         label: 'Usuários',
@@ -160,6 +147,7 @@ const NAV_GROUPS = [
         roles: ['coord', 'admin'],
         permission: 'canManageUsers',
       },
+
       {
         path: 'PlataformaAdmin',
         label: 'Plataforma',
@@ -171,18 +159,45 @@ const NAV_GROUPS = [
   },
 
   {
-    label: 'Conta',
+    label: 'Ferramentas',
     items: [
       {
-        path: 'MeusDados',
-        label: 'Meus Dados',
-        icon: User,
+        path: 'GeradorListaPresenca',
+        label: 'Gerador de lista de presença',
+        icon: CheckSquare,
         roles: ['all'],
       },
+
       {
-        path: 'Aparencia',
-        label: 'Aparência',
-        icon: Palette,
+        path: 'GeradorTermoCompromisso',
+        label: 'Gerador de termo de compromisso',
+        icon: FileText,
+        roles: ['coord', 'admin'],
+      },
+    ],
+  },
+
+  {
+    label: 'Recursos',
+    items: [
+      {
+        path: 'AssistentePlanejamento',
+        label: 'Assistente IA',
+        icon: Bot,
+        roles: ['all'],
+      },
+
+      {
+        path: 'Manual',
+        label: 'Manual e Ajuda',
+        icon: HelpCircle,
+        roles: ['all'],
+      },
+
+      {
+        path: 'LeitorNoticias',
+        label: 'Notícias',
+        icon: Newspaper,
         roles: ['all'],
       },
     ],
@@ -265,13 +280,13 @@ export default function Sidebar({
     baseRole === 'OBSERVADOR' || role === 'OBSERVADOR';
 
   function shouldShowItem(item) {
+    // Observador
     if (isObservador) {
       return [
         'Dashboard',
         'LeitorNoticias',
         'Agenda',
         'ComunicacaoVisibilidade',
-        'GaleriaFotos',
       ].includes(item.path);
     }
 
@@ -291,5 +306,103 @@ export default function Sidebar({
     return false;
   }
 
-  return <div />;
+  return (
+    <div
+      className={`flex flex-col bg-slate-900 border-r border-slate-800 transition-all duration-200 ${
+        collapsed ? 'w-16' : 'w-60'
+      } min-h-screen`}
+    >
+      <div
+        className={`flex items-center justify-between px-3 py-4 border-b border-slate-800 ${
+          collapsed ? 'flex-col gap-2' : ''
+        }`}
+      >
+        {!collapsed && (
+          <div className="flex flex-col">
+            <span className="text-xs font-bold text-white leading-tight">
+              Museus Centro
+            </span>
+
+            <span className="text-[10px] text-slate-400">
+              Plataforma de Gestão
+            </span>
+          </div>
+        )}
+
+        <button
+          onClick={onToggle}
+          className="p-1.5 rounded-md text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors"
+        >
+          {collapsed ? (
+            <ChevronRight className="w-4 h-4" />
+          ) : (
+            <ChevronLeft className="w-4 h-4" />
+          )}
+        </button>
+      </div>
+
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
+        {NAV_GROUPS.map((group) => {
+          const visibleItems = group.items.filter(shouldShowItem);
+
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <div key={group.label}>
+              {!collapsed && group.label && (
+                <p className="px-3 mb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                  {group.label}
+                </p>
+              )}
+
+              <div className="space-y-0.5">
+                {visibleItems.map((item) => (
+                  <NavItem
+                    key={item.path}
+                    item={item}
+                    currentPageName={currentPageName}
+                    collapsed={collapsed}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </nav>
+
+      <div
+        className={`border-t border-slate-800 px-3 py-3 ${
+          collapsed ? 'flex justify-center' : ''
+        }`}
+      >
+        <Link
+          to="/Perfil"
+          className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
+          title={collapsed ? currentUser?.full_name || 'Perfil' : undefined}
+        >
+          <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+            <span className="text-xs font-semibold text-slate-300">
+              {(
+                currentUser?.full_name ||
+                currentUser?.email ||
+                '?'
+              )[0].toUpperCase()}
+            </span>
+          </div>
+
+          {!collapsed && (
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-200 truncate">
+                {currentUser?.full_name || 'Usuário'}
+              </p>
+
+              <p className="text-[10px] text-slate-500 truncate">
+                {currentUser?.email || ''}
+              </p>
+            </div>
+          )}
+        </Link>
+      </div>
+    </div>
+  );
 }
