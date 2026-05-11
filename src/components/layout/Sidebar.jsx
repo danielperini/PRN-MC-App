@@ -48,8 +48,13 @@ const NAV_GROUPS = [
     items: [
       { path: 'Agenda', label: 'Agenda Museu Centro', icon: CalendarDays, roles: ['all'] },
       { path: 'GaleriaFotos', label: 'Galeria', icon: Image, roles: ['all'] },
+      {
+        path: 'ComunicacaoVisibilidade',
+        label: 'Comunicação visibilidade',
+        icon: Newspaper,
+        roles: ['all'],
+      },
       { path: 'RubricasPorMuseu', label: 'Rubricas por museu', icon: DollarSign, roles: ['coord', 'admin'] },
-      // { path: 'GestorArquivos', label: 'Arquivos', icon: Folder, roles: ['all'] },
       {
         path: 'ProgramacaoEspelho',
         label: 'Informações Completas da Programação',
@@ -150,9 +155,8 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
   const isObservador = baseRole === 'OBSERVADOR' || role === 'OBSERVADOR';
 
   function shouldShowItem(item) {
-    // Observador: apenas Dashboard e LeitorNoticias
     if (isObservador) {
-      return ['Dashboard', 'LeitorNoticias', 'Agenda'].includes(item.path);
+      return ['Dashboard', 'LeitorNoticias', 'Agenda', 'ComunicacaoVisibilidade'].includes(item.path);
     }
 
     if (item.permission === 'canManageUsers') return canManageUsers(currentUser);
