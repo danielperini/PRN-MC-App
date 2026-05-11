@@ -1,1 +1,36 @@
-
+{
+  "name": "CommunicationAsset",
+  "type": "object",
+  "properties": {
+    "drive_file_id": { "type": "string" },
+    "drive_folder_id": { "type": "string" },
+    "drive_folder_name": { "type": "string" },
+    "drive_root_folder_id": { "type": "string" },
+    "drive_root_folder_key": { "type": "string" },
+    "drive_parent_folder_id": { "type": "string" },
+    "drive_parent_folder_path": { "type": "string" },
+    "name": { "type": "string" },
+    "nome": { "type": "string" },
+    "category": { "type": "string" },
+    "tipo": { "type": "string" },
+    "typeLabel": { "type": "string" },
+    "month": { "type": "string" },
+    "mes": { "type": "string" },
+    "ano": { "type": "number" },
+    "mimeType": { "type": "string" },
+    "mime_type": { "type": "string" },
+    "tamanho_bytes": { "type": "number" },
+    "url": { "type": "string" },
+    "link": { "type": "string" },
+    "thumbnail": { "type": "string" },
+    "createdTime": { "type": "string" },
+    "modifiedTime": { "type": "string" },
+    "criado_em_drive": { "type": "string" },
+    "atualizado_em_drive": { "type": "string" },
+    "sincronizado_em": { "type": "string" },
+    "origem": { "type": "string" },
+    "ativo": { "type": "boolean", "default": true },
+    "is_image_file": { "type": "boolean", "default": false }
+  },
+  "required": ["drive_file_id", "name", "category"]
+}
