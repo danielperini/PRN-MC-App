@@ -7,6 +7,7 @@ const CONNECTOR_NAMES = [
 ];
 
 const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
+const SHORTCUT_MIME_TYPE = 'application/vnd.google-apps.shortcut';
 
 const ROOT_FOLDER_IDS = {
   RELEASES_CLIPPING: '1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
@@ -57,12 +58,9 @@ function inferCategory(name = '', mimeType = '', defaultCategory = 'RELEASE', fo
       text.includes('clipagem') ||
       text.includes('imprensa') ||
       text.includes('midia') ||
-      text.includes('mídia') ||
       text.includes('jornal') ||
       text.includes('materia') ||
-      text.includes('matéria') ||
-      text.includes('noticia') ||
-      text.includes('notícia')
+      text.includes('noticia')
     ) {
       return 'CLIPPING';
     }
@@ -97,7 +95,7 @@ async function getGoogleDriveAccessToken(base44: any) {
   for (const connectorName of CONNECTOR_NAMES) {
     try {
       const connection = await base44.asServiceRole.connectors.getConnection(connectorName);
-      const accessToken = connection?.accessToken;
+      const accessToken = connection?.accessToken || connection?.access_token;
 
       if (accessToken) {
         return { accessToken, connectorName };
@@ -118,9 +116,9 @@ async function listDirectChildren(accessToken: string, folderId: string) {
 
   do {
     const query = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
-    const fields = encodeURIComponent('nextPageToken,files(id,name,mimeType,createdTime,modifiedTime,webViewLink,thumbnailLink,size)');
+    const fields = encodeURIComponent('nextPageToken,files(id,name,mimeType,createdTime,modifiedTime,webViewLink,thumbnailLink,size,shortcutDetails)');
     const pageTokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
-    const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}&pageSize=1000&orderBy=folder,name${pageTokenParam}`;
+    const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}&pageSize=1000&orderBy=folder,name&supportsAllDrives=true&includeItemsFromAllDrives=true${pageTokenParam}`;
 
     const response = await fetch(url, {
       headers: {
@@ -163,6 +161,11 @@ async function listFolderFilesRecursive(accessToken: string, rootFolder: any) {
       if (child.mimeType === FOLDER_MIME_TYPE) {
         queue.push({
           id: child.id,
+          path: `${currentFolder.path} / ${child.name}`,
+        });
+      } else if (child.mimeType === SHORTCUT_MIME_TYPE && child.shortcutDetails?.targetMimeType === FOLDER_MIME_TYPE && child.shortcutDetails?.targetId) {
+        queue.push({
+          id: child.shortcutDetails.targetId,
           path: `${currentFolder.path} / ${child.name}`,
         });
       } else {
@@ -233,7 +236,7 @@ function buildSummary(files: any[]) {
 }
 
 async function upsertAssets(base44: any, assets: any[]) {
-  const entity = base44.asServiceRole.entities.CommunicationAsset;
+  const entity = base44.asServiceRole.entities.CommunicationAsset || base44.entities.CommunicationAsset;
   if (!entity) {
     return { saved: 0, skipped: assets.length, cacheAvailable: false };
   }
@@ -273,7 +276,8 @@ Deno.serve(async (req) => {
 
     if (action === 'list-cache') {
       try {
-        const cached = await base44.entities.CommunicationAsset.list('-criado_em_drive', 1000);
+        const entity = base44.asServiceRole.entities.CommunicationAsset || base44.entities.CommunicationAsset;
+        const cached = entity ? await entity.list('-criado_em_drive', 5000) : [];
         const files = Array.isArray(cached) ? cached : [];
         return Response.json({ success: true, mode: 'cache', files, summary: buildSummary(files) });
       } catch (error) {
