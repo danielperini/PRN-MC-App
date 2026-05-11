@@ -213,6 +213,16 @@ function NavItem({ item, currentPageName, collapsed }) {
   const Icon = item.icon;
   const isActive = currentPageName === item.path;
 
+  const currentTheme = document?.documentElement?.getAttribute('data-theme') || 'atual';
+
+  const isDarkTheme =
+    currentTheme === 'atual' ||
+    currentTheme === 'nuit';
+
+  const activeClasses = isDarkTheme
+    ? 'bg-slate-200 text-slate-900 border border-slate-300'
+    : 'bg-slate-700 text-white border border-slate-600';
+
   return (
     <SidebarTooltip label={item.label} collapsed={collapsed}>
       <Link
@@ -220,26 +230,44 @@ function NavItem({ item, currentPageName, collapsed }) {
         title={collapsed ? item.label : undefined}
         className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors group ${
           isActive
-            ? 'bg-white text-slate-900'
+            ? activeClasses
             : 'text-white hover:bg-slate-800 hover:text-white'
         }`}
       >
         <Icon
           className={`w-4 h-4 flex-shrink-0 ${
             isActive
-              ? 'text-slate-900'
+              ? isDarkTheme
+                ? 'text-slate-900'
+                : 'text-white'
               : 'text-white group-hover:text-white'
           }`}
         />
 
         {!collapsed && (
           <div className="min-w-0">
-            <span className="truncate block leading-tight text-white">
+            <span
+              className={`truncate block leading-tight ${
+                isActive
+                  ? isDarkTheme
+                    ? 'text-slate-900'
+                    : 'text-white'
+                  : 'text-white'
+              }`}
+            >
               {item.label}
             </span>
 
             {item.subtitle && (
-              <span className="text-[10px] truncate block leading-tight mt-0.5 text-slate-300">
+              <span
+                className={`text-[10px] truncate block leading-tight mt-0.5 ${
+                  isActive
+                    ? isDarkTheme
+                      ? 'text-slate-700'
+                      : 'text-slate-200'
+                    : 'text-slate-300'
+                }`}
+              >
                 {item.subtitle}
               </span>
             )}
