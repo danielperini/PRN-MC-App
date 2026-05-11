@@ -4,49 +4,39 @@
 
 @layer base {
   :root {
-    --background: 38 60% 96%;
-    --foreground: 0 0% 8%;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 8%;
+    --card-foreground: 0 0% 3.9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 8%;
+    --popover-foreground: 0 0% 3.9%;
 
-    --primary: 24 95% 38%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 42 70% 90%;
-    --secondary-foreground: 0 0% 12%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
 
-    --muted: 36 45% 92%;
-    --muted-foreground: 0 0% 35%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
 
-    --accent: 198 70% 38%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 34 32% 82%;
-    --input: 34 32% 82%;
-    --ring: 24 95% 38%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
 
     --radius: 0.75rem;
   }
 
-  html,
-  body,
-  #root {
-    min-height: 100%;
-  }
-
   body {
-    @apply text-foreground;
-    background:
-      radial-gradient(circle at top left, rgba(176, 84, 35, 0.20), transparent 32%),
-      radial-gradient(circle at top right, rgba(20, 105, 132, 0.18), transparent 30%),
-      linear-gradient(135deg, #fff7ed 0%, #f5ead8 42%, #e8f3f0 100%);
+    @apply bg-background text-foreground;
   }
 
   * {
@@ -55,88 +45,7 @@
 }
 
 /* ===================================== */
-/* TEMA MUSEUS CENTRO */
-/* Fundo da página e janelas/cards */
-/* ===================================== */
-
-.min-h-screen.bg-white,
-.bg-background {
-  background:
-    radial-gradient(circle at 10% 8%, rgba(181, 88, 41, 0.20), transparent 30%),
-    radial-gradient(circle at 90% 12%, rgba(22, 104, 128, 0.18), transparent 28%),
-    radial-gradient(circle at 50% 100%, rgba(218, 165, 74, 0.18), transparent 36%),
-    linear-gradient(135deg, #fff8ee 0%, #f3e4cf 45%, #e4f1ee 100%) !important;
-}
-
-.bg-white,
-.bg-card,
-.bg-popover {
-  background: rgba(255, 255, 255, 0.88) !important;
-  backdrop-filter: blur(12px);
-}
-
-.rounded-xl.bg-white,
-.rounded-2xl.bg-white,
-.border.bg-white,
-.shadow-sm.bg-white,
-.shadow-md.bg-white {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.96),
-      rgba(255, 248, 238, 0.90)
-    ) !important;
-
-  border-color: rgba(158, 105, 58, 0.30) !important;
-}
-
-.border-gray-100,
-.border-gray-200,
-.border-gray-300 {
-  border-color: rgba(158, 105, 58, 0.30) !important;
-}
-
-.shadow-sm,
-.shadow,
-.shadow-md,
-.shadow-lg,
-.shadow-xl {
-  box-shadow:
-    0 12px 32px rgba(82, 56, 35, 0.10),
-    0 1px 0 rgba(255, 255, 255, 0.65) inset !important;
-}
-
-.text-black {
-  color: #1c140d !important;
-}
-
-.text-gray-500,
-.text-gray-600,
-.text-gray-700 {
-  color: #6f6255 !important;
-}
-
-.bg-black {
-  background-color: #8a3f1d !important;
-}
-
-.hover\:bg-gray-800:hover,
-.hover\:bg-gray-900:hover {
-  background-color: #6f3117 !important;
-}
-
-button.bg-black,
-a .bg-black {
-  background-color: #8a3f1d !important;
-}
-
-button.bg-black:hover,
-a .bg-black:hover {
-  background-color: #6f3117 !important;
-}
-
-/* ===================================== */
-/* TEMA NUIT */
+/* THEME NUIT */
 /* ===================================== */
 
 [data-theme="nuit"] {
@@ -181,6 +90,8 @@ a .bg-black:hover {
   color: #f5f5f5 !important;
 }
 
+/* backgrounds */
+
 [data-theme="nuit"] .bg-white,
 [data-theme="nuit"] .bg-background,
 [data-theme="nuit"] .bg-card,
@@ -192,6 +103,18 @@ a .bg-black:hover {
 [data-theme="nuit"] .bg-slate-100 {
   background-color: #111111 !important;
 }
+
+/* sidebar */
+
+[data-theme="nuit"] aside,
+[data-theme="nuit"] .sidebar,
+[data-theme="nuit"] .bg-slate-900,
+[data-theme="nuit"] .bg-gray-900 {
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+/* textos */
 
 [data-theme="nuit"] .text-black,
 [data-theme="nuit"] .text-gray-900,
@@ -209,6 +132,8 @@ a .bg-black:hover {
   color: #d4d4d8 !important;
 }
 
+/* bordas */
+
 [data-theme="nuit"] .border,
 [data-theme="nuit"] .border-gray-200,
 [data-theme="nuit"] .border-gray-300,
@@ -216,6 +141,8 @@ a .bg-black:hover {
 [data-theme="nuit"] .border-slate-300 {
   border-color: #27272a !important;
 }
+
+/* inputs */
 
 [data-theme="nuit"] input,
 [data-theme="nuit"] textarea,
@@ -225,6 +152,23 @@ a .bg-black:hover {
   border-color: #27272a !important;
 }
 
+/* botões */
+
+[data-theme="nuit"] .bg-primary,
+[data-theme="nuit"] .bg-blue-500,
+[data-theme="nuit"] .bg-blue-600 {
+  background: #27272a !important;
+  color: #ffffff !important;
+}
+
+[data-theme="nuit"] .hover\:bg-blue-600:hover,
+[data-theme="nuit"] .hover\:bg-slate-800:hover,
+[data-theme="nuit"] .hover\:bg-gray-800:hover {
+  background: #3f3f46 !important;
+}
+
+/* cards */
+
 [data-theme="nuit"] .shadow,
 [data-theme="nuit"] .shadow-sm,
 [data-theme="nuit"] .shadow-md,
@@ -233,4 +177,43 @@ a .bg-black:hover {
   box-shadow:
     0 0 0 1px rgba(255,255,255,0.04),
     0 10px 30px rgba(0,0,0,0.45) !important;
+}
+
+/* tabelas */
+
+[data-theme="nuit"] table {
+  background: #111111 !important;
+}
+
+[data-theme="nuit"] tr,
+[data-theme="nuit"] td,
+[data-theme="nuit"] th {
+  border-color: #27272a !important;
+}
+
+/* hover */
+
+[data-theme="nuit"] .hover\:bg-gray-100:hover,
+[data-theme="nuit"] .hover\:bg-slate-100:hover {
+  background: #18181b !important;
+}
+
+/* scroll */
+
+[data-theme="nuit"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+[data-theme="nuit"] ::-webkit-scrollbar-track {
+  background: #050505;
+}
+
+[data-theme="nuit"] ::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 999px;
+}
+
+[data-theme="nuit"] ::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
 }
