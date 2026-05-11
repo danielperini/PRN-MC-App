@@ -42,41 +42,15 @@ const NAV_GROUPS = [
   },
 
   {
-    label: 'Trabalho',
+    label: 'Visão geral',
     items: [
       {
-        path: 'EntradaUnica',
-        label: 'Entrada Única de Documentos',
-        icon: Inbox,
+        path: 'ComunicacaoVisibilidade',
+        label: 'Comunicação',
+        icon: Newspaper,
         roles: ['all'],
       },
 
-      {
-        path: 'Relatorios',
-        label: 'Relatórios',
-        icon: FileText,
-        roles: ['all'],
-      },
-
-      {
-        path: 'CoordReview',
-        label: 'Revisão de relatórios',
-        icon: Eye,
-        roles: ['coord', 'admin'],
-      },
-
-      {
-        path: 'Compras',
-        label: 'Compras e Pagamentos',
-        icon: ShoppingCart,
-        roles: ['all'],
-      },
-    ],
-  },
-
-  {
-    label: 'Museu Centro',
-    items: [
       {
         path: 'Agenda',
         label: 'Agenda Museu Centro',
@@ -90,19 +64,62 @@ const NAV_GROUPS = [
         icon: Image,
         roles: ['all'],
       },
+    ],
+  },
 
+  {
+    label: 'Operação',
+    items: [
       {
-        path: 'ComunicacaoVisibilidade',
-        label: 'Comunicação',
-        icon: Newspaper,
+        path: 'EntradaUnica',
+        label: 'Entrada Única de Documentos',
+        icon: Inbox,
         roles: ['all'],
       },
 
+      {
+        path: 'Compras',
+        label: 'Compras e Pagamentos',
+        icon: ShoppingCart,
+        roles: ['all'],
+      },
+
+      {
+        path: 'CoordReview',
+        label: 'Revisão de relatórios',
+        icon: Eye,
+        roles: ['coord', 'admin'],
+      },
+
+      {
+        path: 'Relatorios',
+        label: 'Relatórios',
+        icon: FileText,
+        roles: ['all'],
+      },
+    ],
+  },
+
+  {
+    label: 'Financeiro',
+    items: [
       {
         path: 'RubricasPorMuseu',
         label: 'Rubricas por museu',
         icon: DollarSign,
         roles: ['coord', 'admin'],
+      },
+    ],
+  },
+
+  {
+    label: 'Conteúdo',
+    items: [
+      {
+        path: 'LeitorNoticias',
+        label: 'Notícias',
+        icon: Newspaper,
+        roles: ['all'],
       },
 
       {
@@ -113,26 +130,26 @@ const NAV_GROUPS = [
         icon: Star,
         roles: ['all'],
       },
+
+      {
+        path: 'AssistentePlanejamento',
+        label: 'Assistente IA',
+        icon: Bot,
+        roles: ['all'],
+      },
+
+      {
+        path: 'Manual',
+        label: 'Manual e Ajuda',
+        icon: HelpCircle,
+        roles: ['all'],
+      },
     ],
   },
 
   {
-    label: 'Meus dados',
+    label: 'Administração',
     items: [
-      {
-        path: 'MeusDados',
-        label: 'Meus dados',
-        icon: User,
-        roles: ['all'],
-      },
-
-      {
-        path: 'Aparencia',
-        label: 'Aparência',
-        icon: Palette,
-        roles: ['all'],
-      },
-
       {
         path: 'Mensagens',
         label: 'Mensagens',
@@ -155,6 +172,20 @@ const NAV_GROUPS = [
         roles: ['admin'],
         permission: 'canManagePlatform',
       },
+
+      {
+        path: 'Aparencia',
+        label: 'Aparência',
+        icon: Palette,
+        roles: ['all'],
+      },
+
+      {
+        path: 'MeusDados',
+        label: 'Meus dados',
+        icon: User,
+        roles: ['all'],
+      },
     ],
   },
 
@@ -173,32 +204,6 @@ const NAV_GROUPS = [
         label: 'Gerador de termo de compromisso',
         icon: FileText,
         roles: ['coord', 'admin'],
-      },
-    ],
-  },
-
-  {
-    label: 'Recursos',
-    items: [
-      {
-        path: 'AssistentePlanejamento',
-        label: 'Assistente IA',
-        icon: Bot,
-        roles: ['all'],
-      },
-
-      {
-        path: 'Manual',
-        label: 'Manual e Ajuda',
-        icon: HelpCircle,
-        roles: ['all'],
-      },
-
-      {
-        path: 'LeitorNoticias',
-        label: 'Notícias',
-        icon: Newspaper,
-        roles: ['all'],
       },
     ],
   },
