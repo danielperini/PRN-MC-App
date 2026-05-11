@@ -13,8 +13,8 @@ import {
   Search,
   Share2,
   Sparkles,
-  TrendingUp,
-} from 'lucide-react';
+  TrendingUp } from
+'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,119 +24,119 @@ const PAGE_SIZE = 6;
 const START_DATE = '2024-01-01';
 
 const HEAD_KEYWORDS = [
-  'Museus Centro',
-  'Viaduto das Artes',
-  'Museu Histórico Abílio Barreto',
-  'Abílio Barreto',
-  'MHAB',
-  'Museu da Moda',
-  'MUMO',
-  'Museu da Imagem e do Som',
-  'MIS BH',
-  'Noturno nos Museus',
-  'Semana Nacional de Museus',
-  'Fundação Municipal de Cultura',
-];
+'Museus Centro',
+'Viaduto das Artes',
+'Museu Histórico Abílio Barreto',
+'Abílio Barreto',
+'MHAB',
+'Museu da Moda',
+'MUMO',
+'Museu da Imagem e do Som',
+'MIS BH',
+'Noturno nos Museus',
+'Semana Nacional de Museus',
+'Fundação Municipal de Cultura'];
+
 
 const MEDIUM_TAIL_KEYWORDS = [
-  'programação museus centro bh',
-  'oficinas museu da moda bh',
-  'atividades mhab belo horizonte',
-  'exposição mis bh',
-  'agenda cultural museus bh',
-  'programação viaduto das artes',
-  'noturno nos museus programação',
-  'eventos culturais centro de bh',
-  'museus gratuitos belo horizonte',
-  'atividades culturais prefeitura bh',
-  'programação museus municipais bh',
-  'agenda museu histórico abílio barreto',
-];
+'programação museus centro bh',
+'oficinas museu da moda bh',
+'atividades mhab belo horizonte',
+'exposição mis bh',
+'agenda cultural museus bh',
+'programação viaduto das artes',
+'noturno nos museus programação',
+'eventos culturais centro de bh',
+'museus gratuitos belo horizonte',
+'atividades culturais prefeitura bh',
+'programação museus municipais bh',
+'agenda museu histórico abílio barreto'];
+
 
 const LONG_TAIL_KEYWORDS = [
-  'programação completa museus centro belo horizonte 2024',
-  'programação completa museus centro belo horizonte 2025',
-  'programação completa museus centro belo horizonte 2026',
-  'atividades gratuitas no museu da imagem e do som bh',
-  'oficinas educativas museus centro viaduto das artes',
-  'programação cultural do mhab em belo horizonte',
-  'agenda de exposições do mumo em bh',
-  'atividades do noturno nos museus 2024',
-  'atividades do noturno nos museus 2025',
-  'atividades do noturno nos museus 2026',
-  'programação integrada museus municipais de belo horizonte',
-  'museus centro percurso da memória de belo horizonte',
-];
+'programação completa museus centro belo horizonte 2024',
+'programação completa museus centro belo horizonte 2025',
+'programação completa museus centro belo horizonte 2026',
+'atividades gratuitas no museu da imagem e do som bh',
+'oficinas educativas museus centro viaduto das artes',
+'programação cultural do mhab em belo horizonte',
+'agenda de exposições do mumo em bh',
+'atividades do noturno nos museus 2024',
+'atividades do noturno nos museus 2025',
+'atividades do noturno nos museus 2026',
+'programação integrada museus municipais de belo horizonte',
+'museus centro percurso da memória de belo horizonte'];
+
 
 const HASHTAGS = [
-  '#MuseusCentro',
-  '#ViadutoDasArtes',
-  '#NoturnoNosMuseus',
-  '#MuseuDaModa',
-  '#MUMO',
-  '#MHAB',
-  '#MISBH',
-  '#MuseusBH',
-  '#MuseusDeBH',
-  '#CulturaBH',
-  '#CircuitoCultural',
-  '#FundacaoMunicipalDeCultura',
-  '#MuseuHistoricoAbilioBarreto',
-  '#MuseuDaImagemEDoSom',
-  '#ProgramacaoCulturalBH',
-  '#SemanaNacionalDeMuseus',
-];
+'#MuseusCentro',
+'#ViadutoDasArtes',
+'#NoturnoNosMuseus',
+'#MuseuDaModa',
+'#MUMO',
+'#MHAB',
+'#MISBH',
+'#MuseusBH',
+'#MuseusDeBH',
+'#CulturaBH',
+'#CircuitoCultural',
+'#FundacaoMunicipalDeCultura',
+'#MuseuHistoricoAbilioBarreto',
+'#MuseuDaImagemEDoSom',
+'#ProgramacaoCulturalBH',
+'#SemanaNacionalDeMuseus'];
+
 
 const SOCIAL_SEARCH_SOURCES = [
-  'Instagram: @museuscentro, @viadutodasartes, @pbhcultura e hashtags do projeto',
-  'Facebook: páginas dos museus, PBH Cultura, eventos e compartilhamentos',
-  'YouTube, TikTok, Threads/X e Reddit: vídeos, hashtags, comentários e menções espontâneas',
-  'Google Notícias, PBH, Portal Belo Horizonte, Culturadoria, BH Eventos, Agenda BH e imprensa local',
-];
+'Instagram: @museuscentro, @viadutodasartes, @pbhcultura e hashtags do projeto',
+'Facebook: páginas dos museus, PBH Cultura, eventos e compartilhamentos',
+'YouTube, TikTok, Threads/X e Reddit: vídeos, hashtags, comentários e menções espontâneas',
+'Google Notícias, PBH, Portal Belo Horizonte, Culturadoria, BH Eventos, Agenda BH e imprensa local'];
+
 
 const DRIVE_FOLDERS = [
-  {
-    id: '1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
-    name: 'Releases e Clipping',
-    url: 'https://drive.google.com/drive/folders/1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
-    typeLabel: 'Releases e Clipping',
-  },
-  {
-    id: '1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
-    name: 'Imagens',
-    url: 'https://drive.google.com/drive/folders/1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
-    typeLabel: 'Imagens',
-  },
-  {
-    id: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
-    name: 'Redes Sociais',
-    url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
-    typeLabel: 'Redes Sociais',
-  },
-];
+{
+  id: '1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
+  name: 'Releases e Clipping',
+  url: 'https://drive.google.com/drive/folders/1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
+  typeLabel: 'Releases e Clipping'
+},
+{
+  id: '1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
+  name: 'Imagens',
+  url: 'https://drive.google.com/drive/folders/1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
+  typeLabel: 'Imagens'
+},
+{
+  id: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
+  name: 'Redes Sociais',
+  url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
+  typeLabel: 'Redes Sociais'
+}];
+
 
 const CLIPPING_ITEMS = [
-  { id: '2026-05-pbh-semana', title: '24ª Semana Nacional de Museus agita a programação de maio em BH', sourceName: 'PBH Notícias', sourceType: 'Imprensa institucional', publishedDate: '2026-05-05', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'MIS BH', 'MHAB', 'MUMO', 'Viaduto das Artes', '#MuseusCentro'], url: 'https://prefeitura.pbh.gov.br/noticias/24a-semana-nacional-de-museus-agita-programacao-de-maio-em-bh', summary: 'Publicação da PBH sobre programação de maio com menção direta ao projeto e aos museus participantes.' },
-  { id: '2026-05-bheventos', title: '24ª Semana nacional de museus agita a programação de maio do Museus Centro', sourceName: 'BH Eventos', sourceType: 'Agenda cultural', publishedDate: '2026-05-06', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'Semana Nacional de Museus', 'MIS BH', 'MHAB', 'MUMO'], url: 'https://www.bheventos.com.br/noticia/05-06-2026-24-semana-nacional-de-museus-agita-a-programacao-de-maio-do-museus-centro', summary: 'Agenda cultural com chamada para a programação de maio do Museus Centro.' },
-  { id: '2026-05-culturadoria', title: 'Semana Nacional de Museus movimenta espaços culturais de BH', sourceName: 'Culturadoria', sourceType: 'Mídia cultural', publishedDate: '2026-05-06', relevance: 'Alta', platform: 'Site', relatedTo: ['MIS BH', 'MUMO', 'MHAB', 'Museus Centro'], url: 'https://culturadoria.com.br/semana-dos-museus-em-bh/', summary: 'Cobertura cultural sobre a Semana Nacional de Museus e programação dos espaços associados ao projeto.' },
-  { id: '2026-04-pbh-projeto', title: 'Projeto Museus Centro', sourceName: 'PBH / Fundação Municipal de Cultura', sourceType: 'Institucional', publishedDate: '2026-04-09', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'Viaduto das Artes', 'MHAB', 'MIS BH', 'MUMO'], url: 'https://prefeitura.pbh.gov.br/fundacao-municipal-de-cultura/projeto-museus-centro', summary: 'Página institucional com descrição do projeto, museus participantes e parceria com o Viaduto das Artes.' },
-  { id: '2026-04-portal-bh', title: 'Museus Centro - página oficial no Portal Belo Horizonte', sourceName: 'Portal Belo Horizonte', sourceType: 'Canal institucional', publishedDate: '2026-04-10', relevance: 'Média/Alta', platform: 'Site', relatedTo: ['Museus Centro', 'MHAB', 'MIS BH', 'MUMO', 'Viaduto das Artes'], url: 'https://portalbelohorizonte.com.br/en/node/44715', summary: 'Página oficial com apresentação do projeto, programação regular e descrição dos museus participantes.' },
-  { id: '2026-04-pbh-abril', title: 'Projeto Museus Centro traz experimentações visuais e manuais em abril', sourceName: 'PBH Notícias', sourceType: 'Imprensa institucional', publishedDate: '2026-04-01', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'Programação', 'MIS BH', 'MHAB', 'MUMO', 'Viaduto das Artes'], url: 'https://prefeitura.pbh.gov.br/noticias/projeto-museus-centro-traz-experimentacoes-visuais-e-manuais-em-abril', summary: 'Divulgação direta da programação de abril do Museus Centro.' },
-  { id: '2026-04-culturadoria-abril', title: 'Museus Centro com inscrições abertas para oficinas e experiências', sourceName: 'Culturadoria', sourceType: 'Mídia cultural', publishedDate: '2026-04-10', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'Oficinas', 'Programação'], url: 'https://culturadoria.com.br/museus-centro-em-abril/', summary: 'Agenda cultural com foco em oficinas e experiências do projeto.' },
-  { id: '2026-04-reddit-bh', title: 'Discussão espontânea sobre museus em BH', sourceName: 'Reddit Belo Horizonte', sourceType: 'Rede social', publishedDate: '2026-04-20', relevance: 'Média', platform: 'Reddit', relatedTo: ['Museu da Moda', 'MIS BH', 'Museus de BH', '#MuseusBH'], url: 'https://www.reddit.com/r/BeloHorizonte/comments/1rb4q2y/museus_em_bh/', summary: 'Menções espontâneas a museus de Belo Horizonte em comunidade aberta.' },
-  { id: '2026-03-pbh-mulheres', title: 'Mês das Mulheres é destaque na programação dos Museus do Centro de BH', sourceName: 'PBH Notícias', sourceType: 'Imprensa institucional', publishedDate: '2026-03-09', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'MIS BH', 'MHAB', 'MUMO', 'Viaduto das Artes'], url: 'https://prefeitura.pbh.gov.br/noticias/mes-das-mulheres-e-destaque-na-programacao-dos-museus-do-centro-de-bh', summary: 'Divulgação da programação de março dedicada à visibilidade das mulheres nas artes, história e cidade.' },
-  { id: '2026-03-revista-encontro', title: 'Museus do Centro de BH celebram mulheres com programação especial', sourceName: 'Revista Encontro / Estado de Minas', sourceType: 'Mídia cultural', publishedDate: '2026-03-10', relevance: 'Alta', platform: 'Site', relatedTo: ['MIS BH', 'MHAB', 'MUMO', 'Museus Centro'], url: 'https://www.revistaencontro.com.br/canal/atualidades/2026/03/museus-do-centro-de-bh-celebram-mulheres-com-programacao-especial.html', summary: 'Cobertura jornalística da programação especial de março nos museus do centro de Belo Horizonte.' },
-  { id: '2026-03-agenda-bh', title: 'Programação dos Museus do Centro de BH no Mês das Mulheres', sourceName: 'Agenda BH', sourceType: 'Agenda cultural', publishedDate: '2026-03-20', relevance: 'Média/Alta', platform: 'Site', relatedTo: ['MHAB', 'MIS BH', 'MUMO', 'Viaduto das Artes', 'Museus Centro'], url: 'https://www.agendabh.com.br/programacao-dos-museus-do-centro-de-bh-no-mes-das-mulheres/', summary: 'Publicação de agenda com atividades do mês das mulheres e menção ao Museus Centro.' },
-  { id: '2026-02-agenciamg-mis', title: 'MIS BH inaugura exposição sobre história da animação brasileira com entrada gratuita', sourceName: 'Agência MG', sourceType: 'Imprensa pública', publishedDate: '2026-02-03', relevance: 'Média/Alta', platform: 'Site', relatedTo: ['MIS BH', 'Museus Centro', 'Viaduto das Artes'], url: 'https://agenciamg.com.br/2026/02/03/animacao-brasileira-mis-bh/', summary: 'Divulgação da exposição Do Traço ao Pixel, inaugurada no MIS BH em fevereiro.' },
-  { id: '2025-12-arquivo-portal-bh', title: 'Arquivo de notícias Museus Centro - dezembro de 2025', sourceName: 'Portal Belo Horizonte', sourceType: 'Arquivo mensal', publishedDate: '2025-12-15', relevance: 'Média', platform: 'Site', relatedTo: ['Museus Centro', 'Arquivo histórico'], url: 'https://portalbelohorizonte.com.br/museuscentro/2025/noticias', summary: 'Arquivo histórico para consulta de publicações pretéritas.' },
-  { id: '2025-06-noturno-funed', title: 'Noturno nos Museus: Serviço de Informação Científica Histórica e Cultural participa pela primeira vez do evento', sourceName: 'Funed', sourceType: 'Institucional parceiro', publishedDate: '2025-06-27', relevance: 'Média', platform: 'Site', relatedTo: ['Noturno nos Museus', 'Museus de BH', 'Fundação Municipal de Cultura'], url: 'https://www.funed.mg.gov.br/2025/06/destaque/noturno-nos-museus/', summary: 'Registro institucional da 10ª edição do Noturno nos Museus em Belo Horizonte.' },
-  { id: '2024-12-pbh-lancamento-museus-centro', title: 'Exposição e catálogo marcam lançamento oficial do projeto Museus Centro', sourceName: 'PBH Notícias', sourceType: 'Imprensa institucional', publishedDate: '2024-12-12', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'Viaduto das Artes', 'MHAB', 'MIS BH', 'MUMO'], url: 'https://prefeitura.pbh.gov.br/noticias/exposicao-e-catalogo-marcam-lancamento-oficial-do-projeto-museus-centro', summary: 'Lançamento oficial do projeto Museus Centro, em parceria com o Viaduto das Artes, conectando MHAB, MIS BH e MUMO.' },
-  { id: '2024-12-pbh-noturno-127anos', title: 'Noturno nos Museus celebra os 127 anos de Belo Horizonte com cultura e arte', sourceName: 'PBH Notícias', sourceType: 'Imprensa institucional', publishedDate: '2024-12-04', relevance: 'Alta', platform: 'Site', relatedTo: ['Noturno nos Museus', 'Viaduto das Artes', 'Fundação Municipal de Cultura'], url: 'https://prefeitura.pbh.gov.br/noticias/noturno-nos-museus-celebra-os-127-anos-de-belo-horizonte-com-cultura-e-arte', summary: 'Divulgação da 9ª edição do Noturno nos Museus 2024, com parceria da OSC Viaduto das Artes.' },
-  { id: '2024-12-portal-noturno-home', title: 'Noturno Nos Museus - Home - 2024', sourceName: 'Portal Belo Horizonte', sourceType: 'Canal institucional', publishedDate: '2024-12-06', relevance: 'Alta', platform: 'Site', relatedTo: ['Noturno nos Museus', 'MIS BH', 'Museus de BH'], url: 'https://portalbelohorizonte.com.br/noturnonosmuseus/2024', summary: 'Página oficial da edição 2024 do Noturno nos Museus, com programação e informações gerais.' },
-  { id: '2024-12-portal-noturno-programacao', title: 'Noturno nos Museus 2024 - Programação', sourceName: 'Portal Belo Horizonte', sourceType: 'Canal institucional', publishedDate: '2024-12-06', relevance: 'Alta', platform: 'Site', relatedTo: ['Noturno nos Museus', 'Programação', 'Museus de BH'], url: 'https://portalbelohorizonte.com.br/noturnonosmuseus/2024/programacao', summary: 'Programação oficial da edição 2024 do Noturno nos Museus.' },
-  { id: '2024-12-pbh-pampulha-noturno', title: 'Museus da Pampulha tem o Noturno nos Museus como destaque nas ações de dezembro', sourceName: 'PBH Notícias', sourceType: 'Imprensa institucional', publishedDate: '2024-12-05', relevance: 'Média/Alta', platform: 'Site', relatedTo: ['Noturno nos Museus', 'Viaduto das Artes', 'Museus de BH'], url: 'https://prefeitura.pbh.gov.br/noticias/museus-da-pampulha-tem-o-noturno-nos-museus-como-destaque-nas-acoes-de-dezembro', summary: 'Matéria da PBH sobre a programação de dezembro e o Noturno nos Museus 2024.' },
-  { id: '2024-08-pbh-termo-museus-centro', title: 'FMC - Termo de Colaboração - 2024 - 0012 - Museus Centro', sourceName: 'PBH Portal das Parcerias', sourceType: 'Transparência pública', publishedDate: '2024-08-05', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'Viaduto das Artes', 'Fundação Municipal de Cultura'], url: 'https://prefeitura.pbh.gov.br/portaldasparcerias/parceria/97378/ij/01202431030012', summary: 'Registro público do Termo de Colaboração do projeto Museus Centro com a organização Viaduto das Artes.' },
-];
+{ id: '2026-05-pbh-semana', title: '24ª Semana Nacional de Museus agita a programação de maio em BH', sourceName: 'PBH Notícias', sourceType: 'Imprensa institucional', publishedDate: '2026-05-05', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'MIS BH', 'MHAB', 'MUMO', 'Viaduto das Artes', '#MuseusCentro'], url: 'https://prefeitura.pbh.gov.br/noticias/24a-semana-nacional-de-museus-agita-programacao-de-maio-em-bh', summary: 'Publicação da PBH sobre programação de maio com menção direta ao projeto e aos museus participantes.' },
+{ id: '2026-05-bheventos', title: '24ª Semana nacional de museus agita a programação de maio do Museus Centro', sourceName: 'BH Eventos', sourceType: 'Agenda cultural', publishedDate: '2026-05-06', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'Semana Nacional de Museus', 'MIS BH', 'MHAB', 'MUMO'], url: 'https://www.bheventos.com.br/noticia/05-06-2026-24-semana-nacional-de-museus-agita-a-programacao-de-maio-do-museus-centro', summary: 'Agenda cultural com chamada para a programação de maio do Museus Centro.' },
+{ id: '2026-05-culturadoria', title: 'Semana Nacional de Museus movimenta espaços culturais de BH', sourceName: 'Culturadoria', sourceType: 'Mídia cultural', publishedDate: '2026-05-06', relevance: 'Alta', platform: 'Site', relatedTo: ['MIS BH', 'MUMO', 'MHAB', 'Museus Centro'], url: 'https://culturadoria.com.br/semana-dos-museus-em-bh/', summary: 'Cobertura cultural sobre a Semana Nacional de Museus e programação dos espaços associados ao projeto.' },
+{ id: '2026-04-pbh-projeto', title: 'Projeto Museus Centro', sourceName: 'PBH / Fundação Municipal de Cultura', sourceType: 'Institucional', publishedDate: '2026-04-09', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'Viaduto das Artes', 'MHAB', 'MIS BH', 'MUMO'], url: 'https://prefeitura.pbh.gov.br/fundacao-municipal-de-cultura/projeto-museus-centro', summary: 'Página institucional com descrição do projeto, museus participantes e parceria com o Viaduto das Artes.' },
+{ id: '2026-04-portal-bh', title: 'Museus Centro - página oficial no Portal Belo Horizonte', sourceName: 'Portal Belo Horizonte', sourceType: 'Canal institucional', publishedDate: '2026-04-10', relevance: 'Média/Alta', platform: 'Site', relatedTo: ['Museus Centro', 'MHAB', 'MIS BH', 'MUMO', 'Viaduto das Artes'], url: 'https://portalbelohorizonte.com.br/en/node/44715', summary: 'Página oficial com apresentação do projeto, programação regular e descrição dos museus participantes.' },
+{ id: '2026-04-pbh-abril', title: 'Projeto Museus Centro traz experimentações visuais e manuais em abril', sourceName: 'PBH Notícias', sourceType: 'Imprensa institucional', publishedDate: '2026-04-01', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'Programação', 'MIS BH', 'MHAB', 'MUMO', 'Viaduto das Artes'], url: 'https://prefeitura.pbh.gov.br/noticias/projeto-museus-centro-traz-experimentacoes-visuais-e-manuais-em-abril', summary: 'Divulgação direta da programação de abril do Museus Centro.' },
+{ id: '2026-04-culturadoria-abril', title: 'Museus Centro com inscrições abertas para oficinas e experiências', sourceName: 'Culturadoria', sourceType: 'Mídia cultural', publishedDate: '2026-04-10', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'Oficinas', 'Programação'], url: 'https://culturadoria.com.br/museus-centro-em-abril/', summary: 'Agenda cultural com foco em oficinas e experiências do projeto.' },
+{ id: '2026-04-reddit-bh', title: 'Discussão espontânea sobre museus em BH', sourceName: 'Reddit Belo Horizonte', sourceType: 'Rede social', publishedDate: '2026-04-20', relevance: 'Média', platform: 'Reddit', relatedTo: ['Museu da Moda', 'MIS BH', 'Museus de BH', '#MuseusBH'], url: 'https://www.reddit.com/r/BeloHorizonte/comments/1rb4q2y/museus_em_bh/', summary: 'Menções espontâneas a museus de Belo Horizonte em comunidade aberta.' },
+{ id: '2026-03-pbh-mulheres', title: 'Mês das Mulheres é destaque na programação dos Museus do Centro de BH', sourceName: 'PBH Notícias', sourceType: 'Imprensa institucional', publishedDate: '2026-03-09', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'MIS BH', 'MHAB', 'MUMO', 'Viaduto das Artes'], url: 'https://prefeitura.pbh.gov.br/noticias/mes-das-mulheres-e-destaque-na-programacao-dos-museus-do-centro-de-bh', summary: 'Divulgação da programação de março dedicada à visibilidade das mulheres nas artes, história e cidade.' },
+{ id: '2026-03-revista-encontro', title: 'Museus do Centro de BH celebram mulheres com programação especial', sourceName: 'Revista Encontro / Estado de Minas', sourceType: 'Mídia cultural', publishedDate: '2026-03-10', relevance: 'Alta', platform: 'Site', relatedTo: ['MIS BH', 'MHAB', 'MUMO', 'Museus Centro'], url: 'https://www.revistaencontro.com.br/canal/atualidades/2026/03/museus-do-centro-de-bh-celebram-mulheres-com-programacao-especial.html', summary: 'Cobertura jornalística da programação especial de março nos museus do centro de Belo Horizonte.' },
+{ id: '2026-03-agenda-bh', title: 'Programação dos Museus do Centro de BH no Mês das Mulheres', sourceName: 'Agenda BH', sourceType: 'Agenda cultural', publishedDate: '2026-03-20', relevance: 'Média/Alta', platform: 'Site', relatedTo: ['MHAB', 'MIS BH', 'MUMO', 'Viaduto das Artes', 'Museus Centro'], url: 'https://www.agendabh.com.br/programacao-dos-museus-do-centro-de-bh-no-mes-das-mulheres/', summary: 'Publicação de agenda com atividades do mês das mulheres e menção ao Museus Centro.' },
+{ id: '2026-02-agenciamg-mis', title: 'MIS BH inaugura exposição sobre história da animação brasileira com entrada gratuita', sourceName: 'Agência MG', sourceType: 'Imprensa pública', publishedDate: '2026-02-03', relevance: 'Média/Alta', platform: 'Site', relatedTo: ['MIS BH', 'Museus Centro', 'Viaduto das Artes'], url: 'https://agenciamg.com.br/2026/02/03/animacao-brasileira-mis-bh/', summary: 'Divulgação da exposição Do Traço ao Pixel, inaugurada no MIS BH em fevereiro.' },
+{ id: '2025-12-arquivo-portal-bh', title: 'Arquivo de notícias Museus Centro - dezembro de 2025', sourceName: 'Portal Belo Horizonte', sourceType: 'Arquivo mensal', publishedDate: '2025-12-15', relevance: 'Média', platform: 'Site', relatedTo: ['Museus Centro', 'Arquivo histórico'], url: 'https://portalbelohorizonte.com.br/museuscentro/2025/noticias', summary: 'Arquivo histórico para consulta de publicações pretéritas.' },
+{ id: '2025-06-noturno-funed', title: 'Noturno nos Museus: Serviço de Informação Científica Histórica e Cultural participa pela primeira vez do evento', sourceName: 'Funed', sourceType: 'Institucional parceiro', publishedDate: '2025-06-27', relevance: 'Média', platform: 'Site', relatedTo: ['Noturno nos Museus', 'Museus de BH', 'Fundação Municipal de Cultura'], url: 'https://www.funed.mg.gov.br/2025/06/destaque/noturno-nos-museus/', summary: 'Registro institucional da 10ª edição do Noturno nos Museus em Belo Horizonte.' },
+{ id: '2024-12-pbh-lancamento-museus-centro', title: 'Exposição e catálogo marcam lançamento oficial do projeto Museus Centro', sourceName: 'PBH Notícias', sourceType: 'Imprensa institucional', publishedDate: '2024-12-12', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'Viaduto das Artes', 'MHAB', 'MIS BH', 'MUMO'], url: 'https://prefeitura.pbh.gov.br/noticias/exposicao-e-catalogo-marcam-lancamento-oficial-do-projeto-museus-centro', summary: 'Lançamento oficial do projeto Museus Centro, em parceria com o Viaduto das Artes, conectando MHAB, MIS BH e MUMO.' },
+{ id: '2024-12-pbh-noturno-127anos', title: 'Noturno nos Museus celebra os 127 anos de Belo Horizonte com cultura e arte', sourceName: 'PBH Notícias', sourceType: 'Imprensa institucional', publishedDate: '2024-12-04', relevance: 'Alta', platform: 'Site', relatedTo: ['Noturno nos Museus', 'Viaduto das Artes', 'Fundação Municipal de Cultura'], url: 'https://prefeitura.pbh.gov.br/noticias/noturno-nos-museus-celebra-os-127-anos-de-belo-horizonte-com-cultura-e-arte', summary: 'Divulgação da 9ª edição do Noturno nos Museus 2024, com parceria da OSC Viaduto das Artes.' },
+{ id: '2024-12-portal-noturno-home', title: 'Noturno Nos Museus - Home - 2024', sourceName: 'Portal Belo Horizonte', sourceType: 'Canal institucional', publishedDate: '2024-12-06', relevance: 'Alta', platform: 'Site', relatedTo: ['Noturno nos Museus', 'MIS BH', 'Museus de BH'], url: 'https://portalbelohorizonte.com.br/noturnonosmuseus/2024', summary: 'Página oficial da edição 2024 do Noturno nos Museus, com programação e informações gerais.' },
+{ id: '2024-12-portal-noturno-programacao', title: 'Noturno nos Museus 2024 - Programação', sourceName: 'Portal Belo Horizonte', sourceType: 'Canal institucional', publishedDate: '2024-12-06', relevance: 'Alta', platform: 'Site', relatedTo: ['Noturno nos Museus', 'Programação', 'Museus de BH'], url: 'https://portalbelohorizonte.com.br/noturnonosmuseus/2024/programacao', summary: 'Programação oficial da edição 2024 do Noturno nos Museus.' },
+{ id: '2024-12-pbh-pampulha-noturno', title: 'Museus da Pampulha tem o Noturno nos Museus como destaque nas ações de dezembro', sourceName: 'PBH Notícias', sourceType: 'Imprensa institucional', publishedDate: '2024-12-05', relevance: 'Média/Alta', platform: 'Site', relatedTo: ['Noturno nos Museus', 'Viaduto das Artes', 'Museus de BH'], url: 'https://prefeitura.pbh.gov.br/noticias/museus-da-pampulha-tem-o-noturno-nos-museus-como-destaque-nas-acoes-de-dezembro', summary: 'Matéria da PBH sobre a programação de dezembro e o Noturno nos Museus 2024.' },
+{ id: '2024-08-pbh-termo-museus-centro', title: 'FMC - Termo de Colaboração - 2024 - 0012 - Museus Centro', sourceName: 'PBH Portal das Parcerias', sourceType: 'Transparência pública', publishedDate: '2024-08-05', relevance: 'Alta', platform: 'Site', relatedTo: ['Museus Centro', 'Viaduto das Artes', 'Fundação Municipal de Cultura'], url: 'https://prefeitura.pbh.gov.br/portaldasparcerias/parceria/97378/ij/01202431030012', summary: 'Registro público do Termo de Colaboração do projeto Museus Centro com a organização Viaduto das Artes.' }];
+
 
 function normalizeText(value = '') {
   return String(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -189,19 +189,19 @@ function groupByMonth(items) {
     return acc;
   }, {});
 
-  return Object.entries(grouped)
-    .sort(([a], [b]) => b.localeCompare(a))
-    .map(([monthKey, monthItems]) => ({
-      key: monthKey,
-      label: getMonthLabel(monthKey),
-      items: monthItems.sort((a, b) => (parseDate(b.publishedDate)?.getTime() || 0) - (parseDate(a.publishedDate)?.getTime() || 0)),
-    }));
+  return Object.entries(grouped).
+  sort(([a], [b]) => b.localeCompare(a)).
+  map(([monthKey, monthItems]) => ({
+    key: monthKey,
+    label: getMonthLabel(monthKey),
+    items: monthItems.sort((a, b) => (parseDate(b.publishedDate)?.getTime() || 0) - (parseDate(a.publishedDate)?.getTime() || 0))
+  }));
 }
 
 function KpiCard({ label, value, helper, icon: Icon, dark = false }) {
   return (
     <Card className={`rounded-2xl shadow-sm ${dark ? 'bg-black border-black text-white' : 'bg-white border-gray-200 text-black'}`}>
-      <CardContent className="p-4">
+      <CardContent className="p-4 hidden">
         <div className="flex items-center gap-2 mb-3">
           <Icon className={`w-4 h-4 ${dark ? 'text-white' : 'text-gray-500'}`} />
           <p className={`text-[11px] font-semibold uppercase tracking-wide ${dark ? 'text-gray-300' : 'text-gray-500'}`}>{label}</p>
@@ -209,8 +209,8 @@ function KpiCard({ label, value, helper, icon: Icon, dark = false }) {
         <p className={`text-3xl font-bold ${dark ? 'text-white' : 'text-black'}`}>{value}</p>
         {helper && <p className={`text-xs mt-1 ${dark ? 'text-gray-300' : 'text-gray-500'}`}>{helper}</p>}
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 }
 
 function TermGroup({ title, terms, icon: Icon }) {
@@ -224,8 +224,8 @@ function TermGroup({ title, terms, icon: Icon }) {
       <div className="flex flex-wrap gap-1.5">
         {terms.map((term) => <Badge key={term} variant="outline" className="bg-gray-50 text-[11px]">{term}</Badge>)}
       </div>
-    </div>
-  );
+    </div>);
+
 }
 
 function AcervoCard() {
@@ -237,17 +237,17 @@ function AcervoCard() {
           <p className="mt-1 text-xs text-gray-500">Pastas de referência no Google Drive.</p>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          {DRIVE_FOLDERS.map((folder) => (
-            <a key={folder.id} href={folder.url} target="_blank" rel="noreferrer" className="block rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50">
+          {DRIVE_FOLDERS.map((folder) =>
+          <a key={folder.id} href={folder.url} target="_blank" rel="noreferrer" className="block rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50">
               <Badge className="mb-2 bg-gray-100 text-gray-700 hover:bg-gray-100">{folder.typeLabel}</Badge>
               <p className="truncate font-semibold text-gray-900">{folder.name}</p>
               <p className="mt-1 text-xs text-gray-500">Abrir pasta</p>
             </a>
-          ))}
+          )}
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 }
 
 function ClippingRow({ item }) {
@@ -273,8 +273,8 @@ function ClippingRow({ item }) {
           <ExternalLink className="h-4 w-4" />
         </a>
       </td>
-    </tr>
-  );
+    </tr>);
+
 }
 
 function MonthPager({ page, totalPages, onPage }) {
@@ -287,23 +287,23 @@ function MonthPager({ page, totalPages, onPage }) {
       <Button type="button" size="sm" variant="outline" className="h-8 w-8 p-0" onClick={() => onPage(page - 1)} disabled={page <= 0}>
         <ChevronLeft className="h-3.5 w-3.5" />
       </Button>
-      {pages.map((pageIndex) => (
-        <Button
-          key={pageIndex}
-          type="button"
-          size="sm"
-          variant={pageIndex === page ? 'default' : 'outline'}
-          className="h-8 min-w-8 px-2 text-xs"
-          onClick={() => onPage(pageIndex)}
-        >
+      {pages.map((pageIndex) =>
+      <Button
+        key={pageIndex}
+        type="button"
+        size="sm"
+        variant={pageIndex === page ? 'default' : 'outline'}
+        className="h-8 min-w-8 px-2 text-xs"
+        onClick={() => onPage(pageIndex)}>
+        
           {pageIndex + 1}
         </Button>
-      ))}
+      )}
       <Button type="button" size="sm" variant="outline" className="h-8 w-8 p-0" onClick={() => onPage(page + 1)} disabled={page >= totalPages - 1}>
         <ChevronRight className="h-3.5 w-3.5" />
       </Button>
-    </div>
-  );
+    </div>);
+
 }
 
 export default function ComunicacaoVisibilidadeClippingCompact() {
@@ -402,23 +402,23 @@ export default function ComunicacaoVisibilidadeClippingCompact() {
           </div>
 
           <div className="flex flex-wrap gap-2 rounded-xl border border-gray-200 bg-white p-3">
-            {clippingByMonth.map((group) => (
-              <button
-                key={group.key}
-                type="button"
-                onClick={() => selectMonth(group.key)}
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${group.key === currentMonthKey ? 'border-black bg-black text-white' : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'}`}
-              >
+            {clippingByMonth.map((group) =>
+            <button
+              key={group.key}
+              type="button"
+              onClick={() => selectMonth(group.key)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${group.key === currentMonthKey ? 'border-black bg-black text-white' : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'}`}>
+              
                 <CalendarDays className="mr-1 inline h-3.5 w-3.5" />
                 {group.label} · {group.items.length}
               </button>
-            ))}
+            )}
           </div>
 
-          {!currentMonth ? (
-            <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">Nenhuma publicação encontrada para os filtros selecionados.</div>
-          ) : (
-            <section className="space-y-2">
+          {!currentMonth ?
+          <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">Nenhuma publicação encontrada para os filtros selecionados.</div> :
+
+          <section className="space-y-2">
               <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                 <h3 className="text-sm font-semibold capitalize text-black">{currentMonth.label}</h3>
                 <Badge variant="outline" className="bg-white">{currentMonth.items.length} publicação(ões)</Badge>
@@ -448,7 +448,7 @@ export default function ComunicacaoVisibilidadeClippingCompact() {
               </div>
               <MonthPager page={page} totalPages={totalPages} onPage={setActivePage} />
             </section>
-          )}
+          }
         </CardContent>
       </Card>
 
@@ -476,6 +476,6 @@ export default function ComunicacaoVisibilidadeClippingCompact() {
           </div>
         </CardContent>
       </Card>
-    </div>
-  );
+    </div>);
+
 }
