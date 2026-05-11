@@ -16,7 +16,7 @@ export const THEMES = {
       '--cor-destaque': '#1e293b',
       '--cor-borda': '#e2e8f0',
       '--cor-nav': '#ffffff',
-      '--cor-nav-texto': '#1e293b',
+      '--cor-nav-texto': '#ffffff',
       '--cor-btn-primario': '#111111',
       '--cor-btn-primario-texto': '#ffffff',
       '--cor-btn-primario-hover': '#374151',
