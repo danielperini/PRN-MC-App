@@ -783,27 +783,27 @@ export default function GestaoDocumental() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          
+          <Button
+            type="button"
+            variant={showDuplicatesOnly ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setShowDuplicatesOnly((v) => !v)}
+            className="gap-1.5 hidden">
+            
+            <Copy className="h-3.5 w-3.5" />
+            {showDuplicatesOnly ? 'Ver todos' : 'Pesquisar repetidos'}
+          </Button>
 
-
-
-
-
-
-
-
-          
-
-          
-
-
-
-
-
-
-
-
-          
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleDeleteDuplicates}
+            className="gap-1.5 text-red-700 hover:text-red-800 hidden">
+            
+            <Trash2 className="h-3.5 w-3.5" />
+            Apagar repetidos
+          </Button>
 
           <div className="relative w-72 max-w-full">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
