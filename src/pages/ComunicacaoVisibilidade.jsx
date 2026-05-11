@@ -52,6 +52,7 @@ const SUMMARY_CARDS = [
     icon: Megaphone,
     folderId: FOLDER_IDS.RELEASES_CLIPPING,
     categories: ['RELEASE'],
+    folderTerms: ['releases e clipping', 'release', 'releases'],
   },
   {
     key: 'IMAGENS',
@@ -59,6 +60,7 @@ const SUMMARY_CARDS = [
     icon: Image,
     folderId: FOLDER_IDS.IMAGENS,
     categories: ['FOTOGRAFIA'],
+    folderTerms: ['imagens', 'imagem', 'foto', 'fotos', 'fotografia'],
   },
   {
     key: 'CLIPPING',
@@ -66,6 +68,7 @@ const SUMMARY_CARDS = [
     icon: FolderOpen,
     folderId: FOLDER_IDS.RELEASES_CLIPPING,
     categories: ['CLIPPING'],
+    folderTerms: ['releases e clipping', 'clipping', 'clipagem', 'imprensa'],
   },
   {
     key: 'POSTS',
@@ -73,6 +76,7 @@ const SUMMARY_CARDS = [
     icon: Newspaper,
     folderId: FOLDER_IDS.REDES_SOCIAIS,
     categories: ['POSTS'],
+    folderTerms: ['redes sociais', 'posts', 'post', 'social', 'instagram', 'facebook'],
   },
 ];
 
@@ -94,15 +98,16 @@ const STATIC_ITEMS = DRIVE_FOLDERS.map((folder) => ({
   url: folder.url,
   sourceFolderName: folder.name,
   sourceFolderId: folder.id,
+  sourceFolderPath: folder.name,
   isFolderShortcut: true,
 }));
 
-function inferCategory(name = '', mimeType = '', defaultCategory = 'RELEASE') {
-  const text = `${name} ${mimeType}`.toLowerCase();
+function inferCategory(name = '', mimeType = '', defaultCategory = 'RELEASE', folderPath = '') {
+  const text = `${folderPath} ${name} ${mimeType}`.toLowerCase();
 
   if (text.includes('clipping') || text.includes('clipagem') || text.includes('imprensa')) return 'CLIPPING';
-  if (text.includes('post') || text.includes('instagram') || text.includes('facebook') || text.includes('cards') || text.includes('social')) return 'POSTS';
-  if (text.includes('foto') || text.includes('fotografia') || text.includes('imagem') || mimeType.startsWith('image/')) return 'FOTOGRAFIA';
+  if (text.includes('post') || text.includes('instagram') || text.includes('facebook') || text.includes('cards') || text.includes('social') || text.includes('redes')) return 'POSTS';
+  if (text.includes('foto') || text.includes('fotografia') || text.includes('imagem') || text.includes('imagens') || mimeType.startsWith('image/')) return 'FOTOGRAFIA';
   if (text.includes('release') || text.includes('relise') || text.includes('assessoria')) return 'RELEASE';
 
   return defaultCategory;
@@ -119,12 +124,20 @@ function getCategoryLabel(category) {
   return CATEGORIES.find((item) => item.key === category)?.label || 'Releases';
 }
 
+function normalizeText(value = '') {
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
 function normalizeDriveFile(file, sourceFolder) {
   const rawName = file.name || file.nome || 'Arquivo sem nome';
   const rawMimeType = file.mimeType || file.mime_type || '';
   const folderId = sourceFolder?.id || file.sourceFolderId || file.drive_folder_id || '';
   const folderName = sourceFolder?.name || file.sourceFolderName || file.drive_folder_name || 'Google Drive';
-  const category = file.category || file.tipo || inferCategory(rawName, rawMimeType, sourceFolder?.defaultCategory);
+  const folderPath = sourceFolder?.path || file.sourceFolderPath || file.drive_parent_folder_path || folderName;
+  const category = file.category || file.tipo || inferCategory(rawName, rawMimeType, sourceFolder?.defaultCategory, folderPath);
   const createdTime = file.createdTime || file.criado_em_drive || file.created_date || file.modifiedTime || file.atualizado_em_drive || null;
 
   return {
@@ -139,8 +152,26 @@ function normalizeDriveFile(file, sourceFolder) {
     url: file.webViewLink || file.url || file.link || (file.drive_file_id ? `https://drive.google.com/file/d/${file.drive_file_id}/view` : ''),
     sourceFolderName: folderName,
     sourceFolderId: folderId,
+    sourceFolderPath: folderPath,
     isFolderShortcut: false,
   };
+}
+
+function fileBelongsToSummaryCard(file, card) {
+  if (!file || file.isFolderShortcut) return false;
+  if (!card.categories.includes(file.category)) return false;
+
+  if (file.sourceFolderId === card.folderId) return true;
+
+  const searchableFolderText = normalizeText([
+    file.sourceFolderName,
+    file.sourceFolderPath,
+    file.drive_folder_name,
+    file.drive_parent_folder_path,
+    file.name,
+  ].filter(Boolean).join(' '));
+
+  return card.folderTerms.some((term) => searchableFolderText.includes(normalizeText(term)));
 }
 
 async function fetchFolderFiles(folder) {
@@ -182,7 +213,7 @@ export default function ComunicacaoVisibilidade() {
 
     return items.filter((item) => {
       const matchesCategory = category === 'TODOS' || item.category === category;
-      const matchesQuery = !normalizedQuery || [item.name, item.typeLabel, item.month, item.sourceFolderName]
+      const matchesQuery = !normalizedQuery || [item.name, item.typeLabel, item.month, item.sourceFolderName, item.sourceFolderPath]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -204,11 +235,7 @@ export default function ComunicacaoVisibilidade() {
   const totals = useMemo(() => {
     return SUMMARY_CARDS.map((card) => ({
       ...card,
-      total: items.filter((file) => (
-        !file.isFolderShortcut &&
-        file.sourceFolderId === card.folderId &&
-        card.categories.includes(file.category)
-      )).length,
+      total: items.filter((file) => fileBelongsToSummaryCard(file, card)).length,
     }));
   }, [items]);
 
@@ -362,7 +389,7 @@ export default function ComunicacaoVisibilidade() {
                           <div className="min-w-0">
                             <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100 mb-2">{file.typeLabel}</Badge>
                             <h3 className="font-semibold text-slate-900 truncate">{file.name}</h3>
-                            <p className="text-xs text-slate-500 mt-1 truncate">{file.sourceFolderName}</p>
+                            <p className="text-xs text-slate-500 mt-1 truncate">{file.sourceFolderPath || file.sourceFolderName}</p>
                           </div>
                           <ExternalLink className="w-4 h-4 text-slate-400 flex-shrink-0" />
                         </div>
