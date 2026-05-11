@@ -11,7 +11,7 @@ import BaseConhecimento from './pages/BaseConhecimento';
 import Cadastro from './pages/Cadastro';
 
 import Compras from './pages/Compras';
-import ComunicacaoVisibilidade from './pages/ComunicacaoVisibilidadeClippingPaged';
+import ComunicacaoVisibilidade from './pages/ComunicacaoVisibilidadeClippingCompact';
 import ConsolidacaoFinanceira from './pages/ConsolidacaoFinanceira';
 import CoordReview from './pages/CoordReview';
 import Dashboard from './pages/Dashboard';
