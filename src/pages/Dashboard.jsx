@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
-import { RotateCw } from 'lucide-react';
+import { RotateCw, LayoutDashboard, User, Eye } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 
@@ -11,8 +11,150 @@ import CoordDashboard from '../components/dashboard/CoordDashboard';
 import ComplianceStats from '../components/dashboard/ComplianceStats';
 import NewsCarousel from '../components/dashboard/NewsCarousel';
 import ExecutiveIndicators from '../components/dashboard/ExecutiveIndicators';
+import DashboardProfissional from './DashboardProfissional';
+import DashboardPatrocinador from './DashboardPatrocinador';
 
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
+
+const DASHBOARD_VIEW_KEY = 'museus_centro_dashboard_view_mode';
+
+function DashboardViewSelector({ value, onChange }) {
+  const options = [
+    {
+      key: 'coordenador',
+      label: 'Coordenador',
+      icon: LayoutDashboard,
+    },
+    {
+      key: 'profissional',
+      label: 'Profissional',
+      icon: User,
+    },
+    {
+      key: 'observador',
+      label: 'Observador',
+      icon: Eye,
+    },
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white p-2 shadow-sm">
+      {options.map((option) => {
+        const Icon = option.icon;
+        const active = value === option.key;
+
+        return (
+          <Button
+            key={option.key}
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onChange(option.key)}
+            className={`gap-2 rounded-xl px-3 ${
+              active
+                ? 'bg-black text-white hover:bg-black hover:text-white'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-black'
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {option.label}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
+function DashboardCoordenadorView({
+  containerRef,
+  currentMonth,
+  currentYear,
+  isRefreshing,
+  handleRefresh,
+  allReports,
+  myReports,
+  loadingAll,
+  isCoordenador,
+  rubricas,
+  dashboardViewMode,
+  setDashboardViewMode,
+}) {
+  return (
+    <div
+      ref={containerRef}
+      className="min-h-screen bg-white"
+    >
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
+        <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-semibold text-black">
+              Dashboard
+            </h1>
+
+            <p className="text-sm text-gray-500 mt-1">
+              Atualização automática ativa
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            {isCoordenador && (
+              <DashboardViewSelector
+                value={dashboardViewMode}
+                onChange={setDashboardViewMode}
+              />
+            )}
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <RotateCw
+                className={`w-4 h-4 ${
+                  isRefreshing
+                    ? 'animate-spin'
+                    : ''
+                }`}
+              />
+            </Button>
+          </div>
+        </div>
+
+        <NewsCarousel />
+
+        <ComplianceStats
+          currentMonth={
+            currentMonth
+          }
+          currentYear={
+            currentYear
+          }
+        />
+
+        <CoordDashboard
+          reports={
+            isCoordenador
+              ? allReports
+              : myReports
+          }
+          isLoading={
+            loadingAll
+          }
+        />
+
+        <ExecutiveIndicators
+          reports={
+            isCoordenador
+              ? allReports
+              : myReports
+          }
+          rubricas={rubricas}
+        />
+      </div>
+    </div>
+  );
+}
 
 function DashboardInner() {
   const {
@@ -23,6 +165,30 @@ function DashboardInner() {
 
   const [isRefreshing, setIsRefreshing] =
     React.useState(false);
+
+  const [dashboardViewMode, setDashboardViewModeState] = React.useState(() => {
+    try {
+      return localStorage.getItem(DASHBOARD_VIEW_KEY) || 'coordenador';
+    } catch {
+      return 'coordenador';
+    }
+  });
+
+  const setDashboardViewMode = React.useCallback((mode) => {
+    setDashboardViewModeState(mode);
+    try {
+      localStorage.setItem(DASHBOARD_VIEW_KEY, mode);
+    } catch {}
+  }, []);
+
+  React.useEffect(() => {
+    if (!isCoordenador && dashboardViewMode !== 'coordenador') {
+      setDashboardViewModeState('coordenador');
+      try {
+        localStorage.removeItem(DASHBOARD_VIEW_KEY);
+      } catch {}
+    }
+  }, [isCoordenador, dashboardViewMode]);
 
   const now = new Date();
 
@@ -290,71 +456,62 @@ function DashboardInner() {
     handleRefresh
   );
 
-  return (
-    <div
-      ref={containerRef}
-      className="min-h-screen bg-white"
-    >
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-semibold text-black">
-              Dashboard
-            </h1>
+  if (isCoordenador && dashboardViewMode === 'profissional') {
+    return (
+      <div className="min-h-screen bg-white">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 pt-6 md:pt-10">
+          <div className="flex justify-end mb-4">
+            <DashboardViewSelector
+              value={dashboardViewMode}
+              onChange={setDashboardViewMode}
+            />
+          </div>
+        </div>
+        <DashboardProfissional />
+      </div>
+    );
+  }
 
-            <p className="text-sm text-gray-500 mt-1">
-              Atualização automática ativa
-            </p>
+  if (isCoordenador && dashboardViewMode === 'observador') {
+    return (
+      <div className="min-h-screen bg-white">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-6">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h1 className="text-3xl font-semibold text-black">
+                Dashboard Observador
+              </h1>
+              <p className="text-sm text-gray-500 mt-1">
+                Visão institucional restaurada para coordenadores.
+              </p>
+            </div>
+            <DashboardViewSelector
+              value={dashboardViewMode}
+              onChange={setDashboardViewMode}
+            />
           </div>
 
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <RotateCw
-              className={`w-4 h-4 ${
-                isRefreshing
-                  ? 'animate-spin'
-                  : ''
-              }`}
-            />
-          </Button>
+          <DashboardPatrocinador />
         </div>
-
-        <NewsCarousel />
-
-        <ComplianceStats
-          currentMonth={
-            currentMonth
-          }
-          currentYear={
-            currentYear
-          }
-        />
-
-        <CoordDashboard
-          reports={
-            isCoordenador
-              ? allReports
-              : myReports
-          }
-          isLoading={
-            loadingAll
-          }
-        />
-
-        <ExecutiveIndicators
-          reports={
-            isCoordenador
-              ? allReports
-              : myReports
-          }
-          rubricas={rubricas}
-        />
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <DashboardCoordenadorView
+      containerRef={containerRef}
+      currentMonth={currentMonth}
+      currentYear={currentYear}
+      isRefreshing={isRefreshing}
+      handleRefresh={handleRefresh}
+      allReports={allReports}
+      myReports={myReports}
+      loadingAll={loadingAll}
+      isCoordenador={isCoordenador}
+      rubricas={rubricas}
+      dashboardViewMode={dashboardViewMode}
+      setDashboardViewMode={setDashboardViewMode}
+    />
   );
 }
 
