@@ -35,6 +35,7 @@ function normalizeMuseu(value) {
   if (text === 'mis' || text.includes('imagem') || text.includes('som')) return 'MIS';
   if (text === 'mhab' || text.includes('abilio') || text.includes('historico')) return 'MHAB';
   if (text === 'mumo' || text.includes('moda')) return 'MUMO';
+  if (text.includes('noturno')) return 'NOTURNO';
 
   return String(value || '').trim().toUpperCase();
 }
@@ -94,33 +95,60 @@ function getPct(rubrica = {}) {
   return Number(((getValorUtilizado(rubrica) / total) * 100).toFixed(1));
 }
 
+function getSearchText(rubrica = {}) {
+  return normalizeText([
+    rubrica?.rubrica,
+    rubrica?.nome,
+    rubrica?.descricao,
+    rubrica?.grupo,
+    rubrica?.categoria,
+    rubrica?.categoria_key,
+    rubrica?.centro_custo,
+    rubrica?.museu,
+    rubrica?.museu_codigo,
+    rubrica?.unidade,
+    rubrica?.museu_origem,
+    rubrica?.observacao_uso,
+  ].filter(Boolean).join(' '));
+}
+
+function isNoturnoRubrica(rubrica = {}) {
+  return getSearchText(rubrica).includes('noturno');
+}
+
 function matchRubricaMuseu(rubrica = {}, museu = '') {
   const normalizedMuseu = normalizeMuseu(museu);
 
-  if (!normalizedMuseu || normalizedMuseu === 'GERAL' || normalizedMuseu === 'NOTURNO') return true;
+  if (!normalizedMuseu || normalizedMuseu === 'GERAL') return true;
+  if (normalizedMuseu === 'NOTURNO') return isNoturnoRubrica(rubrica);
+
+  if (isNoturnoRubrica(rubrica)) return false;
+
+  const origem = normalizeMuseu(rubrica?.museu_origem || '');
+  if (['MIS', 'MHAB', 'MUMO'].includes(origem)) return origem === normalizedMuseu;
 
   const centro = normalizeMuseu(
     rubrica?.centro_custo ||
       rubrica?.museu ||
       rubrica?.museu_codigo ||
       rubrica?.unidade ||
-      rubrica?.museu_origem ||
       ''
   );
 
-  if (centro) return centro === normalizedMuseu;
+  if (['MIS', 'MHAB', 'MUMO'].includes(centro)) return centro === normalizedMuseu;
 
-  const text = normalizeText([
-    rubrica?.rubrica,
-    rubrica?.nome,
-    rubrica?.descricao,
-    rubrica?.grupo,
-    rubrica?.categoria,
-  ].filter(Boolean).join(' '));
+  const text = getSearchText(rubrica);
+  const hasMIS = text.includes('mis') || text.includes('imagem') || text.includes('som');
+  const hasMHAB = text.includes('mhab') || text.includes('abilio') || text.includes('historico');
+  const hasMUMO = text.includes('mumo') || text.includes('moda');
+  const specificCount = [hasMIS, hasMHAB, hasMUMO].filter(Boolean).length;
 
-  if (normalizedMuseu === 'MIS') return text.includes('mis') || text.includes('imagem') || text.includes('som');
-  if (normalizedMuseu === 'MHAB') return text.includes('mhab') || text.includes('abilio') || text.includes('historico');
-  if (normalizedMuseu === 'MUMO') return text.includes('mumo') || text.includes('moda');
+  if (specificCount === 0) return false;
+  if (specificCount > 1) return false;
+
+  if (normalizedMuseu === 'MIS') return hasMIS;
+  if (normalizedMuseu === 'MHAB') return hasMHAB;
+  if (normalizedMuseu === 'MUMO') return hasMUMO;
 
   return false;
 }
@@ -130,7 +158,7 @@ function flattenConsolidado(consolidado = {}, museu = '') {
   const normalizedMuseu = normalizeMuseu(museu);
 
   if (consolidado?.por_museu && typeof consolidado.por_museu === 'object') {
-    if (normalizedMuseu && normalizedMuseu !== 'GERAL') {
+    if (normalizedMuseu && normalizedMuseu !== 'GERAL' && normalizedMuseu !== 'NOTURNO') {
       const categorias = consolidado.por_museu?.[normalizedMuseu] || {};
       Object.entries(categorias).forEach(([categoriaKey, items]) => {
         (Array.isArray(items) ? items : []).forEach((item) => {
@@ -141,14 +169,14 @@ function flattenConsolidado(consolidado = {}, museu = '') {
       Object.entries(consolidado.por_museu).forEach(([museuKey, categorias]) => {
         Object.entries(categorias || {}).forEach(([categoriaKey, items]) => {
           (Array.isArray(items) ? items : []).forEach((item) => {
-            rows.push({ ...item, categoria_key: item?.categoria_key || categoriaKey, museu_origem: museuKey });
+            rows.push({ ...item, categoria_key: item?.categoria_key || categoriaKey, museu_origem: normalizeMuseu(museuKey) });
           });
         });
       });
     }
   }
 
-  return rows;
+  return rows.filter((rubrica) => matchRubricaMuseu(rubrica, normalizedMuseu));
 }
 
 function groupByCategory(rows = []) {
@@ -252,19 +280,21 @@ export default function RubricasMuseuEditor({
   refreshKey = 0,
   rubricaFilter,
 }) {
+  const normalizedMuseu = normalizeMuseu(museu);
+
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['rubricas-museu-editor', museu, refreshKey],
+    queryKey: ['rubricas-museu-editor', normalizedMuseu, refreshKey],
     queryFn: async () => {
       try {
         const res = await base44.functions.invoke('getRubricasConsolidadas', {});
-        const rows = flattenConsolidado(res?.data || {}, museu);
+        const rows = flattenConsolidado(res?.data || {}, normalizedMuseu);
         if (rows.length > 0) return rows;
       } catch (err) {
         console.warn('getRubricasConsolidadas indisponível no editor de rubricas:', err);
       }
 
       const rubricas = await base44.entities.Rubrica.list('ordem_exibicao', 1000);
-      return (Array.isArray(rubricas) ? rubricas : []).filter((rubrica) => matchRubricaMuseu(rubrica, museu));
+      return (Array.isArray(rubricas) ? rubricas : []).filter((rubrica) => matchRubricaMuseu(rubrica, normalizedMuseu));
     },
     staleTime: 0,
     gcTime: 0,
@@ -273,20 +303,21 @@ export default function RubricasMuseuEditor({
 
   const rows = useMemo(() => {
     const baseRows = Array.isArray(data) ? data : [];
+    const scopedRows = baseRows.filter((rubrica) => matchRubricaMuseu(rubrica, normalizedMuseu));
     const filtered = typeof rubricaFilter === 'function'
-      ? baseRows.filter((rubrica) => {
+      ? scopedRows.filter((rubrica) => {
           try {
             return rubricaFilter(rubrica);
           } catch {
             return true;
           }
         })
-      : baseRows;
+      : scopedRows;
 
     return filtered
       .filter((rubrica) => rubrica?.ativo !== false)
       .sort((a, b) => getRubricaNome(a).localeCompare(getRubricaNome(b), 'pt-BR'));
-  }, [data, rubricaFilter]);
+  }, [data, rubricaFilter, normalizedMuseu]);
 
   const totals = useMemo(() => {
     return rows.reduce(
