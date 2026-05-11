@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { FileText, FileCode, File, Search, Trash2, ExternalLink, Download, Copy } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { FileText, FileCode, File, Search, Trash2, ExternalLink, Download, Copy, Pencil, Link2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
 const IMG = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'heic'];
@@ -200,13 +201,81 @@ function DocLink({ doc }) {
   );
 }
 
+function DocumentSelect({ label, value, onChange, docs, allowedTypes }) {
+  const options = docs.filter((doc) => allowedTypes.includes(tipo(doc)));
+
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-gray-600">{label}</label>
+      <select
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 outline-none focus:border-gray-400"
+      >
+        <option value="">Não vincular</option>
+        {options.map((doc) => (
+          <option key={doc.id} value={doc.id}>
+            {tipo(doc)} — {name(doc)}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function EditarVinculosDialog({ row, docs, form, setForm, saving, onSave, onClose }) {
+  if (!row) return null;
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Pencil className="h-4 w-4" />
+            Editar vínculos do documento
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+            <p className="text-sm font-medium text-gray-900 line-clamp-2">{row.ref}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{row.fornecedor}</p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <DocumentSelect label="PDF da Nota Fiscal" value={form.pdfId} onChange={(v) => setForm((prev) => ({ ...prev, pdfId: v }))} docs={docs} allowedTypes={['PDF']} />
+            <DocumentSelect label="XML da Nota Fiscal" value={form.xmlId} onChange={(v) => setForm((prev) => ({ ...prev, xmlId: v }))} docs={docs} allowedTypes={['XML']} />
+            <DocumentSelect label="Recibo / Comprovante" value={form.reciboId} onChange={(v) => setForm((prev) => ({ ...prev, reciboId: v }))} docs={docs} allowedTypes={['RECIBO', 'DOC']} />
+          </div>
+
+          <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            O vínculo salva os IDs e URLs nos registros selecionados. A lista é atualizada em seguida mantendo a deduplicação.
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+            <Button type="button" onClick={onSave} disabled={saving} className="gap-2">
+              <Save className="h-4 w-4" />
+              {saving ? 'Salvando...' : 'Salvar vínculos'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function GestaoDocumentalDedupe() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [onlyDup, setOnlyDup] = useState(false);
+  const [editingRow, setEditingRow] = useState(null);
+  const [editForm, setEditForm] = useState({ pdfId: '', xmlId: '', reciboId: '' });
+  const [savingLinks, setSavingLinks] = useState(false);
   const { data = [], isLoading } = useQuery({ queryKey: ['gestao-documental'], queryFn: async () => base44.entities.Attachment.list('-created_date', 1000) });
 
   const valid = useMemo(() => (data || []).filter((d) => d?.id && d?.status_registro !== 'DELETADO' && !isImg(d)), [data]);
+  const docsById = useMemo(() => new Map(valid.map((doc) => [String(doc.id), doc])), [valid]);
   const dupIds = useMemo(() => {
     const m = new Map();
     valid.forEach((d) => {
@@ -228,6 +297,76 @@ export default function GestaoDocumentalDedupe() {
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
     await queryClient.invalidateQueries({ queryKey: ['attachments-compras'] });
+  }
+
+  function openEdit(row) {
+    const pdf = row.docs.find((doc) => tipo(doc) === 'PDF');
+    const xml = row.docs.find((doc) => tipo(doc) === 'XML');
+    const recibo = row.docs.find((doc) => tipo(doc) === 'RECIBO' || tipo(doc) === 'DOC');
+    setEditingRow(row);
+    setEditForm({ pdfId: pdf?.id || '', xmlId: xml?.id || '', reciboId: recibo?.id || '' });
+  }
+
+  async function saveLinks() {
+    if (!editingRow) return;
+
+    const pdf = editForm.pdfId ? docsById.get(String(editForm.pdfId)) : null;
+    const xml = editForm.xmlId ? docsById.get(String(editForm.xmlId)) : null;
+    const recibo = editForm.reciboId ? docsById.get(String(editForm.reciboId)) : null;
+
+    if (!pdf && !xml && !recibo) {
+      toast.warning('Selecione ao menos um documento para vincular.');
+      return;
+    }
+
+    setSavingLinks(true);
+
+    try {
+      const updates = [];
+      const pdfUrl = pdf ? url(pdf) : '';
+      const xmlUrl = xml ? url(xml) : '';
+      const reciboUrl = recibo ? url(recibo) : '';
+      const pairId = [pdf?.id, xml?.id, recibo?.id].filter(Boolean).sort().join('__') || editingRow.key;
+
+      if (pdf) {
+        updates.push(base44.entities.Attachment.update(pdf.id, {
+          pair_id: pairId,
+          nf_pdf_intake_id: pdf.id,
+          nf_pdf_url: pdfUrl,
+          nf_xml_intake_id: xml?.id || pdf.nf_xml_intake_id || '',
+          nf_xml_url: xmlUrl || pdf.nf_xml_url || '',
+          recibo_pdf_id: recibo?.id || pdf.recibo_pdf_id || '',
+          comprovante_url: reciboUrl || pdf.comprovante_url || '',
+        }));
+      }
+
+      if (xml) {
+        updates.push(base44.entities.Attachment.update(xml.id, {
+          pair_id: pairId,
+          nf_pdf_intake_id: pdf?.id || xml.nf_pdf_intake_id || '',
+          nf_pdf_url: pdfUrl || xml.nf_pdf_url || '',
+          nf_xml_vinculado_a: pdf?.id || xml.nf_xml_vinculado_a || '',
+        }));
+      }
+
+      if (recibo) {
+        updates.push(base44.entities.Attachment.update(recibo.id, {
+          pair_id: pairId,
+          documento_pai_id: pdf?.id || recibo.documento_pai_id || '',
+          pdf_recibo_id: pdf?.id || recibo.pdf_recibo_id || '',
+          nf_pdf_url: pdfUrl || recibo.nf_pdf_url || '',
+        }));
+      }
+
+      await Promise.all(updates);
+      toast.success('Vínculos atualizados com sucesso.');
+      setEditingRow(null);
+      await refresh();
+    } catch (error) {
+      toast.error(`Erro ao salvar vínculos: ${error.message}`);
+    } finally {
+      setSavingLinks(false);
+    }
   }
 
   async function remove(doc) {
@@ -281,14 +420,14 @@ export default function GestaoDocumentalDedupe() {
                 <div><h3 className="text-sm font-semibold capitalize text-black">{g.label}</h3><p className="text-[11px] text-gray-500">{g.rows.length} linhas consolidadas</p></div>
               </div>
               <div className="overflow-x-auto rounded-xl border border-gray-200">
-                <table className="w-full min-w-[760px] table-fixed border-collapse text-xs">
+                <table className="w-full min-w-[780px] table-fixed border-collapse text-xs">
                   <colgroup>
                     <col className="w-[9%]" />
                     <col className="w-[24%]" />
                     <col className="w-[17%]" />
                     <col className="w-[8%]" />
-                    <col className="w-[34%]" />
-                    <col className="w-[8%]" />
+                    <col className="w-[33%]" />
+                    <col className="w-[9%]" />
                   </colgroup>
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50 text-left">
@@ -316,7 +455,11 @@ export default function GestaoDocumentalDedupe() {
                           <div className="grid min-w-0 grid-cols-1 gap-1 xl:grid-cols-2">{r.docs.map((d) => <DocLink key={d.id} doc={d} />)}</div>
                         </td>
                         <td className="px-2 py-2 align-top">
-                          <div className="flex items-center justify-center gap-1">{r.docs.map((d) => <button key={d.id} type="button" onClick={() => remove(d)} title={`Deletar ${name(d)}`} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>)}</div>
+                          <div className="flex items-center justify-center gap-1">
+                            <button type="button" onClick={() => openEdit(r)} title="Editar vínculos" className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"><Pencil className="h-3.5 w-3.5" /></button>
+                            <Link2 className="h-3.5 w-3.5 text-gray-300" />
+                            {r.docs.map((d) => <button key={d.id} type="button" onClick={() => remove(d)} title={`Deletar ${name(d)}`} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>)}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -327,6 +470,16 @@ export default function GestaoDocumentalDedupe() {
           ))}
         </div>
       )}
+
+      <EditarVinculosDialog
+        row={editingRow}
+        docs={valid}
+        form={editForm}
+        setForm={setEditForm}
+        saving={savingLinks}
+        onSave={saveLinks}
+        onClose={() => setEditingRow(null)}
+      />
     </div>
   );
 }
