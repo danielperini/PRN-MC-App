@@ -227,7 +227,7 @@ export default function ComunicacaoVisibilidade() {
           </p>
         </div>
 
-        <Button onClick={handleSync} type="button" className="bg-slate-900 hover:bg-slate-800 text-white gap-2">
+        <Button onClick={handleSync} type="button" className="bg-slate-900 hover:bg-slate-800 text-white gap-2 hidden">
           <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
           {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
         </Button>
