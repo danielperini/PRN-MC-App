@@ -7,8 +7,8 @@ import {
   Image,
   Newspaper,
   Megaphone,
-  CalendarDays } from
-'lucide-react';
+  CalendarDays,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -18,97 +18,146 @@ import { base44 } from '@/api/base44Client';
 const FOLDER_IDS = {
   RELEASES_CLIPPING: '1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
   IMAGENS: '1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
-  REDES_SOCIAIS: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_'
+  REDES_SOCIAIS: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
 };
 
 const DRIVE_FOLDERS = [
-{
-  id: FOLDER_IDS.RELEASES_CLIPPING,
-  name: 'Releases e Clipping',
-  url: 'https://drive.google.com/drive/folders/1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
-  principal: true,
-  defaultCategory: 'RELEASE'
-},
-{
-  id: FOLDER_IDS.IMAGENS,
-  name: 'Imagens',
-  url: 'https://drive.google.com/drive/folders/1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
-  principal: false,
-  defaultCategory: 'FOTOGRAFIA'
-},
-{
-  id: FOLDER_IDS.REDES_SOCIAIS,
-  name: 'Redes Sociais',
-  url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
-  principal: false,
-  defaultCategory: 'POSTS'
-}];
-
+  {
+    id: FOLDER_IDS.RELEASES_CLIPPING,
+    name: 'Releases e Clipping',
+    url: 'https://drive.google.com/drive/folders/1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
+    defaultCategory: 'RELEASE',
+  },
+  {
+    id: FOLDER_IDS.IMAGENS,
+    name: 'Imagens',
+    url: 'https://drive.google.com/drive/folders/1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
+    defaultCategory: 'FOTOGRAFIA',
+  },
+  {
+    id: FOLDER_IDS.REDES_SOCIAIS,
+    name: 'Redes Sociais',
+    url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
+    defaultCategory: 'POSTS',
+  },
+];
 
 const SUMMARY_CARDS = [
-{
-  key: 'RELEASES',
-  label: 'Releases',
-  icon: Megaphone,
-  folderId: FOLDER_IDS.RELEASES_CLIPPING,
-  categories: ['RELEASE'],
-  folderTerms: ['releases e clipping', 'release', 'releases']
-},
-{
-  key: 'IMAGENS',
-  label: 'Imagens',
-  icon: Image,
-  folderId: FOLDER_IDS.IMAGENS,
-  categories: ['FOTOGRAFIA'],
-  folderTerms: ['imagens', 'imagem', 'foto', 'fotos', 'fotografia']
-},
-{
-  key: 'CLIPPING',
-  label: 'Clipping',
-  icon: FolderOpen,
-  folderId: FOLDER_IDS.RELEASES_CLIPPING,
-  categories: ['CLIPPING'],
-  folderTerms: ['releases e clipping', 'clipping', 'clipagem', 'imprensa']
-},
-{
-  key: 'POSTS',
-  label: 'Posts',
-  icon: Newspaper,
-  folderId: FOLDER_IDS.REDES_SOCIAIS,
-  categories: ['POSTS'],
-  folderTerms: ['redes sociais', 'posts', 'post', 'social', 'instagram', 'facebook']
-}];
-
+  {
+    key: 'RELEASES',
+    summaryKey: 'releases',
+    label: 'Releases',
+    icon: Megaphone,
+    folderId: FOLDER_IDS.RELEASES_CLIPPING,
+    categories: ['RELEASE'],
+    folderTerms: ['releases e clipping', 'release', 'releases', 'nota'],
+  },
+  {
+    key: 'IMAGENS',
+    summaryKey: 'imagens',
+    label: 'Imagens',
+    icon: Image,
+    folderId: FOLDER_IDS.IMAGENS,
+    categories: ['FOTOGRAFIA'],
+    folderTerms: ['imagens', 'imagem', 'foto', 'fotos', 'fotografia'],
+  },
+  {
+    key: 'CLIPPING',
+    summaryKey: 'clipping',
+    label: 'Clipping',
+    icon: FolderOpen,
+    folderId: FOLDER_IDS.RELEASES_CLIPPING,
+    categories: ['CLIPPING'],
+    folderTerms: ['releases e clipping', 'clipping', 'clipagem', 'imprensa', 'materia', 'jornal', 'noticia'],
+  },
+  {
+    key: 'POSTS',
+    summaryKey: 'posts',
+    label: 'Posts',
+    icon: Newspaper,
+    folderId: FOLDER_IDS.REDES_SOCIAIS,
+    categories: ['POSTS'],
+    folderTerms: ['redes sociais', 'posts', 'post', 'social', 'instagram', 'facebook'],
+  },
+];
 
 const CATEGORIES = [
-{ key: 'RELEASE', label: 'Releases', icon: Megaphone },
-{ key: 'FOTOGRAFIA', label: 'Imagens', icon: Image },
-{ key: 'CLIPPING', label: 'Clipping', icon: FolderOpen },
-{ key: 'POSTS', label: 'Posts', icon: Newspaper }];
+  { key: 'RELEASE', label: 'Releases' },
+  { key: 'FOTOGRAFIA', label: 'Imagens' },
+  { key: 'CLIPPING', label: 'Clipping' },
+  { key: 'POSTS', label: 'Posts' },
+];
 
+const ZERO_SUMMARY = {
+  releases: 0,
+  imagens: 0,
+  clipping: 0,
+  posts: 0,
+};
 
 const STATIC_ITEMS = DRIVE_FOLDERS.map((folder) => ({
   id: folder.id,
   name: folder.name,
   month: 'Pastas sincronizadas',
   category: folder.defaultCategory,
-  typeLabel: folder.principal ? 'Pasta principal' : 'Pasta complementar',
-  createdTime: null,
-  modifiedTime: null,
+  typeLabel: folder.name,
   url: folder.url,
   sourceFolderName: folder.name,
   sourceFolderId: folder.id,
   sourceFolderPath: folder.name,
-  isFolderShortcut: true
+  isFolderShortcut: true,
 }));
 
-function inferCategory(name = '', mimeType = '', defaultCategory = 'RELEASE', folderPath = '') {
-  const text = `${folderPath} ${name} ${mimeType}`.toLowerCase();
+function normalizeText(value = '') {
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
 
-  if (text.includes('clipping') || text.includes('clipagem') || text.includes('imprensa')) return 'CLIPPING';
-  if (text.includes('post') || text.includes('instagram') || text.includes('facebook') || text.includes('cards') || text.includes('social') || text.includes('redes')) return 'POSTS';
-  if (text.includes('foto') || text.includes('fotografia') || text.includes('imagem') || text.includes('imagens') || mimeType.startsWith('image/')) return 'FOTOGRAFIA';
-  if (text.includes('release') || text.includes('relise') || text.includes('assessoria')) return 'RELEASE';
+function inferCategory(name = '', mimeType = '', defaultCategory = 'RELEASE', folderPath = '') {
+  const text = normalizeText(`${folderPath} ${name} ${mimeType}`);
+
+  if (
+    text.includes('clipping') ||
+    text.includes('clipagem') ||
+    text.includes('imprensa') ||
+    text.includes('jornal') ||
+    text.includes('materia') ||
+    text.includes('noticia')
+  ) {
+    return 'CLIPPING';
+  }
+
+  if (
+    text.includes('post') ||
+    text.includes('instagram') ||
+    text.includes('facebook') ||
+    text.includes('cards') ||
+    text.includes('social') ||
+    text.includes('redes')
+  ) {
+    return 'POSTS';
+  }
+
+  if (
+    text.includes('foto') ||
+    text.includes('fotografia') ||
+    text.includes('imagem') ||
+    text.includes('imagens') ||
+    String(mimeType).startsWith('image/')
+  ) {
+    return 'FOTOGRAFIA';
+  }
+
+  if (
+    text.includes('release') ||
+    text.includes('relise') ||
+    text.includes('assessoria') ||
+    text.includes('nota')
+  ) {
+    return 'RELEASE';
+  }
 
   return defaultCategory;
 }
@@ -121,27 +170,22 @@ function formatMonth(value) {
 }
 
 function getCategoryLabel(category) {
-  return CATEGORIES.find((item) => item.key === category)?.label || 'Releases';
-}
-
-function normalizeText(value = '') {
-  return String(value).
-  normalize('NFD').
-  replace(/[\u0300-\u036f]/g, '').
-  toLowerCase();
+  return CATEGORIES.find((item) => item.key === category)?.label || 'Arquivo';
 }
 
 function normalizeDriveFile(file, sourceFolder) {
   const rawName = file.name || file.nome || 'Arquivo sem nome';
   const rawMimeType = file.mimeType || file.mime_type || '';
-  const folderId = sourceFolder?.id || file.sourceFolderId || file.drive_folder_id || '';
+  const rootFolderId = file.drive_root_folder_id || sourceFolder?.id || file.sourceFolderId || file.drive_folder_id || '';
+  const folderId = file.sourceFolderId || file.drive_folder_id || rootFolderId;
   const folderName = sourceFolder?.name || file.sourceFolderName || file.drive_folder_name || 'Google Drive';
   const folderPath = sourceFolder?.path || file.sourceFolderPath || file.drive_parent_folder_path || folderName;
   const category = file.category || file.tipo || inferCategory(rawName, rawMimeType, sourceFolder?.defaultCategory, folderPath);
   const createdTime = file.createdTime || file.criado_em_drive || file.created_date || file.modifiedTime || file.atualizado_em_drive || null;
+  const fileId = file.id || file.drive_file_id;
 
   return {
-    id: file.id || file.drive_file_id,
+    id: fileId,
     name: rawName,
     month: file.month || file.mes || formatMonth(createdTime),
     category,
@@ -149,11 +193,13 @@ function normalizeDriveFile(file, sourceFolder) {
     createdTime: file.createdTime || file.criado_em_drive || null,
     modifiedTime: file.modifiedTime || file.atualizado_em_drive || null,
     mimeType: rawMimeType,
-    url: file.webViewLink || file.url || file.link || (file.drive_file_id ? `https://drive.google.com/file/d/${file.drive_file_id}/view` : ''),
+    url: file.webViewLink || file.url || file.link || (fileId ? `https://drive.google.com/file/d/${fileId}/view` : ''),
     sourceFolderName: folderName,
     sourceFolderId: folderId,
     sourceFolderPath: folderPath,
-    isFolderShortcut: false
+    driveRootFolderId: rootFolderId,
+    driveRootFolderKey: file.drive_root_folder_key || '',
+    isFolderShortcut: false,
   };
 }
 
@@ -161,17 +207,37 @@ function fileBelongsToSummaryCard(file, card) {
   if (!file || file.isFolderShortcut) return false;
   if (!card.categories.includes(file.category)) return false;
 
-  if (file.sourceFolderId === card.folderId) return true;
+  if (file.sourceFolderId === card.folderId || file.driveRootFolderId === card.folderId) return true;
 
   const searchableFolderText = normalizeText([
-  file.sourceFolderName,
-  file.sourceFolderPath,
-  file.drive_folder_name,
-  file.drive_parent_folder_path,
-  file.name].
-  filter(Boolean).join(' '));
+    file.sourceFolderName,
+    file.sourceFolderPath,
+    file.drive_folder_name,
+    file.drive_parent_folder_path,
+    file.name,
+  ].filter(Boolean).join(' '));
 
   return card.folderTerms.some((term) => searchableFolderText.includes(normalizeText(term)));
+}
+
+function buildLocalSummary(files = []) {
+  return {
+    releases: files.filter((file) => fileBelongsToSummaryCard(file, SUMMARY_CARDS[0])).length,
+    imagens: files.filter((file) => fileBelongsToSummaryCard(file, SUMMARY_CARDS[1])).length,
+    clipping: files.filter((file) => fileBelongsToSummaryCard(file, SUMMARY_CARDS[2])).length,
+    posts: files.filter((file) => fileBelongsToSummaryCard(file, SUMMARY_CARDS[3])).length,
+  };
+}
+
+function normalizeSummary(summary) {
+  if (!summary || typeof summary !== 'object') return ZERO_SUMMARY;
+
+  return {
+    releases: Number(summary.releases || summary.RELEASES || 0),
+    imagens: Number(summary.imagens || summary.images || summary.FOTOGRAFIA || 0),
+    clipping: Number(summary.clipping || summary.CLIPPING || 0),
+    posts: Number(summary.posts || summary.POSTS || 0),
+  };
 }
 
 function extractPayload(response) {
@@ -184,6 +250,10 @@ function extractFilesFromPayload(payload) {
   if (Array.isArray(payload?.data?.files)) return payload.data.files;
   if (Array.isArray(payload?.result?.files)) return payload.result.files;
   return [];
+}
+
+function extractSummaryFromPayload(payload) {
+  return normalizeSummary(payload?.summary || payload?.data?.summary || payload?.result?.summary || null);
 }
 
 async function fetchFolderFiles(folder) {
@@ -203,29 +273,39 @@ async function fetchFolderFiles(folder) {
 async function syncViaBase44Function(action = 'sync') {
   const response = await base44.functions.invoke('syncComunicacaoVisibilidade', { action });
   const payload = extractPayload(response);
-  const files = extractFilesFromPayload(payload);
+  const files = extractFilesFromPayload(payload).map((file) => normalizeDriveFile(file));
+  const summary = extractSummaryFromPayload(payload);
 
-  return files.map((file) => normalizeDriveFile(file));
+  return {
+    files,
+    summary: Object.values(summary).some((value) => Number(value || 0) > 0)
+      ? summary
+      : buildLocalSummary(files),
+  };
 }
 
 export default function ComunicacaoVisibilidade() {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('TODOS');
   const [items, setItems] = useState(STATIC_ITEMS);
+  const [summary, setSummary] = useState(ZERO_SUMMARY);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState(null);
   const [syncMessage, setSyncMessage] = useState('Carregando acervo de comunicação...');
 
   const filteredItems = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery = normalizeText(query.trim());
 
     return items.filter((item) => {
       const matchesCategory = category === 'TODOS' || item.category === category;
-      const matchesQuery = !normalizedQuery || [item.name, item.typeLabel, item.month, item.sourceFolderName, item.sourceFolderPath].
-      filter(Boolean).
-      join(' ').
-      toLowerCase().
-      includes(normalizedQuery);
+      const searchable = normalizeText([
+        item.name,
+        item.typeLabel,
+        item.month,
+        item.sourceFolderName,
+        item.sourceFolderPath,
+      ].filter(Boolean).join(' '));
+      const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
 
       return matchesCategory && matchesQuery;
     });
@@ -241,11 +321,19 @@ export default function ComunicacaoVisibilidade() {
   }, [filteredItems]);
 
   const totals = useMemo(() => {
+    const localSummary = buildLocalSummary(items);
+    const effectiveSummary = {
+      releases: Math.max(Number(summary.releases || 0), localSummary.releases),
+      imagens: Math.max(Number(summary.imagens || 0), localSummary.imagens),
+      clipping: Math.max(Number(summary.clipping || 0), localSummary.clipping),
+      posts: Math.max(Number(summary.posts || 0), localSummary.posts),
+    };
+
     return SUMMARY_CARDS.map((card) => ({
       ...card,
-      total: items.filter((file) => fileBelongsToSummaryCard(file, card)).length
+      total: effectiveSummary[card.summaryKey] || 0,
     }));
-  }, [items]);
+  }, [items, summary]);
 
   async function runSync({ silent = false, preferCache = false } = {}) {
     if (isSyncing) return;
@@ -255,37 +343,48 @@ export default function ComunicacaoVisibilidade() {
 
     try {
       let mergedFiles = [];
-      let syncMode = preferCache ? 'cache' : 'function';
+      let nextSummary = ZERO_SUMMARY;
+      let syncMode = preferCache ? 'cache' : 'Base44 Function';
 
       try {
-        mergedFiles = await syncViaBase44Function(preferCache ? 'list-cache' : 'sync');
+        const result = await syncViaBase44Function(preferCache ? 'list-cache' : 'sync');
+        mergedFiles = result.files;
+        nextSummary = result.summary;
       } catch (functionError) {
         console.warn('Function syncComunicacaoVisibilidade indisponível. Usando fallback por API key.', functionError);
-        syncMode = 'api-key';
+        syncMode = 'API key';
+      }
+
+      if (mergedFiles.length === 0 && preferCache) {
+        const result = await syncViaBase44Function('sync').catch(() => ({ files: [], summary: ZERO_SUMMARY }));
+        mergedFiles = result.files;
+        nextSummary = result.summary;
+        syncMode = 'Base44 Function';
       }
 
       if (mergedFiles.length === 0 && !preferCache) {
         const filesByFolder = await Promise.all(DRIVE_FOLDERS.map(fetchFolderFiles));
         mergedFiles = filesByFolder.flat();
+        nextSummary = buildLocalSummary(mergedFiles);
       }
 
-      if (mergedFiles.length === 0 && preferCache) {
-        mergedFiles = await syncViaBase44Function('sync').catch(() => []);
-        syncMode = 'function';
-      }
+      const totalFromSummary = Object.values(nextSummary).reduce((acc, value) => acc + Number(value || 0), 0);
 
-      if (mergedFiles.length === 0) {
+      if (mergedFiles.length === 0 && totalFromSummary === 0) {
         setItems(STATIC_ITEMS);
-        setSyncMessage('Pastas disponíveis. A contagem real depende do conector Google Drive ativo e das permissões das pastas.');
+        setSummary(ZERO_SUMMARY);
+        setSyncMessage('Pastas disponíveis. A função não retornou arquivos nem resumo. Verifique se o conector Google Drive tem acesso às pastas compartilhadas.');
       } else {
-        setItems(mergedFiles);
-        setSyncMessage(`${mergedFiles.length} arquivo(s) sincronizado(s) do Google Drive via ${syncMode === 'cache' ? 'cache' : syncMode === 'function' ? 'Base44 Function' : 'API key'}.`);
+        setItems(mergedFiles.length > 0 ? mergedFiles : STATIC_ITEMS);
+        setSummary(nextSummary);
+        setSyncMessage(`${mergedFiles.length || totalFromSummary} arquivo(s) analisado(s) via ${syncMode}. Releases: ${nextSummary.releases}; Clipping: ${nextSummary.clipping}; Imagens: ${nextSummary.imagens}; Posts: ${nextSummary.posts}.`);
       }
 
       setLastSync(new Date());
     } catch (error) {
       console.error('Erro ao sincronizar Comunicação:', error);
       setItems(STATIC_ITEMS);
+      setSummary(ZERO_SUMMARY);
       setSyncMessage('Não foi possível listar os arquivos automaticamente. Verifique o conector Google Drive e as permissões das pastas.');
     } finally {
       setIsSyncing(false);
@@ -306,16 +405,18 @@ export default function ComunicacaoVisibilidade() {
             <span>Acervo público de comunicação</span>
           </div>
 
-          <h1 className="text-2xl font-bold text-slate-900">
-            Comunicação
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-900">Comunicação</h1>
 
           <p className="text-sm text-slate-500 mt-1 max-w-3xl">
             Área de consulta para releases, clipping, imagens, posts e materiais de redes sociais organizados por mês.
           </p>
         </div>
 
-        <Button onClick={() => runSync({ silent: false, preferCache: false })} type="button" className="bg-slate-900 hover:bg-slate-800 text-white gap-2">
+        <Button
+          onClick={() => runSync({ silent: false, preferCache: false })}
+          type="button"
+          className="bg-slate-900 hover:bg-slate-800 text-white gap-2"
+        >
           <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
           {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
         </Button>
@@ -337,13 +438,13 @@ export default function ComunicacaoVisibilidade() {
                   </div>
                 </div>
               </CardContent>
-            </Card>);
-
+            </Card>
+          );
         })}
       </div>
 
       <Card className="border-slate-200 bg-white">
-        <CardContent className="p-4 space-y-4 hidden">
+        <CardContent className="p-4 space-y-4">
           <div className="flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -351,19 +452,19 @@ export default function ComunicacaoVisibilidade() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Buscar por nome, mês, tipo ou pasta..."
-                className="pl-9" />
-              
+                className="pl-9"
+              />
             </div>
 
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
-              className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700">
-              
+              className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700"
+            >
               <option value="TODOS">Todos os tipos</option>
-              {CATEGORIES.map((item) =>
-              <option key={item.key} value={item.key}>{item.label}</option>
-              )}
+              {CATEGORIES.map((item) => (
+                <option key={item.key} value={item.key}>{item.label}</option>
+              ))}
             </select>
           </div>
 
@@ -378,29 +479,29 @@ export default function ComunicacaoVisibilidade() {
       </Card>
 
       <div className="space-y-6">
-        {Object.keys(groupedByMonth).length === 0 ?
-        <Card className="border-dashed border-slate-300 bg-white">
+        {Object.keys(groupedByMonth).length === 0 ? (
+          <Card className="border-dashed border-slate-300 bg-white">
             <CardContent className="p-8 text-center text-sm text-slate-500">
               Nenhum arquivo encontrado para os filtros selecionados.
             </CardContent>
-          </Card> :
-
-        Object.entries(groupedByMonth).map(([month, files]) =>
-        <section key={month} className="space-y-3">
+          </Card>
+        ) : (
+          Object.entries(groupedByMonth).map(([month, files]) => (
+            <section key={month} className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-slate-900 capitalize">{month}</h2>
                 <Badge variant="outline" className="bg-white">{files.length} item(ns)</Badge>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {files.map((file) =>
-            <a
-              key={`${file.sourceFolderId}-${file.id}`}
-              href={file.url}
-              target="_blank"
-              rel="noreferrer"
-              className="block">
-              
+                {files.map((file) => (
+                  <a
+                    key={`${file.sourceFolderId}-${file.id}`}
+                    href={file.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block"
+                  >
                     <Card className="h-full border-slate-200 bg-white hover:border-slate-400 hover:shadow-sm transition-all">
                       <CardContent className="p-4 space-y-3">
                         <div className="flex items-start justify-between gap-3">
@@ -419,12 +520,12 @@ export default function ComunicacaoVisibilidade() {
                       </CardContent>
                     </Card>
                   </a>
-            )}
+                ))}
               </div>
             </section>
-        )
-        }
+          ))
+        )}
       </div>
-    </div>);
-
+    </div>
+  );
 }
