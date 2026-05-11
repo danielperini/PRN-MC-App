@@ -28,11 +28,12 @@ const PAGE_TITLES = {
   UserManagement: 'Usuários',
   GestorArquivos: 'Arquivos',
   GaleriaFotos: 'Galeria de Fotos',
+  ComunicacaoVisibilidade: 'Comunicação visibilidade',
   ActivityLog: 'Auditoria',
   PlataformaAdmin: 'Plataforma',
   AssistentePlanejamento: 'Assistente de IA do MC',
   Perfil: 'Perfil',
-  BaseConhecimento: 'Conhecimento',
+  BaseConhecimento: 'Base de Conhecimento',
   LeitorNoticias: 'Notícias',
   Manual: 'Manual e Ajuda',
   GeradorListaPresenca: 'Gerador de Lista de Presença',
@@ -44,7 +45,6 @@ const PAGE_TITLES = {
   Mensagens: 'Mensagens',
   Aparencia: 'Aparência e Manutenção',
   ChecklistProducao: 'Checklist de Produção',
-  BaseConhecimento: 'Base de Conhecimento',
 };
 
 export default function Layout({ children, currentPageName }) {
@@ -84,11 +84,9 @@ export default function Layout({ children, currentPageName }) {
 
   const pageTitle = PAGE_TITLES[currentPageName] || 'Museus Centro';
 
-  // Pull-to-refresh handlers
   const handlePullToRefresh = async () => {
     setIsRefreshing(true);
     try {
-      // Refetch all active queries to sync with server
       await queryClient.refetchQueries({ stale: true });
     } catch (error) {
       console.error('Error refreshing:', error);
@@ -110,7 +108,6 @@ export default function Layout({ children, currentPageName }) {
       const currentY = e.touches[0].clientY;
       const scrollTop = container.scrollTop;
 
-      // Only trigger pull when at the top
       if (scrollTop === 0) {
         const distance = currentY - startYRef.current;
         if (distance > 0) {
@@ -171,7 +168,6 @@ export default function Layout({ children, currentPageName }) {
           />
 
           <main ref={mobileMainRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 relative">
-            {/* Pull-to-refresh indicator */}
             {pullDistance > 0 && (
               <div 
                 className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center bg-gradient-to-b from-blue-50 to-transparent transition-all"
