@@ -39,6 +39,20 @@ const DRIVE_FOLDERS = [
   },
 ];
 
+const IMAGE_EXTENSIONS = [
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+  '.gif',
+  '.bmp',
+  '.tif',
+  '.tiff',
+  '.heic',
+  '.heif',
+  '.svg',
+];
+
 function normalizeText(value = '') {
   return String(value)
     .normalize('NFD')
@@ -46,10 +60,22 @@ function normalizeText(value = '') {
     .toLowerCase();
 }
 
+function isImageFile(name = '', mimeType = '') {
+  const normalizedName = normalizeText(name);
+  const normalizedMime = normalizeText(mimeType);
+
+  if (normalizedMime.startsWith('image/')) return true;
+
+  return IMAGE_EXTENSIONS.some((extension) => normalizedName.endsWith(extension));
+}
+
 function inferCategory(name = '', mimeType = '', defaultCategory = 'RELEASE', folderPath = '', rootKey = '') {
   const text = normalizeText(`${folderPath} ${name} ${mimeType}`);
 
-  if (rootKey === 'IMAGENS') return 'FOTOGRAFIA';
+  if (rootKey === 'IMAGENS') {
+    return isImageFile(name, mimeType) ? 'FOTOGRAFIA' : 'OUTRO';
+  }
+
   if (rootKey === 'REDES_SOCIAIS') return 'POSTS';
 
   if (rootKey === 'RELEASES_CLIPPING') {
@@ -70,7 +96,7 @@ function inferCategory(name = '', mimeType = '', defaultCategory = 'RELEASE', fo
 
   if (text.includes('clipping') || text.includes('clipagem') || text.includes('imprensa')) return 'CLIPPING';
   if (text.includes('post') || text.includes('posts') || text.includes('instagram') || text.includes('facebook') || text.includes('card') || text.includes('cards') || text.includes('social') || text.includes('redes')) return 'POSTS';
-  if (text.includes('foto') || text.includes('fotos') || text.includes('fotografia') || text.includes('imagem') || text.includes('imagens') || mimeType.startsWith('image/')) return 'FOTOGRAFIA';
+  if (isImageFile(name, mimeType)) return 'FOTOGRAFIA';
   if (text.includes('release') || text.includes('releases') || text.includes('relise') || text.includes('assessoria') || text.includes('nota')) return 'RELEASE';
 
   return defaultCategory;
@@ -163,7 +189,11 @@ async function listFolderFilesRecursive(accessToken: string, rootFolder: any) {
           id: child.id,
           path: `${currentFolder.path} / ${child.name}`,
         });
-      } else if (child.mimeType === SHORTCUT_MIME_TYPE && child.shortcutDetails?.targetMimeType === FOLDER_MIME_TYPE && child.shortcutDetails?.targetId) {
+      } else if (
+        child.mimeType === SHORTCUT_MIME_TYPE &&
+        child.shortcutDetails?.targetMimeType === FOLDER_MIME_TYPE &&
+        child.shortcutDetails?.targetId
+      ) {
         queue.push({
           id: child.shortcutDetails.targetId,
           path: `${currentFolder.path} / ${child.name}`,
@@ -186,6 +216,7 @@ async function listFolderFilesRecursive(accessToken: string, rootFolder: any) {
 
 function normalizeAsset(file: any, folder: any) {
   const folderPath = folder.currentFolderPath || folder.name;
+  const imageFile = isImageFile(file.name, file.mimeType);
   const category = inferCategory(file.name, file.mimeType, folder.defaultCategory, folderPath, folder.rootKey);
   const createdTime = file.createdTime || file.modifiedTime || null;
 
@@ -205,7 +236,7 @@ function normalizeAsset(file: any, folder: any) {
     nome: file.name || 'Arquivo sem nome',
     category,
     tipo: category,
-    typeLabel: category === 'FOTOGRAFIA' ? 'Imagens' : category === 'POSTS' ? 'Posts' : category === 'CLIPPING' ? 'Clipping' : 'Releases',
+    typeLabel: category === 'FOTOGRAFIA' ? 'Imagens' : category === 'POSTS' ? 'Posts' : category === 'CLIPPING' ? 'Clipping' : category === 'RELEASE' ? 'Releases' : 'Outros',
     month: formatMonth(createdTime),
     mes: formatMonth(createdTime),
     ano: createdTime ? new Date(createdTime).getFullYear() : null,
@@ -222,6 +253,7 @@ function normalizeAsset(file: any, folder: any) {
     sincronizado_em: new Date().toISOString(),
     origem: 'GOOGLE_DRIVE_COMUNICACAO',
     ativo: true,
+    is_image_file: imageFile,
     isFolderShortcut: false,
   };
 }
@@ -230,13 +262,14 @@ function buildSummary(files: any[]) {
   return {
     releases: files.filter((file) => file.drive_root_folder_id === ROOT_FOLDER_IDS.RELEASES_CLIPPING && file.category === 'RELEASE').length,
     clipping: files.filter((file) => file.drive_root_folder_id === ROOT_FOLDER_IDS.RELEASES_CLIPPING && file.category === 'CLIPPING').length,
-    imagens: files.filter((file) => file.drive_root_folder_id === ROOT_FOLDER_IDS.IMAGENS && file.category === 'FOTOGRAFIA').length,
+    imagens: files.filter((file) => file.drive_root_folder_id === ROOT_FOLDER_IDS.IMAGENS && file.is_image_file === true).length,
     posts: files.filter((file) => file.drive_root_folder_id === ROOT_FOLDER_IDS.REDES_SOCIAIS && file.category === 'POSTS').length,
   };
 }
 
 async function upsertAssets(base44: any, assets: any[]) {
   const entity = base44.asServiceRole.entities.CommunicationAsset || base44.entities.CommunicationAsset;
+
   if (!entity) {
     return { saved: 0, skipped: assets.length, cacheAvailable: false };
   }
@@ -247,11 +280,13 @@ async function upsertAssets(base44: any, assets: any[]) {
   for (const asset of assets) {
     try {
       const existing = await entity.filter({ drive_file_id: asset.drive_file_id }, '-created_date', 1);
+
       if (Array.isArray(existing) && existing[0]?.id) {
         await entity.update(existing[0].id, asset);
       } else {
         await entity.create(asset);
       }
+
       saved += 1;
     } catch (error) {
       console.error('Erro ao salvar CommunicationAsset:', asset.drive_file_id, error?.message || error);
@@ -279,9 +314,21 @@ Deno.serve(async (req) => {
         const entity = base44.asServiceRole.entities.CommunicationAsset || base44.entities.CommunicationAsset;
         const cached = entity ? await entity.list('-criado_em_drive', 5000) : [];
         const files = Array.isArray(cached) ? cached : [];
-        return Response.json({ success: true, mode: 'cache', files, summary: buildSummary(files) });
+
+        return Response.json({
+          success: true,
+          mode: 'cache',
+          files,
+          summary: buildSummary(files),
+        });
       } catch (error) {
-        return Response.json({ success: false, mode: 'cache_unavailable', files: [], summary: buildSummary([]), error: error?.message || 'Cache indisponível' });
+        return Response.json({
+          success: false,
+          mode: 'cache_unavailable',
+          files: [],
+          summary: buildSummary([]),
+          error: error?.message || 'Cache indisponível',
+        });
       }
     }
 
@@ -290,12 +337,14 @@ Deno.serve(async (req) => {
     const filesByFolder = await Promise.all(
       DRIVE_FOLDERS.map((folder) => listFolderFilesRecursive(accessToken, folder))
     );
+
     const normalizedAssets = filesByFolder.flat().map(({ file, folder }) => normalizeAsset(file, folder));
+
     const dedupedAssets = Array.from(
       new Map(normalizedAssets.map((asset) => [asset.drive_file_id, asset])).values()
     );
-    const summary = buildSummary(dedupedAssets);
 
+    const summary = buildSummary(dedupedAssets);
     const saveResult = await upsertAssets(base44, dedupedAssets);
 
     try {
@@ -325,14 +374,15 @@ Deno.serve(async (req) => {
       files: dedupedAssets,
       summary,
       total_files: dedupedAssets.length,
+      total_image_files: summary.imagens,
       saved: saveResult.saved,
       skipped: saveResult.skipped,
       folders: DRIVE_FOLDERS,
       synced_at: new Date().toISOString(),
-      schedule_hint: 'Agendar esta função no Base44 para 12:59 e 23:59 diariamente.',
     });
   } catch (error) {
     console.error('syncComunicacaoVisibilidade error:', error);
+
     return Response.json({
       success: false,
       error: error?.message || 'Erro inesperado ao sincronizar Comunicação.',
