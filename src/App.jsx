@@ -16,7 +16,7 @@ import ProgramacaoEspelho from './pages/ProgramacaoEspelho';
 import Agenda from './pages/Agenda';
 import RubricasPorMuseu from './pages/RubricasPorMuseu';
 import BaseConhecimento from './pages/BaseConhecimento';
-import DashboardPatrocinador from './pages/DashboardPatrocinador';
+import DashboardPatrocinador from './pages/DashboardPatrocinadorSync';
 import EntradaUnica from './pages/EntradaUnica.jsx';
 import Mensagens from './pages/Mensagens.jsx';
 import GuiaNotaFiscal from './pages/GuiaNotaFiscal';
@@ -72,119 +72,40 @@ function AuthenticatedApp() {
         transition={{ duration: 0.25, ease: 'easeInOut' }}
       >
         <Routes>
-      <Route
-        path="/"
-        element={
-          <LayoutWrapper currentPageName={mainPageKey}>
-            {MainPage ? <MainPage /> : null}
-          </LayoutWrapper>
-        }
-      />
+          <Route
+            path="/"
+            element={
+              <LayoutWrapper currentPageName={mainPageKey}>
+                {MainPage ? <MainPage /> : null}
+              </LayoutWrapper>
+            }
+          />
 
-      {Object.entries(Pages).map(([path, Page]) => (
-        <Route
-          key={path}
-          path={`/${path}`}
-          element={
-            <LayoutWrapper currentPageName={path}>
-              <Page />
-            </LayoutWrapper>
-          }
-        />
-      ))}
+          {Object.entries(Pages).map(([path, Page]) => (
+            <Route
+              key={path}
+              path={`/${path}`}
+              element={
+                <LayoutWrapper currentPageName={path}>
+                  <Page />
+                </LayoutWrapper>
+              }
+            />
+          ))}
 
-      <Route
-        path="/ChecklistProducao"
-        element={
-          <LayoutWrapper currentPageName="ChecklistProducao">
-            <ChecklistProducao />
-          </LayoutWrapper>
-        }
-      />
+          <Route path="/ChecklistProducao" element={<LayoutWrapper currentPageName="ChecklistProducao"><ChecklistProducao /></LayoutWrapper>} />
+          <Route path="/RubricasPorMuseu" element={<LayoutWrapper currentPageName="RubricasPorMuseu"><RubricasPorMuseu /></LayoutWrapper>} />
+          <Route path="/BaseConhecimento" element={<LayoutWrapper currentPageName="BaseConhecimento"><BaseConhecimento /></LayoutWrapper>} />
+          <Route path="/ProgramacaoEspelho" element={<LayoutWrapper currentPageName="ProgramacaoEspelho"><ProgramacaoEspelho /></LayoutWrapper>} />
+          <Route path="/Agenda" element={<LayoutWrapper currentPageName="Agenda"><Agenda /></LayoutWrapper>} />
+          <Route path="/DashboardPatrocinador" element={<LayoutWrapper currentPageName="DashboardPatrocinador"><DashboardPatrocinador /></LayoutWrapper>} />
+          <Route path="/EntradaUnica" element={<LayoutWrapper currentPageName="EntradaUnica"><EntradaUnica /></LayoutWrapper>} />
+          <Route path="/Mensagens" element={<LayoutWrapper currentPageName="Mensagens"><Mensagens /></LayoutWrapper>} />
+          <Route path="/GuiaNotaFiscal" element={<LayoutWrapper currentPageName="GuiaNotaFiscal"><GuiaNotaFiscal /></LayoutWrapper>} />
+          <Route path="/Aparencia" element={<LayoutWrapper currentPageName="Aparencia"><Aparencia /></LayoutWrapper>} />
 
-      <Route
-        path="/RubricasPorMuseu"
-        element={
-          <LayoutWrapper currentPageName="RubricasPorMuseu">
-            <RubricasPorMuseu />
-          </LayoutWrapper>
-        }
-      />
-
-      <Route
-        path="/BaseConhecimento"
-        element={
-          <LayoutWrapper currentPageName="BaseConhecimento">
-            <BaseConhecimento />
-          </LayoutWrapper>
-        }
-      />
-
-      <Route
-        path="/ProgramacaoEspelho"
-        element={
-          <LayoutWrapper currentPageName="ProgramacaoEspelho">
-            <ProgramacaoEspelho />
-          </LayoutWrapper>
-        }
-      />
-
-      <Route
-        path="/Agenda"
-        element={
-          <LayoutWrapper currentPageName="Agenda">
-            <Agenda />
-          </LayoutWrapper>
-        }
-      />
-
-      <Route
-        path="/DashboardPatrocinador"
-        element={
-          <LayoutWrapper currentPageName="DashboardPatrocinador">
-            <DashboardPatrocinador />
-          </LayoutWrapper>
-        }
-      />
-
-      <Route
-        path="/EntradaUnica"
-        element={
-          <LayoutWrapper currentPageName="EntradaUnica">
-            <EntradaUnica />
-          </LayoutWrapper>
-        }
-      />
-
-      <Route
-        path="/Mensagens"
-        element={
-          <LayoutWrapper currentPageName="Mensagens">
-            <Mensagens />
-          </LayoutWrapper>
-        }
-      />
-
-      <Route
-        path="/GuiaNotaFiscal"
-        element={
-          <LayoutWrapper currentPageName="GuiaNotaFiscal">
-            <GuiaNotaFiscal />
-          </LayoutWrapper>
-        }
-      />
-
-      <Route
-        path="/Aparencia"
-        element={
-          <LayoutWrapper currentPageName="Aparencia">
-            <Aparencia />
-          </LayoutWrapper>
-        }
-      />
-
-      <Route path="*" element={<PageNotFound />} />
-    </Routes>
+          <Route path="*" element={<PageNotFound />} />
+        </Routes>
       </motion.div>
     </AnimatePresence>
   );
@@ -194,24 +115,21 @@ function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
-      <PatrocinadorViewProvider>
-        <QueryClientProvider client={queryClientInstance}>
-          <Router>
-            <AuthenticatedApp />
-          </Router>
-
-          {/* ✅ PADRÃO GLOBAL DE TOAST - Sonner */}
-          <Toaster
-            position="top-right"
-            richColors
-            expand={false}
-            visibleToasts={3}
-            duration={3000}
-            closeButton
-          />
-
-        </QueryClientProvider>
-      </PatrocinadorViewProvider>
+        <PatrocinadorViewProvider>
+          <QueryClientProvider client={queryClientInstance}>
+            <Router>
+              <AuthenticatedApp />
+            </Router>
+            <Toaster
+              position="top-right"
+              richColors
+              expand={false}
+              visibleToasts={3}
+              duration={3000}
+              closeButton
+            />
+          </QueryClientProvider>
+        </PatrocinadorViewProvider>
       </ThemeProvider>
     </AuthProvider>
   );
