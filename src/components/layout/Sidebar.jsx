@@ -42,6 +42,32 @@ const NAV_GROUPS = [
   },
 
   {
+    label: 'Operação',
+    items: [
+      {
+        path: 'EntradaUnica',
+        label: 'Entrada de Documentos',
+        icon: Inbox,
+        roles: ['all'],
+      },
+
+      {
+        path: 'CoordReview',
+        label: 'Revisão de relatórios',
+        icon: Eye,
+        roles: ['coord', 'admin'],
+      },
+
+      {
+        path: 'Relatorios',
+        label: 'Relatórios',
+        icon: FileText,
+        roles: ['all'],
+      },
+    ],
+  },
+
+  {
     label: 'Visão geral',
     items: [
       {
@@ -68,15 +94,8 @@ const NAV_GROUPS = [
   },
 
   {
-    label: 'Operação',
+    label: 'Financeiro',
     items: [
-      {
-        path: 'EntradaUnica',
-        label: 'Entrada de Documentos',
-        icon: Inbox,
-        roles: ['all'],
-      },
-
       {
         path: 'Compras',
         label: 'Compras e Aprovações',
@@ -84,25 +103,6 @@ const NAV_GROUPS = [
         roles: ['all'],
       },
 
-      {
-        path: 'CoordReview',
-        label: 'Revisão de relatórios',
-        icon: Eye,
-        roles: ['coord', 'admin'],
-      },
-
-      {
-        path: 'Relatorios',
-        label: 'Relatórios',
-        icon: FileText,
-        roles: ['all'],
-      },
-    ],
-  },
-
-  {
-    label: 'Financeiro',
-    items: [
       {
         path: 'RubricasPorMuseu',
         label: 'Orçamento por Museu',
