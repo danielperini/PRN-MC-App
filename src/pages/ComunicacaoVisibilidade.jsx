@@ -285,13 +285,13 @@ async function syncViaBase44Function(action = 'sync') {
 }
 
 export default function ComunicacaoVisibilidade() {
-  const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('TODOS');
+  const [query] = useState('');
+  const [category] = useState('TODOS');
   const [items, setItems] = useState(STATIC_ITEMS);
   const [summary, setSummary] = useState(ZERO_SUMMARY);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState(null);
-  const [syncMessage, setSyncMessage] = useState('Carregando acervo de comunicação...');
+  const [, setLastSync] = useState(null);
+  const [, setSyncMessage] = useState('Carregando acervo de comunicação...');
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = normalizeText(query.trim());
@@ -319,21 +319,6 @@ export default function ComunicacaoVisibilidade() {
       return acc;
     }, {});
   }, [filteredItems]);
-
-  const totals = useMemo(() => {
-    const localSummary = buildLocalSummary(items);
-    const effectiveSummary = {
-      releases: Math.max(Number(summary.releases || 0), localSummary.releases),
-      imagens: Math.max(Number(summary.imagens || 0), localSummary.imagens),
-      clipping: Math.max(Number(summary.clipping || 0), localSummary.clipping),
-      posts: Math.max(Number(summary.posts || 0), localSummary.posts),
-    };
-
-    return SUMMARY_CARDS.map((card) => ({
-      ...card,
-      total: effectiveSummary[card.summaryKey] || 0,
-    }));
-  }, [items, summary]);
 
   async function runSync({ silent = false, preferCache = false } = {}) {
     if (isSyncing) return;
@@ -398,86 +383,6 @@ export default function ComunicacaoVisibilidade() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-slate-500 mb-2">
-            <FolderOpen className="w-4 h-4" />
-            <span>Acervo público de comunicação</span>
-          </div>
-
-          <h1 className="text-2xl font-bold text-slate-900">Comunicação</h1>
-
-          <p className="text-sm text-slate-500 mt-1 max-w-3xl">
-            Área de consulta para releases, clipping, imagens, posts e materiais de redes sociais organizados por mês.
-          </p>
-        </div>
-
-        <Button
-          onClick={() => runSync({ silent: false, preferCache: false })}
-          type="button"
-          className="bg-slate-900 hover:bg-slate-800 text-white gap-2"
-        >
-          <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-          {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        {totals.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Card key={item.key} className="border-slate-200 bg-white">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-slate-500">{item.label}</p>
-                    <p className="text-2xl font-bold text-slate-900">{item.total}</p>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
-                    <Icon className="w-5 h-5 text-slate-700" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      <Card className="border-slate-200 bg-white">
-        <CardContent className="p-4 space-y-4">
-          <div className="flex flex-col md:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por nome, mês, tipo ou pasta..."
-                className="pl-9"
-              />
-            </div>
-
-            <select
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700"
-            >
-              <option value="TODOS">Todos os tipos</option>
-              {CATEGORIES.map((item) => (
-                <option key={item.key} value={item.key}>{item.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between text-xs text-slate-500">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4" />
-              <span>{syncMessage}</span>
-            </div>
-            {lastSync && <span>Última sincronização: {lastSync.toLocaleString('pt-BR')}</span>}
-          </div>
-        </CardContent>
-      </Card>
-
       <div className="space-y-6">
         {Object.keys(groupedByMonth).length === 0 ? (
           <Card className="border-dashed border-slate-300 bg-white">
