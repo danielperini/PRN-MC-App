@@ -6,6 +6,8 @@ const CONNECTOR_NAMES = [
   'googledrive',
 ];
 
+const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
+
 const DRIVE_FOLDERS = [
   {
     id: '1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
@@ -27,13 +29,13 @@ const DRIVE_FOLDERS = [
   },
 ];
 
-function inferCategory(name = '', mimeType = '', defaultCategory = 'RELEASE') {
-  const text = `${name} ${mimeType}`.toLowerCase();
+function inferCategory(name = '', mimeType = '', defaultCategory = 'RELEASE', folderPath = '') {
+  const text = `${folderPath} ${name} ${mimeType}`.toLowerCase();
 
   if (text.includes('clipping') || text.includes('clipagem') || text.includes('imprensa')) return 'CLIPPING';
-  if (text.includes('post') || text.includes('instagram') || text.includes('facebook') || text.includes('card') || text.includes('social')) return 'POSTS';
-  if (text.includes('foto') || text.includes('fotografia') || text.includes('imagem') || mimeType.startsWith('image/')) return 'FOTOGRAFIA';
-  if (text.includes('release') || text.includes('relise') || text.includes('assessoria')) return 'RELEASE';
+  if (text.includes('post') || text.includes('posts') || text.includes('instagram') || text.includes('facebook') || text.includes('card') || text.includes('cards') || text.includes('social') || text.includes('redes')) return 'POSTS';
+  if (text.includes('foto') || text.includes('fotos') || text.includes('fotografia') || text.includes('imagem') || text.includes('imagens') || mimeType.startsWith('image/')) return 'FOTOGRAFIA';
+  if (text.includes('release') || text.includes('releases') || text.includes('relise') || text.includes('assessoria')) return 'RELEASE';
 
   return defaultCategory;
 }
@@ -72,15 +74,15 @@ async function getGoogleDriveAccessToken(base44: any) {
   throw new Error(`Conexão Google Drive não configurada ou sem token. Tentativas: ${errors.join(' | ')}`);
 }
 
-async function listFolderFiles(accessToken: string, folder: any) {
+async function listDirectChildren(accessToken: string, folderId: string) {
   const files: any[] = [];
   let pageToken = '';
 
   do {
-    const query = encodeURIComponent(`'${folder.id}' in parents and trashed = false`);
+    const query = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
     const fields = encodeURIComponent('nextPageToken,files(id,name,mimeType,createdTime,modifiedTime,webViewLink,thumbnailLink,size)');
     const pageTokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
-    const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}&pageSize=1000&orderBy=createdTime desc${pageTokenParam}`;
+    const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}&pageSize=1000&orderBy=folder,name${pageTokenParam}`;
 
     const response = await fetch(url, {
       headers: {
@@ -90,20 +92,60 @@ async function listFolderFiles(accessToken: string, folder: any) {
 
     if (!response.ok) {
       const details = await response.text().catch(() => '');
-      throw new Error(`Erro ao acessar pasta ${folder.name}: ${response.status} ${details}`);
+      throw new Error(`Erro ao acessar pasta ${folderId}: ${response.status} ${details}`);
     }
 
     const data = await response.json();
-    const folderFiles = Array.isArray(data.files) ? data.files : [];
-    files.push(...folderFiles.map((file) => ({ file, folder })));
+    files.push(...(Array.isArray(data.files) ? data.files : []));
     pageToken = data.nextPageToken || '';
   } while (pageToken);
 
   return files;
 }
 
+async function listFolderFilesRecursive(accessToken: string, rootFolder: any) {
+  const files: any[] = [];
+  const queue = [
+    {
+      id: rootFolder.id,
+      path: rootFolder.name,
+    },
+  ];
+  const visited = new Set<string>();
+
+  while (queue.length > 0) {
+    const currentFolder = queue.shift();
+    if (!currentFolder || visited.has(currentFolder.id)) continue;
+
+    visited.add(currentFolder.id);
+
+    const children = await listDirectChildren(accessToken, currentFolder.id);
+
+    for (const child of children) {
+      if (child.mimeType === FOLDER_MIME_TYPE) {
+        queue.push({
+          id: child.id,
+          path: `${currentFolder.path} / ${child.name}`,
+        });
+      } else {
+        files.push({
+          file: child,
+          folder: {
+            ...rootFolder,
+            currentFolderId: currentFolder.id,
+            currentFolderPath: currentFolder.path,
+          },
+        });
+      }
+    }
+  }
+
+  return files;
+}
+
 function normalizeAsset(file: any, folder: any) {
-  const category = inferCategory(file.name, file.mimeType, folder.defaultCategory);
+  const folderPath = folder.currentFolderPath || folder.name;
+  const category = inferCategory(file.name, file.mimeType, folder.defaultCategory, folderPath);
   const createdTime = file.createdTime || file.modifiedTime || null;
 
   return {
@@ -111,8 +153,11 @@ function normalizeAsset(file: any, folder: any) {
     drive_file_id: file.id,
     drive_folder_id: folder.id,
     drive_folder_name: folder.name,
+    drive_parent_folder_id: folder.currentFolderId || folder.id,
+    drive_parent_folder_path: folderPath,
     sourceFolderId: folder.id,
     sourceFolderName: folder.name,
+    sourceFolderPath: folderPath,
     name: file.name || 'Arquivo sem nome',
     nome: file.name || 'Arquivo sem nome',
     category,
@@ -188,7 +233,9 @@ Deno.serve(async (req) => {
 
     const { accessToken, connectorName } = await getGoogleDriveAccessToken(base44);
 
-    const filesByFolder = await Promise.all(DRIVE_FOLDERS.map((folder) => listFolderFiles(accessToken, folder)));
+    const filesByFolder = await Promise.all(
+      DRIVE_FOLDERS.map((folder) => listFolderFilesRecursive(accessToken, folder))
+    );
     const normalizedAssets = filesByFolder.flat().map(({ file, folder }) => normalizeAsset(file, folder));
     const dedupedAssets = Array.from(
       new Map(normalizedAssets.map((asset) => [asset.drive_file_id, asset])).values()
