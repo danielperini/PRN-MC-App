@@ -124,7 +124,7 @@ const NAV_GROUPS = [
 
       {
         path: 'ProgramacaoEspelho',
-        label: 'Informações Completas da Programação',
+        label: 'Programação Completa',
         subtitle:
           'Link de imagens • Minibios • Material de divulgação aprovado',
         icon: Star,
