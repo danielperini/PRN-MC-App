@@ -1,60 +1,257 @@
-/* temas globais reforcados */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-[data-theme="atual"] aside,
-[data-theme="atual"] .sidebar,
-[data-theme="atual"] [data-sidebar] {
-  background: #000000 !important;
-  color: #ffffff !important;
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+
+    --radius: 0.75rem;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
 }
 
-[data-theme="atual"] aside *,
-[data-theme="atual"] .sidebar *,
-[data-theme="atual"] [data-sidebar] * {
-  color: #ffffff !important;
+/* ===================================== */
+/* TEMA MUSEUS CENTRO */
+/* ===================================== */
+
+[data-theme="museubh"] {
+  color-scheme: light;
 }
 
 [data-theme="museubh"] body,
-[data-theme="museubh"] #root,
-[data-theme="museubh"] main,
-[data-theme="museubh"] .min-h-screen,
-[data-theme="museubh"] [class*="page"],
-[data-theme="museubh"] [class*="layout"],
-[data-theme="museubh"] [class*="content"] {
-  background: #F6EFE3 !important;
-}
-
-[data-theme="miro"] body,
-[data-theme="miro"] #root,
-[data-theme="miro"] main,
-[data-theme="miro"] .min-h-screen,
-[data-theme="miro"] [class*="page"],
-[data-theme="miro"] [class*="layout"],
-[data-theme="miro"] [class*="content"] {
-  background: #DCEEFF !important;
-}
-
-[data-theme="miro"] aside,
-[data-theme="miro"] .sidebar,
-[data-theme="miro"] [data-sidebar] {
-  background: #0B1F3A !important;
-  color: #ffffff !important;
-}
-
-[data-theme="miro"] aside *,
-[data-theme="miro"] .sidebar *,
-[data-theme="miro"] [data-sidebar] * {
-  color: #ffffff !important;
+[data-theme="museubh"] #root {
+  background: var(--cor-fundo) !important;
+  color: var(--cor-texto) !important;
 }
 
 [data-theme="museubh"] aside,
 [data-theme="museubh"] .sidebar,
-[data-theme="museubh"] [data-sidebar] {
-  background: #7A1E2C !important;
-  color: #ffffff !important;
+[data-theme="museubh"] nav,
+[data-theme="museubh"] .bg-slate-900,
+[data-theme="museubh"] .bg-gray-900 {
+  background: var(--cor-nav) !important;
+  color: var(--cor-nav-texto) !important;
 }
 
-[data-theme="museubh"] aside *,
-[data-theme="museubh"] .sidebar *,
-[data-theme="museubh"] [data-sidebar] * {
-  color: #ffffff !important;
+[data-theme="museubh"] .bg-white,
+[data-theme="museubh"] .bg-background,
+[data-theme="museubh"] .bg-card,
+[data-theme="museubh"] .bg-popover,
+[data-theme="museubh"] .bg-muted,
+[data-theme="museubh"] .bg-slate-50,
+[data-theme="museubh"] .bg-slate-100,
+[data-theme="museubh"] .bg-gray-50,
+[data-theme="museubh"] .bg-gray-100 {
+  background: var(--cor-card) !important;
+}
+
+[data-theme="museubh"] .border,
+[data-theme="museubh"] .border-slate-200,
+[data-theme="museubh"] .border-slate-300,
+[data-theme="museubh"] .border-gray-200,
+[data-theme="museubh"] .border-gray-300 {
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="museubh"] .text-black,
+[data-theme="museubh"] .text-slate-900,
+[data-theme="museubh"] .text-slate-800,
+[data-theme="museubh"] .text-gray-900,
+[data-theme="museubh"] .text-gray-800 {
+  color: var(--cor-texto) !important;
+}
+
+[data-theme="museubh"] .text-slate-700,
+[data-theme="museubh"] .text-slate-600,
+[data-theme="museubh"] .text-gray-700,
+[data-theme="museubh"] .text-gray-600,
+[data-theme="museubh"] .text-muted-foreground {
+  color: var(--cor-texto-secundario) !important;
+}
+
+[data-theme="museubh"] input,
+[data-theme="museubh"] textarea,
+[data-theme="museubh"] select,
+[data-theme="museubh"] dialog,
+[data-theme="museubh"] [role="dialog"] {
+  background: var(--cor-card) !important;
+  color: var(--cor-texto) !important;
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="museubh"] table,
+[data-theme="museubh"] tr,
+[data-theme="museubh"] td,
+[data-theme="museubh"] th {
+  background: var(--cor-card) !important;
+  color: var(--cor-texto) !important;
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="museubh"] .hover\:bg-slate-100:hover,
+[data-theme="museubh"] .hover\:bg-gray-100:hover {
+  background: var(--cor-card-secundario) !important;
+}
+
+/* ===================================== */
+/* TEMA MUSEUS BH */
+/* ===================================== */
+
+[data-theme="miro"] {
+  color-scheme: light;
+}
+
+[data-theme="miro"] body,
+[data-theme="miro"] #root {
+  background: var(--cor-fundo) !important;
+  color: var(--cor-texto) !important;
+}
+
+[data-theme="miro"] aside,
+[data-theme="miro"] .sidebar,
+[data-theme="miro"] nav,
+[data-theme="miro"] .bg-slate-900,
+[data-theme="miro"] .bg-gray-900 {
+  background: var(--cor-nav) !important;
+  color: var(--cor-nav-texto) !important;
+}
+
+[data-theme="miro"] .bg-white,
+[data-theme="miro"] .bg-background,
+[data-theme="miro"] .bg-card,
+[data-theme="miro"] .bg-popover,
+[data-theme="miro"] .bg-muted,
+[data-theme="miro"] .bg-slate-50,
+[data-theme="miro"] .bg-slate-100,
+[data-theme="miro"] .bg-gray-50,
+[data-theme="miro"] .bg-gray-100 {
+  background: var(--cor-card) !important;
+}
+
+[data-theme="miro"] .border,
+[data-theme="miro"] .border-slate-200,
+[data-theme="miro"] .border-slate-300,
+[data-theme="miro"] .border-gray-200,
+[data-theme="miro"] .border-gray-300 {
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="miro"] .text-black,
+[data-theme="miro"] .text-slate-900,
+[data-theme="miro"] .text-slate-800,
+[data-theme="miro"] .text-gray-900,
+[data-theme="miro"] .text-gray-800 {
+  color: var(--cor-texto) !important;
+}
+
+[data-theme="miro"] .text-slate-700,
+[data-theme="miro"] .text-slate-600,
+[data-theme="miro"] .text-gray-700,
+[data-theme="miro"] .text-gray-600,
+[data-theme="miro"] .text-muted-foreground {
+  color: var(--cor-texto-secundario) !important;
+}
+
+[data-theme="miro"] input,
+[data-theme="miro"] textarea,
+[data-theme="miro"] select,
+[data-theme="miro"] dialog,
+[data-theme="miro"] [role="dialog"] {
+  background: var(--cor-card) !important;
+  color: var(--cor-texto) !important;
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="miro"] table,
+[data-theme="miro"] tr,
+[data-theme="miro"] td,
+[data-theme="miro"] th {
+  background: var(--cor-card) !important;
+  color: var(--cor-texto) !important;
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="miro"] .hover\:bg-slate-100:hover,
+[data-theme="miro"] .hover\:bg-gray-100:hover {
+  background: var(--cor-card-secundario) !important;
+}
+
+/* ===================================== */
+/* THEME NUIT */
+/* ===================================== */
+
+[data-theme="nuit"] {
+  --background: 240 10% 3%;
+  --foreground: 0 0% 96%;
+
+  --card: 240 6% 8%;
+  --card-foreground: 0 0% 96%;
+
+  --popover: 240 6% 8%;
+  --popover-foreground: 0 0% 96%;
+
+  --primary: 0 0% 100%;
+  --primary-foreground: 240 10% 3%;
+
+  --secondary: 240 5% 14%;
+  --secondary-foreground: 0 0% 96%;
+
+  --muted: 240 5% 14%;
+  --muted-foreground: 240 5% 70%;
+
+  --accent: 240 5% 14%;
+  --accent-foreground: 0 0% 96%;
+
+  --destructive: 0 72% 50%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 240 4% 18%;
+  --input: 240 4% 18%;
+  --ring: 240 5% 84%;
+
+  --sidebar-background: #050505;
+  --sidebar-foreground: #ffffff;
+  --sidebar-border: #27272a;
+
+  color-scheme: dark;
+}
+
+[data-theme="nuit"] body,
+[data-theme="nuit"] #root {
+  background: #050505 !important;
+  color: #f5f5f5 !important;
 }
