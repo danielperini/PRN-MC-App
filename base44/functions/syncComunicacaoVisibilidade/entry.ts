@@ -8,34 +8,72 @@ const CONNECTOR_NAMES = [
 
 const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
 
+const ROOT_FOLDER_IDS = {
+  RELEASES_CLIPPING: '1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
+  IMAGENS: '1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
+  REDES_SOCIAIS: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
+};
+
 const DRIVE_FOLDERS = [
   {
-    id: '1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
+    id: ROOT_FOLDER_IDS.RELEASES_CLIPPING,
+    rootKey: 'RELEASES_CLIPPING',
     name: 'Releases e Clipping',
     url: 'https://drive.google.com/drive/folders/1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
     defaultCategory: 'RELEASE',
   },
   {
-    id: '1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
+    id: ROOT_FOLDER_IDS.IMAGENS,
+    rootKey: 'IMAGENS',
     name: 'Imagens',
     url: 'https://drive.google.com/drive/folders/1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
     defaultCategory: 'FOTOGRAFIA',
   },
   {
-    id: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
+    id: ROOT_FOLDER_IDS.REDES_SOCIAIS,
+    rootKey: 'REDES_SOCIAIS',
     name: 'Redes Sociais',
     url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
     defaultCategory: 'POSTS',
   },
 ];
 
-function inferCategory(name = '', mimeType = '', defaultCategory = 'RELEASE', folderPath = '') {
-  const text = `${folderPath} ${name} ${mimeType}`.toLowerCase();
+function normalizeText(value = '') {
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function inferCategory(name = '', mimeType = '', defaultCategory = 'RELEASE', folderPath = '', rootKey = '') {
+  const text = normalizeText(`${folderPath} ${name} ${mimeType}`);
+
+  if (rootKey === 'IMAGENS') return 'FOTOGRAFIA';
+  if (rootKey === 'REDES_SOCIAIS') return 'POSTS';
+
+  if (rootKey === 'RELEASES_CLIPPING') {
+    if (
+      text.includes('clipping') ||
+      text.includes('clipagem') ||
+      text.includes('imprensa') ||
+      text.includes('midia') ||
+      text.includes('mídia') ||
+      text.includes('jornal') ||
+      text.includes('materia') ||
+      text.includes('matéria') ||
+      text.includes('noticia') ||
+      text.includes('notícia')
+    ) {
+      return 'CLIPPING';
+    }
+
+    return 'RELEASE';
+  }
 
   if (text.includes('clipping') || text.includes('clipagem') || text.includes('imprensa')) return 'CLIPPING';
   if (text.includes('post') || text.includes('posts') || text.includes('instagram') || text.includes('facebook') || text.includes('card') || text.includes('cards') || text.includes('social') || text.includes('redes')) return 'POSTS';
   if (text.includes('foto') || text.includes('fotos') || text.includes('fotografia') || text.includes('imagem') || text.includes('imagens') || mimeType.startsWith('image/')) return 'FOTOGRAFIA';
-  if (text.includes('release') || text.includes('releases') || text.includes('relise') || text.includes('assessoria')) return 'RELEASE';
+  if (text.includes('release') || text.includes('releases') || text.includes('relise') || text.includes('assessoria') || text.includes('nota')) return 'RELEASE';
 
   return defaultCategory;
 }
@@ -145,7 +183,7 @@ async function listFolderFilesRecursive(accessToken: string, rootFolder: any) {
 
 function normalizeAsset(file: any, folder: any) {
   const folderPath = folder.currentFolderPath || folder.name;
-  const category = inferCategory(file.name, file.mimeType, folder.defaultCategory, folderPath);
+  const category = inferCategory(file.name, file.mimeType, folder.defaultCategory, folderPath, folder.rootKey);
   const createdTime = file.createdTime || file.modifiedTime || null;
 
   return {
@@ -153,6 +191,8 @@ function normalizeAsset(file: any, folder: any) {
     drive_file_id: file.id,
     drive_folder_id: folder.id,
     drive_folder_name: folder.name,
+    drive_root_folder_id: folder.id,
+    drive_root_folder_key: folder.rootKey,
     drive_parent_folder_id: folder.currentFolderId || folder.id,
     drive_parent_folder_path: folderPath,
     sourceFolderId: folder.id,
@@ -180,6 +220,15 @@ function normalizeAsset(file: any, folder: any) {
     origem: 'GOOGLE_DRIVE_COMUNICACAO',
     ativo: true,
     isFolderShortcut: false,
+  };
+}
+
+function buildSummary(files: any[]) {
+  return {
+    releases: files.filter((file) => file.drive_root_folder_id === ROOT_FOLDER_IDS.RELEASES_CLIPPING && file.category === 'RELEASE').length,
+    clipping: files.filter((file) => file.drive_root_folder_id === ROOT_FOLDER_IDS.RELEASES_CLIPPING && file.category === 'CLIPPING').length,
+    imagens: files.filter((file) => file.drive_root_folder_id === ROOT_FOLDER_IDS.IMAGENS && file.category === 'FOTOGRAFIA').length,
+    posts: files.filter((file) => file.drive_root_folder_id === ROOT_FOLDER_IDS.REDES_SOCIAIS && file.category === 'POSTS').length,
   };
 }
 
@@ -225,9 +274,10 @@ Deno.serve(async (req) => {
     if (action === 'list-cache') {
       try {
         const cached = await base44.entities.CommunicationAsset.list('-criado_em_drive', 1000);
-        return Response.json({ success: true, mode: 'cache', files: Array.isArray(cached) ? cached : [] });
+        const files = Array.isArray(cached) ? cached : [];
+        return Response.json({ success: true, mode: 'cache', files, summary: buildSummary(files) });
       } catch (error) {
-        return Response.json({ success: false, mode: 'cache_unavailable', files: [], error: error?.message || 'Cache indisponível' });
+        return Response.json({ success: false, mode: 'cache_unavailable', files: [], summary: buildSummary([]), error: error?.message || 'Cache indisponível' });
       }
     }
 
@@ -240,6 +290,7 @@ Deno.serve(async (req) => {
     const dedupedAssets = Array.from(
       new Map(normalizedAssets.map((asset) => [asset.drive_file_id, asset])).values()
     );
+    const summary = buildSummary(dedupedAssets);
 
     const saveResult = await upsertAssets(base44, dedupedAssets);
 
@@ -248,13 +299,14 @@ Deno.serve(async (req) => {
         action: 'SYNC_COMUNICACAO',
         actor_email: user.email || 'sistema',
         actor_name: user.full_name || user.email || 'Sistema',
-        details: `Sincronização Comunicação: ${dedupedAssets.length} arquivo(s), ${saveResult.saved} salvo(s), ${saveResult.skipped} ignorado(s).`,
+        details: `Sincronização Comunicação: ${dedupedAssets.length} arquivo(s). Releases: ${summary.releases}; Clipping: ${summary.clipping}; Imagens: ${summary.imagens}; Posts: ${summary.posts}.`,
         metadata: {
           total_files: dedupedAssets.length,
           saved: saveResult.saved,
           skipped: saveResult.skipped,
           cache_available: saveResult.cacheAvailable,
           connector_name: connectorName,
+          summary,
           folders: DRIVE_FOLDERS.map((folder) => folder.id),
         },
       });
@@ -267,6 +319,7 @@ Deno.serve(async (req) => {
       mode: saveResult.cacheAvailable ? 'drive-cache' : 'drive-direct',
       connector_name: connectorName,
       files: dedupedAssets,
+      summary,
       total_files: dedupedAssets.length,
       saved: saveResult.saved,
       skipped: saveResult.skipped,
