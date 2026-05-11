@@ -11,6 +11,7 @@ import BaseConhecimento from './pages/BaseConhecimento';
 import Cadastro from './pages/Cadastro';
 
 import Compras from './pages/Compras';
+import ComunicacaoVisibilidade from './pages/ComunicacaoVisibilidade';
 import ConsolidacaoFinanceira from './pages/ConsolidacaoFinanceira';
 import CoordReview from './pages/CoordReview';
 import Dashboard from './pages/Dashboard';
@@ -58,6 +59,7 @@ export const PAGES = {
   BaseConhecimento,
   Cadastro,
   Compras,
+  ComunicacaoVisibilidade,
   ConsolidacaoFinanceira,
   CoordReview,
   Dashboard,
