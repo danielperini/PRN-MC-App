@@ -157,7 +157,7 @@ export default function ComunicacaoVisibilidade() {
 
       setLastSync(new Date());
     } catch (error) {
-      console.error('Erro ao sincronizar Comunicação visibilidade:', error);
+      console.error('Erro ao sincronizar Comunicação:', error);
       setItems(STATIC_ITEMS);
       setSyncMessage('Não foi possível listar os arquivos automaticamente. Os links das pastas continuam disponíveis.');
     } finally {
@@ -173,9 +173,13 @@ export default function ComunicacaoVisibilidade() {
             <FolderOpen className="w-4 h-4" />
             <span>Acervo público de comunicação</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">Comunicação visibilidade</h1>
+
+          <h1 className="text-2xl font-bold text-slate-900">
+            Comunicação
+          </h1>
+
           <p className="text-sm text-slate-500 mt-1 max-w-3xl">
-            Área de consulta para observadores com releases, fotografias, relatórios de comunicação, posts e clipping organizados por mês de criação.
+            Área de consulta para releases, clipping, fotografias, posts e materiais de comunicação organizados por mês.
           </p>
         </div>
 
