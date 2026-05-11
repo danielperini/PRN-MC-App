@@ -21,7 +21,7 @@ import Fornecedores from './pages/Fornecedores';
 import GaleriaFotos from './pages/GaleriaFotos';
 import GeradorListaPresenca from './pages/GeradorListaPresenca';
 import GeradorTermoCompromisso from './pages/GeradorTermoCompromisso';
-import GestaoDocumental from './pages/GestaoDocumental';
+import GestaoDocumental from './pages/GestaoDocumentalClean';
 import GestaoPagamentos from './pages/GestaoPagamentos';
 import GestorArquivos from './pages/GestorArquivos';
 import HelpManagement from './pages/HelpManagement';
