@@ -72,7 +72,7 @@ const NAV_GROUPS = [
     items: [
       {
         path: 'EntradaUnica',
-        label: 'Entrada Única de Documentos',
+        label: 'Entrada de Documentos',
         icon: Inbox,
         roles: ['all'],
       },
@@ -314,8 +314,7 @@ export default function Sidebar({
     <div
       className={`flex flex-col bg-slate-900 border-r border-slate-800 transition-all duration-200 ${
         collapsed ? 'w-16' : 'w-60'
-      } min-h-screen`
-    }
+      } min-h-screen`}
     >
       <div
         className={`flex items-center justify-between px-3 py-4 border-b border-slate-800 ${
