@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ExternalLink,
   FolderOpen,
@@ -303,6 +303,7 @@ function getFilePreview(file) {
 }
 
 export default function ComunicacaoVisibilidade() {
+  const listRef = useRef(null);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('TODOS');
   const [activeCard, setActiveCard] = useState('TODOS');
@@ -312,6 +313,10 @@ export default function ComunicacaoVisibilidade() {
   const [lastSync, setLastSync] = useState(null);
   const [syncMessage, setSyncMessage] = useState('Carregando acervo de comunicação...');
 
+  const actualFiles = useMemo(() => {
+    return items.filter((item) => !item.isFolderShortcut);
+  }, [items]);
+
   const selectedCard = useMemo(() => {
     return SUMMARY_CARDS.find((card) => card.key === activeCard) || null;
   }, [activeCard]);
@@ -319,7 +324,7 @@ export default function ComunicacaoVisibilidade() {
   const filteredItems = useMemo(() => {
     const normalizedQuery = normalizeText(query.trim());
 
-    return items.filter((item) => {
+    return actualFiles.filter((item) => {
       const matchesActiveCard = !selectedCard || fileBelongsToSummaryCard(item, selectedCard);
       const matchesCategory = category === 'TODOS' || item.category === category;
       const searchable = normalizeText([
@@ -333,7 +338,7 @@ export default function ComunicacaoVisibilidade() {
 
       return matchesActiveCard && matchesCategory && matchesQuery;
     });
-  }, [items, query, category, selectedCard]);
+  }, [actualFiles, query, category, selectedCard]);
 
   const groupedByMonthAndType = useMemo(() => {
     return filteredItems.reduce((acc, item) => {
@@ -347,7 +352,7 @@ export default function ComunicacaoVisibilidade() {
   }, [filteredItems]);
 
   const totals = useMemo(() => {
-    const localSummary = buildLocalSummary(items);
+    const localSummary = buildLocalSummary(actualFiles);
     const effectiveSummary = {
       releases: Math.max(Number(summary.releases || 0), localSummary.releases),
       imagens: Math.max(Number(summary.imagens || 0), localSummary.imagens),
@@ -359,7 +364,7 @@ export default function ComunicacaoVisibilidade() {
       ...card,
       total: effectiveSummary[card.summaryKey] || 0,
     }));
-  }, [items, summary]);
+  }, [actualFiles, summary]);
 
   async function runSync({ silent = false, preferCache = false } = {}) {
     if (isSyncing) return;
@@ -417,6 +422,15 @@ export default function ComunicacaoVisibilidade() {
     }
   }
 
+  function handleCardClick(cardKey) {
+    setActiveCard((current) => (current === cardKey ? 'TODOS' : cardKey));
+    setCategory('TODOS');
+
+    window.setTimeout(() => {
+      listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  }
+
   useEffect(() => {
     runSync({ silent: true, preferCache: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -448,7 +462,7 @@ export default function ComunicacaoVisibilidade() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-4 gap-3 overflow-x-auto pb-1">
         {totals.map((item) => {
           const Icon = item.icon;
           const isActive = activeCard === item.key;
@@ -456,11 +470,9 @@ export default function ComunicacaoVisibilidade() {
             <button
               key={item.key}
               type="button"
-              onClick={() => {
-                setActiveCard((current) => (current === item.key ? 'TODOS' : item.key));
-                setCategory('TODOS');
-              }}
-              className="text-left"
+              onClick={() => handleCardClick(item.key)}
+              className="text-left min-w-[160px]"
+              aria-pressed={isActive}
             >
               <Card className={`border-slate-200 bg-white transition-all hover:border-slate-400 hover:shadow-sm ${isActive ? 'ring-2 ring-slate-900 border-slate-900' : ''}`}>
                 <CardContent className="p-4">
@@ -515,23 +527,23 @@ export default function ComunicacaoVisibilidade() {
         </CardContent>
       </Card>
 
-      {selectedCard && (
-        <Card className="border-slate-200 bg-white">
-          <CardContent className="p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">{selectedCard.listTitle}</h2>
-                <p className="text-sm text-slate-500 mt-1">{selectedCard.listDescription}</p>
+      <div ref={listRef} className="space-y-6">
+        {selectedCard && (
+          <Card className="border-slate-200 bg-white">
+            <CardContent className="p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">{selectedCard.listTitle}</h2>
+                  <p className="text-sm text-slate-500 mt-1">{selectedCard.listDescription}</p>
+                </div>
+                <Button type="button" variant="outline" onClick={() => setActiveCard('TODOS')}>
+                  Ver todos
+                </Button>
               </div>
-              <Button type="button" variant="outline" onClick={() => setActiveCard('TODOS')}>
-                Ver todos
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        )}
 
-      <div className="space-y-6">
         {Object.keys(groupedByMonthAndType).length === 0 ? (
           <Card className="border-dashed border-slate-300 bg-white">
             <CardContent className="p-8 text-center text-sm text-slate-500">
@@ -587,7 +599,7 @@ export default function ComunicacaoVisibilidade() {
 
                             <div className="text-xs text-slate-500 space-y-1">
                               <p>Origem: Google Drive</p>
-                              <p>{file.isFolderShortcut ? 'Abrir pasta' : 'Abrir arquivo'}</p>
+                              <p>Abrir arquivo</p>
                             </div>
                           </CardContent>
                         </Card>
