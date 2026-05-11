@@ -44,9 +44,9 @@
   body {
     @apply text-foreground;
     background:
-      radial-gradient(circle at top left, rgba(210, 105, 30, 0.18), transparent 32%),
-      radial-gradient(circle at top right, rgba(30, 112, 150, 0.16), transparent 30%),
-      linear-gradient(135deg, #fff7ed 0%, #f7efe4 42%, #eaf4f3 100%);
+      radial-gradient(circle at top left, rgba(176, 84, 35, 0.20), transparent 32%),
+      radial-gradient(circle at top right, rgba(20, 105, 132, 0.18), transparent 30%),
+      linear-gradient(135deg, #fff7ed 0%, #f5ead8 42%, #e8f3f0 100%);
   }
 
   * {
@@ -55,23 +55,24 @@
 }
 
 /* ===================================== */
-/* TEMA MUSEUS BH */
+/* TEMA MUSEUS CENTRO */
 /* Fundo da página e janelas/cards */
 /* ===================================== */
 
 .min-h-screen.bg-white,
 .bg-background {
   background:
-    radial-gradient(circle at 12% 10%, rgba(194, 90, 35, 0.16), transparent 28%),
-    radial-gradient(circle at 88% 12%, rgba(24, 116, 152, 0.14), transparent 26%),
-    linear-gradient(135deg, #fff7ed 0%, #f6ead8 45%, #eaf4f3 100%) !important;
+    radial-gradient(circle at 10% 8%, rgba(181, 88, 41, 0.20), transparent 30%),
+    radial-gradient(circle at 90% 12%, rgba(22, 104, 128, 0.18), transparent 28%),
+    radial-gradient(circle at 50% 100%, rgba(218, 165, 74, 0.18), transparent 36%),
+    linear-gradient(135deg, #fff8ee 0%, #f3e4cf 45%, #e4f1ee 100%) !important;
 }
 
 .bg-white,
 .bg-card,
 .bg-popover {
-  background: rgba(255, 255, 255, 0.86) !important;
-  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.88) !important;
+  backdrop-filter: blur(12px);
 }
 
 .rounded-xl.bg-white,
@@ -80,14 +81,19 @@
 .shadow-sm.bg-white,
 .shadow-md.bg-white {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 250, 243, 0.88)) !important;
-  border-color: rgba(166, 116, 72, 0.25) !important;
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.96),
+      rgba(255, 248, 238, 0.90)
+    ) !important;
+
+  border-color: rgba(158, 105, 58, 0.30) !important;
 }
 
 .border-gray-100,
 .border-gray-200,
 .border-gray-300 {
-  border-color: rgba(166, 116, 72, 0.28) !important;
+  border-color: rgba(158, 105, 58, 0.30) !important;
 }
 
 .shadow-sm,
@@ -96,12 +102,41 @@
 .shadow-lg,
 .shadow-xl {
   box-shadow:
-    0 10px 30px rgba(83, 58, 36, 0.08),
-    0 1px 0 rgba(255, 255, 255, 0.6) inset !important;
+    0 12px 32px rgba(82, 56, 35, 0.10),
+    0 1px 0 rgba(255, 255, 255, 0.65) inset !important;
+}
+
+.text-black {
+  color: #1c140d !important;
+}
+
+.text-gray-500,
+.text-gray-600,
+.text-gray-700 {
+  color: #6f6255 !important;
+}
+
+.bg-black {
+  background-color: #8a3f1d !important;
+}
+
+.hover\:bg-gray-800:hover,
+.hover\:bg-gray-900:hover {
+  background-color: #6f3117 !important;
+}
+
+button.bg-black,
+a .bg-black {
+  background-color: #8a3f1d !important;
+}
+
+button.bg-black:hover,
+a .bg-black:hover {
+  background-color: #6f3117 !important;
 }
 
 /* ===================================== */
-/* THEME NUIT */
+/* TEMA NUIT */
 /* ===================================== */
 
 [data-theme="nuit"] {
@@ -158,14 +193,6 @@
   background-color: #111111 !important;
 }
 
-[data-theme="nuit"] aside,
-[data-theme="nuit"] .sidebar,
-[data-theme="nuit"] .bg-slate-900,
-[data-theme="nuit"] .bg-gray-900 {
-  background: #000000 !important;
-  color: #ffffff !important;
-}
-
 [data-theme="nuit"] .text-black,
 [data-theme="nuit"] .text-gray-900,
 [data-theme="nuit"] .text-gray-800,
@@ -198,19 +225,6 @@
   border-color: #27272a !important;
 }
 
-[data-theme="nuit"] .bg-primary,
-[data-theme="nuit"] .bg-blue-500,
-[data-theme="nuit"] .bg-blue-600 {
-  background: #27272a !important;
-  color: #ffffff !important;
-}
-
-[data-theme="nuit"] .hover\:bg-blue-600:hover,
-[data-theme="nuit"] .hover\:bg-slate-800:hover,
-[data-theme="nuit"] .hover\:bg-gray-800:hover {
-  background: #3f3f46 !important;
-}
-
 [data-theme="nuit"] .shadow,
 [data-theme="nuit"] .shadow-sm,
 [data-theme="nuit"] .shadow-md,
@@ -219,37 +233,4 @@
   box-shadow:
     0 0 0 1px rgba(255,255,255,0.04),
     0 10px 30px rgba(0,0,0,0.45) !important;
-}
-
-[data-theme="nuit"] table {
-  background: #111111 !important;
-}
-
-[data-theme="nuit"] tr,
-[data-theme="nuit"] td,
-[data-theme="nuit"] th {
-  border-color: #27272a !important;
-}
-
-[data-theme="nuit"] .hover\:bg-gray-100:hover,
-[data-theme="nuit"] .hover\:bg-slate-100:hover {
-  background: #18181b !important;
-}
-
-[data-theme="nuit"] ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-[data-theme="nuit"] ::-webkit-scrollbar-track {
-  background: #050505;
-}
-
-[data-theme="nuit"] ::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 999px;
-}
-
-[data-theme="nuit"] ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
 }
