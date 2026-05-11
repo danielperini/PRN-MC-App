@@ -5,27 +5,64 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 
+const FOLDER_IDS = {
+  RELEASES_CLIPPING: '1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
+  IMAGENS: '1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
+  REDES_SOCIAIS: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
+};
+
 const DRIVE_FOLDERS = [
   {
-    id: '1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
+    id: FOLDER_IDS.RELEASES_CLIPPING,
     name: 'Releases e Clipping',
     url: 'https://drive.google.com/drive/folders/1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
     principal: true,
     defaultCategory: 'RELEASE',
   },
   {
-    id: '1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
+    id: FOLDER_IDS.IMAGENS,
     name: 'Imagens',
     url: 'https://drive.google.com/drive/folders/1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
     principal: false,
     defaultCategory: 'FOTOGRAFIA',
   },
   {
-    id: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
+    id: FOLDER_IDS.REDES_SOCIAIS,
     name: 'Redes Sociais',
     url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
     principal: false,
     defaultCategory: 'POSTS',
+  },
+];
+
+const SUMMARY_CARDS = [
+  {
+    key: 'RELEASES',
+    label: 'Releases',
+    icon: Megaphone,
+    folderId: FOLDER_IDS.RELEASES_CLIPPING,
+    categories: ['RELEASE'],
+  },
+  {
+    key: 'IMAGENS',
+    label: 'Imagens',
+    icon: Image,
+    folderId: FOLDER_IDS.IMAGENS,
+    categories: ['FOTOGRAFIA'],
+  },
+  {
+    key: 'CLIPPING',
+    label: 'Clipping',
+    icon: FolderOpen,
+    folderId: FOLDER_IDS.RELEASES_CLIPPING,
+    categories: ['CLIPPING'],
+  },
+  {
+    key: 'POSTS',
+    label: 'Posts',
+    icon: Newspaper,
+    folderId: FOLDER_IDS.REDES_SOCIAIS,
+    categories: ['POSTS'],
   },
 ];
 
@@ -134,9 +171,13 @@ export default function ComunicacaoVisibilidade() {
   }, [filteredItems]);
 
   const totals = useMemo(() => {
-    return CATEGORIES.map((item) => ({
-      ...item,
-      total: items.filter((file) => !file.isFolderShortcut && file.category === item.key).length,
+    return SUMMARY_CARDS.map((card) => ({
+      ...card,
+      total: items.filter((file) => (
+        !file.isFolderShortcut &&
+        file.sourceFolderId === card.folderId &&
+        card.categories.includes(file.category)
+      )).length,
     }));
   }, [items]);
 
