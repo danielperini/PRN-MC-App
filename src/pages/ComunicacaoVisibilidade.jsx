@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ExternalLink,
   FolderOpen,
@@ -47,8 +47,6 @@ const SUMMARY_CARDS = [
     key: 'RELEASES',
     summaryKey: 'releases',
     label: 'Releases',
-    listTitle: 'Releases',
-    listDescription: 'Documentos classificados como releases/notas dentro da pasta Releases e Clipping e suas subpastas.',
     icon: Megaphone,
     folderId: FOLDER_IDS.RELEASES_CLIPPING,
     categories: ['RELEASE'],
@@ -58,8 +56,6 @@ const SUMMARY_CARDS = [
     key: 'IMAGENS',
     summaryKey: 'imagens',
     label: 'Imagens',
-    listTitle: 'Imagens',
-    listDescription: 'Arquivos de imagem encontrados na pasta Imagens e em todas as suas subpastas.',
     icon: Image,
     folderId: FOLDER_IDS.IMAGENS,
     categories: ['FOTOGRAFIA'],
@@ -69,8 +65,6 @@ const SUMMARY_CARDS = [
     key: 'CLIPPING',
     summaryKey: 'clipping',
     label: 'Clipping',
-    listTitle: 'Clipping',
-    listDescription: 'Matérias, PDFs, notícias e registros de imprensa dentro da pasta Releases e Clipping e suas subpastas.',
     icon: FolderOpen,
     folderId: FOLDER_IDS.RELEASES_CLIPPING,
     categories: ['CLIPPING'],
@@ -80,8 +74,6 @@ const SUMMARY_CARDS = [
     key: 'POSTS',
     summaryKey: 'posts',
     label: 'Posts',
-    listTitle: 'Redes Sociais',
-    listDescription: 'Arquivos e posts disponíveis na pasta Redes Sociais e em todas as suas subpastas.',
     icon: Newspaper,
     folderId: FOLDER_IDS.REDES_SOCIAIS,
     categories: ['POSTS'],
@@ -201,7 +193,6 @@ function normalizeDriveFile(file, sourceFolder) {
     createdTime: file.createdTime || file.criado_em_drive || null,
     modifiedTime: file.modifiedTime || file.atualizado_em_drive || null,
     mimeType: rawMimeType,
-    thumbnail: file.thumbnail || file.thumbnailLink || file.thumbnail_link || '',
     url: file.webViewLink || file.url || file.link || (fileId ? `https://drive.google.com/file/d/${fileId}/view` : ''),
     sourceFolderName: folderName,
     sourceFolderId: folderId,
@@ -293,39 +284,19 @@ async function syncViaBase44Function(action = 'sync') {
   };
 }
 
-function hasVisualPreview(file) {
-  return Boolean(file.thumbnail) || String(file.mimeType || '').startsWith('image/');
-}
-
-function getFilePreview(file) {
-  if (file.thumbnail) return file.thumbnail;
-  return '';
-}
-
 export default function ComunicacaoVisibilidade() {
-  const listRef = useRef(null);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('TODOS');
-  const [activeCard, setActiveCard] = useState('TODOS');
   const [items, setItems] = useState(STATIC_ITEMS);
   const [summary, setSummary] = useState(ZERO_SUMMARY);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState(null);
   const [syncMessage, setSyncMessage] = useState('Carregando acervo de comunicação...');
 
-  const actualFiles = useMemo(() => {
-    return items.filter((item) => !item.isFolderShortcut);
-  }, [items]);
-
-  const selectedCard = useMemo(() => {
-    return SUMMARY_CARDS.find((card) => card.key === activeCard) || null;
-  }, [activeCard]);
-
   const filteredItems = useMemo(() => {
     const normalizedQuery = normalizeText(query.trim());
 
-    return actualFiles.filter((item) => {
-      const matchesActiveCard = !selectedCard || fileBelongsToSummaryCard(item, selectedCard);
+    return items.filter((item) => {
       const matchesCategory = category === 'TODOS' || item.category === category;
       const searchable = normalizeText([
         item.name,
@@ -336,23 +307,21 @@ export default function ComunicacaoVisibilidade() {
       ].filter(Boolean).join(' '));
       const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
 
-      return matchesActiveCard && matchesCategory && matchesQuery;
+      return matchesCategory && matchesQuery;
     });
-  }, [actualFiles, query, category, selectedCard]);
+  }, [items, query, category]);
 
-  const groupedByMonthAndType = useMemo(() => {
+  const groupedByMonth = useMemo(() => {
     return filteredItems.reduce((acc, item) => {
       const month = item.month || 'Sem data informada';
-      const type = item.typeLabel || getCategoryLabel(item.category);
-      if (!acc[month]) acc[month] = {};
-      if (!acc[month][type]) acc[month][type] = [];
-      acc[month][type].push(item);
+      if (!acc[month]) acc[month] = [];
+      acc[month].push(item);
       return acc;
     }, {});
   }, [filteredItems]);
 
   const totals = useMemo(() => {
-    const localSummary = buildLocalSummary(actualFiles);
+    const localSummary = buildLocalSummary(items);
     const effectiveSummary = {
       releases: Math.max(Number(summary.releases || 0), localSummary.releases),
       imagens: Math.max(Number(summary.imagens || 0), localSummary.imagens),
@@ -364,7 +333,7 @@ export default function ComunicacaoVisibilidade() {
       ...card,
       total: effectiveSummary[card.summaryKey] || 0,
     }));
-  }, [actualFiles, summary]);
+  }, [items, summary]);
 
   async function runSync({ silent = false, preferCache = false } = {}) {
     if (isSyncing) return;
@@ -422,15 +391,6 @@ export default function ComunicacaoVisibilidade() {
     }
   }
 
-  function handleCardClick(cardKey) {
-    setActiveCard((current) => (current === cardKey ? 'TODOS' : cardKey));
-    setCategory('TODOS');
-
-    window.setTimeout(() => {
-      listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 80);
-  }
-
   useEffect(() => {
     runSync({ silent: true, preferCache: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -462,32 +422,23 @@ export default function ComunicacaoVisibilidade() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-4 gap-3 overflow-x-auto pb-1">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         {totals.map((item) => {
           const Icon = item.icon;
-          const isActive = activeCard === item.key;
           return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => handleCardClick(item.key)}
-              className="text-left min-w-[160px]"
-              aria-pressed={isActive}
-            >
-              <Card className={`border-slate-200 bg-white transition-all hover:border-slate-400 hover:shadow-sm ${isActive ? 'ring-2 ring-slate-900 border-slate-900' : ''}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs text-slate-500">{item.label}</p>
-                      <p className="text-2xl font-bold text-slate-900">{item.total}</p>
-                    </div>
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
-                      <Icon className="w-5 h-5 text-slate-700" />
-                    </div>
+            <Card key={item.key} className="border-slate-200 bg-white">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-slate-500">{item.label}</p>
+                    <p className="text-2xl font-bold text-slate-900">{item.total}</p>
                   </div>
-                </CardContent>
-              </Card>
-            </button>
+                  <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
+                    <Icon className="w-5 h-5 text-slate-700" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           );
         })}
       </div>
@@ -527,87 +478,50 @@ export default function ComunicacaoVisibilidade() {
         </CardContent>
       </Card>
 
-      <div ref={listRef} className="space-y-6">
-        {selectedCard && (
-          <Card className="border-slate-200 bg-white">
-            <CardContent className="p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900">{selectedCard.listTitle}</h2>
-                  <p className="text-sm text-slate-500 mt-1">{selectedCard.listDescription}</p>
-                </div>
-                <Button type="button" variant="outline" onClick={() => setActiveCard('TODOS')}>
-                  Ver todos
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {Object.keys(groupedByMonthAndType).length === 0 ? (
+      <div className="space-y-6">
+        {Object.keys(groupedByMonth).length === 0 ? (
           <Card className="border-dashed border-slate-300 bg-white">
             <CardContent className="p-8 text-center text-sm text-slate-500">
               Nenhum arquivo encontrado para os filtros selecionados.
             </CardContent>
           </Card>
         ) : (
-          Object.entries(groupedByMonthAndType).map(([month, types]) => (
+          Object.entries(groupedByMonth).map(([month, files]) => (
             <section key={month} className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-slate-900 capitalize">{month}</h2>
-                <Badge variant="outline" className="bg-white">
-                  {Object.values(types).flat().length} item(ns)
-                </Badge>
+                <Badge variant="outline" className="bg-white">{files.length} item(ns)</Badge>
               </div>
 
-              {Object.entries(types).map(([type, files]) => (
-                <div key={`${month}-${type}`} className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">{type}</Badge>
-                    <span className="text-xs text-slate-500">{files.length} arquivo(s)</span>
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {files.map((file) => (
+                  <a
+                    key={`${file.sourceFolderId}-${file.id}`}
+                    href={file.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block"
+                  >
+                    <Card className="h-full border-slate-200 bg-white hover:border-slate-400 hover:shadow-sm transition-all">
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100 mb-2">{file.typeLabel}</Badge>
+                            <h3 className="font-semibold text-slate-900 truncate">{file.name}</h3>
+                            <p className="text-xs text-slate-500 mt-1 truncate">{file.sourceFolderPath || file.sourceFolderName}</p>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                        </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                    {files.map((file) => (
-                      <a
-                        key={`${file.sourceFolderId}-${file.id}`}
-                        href={file.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block"
-                      >
-                        <Card className="h-full border-slate-200 bg-white hover:border-slate-400 hover:shadow-sm transition-all overflow-hidden">
-                          {hasVisualPreview(file) && getFilePreview(file) && (
-                            <div className="h-36 bg-slate-100 overflow-hidden">
-                              <img
-                                src={getFilePreview(file)}
-                                alt={file.name}
-                                className="w-full h-full object-cover"
-                                loading="lazy"
-                              />
-                            </div>
-                          )}
-                          <CardContent className="p-4 space-y-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100 mb-2">{file.typeLabel}</Badge>
-                                <h3 className="font-semibold text-slate-900 truncate">{file.name}</h3>
-                                <p className="text-xs text-slate-500 mt-1 truncate">{file.sourceFolderPath || file.sourceFolderName}</p>
-                              </div>
-                              <ExternalLink className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                            </div>
-
-                            <div className="text-xs text-slate-500 space-y-1">
-                              <p>Origem: Google Drive</p>
-                              <p>Abrir arquivo</p>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                        <div className="text-xs text-slate-500 space-y-1">
+                          <p>Origem: Google Drive</p>
+                          <p>{file.isFolderShortcut ? 'Abrir pasta' : 'Abrir arquivo'}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </a>
+                ))}
+              </div>
             </section>
           ))
         )}
