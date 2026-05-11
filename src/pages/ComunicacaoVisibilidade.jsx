@@ -11,8 +11,8 @@ import {
   Globe2,
   Share2,
   Sparkles,
-  TrendingUp,
-} from 'lucide-react';
+  TrendingUp } from
+'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -22,134 +22,134 @@ import { base44 } from '@/api/base44Client';
 const FOLDER_IDS = {
   RELEASES_CLIPPING: '1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
   IMAGENS: '1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
-  REDES_SOCIAIS: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
+  REDES_SOCIAIS: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_'
 };
 
 const DRIVE_FOLDERS = [
-  {
-    id: FOLDER_IDS.RELEASES_CLIPPING,
-    name: 'Releases e Clipping',
-    url: 'https://drive.google.com/drive/folders/1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
-    defaultCategory: 'RELEASE',
-  },
-  {
-    id: FOLDER_IDS.IMAGENS,
-    name: 'Imagens',
-    url: 'https://drive.google.com/drive/folders/1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
-    defaultCategory: 'FOTOGRAFIA',
-  },
-  {
-    id: FOLDER_IDS.REDES_SOCIAIS,
-    name: 'Redes Sociais',
-    url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
-    defaultCategory: 'POSTS',
-  },
-];
+{
+  id: FOLDER_IDS.RELEASES_CLIPPING,
+  name: 'Releases e Clipping',
+  url: 'https://drive.google.com/drive/folders/1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
+  defaultCategory: 'RELEASE'
+},
+{
+  id: FOLDER_IDS.IMAGENS,
+  name: 'Imagens',
+  url: 'https://drive.google.com/drive/folders/1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
+  defaultCategory: 'FOTOGRAFIA'
+},
+{
+  id: FOLDER_IDS.REDES_SOCIAIS,
+  name: 'Redes Sociais',
+  url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
+  defaultCategory: 'POSTS'
+}];
+
 
 const KEYWORDS = [
-  'Museus Centro',
-  'Viaduto das Artes',
-  'Museu Histórico Abílio Barreto',
-  'MHAB',
-  'Museu da Moda',
-  'MUMO',
-  'Museu da Imagem e do Som',
-  'MIS BH',
-  'Noturno nos Museus',
-];
+'Museus Centro',
+'Viaduto das Artes',
+'Museu Histórico Abílio Barreto',
+'MHAB',
+'Museu da Moda',
+'MUMO',
+'Museu da Imagem e do Som',
+'MIS BH',
+'Noturno nos Museus'];
+
 
 const SEEDED_CLIPPING = [
-  {
-    id: 'pbh-semana-museus-2026-05',
-    title: '24ª Semana Nacional de Museus agita a programação de maio em BH',
-    sourceName: 'PBH Notícias',
-    sourceType: 'Imprensa institucional',
-    publishedDate: '2026-05-05',
-    relevance: 'Alta',
-    platform: 'Site',
-    relatedTo: ['Museus Centro', 'MIS BH', 'MHAB', 'MUMO'],
-    url: 'https://prefeitura.pbh.gov.br/noticias/24a-semana-nacional-de-museus-agita-programacao-de-maio-em-bh',
-    summary: 'Matéria institucional com programação de maio e menção direta aos espaços do Museus Centro.',
-  },
-  {
-    id: 'pbh-museus-centro-abril-2026',
-    title: 'Projeto Museus Centro traz experimentações visuais e manuais em abril',
-    sourceName: 'PBH Notícias',
-    sourceType: 'Imprensa institucional',
-    publishedDate: '2026-04-01',
-    relevance: 'Alta',
-    platform: 'Site',
-    relatedTo: ['Museus Centro', 'Programação'],
-    url: 'https://prefeitura.pbh.gov.br/noticias/projeto-museus-centro-traz-experimentacoes-visuais-e-manuais-em-abril',
-    summary: 'Divulgação direta da programação do projeto Museus Centro em abril.',
-  },
-  {
-    id: 'culturadoria-museus-centro-abril-2026',
-    title: 'Museus Centro com inscrições abertas para oficinas e experiências',
-    sourceName: 'Culturadoria',
-    sourceType: 'Mídia cultural',
-    publishedDate: '2026-04-10',
-    relevance: 'Alta',
-    platform: 'Site',
-    relatedTo: ['Museus Centro', 'Oficinas'],
-    url: 'https://culturadoria.com.br/museus-centro-em-abril/',
-    summary: 'Publicação de agenda cultural com foco em oficinas e experiências do Museus Centro.',
-  },
-  {
-    id: 'culturadoria-semana-museus-2026-05',
-    title: 'Semana Nacional de Museus movimenta espaços culturais de BH',
-    sourceName: 'Culturadoria',
-    sourceType: 'Mídia cultural',
-    publishedDate: '2026-05-06',
-    relevance: 'Alta',
-    platform: 'Site',
-    relatedTo: ['MIS BH', 'MUMO', 'MHAB', 'Museus Centro'],
-    url: 'https://culturadoria.com.br/semana-dos-museus-em-bh/',
-    summary: 'Cobertura cultural sobre a Semana Nacional de Museus e programação dos espaços.',
-  },
-  {
-    id: 'bheventos-semana-museus-2026-05',
-    title: '24ª Semana Nacional de Museus agita a programação do Museus Centro',
-    sourceName: 'BH Eventos',
-    sourceType: 'Agenda cultural',
-    publishedDate: '2026-05-06',
-    relevance: 'Média/Alta',
-    platform: 'Site',
-    relatedTo: ['Museus Centro', 'Semana Nacional de Museus'],
-    url: 'https://www.bheventos.com.br/noticia/05-06-2026-24-semana-nacional-de-museus-agita-a-programacao-de-maio-do-museus-centro',
-    summary: 'Agenda cultural com chamada para programação do Museus Centro.',
-  },
-  {
-    id: 'portal-belohorizonte-museus-centro',
-    title: 'Portal oficial de notícias Museus Centro',
-    sourceName: 'Portal Belo Horizonte',
-    sourceType: 'Canal institucional',
-    publishedDate: '2026-04-15',
-    relevance: 'Média',
-    platform: 'Site',
-    relatedTo: ['Museus Centro'],
-    url: 'https://portalbelohorizonte.com.br/museuscentro/2025/noticias',
-    summary: 'Página agregadora institucional de notícias e conteúdos do projeto.',
-  },
-  {
-    id: 'reddit-bh-museus-2026',
-    title: 'Discussão espontânea sobre museus em BH',
-    sourceName: 'Reddit Belo Horizonte',
-    sourceType: 'Rede social',
-    publishedDate: '2026-04-20',
-    relevance: 'Média',
-    platform: 'Reddit',
-    relatedTo: ['Museu da Moda', 'MIS BH', 'Museus de BH'],
-    url: 'https://www.reddit.com/r/BeloHorizonte/comments/1rb4q2y/museus_em_bh/',
-    summary: 'Menções espontâneas a museus de Belo Horizonte em comunidade aberta.',
-  },
-];
+{
+  id: 'pbh-semana-museus-2026-05',
+  title: '24ª Semana Nacional de Museus agita a programação de maio em BH',
+  sourceName: 'PBH Notícias',
+  sourceType: 'Imprensa institucional',
+  publishedDate: '2026-05-05',
+  relevance: 'Alta',
+  platform: 'Site',
+  relatedTo: ['Museus Centro', 'MIS BH', 'MHAB', 'MUMO'],
+  url: 'https://prefeitura.pbh.gov.br/noticias/24a-semana-nacional-de-museus-agita-programacao-de-maio-em-bh',
+  summary: 'Matéria institucional com programação de maio e menção direta aos espaços do Museus Centro.'
+},
+{
+  id: 'pbh-museus-centro-abril-2026',
+  title: 'Projeto Museus Centro traz experimentações visuais e manuais em abril',
+  sourceName: 'PBH Notícias',
+  sourceType: 'Imprensa institucional',
+  publishedDate: '2026-04-01',
+  relevance: 'Alta',
+  platform: 'Site',
+  relatedTo: ['Museus Centro', 'Programação'],
+  url: 'https://prefeitura.pbh.gov.br/noticias/projeto-museus-centro-traz-experimentacoes-visuais-e-manuais-em-abril',
+  summary: 'Divulgação direta da programação do projeto Museus Centro em abril.'
+},
+{
+  id: 'culturadoria-museus-centro-abril-2026',
+  title: 'Museus Centro com inscrições abertas para oficinas e experiências',
+  sourceName: 'Culturadoria',
+  sourceType: 'Mídia cultural',
+  publishedDate: '2026-04-10',
+  relevance: 'Alta',
+  platform: 'Site',
+  relatedTo: ['Museus Centro', 'Oficinas'],
+  url: 'https://culturadoria.com.br/museus-centro-em-abril/',
+  summary: 'Publicação de agenda cultural com foco em oficinas e experiências do Museus Centro.'
+},
+{
+  id: 'culturadoria-semana-museus-2026-05',
+  title: 'Semana Nacional de Museus movimenta espaços culturais de BH',
+  sourceName: 'Culturadoria',
+  sourceType: 'Mídia cultural',
+  publishedDate: '2026-05-06',
+  relevance: 'Alta',
+  platform: 'Site',
+  relatedTo: ['MIS BH', 'MUMO', 'MHAB', 'Museus Centro'],
+  url: 'https://culturadoria.com.br/semana-dos-museus-em-bh/',
+  summary: 'Cobertura cultural sobre a Semana Nacional de Museus e programação dos espaços.'
+},
+{
+  id: 'bheventos-semana-museus-2026-05',
+  title: '24ª Semana Nacional de Museus agita a programação do Museus Centro',
+  sourceName: 'BH Eventos',
+  sourceType: 'Agenda cultural',
+  publishedDate: '2026-05-06',
+  relevance: 'Média/Alta',
+  platform: 'Site',
+  relatedTo: ['Museus Centro', 'Semana Nacional de Museus'],
+  url: 'https://www.bheventos.com.br/noticia/05-06-2026-24-semana-nacional-de-museus-agita-a-programacao-de-maio-do-museus-centro',
+  summary: 'Agenda cultural com chamada para programação do Museus Centro.'
+},
+{
+  id: 'portal-belohorizonte-museus-centro',
+  title: 'Portal oficial de notícias Museus Centro',
+  sourceName: 'Portal Belo Horizonte',
+  sourceType: 'Canal institucional',
+  publishedDate: '2026-04-15',
+  relevance: 'Média',
+  platform: 'Site',
+  relatedTo: ['Museus Centro'],
+  url: 'https://portalbelohorizonte.com.br/museuscentro/2025/noticias',
+  summary: 'Página agregadora institucional de notícias e conteúdos do projeto.'
+},
+{
+  id: 'reddit-bh-museus-2026',
+  title: 'Discussão espontânea sobre museus em BH',
+  sourceName: 'Reddit Belo Horizonte',
+  sourceType: 'Rede social',
+  publishedDate: '2026-04-20',
+  relevance: 'Média',
+  platform: 'Reddit',
+  relatedTo: ['Museu da Moda', 'MIS BH', 'Museus de BH'],
+  url: 'https://www.reddit.com/r/BeloHorizonte/comments/1rb4q2y/museus_em_bh/',
+  summary: 'Menções espontâneas a museus de Belo Horizonte em comunidade aberta.'
+}];
+
 
 const ZERO_SUMMARY = {
   releases: 0,
   imagens: 0,
   clipping: 0,
-  posts: 0,
+  posts: 0
 };
 
 const STATIC_ITEMS = DRIVE_FOLDERS.map((folder) => ({
@@ -162,15 +162,15 @@ const STATIC_ITEMS = DRIVE_FOLDERS.map((folder) => ({
   sourceFolderName: folder.name,
   sourceFolderId: folder.id,
   sourceFolderPath: folder.name,
-  isFolderShortcut: true,
+  isFolderShortcut: true
 }));
 
 function normalizeText(value = '') {
-  return String(value)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
+  return String(value).
+  normalize('NFD').
+  replace(/[\u0300-\u036f]/g, '').
+  toLowerCase().
+  trim();
 }
 
 function formatDate(value) {
@@ -203,7 +203,7 @@ function getCategoryLabel(category) {
     RELEASE: 'Releases',
     FOTOGRAFIA: 'Imagens',
     CLIPPING: 'Clipping',
-    POSTS: 'Posts',
+    POSTS: 'Posts'
   };
   return map[category] || 'Arquivo';
 }
@@ -233,7 +233,7 @@ function normalizeDriveFile(file, sourceFolder) {
     sourceFolderId: folderId,
     sourceFolderPath: folderPath,
     driveRootFolderId: rootFolderId,
-    isFolderShortcut: false,
+    isFolderShortcut: false
   };
 }
 
@@ -242,7 +242,7 @@ function buildLocalSummary(files = []) {
     releases: files.filter((file) => file.category === 'RELEASE').length,
     imagens: files.filter((file) => file.category === 'FOTOGRAFIA').length,
     clipping: files.filter((file) => file.category === 'CLIPPING').length,
-    posts: files.filter((file) => file.category === 'POSTS').length,
+    posts: files.filter((file) => file.category === 'POSTS').length
   };
 }
 
@@ -253,7 +253,7 @@ function normalizeSummary(summary) {
     releases: Number(summary.releases || summary.RELEASES || 0),
     imagens: Number(summary.imagens || summary.images || summary.FOTOGRAFIA || 0),
     clipping: Number(summary.clipping || summary.CLIPPING || 0),
-    posts: Number(summary.posts || summary.POSTS || 0),
+    posts: Number(summary.posts || summary.POSTS || 0)
   };
 }
 
@@ -281,7 +281,7 @@ async function syncViaBase44Function(action = 'sync') {
 
   return {
     files,
-    summary: Object.values(summary).some((value) => Number(value || 0) > 0) ? summary : buildLocalSummary(files),
+    summary: Object.values(summary).some((value) => Number(value || 0) > 0) ? summary : buildLocalSummary(files)
   };
 }
 
@@ -307,9 +307,9 @@ function ClippingRow({ item }) {
         <p className="line-clamp-2 text-sm font-semibold text-gray-900">{item.title}</p>
         <p className="line-clamp-2 text-xs text-gray-500 mt-1">{item.summary}</p>
         <div className="flex flex-wrap gap-1 mt-2">
-          {mentions.slice(0, 3).map((tag) => (
-            <Badge key={tag} variant="outline" className="text-[10px] bg-white">{tag}</Badge>
-          ))}
+          {mentions.slice(0, 3).map((tag) =>
+          <Badge key={tag} variant="outline" className="text-[10px] bg-white">{tag}</Badge>
+          )}
         </div>
       </td>
       <td className="px-3 py-3 align-top">
@@ -323,14 +323,14 @@ function ClippingRow({ item }) {
           <ExternalLink className="w-4 h-4" />
         </a>
       </td>
-    </tr>
-  );
+    </tr>);
+
 }
 
 function KpiCard({ label, value, helper, icon: Icon, dark = false }) {
   return (
     <Card className={`rounded-2xl shadow-sm ${dark ? 'bg-black border-black text-white' : 'bg-white border-gray-200 text-black'}`}>
-      <CardContent className="p-4">
+      <CardContent className="p-4 hidden">
         <div className="flex items-center gap-2 mb-3">
           <Icon className={`w-4 h-4 ${dark ? 'text-white' : 'text-gray-500'}`} />
           <p className={`text-[11px] font-semibold uppercase tracking-wide ${dark ? 'text-gray-300' : 'text-gray-500'}`}>{label}</p>
@@ -338,8 +338,8 @@ function KpiCard({ label, value, helper, icon: Icon, dark = false }) {
         <p className={`text-3xl font-bold ${dark ? 'text-white' : 'text-black'}`}>{value}</p>
         {helper && <p className={`text-xs mt-1 ${dark ? 'text-gray-300' : 'text-gray-500'}`}>{helper}</p>}
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 }
 
 export default function ComunicacaoVisibilidade() {
@@ -402,7 +402,7 @@ export default function ComunicacaoVisibilidade() {
       try {
         const clippingResponse = await base44.functions.invoke('searchComunicacaoClipping', {
           keywords: KEYWORDS,
-          periodo: 'ultimo_mes',
+          periodo: 'ultimo_mes'
         });
         const payload = extractPayload(clippingResponse);
         const found = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
@@ -417,7 +417,7 @@ export default function ComunicacaoVisibilidade() {
             platform: item.platform || item.plataforma || 'Web',
             relatedTo: item.relatedTo || item.tags || item.mencoes || [],
             url: item.url || item.link || '#',
-            summary: item.summary || item.resumo || 'Publicação identificada por busca assistida por IA.',
+            summary: item.summary || item.resumo || 'Publicação identificada por busca assistida por IA.'
           })));
         }
       } catch (clippingError) {
@@ -482,8 +482,8 @@ export default function ComunicacaoVisibilidade() {
               <select
                 value={sourceFilter}
                 onChange={(event) => setSourceFilter(event.target.value)}
-                className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700"
-              >
+                className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700">
+                
                 <option value="TODOS">Todas as fontes</option>
                 <option value="Site">Sites</option>
                 <option value="Reddit">Redes sociais</option>
@@ -515,13 +515,13 @@ export default function ComunicacaoVisibilidade() {
                 </tr>
               </thead>
               <tbody>
-                {filteredClipping.length === 0 ? (
-                  <tr>
+                {filteredClipping.length === 0 ?
+                <tr>
                     <td colSpan={6} className="px-3 py-8 text-center text-sm text-gray-500">Nenhuma publicação encontrada para o filtro selecionado.</td>
-                  </tr>
-                ) : (
-                  filteredClipping.map((item) => <ClippingRow key={item.id} item={item} />)
-                )}
+                  </tr> :
+
+                filteredClipping.map((item) => <ClippingRow key={item.id} item={item} />)
+                }
               </tbody>
             </table>
           </div>
@@ -550,19 +550,19 @@ export default function ComunicacaoVisibilidade() {
             <Badge variant="outline" className="bg-white">{items.length} item(ns)</Badge>
           </div>
 
-          {Object.keys(groupedByMonth).length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">Nenhum arquivo encontrado.</div>
-          ) : (
-            Object.entries(groupedByMonth).map(([month, files]) => (
-              <section key={month} className="space-y-3">
+          {Object.keys(groupedByMonth).length === 0 ?
+          <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">Nenhum arquivo encontrado.</div> :
+
+          Object.entries(groupedByMonth).map(([month, files]) =>
+          <section key={month} className="space-y-3">
                 <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-2">
                   <h3 className="text-sm font-semibold text-slate-900 capitalize">{month}</h3>
                   <Badge variant="outline" className="bg-white">{files.length} item(ns)</Badge>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {files.map((file) => (
-                    <a key={`${file.sourceFolderId}-${file.id}`} href={file.url} target="_blank" rel="noreferrer" className="block">
+                  {files.map((file) =>
+              <a key={`${file.sourceFolderId}-${file.id}`} href={file.url} target="_blank" rel="noreferrer" className="block">
                       <Card className="h-full border-slate-200 bg-white hover:border-slate-400 hover:shadow-sm transition-all">
                         <CardContent className="p-4 space-y-3">
                           <div className="flex items-start justify-between gap-3">
@@ -581,13 +581,13 @@ export default function ComunicacaoVisibilidade() {
                         </CardContent>
                       </Card>
                     </a>
-                  ))}
+              )}
                 </div>
               </section>
-            ))
-          )}
+          )
+          }
         </CardContent>
       </Card>
-    </div>
-  );
+    </div>);
+
 }
