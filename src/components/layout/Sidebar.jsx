@@ -79,7 +79,7 @@ const NAV_GROUPS = [
 
       {
         path: 'Compras',
-        label: 'Compras e Pagamentos',
+        label: 'Compras e Aprovações',
         icon: ShoppingCart,
         roles: ['all'],
       },
@@ -105,7 +105,7 @@ const NAV_GROUPS = [
     items: [
       {
         path: 'RubricasPorMuseu',
-        label: 'Rubricas por museu',
+        label: 'Orçamento por Museu',
         icon: DollarSign,
         roles: ['coord', 'admin'],
       },
@@ -140,7 +140,7 @@ const NAV_GROUPS = [
 
       {
         path: 'Manual',
-        label: 'Manual e Ajuda',
+        label: 'Central de Ajuda',
         icon: HelpCircle,
         roles: ['all'],
       },
@@ -159,7 +159,7 @@ const NAV_GROUPS = [
 
       {
         path: 'UserManagement',
-        label: 'Usuários',
+        label: 'Gestão de Usuários',
         icon: Users,
         roles: ['coord', 'admin'],
         permission: 'canManageUsers',
@@ -167,7 +167,7 @@ const NAV_GROUPS = [
 
       {
         path: 'PlataformaAdmin',
-        label: 'Plataforma',
+        label: 'Administração do Sistema',
         icon: Settings,
         roles: ['admin'],
         permission: 'canManagePlatform',
@@ -314,7 +314,8 @@ export default function Sidebar({
     <div
       className={`flex flex-col bg-slate-900 border-r border-slate-800 transition-all duration-200 ${
         collapsed ? 'w-16' : 'w-60'
-      } min-h-screen`}
+      } min-h-screen`
+    }
     >
       <div
         className={`flex items-center justify-between px-3 py-4 border-b border-slate-800 ${
