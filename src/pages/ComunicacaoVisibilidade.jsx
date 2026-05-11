@@ -343,38 +343,38 @@ export default function ComunicacaoVisibilidade() {
       </div>
 
       <Card className="border-slate-200 bg-white">
-        
+        <CardContent className="p-4 space-y-4 hidden">
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Buscar por nome, mês, tipo ou pasta..."
+                className="pl-9" />
+              
+            </div>
 
+            <select
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+              className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700">
+              
+              <option value="TODOS">Todos os tipos</option>
+              {CATEGORIES.map((item) =>
+              <option key={item.key} value={item.key}>{item.label}</option>
+              )}
+            </select>
+          </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between text-xs text-slate-500">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4" />
+              <span>{syncMessage}</span>
+            </div>
+            {lastSync && <span>Última sincronização: {lastSync.toLocaleString('pt-BR')}</span>}
+          </div>
+        </CardContent>
       </Card>
 
       <div className="space-y-6">
