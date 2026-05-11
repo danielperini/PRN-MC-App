@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ExternalLink,
   FolderOpen,
@@ -174,6 +174,18 @@ function fileBelongsToSummaryCard(file, card) {
   return card.folderTerms.some((term) => searchableFolderText.includes(normalizeText(term)));
 }
 
+function extractPayload(response) {
+  return response?.data?.data || response?.data || response?.response || response?.result || response || {};
+}
+
+function extractFilesFromPayload(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.files)) return payload.files;
+  if (Array.isArray(payload?.data?.files)) return payload.data.files;
+  if (Array.isArray(payload?.result?.files)) return payload.result.files;
+  return [];
+}
+
 async function fetchFolderFiles(folder) {
   const apiKey = import.meta.env.VITE_GOOGLE_DRIVE_API_KEY;
   if (!apiKey) return [];
@@ -188,14 +200,10 @@ async function fetchFolderFiles(folder) {
   return Array.isArray(payload.files) ? payload.files.map((file) => normalizeDriveFile(file, folder)) : [];
 }
 
-async function syncViaBase44Function() {
-  const response = await base44.functions.invoke('syncComunicacaoVisibilidade', { action: 'sync' });
-  const payload = response?.data || response;
-  const files = Array.isArray(payload?.files) ? payload.files : [];
-
-  if (!payload?.success || files.length === 0) {
-    return [];
-  }
+async function syncViaBase44Function(action = 'sync') {
+  const response = await base44.functions.invoke('syncComunicacaoVisibilidade', { action });
+  const payload = extractPayload(response);
+  const files = extractFilesFromPayload(payload);
 
   return files.map((file) => normalizeDriveFile(file));
 }
@@ -206,7 +214,7 @@ export default function ComunicacaoVisibilidade() {
   const [items, setItems] = useState(STATIC_ITEMS);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState(null);
-  const [syncMessage, setSyncMessage] = useState('Sincronização automática programada para 12:59 e 23:59.');
+  const [syncMessage, setSyncMessage] = useState('Carregando acervo de comunicação...');
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -239,34 +247,39 @@ export default function ComunicacaoVisibilidade() {
     }));
   }, [items]);
 
-  async function handleSync() {
+  async function runSync({ silent = false, preferCache = false } = {}) {
     if (isSyncing) return;
 
     setIsSyncing(true);
-    setSyncMessage('Sincronizando arquivos do Google Drive...');
+    if (!silent) setSyncMessage('Sincronizando arquivos do Google Drive...');
 
     try {
       let mergedFiles = [];
-      let syncMode = 'function';
+      let syncMode = preferCache ? 'cache' : 'function';
 
       try {
-        mergedFiles = await syncViaBase44Function();
+        mergedFiles = await syncViaBase44Function(preferCache ? 'list-cache' : 'sync');
       } catch (functionError) {
         console.warn('Function syncComunicacaoVisibilidade indisponível. Usando fallback por API key.', functionError);
         syncMode = 'api-key';
       }
 
-      if (mergedFiles.length === 0) {
+      if (mergedFiles.length === 0 && !preferCache) {
         const filesByFolder = await Promise.all(DRIVE_FOLDERS.map(fetchFolderFiles));
         mergedFiles = filesByFolder.flat();
       }
 
+      if (mergedFiles.length === 0 && preferCache) {
+        mergedFiles = await syncViaBase44Function('sync').catch(() => []);
+        syncMode = 'function';
+      }
+
       if (mergedFiles.length === 0) {
         setItems(STATIC_ITEMS);
-        setSyncMessage('Pastas disponíveis. A contagem real depende do conector Google Drive ou de VITE_GOOGLE_DRIVE_API_KEY ativo.');
+        setSyncMessage('Pastas disponíveis. A contagem real depende do conector Google Drive ativo e das permissões das pastas.');
       } else {
         setItems(mergedFiles);
-        setSyncMessage(`${mergedFiles.length} arquivo(s) sincronizado(s) do Google Drive via ${syncMode === 'function' ? 'Base44 Function' : 'API key'}.`);
+        setSyncMessage(`${mergedFiles.length} arquivo(s) sincronizado(s) do Google Drive via ${syncMode === 'cache' ? 'cache' : syncMode === 'function' ? 'Base44 Function' : 'API key'}.`);
       }
 
       setLastSync(new Date());
@@ -278,6 +291,11 @@ export default function ComunicacaoVisibilidade() {
       setIsSyncing(false);
     }
   }
+
+  useEffect(() => {
+    runSync({ silent: true, preferCache: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -297,7 +315,7 @@ export default function ComunicacaoVisibilidade() {
           </p>
         </div>
 
-        <Button onClick={handleSync} type="button" className="bg-slate-900 hover:bg-slate-800 text-white gap-2">
+        <Button onClick={() => runSync({ silent: false, preferCache: false })} type="button" className="bg-slate-900 hover:bg-slate-800 text-white gap-2">
           <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
           {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
         </Button>
@@ -354,7 +372,7 @@ export default function ComunicacaoVisibilidade() {
               <CalendarDays className="w-4 h-4" />
               <span>{syncMessage}</span>
             </div>
-            {lastSync && <span>Última sincronização manual: {lastSync.toLocaleString('pt-BR')}</span>}
+            {lastSync && <span>Última sincronização: {lastSync.toLocaleString('pt-BR')}</span>}
           </div>
         </CardContent>
       </Card>
