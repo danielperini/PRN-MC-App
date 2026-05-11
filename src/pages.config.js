@@ -21,7 +21,7 @@ import Fornecedores from './pages/Fornecedores';
 import GaleriaFotos from './pages/GaleriaFotos';
 import GeradorListaPresenca from './pages/GeradorListaPresenca';
 import GeradorTermoCompromisso from './pages/GeradorTermoCompromisso';
-import GestaoDocumental from './pages/GestaoDocumentalClean';
+import GestaoDocumental from './pages/GestaoDocumentalDedupe';
 import GestaoPagamentos from './pages/GestaoPagamentos';
 import GestorArquivos from './pages/GestorArquivos';
 import HelpManagement from './pages/HelpManagement';
@@ -46,7 +46,6 @@ import Rubricas from './pages/Rubricas';
 import RubricasPorMuseu from './pages/RubricasPorMuseu';
 import UserManagement from './pages/UserManagement';
 import ViadutoMap from './pages/ViadutoMap';
-// NOTE: Perfil is handled as explicit route in App.jsx, not in pages.config
 
 import __Layout from './Layout.jsx';
 
