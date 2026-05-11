@@ -95,7 +95,7 @@ function getPct(rubrica = {}) {
   return Number(((getValorUtilizado(rubrica) / total) * 100).toFixed(1));
 }
 
-function getSearchText(rubrica = {}) {
+function getSearchText(rubrica = {}, includeGeneratedOrigin = false) {
   return normalizeText([
     rubrica?.rubrica,
     rubrica?.nome,
@@ -107,50 +107,38 @@ function getSearchText(rubrica = {}) {
     rubrica?.museu,
     rubrica?.museu_codigo,
     rubrica?.unidade,
-    rubrica?.museu_origem,
+    includeGeneratedOrigin ? rubrica?.museu_origem : '',
     rubrica?.observacao_uso,
   ].filter(Boolean).join(' '));
 }
 
 function isNoturnoRubrica(rubrica = {}) {
-  return getSearchText(rubrica).includes('noturno');
+  return getSearchText(rubrica, true).includes('noturno');
+}
+
+function hasMuseuToken(text = '', museu = '') {
+  if (museu === 'MIS') return text.includes('mis') || text.includes('imagem') || text.includes('som');
+  if (museu === 'MHAB') return text.includes('mhab') || text.includes('abilio') || text.includes('historico');
+  if (museu === 'MUMO') return text.includes('mumo') || text.includes('moda');
+  return false;
+}
+
+function countMuseuTokens(text = '') {
+  return ['MIS', 'MHAB', 'MUMO'].filter((museu) => hasMuseuToken(text, museu)).length;
 }
 
 function matchRubricaMuseu(rubrica = {}, museu = '') {
   const normalizedMuseu = normalizeMuseu(museu);
+  const explicitText = getSearchText(rubrica, false);
 
-  if (!normalizedMuseu || normalizedMuseu === 'GERAL') return true;
+  if (!normalizedMuseu || normalizedMuseu === 'GERAL') return false;
   if (normalizedMuseu === 'NOTURNO') return isNoturnoRubrica(rubrica);
-
   if (isNoturnoRubrica(rubrica)) return false;
 
-  const origem = normalizeMuseu(rubrica?.museu_origem || '');
-  if (['MIS', 'MHAB', 'MUMO'].includes(origem)) return origem === normalizedMuseu;
+  const tokenCount = countMuseuTokens(explicitText);
+  if (tokenCount !== 1) return false;
 
-  const centro = normalizeMuseu(
-    rubrica?.centro_custo ||
-      rubrica?.museu ||
-      rubrica?.museu_codigo ||
-      rubrica?.unidade ||
-      ''
-  );
-
-  if (['MIS', 'MHAB', 'MUMO'].includes(centro)) return centro === normalizedMuseu;
-
-  const text = getSearchText(rubrica);
-  const hasMIS = text.includes('mis') || text.includes('imagem') || text.includes('som');
-  const hasMHAB = text.includes('mhab') || text.includes('abilio') || text.includes('historico');
-  const hasMUMO = text.includes('mumo') || text.includes('moda');
-  const specificCount = [hasMIS, hasMHAB, hasMUMO].filter(Boolean).length;
-
-  if (specificCount === 0) return false;
-  if (specificCount > 1) return false;
-
-  if (normalizedMuseu === 'MIS') return hasMIS;
-  if (normalizedMuseu === 'MHAB') return hasMHAB;
-  if (normalizedMuseu === 'MUMO') return hasMUMO;
-
-  return false;
+  return hasMuseuToken(explicitText, normalizedMuseu);
 }
 
 function flattenConsolidado(consolidado = {}, museu = '') {
@@ -158,22 +146,17 @@ function flattenConsolidado(consolidado = {}, museu = '') {
   const normalizedMuseu = normalizeMuseu(museu);
 
   if (consolidado?.por_museu && typeof consolidado.por_museu === 'object') {
-    if (normalizedMuseu && normalizedMuseu !== 'GERAL' && normalizedMuseu !== 'NOTURNO') {
-      const categorias = consolidado.por_museu?.[normalizedMuseu] || {};
-      Object.entries(categorias).forEach(([categoriaKey, items]) => {
+    Object.entries(consolidado.por_museu).forEach(([museuKey, categorias]) => {
+      Object.entries(categorias || {}).forEach(([categoriaKey, items]) => {
         (Array.isArray(items) ? items : []).forEach((item) => {
-          rows.push({ ...item, categoria_key: item?.categoria_key || categoriaKey, museu_origem: normalizedMuseu });
-        });
-      });
-    } else {
-      Object.entries(consolidado.por_museu).forEach(([museuKey, categorias]) => {
-        Object.entries(categorias || {}).forEach(([categoriaKey, items]) => {
-          (Array.isArray(items) ? items : []).forEach((item) => {
-            rows.push({ ...item, categoria_key: item?.categoria_key || categoriaKey, museu_origem: normalizeMuseu(museuKey) });
+          rows.push({
+            ...item,
+            categoria_key: item?.categoria_key || categoriaKey,
+            museu_origem: normalizeMuseu(museuKey),
           });
         });
       });
-    }
+    });
   }
 
   return rows.filter((rubrica) => matchRubricaMuseu(rubrica, normalizedMuseu));
@@ -275,7 +258,7 @@ function RubricaCard({ rubrica }) {
 }
 
 export default function RubricasMuseuEditor({
-  museu = 'GERAL',
+  museu = 'MIS',
   canEdit = false,
   refreshKey = 0,
   rubricaFilter,
@@ -337,7 +320,7 @@ export default function RubricasMuseuEditor({
     return (
       <div className="flex items-center justify-center py-16 text-gray-500">
         <Loader2 className="w-5 h-5 animate-spin mr-2" />
-        Carregando rubricas...
+        Carregando rubricas específicas...
       </div>
     );
   }
@@ -359,9 +342,9 @@ export default function RubricasMuseuEditor({
   if (rows.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center">
-        <p className="font-semibold text-black">Nenhuma rubrica encontrada.</p>
+        <p className="font-semibold text-black">Nenhuma rubrica específica encontrada.</p>
         <p className="text-sm text-gray-500 mt-1">
-          Não há rubricas ativas compatíveis com esta aba.
+          Esta aba mostra somente rubricas que mencionam exclusivamente {normalizedMuseu}. Rubricas gerais, compartilhadas ou multi-museu ficam fora desta visão.
         </p>
       </div>
     );
@@ -390,7 +373,7 @@ export default function RubricasMuseuEditor({
 
       {!canEdit && (
         <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-500">
-          Visualização em modo leitura.
+          Filtro restaurado: esta visão exibe apenas rubricas específicas da aba selecionada.
         </div>
       )}
 
@@ -402,7 +385,7 @@ export default function RubricasMuseuEditor({
                 {categoria}
               </h3>
               <span className="text-xs text-gray-400">
-                {items.length} {items.length === 1 ? 'rubrica' : 'rubricas'}
+                {items.length} {items.length === 1 ? 'rubrica específica' : 'rubricas específicas'}
               </span>
             </div>
 
