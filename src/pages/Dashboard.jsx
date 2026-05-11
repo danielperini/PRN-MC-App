@@ -1,426 +1,71 @@
-import React, { useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
-import RequireAuth from '../components/auth/RequireAuth';
-import { useCurrentUser } from '../components/auth/useCurrentUser';
-import { Link } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
-import {
-  FileText, Plus, Clock, CheckCircle, AlertCircle,
-  Send, Eye, Archive, ChevronRight, LayoutDashboard, User, RotateCw, AlertTriangle, X, Copy } from
-'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import CoordDashboard from '../components/dashboard/CoordDashboard';
-import DashboardPatrocinador from '../pages/DashboardPatrocinador';
-import AdvancedFilters from '../components/dashboard/AdvancedFilters';
-import ComplianceStats from '../components/dashboard/ComplianceStats';
-import WidgetCustomizer from '../components/dashboard/WidgetCustomizer';
-import { useWidgetPreferences } from '../components/dashboard/useWidgetPreferences';
-import ActivityMetricsWidget from '../components/dashboard/ActivityMetricsWidget';
-import OpportunityMetricsWidget from '../components/dashboard/OpportunityMetricsWidget';
-import NewsCarousel from '../components/dashboard/NewsCarousel';
-import DuplicateReportsModal from '../components/dashboard/DuplicateReportsModal';
-import { usePullToRefresh } from '../hooks/usePullToRefresh';
-import ExecutiveIndicators from '../components/dashboard/ExecutiveIndicators';
+const refetchDashboardData = React.useCallback(async () => {
+  await refetchMy();
 
-const STATUS_CONFIG = {
-  DRAFT: { label: 'Rascunho', color: 'bg-white text-black border border-gray-300', icon: Clock },
-  SUBMITTED: { label: 'Enviado', color: 'bg-white text-black border border-gray-300', icon: Send },
-  IN_REVIEW: { label: 'Em Revisão', color: 'bg-white text-black border border-gray-300', icon: Eye },
-  RETURNED: { label: 'Devolvido', color: 'bg-black text-white border border-black', icon: AlertCircle },
-  APPROVED: { label: 'Aprovado', color: 'bg-black text-white border border-black', icon: CheckCircle },
-  ARCHIVED: { label: 'Arquivado', color: 'bg-gray-100 text-black border border-gray-300', icon: Archive }
-};
+  if (isCoordenador) {
+    await refetchAll();
+  }
 
-function DashboardInner() {
-  const { user: currentUser, isLoading: userLoading, isCoordenador } = useCurrentUser();
-  const { widgets, loaded: widgetsLoaded, toggleWidget, resetToDefault } = useWidgetPreferences();
-  const [view, setView] = React.useState('coordenador');
-  const [showSponsorView, setShowSponsorView] = React.useState(false);
-  const [filters, setFilters] = React.useState({ museu: '', status: '' });
-  const [isRefreshing, setIsRefreshing] = React.useState(false);
-  const [showDuplicates, setShowDuplicates] = React.useState(false);
-  const [dismissedDataWarning, setDismissedDataWarning] = React.useState(false);
+  window.dispatchEvent(new CustomEvent('dashboard:update'));
+}, [refetchMy, refetchAll, isCoordenador]);
 
-  // Current month/year for compliance stats
-  const now = new Date();
-  const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-  const currentMonth = monthNames[now.getMonth()];
-  const currentYear = now.getFullYear();
+React.useEffect(() => {
+  let dailyTimer = null;
 
-  const { data: myTeamMember } = useQuery({
-    queryKey: ['my-team-member-dashboard', currentUser?.email],
-    queryFn: () => base44.entities.TeamMember.filter({ user_email: currentUser.email }),
-    enabled: !!currentUser?.email && !userLoading,
-    select: data => data?.[0] ?? null,
-  });
+  const scheduleDailyUpdate = () => {
+    if (dailyTimer) {
+      clearTimeout(dailyTimer);
+    }
 
-  const dadosCompletos = React.useMemo(() => {
-    const src = myTeamMember || currentUser || {};
-    return !!(src.cpf && src.telefone && src.email_pessoal && src.banco && src.agencia && src.conta);
-  }, [myTeamMember, currentUser]);
+    const now = new Date();
+    const nextUpdate = new Date();
 
-  const { data: myReports = [], isLoading: loadingMy, refetch: refetchMy } = useQuery({
-    queryKey: ['my-reports', currentUser?.email],
-    queryFn: async () => {
-      if (!currentUser?.email) return [];
-      try {
-        const data = await base44.entities.Report.filter({ created_by: currentUser.email }, '-created_date');
-        return Array.isArray(data) ? data : [];
-      } catch {
-        return [];
-      }
-    },
-    enabled: !!currentUser?.email && !userLoading
-  });
+    nextUpdate.setHours(23, 59, 0, 0);
 
-  const { data: allReports = [], isLoading: loadingAll, refetch: refetchAll } = useQuery({
-    queryKey: ['all-reports'],
-    queryFn: async () => {
-      try {
-        const data = await base44.entities.Report.list('-created_date', 200);
-        return Array.isArray(data) ? data : [];
-      } catch {
-        return [];
-      }
-    },
-    enabled: isCoordenador
-  });
+    if (now >= nextUpdate) {
+      nextUpdate.setDate(nextUpdate.getDate() + 1);
+    }
 
-  const { data: rubricas = [] } = useQuery({
-    queryKey: ['dashboard-rubricas'],
-    queryFn: async () => {
-      try {
-        const data = await base44.entities.Rubrica.list('rubrica', 1000);
-        return Array.isArray(data) ? data.filter(r => r.ativo !== false) : [];
-      } catch {
-        return [];
-      }
-    },
-    enabled: !!currentUser?.email
-  });
+    dailyTimer = setTimeout(async () => {
+      await refetchDashboardData();
+      localStorage.setItem('dashboard-update', Date.now().toString());
+      scheduleDailyUpdate();
+    }, nextUpdate.getTime() - now.getTime());
+  };
 
-  // Subscrições em tempo real para atualizar números quando dados são excluídos/alterados
-  React.useEffect(() => {
-    const unsubReport = base44.entities.Report.subscribe(() => {
-      refetchMy();
-      if (isCoordenador) refetchAll();
-    });
-    const unsubActivity = base44.entities.Activity.subscribe(() => {
-      refetchMy();
-      if (isCoordenador) refetchAll();
-    });
-    return () => {
-      unsubReport();
-      unsubActivity();
-    };
-  }, [isCoordenador]);
+  const handleDashboardUpdate = () => {
+    refetchDashboardData();
+  };
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      if (showCoordView) {
-        await refetchAll();
-      } else {
-        await refetchMy();
-      }
-      // Force toast feedback
-      const event = new CustomEvent('dashboardRefreshed');
-      window.dispatchEvent(event);
-    } finally {
-      setIsRefreshing(false);
+  const handleStorageUpdate = (event) => {
+    if (event.key === 'dashboard-update') {
+      refetchDashboardData();
     }
   };
 
-  const { containerRef, isPulling, pullDistance } = usePullToRefresh(handleRefresh);
+  const unsubReport = base44.entities.Report.subscribe(() => {
+    refetchDashboardData();
+    localStorage.setItem('dashboard-update', Date.now().toString());
+  });
 
-  const showCoordView = isCoordenador && view === 'coordenador';
-  const showDedicatedProfView = !isCoordenador;
-  const displayReports = React.useMemo(() => {
-    let reports = showCoordView ? allReports : myReports;
-    if (!Array.isArray(reports)) return [];
-    return reports;
-  }, [showCoordView, allReports, myReports]);
+  const unsubActivity = base44.entities.Activity.subscribe(() => {
+    refetchDashboardData();
+    localStorage.setItem('dashboard-update', Date.now().toString());
+  });
 
-  // Aplicar filtros
-  const filteredReports = React.useMemo(() => {
-    let reports = displayReports;
-    if (filters.museu) {
-      reports = reports.filter((r) => r.museu === filters.museu);
+  window.addEventListener('dashboard:update', handleDashboardUpdate);
+  window.addEventListener('storage', handleStorageUpdate);
+
+  scheduleDailyUpdate();
+
+  return () => {
+    if (dailyTimer) {
+      clearTimeout(dailyTimer);
     }
-    if (filters.status) {
-      reports = reports.filter((r) => r.status === filters.status);
-    }
-    return reports;
-  }, [displayReports, filters.museu, filters.status]);
 
-  const recentReports = filteredReports.slice(0, 8);
-  const isLoading = showCoordView ? loadingAll : loadingMy || userLoading;
+    unsubReport();
+    unsubActivity();
 
-  const activityStats = React.useMemo(() => {
-    let totalAtividades = 0;
-    let totalPublico = 0;
-    filteredReports.forEach(r => {
-      const atividades = Array.isArray(r.atividades) ? r.atividades : [];
-      atividades.forEach(a => {
-        const vezes = Number(a.quantas_vezes_ocorreu || 1);
-        const publicoMedio = Number(a.publico_medio || 0);
-        totalAtividades += vezes;
-        totalPublico += vezes * publicoMedio;
-      });
-    });
-    return { totalAtividades, totalPublico };
-  }, [filteredReports]);
-
-  const stats = React.useMemo(() => [
-    { label: 'Relatórios', value: filteredReports.length },
-    { label: 'Pendentes', value: filteredReports.filter(r => r.status !== 'APPROVED').length },
-    { label: 'Aprovados', value: filteredReports.filter(r => r.status === 'APPROVED').length },
-    { label: 'Atividades', value: activityStats.totalAtividades },
-    { label: 'Público', value: activityStats.totalPublico }
-  ], [filteredReports, activityStats]);
-
-  return (
-    <div className="min-h-screen bg-white overflow-y-auto" ref={containerRef} style={{ maxHeight: '100vh' }}>
-      {isPulling && (
-        <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center h-16 bg-gradient-to-b from-gray-50 to-transparent">
-          <div className="text-center">
-            <div className="w-6 h-6 border-2 border-gray-300 border-t-black rounded-full animate-spin mx-auto" 
-              style={{ transform: `scaleY(${Math.min(pullDistance / 80, 1)})` }} 
-            />
-            <p className="text-xs text-black mt-1">
-              {pullDistance < 80 ? 'Puxe para atualizar' : 'Solte para atualizar'}
-            </p>
-          </div>
-        </div>
-      )}
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold text-black tracking-tight">
-              {showSponsorView ? 'Painel Observador' : showCoordView ? 'Painel da Coordenação' : 'Meu Painel'}
-            </h1>
-            <p className="text-gray-500 mt-1 text-sm">
-              {showSponsorView
-                ? 'Visão institucional do projeto — somente leitura'
-                : showCoordView
-                ? 'Visão consolidada de todos os relatórios e atividades'
-                : `Olá, ${currentUser?.full_name || ''}! Gerencie seus relatórios mensais.`}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {!showCoordView && widgetsLoaded && (
-              <WidgetCustomizer
-                widgets={widgets}
-                onToggleWidget={toggleWidget}
-                onReset={resetToDefault}
-              />
-            )}
-            {isCoordenador && (
-              <div className="flex border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                <button
-                  onClick={() => { setView('coordenador'); setShowSponsorView(false); }}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === 'coordenador' && !showSponsorView ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-                >
-                  <LayoutDashboard className="w-3.5 h-3.5" />Coordenação
-                </button>
-                <button
-                  onClick={() => { setView('profissional'); setShowSponsorView(false); }}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${view === 'profissional' && !showSponsorView ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-                >
-                  <User className="w-3.5 h-3.5" />Meus Relatórios
-                </button>
-                <button
-                  onClick={() => setShowSponsorView(!showSponsorView)}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${showSponsorView ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-                >
-                  <Eye className="w-3.5 h-3.5" />Observador
-                </button>
-              </div>
-            )}
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="border-gray-200 shadow-sm hover:bg-gray-50"
-              title="Atualizar dados dos últimos 30 dias"
-            >
-              <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </Button>
-            {!showSponsorView && (
-              <Link to={createPageUrl('ReportEditor')}>
-                <Button className="bg-black hover:bg-gray-800 text-white gap-2 shadow-sm">
-                  <Plus className="w-4 h-4" />Novo Relatório
-                </Button>
-              </Link>
-            )}
-          </div>
-        </div>
-
-        {/* Aviso fixo - Atualizar Dados */}
-         {!dadosCompletos && !showSponsorView && !dismissedDataWarning && (
-           <div className="mb-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm flex items-start gap-3">
-             <AlertTriangle className="w-5 h-5 text-black flex-shrink-0 mt-0.5" />
-             <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-               <div>
-                 <h3 className="text-sm font-semibold text-black">⚠️ Atualize seus dados</h3>
-                 <p className="text-gray-700 text-xs mt-0.5">
-                   Preencha seus dados pessoais e bancários no formulário de cadastro.
-                 </p>
-               </div>
-               <Link to={createPageUrl('MeusDados')} className="flex-shrink-0">
-                 <Button size="sm" className="bg-black hover:bg-gray-900 text-white text-xs font-medium shadow-sm">
-                   Preencher meus dados →
-                 </Button>
-               </Link>
-             </div>
-             <button
-               onClick={() => setDismissedDataWarning(true)}
-               className="flex-shrink-0 text-black hover:text-gray-700 transition-colors ml-1"
-               title="Dispensar aviso"
-             >
-               <X className="w-4 h-4" />
-             </button>
-           </div>
-         )}
-
-        {/* Botão buscar duplicados - só coordenadores */}
-        {isCoordenador && !showSponsorView && (
-          <>
-            <div className="flex justify-end mb-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowDuplicates(true)}
-                className="gap-2 text-xs border-gray-200 text-gray-600 shadow-sm hover:bg-gray-50 hover:text-black"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                Verificar relatórios duplicados
-              </Button>
-            </div>
-            <DuplicateReportsModal open={showDuplicates} onClose={() => setShowDuplicates(false)} />
-          </>
-        )}
-
-        {/* Carrossel de Notícias */}
-        <NewsCarousel />
-
-        {/* Visão Patrocinador */}
-        {showSponsorView ? (
-          <>
-            <ExecutiveIndicators reports={allReports} rubricas={rubricas} />
-            <div className="mt-8">
-              <DashboardPatrocinador />
-            </div>
-          </>
-        ) : showCoordView ? (
-          <>
-            <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
-            <CoordDashboard reports={allReports} isLoading={loadingAll} />
-            <ExecutiveIndicators reports={allReports} rubricas={rubricas} />
-          </>
-        ) : (
-          <div>
-            {/* Filtros */}
-            <AdvancedFilters onFilterChange={setFilters} activeFilters={filters} />
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
-              {stats.map(s => (
-                <div key={s.label} className="p-4 border border-gray-200 rounded-2xl bg-white shadow-sm">
-                  <p className="text-2xl font-semibold text-black">{s.value}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Widgets Dinâmicos */}
-            {widgetsLoaded && (
-              <div className="space-y-8">
-                {widgets.activityMetrics.enabled && (
-                  <div>
-                    <h2 className="text-lg font-medium text-black mb-4">{widgets.activityMetrics.title}</h2>
-                    <ActivityMetricsWidget reports={filteredReports} />
-                  </div>
-                )}
-
-                {widgets.opportunityMetrics.enabled && (
-                  <div>
-                    <h2 className="text-lg font-medium text-black mb-4">{widgets.opportunityMetrics.title}</h2>
-                    <OpportunityMetricsWidget reports={filteredReports} />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Recentes */}
-            {widgets.recentReports.enabled && (
-              <>
-                <div className="flex items-center justify-between mb-4 mt-8">
-                  <h2 className="text-lg font-medium text-black">{widgets.recentReports.title}</h2>
-                  <Link to={createPageUrl('Relatorios')}>
-                    <Button variant="ghost" size="sm" className="text-gray-500 gap-1 hover:text-black hover:bg-gray-50">
-                      Ver todos <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </Link>
-                </div>
-
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {isLoading ? (
-                    <div className="col-span-full text-center py-20 text-gray-400">Carregando...</div>
-                  ) : recentReports.length === 0 ? (
-                    <div className="col-span-full text-center py-16 border border-dashed border-gray-300 rounded-2xl bg-white shadow-sm">
-                      <FileText className="w-12 h-12 text-black mx-auto mb-4 opacity-50" />
-                      <p className="text-black font-medium">Sem dados disponíveis</p>
-                      <p className="text-gray-600 text-sm mt-1">Crie um novo relatório para começar</p>
-                    </div>
-                  ) : (
-                    recentReports.map(report => {
-                      const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.DRAFT;
-                      const StatusIcon = cfg.icon;
-                      const atividades = Array.isArray(report.atividades) ? report.atividades : [];
-                      const nMeta = atividades.filter(a => a.classificacao === 'META').length;
-                      const nRot  = atividades.filter(a => a.classificacao === 'ROTINA').length;
-                      const nExt  = atividades.filter(a => a.classificacao === 'EXTRA').length;
-                      return (
-                        <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block group">
-                          <div className="h-full p-5 rounded-2xl border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all bg-white shadow-sm">
-                            <div className="flex items-center justify-between mb-4">
-                              <Badge className={`${cfg.color} font-normal gap-1`}>
-                                <StatusIcon className="w-3 h-3" />{cfg.label}
-                              </Badge>
-                              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
-                            </div>
-                            <h3 className="font-semibold text-black text-base leading-tight">
-                              {report.mes_referencia} {report.ano}
-                            </h3>
-                            <p className="text-sm text-gray-500 mt-1 truncate">{report.author_name}</p>
-                            <p className="text-xs text-gray-400 mt-0.5">{report.museu}</p>
-                            {(nMeta + nRot + nExt) > 0 && (
-                              <div className="flex gap-1.5 mt-4 flex-wrap">
-                                {nMeta > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-gray-300 text-black font-medium">{nMeta} Meta{nMeta > 1 ? 's' : ''}</span>}
-                                {nRot > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-gray-300 text-black font-medium">{nRot} Rotina{nRot > 1 ? 's' : ''}</span>}
-                                {nExt > 0  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-gray-300 text-black font-medium">{nExt} Extra{nExt > 1 ? 's' : ''}</span>}
-                              </div>
-                            )}
-                          </div>
-                        </Link>
-                      );
-                    })
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export default function Dashboard() {
-  return <RequireAuth><DashboardInner /></RequireAuth>;
-}
+    window.removeEventListener('dashboard:update', handleDashboardUpdate);
+    window.removeEventListener('storage', handleStorageUpdate);
+  };
+}, [refetchDashboardData]);
