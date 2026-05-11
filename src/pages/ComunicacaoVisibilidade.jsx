@@ -182,6 +182,8 @@ export default function ComunicacaoVisibilidade() {
   }, [items]);
 
   async function handleSync() {
+    if (isSyncing) return;
+
     setIsSyncing(true);
     setSyncMessage('Sincronizando arquivos do Google Drive...');
 
@@ -225,9 +227,9 @@ export default function ComunicacaoVisibilidade() {
           </p>
         </div>
 
-        <Button onClick={handleSync} disabled={isSyncing} className="bg-slate-900 hover:bg-slate-800 text-white gap-2">
+        <Button onClick={handleSync} type="button" className="bg-slate-900 hover:bg-slate-800 text-white gap-2">
           <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-          {isSyncing ? 'Sincronizando...' : 'Sincronizar agora'}
+          {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
         </Button>
       </div>
 
