@@ -4,44 +4,100 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    --background: 38 60% 96%;
+    --foreground: 0 0% 8%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    --card-foreground: 0 0% 8%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
+    --popover-foreground: 0 0% 8%;
 
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 24 95% 38%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
+    --secondary: 42 70% 90%;
+    --secondary-foreground: 0 0% 12%;
 
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
+    --muted: 36 45% 92%;
+    --muted-foreground: 0 0% 35%;
 
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
+    --accent: 198 70% 38%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
+    --border: 34 32% 82%;
+    --input: 34 32% 82%;
+    --ring: 24 95% 38%;
 
     --radius: 0.75rem;
   }
 
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background:
+      radial-gradient(circle at top left, rgba(210, 105, 30, 0.18), transparent 32%),
+      radial-gradient(circle at top right, rgba(30, 112, 150, 0.16), transparent 30%),
+      linear-gradient(135deg, #fff7ed 0%, #f7efe4 42%, #eaf4f3 100%);
   }
 
   * {
     border-color: hsl(var(--border));
   }
+}
+
+/* ===================================== */
+/* TEMA MUSEUS BH */
+/* Fundo da página e janelas/cards */
+/* ===================================== */
+
+.min-h-screen.bg-white,
+.bg-background {
+  background:
+    radial-gradient(circle at 12% 10%, rgba(194, 90, 35, 0.16), transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(24, 116, 152, 0.14), transparent 26%),
+    linear-gradient(135deg, #fff7ed 0%, #f6ead8 45%, #eaf4f3 100%) !important;
+}
+
+.bg-white,
+.bg-card,
+.bg-popover {
+  background: rgba(255, 255, 255, 0.86) !important;
+  backdrop-filter: blur(10px);
+}
+
+.rounded-xl.bg-white,
+.rounded-2xl.bg-white,
+.border.bg-white,
+.shadow-sm.bg-white,
+.shadow-md.bg-white {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 250, 243, 0.88)) !important;
+  border-color: rgba(166, 116, 72, 0.25) !important;
+}
+
+.border-gray-100,
+.border-gray-200,
+.border-gray-300 {
+  border-color: rgba(166, 116, 72, 0.28) !important;
+}
+
+.shadow-sm,
+.shadow,
+.shadow-md,
+.shadow-lg,
+.shadow-xl {
+  box-shadow:
+    0 10px 30px rgba(83, 58, 36, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.6) inset !important;
 }
 
 /* ===================================== */
@@ -90,8 +146,6 @@
   color: #f5f5f5 !important;
 }
 
-/* backgrounds */
-
 [data-theme="nuit"] .bg-white,
 [data-theme="nuit"] .bg-background,
 [data-theme="nuit"] .bg-card,
@@ -104,8 +158,6 @@
   background-color: #111111 !important;
 }
 
-/* sidebar */
-
 [data-theme="nuit"] aside,
 [data-theme="nuit"] .sidebar,
 [data-theme="nuit"] .bg-slate-900,
@@ -113,8 +165,6 @@
   background: #000000 !important;
   color: #ffffff !important;
 }
-
-/* textos */
 
 [data-theme="nuit"] .text-black,
 [data-theme="nuit"] .text-gray-900,
@@ -132,8 +182,6 @@
   color: #d4d4d8 !important;
 }
 
-/* bordas */
-
 [data-theme="nuit"] .border,
 [data-theme="nuit"] .border-gray-200,
 [data-theme="nuit"] .border-gray-300,
@@ -142,8 +190,6 @@
   border-color: #27272a !important;
 }
 
-/* inputs */
-
 [data-theme="nuit"] input,
 [data-theme="nuit"] textarea,
 [data-theme="nuit"] select {
@@ -151,8 +197,6 @@
   color: #f5f5f5 !important;
   border-color: #27272a !important;
 }
-
-/* botões */
 
 [data-theme="nuit"] .bg-primary,
 [data-theme="nuit"] .bg-blue-500,
@@ -167,8 +211,6 @@
   background: #3f3f46 !important;
 }
 
-/* cards */
-
 [data-theme="nuit"] .shadow,
 [data-theme="nuit"] .shadow-sm,
 [data-theme="nuit"] .shadow-md,
@@ -178,8 +220,6 @@
     0 0 0 1px rgba(255,255,255,0.04),
     0 10px 30px rgba(0,0,0,0.45) !important;
 }
-
-/* tabelas */
 
 [data-theme="nuit"] table {
   background: #111111 !important;
@@ -191,14 +231,10 @@
   border-color: #27272a !important;
 }
 
-/* hover */
-
 [data-theme="nuit"] .hover\:bg-gray-100:hover,
 [data-theme="nuit"] .hover\:bg-slate-100:hover {
   background: #18181b !important;
 }
-
-/* scroll */
 
 [data-theme="nuit"] ::-webkit-scrollbar {
   width: 10px;
