@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ExternalLink, FolderOpen, RefreshCw, Search, FileText, Image, Newspaper, Megaphone, CalendarDays } from 'lucide-react';
+import { ExternalLink, FolderOpen, RefreshCw, Search, Image, Newspaper, Megaphone, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -8,37 +8,39 @@ import { Card, CardContent } from '@/components/ui/card';
 const DRIVE_FOLDERS = [
   {
     id: '1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
-    name: 'Comunicação e Visibilidade',
+    name: 'Releases e Clipping',
     url: 'https://drive.google.com/drive/folders/1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
     principal: true,
+    defaultCategory: 'RELEASE',
   },
   {
     id: '1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
-    name: 'Acervo complementar 1',
+    name: 'Imagens',
     url: 'https://drive.google.com/drive/folders/1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
     principal: false,
+    defaultCategory: 'FOTOGRAFIA',
   },
   {
     id: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
-    name: 'Acervo complementar 2',
+    name: 'Redes Sociais',
     url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
     principal: false,
+    defaultCategory: 'POSTS',
   },
 ];
 
 const CATEGORIES = [
-  { key: 'RELEASE', label: 'Release', icon: Megaphone },
-  { key: 'FOTOGRAFIA', label: 'Fotografia', icon: Image },
-  { key: 'RELATORIO_COMUNICACAO', label: 'Relatório Comunicação', icon: FileText },
-  { key: 'POSTS', label: 'Posts', icon: Newspaper },
+  { key: 'RELEASE', label: 'Releases', icon: Megaphone },
+  { key: 'FOTOGRAFIA', label: 'Imagens', icon: Image },
   { key: 'CLIPPING', label: 'Clipping', icon: FolderOpen },
+  { key: 'POSTS', label: 'Posts', icon: Newspaper },
 ];
 
 const STATIC_ITEMS = DRIVE_FOLDERS.map((folder) => ({
   id: folder.id,
   name: folder.name,
   month: 'Pastas sincronizadas',
-  category: 'RELATORIO_COMUNICACAO',
+  category: folder.defaultCategory,
   typeLabel: folder.principal ? 'Pasta principal' : 'Pasta complementar',
   createdTime: null,
   modifiedTime: null,
@@ -48,16 +50,15 @@ const STATIC_ITEMS = DRIVE_FOLDERS.map((folder) => ({
   isFolderShortcut: true,
 }));
 
-function inferCategory(name = '', mimeType = '') {
+function inferCategory(name = '', mimeType = '', defaultCategory = 'RELEASE') {
   const text = `${name} ${mimeType}`.toLowerCase();
 
   if (text.includes('clipping') || text.includes('clipagem') || text.includes('imprensa')) return 'CLIPPING';
-  if (text.includes('release') || text.includes('relise') || text.includes('assessoria')) return 'RELEASE';
   if (text.includes('post') || text.includes('instagram') || text.includes('facebook') || text.includes('cards') || text.includes('social')) return 'POSTS';
   if (text.includes('foto') || text.includes('fotografia') || text.includes('imagem') || text.startsWith('image/')) return 'FOTOGRAFIA';
-  if (text.includes('relatorio') || text.includes('relatório') || text.includes('comunicacao') || text.includes('comunicação')) return 'RELATORIO_COMUNICACAO';
+  if (text.includes('release') || text.includes('relise') || text.includes('assessoria')) return 'RELEASE';
 
-  return 'RELATORIO_COMUNICACAO';
+  return defaultCategory;
 }
 
 function formatMonth(value) {
@@ -68,14 +69,14 @@ function formatMonth(value) {
 }
 
 function normalizeDriveFile(file, sourceFolder) {
-  const category = file.category || inferCategory(file.name, file.mimeType);
+  const category = file.category || inferCategory(file.name, file.mimeType, sourceFolder?.defaultCategory);
 
   return {
     id: file.id,
     name: file.name || 'Arquivo sem nome',
     month: file.month || formatMonth(file.createdTime || file.modifiedTime),
     category,
-    typeLabel: CATEGORIES.find((item) => item.key === category)?.label || 'Relatório Comunicação',
+    typeLabel: CATEGORIES.find((item) => item.key === category)?.label || 'Releases',
     createdTime: file.createdTime || null,
     modifiedTime: file.modifiedTime || null,
     mimeType: file.mimeType || '',
@@ -135,7 +136,7 @@ export default function ComunicacaoVisibilidade() {
   const totals = useMemo(() => {
     return CATEGORIES.map((item) => ({
       ...item,
-      total: items.filter((file) => file.category === item.key).length,
+      total: items.filter((file) => !file.isFolderShortcut && file.category === item.key).length,
     }));
   }, [items]);
 
@@ -179,7 +180,7 @@ export default function ComunicacaoVisibilidade() {
           </h1>
 
           <p className="text-sm text-slate-500 mt-1 max-w-3xl">
-            Área de consulta para releases, clipping, fotografias, posts e materiais de comunicação organizados por mês.
+            Área de consulta para releases, clipping, imagens, posts e materiais de redes sociais organizados por mês.
           </p>
         </div>
 
@@ -189,7 +190,7 @@ export default function ComunicacaoVisibilidade() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         {totals.map((item) => {
           const Icon = item.icon;
           return (
