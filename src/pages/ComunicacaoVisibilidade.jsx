@@ -8,70 +8,70 @@ import { Card, CardContent } from '@/components/ui/card';
 const FOLDER_IDS = {
   RELEASES_CLIPPING: '1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
   IMAGENS: '1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
-  REDES_SOCIAIS: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
+  REDES_SOCIAIS: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_'
 };
 
 const DRIVE_FOLDERS = [
-  {
-    id: FOLDER_IDS.RELEASES_CLIPPING,
-    name: 'Releases e Clipping',
-    url: 'https://drive.google.com/drive/folders/1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
-    principal: true,
-    defaultCategory: 'RELEASE',
-  },
-  {
-    id: FOLDER_IDS.IMAGENS,
-    name: 'Imagens',
-    url: 'https://drive.google.com/drive/folders/1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
-    principal: false,
-    defaultCategory: 'FOTOGRAFIA',
-  },
-  {
-    id: FOLDER_IDS.REDES_SOCIAIS,
-    name: 'Redes Sociais',
-    url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
-    principal: false,
-    defaultCategory: 'POSTS',
-  },
-];
+{
+  id: FOLDER_IDS.RELEASES_CLIPPING,
+  name: 'Releases e Clipping',
+  url: 'https://drive.google.com/drive/folders/1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
+  principal: true,
+  defaultCategory: 'RELEASE'
+},
+{
+  id: FOLDER_IDS.IMAGENS,
+  name: 'Imagens',
+  url: 'https://drive.google.com/drive/folders/1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
+  principal: false,
+  defaultCategory: 'FOTOGRAFIA'
+},
+{
+  id: FOLDER_IDS.REDES_SOCIAIS,
+  name: 'Redes Sociais',
+  url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
+  principal: false,
+  defaultCategory: 'POSTS'
+}];
+
 
 const SUMMARY_CARDS = [
-  {
-    key: 'RELEASES',
-    label: 'Releases',
-    icon: Megaphone,
-    folderId: FOLDER_IDS.RELEASES_CLIPPING,
-    categories: ['RELEASE'],
-  },
-  {
-    key: 'IMAGENS',
-    label: 'Imagens',
-    icon: Image,
-    folderId: FOLDER_IDS.IMAGENS,
-    categories: ['FOTOGRAFIA'],
-  },
-  {
-    key: 'CLIPPING',
-    label: 'Clipping',
-    icon: FolderOpen,
-    folderId: FOLDER_IDS.RELEASES_CLIPPING,
-    categories: ['CLIPPING'],
-  },
-  {
-    key: 'POSTS',
-    label: 'Posts',
-    icon: Newspaper,
-    folderId: FOLDER_IDS.REDES_SOCIAIS,
-    categories: ['POSTS'],
-  },
-];
+{
+  key: 'RELEASES',
+  label: 'Releases',
+  icon: Megaphone,
+  folderId: FOLDER_IDS.RELEASES_CLIPPING,
+  categories: ['RELEASE']
+},
+{
+  key: 'IMAGENS',
+  label: 'Imagens',
+  icon: Image,
+  folderId: FOLDER_IDS.IMAGENS,
+  categories: ['FOTOGRAFIA']
+},
+{
+  key: 'CLIPPING',
+  label: 'Clipping',
+  icon: FolderOpen,
+  folderId: FOLDER_IDS.RELEASES_CLIPPING,
+  categories: ['CLIPPING']
+},
+{
+  key: 'POSTS',
+  label: 'Posts',
+  icon: Newspaper,
+  folderId: FOLDER_IDS.REDES_SOCIAIS,
+  categories: ['POSTS']
+}];
+
 
 const CATEGORIES = [
-  { key: 'RELEASE', label: 'Releases', icon: Megaphone },
-  { key: 'FOTOGRAFIA', label: 'Imagens', icon: Image },
-  { key: 'CLIPPING', label: 'Clipping', icon: FolderOpen },
-  { key: 'POSTS', label: 'Posts', icon: Newspaper },
-];
+{ key: 'RELEASE', label: 'Releases', icon: Megaphone },
+{ key: 'FOTOGRAFIA', label: 'Imagens', icon: Image },
+{ key: 'CLIPPING', label: 'Clipping', icon: FolderOpen },
+{ key: 'POSTS', label: 'Posts', icon: Newspaper }];
+
 
 const STATIC_ITEMS = DRIVE_FOLDERS.map((folder) => ({
   id: folder.id,
@@ -84,7 +84,7 @@ const STATIC_ITEMS = DRIVE_FOLDERS.map((folder) => ({
   url: folder.url,
   sourceFolderName: folder.name,
   sourceFolderId: folder.id,
-  isFolderShortcut: true,
+  isFolderShortcut: true
 }));
 
 function inferCategory(name = '', mimeType = '', defaultCategory = 'RELEASE') {
@@ -120,7 +120,7 @@ function normalizeDriveFile(file, sourceFolder) {
     url: file.webViewLink || file.url || `https://drive.google.com/file/d/${file.id}/view`,
     sourceFolderName: sourceFolder?.name || file.sourceFolderName || 'Google Drive',
     sourceFolderId: sourceFolder?.id || file.sourceFolderId || '',
-    isFolderShortcut: false,
+    isFolderShortcut: false
   };
 }
 
@@ -151,11 +151,11 @@ export default function ComunicacaoVisibilidade() {
 
     return items.filter((item) => {
       const matchesCategory = category === 'TODOS' || item.category === category;
-      const matchesQuery = !normalizedQuery || [item.name, item.typeLabel, item.month, item.sourceFolderName]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(normalizedQuery);
+      const matchesQuery = !normalizedQuery || [item.name, item.typeLabel, item.month, item.sourceFolderName].
+      filter(Boolean).
+      join(' ').
+      toLowerCase().
+      includes(normalizedQuery);
 
       return matchesCategory && matchesQuery;
     });
@@ -173,11 +173,11 @@ export default function ComunicacaoVisibilidade() {
   const totals = useMemo(() => {
     return SUMMARY_CARDS.map((card) => ({
       ...card,
-      total: items.filter((file) => (
-        !file.isFolderShortcut &&
-        file.sourceFolderId === card.folderId &&
-        card.categories.includes(file.category)
-      )).length,
+      total: items.filter((file) =>
+      !file.isFolderShortcut &&
+      file.sourceFolderId === card.folderId &&
+      card.categories.includes(file.category)
+      ).length
     }));
   }, [items]);
 
@@ -249,13 +249,13 @@ export default function ComunicacaoVisibilidade() {
                   </div>
                 </div>
               </CardContent>
-            </Card>
-          );
+            </Card>);
+
         })}
       </div>
 
       <Card className="border-slate-200 bg-white">
-        <CardContent className="p-4 space-y-4">
+        <CardContent className="p-4 space-y-4 hidden">
           <div className="flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -263,19 +263,19 @@ export default function ComunicacaoVisibilidade() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Buscar por nome, mês, tipo ou pasta..."
-                className="pl-9"
-              />
+                className="pl-9" />
+              
             </div>
 
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
-              className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700"
-            >
+              className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700">
+              
               <option value="TODOS">Todos os tipos</option>
-              {CATEGORIES.map((item) => (
-                <option key={item.key} value={item.key}>{item.label}</option>
-              ))}
+              {CATEGORIES.map((item) =>
+              <option key={item.key} value={item.key}>{item.label}</option>
+              )}
             </select>
           </div>
 
@@ -290,29 +290,29 @@ export default function ComunicacaoVisibilidade() {
       </Card>
 
       <div className="space-y-6">
-        {Object.keys(groupedByMonth).length === 0 ? (
-          <Card className="border-dashed border-slate-300 bg-white">
+        {Object.keys(groupedByMonth).length === 0 ?
+        <Card className="border-dashed border-slate-300 bg-white">
             <CardContent className="p-8 text-center text-sm text-slate-500">
               Nenhum arquivo encontrado para os filtros selecionados.
             </CardContent>
-          </Card>
-        ) : (
-          Object.entries(groupedByMonth).map(([month, files]) => (
-            <section key={month} className="space-y-3">
+          </Card> :
+
+        Object.entries(groupedByMonth).map(([month, files]) =>
+        <section key={month} className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-slate-900 capitalize">{month}</h2>
                 <Badge variant="outline" className="bg-white">{files.length} item(ns)</Badge>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {files.map((file) => (
-                  <a
-                    key={`${file.sourceFolderId}-${file.id}`}
-                    href={file.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block"
-                  >
+                {files.map((file) =>
+            <a
+              key={`${file.sourceFolderId}-${file.id}`}
+              href={file.url}
+              target="_blank"
+              rel="noreferrer"
+              className="block">
+              
                     <Card className="h-full border-slate-200 bg-white hover:border-slate-400 hover:shadow-sm transition-all">
                       <CardContent className="p-4 space-y-3">
                         <div className="flex items-start justify-between gap-3">
@@ -331,12 +331,12 @@ export default function ComunicacaoVisibilidade() {
                       </CardContent>
                     </Card>
                   </a>
-                ))}
+            )}
               </div>
             </section>
-          ))
-        )}
+        )
+        }
       </div>
-    </div>
-  );
+    </div>);
+
 }
