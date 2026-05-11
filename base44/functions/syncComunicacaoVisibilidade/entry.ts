@@ -1,36 +1,41 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+const CONNECTOR_NAMES = [
+  'googledrive comunicacao',
+  'googledrive_comunicacao',
+  'googledrive',
+];
+
 const DRIVE_FOLDERS = [
   {
     id: '1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
-    name: 'Comunicação e Visibilidade',
+    name: 'Releases e Clipping',
     url: 'https://drive.google.com/drive/folders/1ORE5fdfWe3WIhpVouB1Et6VLN2kVXFr8',
-    principal: true,
+    defaultCategory: 'RELEASE',
   },
   {
     id: '1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
-    name: 'Acervo complementar 1',
+    name: 'Imagens',
     url: 'https://drive.google.com/drive/folders/1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J',
-    principal: false,
+    defaultCategory: 'FOTOGRAFIA',
   },
   {
     id: '1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
-    name: 'Acervo complementar 2',
+    name: 'Redes Sociais',
     url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
-    principal: false,
+    defaultCategory: 'POSTS',
   },
 ];
 
-function inferCategory(name = '', mimeType = '') {
+function inferCategory(name = '', mimeType = '', defaultCategory = 'RELEASE') {
   const text = `${name} ${mimeType}`.toLowerCase();
 
   if (text.includes('clipping') || text.includes('clipagem') || text.includes('imprensa')) return 'CLIPPING';
-  if (text.includes('release') || text.includes('relise') || text.includes('assessoria')) return 'RELEASE';
   if (text.includes('post') || text.includes('instagram') || text.includes('facebook') || text.includes('card') || text.includes('social')) return 'POSTS';
   if (text.includes('foto') || text.includes('fotografia') || text.includes('imagem') || mimeType.startsWith('image/')) return 'FOTOGRAFIA';
-  if (text.includes('relatorio') || text.includes('relatório') || text.includes('comunicacao') || text.includes('comunicação')) return 'RELATORIO_COMUNICACAO';
+  if (text.includes('release') || text.includes('relise') || text.includes('assessoria')) return 'RELEASE';
 
-  return 'RELATORIO_COMUNICACAO';
+  return defaultCategory;
 }
 
 function formatMonth(value: string | null | undefined) {
@@ -44,6 +49,27 @@ function getFileUrl(file: any) {
   if (file.webViewLink) return file.webViewLink;
   if (file.id) return `https://drive.google.com/file/d/${file.id}/view`;
   return '';
+}
+
+async function getGoogleDriveAccessToken(base44: any) {
+  const errors: string[] = [];
+
+  for (const connectorName of CONNECTOR_NAMES) {
+    try {
+      const connection = await base44.asServiceRole.connectors.getConnection(connectorName);
+      const accessToken = connection?.accessToken;
+
+      if (accessToken) {
+        return { accessToken, connectorName };
+      }
+
+      errors.push(`${connectorName}: sem accessToken`);
+    } catch (error) {
+      errors.push(`${connectorName}: ${error?.message || 'indisponível'}`);
+    }
+  }
+
+  throw new Error(`Conexão Google Drive não configurada ou sem token. Tentativas: ${errors.join(' | ')}`);
 }
 
 async function listFolderFiles(accessToken: string, folder: any) {
@@ -77,26 +103,38 @@ async function listFolderFiles(accessToken: string, folder: any) {
 }
 
 function normalizeAsset(file: any, folder: any) {
-  const category = inferCategory(file.name, file.mimeType);
+  const category = inferCategory(file.name, file.mimeType, folder.defaultCategory);
   const createdTime = file.createdTime || file.modifiedTime || null;
 
   return {
+    id: file.id,
     drive_file_id: file.id,
     drive_folder_id: folder.id,
     drive_folder_name: folder.name,
+    sourceFolderId: folder.id,
+    sourceFolderName: folder.name,
+    name: file.name || 'Arquivo sem nome',
     nome: file.name || 'Arquivo sem nome',
+    category,
     tipo: category,
+    typeLabel: category === 'FOTOGRAFIA' ? 'Imagens' : category === 'POSTS' ? 'Posts' : category === 'CLIPPING' ? 'Clipping' : 'Releases',
+    month: formatMonth(createdTime),
     mes: formatMonth(createdTime),
     ano: createdTime ? new Date(createdTime).getFullYear() : null,
+    mimeType: file.mimeType || '',
     mime_type: file.mimeType || '',
     tamanho_bytes: file.size ? Number(file.size) : null,
+    url: getFileUrl(file),
     link: getFileUrl(file),
     thumbnail: file.thumbnailLink || '',
+    createdTime: file.createdTime || null,
+    modifiedTime: file.modifiedTime || null,
     criado_em_drive: file.createdTime || null,
     atualizado_em_drive: file.modifiedTime || null,
     sincronizado_em: new Date().toISOString(),
     origem: 'GOOGLE_DRIVE_COMUNICACAO',
     ativo: true,
+    isFolderShortcut: false,
   };
 }
 
@@ -148,12 +186,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const connection = await base44.asServiceRole.connectors.getConnection('googledrive');
-    const accessToken = connection?.accessToken;
-
-    if (!accessToken) {
-      return Response.json({ error: 'Conexão Google Drive não configurada.' }, { status: 400 });
-    }
+    const { accessToken, connectorName } = await getGoogleDriveAccessToken(base44);
 
     const filesByFolder = await Promise.all(DRIVE_FOLDERS.map((folder) => listFolderFiles(accessToken, folder)));
     const normalizedAssets = filesByFolder.flat().map(({ file, folder }) => normalizeAsset(file, folder));
@@ -165,15 +198,16 @@ Deno.serve(async (req) => {
 
     try {
       await base44.asServiceRole.entities.AuditLog.create({
-        action: 'SYNC_COMUNICACAO_VISIBILIDADE',
+        action: 'SYNC_COMUNICACAO',
         actor_email: user.email || 'sistema',
         actor_name: user.full_name || user.email || 'Sistema',
-        details: `Sincronização Comunicação visibilidade: ${dedupedAssets.length} arquivo(s), ${saveResult.saved} salvo(s), ${saveResult.skipped} ignorado(s).`,
+        details: `Sincronização Comunicação: ${dedupedAssets.length} arquivo(s), ${saveResult.saved} salvo(s), ${saveResult.skipped} ignorado(s).`,
         metadata: {
           total_files: dedupedAssets.length,
           saved: saveResult.saved,
           skipped: saveResult.skipped,
           cache_available: saveResult.cacheAvailable,
+          connector_name: connectorName,
           folders: DRIVE_FOLDERS.map((folder) => folder.id),
         },
       });
@@ -184,6 +218,7 @@ Deno.serve(async (req) => {
     return Response.json({
       success: true,
       mode: saveResult.cacheAvailable ? 'drive-cache' : 'drive-direct',
+      connector_name: connectorName,
       files: dedupedAssets,
       total_files: dedupedAssets.length,
       saved: saveResult.saved,
@@ -196,7 +231,7 @@ Deno.serve(async (req) => {
     console.error('syncComunicacaoVisibilidade error:', error);
     return Response.json({
       success: false,
-      error: error?.message || 'Erro inesperado ao sincronizar Comunicação visibilidade.',
+      error: error?.message || 'Erro inesperado ao sincronizar Comunicação.',
     }, { status: 500 });
   }
 });
