@@ -201,14 +201,14 @@ function groupByMonth(items) {
 function KpiCard({ label, value, helper, icon: Icon, dark = false }) {
   return (
     <Card className={`rounded-2xl shadow-sm ${dark ? 'bg-black border-black text-white' : 'bg-white border-gray-200 text-black'}`}>
-      <CardContent className="p-4 hidden">
-        <div className="flex items-center gap-2 mb-3">
-          <Icon className={`w-4 h-4 ${dark ? 'text-white' : 'text-gray-500'}`} />
-          <p className={`text-[11px] font-semibold uppercase tracking-wide ${dark ? 'text-gray-300' : 'text-gray-500'}`}>{label}</p>
-        </div>
-        <p className={`text-3xl font-bold ${dark ? 'text-white' : 'text-black'}`}>{value}</p>
-        {helper && <p className={`text-xs mt-1 ${dark ? 'text-gray-300' : 'text-gray-500'}`}>{helper}</p>}
-      </CardContent>
+      
+
+
+
+
+
+
+      
     </Card>);
 
 }
