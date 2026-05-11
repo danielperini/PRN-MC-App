@@ -190,12 +190,12 @@ function DocLink({ doc }) {
   const Icon = cfg.Icon;
   const href = url(doc);
   return (
-    <span className="flex min-w-0 items-center gap-1.5 rounded-lg border border-gray-100 bg-gray-50 px-2 py-1">
-      <Icon className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
-      <span className={`flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${cfg.cls}`}>{t}</span>
+    <span className="inline-flex h-7 max-w-full min-w-0 items-center gap-1 rounded-md border border-gray-100 bg-gray-50 px-1.5">
+      <Icon className="h-3 w-3 flex-shrink-0 text-gray-400" />
+      <span className={`flex-shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold leading-none ${cfg.cls}`}>{t}</span>
       <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-gray-700" title={name(doc)}>{name(doc)}</span>
-      {href && <a href={href} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-blue-700"><ExternalLink className="h-3.5 w-3.5" /></a>}
-      {href && <a href={href} download className="text-gray-400 hover:text-gray-700"><Download className="h-3.5 w-3.5" /></a>}
+      {href && <a href={href} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-gray-400 hover:text-blue-700"><ExternalLink className="h-3 w-3" /></a>}
+      {href && <a href={href} download className="flex-shrink-0 text-gray-400 hover:text-gray-700"><Download className="h-3 w-3" /></a>}
     </span>
   );
 }
@@ -259,8 +259,8 @@ export default function GestaoDocumentalDedupe() {
   }
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-3 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <FileText className="h-4 w-4 text-gray-500" />
           <span className="font-semibold text-gray-800">Documentos</span>
@@ -268,21 +268,59 @@ export default function GestaoDocumentalDedupe() {
           <span className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-500">{dupCount} repetidos</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant={onlyDup ? 'default' : 'outline'} size="sm" onClick={() => setOnlyDup((v) => !v)} className="gap-1.5"><Copy className="h-3.5 w-3.5" />{onlyDup ? 'Ver todos' : 'Pesquisar repetidos'}</Button>
-          <Button type="button" variant="outline" size="sm" onClick={removeDup} className="gap-1.5 text-red-700 hover:text-red-800"><Trash2 className="h-3.5 w-3.5" />Apagar repetidos</Button>
-          <div className="relative w-72 max-w-full"><Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" /><Input className="h-8 pl-8 text-sm" placeholder="Buscar arquivo, fornecedor, NF..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+          <Button type="button" variant={onlyDup ? 'default' : 'outline'} size="sm" onClick={() => setOnlyDup((v) => !v)} className="h-8 gap-1.5 px-2 text-xs"><Copy className="h-3.5 w-3.5" />{onlyDup ? 'Ver todos' : 'Repetidos'}</Button>
+          <Button type="button" variant="outline" size="sm" onClick={removeDup} className="h-8 gap-1.5 px-2 text-xs text-red-700 hover:text-red-800"><Trash2 className="h-3.5 w-3.5" />Apagar</Button>
+          <div className="relative w-64 max-w-full"><Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" /><Input className="h-8 pl-8 text-xs" placeholder="Buscar documento..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
         </div>
       </div>
-      {isLoading ? <div className="py-12 text-center text-sm text-gray-400">Carregando documentos...</div> : (
-        <div className="p-4">
+      {isLoading ? <div className="py-10 text-center text-sm text-gray-400">Carregando documentos...</div> : (
+        <div className="p-3">
           {groups.map((g) => (
-            <section key={g.month} className="mb-8 last:mb-0">
-              <div className="mb-3 border-b border-gray-100 pb-2"><h3 className="text-base font-semibold capitalize text-black">{g.label}</h3><p className="text-xs text-gray-500">{g.rows.length} linhas consolidadas</p></div>
-              <div className="w-full overflow-hidden rounded-xl border border-gray-200">
-                <table className="w-full table-fixed border-collapse text-xs">
-                  <colgroup><col className="w-[90px]" /><col className="w-[24%]" /><col className="w-[18%]" /><col className="w-[82px]" /><col /><col className="w-[96px]" /></colgroup>
-                  <thead><tr className="border-b border-gray-200 bg-gray-50 text-left"><th className="px-2 py-2 font-medium text-gray-600">Tipo</th><th className="px-2 py-2 font-medium text-gray-600">Referência</th><th className="px-2 py-2 font-medium text-gray-600">Fornecedor</th><th className="px-2 py-2 font-medium text-gray-600">Data</th><th className="px-2 py-2 font-medium text-gray-600">Arquivos vinculados</th><th className="px-2 py-2 text-center font-medium text-gray-600">Ações</th></tr></thead>
-                  <tbody>{g.rows.map((r, i) => <tr key={r.key} className={`border-b border-gray-100 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}><td className="px-2 py-2 align-top"><span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${r.tipo === 'Sem par' ? 'border border-gray-200 bg-white text-gray-700' : 'bg-black text-white'}`}>{r.tipo}</span></td><td className="px-2 py-2 align-top"><p className="truncate font-medium text-gray-900" title={r.ref}>{r.ref}</p><p className="truncate text-[11px] text-gray-400">{r.categoria}</p></td><td className="px-2 py-2 align-top text-gray-600"><p className="truncate" title={r.fornecedor}>{r.fornecedor}</p></td><td className="px-2 py-2 align-top text-[11px] tabular-nums text-gray-500">{dataFmt(r.date)}</td><td className="px-2 py-2 align-top"><div className="grid min-w-0 grid-cols-1 gap-1 lg:grid-cols-2">{r.docs.map((d) => <DocLink key={d.id} doc={d} />)}</div></td><td className="px-2 py-2 align-top"><div className="flex items-center justify-center gap-1">{r.docs.map((d) => <button key={d.id} type="button" onClick={() => remove(d)} title={`Deletar ${name(d)}`} className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>)}</div></td></tr>)}</tbody>
+            <section key={g.month} className="mb-6 last:mb-0">
+              <div className="mb-2 flex items-end justify-between border-b border-gray-100 pb-2">
+                <div><h3 className="text-sm font-semibold capitalize text-black">{g.label}</h3><p className="text-[11px] text-gray-500">{g.rows.length} linhas consolidadas</p></div>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="w-full min-w-[760px] table-fixed border-collapse text-xs">
+                  <colgroup>
+                    <col className="w-[9%]" />
+                    <col className="w-[24%]" />
+                    <col className="w-[17%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[34%]" />
+                    <col className="w-[8%]" />
+                  </colgroup>
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50 text-left">
+                      <th className="px-2 py-2 font-medium text-gray-600">Tipo</th>
+                      <th className="px-2 py-2 font-medium text-gray-600">Referência</th>
+                      <th className="px-2 py-2 font-medium text-gray-600">Fornecedor</th>
+                      <th className="px-2 py-2 font-medium text-gray-600">Data</th>
+                      <th className="px-2 py-2 font-medium text-gray-600">Arquivos</th>
+                      <th className="px-2 py-2 text-center font-medium text-gray-600">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {g.rows.map((r, i) => (
+                      <tr key={r.key} className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
+                        <td className="px-2 py-2 align-top">
+                          <span className={`inline-block max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-medium ${r.tipo === 'Sem par' ? 'border border-gray-200 bg-white text-gray-700' : 'bg-black text-white'}`}>{r.tipo}</span>
+                        </td>
+                        <td className="px-2 py-2 align-top">
+                          <p className="line-clamp-2 font-medium leading-snug text-gray-900" title={r.ref}>{r.ref}</p>
+                          <p className="truncate text-[11px] text-gray-400">{r.categoria}</p>
+                        </td>
+                        <td className="px-2 py-2 align-top text-gray-600"><p className="line-clamp-2 leading-snug" title={r.fornecedor}>{r.fornecedor}</p></td>
+                        <td className="px-2 py-2 align-top text-[11px] tabular-nums text-gray-500">{dataFmt(r.date)}</td>
+                        <td className="px-2 py-2 align-top">
+                          <div className="grid min-w-0 grid-cols-1 gap-1 xl:grid-cols-2">{r.docs.map((d) => <DocLink key={d.id} doc={d} />)}</div>
+                        </td>
+                        <td className="px-2 py-2 align-top">
+                          <div className="flex items-center justify-center gap-1">{r.docs.map((d) => <button key={d.id} type="button" onClick={() => remove(d)} title={`Deletar ${name(d)}`} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>)}</div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             </section>
