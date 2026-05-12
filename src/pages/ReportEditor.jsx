@@ -80,6 +80,62 @@ function createEmptyReportPayload(currentUser = null) {
   };
 }
 
+function hasText(value) {
+  return String(value || '').trim().length > 0;
+}
+
+function isEmptyDraftReport(report) {
+  if (!report || report.status !== 'DRAFT') return false;
+
+  const hasContent =
+    hasText(report.numero_protocolo) ||
+    hasText(report.mes_referencia) ||
+    hasText(report.resumo_periodo) ||
+    hasText(report.resumo_executivo) ||
+    hasText(report.avaliacao_pontos_positivos) ||
+    hasText(report.avaliacao_desafios) ||
+    hasText(report.avaliacao_sugestoes) ||
+    hasText(report.comentarios_gerais) ||
+    hasText(report.comentarios_coordenacao) ||
+    hasText(report.historico_observacoes) ||
+    hasText(report.oportunidades_resumo) ||
+    (Array.isArray(report.atividades) && report.atividades.length > 0) ||
+    (Array.isArray(report.oportunidades) && report.oportunidades.length > 0) ||
+    (Array.isArray(report.fotos) && report.fotos.length > 0) ||
+    (Array.isArray(report.depoimentos) && report.depoimentos.length > 0) ||
+    (Array.isArray(report.attachments) && report.attachments.length > 0);
+
+  return !hasContent;
+}
+
+async function findReusableEmptyDraft(currentUser) {
+  const email = currentUser?.email;
+  if (!email) return null;
+
+  try {
+    const drafts = await base44.entities.Report.filter(
+      { created_by: email, status: 'DRAFT' },
+      '-created_date',
+      30
+    );
+
+    const emptyDrafts = (drafts || []).filter(isEmptyDraftReport);
+    if (emptyDrafts.length === 0) return null;
+
+    const [draftToUse, ...duplicates] = emptyDrafts;
+
+    // Limpeza conservadora: remove apenas rascunhos realmente vazios do mesmo usuário.
+    await Promise.allSettled(
+      duplicates.map((draft) => base44.entities.Report.delete(draft.id))
+    );
+
+    return draftToUse;
+  } catch (error) {
+    console.warn('Não foi possível verificar rascunhos reutilizáveis:', error);
+    return null;
+  }
+}
+
 export default function ReportEditor() {
   const navigate = useNavigate();
   const [report, setReport] = useState(null);
@@ -106,6 +162,15 @@ export default function ReportEditor() {
         }
 
         const currentUser = await base44.auth.me().catch(() => null);
+        const reusableDraft = await findReusableEmptyDraft(currentUser);
+
+        if (reusableDraft?.id) {
+          if (!isMounted) return;
+          setReport(reusableDraft);
+          window.history.replaceState({}, '', `/ReportEditor?id=${reusableDraft.id}`);
+          return;
+        }
+
         const payload = createEmptyReportPayload(currentUser);
         const novoRelatorio = await base44.entities.Report.create(payload);
 
