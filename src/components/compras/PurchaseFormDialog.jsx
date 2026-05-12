@@ -8,7 +8,6 @@ import { base44 } from '@/api/base44Client'
 import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload } from 'lucide-react'
 import { useSmartToast } from '@/lib/useSmartToast'
 
-
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Publicações','Geral']
 const CATEGORIAS = [
   'Serviços (equipe/coordenação)',
@@ -28,6 +27,18 @@ const STATUS_APROVADOS = new Set(['APROVADO','APROVADO_COORD','APROVADO_ADMIN','
 function toNumber(v) {
   const n = Number(v ?? 0)
   return Number.isFinite(n) ? n : 0
+}
+
+function getFileExtension(fileName = '') {
+  const parts = String(fileName || '').split('.')
+  return parts.length > 1 ? parts.pop().toLowerCase() : ''
+}
+
+function getDocumentKind(fileName = '') {
+  const ext = getFileExtension(fileName)
+  if (ext === 'xml') return 'xml_nf'
+  if (ext === 'pdf') return 'pdf_nf'
+  return 'proposta'
 }
 
 export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSuccess }) {
@@ -51,7 +62,15 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     meio_pagamento: '',
     detalhe_pagamento: '',
     observacoes: '',
-    link_proposta: ''
+    link_proposta: '',
+    file_url: '',
+    arquivo_url: '',
+    nota_fiscal_url: '',
+    orcamento_url: '',
+    nf_pdf_url: '',
+    documento_url: '',
+    arquivo_nome: '',
+    arquivo_tipo: ''
   }
 
   const [form, setForm] = useState(emptyForm)
@@ -72,9 +91,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   const BLOCKED_STATUSES = new Set(['CANCELADO', 'RECUSADO'])
   const canApproveOrReturn = isCoordenador && isEditing && !isApproved && !BLOCKED_STATUSES.has(statusKey)
 
-  // Carregar rubricas e metas
   useEffect(() => {
-    base44.entities.Rubrica.list('ordem_exibicao', 200)
+    base44.entities.Rubrica.list('ordem_exibicao', 500)
       .then(d => setRubricas((d || []).filter(r => r?.ativo !== false)))
       .catch(() => {})
 
@@ -86,9 +104,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       .catch(() => setMetas([]))
   }, [])
 
-  // Carregar prefill
   useEffect(() => {
     if (prefill) {
+      const existingUrl = prefill.file_url || prefill.arquivo_url || prefill.nota_fiscal_url || prefill.orcamento_url || prefill.nf_pdf_url || prefill.documento_url || prefill.comprovante_url || prefill.link_proposta || ''
       setForm({
         descricao_item: prefill.descricao_item || '',
         fornecedor_nome: prefill.fornecedor_nome || prefill.nf_emitente_nome || '',
@@ -104,7 +122,15 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         meio_pagamento: prefill.meio_pagamento || '',
         detalhe_pagamento: prefill.detalhe_pagamento || '',
         observacoes: prefill.observacoes || '',
-        link_proposta: prefill.link_proposta || ''
+        link_proposta: prefill.link_proposta || existingUrl,
+        file_url: prefill.file_url || existingUrl,
+        arquivo_url: prefill.arquivo_url || existingUrl,
+        nota_fiscal_url: prefill.nota_fiscal_url || existingUrl,
+        orcamento_url: prefill.orcamento_url || existingUrl,
+        nf_pdf_url: prefill.nf_pdf_url || existingUrl,
+        documento_url: prefill.documento_url || existingUrl,
+        arquivo_nome: prefill.arquivo_nome || prefill.file_name || '',
+        arquivo_tipo: prefill.arquivo_tipo || ''
       })
     } else {
       setForm(emptyForm)
@@ -118,27 +144,94 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     setForm(f => ({ ...f, [key]: value }))
   }
 
+  function buildPayload(statusOverride = null) {
+    const fileUrl = attachedFile?.url || form.file_url || form.arquivo_url || form.nota_fiscal_url || form.orcamento_url || form.link_proposta || ''
+    const fileName = attachedFile?.name || form.arquivo_nome || ''
+    const fileKind = attachedFile?.kind || form.arquivo_tipo || getDocumentKind(fileName)
+
+    return {
+      ...form,
+      valor_solicitado: toNumber(form.valor_solicitado),
+      valor: toNumber(form.valor_solicitado),
+      fornecedor_cpf_cnpj: form.fornecedor_cnpj,
+      status: statusOverride || form.status || 'SOLICITADO',
+      file_url: fileUrl,
+      arquivo_url: fileUrl,
+      documento_url: fileUrl,
+      nota_fiscal_url: fileUrl,
+      nf_pdf_url: fileKind === 'pdf_nf' ? fileUrl : form.nf_pdf_url || fileUrl,
+      orcamento_url: fileUrl,
+      link_proposta: form.link_proposta || fileUrl,
+      arquivo_nome: fileName,
+      arquivo_tipo: fileKind,
+      tipo_origem: form.tipo_origem || 'COMPRA_DIRETA',
+      origem: form.origem || 'COMPRAS_NOVA_SOLICITACAO'
+    }
+  }
+
+  async function createAttachmentForPurchase(purchase, payload) {
+    const fileUrl = payload.file_url || payload.arquivo_url || payload.nota_fiscal_url || payload.orcamento_url
+    if (!purchase?.id || !fileUrl) return
+
+    try {
+      await base44.entities.Attachment.create({
+        file_url: fileUrl,
+        url: fileUrl,
+        file_name: payload.arquivo_nome || attachedFile?.name || 'arquivo_solicitacao',
+        name: payload.arquivo_nome || attachedFile?.name || 'arquivo_solicitacao',
+        description: 'Arquivo anexado em nova solicitação de compras',
+        purchase_id: purchase.id,
+        purchase_request_id: purchase.id,
+        solicitacao_id: purchase.id,
+        nf_categoria: 'nota_fiscal',
+        nf_tipo_documento: payload.arquivo_tipo || getDocumentKind(payload.arquivo_nome),
+        uploadado_por: currentUser?.email,
+        created_by: currentUser?.email
+      })
+    } catch (error) {
+      console.warn('Não foi possível criar Attachment vinculado à solicitação:', error)
+    }
+  }
+
+  async function tryNotifyPurchaseSubmitted(purchase) {
+    if (!purchase?.id) return
+    try {
+      await base44.functions.invoke('notifyPurchaseSubmitted', { purchaseId: purchase.id })
+    } catch (_) {}
+    try {
+      await base44.functions.invoke('notifyPurchaseForApproval', { purchaseId: purchase.id })
+    } catch (_) {}
+    try {
+      await base44.functions.invoke('notifyCoordinatorPurchaseSubmitted', { purchaseId: purchase.id })
+    } catch (_) {}
+  }
+
   async function handleSave() {
     if (!form.descricao_item?.trim()) { smartToast.error('Informe a descrição do item.'); return }
     if (!form.valor_solicitado) { smartToast.error('Informe o valor.'); return }
 
     setSaving(true)
     try {
-      const payload = {
-        ...form,
-        valor_solicitado: toNumber(form.valor_solicitado)
-      }
-
       if (isEditing) {
+        const payload = buildPayload(prefill?.status || 'SOLICITADO')
         await base44.entities.PurchaseRequest.update(prefill.id, payload)
+        await createAttachmentForPurchase({ id: prefill.id }, payload)
         smartToast.success('Solicitação atualizada.')
       } else {
-        await base44.entities.PurchaseRequest.create({
+        const payload = buildPayload('SOLICITADO')
+        const created = await base44.entities.PurchaseRequest.create({
           ...payload,
-          status: 'RASCUNHO',
+          status: 'SOLICITADO',
+          data_solicitacao: new Date().toISOString(),
+          solicitante_nome: currentUser?.full_name || currentUser?.name || currentUser?.email || '',
+          solicitante_email: currentUser?.email || '',
+          requester_email: currentUser?.email || '',
+          user_email: currentUser?.email || '',
           created_by: currentUser?.email
         })
-        smartToast.success('Solicitação criada.')
+        await createAttachmentForPurchase(created, payload)
+        await tryNotifyPurchaseSubmitted(created)
+        smartToast.success('Solicitação criada e encaminhada para aprovação.')
       }
       onSuccess?.()
     } catch (err) {
@@ -155,16 +248,12 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     }
     setApproving(true)
     try {
-      // Salvar edições primeiro
       await base44.entities.PurchaseRequest.update(prefill.id, {
-        ...form,
-        valor_solicitado: toNumber(form.valor_solicitado),
-        status: 'APROVADO_COORD',
+        ...buildPayload('APROVADO_COORD'),
         aprov_coord_nome: currentUser?.full_name || currentUser?.email,
         aprov_coord_data: new Date().toISOString().split('T')[0]
       })
 
-      // Debitar rubrica
       const rubricaId = form.rubrica_id || prefill.rubrica_id
       if (rubricaId) {
         try {
@@ -172,11 +261,12 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
           if (rubrica) {
             const valor = toNumber(form.valor_solicitado || prefill.valor_solicitado)
             const utilizado = toNumber(rubrica.valor_utilizado) + valor
-            const saldo = toNumber(rubrica.valor_rubrica) - utilizado
+            const saldo = toNumber(rubrica.valor_rubrica || rubrica.valor_total) - utilizado
             await base44.entities.Rubrica.update(rubricaId, {
               valor_utilizado: utilizado,
               saldo,
-              percentual_utilizado: rubrica.valor_rubrica > 0 ? (utilizado / toNumber(rubrica.valor_rubrica)) * 100 : 0
+              saldo_real: saldo,
+              percentual_utilizado: toNumber(rubrica.valor_rubrica || rubrica.valor_total) > 0 ? (utilizado / toNumber(rubrica.valor_rubrica || rubrica.valor_total)) * 100 : 0
             })
           }
         } catch (_) {}
@@ -228,19 +318,42 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     if (!file) return
     setUploadingFile(true)
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file })
-      setAttachedFile({ name: file.name, url: file_url })
+      const result = await base44.integrations.Core.UploadFile({ file })
+      const fileUrl = result?.file_url || result?.url || result?.data?.file_url || result?.data?.url || ''
+      if (!fileUrl) throw new Error('Upload concluído sem URL de arquivo.')
+
+      const fileKind = getDocumentKind(file.name)
+      setAttachedFile({ name: file.name, url: fileUrl, kind: fileKind })
+      setField('file_url', fileUrl)
+      setField('arquivo_url', fileUrl)
+      setField('documento_url', fileUrl)
+      setField('nota_fiscal_url', fileUrl)
+      setField('orcamento_url', fileUrl)
+      setField('link_proposta', fileUrl)
+      setField('arquivo_nome', file.name)
+      setField('arquivo_tipo', fileKind)
+      if (fileKind === 'pdf_nf') setField('nf_pdf_url', fileUrl)
 
       if (isEditing) {
         await base44.entities.PurchaseRequest.update(prefill.id, {
-          nota_fiscal_url: file_url,
-          orcamento_url: file_url
+          file_url: fileUrl,
+          arquivo_url: fileUrl,
+          documento_url: fileUrl,
+          nota_fiscal_url: fileUrl,
+          nf_pdf_url: fileKind === 'pdf_nf' ? fileUrl : fileUrl,
+          orcamento_url: fileUrl,
+          link_proposta: fileUrl,
+          arquivo_nome: file.name,
+          arquivo_tipo: fileKind
+        })
+        await createAttachmentForPurchase({ id: prefill.id }, {
+          file_url: fileUrl,
+          arquivo_nome: file.name,
+          arquivo_tipo: fileKind
         })
         smartToast.success('Arquivo anexado.')
       } else {
         smartToast.success('Arquivo carregado. Será salvo junto com a solicitação.')
-        setField('nota_fiscal_url', file_url)
-        setField('orcamento_url', file_url)
       }
     } catch (err) {
       smartToast.error('Erro ao enviar arquivo', err.message)
@@ -250,7 +363,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     }
   }
 
-  const existingFileUrl = prefill?.nota_fiscal_url || prefill?.orcamento_url || prefill?.comprovante_url || prefill?.link_proposta
+  const existingFileUrl = attachedFile?.url || form.file_url || form.arquivo_url || form.nota_fiscal_url || form.orcamento_url || form.documento_url || form.comprovante_url || form.link_proposta || prefill?.nota_fiscal_url || prefill?.orcamento_url || prefill?.comprovante_url || prefill?.link_proposta
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
@@ -262,7 +375,6 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Status badge */}
           {isEditing && prefill?.status && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">Status atual:</span>
@@ -277,14 +389,12 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
             </div>
           )}
 
-          {/* Descrição */}
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700">Descrição do item *</label>
             <Textarea rows={2} value={form.descricao_item} onChange={e => setField('descricao_item', e.target.value)} placeholder="Descreva o item ou serviço..." />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            {/* Meta */}
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Meta</label>
               <Select value={form.meta_id} onValueChange={v => { setField('meta_id', v); if (v !== 'MC3A-EXTRA') setField('meta_extra_descricao', ''); }}>
@@ -295,7 +405,6 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               </Select>
             </div>
 
-            {/* Categoria */}
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Categoria</label>
               <Select value={form.categoria} onValueChange={v => setField('categoria', v)}>
@@ -304,7 +413,6 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               </Select>
             </div>
 
-            {/* Centro de custo */}
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Centro de custo</label>
               <Select value={form.centro_custo} onValueChange={v => setField('centro_custo', v)}>
@@ -313,7 +421,6 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               </Select>
             </div>
 
-            {/* Rubrica */}
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Rubrica</label>
               <Select value={form.rubrica_id} onValueChange={v => setField('rubrica_id', v)}>
@@ -327,20 +434,14 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
             </div>
           </div>
 
-          {/* Descrição da Meta Extra */}
           {form.meta_id === 'MC3A-EXTRA' && (
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Nome da Meta <span className="text-red-500">*</span></label>
-              <Input
-                value={form.meta_extra_descricao}
-                onChange={e => setField('meta_extra_descricao', e.target.value)}
-                placeholder="Descreva o nome ou título da meta extra..."
-              />
+              <Input value={form.meta_extra_descricao} onChange={e => setField('meta_extra_descricao', e.target.value)} placeholder="Descreva o nome ou título da meta extra..." />
               <p className="text-xs text-gray-400">Este nome será exibido no lugar de "MC3A-EXTRA" em toda a plataforma.</p>
             </div>
           )}
 
-          {/* Fornecedor */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Fornecedor / Nome</label>
@@ -353,13 +454,11 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            {/* Valor */}
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Valor solicitado (R$) *</label>
               <Input type="number" value={form.valor_solicitado} onChange={e => setField('valor_solicitado', e.target.value)} placeholder="0,00" />
             </div>
 
-            {/* Meio de pagamento */}
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Meio de pagamento</label>
               <Select value={form.meio_pagamento} onValueChange={v => setField('meio_pagamento', v)}>
@@ -369,31 +468,28 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
             </div>
           </div>
 
-          {/* Dados pagamento */}
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700">Dados bancários / Chave PIX</label>
             <Input value={form.detalhe_pagamento} onChange={e => setField('detalhe_pagamento', e.target.value)} placeholder="Banco, agência, conta ou chave PIX" />
           </div>
 
-          {/* Observações */}
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700">Observações</label>
             <Textarea rows={2} value={form.observacoes} onChange={e => setField('observacoes', e.target.value)} placeholder="Informações adicionais..." />
           </div>
 
-          {/* Arquivo */}
-          <div className="space-y-2">
+          <div className="space-y-2 rounded-xl border border-gray-100 bg-gray-50/50 p-3">
             <label className="text-sm font-medium text-gray-700">Arquivo (PDF, XML, proposta)</label>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <input ref={fileInputRef} type="file" accept=".pdf,.xml,.doc,.docx,.png,.jpg,.jpeg" className="hidden" onChange={handleFileUpload} />
-              <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}>
+              <Button type="button" variant="outline" size="sm" className="gap-2 bg-white" onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}>
                 {uploadingFile ? <><Upload className="h-3.5 w-3.5 animate-pulse" />Enviando...</> : <><Paperclip className="h-3.5 w-3.5" />Anexar arquivo</>}
               </Button>
               {attachedFile && (
                 <div className="flex items-center gap-1.5 rounded-lg bg-green-50 px-2.5 py-1 text-xs text-green-700">
                   <FileText className="h-3.5 w-3.5" />
-                  <span className="max-w-[160px] truncate">{attachedFile.name}</span>
-                  <button onClick={() => setAttachedFile(null)} className="ml-1 text-green-500 hover:text-green-700"><X className="h-3 w-3" /></button>
+                  <span className="max-w-[220px] truncate">{attachedFile.name}</span>
+                  <button type="button" onClick={() => setAttachedFile(null)} className="ml-1 text-green-500 hover:text-green-700"><X className="h-3 w-3" /></button>
                 </div>
               )}
               {!attachedFile && existingFileUrl && (
@@ -402,9 +498,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                 </a>
               )}
             </div>
+            <p className="text-xs text-gray-400">Mesmo padrão da Entrada Única: anexe nota fiscal em PDF, XML, proposta ou documento complementar.</p>
           </div>
 
-          {/* Devolução input */}
           {showReturnInput && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
               <label className="text-sm font-medium text-amber-800">Motivo da devolução *</label>
@@ -419,24 +515,20 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
           )}
         </div>
 
-        {/* Footer de ações */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
           <div className="flex gap-2">
-            {/* Deletar */}
             {isEditing && isCoordenador && (
               <Button size="sm" variant="outline" className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50" onClick={handleDelete} disabled={deleting}>
                 <Trash2 className="h-3.5 w-3.5" />{deleting ? 'Deletando...' : 'Deletar'}
               </Button>
             )}
 
-            {/* Devolver */}
             {canApproveOrReturn && !showReturnInput && (
               <Button size="sm" variant="outline" className="gap-1.5 border-amber-200 text-amber-700 hover:bg-amber-50" onClick={() => setShowReturnInput(true)}>
                 <RotateCcw className="h-3.5 w-3.5" />Devolver
               </Button>
             )}
 
-            {/* Aprovar */}
             {canApproveOrReturn && (
               <Button size="sm" className="gap-1.5 bg-green-600 hover:bg-green-700 text-white" onClick={handleApprove} disabled={approving}>
                 <CheckCircle2 className="h-3.5 w-3.5" />{approving ? 'Aprovando...' : 'Aprovar'}
