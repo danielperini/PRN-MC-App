@@ -12,8 +12,8 @@ import {
   CartesianGrid,
   PieChart,
   Pie,
-  Cell } from
-'recharts';
+  Cell,
+} from 'recharts';
 import { Activity, Calendar, MapPin, RotateCw, TrendingUp, Users } from 'lucide-react';
 import AgendaCard from '@/components/patrocinador/AgendaCard';
 
@@ -111,17 +111,24 @@ function getReportYear(report) {
   return Number.isFinite(year) && year > 1900 ? year : new Date().getFullYear();
 }
 
-function getPreviousClosedMonth() {
-  const now = new Date();
-  const date = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+function getMonthFromDate(date) {
   return {
     monthIndex: date.getMonth(),
     monthNumber: date.getMonth() + 1,
     monthName: MESES[date.getMonth()],
     year: date.getFullYear(),
     key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
-    label: `${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
+    label: `${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`,
   };
+}
+
+function getCurrentMonth() {
+  return getMonthFromDate(new Date());
+}
+
+function getPreviousClosedMonth() {
+  const now = new Date();
+  return getMonthFromDate(new Date(now.getFullYear(), now.getMonth() - 1, 1));
 }
 
 function getReportMonthDate(report) {
@@ -185,7 +192,7 @@ function getReportActivities(report) {
     _reportMonthNumber: reportMonthNumber,
     _reportYear: reportYear,
     _publico: getActivityPublico(activity),
-    _auditKey: getActivityAuditKey(activity, report)
+    _auditKey: getActivityAuditKey(activity, report),
   }));
 }
 
@@ -212,8 +219,8 @@ function KpiCard({ icon: Icon, label, value, helper, dark = false }) {
       </div>
       <p className={`text-3xl font-bold leading-tight truncate ${dark ? 'text-white' : 'text-black'}`}>{value}</p>
       {helper && <p className={`text-xs mt-1 truncate ${dark ? 'text-gray-300' : 'text-gray-500'}`}>{helper}</p>}
-    </div>);
-
+    </div>
+  );
 }
 
 function SectionCard({ title, children }) {
@@ -223,8 +230,8 @@ function SectionCard({ title, children }) {
         <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-4">{title}</h3>
         {children}
       </CardContent>
-    </Card>);
-
+    </Card>
+  );
 }
 
 export default function DashboardPatrocinadorSync() {
@@ -235,6 +242,7 @@ export default function DashboardPatrocinadorSync() {
   const isFetchingRef = useRef(false);
   const [data, setData] = useState({
     periodo: '',
+    periodoAgenda: '',
     totalAtividadesMes: 0,
     totalAtividadesAno: 0,
     totalPublico: 0,
@@ -251,45 +259,48 @@ export default function DashboardPatrocinadorSync() {
     totalUtilizado: 0,
     saldoTotal: TOTAL_OFICIAL,
     percentualExecucao: 0,
-    hasData: false
+    hasData: false,
   });
 
   const loadDashboardData = useCallback(async (silent = false) => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     setLoadError('');
-    if (!silent) setLoading(true);else
-    setRefreshing(true);
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
 
     try {
       const hoje = new Date();
       const hojeInicio = startOfDay(hoje);
       const mesReferencia = getPreviousClosedMonth();
+      const mesAgenda = getCurrentMonth();
 
       const [reportsAll, programacaoRaw, rubricasRaw] = await Promise.all([
-      safeList(base44.entities.Report, '-updated_date', 1000),
-      safeList(base44.entities.Programacao, '-data_realizacao', 1000),
-      safeList(base44.entities.Rubrica, 'ordem_exibicao', 1000)]
-      );
+        safeList(base44.entities.Report, '-updated_date', 1000),
+        safeList(base44.entities.Programacao, '-data_realizacao', 1000),
+        safeList(base44.entities.Rubrica, 'ordem_exibicao', 1000),
+      ]);
 
       const metrics = buildApprovedMetrics(reportsAll);
       const atividadesRealizadas = metrics.activities;
       const atividadesMes = atividadesRealizadas.filter((item) => item._reportMonthNumber === mesReferencia.monthNumber && item._reportYear === mesReferencia.year);
 
-      const programacao = programacaoRaw.filter((item) => {
-        const status = String(item?.status || item?.situacao || '').toUpperCase();
-        return !['CANCELADO', 'CANCELADA', 'INATIVO', 'INATIVA'].includes(status);
-      }).map((item) => ({ ...item, _date: getDateValue(item), _museu: normalizeMuseu(getProgramacaoMuseu(item)) }));
+      const programacao = programacaoRaw
+        .filter((item) => {
+          const status = String(item?.status || item?.situacao || '').toUpperCase();
+          return !['CANCELADO', 'CANCELADA', 'INATIVO', 'INATIVA'].includes(status);
+        })
+        .map((item) => ({ ...item, _date: getDateValue(item), _museu: normalizeMuseu(getProgramacaoMuseu(item)) }));
 
-      const programacaoMes = programacao.filter((item) => item._date && item._date.getMonth() === mesReferencia.monthIndex && item._date.getFullYear() === mesReferencia.year);
+      const programacaoMes = programacao.filter((item) => item._date && item._date.getMonth() === mesAgenda.monthIndex && item._date.getFullYear() === mesAgenda.year);
 
-      const agendaHoje = programacao.
-      filter((item) => item._date && startOfDay(item._date).getTime() === hojeInicio.getTime()).
-      sort((a, b) => String(a.horario || '').localeCompare(String(b.horario || '')));
+      const agendaHoje = programacao
+        .filter((item) => item._date && startOfDay(item._date).getTime() === hojeInicio.getTime())
+        .sort((a, b) => String(a.horario || '').localeCompare(String(b.horario || '')));
 
-      const futuras = programacao.
-      filter((item) => item._date && startOfDay(item._date).getTime() >= hojeInicio.getTime()).
-      sort((a, b) => startOfDay(a._date).getTime() - startOfDay(b._date).getTime());
+      const futuras = programacao
+        .filter((item) => item._date && startOfDay(item._date).getTime() >= hojeInicio.getTime())
+        .sort((a, b) => startOfDay(a._date).getTime() - startOfDay(b._date).getTime());
 
       const atividadesPorMes = {};
       atividadesRealizadas.forEach((item) => {
@@ -300,10 +311,10 @@ export default function DashboardPatrocinadorSync() {
         atividadesPorMes[chave].publico += item._publico;
       });
 
-      const dadosMensais = Object.values(atividadesPorMes).
-      sort((a, b) => a.key.localeCompare(b.key)).
-      slice(-6).
-      map((item) => ({ mes: item.mes, atividades: Math.round(item.atividades), publico: Math.round(item.publico) }));
+      const dadosMensais = Object.values(atividadesPorMes)
+        .sort((a, b) => a.key.localeCompare(b.key))
+        .slice(-6)
+        .map((item) => ({ mes: item.mes, atividades: Math.round(item.atividades), publico: Math.round(item.publico) }));
 
       const classificacao = {};
       atividadesRealizadas.forEach((item) => {
@@ -314,7 +325,7 @@ export default function DashboardPatrocinadorSync() {
       const dadosClassificacao = Object.entries(classificacao).map(([nome, quantidade]) => ({
         nome,
         quantidade,
-        display: nome === 'META' ? 'Metas' : nome === 'ROTINA' ? 'Rotina' : nome === 'EXTRA' ? 'Extra' : nome
+        display: nome === 'META' ? 'Metas' : nome === 'ROTINA' ? 'Rotina' : nome === 'EXTRA' ? 'Extra' : nome,
       }));
 
       const comparativoMuseu = MUSEUS.map((museu) => {
@@ -322,7 +333,7 @@ export default function DashboardPatrocinadorSync() {
         return {
           museu,
           atividades: items.length,
-          publico: Math.round(items.reduce((sum, item) => sum + item._publico, 0))
+          publico: Math.round(items.reduce((sum, item) => sum + item._publico, 0)),
         };
       });
 
@@ -334,12 +345,13 @@ export default function DashboardPatrocinadorSync() {
 
       const totalUtilizado = Array.from(rubricasUnicas.values()).reduce((sum, rubrica) => sum + Number(rubrica?.valor_utilizado || 0), 0);
       const saldoTotal = TOTAL_OFICIAL - totalUtilizado;
-      const percentualExecucao = TOTAL_OFICIAL > 0 ? Number((totalUtilizado / TOTAL_OFICIAL * 100).toFixed(1)) : 0;
+      const percentualExecucao = TOTAL_OFICIAL > 0 ? Number(((totalUtilizado / TOTAL_OFICIAL) * 100).toFixed(1)) : 0;
       const publicoMes = atividadesMes.reduce((sum, item) => sum + item._publico, 0);
       const totalPublico = metrics.totalPublico;
 
       setData({
         periodo: mesReferencia.label,
+        periodoAgenda: mesAgenda.label,
         totalAtividadesMes: atividadesMes.length,
         totalAtividadesAno: atividadesRealizadas.length,
         totalPublico,
@@ -356,7 +368,7 @@ export default function DashboardPatrocinadorSync() {
         totalUtilizado,
         saldoTotal,
         percentualExecucao,
-        hasData: metrics.reports.length > 0 || atividadesRealizadas.length > 0
+        hasData: metrics.reports.length > 0 || atividadesRealizadas.length > 0,
       });
 
       setLastUpdate(new Date());
@@ -395,8 +407,8 @@ export default function DashboardPatrocinadorSync() {
           </div>
           <div className="rounded-full border border-black px-3 py-1 text-[11px] font-semibold text-black">{data.agendaDoDia.length > 0 ? 'Hoje' : 'Próxima'}</div>
         </div>
-      </div>);
-
+      </div>
+    );
   }, [data.proximaAgenda, data.agendaDoDia.length]);
 
   if (loading) {
@@ -406,8 +418,8 @@ export default function DashboardPatrocinadorSync() {
           <div className="w-8 h-8 border-2 border-gray-200 border-t-black rounded-full animate-spin mx-auto" />
           <p className="text-gray-500 text-sm">Carregando painel...</p>
         </div>
-      </div>);
-
+      </div>
+    );
   }
 
   return (
@@ -416,11 +428,11 @@ export default function DashboardPatrocinadorSync() {
 
       {!data.hasData && <div className="bg-white border border-black rounded-2xl p-5 text-sm text-black font-medium">Sem dados disponíveis. Sincronize relatórios aprovados e atividades para visualizar métricas.</div>}
 
-      {data.duplicateCount > 0 &&
-      <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 text-sm hidden">
+      {data.duplicateCount > 0 && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 text-sm hidden">
           Auditoria detectou {fmtInt(data.duplicateCount)} possível(is) atividade(s) repetida(s). Os indicadores abaixo seguem a soma oficial das atividades existentes nos relatórios aprovados.
         </div>
-      }
+      )}
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
@@ -435,7 +447,7 @@ export default function DashboardPatrocinadorSync() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard icon={Activity} label="Atividades do mês" value={fmtInt(data.totalAtividadesMes)} helper={`${fmtInt(data.totalAtividadesAno)} no acumulado`} dark />
-        <KpiCard icon={Calendar} label="Previstas na agenda" value={fmtInt(data.atividadesPrevistasMes)} helper={`período ${data.periodo}`} dark />
+        <KpiCard icon={Calendar} label="Previstas na agenda" value={fmtInt(data.atividadesPrevistasMes)} helper={`período ${data.periodoAgenda || data.periodo}`} dark />
         <KpiCard icon={Users} label="Público total" value={fmtInt(data.totalPublico)} helper={`${fmtInt(data.publicoMes)} no mês`} />
         <KpiCard icon={TrendingUp} label="Execução orçamentária" value={`${data.percentualExecucao}%`} helper={`${fmtBRL(data.totalUtilizado)} utilizado`} />
       </div>
@@ -462,8 +474,8 @@ export default function DashboardPatrocinadorSync() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <SectionCard title="Atividades realizadas por mês">
-          {data.dadosMensais.length === 0 ? <p className="text-sm text-gray-400">Sem dados disponíveis.</p> :
-          <div className="h-64">
+          {data.dadosMensais.length === 0 ? <p className="text-sm text-gray-400">Sem dados disponíveis.</p> : (
+            <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.dadosMensais}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
@@ -474,12 +486,12 @@ export default function DashboardPatrocinadorSync() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          }
+          )}
         </SectionCard>
 
         <SectionCard title="Classificação de atividades">
-          {data.dadosClassificacao.length === 0 ? <p className="text-sm text-gray-400">Sem dados disponíveis.</p> :
-          <div className="h-64">
+          {data.dadosClassificacao.length === 0 ? <p className="text-sm text-gray-400">Sem dados disponíveis.</p> : (
+            <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={data.dadosClassificacao} dataKey="quantidade" nameKey="display" outerRadius={86} innerRadius={48} paddingAngle={3}>
@@ -489,7 +501,7 @@ export default function DashboardPatrocinadorSync() {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-          }
+          )}
         </SectionCard>
       </div>
 
@@ -501,6 +513,6 @@ export default function DashboardPatrocinadorSync() {
         <span>Fonte oficial dos indicadores: soma das atividades dos relatórios aprovados. Programação é usada apenas para agenda e atividades previstas.</span>
         {lastUpdate && <span>Última atualização: {lastUpdate.toLocaleString('pt-BR')}</span>}
       </div>
-    </div>);
-
+    </div>
+  );
 }
