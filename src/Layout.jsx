@@ -30,7 +30,6 @@ const PAGE_TITLES = {
   GaleriaFotos: 'Galeria de Fotos',
   ComunicacaoVisibilidade: 'Comunicação visibilidade',
   ActivityLog: 'Auditoria',
-  AuditoriaSolicitacoes: 'Auditoria de Solicitações',
   PlataformaAdmin: 'Plataforma',
   AssistentePlanejamento: 'Assistente de IA do MC',
   Perfil: 'Perfil',
