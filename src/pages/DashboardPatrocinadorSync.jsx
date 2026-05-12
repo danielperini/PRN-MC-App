@@ -20,9 +20,17 @@ import AgendaCard from '@/components/patrocinador/AgendaCard';
 const TOTAL_OFICIAL = 1320000;
 const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
 const CHART_COLORS = ['#111827', '#4B5563', '#9CA3AF', '#D1D5DB'];
+const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const APPROVED_STATUSES = new Set(['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN']);
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(Number(v || 0));
 const fmtInt = (v) => Math.round(Number(v || 0)).toLocaleString('pt-BR');
+
+function inteiro(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n);
+}
 
 function startOfDay(date) {
   const d = new Date(date);
@@ -61,36 +69,66 @@ function getDateValue(item) {
 }
 
 function isApprovedReport(report) {
-  const status = String(report?.status || '').trim().toUpperCase();
-  return ['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN'].includes(status);
+  return APPROVED_STATUSES.has(String(report?.status || '').trim().toUpperCase());
 }
 
 function getActivityPublico(atividade) {
-  const publicoDireto = Number(atividade?.publico_total) || Number(atividade?.publico_estimado) || Number(atividade?.publico) || 0;
+  const publicoDireto = inteiro(atividade?.publico_total ?? atividade?.publico_estimado ?? atividade?.publico ?? 0);
   if (publicoDireto > 0) return publicoDireto;
 
-  const publicoMedio = Number(atividade?.publico_medio) || Number(atividade?.publico_medio_sessao) || Number(atividade?.publico_por_sessao) || 0;
-  const ocorrencias = Number(atividade?.quantas_vezes_ocorreu) || Number(atividade?.qtd_ocorrencias) || Number(atividade?.ocorrencias) || 1;
-  return publicoMedio * ocorrencias;
+  const publicoMedio = inteiro(
+    atividade?.publico_medio_por_sessao ??
+    atividade?.publico_medio_sessao ??
+    atividade?.publico_medio ??
+    atividade?.publico_por_sessao ??
+    0
+  );
+  const ocorrencias = inteiro(
+    atividade?.quantas_vezes_ocorreu ??
+    atividade?.qtd_ocorrencias ??
+    atividade?.ocorrencias ??
+    atividade?.quantidade_ocorrencias ??
+    1
+  );
+
+  return publicoMedio * Math.max(ocorrencias, 1);
+}
+
+function getReportMonthNumber(report) {
+  const raw = report?.mes_referencia ?? report?.mes ?? report?.competencia;
+  const numeric = Number(raw);
+  if (numeric >= 1 && numeric <= 12) return numeric;
+
+  const text = String(raw || '').toLowerCase();
+  const idx = MESES.findIndex((mes) => text.includes(mes.toLowerCase()));
+  if (idx >= 0) return idx + 1;
+  if (text.includes('marco')) return 3;
+  return null;
+}
+
+function getReportYear(report) {
+  const year = Number(report?.ano ?? report?.ano_referencia);
+  return Number.isFinite(year) && year > 1900 ? year : new Date().getFullYear();
+}
+
+function getPreviousClosedMonth() {
+  const now = new Date();
+  const date = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return {
+    monthIndex: date.getMonth(),
+    monthNumber: date.getMonth() + 1,
+    monthName: MESES[date.getMonth()],
+    year: date.getFullYear(),
+    key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+    label: `${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`,
+  };
 }
 
 function getReportMonthDate(report) {
-  const direct = getDateValue(report);
-  if (direct) return direct;
-
-  const ano = Number(report?.ano || report?.ano_referencia);
-  const mesRaw = report?.mes_referencia || report?.mes || report?.competencia;
-  const mesTexto = String(mesRaw || '').toLowerCase();
-  const meses = ['janeiro', 'fevereiro', 'março', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-
-  let mes = Number(mesRaw);
-  if (!mes || Number.isNaN(mes)) {
-    const idx = meses.findIndex((nome) => mesTexto.includes(nome));
-    if (idx >= 0) mes = idx === 3 ? 3 : idx + 1;
-  }
-
-  if (ano && mes >= 1 && mes <= 12) return new Date(ano, mes - 1, 1);
-  return null;
+  const mes = getReportMonthNumber(report);
+  const ano = getReportYear(report);
+  if (mes >= 1 && mes <= 12 && ano) return new Date(ano, mes - 1, 1);
+  return getDateValue(report);
 }
 
 function getMonthKey(date) {
@@ -120,14 +158,49 @@ function normalizeMuseu(value) {
   return 'GERAL';
 }
 
-function getActivityKey(item, report) {
-  const date = getDateValue(item) || getReportMonthDate(report);
-  return [
-    item?.id,
-    item?.nome_atividade || item?.titulo || item?.acao || item?.nome || item?.atividade,
-    date ? date.toISOString().slice(0, 10) : '',
-    report?.id,
-  ].filter(Boolean).join('|').toLowerCase();
+function getActivityAuditKey(activity, report) {
+  const title = String(activity?.nome_atividade || activity?.nome || activity?.titulo || activity?.acao || activity?.atividade || '').trim().toLowerCase();
+  const date = getDateValue(activity) || getReportMonthDate(report);
+  const reportMonth = getMonthKey(getReportMonthDate(report));
+  const museu = normalizeMuseu(activity?.museu || activity?.centro_custo || report?.museu || report?.museu_secundario);
+  const publico = getActivityPublico(activity);
+  return [title, date ? date.toISOString().slice(0, 10) : reportMonth, museu, publico].join('|');
+}
+
+function getReportActivities(report) {
+  const reportDate = getReportMonthDate(report);
+  const reportMonthKey = getMonthKey(reportDate);
+  const reportMonthNumber = getReportMonthNumber(report);
+  const reportYear = getReportYear(report);
+  const activities = Array.isArray(report?.atividades) ? report.atividades : [];
+
+  return activities.map((activity, index) => ({
+    ...activity,
+    _source: 'report',
+    _reportId: report?.id,
+    _index: index,
+    _museu: normalizeMuseu(activity?.museu || activity?.centro_custo || report?.museu || report?.museu_secundario),
+    _date: getDateValue(activity) || reportDate,
+    _reportMonthKey: reportMonthKey,
+    _reportMonthNumber: reportMonthNumber,
+    _reportYear: reportYear,
+    _publico: getActivityPublico(activity),
+    _auditKey: getActivityAuditKey(activity, report),
+  }));
+}
+
+function buildApprovedMetrics(reportsAll) {
+  const reports = reportsAll.filter(isApprovedReport);
+  const activities = reports.flatMap(getReportActivities);
+  const duplicatedKeys = activities.reduce((acc, activity) => {
+    if (!activity._auditKey || activity._auditKey === '|||0') return acc;
+    acc[activity._auditKey] = (acc[activity._auditKey] || 0) + 1;
+    return acc;
+  }, {});
+  const duplicateCount = Object.values(duplicatedKeys).reduce((sum, count) => sum + Math.max(0, count - 1), 0);
+  const totalPublico = activities.reduce((sum, activity) => sum + activity._publico, 0);
+
+  return { reports, activities, duplicateCount, totalPublico };
 }
 
 function KpiCard({ icon: Icon, label, value, helper, dark = false }) {
@@ -173,6 +246,7 @@ export default function DashboardPatrocinadorSync() {
     dadosMensais: [],
     dadosClassificacao: [],
     comparativoMuseu: [],
+    duplicateCount: 0,
     totalOrcado: TOTAL_OFICIAL,
     totalUtilizado: 0,
     saldoTotal: TOTAL_OFICIAL,
@@ -190,44 +264,24 @@ export default function DashboardPatrocinadorSync() {
     try {
       const hoje = new Date();
       const hojeInicio = startOfDay(hoje);
-      const mesAtual = hoje.getMonth();
-      const anoAtual = hoje.getFullYear();
+      const mesReferencia = getPreviousClosedMonth();
 
       const [reportsAll, programacaoRaw, rubricasRaw] = await Promise.all([
-        safeList(base44.entities.Report, '-updated_date', 500),
+        safeList(base44.entities.Report, '-updated_date', 1000),
         safeList(base44.entities.Programacao, '-data_realizacao', 1000),
         safeList(base44.entities.Rubrica, 'ordem_exibicao', 1000),
       ]);
 
-      const reports = reportsAll.filter(isApprovedReport);
-
-      const atividadesMap = new Map();
-      reports.forEach((report) => {
-        const atividades = Array.isArray(report?.atividades) ? report.atividades : [];
-        atividades.forEach((atividade) => {
-          const reportDate = getReportMonthDate(report);
-          const date = getDateValue(atividade) || reportDate;
-          const item = {
-            ...atividade,
-            _source: 'report',
-            _museu: normalizeMuseu(atividade?.museu || atividade?.centro_custo || report?.museu || report?.museu_secundario),
-            _date: date,
-            _reportId: report?.id,
-          };
-          const key = getActivityKey(atividade, report);
-          if (!atividadesMap.has(key)) atividadesMap.set(key, item);
-        });
-      });
-
-      const atividadesRealizadas = Array.from(atividadesMap.values()).filter((item) => item._date);
+      const metrics = buildApprovedMetrics(reportsAll);
+      const atividadesRealizadas = metrics.activities;
+      const atividadesMes = atividadesRealizadas.filter((item) => item._reportMonthNumber === mesReferencia.monthNumber && item._reportYear === mesReferencia.year);
 
       const programacao = programacaoRaw.filter((item) => {
         const status = String(item?.status || item?.situacao || '').toUpperCase();
         return !['CANCELADO', 'CANCELADA', 'INATIVO', 'INATIVA'].includes(status);
       }).map((item) => ({ ...item, _date: getDateValue(item), _museu: normalizeMuseu(getProgramacaoMuseu(item)) }));
 
-      const atividadesMes = atividadesRealizadas.filter((item) => item._date.getMonth() === mesAtual && item._date.getFullYear() === anoAtual);
-      const programacaoMes = programacao.filter((item) => item._date && item._date.getMonth() === mesAtual && item._date.getFullYear() === anoAtual);
+      const programacaoMes = programacao.filter((item) => item._date && item._date.getMonth() === mesReferencia.monthIndex && item._date.getFullYear() === mesReferencia.year);
 
       const agendaHoje = programacao
         .filter((item) => item._date && startOfDay(item._date).getTime() === hojeInicio.getTime())
@@ -239,11 +293,11 @@ export default function DashboardPatrocinadorSync() {
 
       const atividadesPorMes = {};
       atividadesRealizadas.forEach((item) => {
-        const chave = getMonthKey(item._date);
+        const chave = item._reportMonthKey || getMonthKey(item._date);
         if (!chave) return;
         if (!atividadesPorMes[chave]) atividadesPorMes[chave] = { mes: getMonthLabel(chave), key: chave, atividades: 0, publico: 0 };
         atividadesPorMes[chave].atividades += 1;
-        atividadesPorMes[chave].publico += getActivityPublico(item);
+        atividadesPorMes[chave].publico += item._publico;
       });
 
       const dadosMensais = Object.values(atividadesPorMes)
@@ -268,7 +322,7 @@ export default function DashboardPatrocinadorSync() {
         return {
           museu,
           atividades: items.length,
-          publico: Math.round(items.reduce((sum, item) => sum + getActivityPublico(item), 0)),
+          publico: Math.round(items.reduce((sum, item) => sum + item._publico, 0)),
         };
       });
 
@@ -281,11 +335,11 @@ export default function DashboardPatrocinadorSync() {
       const totalUtilizado = Array.from(rubricasUnicas.values()).reduce((sum, rubrica) => sum + Number(rubrica?.valor_utilizado || 0), 0);
       const saldoTotal = TOTAL_OFICIAL - totalUtilizado;
       const percentualExecucao = TOTAL_OFICIAL > 0 ? Number(((totalUtilizado / TOTAL_OFICIAL) * 100).toFixed(1)) : 0;
-      const publicoMes = Math.round(atividadesMes.reduce((sum, item) => sum + getActivityPublico(item), 0));
-      const totalPublico = Math.round(atividadesRealizadas.reduce((sum, item) => sum + getActivityPublico(item), 0));
+      const publicoMes = atividadesMes.reduce((sum, item) => sum + item._publico, 0);
+      const totalPublico = metrics.totalPublico;
 
       setData({
-        periodo: `${String(mesAtual + 1).padStart(2, '0')}/${anoAtual}`,
+        periodo: mesReferencia.label,
         totalAtividadesMes: atividadesMes.length,
         totalAtividadesAno: atividadesRealizadas.length,
         totalPublico,
@@ -297,11 +351,12 @@ export default function DashboardPatrocinadorSync() {
         dadosMensais,
         dadosClassificacao,
         comparativoMuseu,
+        duplicateCount: metrics.duplicateCount,
         totalOrcado: TOTAL_OFICIAL,
         totalUtilizado,
         saldoTotal,
         percentualExecucao,
-        hasData: reports.length > 0 || atividadesRealizadas.length > 0,
+        hasData: metrics.reports.length > 0 || atividadesRealizadas.length > 0,
       });
 
       setLastUpdate(new Date());
@@ -361,10 +416,16 @@ export default function DashboardPatrocinadorSync() {
 
       {!data.hasData && <div className="bg-white border border-black rounded-2xl p-5 text-sm text-black font-medium">Sem dados disponíveis. Sincronize relatórios aprovados e atividades para visualizar métricas.</div>}
 
+      {data.duplicateCount > 0 && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 text-sm">
+          Auditoria detectou {fmtInt(data.duplicateCount)} possível(is) atividade(s) repetida(s). Os indicadores abaixo seguem a soma oficial das atividades existentes nos relatórios aprovados.
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold text-black">Painel do Patrocinador</h1>
-          <p className="text-sm text-gray-500">Dados sincronizados com relatórios aprovados. Agenda exibida separadamente como previsão.</p>
+          <p className="text-sm text-gray-500">Dados sincronizados exclusivamente com relatórios aprovados. Agenda exibida separadamente como previsão.</p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={() => loadDashboardData(true)} disabled={refreshing} className="gap-2">
           <RotateCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
@@ -437,7 +498,7 @@ export default function DashboardPatrocinadorSync() {
       </div>
 
       <div className="flex items-center justify-between gap-3 flex-wrap text-xs text-gray-500 border border-gray-200 rounded-2xl px-4 py-3 bg-white">
-        <span>Dados sincronizados com relatórios aprovados. Programação é usada apenas para agenda e atividades previstas.</span>
+        <span>Fonte oficial dos indicadores: soma das atividades dos relatórios aprovados. Programação é usada apenas para agenda e atividades previstas.</span>
         {lastUpdate && <span>Última atualização: {lastUpdate.toLocaleString('pt-BR')}</span>}
       </div>
     </div>
