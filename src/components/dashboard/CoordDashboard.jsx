@@ -388,69 +388,69 @@ export default function CoordDashboard({ reports = [], isLoading }) {
       <PendingApprovalsPanel />
       <FrasesParticipantes reports={metrics.approvedReports} />
 
-      <div className="border border-gray-100 rounded-2xl p-5 space-y-4 hidden">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-black flex items-center gap-2">
-            <Filter className="w-4 h-4" />Filtros de Análise
-          </h3>
-          {temFiltrosAtivos &&
-          <Button size="sm" variant="outline" onClick={limparFiltros} className="h-8 gap-1.5">
-              <X className="w-3 h-3" />Limpar Filtros
-            </Button>
-          }
-        </div>
+      
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600">Data Inicial</label>
-            <Input type="date" value={filterDataInicio} onChange={(e) => setFilterDataInicio(e.target.value)} className="text-sm" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600">Data Final</label>
-            <Input type="date" value={filterDataFim} onChange={(e) => setFilterDataFim(e.target.value)} className="text-sm" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600">Museu</label>
-            <Select value={filterMuseu || '__all__'} onValueChange={(v) => setFilterMuseu(v === '__all__' ? '' : v)}>
-              <SelectTrigger className="text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">Todos</SelectItem>
-                {museusUnicos.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600">Classificação</label>
-            <Select value={filterClasse || '__all__'} onValueChange={(v) => setFilterClasse(v === '__all__' ? '' : v)}>
-              <SelectTrigger className="text-sm"><SelectValue placeholder="Todas" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">Todas</SelectItem>
-                <SelectItem value="META">META</SelectItem>
-                <SelectItem value="ROTINA">ROTINA</SelectItem>
-                <SelectItem value="EXTRA">EXTRA</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {filterShowMore &&
-          <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-600">Tipo de Atividade</label>
-              <Select value={filterTipoAtiv || '__all__'} onValueChange={(v) => setFilterTipoAtiv(v === '__all__' ? '' : v)}>
-                <SelectTrigger className="text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Todos</SelectItem>
-                  {tiposUnicos.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          }
-        </div>
 
-        {!filterShowMore && tiposUnicos.length > 0 &&
-        <Button size="sm" variant="ghost" onClick={() => setFilterShowMore(true)} className="text-xs text-gray-500">
-            + Mais Filtros
-          </Button>
-        }
-      </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      
 
       <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg">
         Auditoria ativa: atividades e público são calculados exclusivamente pela soma das atividades dos relatórios aprovados. Agenda não entra em público realizado.
