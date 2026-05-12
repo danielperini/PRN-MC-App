@@ -1,1 +1,3 @@
-REPLACED_EXTERNALLY
+import DashboardPatrocinadorSync from './DashboardPatrocinadorSync';
+
+export default DashboardPatrocinadorSync;
