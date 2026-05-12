@@ -10,6 +10,15 @@ function inteiro(value) {
   return Math.round(n);
 }
 
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
 function isApprovedReport(report) {
   return APPROVED_STATUSES.has(String(report?.status || '').trim().toUpperCase());
 }
@@ -39,36 +48,80 @@ function getActivityPublico(activity) {
 }
 
 function getActivityKey(activity, report) {
-  const title = String(
+  const explicitId =
+    activity?.atividade_id ||
+    activity?.programacao_id ||
+    activity?.programacaoId ||
+    activity?.id_programacao ||
+    activity?.agenda_id ||
+    activity?.id;
+
+  if (explicitId) return `id:${explicitId}`;
+
+  const title = normalizeText(
     activity?.nome_atividade ||
       activity?.nome ||
       activity?.titulo ||
       activity?.acao ||
       activity?.atividade ||
       ''
-  )
-    .trim()
-    .toLowerCase();
+  );
 
-  const date = String(
+  const date = normalizeText(
     activity?.data_realizacao ||
       activity?.data_inicio ||
+      activity?.data_fim ||
       activity?.data ||
       report?.mes_referencia ||
       ''
-  )
-    .trim()
-    .toLowerCase();
+  );
 
-  const museum = String(activity?.museu || activity?.centro_custo || report?.museu || '').trim().toLowerCase();
-  const publico = getActivityPublico(activity);
+  const museum = normalizeText(activity?.museu || activity?.centro_custo || report?.museu || '');
+  const reportPeriod = normalizeText(`${report?.mes_referencia || ''}/${report?.ano || ''}`);
 
-  return [title, date, museum, publico].join('|');
+  return [title, date || reportPeriod, museum].filter(Boolean).join('|');
+}
+
+function deduplicateActivities(activities) {
+  const unique = new Map();
+  const repeated = new Map();
+
+  activities.forEach((activity) => {
+    const key = activity?._auditKey;
+    if (!key) return;
+
+    if (!unique.has(key)) {
+      unique.set(key, activity);
+      repeated.set(key, 1);
+      return;
+    }
+
+    repeated.set(key, (repeated.get(key) || 1) + 1);
+
+    const current = unique.get(key);
+    const currentPublico = inteiro(current?._publico);
+    const nextPublico = inteiro(activity?._publico);
+
+    // Mantém o registro mais completo e, em caso de divergência, o maior público para a mesma atividade real.
+    if (nextPublico > currentPublico) {
+      unique.set(key, activity);
+    }
+  });
+
+  const duplicateCount = Array.from(repeated.values()).reduce(
+    (sum, count) => sum + Math.max(0, count - 1),
+    0
+  );
+
+  return {
+    uniqueActivities: Array.from(unique.values()),
+    duplicateCount,
+  };
 }
 
 function buildApprovedSummary(reports) {
   const approvedReports = reports.filter(isApprovedReport);
-  const activities = approvedReports.flatMap((report) => {
+  const rawActivities = approvedReports.flatMap((report) => {
     const list = Array.isArray(report?.atividades) ? report.atividades : [];
     return list.map((activity) => ({
       ...activity,
@@ -79,20 +132,15 @@ function buildApprovedSummary(reports) {
     }));
   });
 
-  const repeated = activities.reduce((acc, activity) => {
-    if (!activity._auditKey || activity._auditKey === '|||0') return acc;
-    acc[activity._auditKey] = (acc[activity._auditKey] || 0) + 1;
-    return acc;
-  }, {});
-
-  const duplicateCount = Object.values(repeated).reduce((sum, count) => sum + Math.max(0, count - 1), 0);
-  const totalPublico = activities.reduce((sum, activity) => sum + activity._publico, 0);
+  const { uniqueActivities, duplicateCount } = deduplicateActivities(rawActivities);
+  const totalPublico = uniqueActivities.reduce((sum, activity) => sum + inteiro(activity._publico), 0);
 
   return {
     reports: approvedReports,
-    activities,
+    activities: uniqueActivities,
+    rawActivities,
     totalPublico,
-    totalActivities: activities.length,
+    totalActivities: uniqueActivities.length,
     duplicateCount,
   };
 }
@@ -136,10 +184,17 @@ export default function ActivitySummary({ activities = [] }) {
 
   const fallbackSummary = useMemo(() => {
     const safeActivities = Array.isArray(activities) ? activities : [];
+    const normalized = safeActivities.map((activity) => ({
+      ...activity,
+      _publico: getActivityPublico(activity),
+      _auditKey: getActivityKey(activity, {}),
+    }));
+    const { uniqueActivities, duplicateCount } = deduplicateActivities(normalized);
+
     return {
-      totalPublico: safeActivities.reduce((sum, activity) => sum + getActivityPublico(activity), 0),
-      totalActivities: safeActivities.length,
-      duplicateCount: 0,
+      totalPublico: uniqueActivities.reduce((sum, activity) => sum + inteiro(activity._publico), 0),
+      totalActivities: uniqueActivities.length,
+      duplicateCount,
     };
   }, [activities]);
 
@@ -169,7 +224,7 @@ export default function ActivitySummary({ activities = [] }) {
         <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
           <span>
-            Auditoria detectou {duplicateCount.toLocaleString('pt-BR')} possível(is) atividade(s) repetida(s). O total abaixo segue a soma oficial das atividades dos relatórios aprovados.
+            Auditoria detectou {duplicateCount.toLocaleString('pt-BR')} possível(is) atividade(s) repetida(s). O total abaixo já está deduplicado e usa apenas atividades únicas dos relatórios aprovados.
           </span>
         </div>
       )}
