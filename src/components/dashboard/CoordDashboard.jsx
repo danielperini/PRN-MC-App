@@ -388,7 +388,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
       <PendingApprovalsPanel />
       <FrasesParticipantes reports={metrics.approvedReports} />
 
-      <div className="border border-gray-100 rounded-2xl p-5 space-y-4">
+      <div className="border border-gray-100 rounded-2xl p-5 space-y-4 hidden">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-black flex items-center gap-2">
             <Filter className="w-4 h-4" />Filtros de Análise
