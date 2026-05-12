@@ -82,8 +82,8 @@ function isApprovedReport(report) {
 }
 
 function getActivityPublico(atividade) {
-  const publicoDireto = inteiro(atividade?.publico_total ?? atividade?.publico_estimado ?? atividade?.publico ?? 0);
-  if (publicoDireto > 0) return publicoDireto;
+  const direct = inteiro(atividade?.publico_total ?? atividade?.publico_estimado ?? atividade?.publico ?? 0);
+  if (direct > 0) return direct;
 
   const publicoMedio = inteiro(
     atividade?.publico_medio_por_sessao ??
@@ -101,6 +101,47 @@ function getActivityPublico(atividade) {
   );
 
   return publicoMedio * Math.max(ocorrencias, 1);
+}
+
+function isAtividadeConsolidadoMensal(activity) {
+  const text = normalizeText([
+    activity?.nome_atividade,
+    activity?.nome,
+    activity?.titulo,
+    activity?.acao,
+    activity?.atividade,
+    activity?.descricao,
+    activity?.observacoes,
+    activity?.tipo_atividade,
+    activity?.classificacao,
+  ].filter(Boolean).join(' '));
+
+  if (!text) return false;
+
+  const hasConsolidado =
+    text.includes('publico geral') ||
+    text.includes('público geral') ||
+    text.includes('publico total') ||
+    text.includes('público total') ||
+    text.includes('total do mes') ||
+    text.includes('total do mês') ||
+    text.includes('consolidado') ||
+    text.includes('consolidada') ||
+    text.includes('balanco mensal') ||
+    text.includes('balanço mensal') ||
+    text.includes('resumo mensal');
+
+  const hasMensal =
+    text.includes('mes') ||
+    text.includes('mês') ||
+    text.includes('mensal') ||
+    text.includes('geral');
+
+  return hasConsolidado && hasMensal;
+}
+
+function getPublicoContabil(activity) {
+  return inteiro(activity?._publico_contabil ?? activity?._publico ?? 0);
 }
 
 function getReportMonthNumber(report) {
@@ -216,6 +257,7 @@ function getReportActivities(report) {
     _reportMonthNumber: reportMonthNumber,
     _reportYear: reportYear,
     _publico: getActivityPublico(activity),
+    _isConsolidadoMensal: isAtividadeConsolidadoMensal(activity),
     _auditKey: getActivityAuditKey(activity, report),
   }));
 }
@@ -248,17 +290,58 @@ function deduplicateActivities(activities) {
   return { uniqueActivities: Array.from(unique.values()), duplicateCount };
 }
 
+function applyPublicoConsolidadoMensal(activities) {
+  const groups = new Map();
+
+  (activities || []).forEach((activity) => {
+    const key = [activity?._reportMonthKey, activity?._museu].filter(Boolean).join('|');
+    if (!key) return;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(activity);
+  });
+
+  const consolidatedKeys = new Set();
+  const result = [];
+
+  groups.forEach((items, key) => {
+    const consolidados = items.filter((item) => item._isConsolidadoMensal && inteiro(item._publico) > 0);
+
+    if (consolidados.length === 0) {
+      items.forEach((item) => result.push({ ...item, _publico_contabil: inteiro(item._publico), _publico_regra: 'soma_atividade' }));
+      return;
+    }
+
+    consolidatedKeys.add(key);
+    const consolidadoPrincipal = consolidados.reduce((best, item) => (inteiro(item._publico) > inteiro(best?._publico) ? item : best), consolidados[0]);
+
+    items.forEach((item) => {
+      if (item === consolidadoPrincipal || item._auditKey === consolidadoPrincipal._auditKey) {
+        result.push({ ...item, _publico_contabil: inteiro(consolidadoPrincipal._publico), _publico_regra: 'consolidado_mensal' });
+      } else {
+        result.push({ ...item, _publico_contabil: 0, _publico_regra: 'ignorado_por_consolidado_mensal' });
+      }
+    });
+  });
+
+  return {
+    activities: result,
+    consolidatedGroupCount: consolidatedKeys.size,
+  };
+}
+
 function buildApprovedMetrics(reportsAll) {
   const reports = reportsAll.filter(isApprovedReport);
   const rawActivities = reports.flatMap(getReportActivities);
   const { uniqueActivities, duplicateCount } = deduplicateActivities(rawActivities);
-  const totalPublico = uniqueActivities.reduce((sum, activity) => sum + inteiro(activity._publico), 0);
+  const publicoConsolidado = applyPublicoConsolidadoMensal(uniqueActivities);
+  const totalPublico = publicoConsolidado.activities.reduce((sum, activity) => sum + getPublicoContabil(activity), 0);
 
   return {
     reports,
     rawActivities,
-    activities: uniqueActivities,
+    activities: publicoConsolidado.activities,
     duplicateCount,
+    consolidatedGroupCount: publicoConsolidado.consolidatedGroupCount,
     totalPublico,
   };
 }
@@ -308,6 +391,7 @@ export default function DashboardPatrocinadorSync() {
     dadosClassificacao: [],
     comparativoMuseu: [],
     duplicateCount: 0,
+    consolidatedGroupCount: 0,
     totalOrcado: TOTAL_OFICIAL,
     totalUtilizado: 0,
     saldoTotal: TOTAL_OFICIAL,
@@ -361,7 +445,7 @@ export default function DashboardPatrocinadorSync() {
         if (!chave) return;
         if (!atividadesPorMes[chave]) atividadesPorMes[chave] = { mes: getMonthLabel(chave), key: chave, atividades: 0, publico: 0 };
         atividadesPorMes[chave].atividades += 1;
-        atividadesPorMes[chave].publico += item._publico;
+        atividadesPorMes[chave].publico += getPublicoContabil(item);
       });
 
       const dadosMensais = Object.values(atividadesPorMes)
@@ -386,7 +470,7 @@ export default function DashboardPatrocinadorSync() {
         return {
           museu,
           atividades: items.length,
-          publico: Math.round(items.reduce((sum, item) => sum + item._publico, 0)),
+          publico: Math.round(items.reduce((sum, item) => sum + getPublicoContabil(item), 0)),
         };
       });
 
@@ -399,7 +483,7 @@ export default function DashboardPatrocinadorSync() {
       const totalUtilizado = Array.from(rubricasUnicas.values()).reduce((sum, rubrica) => sum + Number(rubrica?.valor_utilizado || 0), 0);
       const saldoTotal = TOTAL_OFICIAL - totalUtilizado;
       const percentualExecucao = TOTAL_OFICIAL > 0 ? Number(((totalUtilizado / TOTAL_OFICIAL) * 100).toFixed(1)) : 0;
-      const publicoMes = atividadesMes.reduce((sum, item) => sum + item._publico, 0);
+      const publicoMes = atividadesMes.reduce((sum, item) => sum + getPublicoContabil(item), 0);
       const totalPublico = metrics.totalPublico;
 
       setData({
@@ -417,6 +501,7 @@ export default function DashboardPatrocinadorSync() {
         dadosClassificacao,
         comparativoMuseu,
         duplicateCount: metrics.duplicateCount,
+        consolidatedGroupCount: metrics.consolidatedGroupCount,
         totalOrcado: TOTAL_OFICIAL,
         totalUtilizado,
         saldoTotal,
@@ -481,9 +566,10 @@ export default function DashboardPatrocinadorSync() {
 
       {!data.hasData && <div className="bg-white border border-black rounded-2xl p-5 text-sm text-black font-medium">Sem dados disponíveis. Sincronize relatórios aprovados e atividades para visualizar métricas.</div>}
 
-      {data.duplicateCount > 0 && (
+      {(data.duplicateCount > 0 || data.consolidatedGroupCount > 0) && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 text-sm">
-          Auditoria detectou {fmtInt(data.duplicateCount)} possível(is) atividade(s) repetida(s). Os indicadores abaixo já foram recalculados sem duplicidade.
+          Auditoria ativa: {data.duplicateCount > 0 ? `${fmtInt(data.duplicateCount)} atividade(s) repetida(s) removida(s). ` : ''}
+          {data.consolidatedGroupCount > 0 ? `${fmtInt(data.consolidatedGroupCount)} grupo(s) museu/mês com público consolidado; atividades detalhadas foram ignoradas apenas na soma de público.` : ''}
         </div>
       )}
 
@@ -563,7 +649,7 @@ export default function DashboardPatrocinadorSync() {
       </div>
 
       <div className="flex items-center justify-between gap-3 flex-wrap text-xs text-gray-500 border border-gray-200 rounded-2xl px-4 py-3 bg-white">
-        <span>Fonte oficial dos indicadores: soma deduplicada das atividades dos relatórios aprovados. Programação é usada apenas para agenda e atividades previstas.</span>
+        <span>Fonte oficial dos indicadores: atividades deduplicadas dos relatórios aprovados; público consolidado mensal prevalece quando informado.</span>
         {lastUpdate && <span>Última atualização: {lastUpdate.toLocaleString('pt-BR')}</span>}
       </div>
     </div>
