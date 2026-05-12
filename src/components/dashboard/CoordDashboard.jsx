@@ -452,9 +452,9 @@ export default function CoordDashboard({ reports = [], isLoading }) {
 
       
 
-      
-
-      
+      <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg hidden">
+        Auditoria ativa: atividades e público são calculados exclusivamente pela soma das atividades dos relatórios aprovados. Agenda não entra em público realizado.
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard label="Pendentes de Revisão" value={pendentes} icon={AlertCircle} highlight={pendentes > 0} />
