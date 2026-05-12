@@ -756,51 +756,51 @@ export default function DashboardPatrocinador() {
         
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 hidden">
-        <SectionCard title="Atividades por mês">
-          {data.dadosMensais.length === 0 ?
-          <p className="text-sm text-gray-400">Sem dados disponíveis.</p> :
+      
 
-          <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.dadosMensais}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="atividades" fill="#111827" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          }
-        </SectionCard>
 
-        <SectionCard title="Classificação de atividades">
-          {data.dadosClassificacao.length === 0 ?
-          <p className="text-sm text-gray-400">Sem dados disponíveis.</p> :
 
-          <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                  data={data.dadosClassificacao}
-                  dataKey="quantidade"
-                  nameKey="display"
-                  outerRadius={86}
-                  innerRadius={48}
-                  paddingAngle={3}>
-                  
-                    {data.dadosClassificacao.map((entry, index) =>
-                  <Cell key={entry.nome} fill={chartColors[index % chartColors.length]} />
-                  )}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          }
-        </SectionCard>
-      </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      
 
       <div className="grid grid-cols-1 gap-4">
         <SectionCard title="Agenda">
