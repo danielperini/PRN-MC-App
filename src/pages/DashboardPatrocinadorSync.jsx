@@ -32,6 +32,15 @@ function inteiro(value) {
   return Math.round(n);
 }
 
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
 function startOfDay(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -166,12 +175,27 @@ function normalizeMuseu(value) {
 }
 
 function getActivityAuditKey(activity, report) {
-  const title = String(activity?.nome_atividade || activity?.nome || activity?.titulo || activity?.acao || activity?.atividade || '').trim().toLowerCase();
+  const explicitProgramacaoId =
+    activity?.programacao_id ||
+    activity?.programacaoId ||
+    activity?.id_programacao ||
+    activity?.agenda_id;
+
+  if (explicitProgramacaoId) return `programacao:${explicitProgramacaoId}`;
+
+  const title = normalizeText(
+    activity?.nome_atividade ||
+    activity?.nome ||
+    activity?.titulo ||
+    activity?.acao ||
+    activity?.atividade ||
+    ''
+  );
   const date = getDateValue(activity) || getReportMonthDate(report);
   const reportMonth = getMonthKey(getReportMonthDate(report));
   const museu = normalizeMuseu(activity?.museu || activity?.centro_custo || report?.museu || report?.museu_secundario);
-  const publico = getActivityPublico(activity);
-  return [title, date ? date.toISOString().slice(0, 10) : reportMonth, museu, publico].join('|');
+
+  return [title, date ? date.toISOString().slice(0, 10) : reportMonth, museu].filter(Boolean).join('|');
 }
 
 function getReportActivities(report) {
@@ -196,18 +220,47 @@ function getReportActivities(report) {
   }));
 }
 
+function deduplicateActivities(activities) {
+  const unique = new Map();
+  const counts = new Map();
+
+  (activities || []).forEach((activity) => {
+    const key = activity?._auditKey;
+    if (!key) return;
+
+    counts.set(key, (counts.get(key) || 0) + 1);
+
+    if (!unique.has(key)) {
+      unique.set(key, activity);
+      return;
+    }
+
+    const current = unique.get(key);
+    const currentPublico = inteiro(current?._publico);
+    const nextPublico = inteiro(activity?._publico);
+
+    if (nextPublico > currentPublico) {
+      unique.set(key, activity);
+    }
+  });
+
+  const duplicateCount = Array.from(counts.values()).reduce((sum, count) => sum + Math.max(0, count - 1), 0);
+  return { uniqueActivities: Array.from(unique.values()), duplicateCount };
+}
+
 function buildApprovedMetrics(reportsAll) {
   const reports = reportsAll.filter(isApprovedReport);
-  const activities = reports.flatMap(getReportActivities);
-  const duplicatedKeys = activities.reduce((acc, activity) => {
-    if (!activity._auditKey || activity._auditKey === '|||0') return acc;
-    acc[activity._auditKey] = (acc[activity._auditKey] || 0) + 1;
-    return acc;
-  }, {});
-  const duplicateCount = Object.values(duplicatedKeys).reduce((sum, count) => sum + Math.max(0, count - 1), 0);
-  const totalPublico = activities.reduce((sum, activity) => sum + activity._publico, 0);
+  const rawActivities = reports.flatMap(getReportActivities);
+  const { uniqueActivities, duplicateCount } = deduplicateActivities(rawActivities);
+  const totalPublico = uniqueActivities.reduce((sum, activity) => sum + inteiro(activity._publico), 0);
 
-  return { reports, activities, duplicateCount, totalPublico };
+  return {
+    reports,
+    rawActivities,
+    activities: uniqueActivities,
+    duplicateCount,
+    totalPublico,
+  };
 }
 
 function KpiCard({ icon: Icon, label, value, helper, dark = false }) {
@@ -429,8 +482,8 @@ export default function DashboardPatrocinadorSync() {
       {!data.hasData && <div className="bg-white border border-black rounded-2xl p-5 text-sm text-black font-medium">Sem dados disponíveis. Sincronize relatórios aprovados e atividades para visualizar métricas.</div>}
 
       {data.duplicateCount > 0 && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 text-sm hidden">
-          Auditoria detectou {fmtInt(data.duplicateCount)} possível(is) atividade(s) repetida(s). Os indicadores abaixo seguem a soma oficial das atividades existentes nos relatórios aprovados.
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 text-sm">
+          Auditoria detectou {fmtInt(data.duplicateCount)} possível(is) atividade(s) repetida(s). Os indicadores abaixo já foram recalculados sem duplicidade.
         </div>
       )}
 
@@ -510,7 +563,7 @@ export default function DashboardPatrocinadorSync() {
       </div>
 
       <div className="flex items-center justify-between gap-3 flex-wrap text-xs text-gray-500 border border-gray-200 rounded-2xl px-4 py-3 bg-white">
-        <span>Fonte oficial dos indicadores: soma das atividades dos relatórios aprovados. Programação é usada apenas para agenda e atividades previstas.</span>
+        <span>Fonte oficial dos indicadores: soma deduplicada das atividades dos relatórios aprovados. Programação é usada apenas para agenda e atividades previstas.</span>
         {lastUpdate && <span>Última atualização: {lastUpdate.toLocaleString('pt-BR')}</span>}
       </div>
     </div>
