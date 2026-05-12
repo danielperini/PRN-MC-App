@@ -69,9 +69,9 @@ function isStatusAprovado(status: any): boolean {
 const TOTAL_OFICIAL = 1320000;
 
 const RUBRICAS_OFICIAIS = [
+  { grupo: 'Equipe e gestão', rubrica: 'Consultoria de programação', parcelas_unidades: '5 meses', valor_rubrica: 30000 },
   { grupo: 'Equipe e gestão', rubrica: 'Coordenador Geral (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 70000 },
   { grupo: 'Equipe e gestão', rubrica: 'Assistente de Coordenação e Produção', parcelas_unidades: '10 meses', valor_rubrica: 50000 },
-  { grupo: 'Consultorias', rubrica: 'Consultoria de programação', parcelas_unidades: '5 meses', valor_rubrica: 30000 },
   { grupo: 'Equipe e gestão', rubrica: 'Coordenador de Comunicação (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 60000 },
   { grupo: 'Equipe e gestão', rubrica: 'Analista Adm. Financeira (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 50000 },
   { grupo: 'Equipe e gestão', rubrica: 'Assistente Administrativo (mês 19 ao 28)', parcelas_unidades: '10 meses', valor_rubrica: 40000 },
@@ -149,12 +149,13 @@ Deno.serve(async (req) => {
     let criadas = 0;
     let atualizadas = 0;
     let inativadas = 0;
+    let consultoriasProgramacaoInativadas = 0;
 
     for (let i = 0; i < RUBRICAS_OFICIAIS.length; i++) {
       const item = RUBRICAS_OFICIAIS[i];
       const key = rubricaKey(item);
       const existentes = existentesPorChave[key] || [];
-      const principal = existentes[0];
+      const principal = existentes.find((r) => money(r.valor_rubrica || r.valor_total) > 0) || existentes[0];
       const total = money(item.valor_rubrica);
 
       const payload = {
@@ -184,11 +185,12 @@ Deno.serve(async (req) => {
         await base44.asServiceRole.entities.Rubrica.update(principal.id, payload);
         atualizadas++;
 
-        for (const duplicada of existentes.slice(1)) {
+        for (const duplicada of existentes.filter((r) => r.id !== principal.id)) {
           await base44.asServiceRole.entities.Rubrica.update(duplicada.id, {
             ativo: false,
             status: 'INATIVA_DUPLICADA',
-            duplicada_de: principal.id
+            duplicada_de: principal.id,
+            motivo_inativacao: 'Rubrica duplicada substituída pela rubrica oficial ativa.'
           });
           inativadas++;
         }
@@ -209,6 +211,22 @@ Deno.serve(async (req) => {
     for (const r of rubricas || []) {
       const key = rubricaKey(r);
       const ehOficialAtual = oficiaisKeys.has(key);
+      const grupo = normalize(r.grupo || r.categoria || '');
+      const nome = normalize(r.rubrica || r.nome || r.item_rubrica || '');
+      const isDuplicadaConsultoriaProgramacao = grupo === 'consultorias' && nome === 'consultoria de programacao';
+
+      if (isDuplicadaConsultoriaProgramacao && r?.ativo !== false) {
+        await base44.asServiceRole.entities.Rubrica.update(r.id, {
+          ativo: false,
+          status: 'INATIVA_DUPLICADA',
+          valor_rubrica: money(r.valor_rubrica || r.valor_total || 0),
+          valor_total: money(r.valor_rubrica || r.valor_total || 0),
+          motivo_inativacao: 'Duplicada removida: manter Equipe e gestão → Consultoria de programação → R$ 30.000,00.'
+        });
+        inativadas++;
+        consultoriasProgramacaoInativadas++;
+        continue;
+      }
 
       if (is3Aditivo(r) && !ehOficialAtual && r?.ativo !== false) {
         await base44.asServiceRole.entities.Rubrica.update(r.id, {
@@ -223,7 +241,6 @@ Deno.serve(async (req) => {
     rubricas = await base44.asServiceRole.entities.Rubrica.list('ordem_exibicao', 3000);
 
     const oficiaisAtivas = (rubricas || []).filter((r: any) => oficiaisKeys.has(rubricaKey(r)) && r?.ativo !== false);
-
     const acumulado: Record<string, number> = {};
 
     for (const p of purchases || []) {
@@ -268,7 +285,9 @@ Deno.serve(async (req) => {
       criadas,
       atualizadas,
       inativadas,
-      regra: 'APROVADO = UTILIZADO'
+      consultoriasProgramacaoInativadas,
+      regra: 'APROVADO = UTILIZADO',
+      ajuste: 'Mantida Equipe e gestão → Consultoria de programação → R$ 30.000,00; inativada Consultorias → Consultoria de programação quando existir.'
     });
   } catch (error: any) {
     console.error('recalculateAllRubricas error:', error);
