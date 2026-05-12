@@ -13,8 +13,8 @@ import {
   Cell,
   LineChart,
   Line,
-  CartesianGrid } from
-'recharts';
+  CartesianGrid,
+} from 'recharts';
 import {
   Users,
   AlertCircle,
@@ -23,9 +23,8 @@ import {
   TrendingUp,
   Building2,
   Download,
-  Filter,
-  X } from
-'lucide-react';
+  X,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -34,19 +33,19 @@ import PendingApprovalsPanel from './PendingApprovalsPanel';
 import FrasesParticipantes from './FrasesParticipantes';
 
 const MESES_ORDER = [
-'Janeiro',
-'Fevereiro',
-'Março',
-'Abril',
-'Maio',
-'Junho',
-'Julho',
-'Agosto',
-'Setembro',
-'Outubro',
-'Novembro',
-'Dezembro'];
-
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
 
 const STATUS_CONFIG = {
   DRAFT: { label: 'Rascunho', color: '#e5e7eb', text: '#374151' },
@@ -62,7 +61,7 @@ const STATUS_CONFIG = {
   APROVADO_COORD: { label: 'Aprovado', color: '#dcfce7', text: '#15803d' },
   APROVADO_ADMIN: { label: 'Aprovado', color: '#dcfce7', text: '#15803d' },
   ARCHIVED: { label: 'Arquivado', color: '#f3e8ff', text: '#7e22ce' },
-  ARQUIVADO: { label: 'Arquivado', color: '#f3e8ff', text: '#7e22ce' }
+  ARQUIVADO: { label: 'Arquivado', color: '#f3e8ff', text: '#7e22ce' },
 };
 
 const PIE_COLORS = ['#000000', '#404040', '#737373', '#a3a3a3', '#d4d4d4', '#e5e5e5'];
@@ -71,6 +70,15 @@ const PENDING_STATUSES = new Set(['SUBMITTED', 'ENVIADO', 'IN_REVIEW', 'EM_REVIS
 
 function normalizeStatus(status) {
   return String(status || '').trim().toUpperCase();
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
 }
 
 function isApprovedReport(report) {
@@ -87,24 +95,43 @@ function inteiro(value) {
   return Math.round(n);
 }
 
+function getDateValue(item) {
+  const raw = item?.data_realizacao || item?.data_inicio || item?.data || item?.inicio || item?.created_date || item?.updated_date;
+  if (!raw) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(raw))) {
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  const br = String(raw).match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) {
+    const d = new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function getActivityPublico(activity) {
   const direct = inteiro(activity?.publico_total ?? activity?.publico_estimado ?? activity?.publico ?? 0);
   if (direct > 0) return direct;
 
   const publicoMedio = inteiro(
     activity?.publico_medio_por_sessao ??
-    activity?.publico_medio_sessao ??
-    activity?.publico_medio ??
-    activity?.publico_por_sessao ??
-    0
+      activity?.publico_medio_sessao ??
+      activity?.publico_medio ??
+      activity?.publico_por_sessao ??
+      0
   );
 
   const ocorrencias = inteiro(
     activity?.quantas_vezes_ocorreu ??
-    activity?.qtd_ocorrencias ??
-    activity?.ocorrencias ??
-    activity?.quantidade_ocorrencias ??
-    1
+      activity?.qtd_ocorrencias ??
+      activity?.ocorrencias ??
+      activity?.quantidade_ocorrencias ??
+      1
   );
 
   return publicoMedio * Math.max(ocorrencias, 1);
@@ -136,7 +163,7 @@ function getPreviousClosedMonth() {
     monthNumber: date.getMonth() + 1,
     monthName: MESES_ORDER[date.getMonth()],
     year: date.getFullYear(),
-    label: `${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
+    label: `${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`,
   };
 }
 
@@ -147,6 +174,33 @@ function normalizeMuseu(value) {
   if (text.includes('MUMO') || text.includes('MODA')) return 'MUMO';
   if (text.includes('GERAL') || text.includes('ATUAÇÃO')) return 'Atuação Geral';
   return value || 'Não informado';
+}
+
+function getActivityAuditKey(activity, report) {
+  const explicitProgramacaoId =
+    activity?.programacao_id ||
+    activity?.programacaoId ||
+    activity?.id_programacao ||
+    activity?.agenda_id;
+
+  if (explicitProgramacaoId) return `programacao:${explicitProgramacaoId}`;
+
+  const nome = normalizeText(
+    activity?.nome_atividade ||
+      activity?.nome ||
+      activity?.titulo ||
+      activity?.acao ||
+      activity?.atividade ||
+      ''
+  );
+
+  const data = getDateValue(activity);
+  const mes = getReportMonthNumber(report);
+  const ano = getReportYear(report);
+  const periodo = data ? data.toISOString().slice(0, 10) : `${ano}-${String(mes || '').padStart(2, '0')}`;
+  const museu = normalizeMuseu(activity?.museu || activity?.centro_custo || report?.museu || report?.museu_secundario);
+
+  return [nome, periodo, museu].filter(Boolean).join('|');
 }
 
 function getReportActivities(report) {
@@ -163,8 +217,30 @@ function getReportActivities(report) {
     _reportMonthName: reportMonthName,
     _reportYear: reportYear,
     _museu: normalizeMuseu(activity?.museu || activity?.centro_custo || report?.museu || report?.museu_secundario),
-    _publico: getActivityPublico(activity)
+    _publico: getActivityPublico(activity),
+    _auditKey: getActivityAuditKey(activity, report),
   }));
+}
+
+function deduplicateActivities(activities) {
+  const unique = new Map();
+
+  (activities || []).forEach((activity) => {
+    const key = activity?._auditKey;
+    if (!key) return;
+
+    if (!unique.has(key)) {
+      unique.set(key, activity);
+      return;
+    }
+
+    const current = unique.get(key);
+    if (inteiro(activity?._publico) > inteiro(current?._publico)) {
+      unique.set(key, activity);
+    }
+  });
+
+  return Array.from(unique.values());
 }
 
 function sameReportMonth(report, monthNumber, year) {
@@ -173,26 +249,35 @@ function sameReportMonth(report, monthNumber, year) {
 
 function buildMetrics(reports) {
   const approvedReports = reports.filter(isApprovedReport);
-  const approvedActivities = approvedReports.flatMap(getReportActivities);
+  const rawActivities = approvedReports.flatMap(getReportActivities);
+  const approvedActivities = deduplicateActivities(rawActivities);
   const publicoTotal = approvedActivities.reduce((sum, activity) => sum + activity._publico, 0);
 
   return {
     approvedReports,
     approvedActivities,
-    publicoTotal
+    publicoTotal,
   };
 }
 
-function KpiCard({ label, value, icon: Icon, highlight }) {
+function KpiCard({ label, value, icon: Icon, highlight = false }) {
   return (
-    <div className={`p-5 border rounded-xl transition-all shadow-sm ${highlight ? 'border-black bg-black text-white shadow-md' : 'border-gray-100 bg-white hover:shadow-md'}`}>
-      <div className="flex items-center gap-2 mb-3">
-        <Icon className={`w-4 h-4 ${highlight ? 'text-white' : 'text-gray-400'}`} />
-        <span className={`text-xs font-medium ${highlight ? 'text-gray-300' : 'text-gray-600'}`}>{label}</span>
+    <div
+      className={`rounded-2xl border p-5 shadow-sm min-w-0 transition-all ${
+        highlight ? 'border-black bg-black text-white shadow-md' : 'border-gray-200 bg-white hover:shadow-md'
+      }`}
+    >
+      <div className="flex items-center gap-2 mb-3 min-w-0">
+        {Icon && <Icon className={`w-4 h-4 flex-shrink-0 ${highlight ? 'text-white' : 'text-gray-500'}`} />}
+        <span className={`text-[11px] uppercase tracking-wide font-semibold truncate ${highlight ? 'text-gray-300' : 'text-gray-500'}`}>
+          {label}
+        </span>
       </div>
-      <p className={`text-3xl font-bold leading-tight ${highlight ? 'text-white' : 'text-black'}`}>{typeof value === 'number' ? Math.round(value).toLocaleString('pt-BR') : value}</p>
-    </div>);
-
+      <p className={`text-3xl font-bold leading-tight truncate ${highlight ? 'text-white' : 'text-black'}`}>
+        {typeof value === 'number' ? inteiro(value).toLocaleString('pt-BR') : value}
+      </p>
+    </div>
+  );
 }
 
 export default function CoordDashboard({ reports = [], isLoading }) {
@@ -204,8 +289,8 @@ export default function CoordDashboard({ reports = [], isLoading }) {
   const [filterTipoAtiv, setFilterTipoAtiv] = useState('');
 
   const isDarkTheme =
-  typeof document !== 'undefined' && (
-  document.documentElement.getAttribute('data-theme') === 'nuit' || document.body.getAttribute('data-theme') === 'nuit');
+    typeof document !== 'undefined' &&
+    (document.documentElement.getAttribute('data-theme') === 'nuit' || document.body.getAttribute('data-theme') === 'nuit');
 
   const publicoLineColor = isDarkTheme ? '#ffffff' : '#000000';
   const mesReferencia = useMemo(() => getPreviousClosedMonth(), []);
@@ -239,7 +324,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
 
   const atividadesMesReferencia = useMemo(() => {
     const relatoriosMes = metrics.approvedReports.filter((report) => sameReportMonth(report, mesReferencia.monthNumber, mesReferencia.year));
-    const atividades = relatoriosMes.flatMap(getReportActivities).filter((activity) => {
+    const atividades = deduplicateActivities(relatoriosMes.flatMap(getReportActivities)).filter((activity) => {
       if (filterMuseu && activity._museu !== filterMuseu) return false;
       if (filterClasse && String(activity.classificacao || '').toUpperCase() !== filterClasse) return false;
       if (filterTipoAtiv && activity.tipo_atividade !== filterTipoAtiv) return false;
@@ -248,7 +333,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
 
     return {
       count: atividades.length,
-      publico: atividades.reduce((sum, activity) => sum + activity._publico, 0)
+      publico: atividades.reduce((sum, activity) => sum + activity._publico, 0),
     };
   }, [metrics.approvedReports, mesReferencia, filterMuseu, filterClasse, filterTipoAtiv]);
 
@@ -299,15 +384,15 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     return Object.entries(map).map(([status, value]) => ({
       name: STATUS_CONFIG[status]?.label || status,
       value,
-      fill: STATUS_CONFIG[status]?.color || '#ccc'
+      fill: STATUS_CONFIG[status]?.color || '#ccc',
     }));
   }, [reportsFiltrados]);
 
   const classifData = [
-  { name: 'META', value: metas },
-  { name: 'ROTINA', value: rotinas },
-  { name: 'EXTRA', value: extras }].
-  filter((d) => d.value > 0);
+    { name: 'META', value: metas },
+    { name: 'ROTINA', value: rotinas },
+    { name: 'EXTRA', value: extras },
+  ].filter((d) => d.value > 0);
 
   const atividadesPorTipo = useMemo(() => {
     const map = {};
@@ -332,30 +417,30 @@ export default function CoordDashboard({ reports = [], isLoading }) {
 
   const exportarRelatorioGeral = () => {
     const rows = [
-    ['Protocolo', 'Profissional', 'Museu', 'Mês', 'Ano', 'Status', 'Total Atividades', 'Público Total', 'Metas', 'Rotinas', 'Extras'],
-    ...metrics.approvedReports.map((report) => {
-      const atividades = getReportActivities(report);
-      return [
-      report.numero_protocolo || '—',
-      report.author_name || '',
-      report.museu || '',
-      report.mes_referencia || '',
-      report.ano || '',
-      report.status || '',
-      atividades.length,
-      atividades.reduce((sum, activity) => sum + activity._publico, 0),
-      atividades.filter((a) => String(a.classificacao || '').toUpperCase() === 'META').length,
-      atividades.filter((a) => String(a.classificacao || '').toUpperCase() === 'ROTINA').length,
-      atividades.filter((a) => String(a.classificacao || '').toUpperCase() === 'EXTRA').length];
-
-    }),
-    [],
-    ['AUDITORIA'],
-    ['Fonte', 'Somente relatórios aprovados'],
-    ['Relatórios aprovados', metrics.approvedReports.length],
-    ['Atividades aprovadas', totalAtiv],
-    ['Público total aprovado', publicoTotal]];
-
+      ['Protocolo', 'Profissional', 'Museu', 'Mês', 'Ano', 'Status', 'Total Atividades', 'Público Total', 'Metas', 'Rotinas', 'Extras'],
+      ...metrics.approvedReports.map((report) => {
+        const atividades = deduplicateActivities(getReportActivities(report));
+        return [
+          report.numero_protocolo || '—',
+          report.author_name || '',
+          report.museu || '',
+          report.mes_referencia || '',
+          report.ano || '',
+          report.status || '',
+          atividades.length,
+          atividades.reduce((sum, activity) => sum + activity._publico, 0),
+          atividades.filter((a) => String(a.classificacao || '').toUpperCase() === 'META').length,
+          atividades.filter((a) => String(a.classificacao || '').toUpperCase() === 'ROTINA').length,
+          atividades.filter((a) => String(a.classificacao || '').toUpperCase() === 'EXTRA').length,
+        ];
+      }),
+      [],
+      ['AUDITORIA'],
+      ['Fonte', 'Somente relatórios aprovados, com atividades deduplicadas'],
+      ['Relatórios aprovados', metrics.approvedReports.length],
+      ['Atividades aprovadas', totalAtiv],
+      ['Público total aprovado', publicoTotal],
+    ];
 
     const csvContent = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -388,72 +473,8 @@ export default function CoordDashboard({ reports = [], isLoading }) {
       <PendingApprovalsPanel />
       <FrasesParticipantes reports={metrics.approvedReports} />
 
-      
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      
-
       <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg hidden">
-        Auditoria ativa: atividades e público são calculados exclusivamente pela soma das atividades dos relatórios aprovados. Agenda não entra em público realizado.
+        Auditoria ativa: atividades e público são calculados exclusivamente pela soma deduplicada das atividades dos relatórios aprovados. Agenda não entra em público realizado.
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -464,8 +485,8 @@ export default function CoordDashboard({ reports = [], isLoading }) {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {porMes.length > 0 &&
-        <div className="border border-gray-100 rounded-2xl p-5 hidden">
+        {porMes.length > 0 && (
+          <div className="border border-gray-100 rounded-2xl p-5 hidden">
             <h3 className="text-sm font-semibold text-black mb-4">Atividades por Mês</h3>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={porMes} barSize={20}>
@@ -476,10 +497,10 @@ export default function CoordDashboard({ reports = [], isLoading }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        }
+        )}
 
-        {porMes.length > 0 &&
-        <div className="border border-gray-100 rounded-2xl p-5 hidden">
+        {porMes.length > 0 && (
+          <div className="border border-gray-100 rounded-2xl p-5 hidden">
             <h3 className="text-sm font-semibold text-black mb-4">Público por Mês</h3>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={porMes} barSize={20}>
@@ -490,12 +511,12 @@ export default function CoordDashboard({ reports = [], isLoading }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        }
+        )}
       </div>
 
       <div className="grid md:grid-cols-4 gap-6">
-        {statusData.length > 0 &&
-        <div className="border border-gray-100 rounded-2xl p-5">
+        {statusData.length > 0 && (
+          <div className="border border-gray-100 rounded-2xl p-5">
             <h3 className="text-sm font-semibold text-black mb-4">Status dos Relatórios</h3>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
@@ -506,52 +527,52 @@ export default function CoordDashboard({ reports = [], isLoading }) {
               </PieChart>
             </ResponsiveContainer>
           </div>
-        }
+        )}
 
-        {classifData.length > 0 &&
-        <div className="border border-gray-100 rounded-2xl p-5">
+        {classifData.length > 0 && (
+          <div className="border border-gray-100 rounded-2xl p-5">
             <h3 className="text-sm font-semibold text-black mb-4">Classificação de Atividades</h3>
             <div className="space-y-3 mt-2">
               {[
-            { label: 'META', value: metas, total: totalAtiv, color: 'bg-black' },
-            { label: 'ROTINA', value: rotinas, total: totalAtiv, color: 'bg-gray-500' },
-            { label: 'EXTRA', value: extras, total: totalAtiv, color: 'bg-gray-300' }].
-            map((item) =>
-            <div key={item.label}>
+                { label: 'META', value: metas, total: totalAtiv, color: 'bg-black' },
+                { label: 'ROTINA', value: rotinas, total: totalAtiv, color: 'bg-gray-500' },
+                { label: 'EXTRA', value: extras, total: totalAtiv, color: 'bg-gray-300' },
+              ].map((item) => (
+                <div key={item.label}>
                   <div className="flex justify-between text-xs mb-1">
                     <span className="font-medium text-gray-700">{item.label}</span>
-                    <span className="text-gray-500">{item.value} ({totalAtiv ? Math.round(item.value / totalAtiv * 100) : 0}%)</span>
+                    <span className="text-gray-500">{item.value} ({totalAtiv ? Math.round((item.value / totalAtiv) * 100) : 0}%)</span>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className={`h-full ${item.color} rounded-full transition-all`} style={{ width: totalAtiv ? `${item.value / totalAtiv * 100}%` : '0%' }} />
+                    <div className={`h-full ${item.color} rounded-full transition-all`} style={{ width: totalAtiv ? `${(item.value / totalAtiv) * 100}%` : '0%' }} />
                   </div>
                 </div>
-            )}
+              ))}
             </div>
             <div className="mt-4 pt-3 border-t border-gray-100 text-xs text-gray-500">Total: {totalAtiv} atividades registradas</div>
           </div>
-        }
+        )}
 
-        {atividadesPorTipo.length > 0 &&
-        <div className="border border-gray-100 rounded-2xl p-5">
+        {atividadesPorTipo.length > 0 && (
+          <div className="border border-gray-100 rounded-2xl p-5">
             <h3 className="text-sm font-semibold text-black mb-4">Atividades por Tipo</h3>
             <div className="space-y-2">
-              {atividadesPorTipo.map((item) =>
-            <div key={item.tipo} className="flex items-center justify-between text-xs">
+              {atividadesPorTipo.map((item) => (
+                <div key={item.tipo} className="flex items-center justify-between text-xs">
                   <span className="text-gray-600 truncate">{item.tipo}</span>
                   <span className="font-semibold text-black">{item.value}</span>
                 </div>
-            )}
+              ))}
             </div>
           </div>
-        }
+        )}
 
-        {porMuseu.length > 0 &&
-        <div className="border border-gray-100 rounded-2xl p-5">
+        {porMuseu.length > 0 && (
+          <div className="border border-gray-100 rounded-2xl p-5">
             <h3 className="text-sm font-semibold text-black mb-4">Comparativo por Museu</h3>
             <div className="space-y-3">
-              {porMuseu.map((m) =>
-            <div key={m.museu} className="space-y-1">
+              {porMuseu.map((m) => (
+                <div key={m.museu} className="space-y-1">
                   <div className="flex items-center gap-2">
                     <Building2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                     <span className="font-medium text-sm text-black truncate">{m.museu}</span>
@@ -562,14 +583,14 @@ export default function CoordDashboard({ reports = [], isLoading }) {
                     <span>{Math.round(m.publico).toLocaleString('pt-BR')} púb.</span>
                   </div>
                 </div>
-            )}
+              ))}
             </div>
           </div>
-        }
+        )}
       </div>
 
-      {porMes.length > 2 &&
-      <div className="border border-gray-100 rounded-2xl p-5">
+      {porMes.length > 2 && (
+        <div className="border border-gray-100 rounded-2xl p-5">
           <h3 className="text-sm font-semibold text-black mb-4">Público por Mês</h3>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={porMes}>
@@ -581,10 +602,10 @@ export default function CoordDashboard({ reports = [], isLoading }) {
             </LineChart>
           </ResponsiveContainer>
         </div>
-      }
+      )}
 
-      {pendentesList.length > 0 &&
-      <div className="border border-black rounded-2xl p-5">
+      {pendentesList.length > 0 && (
+        <div className="border border-black rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-black flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-black" />Aguardando Revisão ({pendentes})
@@ -597,9 +618,9 @@ export default function CoordDashboard({ reports = [], isLoading }) {
           </div>
           <div className="space-y-2">
             {pendentesList.map((report) => {
-            const cfg = STATUS_CONFIG[normalizeStatus(report.status)];
-            return (
-              <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block">
+              const cfg = STATUS_CONFIG[normalizeStatus(report.status)];
+              return (
+                <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block">
                   <div className="flex items-center justify-between py-2.5 px-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
                     <div>
                       <span className="text-sm font-medium text-black">{report.author_name}</span>
@@ -609,18 +630,18 @@ export default function CoordDashboard({ reports = [], isLoading }) {
                       {cfg?.label || report.status}
                     </span>
                   </div>
-                </Link>);
-
-          })}
+                </Link>
+              );
+            })}
           </div>
         </div>
-      }
+      )}
 
       <div className="flex justify-end">
         <Button variant="outline" size="sm" className="gap-2" onClick={exportarRelatorioGeral}>
           <Download className="w-4 h-4" />Exportar Relatório Geral (CSV)
         </Button>
       </div>
-    </div>);
-
+    </div>
+  );
 }
