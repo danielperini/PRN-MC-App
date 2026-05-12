@@ -11,8 +11,8 @@ import {
   CartesianGrid,
   PieChart,
   Pie,
-  Cell
-} from 'recharts';
+  Cell } from
+'recharts';
 import {
   Calendar,
   Users,
@@ -21,8 +21,8 @@ import {
   MapPin,
   Activity,
   Quote,
-  Sparkles
-} from 'lucide-react';
+  Sparkles } from
+'lucide-react';
 import { Button } from '@/components/ui/button';
 import AgendaCard from '@/components/patrocinador/AgendaCard';
 import { useTheme } from '@/context/ThemeContext';
@@ -32,14 +32,14 @@ const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
 const TOTAL_OFICIAL = 1320000;
 
 const fmtBRL = (v) =>
-  new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    maximumFractionDigits: 0
-  }).format(Number(v || 0));
+new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  maximumFractionDigits: 0
+}).format(Number(v || 0));
 
 const fmtInt = (v) =>
-  Math.round(Number(v || 0)).toLocaleString('pt-BR');
+Math.round(Number(v || 0)).toLocaleString('pt-BR');
 
 function startOfDay(date) {
   const d = new Date(date);
@@ -60,13 +60,13 @@ async function safeList(entity, order = '-created_date', limit = 500) {
 
 function getDateValue(item) {
   const raw =
-    item?.data_realizacao ||
-    item?.data_programacao ||
-    item?.data_inicio ||
-    item?.data ||
-    item?.inicio ||
-    item?.created_date ||
-    item?.updated_date;
+  item?.data_realizacao ||
+  item?.data_programacao ||
+  item?.data_inicio ||
+  item?.data ||
+  item?.inicio ||
+  item?.created_date ||
+  item?.updated_date;
 
   if (!raw) return null;
 
@@ -92,24 +92,24 @@ function isApprovedReport(report) {
 
 function getActivityPublico(atividade) {
   const publicoDireto =
-    Number(atividade?.publico_total) ||
-    Number(atividade?.publico_estimado) ||
-    Number(atividade?.publico) ||
-    0;
+  Number(atividade?.publico_total) ||
+  Number(atividade?.publico_estimado) ||
+  Number(atividade?.publico) ||
+  0;
 
   if (publicoDireto > 0) return publicoDireto;
 
   const publicoMedio =
-    Number(atividade?.publico_medio) ||
-    Number(atividade?.publico_medio_sessao) ||
-    Number(atividade?.publico_por_sessao) ||
-    0;
+  Number(atividade?.publico_medio) ||
+  Number(atividade?.publico_medio_sessao) ||
+  Number(atividade?.publico_por_sessao) ||
+  0;
 
   const ocorrencias =
-    Number(atividade?.quantas_vezes_ocorreu) ||
-    Number(atividade?.qtd_ocorrencias) ||
-    Number(atividade?.ocorrencias) ||
-    1;
+  Number(atividade?.quantas_vezes_ocorreu) ||
+  Number(atividade?.qtd_ocorrencias) ||
+  Number(atividade?.ocorrencias) ||
+  1;
 
   return publicoMedio * ocorrencias;
 }
@@ -121,8 +121,8 @@ function getProgramacaoTitle(item) {
     item?.atividade ||
     item?.nome ||
     item?.evento ||
-    'Atividade programada'
-  );
+    'Atividade programada');
+
 }
 
 function getProgramacaoMuseu(item) {
@@ -130,9 +130,9 @@ function getProgramacaoMuseu(item) {
 }
 
 function normalizeText(value) {
-  return String(value || '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return String(value || '').
+  replace(/\s+/g, ' ').
+  trim();
 }
 
 function getWeekSeed(extraSeed = 0) {
@@ -164,56 +164,56 @@ function extractTrechosPositivos(reports = [], extraSeed = 0) {
   const candidatos = [];
 
   const camposRelatorio = [
-    'resumo',
-    'resumo_executivo',
-    'destaques',
-    'principais_resultados',
-    'resultados',
-    'comentarios',
-    'avaliacao',
-    'aprendizados',
-    'oportunidades',
-    'observacoes',
-    'consideracoes_finais'
-  ];
+  'resumo',
+  'resumo_executivo',
+  'destaques',
+  'principais_resultados',
+  'resultados',
+  'comentarios',
+  'avaliacao',
+  'aprendizados',
+  'oportunidades',
+  'observacoes',
+  'consideracoes_finais'];
+
 
   const camposAtividade = [
-    'descricao',
-    'descricao_atividade',
-    'resultado',
-    'resultados',
-    'impacto',
-    'comentarios',
-    'avaliacao',
-    'observacoes',
-    'aprendizados',
-    'destaques'
-  ];
+  'descricao',
+  'descricao_atividade',
+  'resultado',
+  'resultados',
+  'impacto',
+  'comentarios',
+  'avaliacao',
+  'observacoes',
+  'aprendizados',
+  'destaques'];
+
 
   const palavrasPositivas = [
-    'participação',
-    'participacao',
-    'engajamento',
-    'fortalecimento',
-    'ampliou',
-    'aproximou',
-    'positivo',
-    'positiva',
-    'sucesso',
-    'relevante',
-    'importante',
-    'potente',
-    'acesso',
-    'público',
-    'publico',
-    'comunidade',
-    'educativo',
-    'educativa',
-    'território',
-    'territorio',
-    'parceria',
-    'aprendizado'
-  ];
+  'participação',
+  'participacao',
+  'engajamento',
+  'fortalecimento',
+  'ampliou',
+  'aproximou',
+  'positivo',
+  'positiva',
+  'sucesso',
+  'relevante',
+  'importante',
+  'potente',
+  'acesso',
+  'público',
+  'publico',
+  'comunidade',
+  'educativo',
+  'educativa',
+  'território',
+  'territorio',
+  'parceria',
+  'aprendizado'];
+
 
   reports.forEach((report) => {
     camposRelatorio.forEach((campo) => {
@@ -246,28 +246,28 @@ function extractTrechosPositivos(reports = [], extraSeed = 0) {
   const unicos = [];
   const seen = new Set();
 
-  candidatos
-    .sort((a, b) => b.peso - a.peso)
-    .forEach((item) => {
-      const chave = item.texto.slice(0, 90).toLowerCase();
-      if (seen.has(chave)) return;
-      seen.add(chave);
-      unicos.push(item);
-    });
+  candidatos.
+  sort((a, b) => b.peso - a.peso).
+  forEach((item) => {
+    const chave = item.texto.slice(0, 90).toLowerCase();
+    if (seen.has(chave)) return;
+    seen.add(chave);
+    unicos.push(item);
+  });
 
-  return seededShuffle(unicos.slice(0, 30), getWeekSeed(extraSeed))
-    .slice(0, 3)
-    .map((item) => ({
-      ...item,
-      texto: item.texto.length > 240 ? `${item.texto.slice(0, 237).trim()}...` : item.texto
-    }));
+  return seededShuffle(unicos.slice(0, 30), getWeekSeed(extraSeed)).
+  slice(0, 3).
+  map((item) => ({
+    ...item,
+    texto: item.texto.length > 240 ? `${item.texto.slice(0, 237).trim()}...` : item.texto
+  }));
 }
 
 function KpiCard({ icon: Icon, label, value, helper, dark = false }) {
   return (
     <div className={`rounded-2xl border p-5 shadow-sm min-w-0 ${
-      dark ? 'bg-black text-white border-black' : 'bg-white text-black border-gray-200'
-    }`}>
+    dark ? 'bg-black text-white border-black' : 'bg-white text-black border-gray-200'}`
+    }>
       <div className="flex items-center gap-2 mb-3">
         <Icon className={`w-4 h-4 ${dark ? 'text-white' : 'text-gray-500'}`} />
         <span className={`text-[11px] uppercase tracking-wide font-semibold ${dark ? 'text-gray-300' : 'text-gray-500'}`}>
@@ -277,13 +277,13 @@ function KpiCard({ icon: Icon, label, value, helper, dark = false }) {
       <p className={`text-3xl font-bold leading-tight truncate ${dark ? 'text-white' : 'text-black'}`}>
         {value}
       </p>
-      {helper && (
-        <p className={`text-xs mt-1 truncate ${dark ? 'text-gray-300' : 'text-gray-500'}`}>
+      {helper &&
+      <p className={`text-xs mt-1 truncate ${dark ? 'text-gray-300' : 'text-gray-500'}`}>
           {helper}
         </p>
-      )}
-    </div>
-  );
+      }
+    </div>);
+
 }
 
 function SectionCard({ title, children, className = '' }) {
@@ -295,8 +295,8 @@ function SectionCard({ title, children, className = '' }) {
         </h3>
         {children}
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 }
 
 function TrechosPositivos({ trechos = [], onRefresh, canRefresh }) {
@@ -312,28 +312,28 @@ function TrechosPositivos({ trechos = [], onRefresh, canRefresh }) {
           </p>
         </div>
 
-        {canRefresh && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={onRefresh}
-            className="border-gray-200 text-black hover:bg-gray-50 gap-1.5"
-          >
+        {canRefresh &&
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={onRefresh}
+          className="border-gray-200 text-black hover:bg-gray-50 gap-1.5">
+          
             <Sparkles className="w-3.5 h-3.5" />
             Trocar trechos
           </Button>
-        )}
+        }
       </div>
 
-      {trechos.length === 0 ? (
-        <p className="text-sm text-gray-400">
+      {trechos.length === 0 ?
+      <p className="text-sm text-gray-400">
           Nenhum trecho positivo encontrado nos relatórios aprovados.
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {trechos.map((item, idx) => (
-            <div key={`${item.texto}-${idx}`} className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
+        </p> :
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {trechos.map((item, idx) =>
+        <div key={`${item.texto}-${idx}`} className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
               <Quote className="w-4 h-4 text-black mb-2" />
               <p className="text-sm text-black leading-relaxed line-clamp-5">
                 {item.texto}
@@ -347,11 +347,11 @@ function TrechosPositivos({ trechos = [], onRefresh, canRefresh }) {
                 </p>
               </div>
             </div>
-          ))}
+        )}
         </div>
-      )}
-    </SectionCard>
-  );
+      }
+    </SectionCard>);
+
 }
 
 export default function DashboardPatrocinador() {
@@ -392,7 +392,7 @@ export default function DashboardPatrocinador() {
   }, []);
 
   const isCoordenador =
-    ['ADMIN', 'admin', 'COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(currentUser?.role);
+  ['ADMIN', 'admin', 'COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(currentUser?.role);
 
   const loadDashboardData = useCallback(async (silent = false, seedOverride = curadoriaSeed) => {
     if (isFetchingRef.current) return;
@@ -400,8 +400,8 @@ export default function DashboardPatrocinador() {
     isFetchingRef.current = true;
     setLoadError('');
 
-    if (!silent) setLoading(true);
-    else setRefreshing(true);
+    if (!silent) setLoading(true);else
+    setRefreshing(true);
 
     try {
       const hoje = new Date();
@@ -410,10 +410,10 @@ export default function DashboardPatrocinador() {
       const anoAtual = hoje.getFullYear();
 
       const [reportsAll, programacaoRaw, rubricasRaw] = await Promise.all([
-        safeList(base44.entities.Report, '-updated_date', 300),
-        safeList(base44.entities.Programacao, '-data_realizacao', 1000),
-        safeList(base44.entities.Rubrica, 'ordem_exibicao', 1000)
-      ]);
+      safeList(base44.entities.Report, '-updated_date', 300),
+      safeList(base44.entities.Programacao, '-data_realizacao', 1000),
+      safeList(base44.entities.Rubrica, 'ordem_exibicao', 1000)]
+      );
 
       const reports = reportsAll.filter(isApprovedReport);
 
@@ -455,13 +455,13 @@ export default function DashboardPatrocinador() {
         return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
       });
 
-      const agendaHoje = atividadesProgramacao
-        .filter((item) => item?._date && startOfDay(item._date).getTime() === hojeInicio.getTime())
-        .sort((a, b) => String(a.horario || '').localeCompare(String(b.horario || '')));
+      const agendaHoje = atividadesProgramacao.
+      filter((item) => item?._date && startOfDay(item._date).getTime() === hojeInicio.getTime()).
+      sort((a, b) => String(a.horario || '').localeCompare(String(b.horario || '')));
 
-      const futuras = atividadesProgramacao
-        .filter((item) => item?._date && startOfDay(item._date).getTime() >= hojeInicio.getTime())
-        .sort((a, b) => startOfDay(a._date).getTime() - startOfDay(b._date).getTime());
+      const futuras = atividadesProgramacao.
+      filter((item) => item?._date && startOfDay(item._date).getTime() >= hojeInicio.getTime()).
+      sort((a, b) => startOfDay(a._date).getTime() - startOfDay(b._date).getTime());
 
       const proximaAgenda = agendaHoje[0] || futuras[0] || null;
 
@@ -484,14 +484,14 @@ export default function DashboardPatrocinador() {
         atividadesPorMes[chave].publico += getActivityPublico(item);
       });
 
-      const dadosMensais = Object.values(atividadesPorMes)
-        .sort((a, b) => a.mes.localeCompare(b.mes))
-        .slice(-6)
-        .map((item) => ({
-          ...item,
-          atividades: Math.round(item.atividades),
-          publico: Math.round(item.publico)
-        }));
+      const dadosMensais = Object.values(atividadesPorMes).
+      sort((a, b) => a.mes.localeCompare(b.mes)).
+      slice(-6).
+      map((item) => ({
+        ...item,
+        atividades: Math.round(item.atividades),
+        publico: Math.round(item.publico)
+      }));
 
       const classificacao = {};
       atividadesRelatorios.forEach((item) => {
@@ -503,13 +503,13 @@ export default function DashboardPatrocinador() {
         nome,
         quantidade,
         display:
-          nome === 'META'
-            ? 'Metas'
-            : nome === 'ROTINA'
-              ? 'Rotina'
-              : nome === 'EXTRA'
-                ? 'Extra'
-                : nome
+        nome === 'META' ?
+        'Metas' :
+        nome === 'ROTINA' ?
+        'Rotina' :
+        nome === 'EXTRA' ?
+        'Extra' :
+        nome
       }));
 
       const comparativoMuseu = MUSEUS.map((museu) => {
@@ -539,7 +539,7 @@ export default function DashboardPatrocinador() {
       );
 
       const saldoTotal = TOTAL_OFICIAL - totalUtilizado;
-      const percentualExecucao = TOTAL_OFICIAL > 0 ? Number(((totalUtilizado / TOTAL_OFICIAL) * 100).toFixed(1)) : 0;
+      const percentualExecucao = TOTAL_OFICIAL > 0 ? Number((totalUtilizado / TOTAL_OFICIAL * 100).toFixed(1)) : 0;
 
       const publicoMes = Math.round(atividadesMes.reduce((sum, item) => sum + getActivityPublico(item), 0));
       const totalPublico = Math.round(todasAsAtividades.reduce((sum, item) => sum + getActivityPublico(item), 0));
@@ -585,13 +585,13 @@ export default function DashboardPatrocinador() {
     const interval = setInterval(() => loadDashboardData(true), 60000);
 
     const unsubscribers = [
-      base44.entities.Report?.subscribe?.(() => loadDashboardData(true)),
-      base44.entities.Activity?.subscribe?.(() => loadDashboardData(true)),
-      base44.entities.Programacao?.subscribe?.(() => loadDashboardData(true)),
-      base44.entities.Rubrica?.subscribe?.(() => loadDashboardData(true)),
-      base44.entities.TeamPayment?.subscribe?.(() => loadDashboardData(true)),
-      base44.entities.PurchaseRequest?.subscribe?.(() => loadDashboardData(true))
-    ].filter(Boolean);
+    base44.entities.Report?.subscribe?.(() => loadDashboardData(true)),
+    base44.entities.Activity?.subscribe?.(() => loadDashboardData(true)),
+    base44.entities.Programacao?.subscribe?.(() => loadDashboardData(true)),
+    base44.entities.Rubrica?.subscribe?.(() => loadDashboardData(true)),
+    base44.entities.TeamPayment?.subscribe?.(() => loadDashboardData(true)),
+    base44.entities.PurchaseRequest?.subscribe?.(() => loadDashboardData(true))].
+    filter(Boolean);
 
     return () => {
       clearInterval(interval);
@@ -616,8 +616,8 @@ export default function DashboardPatrocinador() {
       return (
         <p className="text-sm text-gray-500">
           Nenhuma atividade futura cadastrada na programação.
-        </p>
-      );
+        </p>);
+
     }
 
     const item = data.proximaAgenda;
@@ -643,8 +643,8 @@ export default function DashboardPatrocinador() {
             {data.agendaDoDia.length > 0 ? 'Hoje' : 'Próxima'}
           </div>
         </div>
-      </div>
-    );
+      </div>);
+
   }, [data.proximaAgenda, data.agendaDoDia.length]);
 
   if (loading) {
@@ -654,23 +654,23 @@ export default function DashboardPatrocinador() {
           <div className="w-8 h-8 border-2 border-gray-200 border-t-black rounded-full animate-spin mx-auto" />
           <p className="text-gray-500 text-sm">Carregando painel...</p>
         </div>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
     <div className="space-y-8">
-      {loadError && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-4 text-sm text-gray-700">
+      {loadError &&
+      <div className="bg-white border border-gray-200 rounded-2xl p-4 text-sm text-gray-700">
           {loadError}
         </div>
-      )}
+      }
 
-      {!data.hasData && (
-        <div className="bg-white border border-black rounded-2xl p-5 text-sm text-black font-medium">
+      {!data.hasData &&
+      <div className="bg-white border border-black rounded-2xl p-5 text-sm text-black font-medium">
           Sem dados disponíveis. Sincronize relatórios aprovados e atividades para visualizar métricas.
         </div>
-      )}
+      }
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
@@ -678,30 +678,30 @@ export default function DashboardPatrocinador() {
           label="Atividades do mês"
           value={fmtInt(data.totalAtividadesMes)}
           helper={`${fmtInt(data.totalAtividadesAno)} no acumulado`}
-          dark
-        />
+          dark />
+        
 
         <KpiCard
           icon={Calendar}
           label="Previstas na agenda"
           value={fmtInt(data.atividadesPrevistasMes)}
           helper={`período ${data.periodo}`}
-          dark
-        />
+          dark />
+        
 
         <KpiCard
           icon={Users}
           label="Público total"
           value={fmtInt(data.totalPublico)}
-          helper={`${fmtInt(data.publicoMes)} no mês`}
-        />
+          helper={`${fmtInt(data.publicoMes)} no mês`} />
+        
 
         <KpiCard
           icon={TrendingUp}
           label="Execução orçamentária"
           value={`${data.percentualExecucao}%`}
-          helper={`${fmtBRL(data.totalUtilizado)} utilizado`}
-        />
+          helper={`${fmtBRL(data.totalUtilizado)} utilizado`} />
+        
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -726,8 +726,8 @@ export default function DashboardPatrocinador() {
             <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-1.5 rounded-full bg-black"
-                style={{ width: `${Math.min(data.percentualExecucao, 100)}%` }}
-              />
+                style={{ width: `${Math.min(data.percentualExecucao, 100)}%` }} />
+              
             </div>
           </div>
         </SectionCard>
@@ -741,8 +741,8 @@ export default function DashboardPatrocinador() {
                   <p className="text-sm font-bold text-black">{museu}</p>
                   <p className="text-xs text-gray-500 mt-1">{fmtInt(item.atividades)} atividades</p>
                   <p className="text-xs text-gray-500">{fmtInt(item.publico)} público</p>
-                </div>
-              );
+                </div>);
+
             })}
           </div>
         </SectionCard>
@@ -752,16 +752,16 @@ export default function DashboardPatrocinador() {
         <TrechosPositivos
           trechos={data.trechosPositivos}
           onRefresh={handleTrocarTrechos}
-          canRefresh={isCoordenador}
-        />
+          canRefresh={isCoordenador} />
+        
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 hidden">
         <SectionCard title="Atividades por mês">
-          {data.dadosMensais.length === 0 ? (
-            <p className="text-sm text-gray-400">Sem dados disponíveis.</p>
-          ) : (
-            <div className="h-64">
+          {data.dadosMensais.length === 0 ?
+          <p className="text-sm text-gray-400">Sem dados disponíveis.</p> :
+
+          <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.dadosMensais}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
@@ -772,33 +772,33 @@ export default function DashboardPatrocinador() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          )}
+          }
         </SectionCard>
 
         <SectionCard title="Classificação de atividades">
-          {data.dadosClassificacao.length === 0 ? (
-            <p className="text-sm text-gray-400">Sem dados disponíveis.</p>
-          ) : (
-            <div className="h-64">
+          {data.dadosClassificacao.length === 0 ?
+          <p className="text-sm text-gray-400">Sem dados disponíveis.</p> :
+
+          <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={data.dadosClassificacao}
-                    dataKey="quantidade"
-                    nameKey="display"
-                    outerRadius={86}
-                    innerRadius={48}
-                    paddingAngle={3}
-                  >
-                    {data.dadosClassificacao.map((entry, index) => (
-                      <Cell key={entry.nome} fill={chartColors[index % chartColors.length]} />
-                    ))}
+                  data={data.dadosClassificacao}
+                  dataKey="quantidade"
+                  nameKey="display"
+                  outerRadius={86}
+                  innerRadius={48}
+                  paddingAngle={3}>
+                  
+                    {data.dadosClassificacao.map((entry, index) =>
+                  <Cell key={entry.nome} fill={chartColors[index % chartColors.length]} />
+                  )}
                   </Pie>
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-          )}
+          }
         </SectionCard>
       </div>
 
@@ -818,16 +818,16 @@ export default function DashboardPatrocinador() {
           variant="outline"
           onClick={() => loadDashboardData(false)}
           disabled={loading || refreshing}
-          className="border-gray-200 text-black hover:bg-gray-50 gap-1.5"
-        >
+          className="border-gray-200 text-black hover:bg-gray-50 gap-1.5">
+          
           <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
           {refreshing ? 'Atualizando...' : 'Atualizar painel'}
         </Button>
 
-        {lastUpdate && (
-          <span>Última sincronização: {lastUpdate.toLocaleTimeString('pt-BR')}</span>
-        )}
+        {lastUpdate &&
+        <span>Última sincronização: {lastUpdate.toLocaleTimeString('pt-BR')}</span>
+        }
       </div>
-    </div>
-  );
+    </div>);
+
 }
