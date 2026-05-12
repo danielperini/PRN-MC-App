@@ -13,8 +13,8 @@ import {
   Cell,
   LineChart,
   Line,
-  CartesianGrid,
-} from 'recharts';
+  CartesianGrid } from
+'recharts';
 import {
   Users,
   AlertCircle,
@@ -24,8 +24,8 @@ import {
   Building2,
   Download,
   Filter,
-  X,
-} from 'lucide-react';
+  X } from
+'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -34,19 +34,19 @@ import PendingApprovalsPanel from './PendingApprovalsPanel';
 import FrasesParticipantes from './FrasesParticipantes';
 
 const MESES_ORDER = [
-  'Janeiro',
-  'Fevereiro',
-  'Março',
-  'Abril',
-  'Maio',
-  'Junho',
-  'Julho',
-  'Agosto',
-  'Setembro',
-  'Outubro',
-  'Novembro',
-  'Dezembro',
-];
+'Janeiro',
+'Fevereiro',
+'Março',
+'Abril',
+'Maio',
+'Junho',
+'Julho',
+'Agosto',
+'Setembro',
+'Outubro',
+'Novembro',
+'Dezembro'];
+
 
 const STATUS_CONFIG = {
   DRAFT: { label: 'Rascunho', color: '#e5e7eb', text: '#374151' },
@@ -62,7 +62,7 @@ const STATUS_CONFIG = {
   APROVADO_COORD: { label: 'Aprovado', color: '#dcfce7', text: '#15803d' },
   APROVADO_ADMIN: { label: 'Aprovado', color: '#dcfce7', text: '#15803d' },
   ARCHIVED: { label: 'Arquivado', color: '#f3e8ff', text: '#7e22ce' },
-  ARQUIVADO: { label: 'Arquivado', color: '#f3e8ff', text: '#7e22ce' },
+  ARQUIVADO: { label: 'Arquivado', color: '#f3e8ff', text: '#7e22ce' }
 };
 
 const PIE_COLORS = ['#000000', '#404040', '#737373', '#a3a3a3', '#d4d4d4', '#e5e5e5'];
@@ -93,18 +93,18 @@ function getActivityPublico(activity) {
 
   const publicoMedio = inteiro(
     activity?.publico_medio_por_sessao ??
-      activity?.publico_medio_sessao ??
-      activity?.publico_medio ??
-      activity?.publico_por_sessao ??
-      0
+    activity?.publico_medio_sessao ??
+    activity?.publico_medio ??
+    activity?.publico_por_sessao ??
+    0
   );
 
   const ocorrencias = inteiro(
     activity?.quantas_vezes_ocorreu ??
-      activity?.qtd_ocorrencias ??
-      activity?.ocorrencias ??
-      activity?.quantidade_ocorrencias ??
-      1
+    activity?.qtd_ocorrencias ??
+    activity?.ocorrencias ??
+    activity?.quantidade_ocorrencias ??
+    1
   );
 
   return publicoMedio * Math.max(ocorrencias, 1);
@@ -136,7 +136,7 @@ function getPreviousClosedMonth() {
     monthNumber: date.getMonth() + 1,
     monthName: MESES_ORDER[date.getMonth()],
     year: date.getFullYear(),
-    label: `${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`,
+    label: `${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
   };
 }
 
@@ -163,7 +163,7 @@ function getReportActivities(report) {
     _reportMonthName: reportMonthName,
     _reportYear: reportYear,
     _museu: normalizeMuseu(activity?.museu || activity?.centro_custo || report?.museu || report?.museu_secundario),
-    _publico: getActivityPublico(activity),
+    _publico: getActivityPublico(activity)
   }));
 }
 
@@ -179,7 +179,7 @@ function buildMetrics(reports) {
   return {
     approvedReports,
     approvedActivities,
-    publicoTotal,
+    publicoTotal
   };
 }
 
@@ -191,8 +191,8 @@ function KpiCard({ label, value, icon: Icon, highlight }) {
         <span className={`text-xs font-medium ${highlight ? 'text-gray-300' : 'text-gray-600'}`}>{label}</span>
       </div>
       <p className={`text-3xl font-bold leading-tight ${highlight ? 'text-white' : 'text-black'}`}>{typeof value === 'number' ? Math.round(value).toLocaleString('pt-BR') : value}</p>
-    </div>
-  );
+    </div>);
+
 }
 
 export default function CoordDashboard({ reports = [], isLoading }) {
@@ -204,8 +204,8 @@ export default function CoordDashboard({ reports = [], isLoading }) {
   const [filterTipoAtiv, setFilterTipoAtiv] = useState('');
 
   const isDarkTheme =
-    typeof document !== 'undefined' &&
-    (document.documentElement.getAttribute('data-theme') === 'nuit' || document.body.getAttribute('data-theme') === 'nuit');
+  typeof document !== 'undefined' && (
+  document.documentElement.getAttribute('data-theme') === 'nuit' || document.body.getAttribute('data-theme') === 'nuit');
 
   const publicoLineColor = isDarkTheme ? '#ffffff' : '#000000';
   const mesReferencia = useMemo(() => getPreviousClosedMonth(), []);
@@ -248,7 +248,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
 
     return {
       count: atividades.length,
-      publico: atividades.reduce((sum, activity) => sum + activity._publico, 0),
+      publico: atividades.reduce((sum, activity) => sum + activity._publico, 0)
     };
   }, [metrics.approvedReports, mesReferencia, filterMuseu, filterClasse, filterTipoAtiv]);
 
@@ -299,15 +299,15 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     return Object.entries(map).map(([status, value]) => ({
       name: STATUS_CONFIG[status]?.label || status,
       value,
-      fill: STATUS_CONFIG[status]?.color || '#ccc',
+      fill: STATUS_CONFIG[status]?.color || '#ccc'
     }));
   }, [reportsFiltrados]);
 
   const classifData = [
-    { name: 'META', value: metas },
-    { name: 'ROTINA', value: rotinas },
-    { name: 'EXTRA', value: extras },
-  ].filter((d) => d.value > 0);
+  { name: 'META', value: metas },
+  { name: 'ROTINA', value: rotinas },
+  { name: 'EXTRA', value: extras }].
+  filter((d) => d.value > 0);
 
   const atividadesPorTipo = useMemo(() => {
     const map = {};
@@ -332,30 +332,30 @@ export default function CoordDashboard({ reports = [], isLoading }) {
 
   const exportarRelatorioGeral = () => {
     const rows = [
-      ['Protocolo', 'Profissional', 'Museu', 'Mês', 'Ano', 'Status', 'Total Atividades', 'Público Total', 'Metas', 'Rotinas', 'Extras'],
-      ...metrics.approvedReports.map((report) => {
-        const atividades = getReportActivities(report);
-        return [
-          report.numero_protocolo || '—',
-          report.author_name || '',
-          report.museu || '',
-          report.mes_referencia || '',
-          report.ano || '',
-          report.status || '',
-          atividades.length,
-          atividades.reduce((sum, activity) => sum + activity._publico, 0),
-          atividades.filter((a) => String(a.classificacao || '').toUpperCase() === 'META').length,
-          atividades.filter((a) => String(a.classificacao || '').toUpperCase() === 'ROTINA').length,
-          atividades.filter((a) => String(a.classificacao || '').toUpperCase() === 'EXTRA').length,
-        ];
-      }),
-      [],
-      ['AUDITORIA'],
-      ['Fonte', 'Somente relatórios aprovados'],
-      ['Relatórios aprovados', metrics.approvedReports.length],
-      ['Atividades aprovadas', totalAtiv],
-      ['Público total aprovado', publicoTotal],
-    ];
+    ['Protocolo', 'Profissional', 'Museu', 'Mês', 'Ano', 'Status', 'Total Atividades', 'Público Total', 'Metas', 'Rotinas', 'Extras'],
+    ...metrics.approvedReports.map((report) => {
+      const atividades = getReportActivities(report);
+      return [
+      report.numero_protocolo || '—',
+      report.author_name || '',
+      report.museu || '',
+      report.mes_referencia || '',
+      report.ano || '',
+      report.status || '',
+      atividades.length,
+      atividades.reduce((sum, activity) => sum + activity._publico, 0),
+      atividades.filter((a) => String(a.classificacao || '').toUpperCase() === 'META').length,
+      atividades.filter((a) => String(a.classificacao || '').toUpperCase() === 'ROTINA').length,
+      atividades.filter((a) => String(a.classificacao || '').toUpperCase() === 'EXTRA').length];
+
+    }),
+    [],
+    ['AUDITORIA'],
+    ['Fonte', 'Somente relatórios aprovados'],
+    ['Relatórios aprovados', metrics.approvedReports.length],
+    ['Atividades aprovadas', totalAtiv],
+    ['Público total aprovado', publicoTotal]];
+
 
     const csvContent = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -393,11 +393,11 @@ export default function CoordDashboard({ reports = [], isLoading }) {
           <h3 className="text-sm font-semibold text-black flex items-center gap-2">
             <Filter className="w-4 h-4" />Filtros de Análise
           </h3>
-          {temFiltrosAtivos && (
-            <Button size="sm" variant="outline" onClick={limparFiltros} className="h-8 gap-1.5">
+          {temFiltrosAtivos &&
+          <Button size="sm" variant="outline" onClick={limparFiltros} className="h-8 gap-1.5">
               <X className="w-3 h-3" />Limpar Filtros
             </Button>
-          )}
+          }
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -431,8 +431,8 @@ export default function CoordDashboard({ reports = [], isLoading }) {
               </SelectContent>
             </Select>
           </div>
-          {filterShowMore && (
-            <div className="space-y-1">
+          {filterShowMore &&
+          <div className="space-y-1">
               <label className="text-xs font-medium text-gray-600">Tipo de Atividade</label>
               <Select value={filterTipoAtiv || '__all__'} onValueChange={(v) => setFilterTipoAtiv(v === '__all__' ? '' : v)}>
                 <SelectTrigger className="text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
@@ -442,14 +442,14 @@ export default function CoordDashboard({ reports = [], isLoading }) {
                 </SelectContent>
               </Select>
             </div>
-          )}
+          }
         </div>
 
-        {!filterShowMore && tiposUnicos.length > 0 && (
-          <Button size="sm" variant="ghost" onClick={() => setFilterShowMore(true)} className="text-xs text-gray-500">
+        {!filterShowMore && tiposUnicos.length > 0 &&
+        <Button size="sm" variant="ghost" onClick={() => setFilterShowMore(true)} className="text-xs text-gray-500">
             + Mais Filtros
           </Button>
-        )}
+        }
       </div>
 
       <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg">
@@ -464,8 +464,8 @@ export default function CoordDashboard({ reports = [], isLoading }) {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {porMes.length > 0 && (
-          <div className="border border-gray-100 rounded-2xl p-5">
+        {porMes.length > 0 &&
+        <div className="border border-gray-100 rounded-2xl p-5 hidden">
             <h3 className="text-sm font-semibold text-black mb-4">Atividades por Mês</h3>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={porMes} barSize={20}>
@@ -476,10 +476,10 @@ export default function CoordDashboard({ reports = [], isLoading }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        )}
+        }
 
-        {porMes.length > 0 && (
-          <div className="border border-gray-100 rounded-2xl p-5">
+        {porMes.length > 0 &&
+        <div className="border border-gray-100 rounded-2xl p-5 hidden">
             <h3 className="text-sm font-semibold text-black mb-4">Público por Mês</h3>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={porMes} barSize={20}>
@@ -490,12 +490,12 @@ export default function CoordDashboard({ reports = [], isLoading }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        )}
+        }
       </div>
 
       <div className="grid md:grid-cols-4 gap-6">
-        {statusData.length > 0 && (
-          <div className="border border-gray-100 rounded-2xl p-5">
+        {statusData.length > 0 &&
+        <div className="border border-gray-100 rounded-2xl p-5">
             <h3 className="text-sm font-semibold text-black mb-4">Status dos Relatórios</h3>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
@@ -506,52 +506,52 @@ export default function CoordDashboard({ reports = [], isLoading }) {
               </PieChart>
             </ResponsiveContainer>
           </div>
-        )}
+        }
 
-        {classifData.length > 0 && (
-          <div className="border border-gray-100 rounded-2xl p-5">
+        {classifData.length > 0 &&
+        <div className="border border-gray-100 rounded-2xl p-5">
             <h3 className="text-sm font-semibold text-black mb-4">Classificação de Atividades</h3>
             <div className="space-y-3 mt-2">
               {[
-                { label: 'META', value: metas, total: totalAtiv, color: 'bg-black' },
-                { label: 'ROTINA', value: rotinas, total: totalAtiv, color: 'bg-gray-500' },
-                { label: 'EXTRA', value: extras, total: totalAtiv, color: 'bg-gray-300' },
-              ].map((item) => (
-                <div key={item.label}>
+            { label: 'META', value: metas, total: totalAtiv, color: 'bg-black' },
+            { label: 'ROTINA', value: rotinas, total: totalAtiv, color: 'bg-gray-500' },
+            { label: 'EXTRA', value: extras, total: totalAtiv, color: 'bg-gray-300' }].
+            map((item) =>
+            <div key={item.label}>
                   <div className="flex justify-between text-xs mb-1">
                     <span className="font-medium text-gray-700">{item.label}</span>
-                    <span className="text-gray-500">{item.value} ({totalAtiv ? Math.round((item.value / totalAtiv) * 100) : 0}%)</span>
+                    <span className="text-gray-500">{item.value} ({totalAtiv ? Math.round(item.value / totalAtiv * 100) : 0}%)</span>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className={`h-full ${item.color} rounded-full transition-all`} style={{ width: totalAtiv ? `${(item.value / totalAtiv) * 100}%` : '0%' }} />
+                    <div className={`h-full ${item.color} rounded-full transition-all`} style={{ width: totalAtiv ? `${item.value / totalAtiv * 100}%` : '0%' }} />
                   </div>
                 </div>
-              ))}
+            )}
             </div>
             <div className="mt-4 pt-3 border-t border-gray-100 text-xs text-gray-500">Total: {totalAtiv} atividades registradas</div>
           </div>
-        )}
+        }
 
-        {atividadesPorTipo.length > 0 && (
-          <div className="border border-gray-100 rounded-2xl p-5">
+        {atividadesPorTipo.length > 0 &&
+        <div className="border border-gray-100 rounded-2xl p-5">
             <h3 className="text-sm font-semibold text-black mb-4">Atividades por Tipo</h3>
             <div className="space-y-2">
-              {atividadesPorTipo.map((item) => (
-                <div key={item.tipo} className="flex items-center justify-between text-xs">
+              {atividadesPorTipo.map((item) =>
+            <div key={item.tipo} className="flex items-center justify-between text-xs">
                   <span className="text-gray-600 truncate">{item.tipo}</span>
                   <span className="font-semibold text-black">{item.value}</span>
                 </div>
-              ))}
+            )}
             </div>
           </div>
-        )}
+        }
 
-        {porMuseu.length > 0 && (
-          <div className="border border-gray-100 rounded-2xl p-5">
+        {porMuseu.length > 0 &&
+        <div className="border border-gray-100 rounded-2xl p-5">
             <h3 className="text-sm font-semibold text-black mb-4">Comparativo por Museu</h3>
             <div className="space-y-3">
-              {porMuseu.map((m) => (
-                <div key={m.museu} className="space-y-1">
+              {porMuseu.map((m) =>
+            <div key={m.museu} className="space-y-1">
                   <div className="flex items-center gap-2">
                     <Building2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                     <span className="font-medium text-sm text-black truncate">{m.museu}</span>
@@ -562,14 +562,14 @@ export default function CoordDashboard({ reports = [], isLoading }) {
                     <span>{Math.round(m.publico).toLocaleString('pt-BR')} púb.</span>
                   </div>
                 </div>
-              ))}
+            )}
             </div>
           </div>
-        )}
+        }
       </div>
 
-      {porMes.length > 2 && (
-        <div className="border border-gray-100 rounded-2xl p-5">
+      {porMes.length > 2 &&
+      <div className="border border-gray-100 rounded-2xl p-5">
           <h3 className="text-sm font-semibold text-black mb-4">Público por Mês</h3>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={porMes}>
@@ -581,10 +581,10 @@ export default function CoordDashboard({ reports = [], isLoading }) {
             </LineChart>
           </ResponsiveContainer>
         </div>
-      )}
+      }
 
-      {pendentesList.length > 0 && (
-        <div className="border border-black rounded-2xl p-5">
+      {pendentesList.length > 0 &&
+      <div className="border border-black rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-black flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-black" />Aguardando Revisão ({pendentes})
@@ -597,9 +597,9 @@ export default function CoordDashboard({ reports = [], isLoading }) {
           </div>
           <div className="space-y-2">
             {pendentesList.map((report) => {
-              const cfg = STATUS_CONFIG[normalizeStatus(report.status)];
-              return (
-                <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block">
+            const cfg = STATUS_CONFIG[normalizeStatus(report.status)];
+            return (
+              <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block">
                   <div className="flex items-center justify-between py-2.5 px-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
                     <div>
                       <span className="text-sm font-medium text-black">{report.author_name}</span>
@@ -609,18 +609,18 @@ export default function CoordDashboard({ reports = [], isLoading }) {
                       {cfg?.label || report.status}
                     </span>
                   </div>
-                </Link>
-              );
-            })}
+                </Link>);
+
+          })}
           </div>
         </div>
-      )}
+      }
 
       <div className="flex justify-end">
         <Button variant="outline" size="sm" className="gap-2" onClick={exportarRelatorioGeral}>
           <Download className="w-4 h-4" />Exportar Relatório Geral (CSV)
         </Button>
       </div>
-    </div>
-  );
+    </div>);
+
 }
