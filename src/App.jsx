@@ -25,12 +25,99 @@ const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : null;
 
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Erro capturado pelo AppErrorBoundary:', error, errorInfo);
+  }
+
+  handleReload = () => {
+    window.location.reload();
+  };
+
+  handleGoHome = () => {
+    window.location.href = '/';
+  };
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+        <div className="max-w-lg w-full bg-white border border-red-100 rounded-2xl shadow-sm p-6 text-center space-y-4">
+          <div className="mx-auto w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-600 text-xl font-bold">
+            !
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900">Não foi possível abrir esta página</h1>
+            <p className="mt-2 text-sm text-slate-600">
+              O sistema encontrou um erro nesta tela e impediu a página branca. Tente recarregar ou voltar ao painel.
+            </p>
+          </div>
+          {this.state.error?.message && (
+            <div className="text-left bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs text-slate-500 break-words">
+              {String(this.state.error.message)}
+            </div>
+          )}
+          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+            <button
+              type="button"
+              onClick={this.handleReload}
+              className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800"
+            >
+              Recarregar página
+            </button>
+            <button
+              type="button"
+              onClick={this.handleGoHome}
+              className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50"
+            >
+              Voltar ao painel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+}
+
 const LayoutWrapper = ({ children, currentPageName }) =>
   Layout ? (
     <Layout currentPageName={currentPageName}>{children}</Layout>
   ) : (
     <>{children}</>
   );
+
+function SafePage({ Page, pageName }) {
+  if (!Page) {
+    return (
+      <LayoutWrapper currentPageName={pageName}>
+        <div className="min-h-[60vh] flex items-center justify-center px-4">
+          <div className="max-w-md w-full border border-amber-200 bg-amber-50 rounded-2xl p-5 text-center text-amber-800">
+            <h1 className="text-lg font-semibold">Página não registrada corretamente</h1>
+            <p className="mt-2 text-sm">A rota existe, mas o componente da página não foi carregado.</p>
+          </div>
+        </div>
+      </LayoutWrapper>
+    );
+  }
+
+  return (
+    <AppErrorBoundary key={pageName}>
+      <LayoutWrapper currentPageName={pageName}>
+        <Page />
+      </LayoutWrapper>
+    </AppErrorBoundary>
+  );
+}
 
 function AuthenticatedApp() {
   const {
@@ -74,35 +161,27 @@ function AuthenticatedApp() {
         <Routes>
           <Route
             path="/"
-            element={
-              <LayoutWrapper currentPageName={mainPageKey}>
-                {MainPage ? <MainPage /> : null}
-              </LayoutWrapper>
-            }
+            element={<SafePage Page={MainPage} pageName={mainPageKey} />}
           />
 
           {Object.entries(Pages).map(([path, Page]) => (
             <Route
               key={path}
               path={`/${path}`}
-              element={
-                <LayoutWrapper currentPageName={path}>
-                  <Page />
-                </LayoutWrapper>
-              }
+              element={<SafePage Page={Page} pageName={path} />}
             />
           ))}
 
-          <Route path="/ChecklistProducao" element={<LayoutWrapper currentPageName="ChecklistProducao"><ChecklistProducao /></LayoutWrapper>} />
-          <Route path="/RubricasPorMuseu" element={<LayoutWrapper currentPageName="RubricasPorMuseu"><RubricasPorMuseu /></LayoutWrapper>} />
-          <Route path="/BaseConhecimento" element={<LayoutWrapper currentPageName="BaseConhecimento"><BaseConhecimento /></LayoutWrapper>} />
-          <Route path="/ProgramacaoEspelho" element={<LayoutWrapper currentPageName="ProgramacaoEspelho"><ProgramacaoEspelho /></LayoutWrapper>} />
-          <Route path="/Agenda" element={<LayoutWrapper currentPageName="Agenda"><Agenda /></LayoutWrapper>} />
-          <Route path="/DashboardPatrocinador" element={<LayoutWrapper currentPageName="DashboardPatrocinador"><DashboardPatrocinador /></LayoutWrapper>} />
-          <Route path="/EntradaUnica" element={<LayoutWrapper currentPageName="EntradaUnica"><EntradaUnica /></LayoutWrapper>} />
-          <Route path="/Mensagens" element={<LayoutWrapper currentPageName="Mensagens"><Mensagens /></LayoutWrapper>} />
-          <Route path="/GuiaNotaFiscal" element={<LayoutWrapper currentPageName="GuiaNotaFiscal"><GuiaNotaFiscal /></LayoutWrapper>} />
-          <Route path="/Aparencia" element={<LayoutWrapper currentPageName="Aparencia"><Aparencia /></LayoutWrapper>} />
+          <Route path="/ChecklistProducao" element={<SafePage Page={ChecklistProducao} pageName="ChecklistProducao" />} />
+          <Route path="/RubricasPorMuseu" element={<SafePage Page={RubricasPorMuseu} pageName="RubricasPorMuseu" />} />
+          <Route path="/BaseConhecimento" element={<SafePage Page={BaseConhecimento} pageName="BaseConhecimento" />} />
+          <Route path="/ProgramacaoEspelho" element={<SafePage Page={ProgramacaoEspelho} pageName="ProgramacaoEspelho" />} />
+          <Route path="/Agenda" element={<SafePage Page={Agenda} pageName="Agenda" />} />
+          <Route path="/DashboardPatrocinador" element={<SafePage Page={DashboardPatrocinador} pageName="DashboardPatrocinador" />} />
+          <Route path="/EntradaUnica" element={<SafePage Page={EntradaUnica} pageName="EntradaUnica" />} />
+          <Route path="/Mensagens" element={<SafePage Page={Mensagens} pageName="Mensagens" />} />
+          <Route path="/GuiaNotaFiscal" element={<SafePage Page={GuiaNotaFiscal} pageName="GuiaNotaFiscal" />} />
+          <Route path="/Aparencia" element={<SafePage Page={Aparencia} pageName="Aparencia" />} />
 
           <Route path="*" element={<PageNotFound />} />
         </Routes>
@@ -118,7 +197,9 @@ function App() {
         <PatrocinadorViewProvider>
           <QueryClientProvider client={queryClientInstance}>
             <Router>
-              <AuthenticatedApp />
+              <AppErrorBoundary>
+                <AuthenticatedApp />
+              </AppErrorBoundary>
             </Router>
             <Toaster
               position="top-right"
