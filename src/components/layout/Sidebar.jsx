@@ -22,6 +22,7 @@ import {
   Inbox,
   MessageSquare,
   Palette,
+  ShieldAlert,
 } from 'lucide-react';
 
 import { base44 } from '@/api/base44Client';
@@ -101,6 +102,13 @@ const NAV_GROUPS = [
         label: 'Compras e Aprovações',
         icon: ShoppingCart,
         roles: ['all'],
+      },
+
+      {
+        path: 'AuditoriaSolicitacoes',
+        label: 'Auditoria de Solicitações',
+        icon: ShieldAlert,
+        roles: ['coord', 'admin'],
       },
 
       {
