@@ -21,6 +21,11 @@ const METAS_3_ADITIVO = [
   { id: 'MC3A-06', nome: 'Meta 6 (mês 2-18): 36 ações culturais' },
   { id: 'MC3A-07', nome: 'Meta 7 (mês 1-28): Educadores fixos' },
   { id: 'MC3A-08', nome: 'Meta 8 (mês 1-18): Exposição MHAB Casarão' },
+  { id: 'MC3A-NOTURNO', nome: 'Noturno nos Museus' },
+  { id: 'MC3A-PUBLICACOES', nome: 'Publicações' },
+  { id: 'MC3A-ALIMENTACAO', nome: 'Alimentação / Material' },
+  { id: 'MC3A-CONSULTORIAS', nome: 'Consultorias' },
+  { id: 'MC3A-CUSTOS-GERAIS', nome: 'Custos Gerais' },
 ];
 
 const COORD_EMAILS = [
@@ -65,6 +70,68 @@ function getDataEmissaoFromIA(ia) {
   );
 }
 
+// Extrai dados básicos do nome do arquivo como fallback quando IA não retornou dados suficientes
+function extrairDadosDoNomeArquivo(fileName) {
+  if (!fileName) return {};
+  const nome = String(fileName).replace(/\.[^.]+$/, '');
+  const result = {};
+
+  // Tenta extrair número de NF: padrões como NF12345, NF-12345, Nota 12345, etc.
+  const nfMatch = nome.match(/(?:NF|NFE|NFS|NOTA|RPS)[^0-9]*(\d{3,})/i);
+  if (nfMatch) result.nf_numero = nfMatch[1];
+
+  // Tenta extrair valor: padrões como R$ 1.234,56 ou 1234.56
+  const valorMatch = nome.match(/R\$\s*([\d.,]+)/i) || nome.match(/([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{2}))/);
+  if (valorMatch) result.nf_valor_total = valorMatch[1];
+
+  // Usa o nome do arquivo como fornecedor fallback (sem extensão e sem número)
+  const fornecedor = nome
+    .replace(/NF[^0-9]*/gi, '')
+    .replace(/\d{4,}/g, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (fornecedor) result.nf_emitente_nome_fallback = fornecedor;
+
+  result.descricao_servico_fallback = `Documento: ${nome}`;
+
+  return result;
+}
+
+// Auto-sugestão de rubrica por palavras-chave na descrição/fornecedor
+function sugerirRubricaPorKeywords(texto, rubricas) {
+  if (!texto || !rubricas || rubricas.length === 0) return null;
+  const t = String(texto).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  const KEYWORDS = [
+    { keywords: ['educador', 'educacao', 'educativa', 'educativo', 'monitor'], termos: ['educador', 'educacao', 'educativo'] },
+    { keywords: ['analista adm', 'analista administrativo', 'financeiro', 'administrativo financeiro'], termos: ['analista adm', 'administrativo', 'financeiro'] },
+    { keywords: ['comunicacao', 'comunicador', 'comunicadora', 'midia', 'redes sociais', 'social media'], termos: ['comunicacao', 'comunicacao', 'midia'] },
+    { keywords: ['producao', 'produtor', 'produtora', 'cultural'], termos: ['producao', 'producao cultural'] },
+    { keywords: ['coordenador', 'coordenacao', 'gestor', 'gestora'], termos: ['coordenacao', 'coordenador', 'gestao'] },
+    { keywords: ['fotografo', 'fotografia', 'foto', 'imagem'], termos: ['fotografia', 'foto', 'comunicacao'] },
+    { keywords: ['designer', 'design grafico', 'identidade visual'], termos: ['design', 'comunicacao'] },
+    { keywords: ['manutencao', 'limpeza', 'zeladoria', 'servicos gerais'], termos: ['manutencao', 'servicos gerais'] },
+    { keywords: ['material', 'suprimento', 'insumo', 'material didatico'], termos: ['material', 'suprimento'] },
+    { keywords: ['consultoria', 'consultor', 'assessoria', 'especialista'], termos: ['consultoria', 'assessoria'] },
+    { keywords: ['alimentacao', 'refeicao', 'lanche', 'coffee'], termos: ['alimentacao', 'refeicao'] },
+  ];
+
+  for (const { keywords } of KEYWORDS) {
+    if (keywords.some((k) => t.includes(k))) {
+      // Busca rubrica que contenha algum dos termos
+      const termosBusca = keywords;
+      const encontrada = rubricas.find((r) => {
+        const nomeR = String(r.rubrica || r.nome || r.descricao || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return termosBusca.some((k) => nomeR.includes(k));
+      });
+      if (encontrada) return encontrada.id;
+    }
+  }
+
+  return null;
+}
+
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const { toast } = useToast();
   const [user, setUser] = useState(null);
@@ -82,6 +149,17 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const ia = intake.resultado_ia || {};
   const dataEmissaoIA = getDataEmissaoFromIA(ia);
 
+  // Destrava documentos presos em ANALISANDO_IA ao abrir o modal
+  useEffect(() => {
+    const status = String(intake.status_processamento || '').toUpperCase();
+    if (status === 'ANALISANDO_IA') {
+      base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'AGUARDANDO_REVISAO',
+        erros_validacao: ['IA não conseguiu concluir a análise. Revise manualmente.'],
+      }).catch(() => {});
+    }
+  }, [intake.id, intake.status_processamento]);
+
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
@@ -89,14 +167,18 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false);
   const [rateio, setRateio] = useState(DEFAULT_RATEIO);
 
+  // Fallback: extrai dados do nome do arquivo se IA não preencheu campos essenciais
+  const fallbackArquivo = extrairDadosDoNomeArquivo(intake.file_name_original);
+  const iaIncompleta = !ia.nf_numero && !ia.nf_emitente_nome && !ia.nf_valor_total;
+
   const [form, setForm] = useState({
-    nf_numero: ia.nf_numero || '',
-    nf_valor_total: ia.nf_valor_total || '',
+    nf_numero: ia.nf_numero || (iaIncompleta ? fallbackArquivo.nf_numero || '' : ''),
+    nf_valor_total: ia.nf_valor_total || (iaIncompleta ? fallbackArquivo.nf_valor_total || '' : ''),
     nf_data_emissao: normalizeDateToInput(dataEmissaoIA),
-    nf_emitente_nome: ia.nf_emitente_nome || '',
+    nf_emitente_nome: ia.nf_emitente_nome || (iaIncompleta ? fallbackArquivo.nf_emitente_nome_fallback || '' : ''),
     nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
     nf_destinatario_nome: ia.nf_destinatario_nome || '',
-    descricao_servico: ia.descricao_servico || '',
+    descricao_servico: ia.descricao_servico || (iaIncompleta ? fallbackArquivo.descricao_servico_fallback || '' : ''),
     municipio: ia.municipio || '',
     competencia: ia.competencia || ia.competencia_sugerida || '',
     centro_custo: ia.centro_custo_sugerido || intake.centro_custo || '',
@@ -122,12 +204,30 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       try {
         const list = await base44.entities.Rubrica.list('', 2000);
         setRubricas(list || []);
+
+        // Auto-sugestão de rubrica se ainda não selecionada
+        if (!intake.rubrica_id_sugerida) {
+          const textosBusca = [
+            ia.descricao_servico,
+            ia.nf_emitente_nome,
+            intake.file_name_original,
+            ia.rubrica_nome_sugerida,
+          ].filter(Boolean).join(' ');
+
+          if (textosBusca) {
+            const sugerida = sugerirRubricaPorKeywords(textosBusca, list || []);
+            if (sugerida) {
+              setForm((f) => f.rubrica_id ? f : { ...f, rubrica_id: sugerida });
+            }
+          }
+        }
       } catch (e) {
         console.error(e);
       }
     }
 
     loadRubricas();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function parseValorBR(v) {
@@ -455,6 +555,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: aprovarDireto ? 'APROVADO' : 'ENVIADO_APROVACAO',
+        ocultar_entrada_unica: true,
         entidade_destino: 'PurchaseRequest',
         entidade_destino_id: pr.id,
         centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
