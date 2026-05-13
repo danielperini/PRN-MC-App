@@ -145,22 +145,30 @@ function buildApprovedSummary(reports) {
   };
 }
 
-export default function ActivitySummary({ activities = [] }) {
-  const [reports, setReports] = useState([]);
-  const [loading, setLoading] = useState(true);
+// Aceita `reports` (lista de relatórios já carregada pelo pai) para evitar query duplicada.
+// Se não forem passados, faz a própria query como fallback.
+export default function ActivitySummary({ activities = [], reports: reportsProp }) {
+  const [fetchedReports, setFetchedReports] = useState([]);
+  const [loading, setLoading] = useState(!reportsProp);
 
   useEffect(() => {
+    // Se o pai já passou os relatórios, não precisa buscar
+    if (reportsProp !== undefined) {
+      setLoading(false);
+      return;
+    }
+
     let mounted = true;
 
     const loadApprovedReports = async () => {
       try {
         const data = await base44.entities.Report.list('-updated_date', 1000);
         if (!mounted) return;
-        setReports(Array.isArray(data) ? data : []);
+        setFetchedReports(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error('Erro ao carregar relatórios aprovados para resumo:', error);
         if (!mounted) return;
-        setReports([]);
+        setFetchedReports([]);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -174,11 +182,12 @@ export default function ActivitySummary({ activities = [] }) {
 
     return () => {
       mounted = false;
-      try {
-        unsubscribe?.();
-      } catch {}
+      try { unsubscribe?.(); } catch {}
     };
-  }, []);
+  }, [reportsProp]);
+
+  // Usa os relatórios passados pelo pai se disponíveis, senão os buscados
+  const reports = reportsProp !== undefined ? reportsProp : fetchedReports;
 
   const summary = useMemo(() => buildApprovedSummary(reports), [reports]);
 

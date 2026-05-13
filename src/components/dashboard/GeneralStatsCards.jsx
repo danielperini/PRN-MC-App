@@ -19,7 +19,8 @@ const GENERAL_STATS = [
       const approved = (data.allReports || []).filter(r => r.status === 'APPROVED');
       const ativs = approved.flatMap(r => r.atividades || []);
       if (ativs.length === 0) return 0;
-      const total = ativs.reduce((s, a) => s + (Number(a.publico_estimado) || 0), 0);
+      // Usa publico_total (já considera repetições) com fallback para publico_estimado
+      const total = ativs.reduce((s, a) => s + (Number(a.publico_total ?? a.publico_estimado) || 0), 0);
       return Math.round(total / ativs.length);
     }
   },

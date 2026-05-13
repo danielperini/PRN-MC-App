@@ -3,6 +3,7 @@ import { Activity, Package, Users, Target } from 'lucide-react';
 
 export default function SummaryCards({ reports = [] }) {
    // Calcular totais apenas de relatórios APROVADOS
+   // Usa publico_total (já considera repetições) com fallback para publico_estimado
    const safeReports = Array.isArray(reports) ? reports : [];
    const approvedReports = safeReports.filter(r => r.status === 'APPROVED');
    const allActivities = approvedReports.flatMap(r => {
@@ -12,9 +13,8 @@ export default function SummaryCards({ reports = [] }) {
    const totalActivities = allActivities.length;
    const totalPublic = allActivities.reduce((sum, a) => {
      if (!a) return sum;
-     const repeticoes = Number(a.quantas_repeticoes) || 1;
-     const publico = Number(a.publico_estimado) || 0;
-     return sum + (publico * repeticoes);
+     const publico = Number(a.publico_total ?? a.publico_estimado) || 0;
+     return sum + Math.round(publico);
    }, 0);
 
    const totalProducts = allActivities.reduce((sum, a) => {
