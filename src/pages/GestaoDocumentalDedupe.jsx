@@ -449,8 +449,18 @@ export default function GestaoDocumentalDedupe() {
     const duplicates = Array.from(m.values()).flatMap((list) => list.length > 1 ? [...list].slice(1) : []);
     if (!duplicates.length) return toast.info('Nenhuma entrada repetida encontrada.');
     if (!window.confirm(`Remover ${duplicates.length} entradas repetidas?`)) return;
-    for (const d of duplicates) await deleteDoc(d);
-    toast.success(`${duplicates.length} entradas repetidas removidas.`);
+    let removed = 0;
+    for (const d of duplicates) {
+      try {
+        await deleteDoc(d);
+        removed++;
+      } catch (e) {
+        console.warn('Erro ao remover duplicado:', e.message);
+      }
+      // Throttle para evitar rate limit
+      await new Promise((res) => setTimeout(res, 300));
+    }
+    toast.success(`${removed} entradas repetidas removidas.`);
     await refresh();
   }
 
