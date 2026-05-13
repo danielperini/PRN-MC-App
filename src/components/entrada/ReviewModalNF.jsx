@@ -211,6 +211,61 @@ function escolherValor(...values) {
   return '';
 }
 
+function getCpfCnpjFromIA(ia, intake, arquivo) {
+  return escolherValor(
+    ia.nf_emitente_cpf_cnpj,
+    ia.fornecedor_cpf_cnpj,
+    ia.cnpj_emitente,
+    ia.cpf_emitente,
+    ia.cpf_cnpj_emitente,
+    ia.cnpj_prestador,
+    ia.cpf_prestador,
+    ia.cpf_cnpj_prestador,
+    ia.emitente_cnpj,
+    ia.emitente_cpf,
+    ia.emitente_cpf_cnpj,
+    ia.prestador_cnpj,
+    ia.prestador_cpf,
+    ia.prestador_cpf_cnpj,
+    ia.dados_emitente?.cnpj,
+    ia.dados_emitente?.cpf,
+    ia.dados_emitente?.cpf_cnpj,
+    ia.emitente?.cnpj,
+    ia.emitente?.cpf,
+    ia.emitente?.cpf_cnpj,
+    ia.prestador?.cnpj,
+    ia.prestador?.cpf,
+    ia.prestador?.cpf_cnpj,
+    intake.nf_emitente_cpf_cnpj,
+    intake.fornecedor_cpf_cnpj,
+    arquivo.nf_emitente_cpf_cnpj
+  );
+}
+
+function getMunicipioFromIA(ia, intake, arquivo) {
+  return escolherValor(
+    ia.municipio,
+    ia.municipio_emitente,
+    ia.cidade_emitente,
+    ia.localidade_emitente,
+    ia.municipio_prestador,
+    ia.cidade_prestador,
+    ia.localidade_prestador,
+    ia.emitente_municipio,
+    ia.emitente_cidade,
+    ia.prestador_municipio,
+    ia.prestador_cidade,
+    ia.dados_emitente?.municipio,
+    ia.dados_emitente?.cidade,
+    ia.emitente?.municipio,
+    ia.emitente?.cidade,
+    ia.prestador?.municipio,
+    ia.prestador?.cidade,
+    intake.municipio,
+    arquivo.municipio
+  );
+}
+
 export default function ReviewModalNF(props) {
   const intake = props.intake || {};
 
@@ -221,6 +276,9 @@ export default function ReviewModalNF(props) {
       intake
     );
 
+    const cpfCnpj = getCpfCnpjFromIA(ia, intake, arquivo);
+    const municipio = getMunicipioFromIA(ia, intake, arquivo);
+
     const resultado_ia = {
       ...ia,
       nf_numero: escolherValor(ia.nf_numero, intake.nf_numero, arquivo.nf_numero),
@@ -230,9 +288,9 @@ export default function ReviewModalNF(props) {
       competencia_sugerida: escolherValor(ia.competencia_sugerida, ia.competencia, arquivo.competencia_sugerida),
       nf_emitente_nome: escolherValor(ia.nf_emitente_nome, ia.fornecedor_nome, intake.nf_emitente_nome, intake.fornecedor_nome, arquivo.nf_emitente_nome),
       fornecedor_nome: escolherValor(ia.fornecedor_nome, ia.nf_emitente_nome, arquivo.fornecedor_nome),
-      nf_emitente_cpf_cnpj: escolherValor(ia.nf_emitente_cpf_cnpj, ia.fornecedor_cpf_cnpj, intake.nf_emitente_cpf_cnpj, intake.fornecedor_cpf_cnpj, arquivo.nf_emitente_cpf_cnpj),
-      fornecedor_cpf_cnpj: escolherValor(ia.fornecedor_cpf_cnpj, ia.nf_emitente_cpf_cnpj, intake.fornecedor_cpf_cnpj, intake.nf_emitente_cpf_cnpj, arquivo.nf_emitente_cpf_cnpj),
-      municipio: escolherValor(ia.municipio, intake.municipio, arquivo.municipio),
+      nf_emitente_cpf_cnpj: cpfCnpj,
+      fornecedor_cpf_cnpj: cpfCnpj,
+      municipio,
       descricao_servico: escolherValor(ia.descricao_servico, ia.descricao, arquivo.descricao_servico),
       meta_sugerida: escolherValor(ia.meta_sugerida, ia.meta_id, arquivo.meta_sugerida),
       meta_id: escolherValor(ia.meta_id, ia.meta_sugerida, arquivo.meta_id),
@@ -245,6 +303,9 @@ export default function ReviewModalNF(props) {
 
     return {
       ...intake,
+      nf_emitente_cpf_cnpj: escolherValor(intake.nf_emitente_cpf_cnpj, resultado_ia.nf_emitente_cpf_cnpj),
+      fornecedor_cpf_cnpj: escolherValor(intake.fornecedor_cpf_cnpj, resultado_ia.fornecedor_cpf_cnpj),
+      municipio: escolherValor(intake.municipio, resultado_ia.municipio),
       centro_custo: escolherValor(intake.centro_custo, resultado_ia.centro_custo_sugerido),
       resultado_ia,
     };
