@@ -75,29 +75,60 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Definir perfil de acordo com o domínio
+    const isPbh = userEmail.endsWith('@pbh.gov.br');
+
     // Aprovar automaticamente
     const newUser = await base44.users.inviteUser(registration.email, 'user');
 
-    // Criar permissões padrão
-    await base44.asServiceRole.entities.UserPermission.create({
-      user_email: registration.email,
-      user_name: registration.full_name,
-      base_role: 'PROFISSIONAL',
-      can_view_all_reports: false,
-      can_review_reports: false,
-      can_manage_users: false,
-      can_manage_files: false,
-      can_manage_museus: false,
-      can_manage_equipes: false,
-      can_view_audit_log: false,
-      can_manage_platform: false,
-      must_submit_monthly_report: true,
-    });
+    // Criar permissões padrão — observador para @pbh.gov.br, profissional para os demais
+    if (isPbh) {
+      await base44.asServiceRole.entities.UserPermission.create({
+        user_email: registration.email,
+        user_name: registration.full_name,
+        base_role: 'PATROCINADOR',
+        can_view_all_reports: false,
+        can_review_reports: false,
+        can_manage_users: false,
+        can_manage_files: false,
+        can_manage_museus: false,
+        can_manage_equipes: false,
+        can_view_audit_log: false,
+        can_manage_platform: false,
+        must_submit_monthly_report: false,
+        pode_ver_saude_orcamentaria: false,
+        pode_gerenciar_rubricas: false,
+        pode_aprovar_solicitacoes: false,
+        can_view_sponsor_dashboard: true,
+        can_view_approved_reports: true,
+        can_view_approved_programacao: true,
+        can_view_public_gallery: true,
+        can_view_budget_summary: true,
+        can_view_project_kpis: true,
+      });
+    } else {
+      await base44.asServiceRole.entities.UserPermission.create({
+        user_email: registration.email,
+        user_name: registration.full_name,
+        base_role: 'PROFISSIONAL',
+        can_view_all_reports: false,
+        can_review_reports: false,
+        can_manage_users: false,
+        can_manage_files: false,
+        can_manage_museus: false,
+        can_manage_equipes: false,
+        can_view_audit_log: false,
+        can_manage_platform: false,
+        must_submit_monthly_report: true,
+      });
+    }
 
     // Atualizar status
     await base44.asServiceRole.entities.UserRegistration.update(registration.id, {
       status: 'APROVADO',
-      reviewer_note: 'Aprovado automaticamente pelo domínio permitido',
+      reviewer_note: isPbh
+        ? 'Aprovado automaticamente como Observador (domínio @pbh.gov.br)'
+        : 'Aprovado automaticamente pelo domínio permitido',
     });
 
     // Enviar notificação ao usuário aprovado
@@ -113,6 +144,7 @@ Deno.serve(async (req) => {
 <div style="background: #f0f9ff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2563eb;">
   <p><strong>Seus dados:</strong></p>
   <p>Email: ${registration.email}</p>
+  <p>Perfil: ${isPbh ? 'Observador' : 'Profissional'}</p>
   <p>Função: ${registration.funcao || 'Não informado'}</p>
   <p>Museu: ${registration.museu || 'Não informado'}</p>
 </div>
