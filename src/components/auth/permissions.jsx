@@ -11,6 +11,37 @@ export const AUTO_APPROVED_DOMAINS = [
   '@pbh.gov.br',
 ];
 
+/** Emails específicos com aprovação automática como OBSERVADOR_PATROCINADOR */
+export const AUTO_APPROVED_EMAILS = [
+  'retinaeletricafilmes@gmail.com',
+];
+
+/** Permissões do perfil OBSERVADOR_PATROCINADOR */
+export const OBSERVADOR_PATROCINADOR_PERMISSIONS = {
+  base_role: 'PATROCINADOR',
+  can_view_all_reports: false,
+  can_review_reports: false,
+  can_manage_users: false,
+  can_manage_files: false,
+  can_manage_museus: false,
+  can_manage_equipes: false,
+  can_view_audit_log: false,
+  can_manage_platform: false,
+  must_submit_monthly_reports: false,
+  gestao_compras: false,
+  pode_ver_saude_orcamentaria: false,
+  pode_gerenciar_rubricas: false,
+  pode_aprovar_solicitacoes: false,
+  can_curate_news: false,
+  can_manage_momentos: false,
+  can_view_sponsor_dashboard: true,
+  can_view_approved_reports: true,
+  can_view_approved_programacao: true,
+  can_view_public_gallery: true,
+  can_view_budget_summary: true,
+  can_view_project_kpis: true,
+};
+
 /**
  * Verifica se o usuário é o Coordenador Geral (Daniel Perini)
  * Único com poder total de gestão de usuários.

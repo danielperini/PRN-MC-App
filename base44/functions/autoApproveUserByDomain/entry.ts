@@ -14,15 +14,17 @@ Deno.serve(async (req) => {
       return Response.json({ success: true });
     }
 
-    // Domínios permitidos para aprovação automática
+    // Domínios e emails permitidos para aprovação automática
     const allowedDomains = ['@viadutodasartes.org.br', '@periniprojetos.com.br', '@pbh.gov.br'];
+    const allowedEmails = ['retinaeletricafilmes@gmail.com'];
     const userEmail = registration.email.toLowerCase();
     const isAllowedDomain = allowedDomains.some(domain => userEmail.endsWith(domain));
+    const isAllowedEmail = allowedEmails.includes(userEmail);
 
     console.log('[AUTO-APPROVE] email:', registration.email);
     console.log('[AUTO-APPROVE] isAllowedDomain:', isAllowedDomain);
 
-    if (!isAllowedDomain) {
+    if (!isAllowedDomain && !isAllowedEmail) {
       console.log('[PENDING-APPROVAL] entrou no fluxo de pendência');
 
       // Buscar usuários que podem gerenciar novos cadastros
@@ -75,14 +77,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Definir perfil de acordo com o domínio
+    // Definir perfil de acordo com o domínio/email
     const isPbh = userEmail.endsWith('@pbh.gov.br');
+    const isObservador = isPbh || isAllowedEmail;
 
     // Aprovar automaticamente
     const newUser = await base44.users.inviteUser(registration.email, 'user');
 
-    // Criar permissões padrão — observador para @pbh.gov.br, profissional para os demais
-    if (isPbh) {
+    // Criar permissões — OBSERVADOR_PATROCINADOR para @pbh.gov.br e emails específicos, PROFISSIONAL para demais
+    if (isObservador) {
       await base44.asServiceRole.entities.UserPermission.create({
         user_email: registration.email,
         user_name: registration.full_name,
@@ -95,10 +98,13 @@ Deno.serve(async (req) => {
         can_manage_equipes: false,
         can_view_audit_log: false,
         can_manage_platform: false,
-        must_submit_monthly_report: false,
+        must_submit_monthly_reports: false,
+        gestao_compras: false,
         pode_ver_saude_orcamentaria: false,
         pode_gerenciar_rubricas: false,
         pode_aprovar_solicitacoes: false,
+        can_curate_news: false,
+        can_manage_momentos: false,
         can_view_sponsor_dashboard: true,
         can_view_approved_reports: true,
         can_view_approved_programacao: true,
@@ -119,44 +125,55 @@ Deno.serve(async (req) => {
         can_manage_equipes: false,
         can_view_audit_log: false,
         can_manage_platform: false,
-        must_submit_monthly_report: true,
+        must_submit_monthly_reports: true,
       });
     }
+
+    const perfilLabel = isAllowedEmail ? 'Observador Patrocinador' : isPbh ? 'Observador (PBH)' : 'Profissional';
 
     // Atualizar status
     await base44.asServiceRole.entities.UserRegistration.update(registration.id, {
       status: 'APROVADO',
-      reviewer_note: isPbh
-        ? 'Aprovado automaticamente como Observador (domínio @pbh.gov.br)'
+      reviewer_note: isObservador
+        ? `Aprovado automaticamente como ${perfilLabel}`
         : 'Aprovado automaticamente pelo domínio permitido',
     });
 
-    // Enviar notificação ao usuário aprovado
-    await base44.asServiceRole.integrations.Core.SendEmail({
-      to: registration.email,
-      subject: 'Bem-vindo à Plataforma de Relatórios! 🎉',
-      body: `
-<h2>Acesso Aprovado!</h2>
-<p>Olá ${registration.full_name || 'usuário'},</p>
+    const APP_URL = 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app';
 
-<p>Sua solicitação de acesso à plataforma foi <strong>aprovada automaticamente</strong>!</p>
-
-<div style="background: #f0f9ff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2563eb;">
-  <p><strong>Seus dados:</strong></p>
-  <p>Email: ${registration.email}</p>
-  <p>Perfil: ${isPbh ? 'Observador' : 'Profissional'}</p>
-  <p>Função: ${registration.funcao || 'Não informado'}</p>
-  <p>Museu: ${registration.museu || 'Não informado'}</p>
-</div>
-
-<p>Você já pode acessar a plataforma agora. Bem-vindo!</p>
-
-<p style="color: #666; font-size: 14px;">
-  Se tiver dúvidas, entre em contato com um coordenador.
-</p>
-      `,
-      from_name: 'Plataforma de Relatórios'
-    });
+    // Email personalizado para retinaeletricafilmes@gmail.com (André)
+    if (isAllowedEmail) {
+      await base44.asServiceRole.integrations.Core.SendEmail({
+        to: registration.email,
+        subject: 'Acesso ao Sistema Museus Centro',
+        body: `
+<p>Olá, André.</p>
+<p>Seu acesso ao sistema <strong>Museus Centro / Viaduto das Artes</strong> já está liberado.</p>
+<p>Recomendamos utilizar a entrada com Google para acesso mais rápido e seguro.</p>
+<p><strong>Link de acesso:</strong><br>
+<a href="${APP_URL}">${APP_URL}</a></p>
+<p>Ao entrar, seu perfil já estará previamente aprovado.</p>
+<p>Atenciosamente,<br><strong>Equipe Museus Centro</strong></p>
+        `,
+        from_name: 'Museus Centro'
+      });
+    } else {
+      // Email padrão para demais aprovações automáticas
+      await base44.asServiceRole.integrations.Core.SendEmail({
+        to: registration.email,
+        subject: 'Acesso ao Sistema Museus Centro — Aprovado',
+        body: `
+<p>Olá, ${registration.full_name || 'usuário'}.</p>
+<p>Seu acesso ao sistema <strong>Museus Centro / Viaduto das Artes</strong> foi aprovado automaticamente.</p>
+<p>Recomendamos utilizar o login com Google para acesso mais rápido e seguro.</p>
+<p><strong>Perfil atribuído:</strong> ${perfilLabel}</p>
+<p><strong>Link de acesso:</strong><br>
+<a href="${APP_URL}">${APP_URL}</a></p>
+<p>Atenciosamente,<br><strong>Equipe Museus Centro</strong></p>
+        `,
+        from_name: 'Museus Centro'
+      });
+    }
 
     console.log('[AUTO-APPROVE] usuário aprovado automaticamente:', registration.email);
 

@@ -20,6 +20,7 @@ import DashboardPatrocinador from './pages/DashboardPatrocinadorSync';
 import EntradaUnica from './pages/EntradaUnica.jsx';
 import Mensagens from './pages/Mensagens.jsx';
 import GuiaNotaFiscal from './pages/GuiaNotaFiscal';
+import ConviteAcesso from './pages/ConviteAcesso';
 import NFDriveBackupSyncInstaller from '@/lib/nfDriveBackupSync';
 import PublicoAprovadoAuditButton from '@/components/dashboard/PublicoAprovadoAuditButton';
 
@@ -188,6 +189,7 @@ function AuthenticatedApp() {
             <Route path="/Mensagens" element={<SafePage Page={Mensagens} pageName="Mensagens" />} />
             <Route path="/GuiaNotaFiscal" element={<SafePage Page={GuiaNotaFiscal} pageName="GuiaNotaFiscal" />} />
             <Route path="/Aparencia" element={<SafePage Page={Aparencia} pageName="Aparencia" />} />
+            <Route path="/ConviteAcesso" element={<ConviteAcesso />} />
 
             <Route path="*" element={<PageNotFound />} />
           </Routes>
