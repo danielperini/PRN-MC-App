@@ -490,6 +490,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   }
 
   async function handleProcessarNota(aprovarDireto = false) {
+    if (sending || approvingDirect) return;
+
     if (!form.rubrica_id) {
       toast({ title: 'Selecione a rubrica antes de continuar.', variant: 'destructive', duration: 3000 });
       return;
@@ -500,38 +502,73 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       return;
     }
 
+    if (!valorTotal || valorTotal <= 0) {
+      toast({ title: 'Informe o valor total da nota.', variant: 'destructive', duration: 3000 });
+      return;
+    }
+
     if (dividirEntreMuseus && !rateioValido) {
       toast({ title: 'Rateio inválido.', variant: 'destructive', duration: 3000 });
       return;
     }
 
-    setSending(true);
+    if (aprovarDireto) {
+      setApprovingDirect(true);
+    } else {
+      setSending(true);
+    }
 
     try {
       const rateioPayload = getRateioPayload();
       const rubricaNome = getRubricaNome(form.rubrica_id);
+      const centroCustoFinal = dividirEntreMuseus ? 'Rateado' : form.centro_custo;
 
       const pr = await base44.entities.PurchaseRequest.create({
-        descricao_item: form.descricao_servico || form.nf_emitente_nome,
+        descricao_item: form.descricao_servico || form.nf_emitente_nome || form.file_name_final,
         fornecedor_nome: form.nf_emitente_nome,
         fornecedor_cnpj: form.nf_emitente_cpf_cnpj,
+        fornecedor_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+
         valor_solicitado: valorTotal,
+        valor_total: valorTotal,
+        valor: valorTotal,
+
         meta_id: form.meta_id || 'MC3A-01',
         categoria: 'Nota Fiscal',
-        tipo_gasto: form.tipo_gasto,
-        centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
+        tipo_gasto: form.tipo_gasto || 'Serviço',
+
+        centro_custo: centroCustoFinal,
+
         rubrica_id: form.rubrica_id,
         rubrica_nome: rubricaNome,
+        budgetline_id: form.rubrica_id,
+
         status: aprovarDireto ? 'APROVADO_COORD' : 'SOLICITADO',
-        observacoes: `NF ${form.nf_numero} - ${form.nf_emitente_nome}`,
+
+        origem: 'EntradaUnica',
+        intake_id: intake.id,
+        documento_intake_id: intake.id,
+
+        nota_fiscal_url: intake.arquivo_original_url || '',
+        arquivo_url: intake.arquivo_original_url || '',
+
+        nf_numero: form.nf_numero,
+        nf_data_emissao: form.nf_data_emissao,
+
+        observacoes: `NF ${form.nf_numero || 'sem número'} - ${form.nf_emitente_nome || 'Fornecedor não informado'}`,
       });
 
-      await base44.entities.Attachment.create({
+      const attachment = await base44.entities.Attachment.create({
+        purchase_request_id: pr?.id || '',
+        document_intake_id: intake.id,
         report_id: '',
+
         file_name: form.file_name_final,
-        file_type: intake.mime_type,
-        file_url: intake.arquivo_original_url,
+        file_type: intake.mime_type || 'application/pdf',
+        file_url: intake.arquivo_original_url || '',
+
         description: 'Entrada Única - Nota Fiscal',
+
         nf_categoria: 'nota_fiscal',
         nf_numero: form.nf_numero,
         nf_valor_total: valorTotal,
@@ -543,44 +580,69 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         nf_nome_renomeado: form.file_name_final,
         nf_status_leitura: 'lido_com_sucesso',
         nf_revisado: true,
+
         rubrica_id: form.rubrica_id,
         rubrica_nome: rubricaNome,
+      }).catch((e) => {
+        console.warn('Não foi possível criar Attachment da Entrada Única:', e);
+        return null;
       });
 
-      if (dividirEntreMuseus && rateioPayload && rateioPayload.length > 0) {
-        await debitarRubricas(rateioPayload);
-      } else {
-        await debitarRubricaSimples(valorTotal);
+      if (aprovarDireto) {
+        if (dividirEntreMuseus && rateioPayload && rateioPayload.length > 0) {
+          await debitarRubricas(rateioPayload);
+        } else {
+          await debitarRubricaSimples(valorTotal);
+        }
       }
 
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: aprovarDireto ? 'APROVADO' : 'ENVIADO_APROVACAO',
         ocultar_entrada_unica: true,
+
         entidade_destino: 'PurchaseRequest',
-        entidade_destino_id: pr.id,
-        centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
+        entidade_destino_id: pr?.id || '',
+
+        attachment_id: attachment?.id || intake.attachment_id || '',
+
+        centro_custo: centroCustoFinal,
         rubrica_id_sugerida: form.rubrica_id,
         rubrica_nome_sugerida: rubricaNome,
         file_name_final: form.file_name_final,
+
         resultado_ia: {
           ...ia,
           ...form,
           categoria: 'Nota Fiscal',
+          purchase_request_id: pr?.id || '',
+          attachment_id: attachment?.id || intake.attachment_id || '',
           rateio_museus: rateioPayload,
           dividir_entre_museus: dividirEntreMuseus,
+          centro_custo_sugerido: centroCustoFinal,
+          rubrica_id: form.rubrica_id,
+          rubrica_nome_sugerida: rubricaNome,
+          nf_valor_total: valorTotal,
+          nf_numero: form.nf_numero,
+          nf_data_emissao: form.nf_data_emissao,
+          nf_emitente_nome: form.nf_emitente_nome,
+          nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+          descricao_servico: form.descricao_servico,
         },
+
         revisado_pelo_usuario: true,
       });
 
       toast({
-        title: aprovarDireto ? '✅ Nota aprovada e debitada.' : 'Enviado para aprovação.',
+        title: aprovarDireto
+          ? '✅ Nota aprovada e debitada.'
+          : 'Enviado para aprovação. Solicitação criada em Compras.',
         duration: 3000,
       });
 
       onSaved?.();
       onClose?.();
     } catch (e) {
-      console.error(e);
+      console.error('Erro ao processar nota:', e);
       toast({
         title: 'Erro ao processar nota',
         description: e?.message || 'Falha ao aprovar/enviar nota.',
@@ -589,9 +651,9 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       });
     } finally {
       setSending(false);
+      setApprovingDirect(false);
     }
   }
-
   const temXMLVinculado =
     !!selectedXmlId ||
     xmlCandidates.length > 0 ||
