@@ -47,6 +47,11 @@ function getValorDisplay(intake) {
   return `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 }
 
+function hasStrongFileNameData(fileName) {
+  const text = String(fileName || '').toLowerCase();
+  return /\bnf\s*\d+/i.test(text) || /r\$?\s*\d+[.,]\d{2}/i.test(text) || /museus\s+centro/i.test(text);
+}
+
 export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSentToApproval, onReanalyse, onLinkXml, onAddXmlToPdf }) {
   const [loading, setLoading] = useState(false);
   const [sendingApproval, setSendingApproval] = useState(false);
@@ -62,17 +67,23 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
   const isNF = isPDF || isXML;
   const isImage = tipo === 'FOTO_ATIVIDADE';
 
-  // XML nunca pode revisar nem enviar
-  const canReview = ['AGUARDANDO_REVISAO', 'RASCUNHO', 'ERRO_PROCESSAMENTO'].includes(intake.status_processamento) && !isXML;
+  const fileName = intake.file_name_final || intake.file_name_original || 'Arquivo';
+  const statusKey = String(intake.status_processamento || '').toUpperCase();
+  const isProcessing = ['ANALISANDO_IA', 'ENVIADO'].includes(statusKey);
+  const canFallbackReview = isPDF && isProcessing && hasStrongFileNameData(fileName);
+
+  // XML nunca pode revisar nem enviar. PDF em análise com dados no nome pode revisar para não ficar travado.
+  const canReview = (
+    ['AGUARDANDO_REVISAO', 'RASCUNHO', 'ERRO_PROCESSAMENTO'].includes(statusKey) ||
+    canFallbackReview
+  ) && !isXML;
   const hasError = intake.status_processamento === 'ERRO_PROCESSAMENTO';
-  const isProcessing = ['ANALISANDO_IA', 'ENVIADO'].includes(intake.status_processamento);
-  const canSendApproval = canReview && isPDF;
+  const canSendApproval = canReview && isPDF && !isProcessing;
 
   // XML: mostrar "Vincular XML" apenas se não vinculado e não completo
   const canLinkXml = isXML && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO';
 
   const valorDisplay = getValorDisplay(intake);
-  const fileName = intake.file_name_final || intake.file_name_original || 'Arquivo';
   const tipoLabel = TIPO_LABEL[tipo] || tipo || 'Pendente';
 
   async function handleReanalyse() {
@@ -129,7 +140,8 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
     const valor = parseValorBR(ia.nf_valor_total || ia.valor || ia.valor_total || 0);
 
     if (!rubrica_id || !centro_custo || !valor) {
-      toast.error('Preencha rubrica, centro de custo e valor antes de enviar. Clique em "Editar" para revisar.');
+      toast.error('Preencha rubrica, centro de custo e valor antes de enviar. Clique em "Revisar" para completar.');
+      if (onReview) onReview({ ...intake });
       return;
     }
 
@@ -142,17 +154,44 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
         descricao_item: ia.descricao_servico || ia.nf_emitente_nome || fileName,
         fornecedor_nome: ia.nf_emitente_nome || '',
         fornecedor_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
+        valor_solicitado: valor,
+        valor_total: valor,
         valor: valor,
         rubrica_id: rubrica_id,
         rubrica_nome: rubrica_nome,
+        budgetline_id: rubrica_id,
         centro_custo: centro_custo,
         nota_fiscal_url: intake.arquivo_original_url || '',
-        status: 'AGUARDANDO_APROVACAO',
+        arquivo_url: intake.arquivo_original_url || '',
+        status: 'SOLICITADO',
         origem: 'EntradaUnica',
         intake_id: intake.id,
+        documento_intake_id: intake.id,
         nf_numero: ia.nf_numero || '',
         nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || '',
       });
+
+      await base44.entities.Attachment.create({
+        purchase_request_id: novaPurchase?.id || '',
+        document_intake_id: intake.id,
+        file_name: intake.file_name_final || intake.file_name_original || fileName,
+        file_url: intake.arquivo_original_url || '',
+        file_type: intake.mime_type || 'application/pdf',
+        description: 'Entrada Única - Nota Fiscal',
+        nf_categoria: 'nota_fiscal',
+        nf_numero: ia.nf_numero || '',
+        nf_valor_total: valor,
+        nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || '',
+        nf_emitente_nome: ia.nf_emitente_nome || '',
+        nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
+        nf_tipo_documento: 'pdf_nf',
+        nf_nome_original: intake.file_name_original || '',
+        nf_nome_renomeado: intake.file_name_final || intake.file_name_original || fileName,
+        nf_status_leitura: 'lido_com_sucesso',
+        nf_revisado: true,
+        rubrica_id,
+        rubrica_nome,
+      }).catch(() => null);
 
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'ENVIADO_APROVACAO',
@@ -161,6 +200,7 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
         entidade_destino_id: novaPurchase?.id || '',
       });
 
+      toast.success('Enviado para aprovação com sucesso.');
       if (onSentToApproval) onSentToApproval(intake.id);
     } catch (e) {
       toast.error('Erro ao enviar para aprovação: ' + e.message);
@@ -231,8 +271,8 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
             </Button>
           )}
 
-          {/* Reanalisar (em erro, não XML) */}
-          {hasError && !isXML && (
+          {/* Reanalisar (em erro ou análise travada, não XML) */}
+          {(hasError || canFallbackReview) && !isXML && (
             <Button size="sm" variant="outline" onClick={handleReanalyse} disabled={loading}
               className="text-xs h-8 px-2" title="Reanalisar com IA">
               {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
@@ -308,6 +348,14 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
         <div className="mt-3 flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
           <span>Erro na análise. Clique em "Reanalisar" para tentar novamente ou em "Revisar" para editar manualmente.</span>
+        </div>
+      )}
+
+      {/* Aviso análise travada */}
+      {canFallbackReview && (
+        <div className="mt-3 flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+          <span>A IA ainda não concluiu. Como o nome do arquivo contém dados da NF, clique em "Revisar" para preencher/conferir manualmente.</span>
         </div>
       )}
 
