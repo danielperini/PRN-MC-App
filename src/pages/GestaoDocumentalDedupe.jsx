@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { FileText, FileCode, File, Search, Trash2, ExternalLink, Download, Copy, Pencil, Link2, Save } from 'lucide-react';
+import { FileText, FileCode, File, Search, Trash2, ExternalLink, Download, Copy, Pencil, Link2, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 const IMG = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'heic'];
@@ -17,15 +17,6 @@ const TYPE = {
 
 function norm(v) {
   return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-}
-
-function key(v) {
-  return norm(v).replace(/[^a-z0-9]/g, '');
-}
-
-function num(v) {
-  const n = Number(String(v || '').replace(/R\$/gi, '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.'));
-  return Number.isFinite(n) ? n : 0;
 }
 
 function source(doc) {
@@ -78,6 +69,14 @@ function fornecedor(d) {
   return d?.nf_emitente_nome || d?.fornecedor_nome || d?.resultado_ia?.nf_emitente_nome || d?.resultado_ia?.fornecedor_nome || d?.description || 'Fornecedor não identificado';
 }
 
+function nfNumero(d) {
+  return d?.nf_numero || d?.resultado_ia?.nf_numero || d?.numero_nf || d?.nota_numero || '';
+}
+
+function valorDoc(d) {
+  return d?.nf_valor_total || d?.resultado_ia?.nf_valor_total || d?.valor_total || d?.valor || '';
+}
+
 function dataDoc(d) {
   return d?.nf_data_emissao || d?.resultado_ia?.nf_data_emissao || d?.resultado_ia?.data_emissao || d?.competencia || d?.created_date || d?.updated_date || '';
 }
@@ -85,17 +84,6 @@ function dataDoc(d) {
 function dataFmt(v) {
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-}
-
-function mesKey(d) {
-  const x = new Date(dataDoc(d));
-  return Number.isNaN(x.getTime()) ? 'sem-data' : `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function mesLabel(k) {
-  if (k === 'sem-data') return 'Sem data';
-  const [a, m] = k.split('-').map(Number);
-  return new Date(a, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 }
 
 function ids(d) {
@@ -129,96 +117,26 @@ function isLinked(d) {
   return ids(d).length > 0 || d?.grupo_status === 'COMPLETO';
 }
 
-function placeholder(d) {
-  const n = key(name(d));
-  const nf = key(d?.nf_numero || d?.resultado_ia?.nf_numero || d?.numero_nf || d?.nota_numero || '');
-  const f = key(d?.nf_emitente_nome || d?.resultado_ia?.nf_emitente_nome || d?.fornecedor_nome || fornecedor(d));
-  const v = num(d?.nf_valor_total || d?.resultado_ia?.nf_valor_total || d?.valor_total || d?.valor);
-  return n.includes('semnumfornecedormuseuscentro') || ((nf === '' || nf === 'semnum') && f.includes('fornecedor') && v === 0);
-}
-
-function baseKey(d) {
-  return key(name(d).replace(/\.[^.]+$/, '').replace(/\([0-9]+\)/g, '').replace(/\b(pdf|xml|recibo|comprovante|pagamento|boleto|pix|nfe|nfse|nf|nota|fiscal|museus|centro|servico|serviço|sem|num|fornecedor)\b/gi, ''));
-}
-
-function fiscalKey(d) {
+function pairStatus(d) {
   const t = tipo(d);
-  if (placeholder(d)) return `placeholder:${t}`;
-  const nf = key(d?.nf_numero || d?.resultado_ia?.nf_numero || d?.numero_nf || d?.nota_numero || '');
-  const cnpj = key(d?.nf_emitente_cpf_cnpj || d?.resultado_ia?.nf_emitente_cpf_cnpj || d?.fornecedor_cpf_cnpj || d?.fornecedor_cnpj || '');
-  const f = key(d?.nf_emitente_nome || d?.resultado_ia?.nf_emitente_nome || d?.fornecedor_nome || '');
-  const v = num(d?.nf_valor_total || d?.resultado_ia?.nf_valor_total || d?.valor_total || d?.valor);
-  if (nf && nf !== 'semnum' && cnpj) return `nf:${nf}:${cnpj}`;
-  if (nf && nf !== 'semnum' && f) return `nf:${nf}:${f}`;
-  if (nf && nf !== 'semnum' && v) return `nf:${nf}:${v}`;
-  const b = baseKey(d);
-  if (b.length >= 6) return `base:${b}`;
-  return `id:${uid(d)}`;
+
+  if (t === 'PDF') {
+    if (d?.nf_xml_intake_id || d?.nf_xml_url) return 'Com XML';
+    if (d?.recibo_pdf_id || d?.comprovante_pdf_id || d?.comprovante_url) return 'Com Recibo';
+    if (d?.arquivo_complementar_dispensado) return 'Sem complemento';
+    return 'Sem par';
+  }
+
+  if (isLinked(d)) return 'Vinculado';
+  return 'Sem par';
 }
 
 function docKey(d) {
-  if (placeholder(d)) return `${tipo(d)}:placeholder:semnum`;
-  return `${tipo(d)}:${fiscalKey(d)}`;
-}
-
-function rowKey(d) {
-  const x = ids(d);
-  if (x.length) return `ids:${x.sort().join('|')}`;
-  if (placeholder(d)) return `${tipo(d)}:placeholder:semnum`;
-  const f = fiscalKey(d);
-  if (!f.startsWith('id:')) return f;
-  return `single:${uid(d)}`;
-}
-
-function best(a, b) {
-  const s = (d) => (ids(d).length ? 20 : 0) + (url(d) ? 3 : 0) + (d?.nf_numero || d?.resultado_ia?.nf_numero ? 1 : 0) + (source(d) === 'Attachment' ? 1 : 0);
-  const diff = s(b) - s(a);
-  if (diff) return diff;
-  return new Date(dataDoc(b) || 0) - new Date(dataDoc(a) || 0);
-}
-
-function dedupeDocs(list) {
-  const m = new Map();
-  list.forEach((d) => {
-    const k = docKey(d);
-    m.set(k, m.has(k) ? [m.get(k), d].sort(best)[0] : d);
-  });
-  return Array.from(m.values());
-}
-
-function buildRows(raw) {
-  const valid = (raw || []).filter((d) => d?.id && d?.status_registro !== 'DELETADO' && !isImg(d));
-  const byRow = new Map();
-  valid.forEach((d) => {
-    const k = rowKey(d);
-    if (!byRow.has(k)) byRow.set(k, []);
-    byRow.get(k).push(d);
-  });
-
-  const rows = Array.from(byRow.entries()).map(([k, list]) => {
-    const docs = dedupeDocs(list).sort((a, b) => ({ PDF: 1, XML: 2, RECIBO: 3, DOC: 4 }[tipo(a)] || 9) - ({ PDF: 1, XML: 2, RECIBO: 3, DOC: 4 }[tipo(b)] || 9));
-    const primary = docs.find((d) => tipo(d) === 'PDF') || docs[0];
-    const types = new Set(docs.map(tipo));
-    const nf = primary?.nf_numero || primary?.resultado_ia?.nf_numero || primary?.numero_nf || primary?.nota_numero;
-    const forn = fornecedor(primary);
-    return {
-      key: k,
-      docs,
-      date: dataDoc(primary),
-      month: mesKey(primary),
-      ref: nf && forn ? `NF ${nf} — ${forn}` : nf ? `NF ${nf}` : name(primary),
-      fornecedor: forn,
-      categoria: nf || primary?.nf_emitente_nome || primary?.resultado_ia?.nf_emitente_nome || primary?.nf_valor_total || primary?.resultado_ia?.nf_valor_total ? 'Nota Fiscal' : tipo(primary),
-      tipo: types.has('PDF') && types.has('XML') ? 'Com XML' : types.has('PDF') && types.has('RECIBO') ? 'Com Recibo' : 'Sem par',
-    };
-  });
-
-  const byMonth = new Map();
-  rows.forEach((r) => {
-    if (!byMonth.has(r.month)) byMonth.set(r.month, []);
-    byMonth.get(r.month).push(r);
-  });
-  return Array.from(byMonth.entries()).sort(([a], [b]) => b.localeCompare(a)).map(([month, items]) => ({ month, label: mesLabel(month), rows: items.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)) }));
+  const nf = nfNumero(d);
+  const f = fornecedor(d);
+  const v = valorDoc(d);
+  const n = name(d);
+  return `${tipo(d)}:${nf}:${f}:${v}:${n}`.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 function countDup(raw) {
@@ -231,18 +149,14 @@ function countDup(raw) {
   return Array.from(m.values()).reduce((a, n) => a + Math.max(0, n - 1), 0);
 }
 
-function DocLink({ doc }) {
+function DocTypeBadge({ doc }) {
   const t = tipo(doc);
   const cfg = TYPE[t] || TYPE.DOC;
   const Icon = cfg.Icon;
-  const href = url(doc);
   return (
-    <span className="inline-flex h-7 max-w-full min-w-0 items-center gap-1 rounded-md border border-gray-100 bg-gray-50 px-1.5">
-      <Icon className="h-3 w-3 flex-shrink-0 text-gray-400" />
-      <span className={`flex-shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold leading-none ${cfg.cls}`}>{t}</span>
-      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-gray-700" title={name(doc)}>{name(doc)}</span>
-      {href && <a href={href} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-gray-400 hover:text-blue-700"><ExternalLink className="h-3 w-3" /></a>}
-      {href && <a href={href} download className="flex-shrink-0 text-gray-400 hover:text-gray-700"><Download className="h-3 w-3" /></a>}
+    <span className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold ${cfg.cls}`}>
+      <Icon className="h-3 w-3" />
+      {t}
     </span>
   );
 }
@@ -270,8 +184,8 @@ function DocumentSelect({ label, value, onChange, docs, allowedTypes }) {
   );
 }
 
-function EditarVinculosDialog({ row, docs, form, setForm, saving, onSave, onClose }) {
-  if (!row) return null;
+function EditarVinculosDialog({ doc, docs, form, setForm, saving, onSave, onClose }) {
+  if (!doc) return null;
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -285,8 +199,8 @@ function EditarVinculosDialog({ row, docs, form, setForm, saving, onSave, onClos
 
         <div className="space-y-4">
           <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-            <p className="text-sm font-medium text-gray-900 line-clamp-2">{row.ref}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{row.fornecedor}</p>
+            <p className="text-sm font-medium text-gray-900 line-clamp-2">{name(doc)}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{fornecedor(doc)}</p>
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -296,7 +210,7 @@ function EditarVinculosDialog({ row, docs, form, setForm, saving, onSave, onClos
           </div>
 
           <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            A lista inclui anexos existentes e todos os arquivos enviados pela Entrada Única que ainda não foram vinculados. Cada XML/recibo só pode ser usado em um par.
+            A lista inclui anexos existentes e arquivos enviados pela Entrada Única que ainda não foram vinculados. Cada XML/recibo só pode ser usado em um par.
           </div>
 
           <div className="flex justify-end gap-2">
@@ -331,41 +245,60 @@ async function deleteDoc(doc) {
   catch { await base44.entities.Attachment.update(doc.id, { status_registro: 'DELETADO' }); }
 }
 
+function normalizeIntake(doc) {
+  return {
+    ...doc,
+    __source: 'DocumentIntake',
+    file_name: doc.file_name_final || doc.file_name_original,
+    file_url: doc.arquivo_original_url,
+    nf_numero: doc.nf_numero || doc.resultado_ia?.nf_numero,
+    nf_valor_total: doc.nf_valor_total || doc.resultado_ia?.nf_valor_total,
+    nf_data_emissao: doc.nf_data_emissao || doc.resultado_ia?.nf_data_emissao || doc.resultado_ia?.data_emissao,
+    nf_emitente_nome: doc.nf_emitente_nome || doc.resultado_ia?.nf_emitente_nome,
+    nf_emitente_cpf_cnpj: doc.nf_emitente_cpf_cnpj || doc.resultado_ia?.nf_emitente_cpf_cnpj,
+    nf_tipo_documento: doc.tipo_detectado === 'NOTA_FISCAL_XML'
+      ? 'xml_nf'
+      : doc.tipo_detectado === 'RECIBO_PDF'
+        ? 'recibo_pdf'
+        : doc.tipo_detectado === 'NOTA_FISCAL_PDF'
+          ? 'pdf_nf'
+          : doc.nf_tipo_documento,
+  };
+}
+
 export default function GestaoDocumentalDedupe() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [onlyDup, setOnlyDup] = useState(false);
-  const [editingRow, setEditingRow] = useState(null);
+  const [editingDoc, setEditingDoc] = useState(null);
   const [editForm, setEditForm] = useState({ pdfId: '', xmlId: '', reciboId: '' });
   const [savingLinks, setSavingLinks] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const { data = [], isLoading } = useQuery({
     queryKey: ['gestao-documental'],
     queryFn: async () => {
       const [attachments, intakes] = await Promise.all([
-        base44.entities.Attachment.list('-created_date', 2000).catch(() => []),
-        base44.entities.DocumentIntake.list('-created_date', 2000).catch(() => []),
+        base44.entities.Attachment.list('-created_date', 5000).catch(() => []),
+        base44.entities.DocumentIntake.list('-created_date', 5000).catch(() => []),
       ]);
 
       return [
         ...(attachments || []).map((doc) => ({ ...doc, __source: 'Attachment' })),
-        ...(intakes || []).map((doc) => ({
-          ...doc,
-          __source: 'DocumentIntake',
-          file_name: doc.file_name_final || doc.file_name_original,
-          file_url: doc.arquivo_original_url,
-          nf_numero: doc.nf_numero || doc.resultado_ia?.nf_numero,
-          nf_valor_total: doc.nf_valor_total || doc.resultado_ia?.nf_valor_total,
-          nf_data_emissao: doc.nf_data_emissao || doc.resultado_ia?.nf_data_emissao || doc.resultado_ia?.data_emissao,
-          nf_emitente_nome: doc.nf_emitente_nome || doc.resultado_ia?.nf_emitente_nome,
-          nf_emitente_cpf_cnpj: doc.nf_emitente_cpf_cnpj || doc.resultado_ia?.nf_emitente_cpf_cnpj,
-          nf_tipo_documento: doc.tipo_detectado === 'NOTA_FISCAL_XML' ? 'xml_nf' : doc.tipo_detectado === 'RECIBO_PDF' ? 'recibo_pdf' : doc.tipo_detectado === 'NOTA_FISCAL_PDF' ? 'pdf_nf' : doc.nf_tipo_documento,
-        })),
+        ...(intakes || []).map(normalizeIntake),
       ];
     }
   });
 
-  const valid = useMemo(() => (data || []).filter((d) => d?.id && d?.status_registro !== 'DELETADO' && !isImg(d)), [data]);
+  const valid = useMemo(() => {
+    return (data || [])
+      .filter((d) => d?.id && d?.status_registro !== 'DELETADO' && !isImg(d))
+      .sort((a, b) => new Date(dataDoc(b) || b.created_date || 0) - new Date(dataDoc(a) || a.created_date || 0));
+  }, [data]);
+
   const docsById = useMemo(() => new Map(valid.map((doc) => [uid(doc), doc])), [valid]);
+
   const dupIds = useMemo(() => {
     const m = new Map();
     valid.forEach((d) => {
@@ -375,30 +308,44 @@ export default function GestaoDocumentalDedupe() {
     });
     return new Set(Array.from(m.values()).filter((ids) => ids.length > 1).flat());
   }, [valid]);
+
   const filtered = useMemo(() => {
     const q = norm(search);
     const sourceDocs = onlyDup ? valid.filter((d) => dupIds.has(uid(d))) : valid;
     if (!q) return sourceDocs;
-    return sourceDocs.filter((d) => norm([name(d), fornecedor(d), d?.nf_numero, d?.resultado_ia?.nf_numero, tipo(d), d?.description].filter(Boolean).join(' ')).includes(q));
+    return sourceDocs.filter((d) => norm([
+      name(d),
+      fornecedor(d),
+      nfNumero(d),
+      tipo(d),
+      pairStatus(d),
+      d?.description,
+    ].filter(Boolean).join(' ')).includes(q));
   }, [valid, dupIds, search, onlyDup]);
-  const groups = useMemo(() => buildRows(filtered), [filtered]);
+
   const dupCount = useMemo(() => countDup(valid), [valid]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const pageItems = filtered.slice(start, start + pageSize);
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ['gestao-documental'] });
     await queryClient.invalidateQueries({ queryKey: ['attachments-compras'] });
   }
 
-  function openEdit(row) {
-    const pdf = row.docs.find((doc) => tipo(doc) === 'PDF');
-    const xml = row.docs.find((doc) => tipo(doc) === 'XML');
-    const recibo = row.docs.find((doc) => tipo(doc) === 'RECIBO' || tipo(doc) === 'DOC');
-    setEditingRow(row);
-    setEditForm({ pdfId: pdf ? uid(pdf) : '', xmlId: xml ? uid(xml) : '', reciboId: recibo ? uid(recibo) : '' });
+  function openEdit(doc) {
+    const t = tipo(doc);
+    setEditingDoc(doc);
+    setEditForm({
+      pdfId: t === 'PDF' ? uid(doc) : '',
+      xmlId: t === 'XML' ? uid(doc) : '',
+      reciboId: t === 'RECIBO' || t === 'DOC' ? uid(doc) : '',
+    });
   }
 
   async function saveLinks() {
-    if (!editingRow) return;
+    if (!editingDoc) return;
 
     const pdf = editForm.pdfId ? docsById.get(String(editForm.pdfId)) : null;
     const xml = editForm.xmlId ? docsById.get(String(editForm.xmlId)) : null;
@@ -421,7 +368,7 @@ export default function GestaoDocumentalDedupe() {
       const pdfUrl = pdf ? url(pdf) : '';
       const xmlUrl = xml ? url(xml) : '';
       const reciboUrl = recibo ? url(recibo) : '';
-      const pairId = [uid(pdf), uid(xml), uid(recibo)].filter(Boolean).sort().join('__') || editingRow.key;
+      const pairId = [uid(pdf), uid(xml), uid(recibo)].filter(Boolean).sort().join('__') || uid(editingDoc);
       const pdfId = pdf?.id || '';
       const xmlId = xml?.id || '';
       const reciboId = recibo?.id || '';
@@ -474,7 +421,7 @@ export default function GestaoDocumentalDedupe() {
 
       await Promise.all(updates);
       toast.success('Vínculos atualizados com sucesso.');
-      setEditingRow(null);
+      setEditingDoc(null);
       await refresh();
     } catch (error) {
       toast.error(`Erro ao salvar vínculos: ${error.message}`);
@@ -499,12 +446,10 @@ export default function GestaoDocumentalDedupe() {
       if (!m.has(k)) m.set(k, []);
       m.get(k).push(d);
     });
-    const duplicates = Array.from(m.values()).flatMap((list) => list.length > 1 ? [...list].sort(best).slice(1) : []);
+    const duplicates = Array.from(m.values()).flatMap((list) => list.length > 1 ? [...list].slice(1) : []);
     if (!duplicates.length) return toast.info('Nenhuma entrada repetida encontrada.');
     if (!window.confirm(`Remover ${duplicates.length} entradas repetidas?`)) return;
-    for (const d of duplicates) {
-      await deleteDoc(d);
-    }
+    for (const d of duplicates) await deleteDoc(d);
     toast.success(`${duplicates.length} entradas repetidas removidas.`);
     await refresh();
   }
@@ -518,79 +463,110 @@ export default function GestaoDocumentalDedupe() {
           <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{filtered.length}</span>
           <span className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-500">{dupCount} repetidos</span>
         </div>
+
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant={onlyDup ? 'default' : 'outline'} size="sm" onClick={() => setOnlyDup((v) => !v)} className="h-8 gap-1.5 px-2 text-xs"><Copy className="h-3.5 w-3.5" />{onlyDup ? 'Ver todos' : 'Repetidos'}</Button>
-          <Button type="button" variant="outline" size="sm" onClick={removeDup} className="h-8 gap-1.5 px-2 text-xs text-red-700 hover:text-red-800"><Trash2 className="h-3.5 w-3.5" />Apagar</Button>
-          <div className="relative w-64 max-w-full"><Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" /><Input className="h-8 pl-8 text-xs" placeholder="Buscar documento..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+          <select
+            value={pageSize}
+            onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+            className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700"
+          >
+            <option value={10}>10 por página</option>
+            <option value={20}>20 por página</option>
+          </select>
+
+          <Button type="button" variant={onlyDup ? 'default' : 'outline'} size="sm" onClick={() => { setOnlyDup((v) => !v); setPage(1); }} className="h-8 gap-1.5 px-2 text-xs">
+            <Copy className="h-3.5 w-3.5" />{onlyDup ? 'Ver todos' : 'Repetidos'}
+          </Button>
+
+          <Button type="button" variant="outline" size="sm" onClick={removeDup} className="h-8 gap-1.5 px-2 text-xs text-red-700 hover:text-red-800">
+            <Trash2 className="h-3.5 w-3.5" />Apagar
+          </Button>
+
+          <div className="relative w-64 max-w-full">
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+            <Input className="h-8 pl-8 text-xs" placeholder="Buscar documento..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+          </div>
         </div>
       </div>
+
       {isLoading ? <div className="py-10 text-center text-sm text-gray-400">Carregando documentos...</div> : (
         <div className="p-3">
-          {groups.map((g) => (
-            <section key={g.month} className="mb-6 last:mb-0">
-              <div className="mb-2 flex items-end justify-between border-b border-gray-100 pb-2">
-                <div><h3 className="text-sm font-semibold capitalize text-black">{g.label}</h3><p className="text-[11px] text-gray-500">{g.rows.length} linhas consolidadas</p></div>
-              </div>
-              <div className="overflow-x-auto rounded-xl border border-gray-200">
-                <table className="w-full min-w-[780px] table-fixed border-collapse text-xs">
-                  <colgroup>
-                    <col className="w-[9%]" />
-                    <col className="w-[24%]" />
-                    <col className="w-[17%]" />
-                    <col className="w-[8%]" />
-                    <col className="w-[33%]" />
-                    <col className="w-[9%]" />
-                  </colgroup>
-                  <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50 text-left">
-                      <th className="px-2 py-2 font-medium text-gray-600">Tipo</th>
-                      <th className="px-2 py-2 font-medium text-gray-600">Referência</th>
-                      <th className="px-2 py-2 font-medium text-gray-600">Fornecedor</th>
-                      <th className="px-2 py-2 font-medium text-gray-600">Data</th>
-                      <th className="px-2 py-2 font-medium text-gray-600">Arquivos</th>
-                      <th className="px-2 py-2 text-center font-medium text-gray-600">Ações</th>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="w-full min-w-[900px] table-fixed border-collapse text-xs">
+              <colgroup>
+                <col className="w-[9%]" />
+                <col className="w-[10%]" />
+                <col className="w-[32%]" />
+                <col className="w-[18%]" />
+                <col className="w-[9%]" />
+                <col className="w-[9%]" />
+                <col className="w-[13%]" />
+              </colgroup>
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50 text-left">
+                  <th className="px-2 py-2 font-medium text-gray-600">Vínculo</th>
+                  <th className="px-2 py-2 font-medium text-gray-600">Tipo</th>
+                  <th className="px-2 py-2 font-medium text-gray-600">Arquivo</th>
+                  <th className="px-2 py-2 font-medium text-gray-600">Fornecedor</th>
+                  <th className="px-2 py-2 font-medium text-gray-600">Data</th>
+                  <th className="px-2 py-2 font-medium text-gray-600">Origem</th>
+                  <th className="px-2 py-2 text-center font-medium text-gray-600">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageItems.map((doc, i) => {
+                  const href = url(doc);
+                  const status = pairStatus(doc);
+                  return (
+                    <tr key={uid(doc)} className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
+                      <td className="px-2 py-2 align-middle">
+                        <span className={`inline-block max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-medium ${status === 'Sem par' ? 'border border-gray-200 bg-white text-gray-700' : 'bg-black text-white'}`}>{status}</span>
+                      </td>
+                      <td className="px-2 py-2 align-middle"><DocTypeBadge doc={doc} /></td>
+                      <td className="px-2 py-2 align-middle">
+                        <p className="truncate font-medium text-gray-900" title={name(doc)}>{name(doc)}</p>
+                        <p className="truncate text-[11px] text-gray-400">{nfNumero(doc) ? `NF ${nfNumero(doc)}` : 'Sem NF identificada'}{valorDoc(doc) ? ` · R$ ${valorDoc(doc)}` : ''}</p>
+                      </td>
+                      <td className="px-2 py-2 align-middle text-gray-600"><p className="truncate" title={fornecedor(doc)}>{fornecedor(doc)}</p></td>
+                      <td className="px-2 py-2 align-middle text-[11px] tabular-nums text-gray-500">{dataFmt(dataDoc(doc))}</td>
+                      <td className="px-2 py-2 align-middle text-[11px] text-gray-500">{source(doc) === 'DocumentIntake' ? 'Entrada Única' : 'Anexo'}</td>
+                      <td className="px-2 py-2 align-middle">
+                        <div className="flex items-center justify-center gap-1">
+                          <button type="button" onClick={() => openEdit(doc)} title="Editar vínculos" className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"><Pencil className="h-3.5 w-3.5" /></button>
+                          <Link2 className="h-3.5 w-3.5 text-gray-300" />
+                          {href && <a href={href} target="_blank" rel="noopener noreferrer" title="Abrir arquivo" className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-blue-700"><ExternalLink className="h-3.5 w-3.5" /></a>}
+                          {href && <a href={href} download title="Baixar arquivo" className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"><Download className="h-3.5 w-3.5" /></a>}
+                          <button type="button" onClick={() => remove(doc)} title={`Deletar ${name(doc)}`} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {g.rows.map((r, i) => (
-                      <tr key={r.key} className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
-                        <td className="px-2 py-2 align-top">
-                          <span className={`inline-block max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-medium ${r.tipo === 'Sem par' ? 'border border-gray-200 bg-white text-gray-700' : 'bg-black text-white'}`}>{r.tipo}</span>
-                        </td>
-                        <td className="px-2 py-2 align-top">
-                          <p className="line-clamp-2 font-medium leading-snug text-gray-900" title={r.ref}>{r.ref}</p>
-                          <p className="truncate text-[11px] text-gray-400">{r.categoria}</p>
-                        </td>
-                        <td className="px-2 py-2 align-top text-gray-600"><p className="line-clamp-2 leading-snug" title={r.fornecedor}>{r.fornecedor}</p></td>
-                        <td className="px-2 py-2 align-top text-[11px] tabular-nums text-gray-500">{dataFmt(r.date)}</td>
-                        <td className="px-2 py-2 align-top">
-                          <div className="grid min-w-0 grid-cols-1 gap-1 xl:grid-cols-2">{r.docs.map((d) => <DocLink key={uid(d)} doc={d} />)}</div>
-                        </td>
-                        <td className="px-2 py-2 align-top">
-                          <div className="flex items-center justify-center gap-1">
-                            <button type="button" onClick={() => openEdit(r)} title="Editar vínculos" className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"><Pencil className="h-3.5 w-3.5" /></button>
-                            <Link2 className="h-3.5 w-3.5 text-gray-300" />
-                            {r.docs.map((d) => <button key={uid(d)} type="button" onClick={() => remove(d)} title={`Deletar ${name(d)}`} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>)}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ))}
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {!pageItems.length && <div className="py-10 text-center text-sm text-gray-400">Nenhum documento encontrado.</div>}
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+            <span>Mostrando {filtered.length ? start + 1 : 0}–{Math.min(start + pageSize, filtered.length)} de {filtered.length} arquivo(s)</span>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="h-8 gap-1 text-xs"><ChevronLeft className="h-3.5 w-3.5" />Anterior</Button>
+              <span>Página {safePage} de {totalPages}</span>
+              <Button type="button" variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} className="h-8 gap-1 text-xs">Próxima<ChevronRight className="h-3.5 w-3.5" /></Button>
+            </div>
+          </div>
         </div>
       )}
 
       <EditarVinculosDialog
-        row={editingRow}
+        doc={editingDoc}
         docs={valid}
         form={editForm}
         setForm={setEditForm}
         saving={savingLinks}
         onSave={saveLinks}
-        onClose={() => setEditingRow(null)}
+        onClose={() => setEditingDoc(null)}
       />
     </div>
   );
