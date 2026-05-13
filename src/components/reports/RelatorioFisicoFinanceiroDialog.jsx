@@ -14,11 +14,11 @@ import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinancei
 import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
 
 const SECOES = [
-  { id: 'capa', label: 'Capa' },
-  { id: 'introducao', label: 'Introdução executiva' },
-  { id: 'resumo_geral', label: 'Resumo geral do período' },
+  { id: 'capa', label: 'Capa editorial' },
+  { id: 'introducao', label: 'Introdução e território' },
+  { id: 'resumo_geral', label: 'Resumo e indicadores' },
   { id: 'publico', label: 'Público alcançado' },
-  { id: 'atividades', label: 'Atividades reorganizadas' },
+  { id: 'atividades', label: 'Atividades por eixo' },
   { id: 'financeiro', label: 'Execução financeira' },
   { id: 'prestacao', label: 'Prestação de contas' },
   { id: 'conclusao', label: 'Conclusão' },
@@ -223,8 +223,8 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">Relatório Físico-Financeiro</DialogTitle>
-          <p className="text-sm text-gray-500 mt-0.5">Projeto Museus Centro — relatório editorial com auditoria IA</p>
+          <DialogTitle className="text-lg font-semibold">Relatório Editorial Institucional</DialogTitle>
+          <p className="text-sm text-gray-500 mt-0.5">Museus Centro — publicação cultural consolidada com curadoria IA</p>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
