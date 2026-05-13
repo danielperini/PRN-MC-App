@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
-import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck, RefreshCw, LinkIcon } from 'lucide-react';
+import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck, RefreshCw, LinkIcon, Search, X } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
@@ -145,6 +145,20 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [loadingXmls, setLoadingXmls] = useState(false);
   const [linkingXml, setLinkingXml] = useState(false);
   const [rubricas, setRubricas] = useState([]);
+  const [rubricaBusca, setRubricaBusca] = useState('');
+  const [rubricaDropdownOpen, setRubricaDropdownOpen] = useState(false);
+  const rubricaRef = useRef(null);
+
+  useEffect(() => {
+    if (!rubricaDropdownOpen) return;
+    function handleClick(e) {
+      if (rubricaRef.current && !rubricaRef.current.contains(e.target)) {
+        setRubricaDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [rubricaDropdownOpen]);
 
   const ia = intake.resultado_ia || {};
   const dataEmissaoIA = getDataEmissaoFromIA(ia);
@@ -830,24 +844,82 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             </Select>
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1" ref={rubricaRef}>
             <Label>
               Rubrica <span className="text-red-500">*</span>
             </Label>
-            <Select value={form.rubrica_id} onValueChange={(v) => setForm((f) => ({ ...f, rubrica_id: v }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecionar rubrica" />
-              </SelectTrigger>
-              <SelectContent>
-                {rubricasOrdenadas.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {(r.grupo ? `${r.grupo} — ` : '')}
-                    {r.rubrica || r.nome || r.descricao || 'Rubrica sem nome'}
-                    {r.centro_custo ? ` — ${r.centro_custo}` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {(() => {
+              const rubricaSelecionada = rubricas.find((r) => r.id === form.rubrica_id);
+              const rubricaLabel = rubricaSelecionada
+                ? `${rubricaSelecionada.grupo ? rubricaSelecionada.grupo + ' — ' : ''}${rubricaSelecionada.rubrica || rubricaSelecionada.nome || rubricaSelecionada.descricao || 'Rubrica sem nome'}${rubricaSelecionada.centro_custo ? ' — ' + rubricaSelecionada.centro_custo : ''}`
+                : '';
+              const rubricasFiltradas = rubricasOrdenadas.filter((r) => {
+                if (!rubricaBusca) return true;
+                const q = rubricaBusca.toLowerCase();
+                const nome = String(r.rubrica || r.nome || r.descricao || '').toLowerCase();
+                const grupo = String(r.grupo || '').toLowerCase();
+                const cc = String(r.centro_custo || '').toLowerCase();
+                return nome.includes(q) || grupo.includes(q) || cc.includes(q);
+              });
+
+              return (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => { setRubricaDropdownOpen((v) => !v); setRubricaBusca(''); }}
+                    className="w-full flex items-center justify-between border rounded-md px-3 py-2 text-sm bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                  >
+                    <span className={rubricaLabel ? 'text-slate-900 truncate' : 'text-slate-400'}>
+                      {rubricaLabel || 'Selecionar rubrica'}
+                    </span>
+                    <Search className="w-4 h-4 text-slate-400 flex-shrink-0 ml-2" />
+                  </button>
+
+                  {rubricaDropdownOpen && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg">
+                      <div className="p-2 border-b border-slate-100 flex items-center gap-2">
+                        <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                        <input
+                          autoFocus
+                          type="text"
+                          className="flex-1 text-sm outline-none"
+                          placeholder="Buscar rubrica..."
+                          value={rubricaBusca}
+                          onChange={(e) => setRubricaBusca(e.target.value)}
+                        />
+                        {rubricaBusca && (
+                          <button type="button" onClick={() => setRubricaBusca('')}>
+                            <X className="w-4 h-4 text-slate-400" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-52 overflow-y-auto">
+                        {rubricasFiltradas.length === 0 && (
+                          <p className="text-sm text-slate-400 text-center py-4">Nenhuma rubrica encontrada</p>
+                        )}
+                        {rubricasFiltradas.map((r) => {
+                          const label = `${r.grupo ? r.grupo + ' — ' : ''}${r.rubrica || r.nome || r.descricao || 'Rubrica sem nome'}${r.centro_custo ? ' — ' + r.centro_custo : ''}`;
+                          return (
+                            <button
+                              key={r.id}
+                              type="button"
+                              onClick={() => {
+                                setForm((f) => ({ ...f, rubrica_id: r.id }));
+                                setRubricaDropdownOpen(false);
+                                setRubricaBusca('');
+                              }}
+                              className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-100 ${form.rubrica_id === r.id ? 'bg-blue-50 text-blue-700' : 'text-slate-800'}`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {loadingXmls && (
