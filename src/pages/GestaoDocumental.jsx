@@ -15,7 +15,11 @@ import {
   CheckCircle2,
   Pencil,
   Copy,
-  Save } from
+  Save,
+  Cloud,
+  CloudOff,
+  Loader2,
+  RotateCcw } from
 'lucide-react';
 import { toast } from 'sonner';
 import { deletePurchaseRequest } from '@/lib/deleteIntegrado';
@@ -556,6 +560,7 @@ export default function GestaoDocumental() {
   const [editingPurchase, setEditingPurchase] = useState(null);
   const [savingPurchase, setSavingPurchase] = useState(false);
   const [selectedAssociationByPair, setSelectedAssociationByPair] = useState({});
+  const [syncingIds, setSyncingIds] = useState(new Set());
 
   const { data: todosDocumentos = [], isLoading } = useQuery({
     queryKey: ['gestao-documental'],
@@ -738,6 +743,23 @@ export default function GestaoDocumental() {
     }
   }
 
+  async function handleSyncDoc(doc) {
+    if (!doc?.id) return;
+    setSyncingIds(prev => new Set([...prev, doc.id]));
+    try {
+      const payload = doc.purchase_request_id
+        ? { purchase_id: doc.purchase_request_id, attachment_id: doc.id }
+        : { attachment_id: doc.id };
+      await base44.functions.invoke('syncComprasDocsToDrive', payload);
+      toast.success('Arquivo enviado ao Drive.');
+      await refreshDocumentos();
+    } catch (e) {
+      toast.error('Erro ao sincronizar: ' + e.message);
+    } finally {
+      setSyncingIds(prev => { const s = new Set(prev); s.delete(doc.id); return s; });
+    }
+  }
+
   async function handleSavePurchase() {
     if (!editingPurchase?.id) return;
 
@@ -844,6 +866,7 @@ export default function GestaoDocumental() {
                       <th className="px-3 py-2.5 font-medium text-gray-600">Fornecedor</th>
                       <th className="px-3 py-2.5 font-medium text-gray-600">Data</th>
                       <th className="px-3 py-2.5 font-medium text-gray-600">Arquivos vinculados</th>
+                      <th className="px-3 py-2.5 text-center font-medium text-gray-600">Drive</th>
                       <th className="px-3 py-2.5 text-center font-medium text-gray-600">Ações</th>
                     </tr>
                   </thead>
@@ -877,6 +900,38 @@ export default function GestaoDocumental() {
                           <td className="px-3 py-2.5 align-top">
                             <div className="flex flex-wrap gap-2">
                               {pair.docs.map((doc) => <DocumentoLink key={doc.id} doc={doc} />)}
+                            </div>
+                          </td>
+
+                          {/* Coluna Drive: status de backup por documento */}
+                          <td className="px-3 py-2.5 align-top">
+                            <div className="flex flex-col items-center gap-1.5">
+                              {pair.docs.map((doc) => {
+                                const syncing = syncingIds.has(doc.id);
+                                const hasBackup = doc?.backup_done && doc?.drive_file_id;
+                                const driveLink = hasBackup ? `https://drive.google.com/file/d/${doc.drive_file_id}/view` : null;
+                                return (
+                                  <div key={doc.id} className="flex items-center gap-1">
+                                    {syncing ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
+                                    ) : hasBackup ? (
+                                      <a href={driveLink} target="_blank" rel="noopener noreferrer" title="Ver no Drive" className="flex items-center gap-0.5 text-green-600 hover:text-green-800">
+                                        <Cloud className="h-3.5 w-3.5" />
+                                      </a>
+                                    ) : (
+                                      <CloudOff className="h-3.5 w-3.5 text-gray-300" title="Sem backup no Drive" />
+                                    )}
+                                    <button
+                                      onClick={() => handleSyncDoc(doc)}
+                                      disabled={syncing}
+                                      title="Sincronizar com Drive"
+                                      className="rounded p-0.5 text-gray-300 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+                                    >
+                                      <RotateCcw className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </td>
 
