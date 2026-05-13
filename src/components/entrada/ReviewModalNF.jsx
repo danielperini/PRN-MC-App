@@ -1,1 +1,1 @@
-export { default } from './ReviewModalNFStable';
+export { default } from './CoordReviewModalNF';
