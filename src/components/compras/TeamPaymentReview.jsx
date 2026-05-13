@@ -1,748 +1,714 @@
-import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import React, { useState, useRef } from 'react';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
-import NativeSelect from '@/components/ui/NativeSelect';
-import { useIsMobile } from '@/hooks/use-mobile';
-import {
-  CheckCircle,
-  XCircle,
-  Clock,
-  Search,
-  Eye,
-  DollarSign,
-  User,
-  Loader2,
-  FileText,
-  LinkIcon,
-  BadgeCheck,
-  RotateCcw,
-  Save,
-  Trash2
+  FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2,
+  Eye, Send, RefreshCw, X, Download, ExternalLink, Link2, Plus
 } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
+import { deleteIntake } from '@/lib/deleteIntegrado';
 
 const STATUS_CONFIG = {
-  PENDENTE: { label: 'Pendente', color: 'bg-white border-2 border-black text-black', icon: Clock },
-  AGUARDANDO_APROVACAO: { label: 'Aguardando Aprovação', color: 'bg-white border-2 border-black text-black', icon: Clock },
-  EM_ANALISE: { label: 'Em Análise', color: 'bg-white border-2 border-black text-black', icon: Clock },
-  DEVOLVIDO: { label: 'Devolvido', color: 'bg-white border-2 border-black text-black', icon: RotateCcw },
-  APROVADO: { label: 'Aprovado', color: 'bg-black text-white', icon: CheckCircle },
-  APROVADO_COORD: { label: 'Aprovado Coord.', color: 'bg-black text-white', icon: CheckCircle },
-  RECUSADO: { label: 'Recusado', color: 'bg-black text-white', icon: XCircle },
-  PAGO: { label: 'Pago', color: 'bg-black text-white', icon: CheckCircle }
+  ENVIADO:            { label: 'Enviado',              color: 'bg-blue-100 text-blue-700',    icon: Clock },
+  ANALISANDO_IA:      { label: 'Analisando...',        color: 'bg-yellow-100 text-yellow-700', icon: Loader2, spin: true },
+  AGUARDANDO_REVISAO: { label: 'Aguardando revisão',   color: 'bg-orange-100 text-orange-700', icon: Eye },
+  RASCUNHO:           { label: 'Rascunho',             color: 'bg-slate-100 text-slate-600',   icon: FileText },
+  ENVIADO_APROVACAO:  { label: 'Enviado p/ aprovação', color: 'bg-purple-100 text-purple-700', icon: Send },
+  APROVADO:           { label: 'Aprovado',             color: 'bg-green-100 text-green-700',   icon: CheckCircle2 },
+  REJEITADO:          { label: 'Rejeitado',            color: 'bg-red-100 text-red-700',       icon: AlertCircle },
+  ERRO_PROCESSAMENTO: { label: 'Erro',                 color: 'bg-red-100 text-red-700',       icon: AlertCircle },
 };
 
-function getPaymentValue(p) {
-  return Number(
-    p?.valor_total ||
-    p?.valor_nf ||
-    p?.valor ||
-    p?.valor_pago ||
-    p?.nf_valor_total ||
-    0
-  );
+const TIPO_LABEL = {
+  NOTA_FISCAL_PDF:          'NF PDF',
+  NOTA_FISCAL_XML:          'NF XML',
+  FOTO_ATIVIDADE:           'Foto',
+  DOCUMENTO_ADMINISTRATIVO: 'Documento',
+  OUTRO:                    'Outro',
+  PENDENTE:                 'Pendente',
+};
+
+function parseValorBR(v) {
+  const s = String(v || '0').trim().replace(/\s/g, '');
+
+  if (/^\d{1,3}(\.\d{3})*(,\d+)?$/.test(s)) {
+    return parseFloat(
+      s.replace(/\./g, '').replace(',', '.')
+    ) || 0;
+  }
+
+  return parseFloat(
+    s.replace(',', '.')
+  ) || 0;
 }
 
-function fmtBRL(v) {
-  if (!v && v !== 0) return '—';
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(Number(v) || 0);
+function getValorDisplay(intake) {
+  const ia = intake.resultado_ia || {};
+
+  const valor =
+    ia.nf_valor_total ||
+    ia.valor ||
+    ia.valor_total ||
+    intake.valor;
+
+  if (!valor) return null;
+
+  const num = parseValorBR(valor);
+
+  if (!num || num <= 0) return null;
+
+  return `R$ ${num.toLocaleString(
+    'pt-BR',
+    { minimumFractionDigits: 2 }
+  )}`;
 }
 
-function normalizeStatus(value) {
-  return String(value || '').trim().toUpperCase();
-}
-
-function getRubricaNome(rubrica) {
-  return rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '';
-}
-
-function PaymentDetailModal({
-  payment,
-  rubricas,
-  onClose,
-  onSave,
-  onStatusChange,
-  isCoordinator
+export default function DocumentIntakeCard({
+  intake,
+  onReview,
+  onDeleted,
+  onSentToApproval,
+  onReanalyse,
+  onLinkXml,
+  onAddXmlToPdf
 }) {
-  const [comment, setComment] = useState('');
+
   const [loading, setLoading] = useState(false);
-  const isMobile = useIsMobile();
+  const [sendingApproval, setSendingApproval] = useState(false);
+  const [addingXml, setAddingXml] = useState(false);
 
-  const [form, setForm] = useState({
-    member_name: payment?.member_name || payment?.user_name || payment?.nf_emitente_nome || '',
-    mes_referencia: payment?.mes_referencia || payment?.nf_competencia || '',
-    ano: payment?.ano || '',
-    numero_nf: payment?.numero_nf || payment?.nf_numero || '',
-    valor_nf: payment?.valor_nf || payment?.valor_total || payment?.valor || payment?.nf_valor_total || '',
-    rubrica_id: payment?.rubrica_id || '',
-    rubrica_nome: payment?.rubrica_nome || '',
-    observacoes: payment?.observacoes || ''
-  });
+  const xmlInputRef = useRef(null);
 
-  if (!payment) return null;
+  const status =
+    STATUS_CONFIG[intake.status_processamento] ||
+    STATUS_CONFIG.ENVIADO;
 
-  const valor = getPaymentValue({
-    ...payment,
-    valor_nf: form.valor_nf
-  });
+  const Icon = status.icon;
 
-  const selectedRubrica = (rubricas || []).find((r) => r.id === form.rubrica_id);
+  const tipo = intake.tipo_detectado;
 
-  const status = STATUS_CONFIG[normalizeStatus(payment.status)] || {
-    label: payment.status,
-    color: 'bg-white border-2 border-black text-black'
-  };
+  const isXML = tipo === 'NOTA_FISCAL_XML';
+  const isPDF = tipo === 'NOTA_FISCAL_PDF';
+  const isNF = isPDF || isXML;
+  const isImage = tipo === 'FOTO_ATIVIDADE';
 
-  const handleSave = async () => {
+  const canReview =
+    ['AGUARDANDO_REVISAO', 'RASCUNHO', 'ERRO_PROCESSAMENTO']
+      .includes(intake.status_processamento) &&
+    !isXML;
+
+  const hasError =
+    intake.status_processamento === 'ERRO_PROCESSAMENTO';
+
+  const canSendApproval =
+    canReview && isPDF;
+
+  const canLinkXml =
+    isXML &&
+    !intake.nf_pdf_intake_id &&
+    intake.grupo_status !== 'COMPLETO';
+
+  const valorDisplay = getValorDisplay(intake);
+
+  const fileName =
+    intake.file_name_final ||
+    intake.file_name_original ||
+    'Arquivo';
+
+  const tipoLabel =
+    TIPO_LABEL[tipo] ||
+    tipo ||
+    'Pendente';
+
+  async function handleReanalyse() {
+
+    if (!onReanalyse) return;
+
     setLoading(true);
-    try {
-      await onSave(payment.id, {
-        ...form,
-        rubrica_nome: selectedRubrica ? getRubricaNome(selectedRubrica) : form.rubrica_nome,
-        valor_nf: Number(form.valor_nf || 0),
-        valor_total: Number(form.valor_nf || 0),
-        valor: Number(form.valor_nf || 0)
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleAction = async (action) => {
-    setLoading(true);
     try {
-      await onStatusChange(
-        payment.id,
-        action,
-        comment,
-        {
-          ...form,
-          rubrica_nome: selectedRubrica ? getRubricaNome(selectedRubrica) : form.rubrica_nome,
-          valor_nf: Number(form.valor_nf || 0),
-          valor_total: Number(form.valor_nf || 0),
-          valor: Number(form.valor_nf || 0)
-        }
+
+      await onReanalyse(intake);
+
+      toast.success(
+        'Documento reenviado para análise.'
       );
-      onClose();
+
+    } catch (e) {
+
+      toast.error(
+        'Erro ao reanalisar: ' + e.message
+      );
+
     } finally {
+
       setLoading(false);
+
     }
-  };
+  }
 
-  const normalizedPaymentStatus = normalizeStatus(payment.status);
+  async function handleDelete() {
 
-  const podeAprovar =
-    isCoordinator &&
-    ['PENDENTE', 'AGUARDANDO_APROVACAO', 'EM_ANALISE', 'DEVOLVIDO'].includes(normalizedPaymentStatus);
+    if (
+      !window.confirm(
+        'Tem certeza que deseja deletar este arquivo?'
+      )
+    ) return;
 
-  const podePagar =
-    isCoordinator &&
-    ['APROVADO', 'APROVADO_COORD'].includes(normalizedPaymentStatus);
-
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Detalhes do Pagamento</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          {(payment.origem_automatica || payment.origem === 'entrada_unica') && (
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700 flex items-center gap-2">
-              <BadgeCheck className="h-4 w-4" />
-              Pagamento criado automaticamente a partir da conferência da NF.
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Profissional</p>
-              <Input
-                value={form.member_name}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, member_name: e.target.value }))
-                }
-                disabled={!isCoordinator}
-              />
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Mês de Referência</p>
-              <Input
-                value={form.mes_referencia}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, mes_referencia: e.target.value }))
-                }
-                disabled={!isCoordinator}
-              />
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Ano</p>
-              <Input
-                value={form.ano}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, ano: e.target.value }))
-                }
-                disabled={!isCoordinator}
-              />
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Número da NF</p>
-              <Input
-                value={form.numero_nf}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, numero_nf: e.target.value }))
-                }
-                disabled={!isCoordinator}
-              />
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Valor</p>
-              <Input
-                type="number"
-                value={form.valor_nf}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, valor_nf: e.target.value }))
-                }
-                disabled={!isCoordinator}
-              />
-              <p className="mt-1 text-xs text-gray-500">{fmtBRL(valor)}</p>
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Status</p>
-              <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>
-                {status.label}
-              </span>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Rubrica vinculada</p>
-            {isMobile ? (
-              <NativeSelect
-                value={form.rubrica_id}
-                onValueChange={(value) => {
-                  const rubrica = (rubricas || []).find((r) => r.id === value);
-                  setForm((f) => ({
-                    ...f,
-                    rubrica_id: value,
-                    rubrica_nome: rubrica ? getRubricaNome(rubrica) : ''
-                  }));
-                }}
-                placeholder="Selecione a rubrica"
-                disabled={!isCoordinator}
-                items={(rubricas || [])
-                  .filter((r) => r?.ativo !== false)
-                  .sort((a, b) =>
-                    getRubricaNome(a).localeCompare(getRubricaNome(b), 'pt-BR')
-                  )
-                  .map((rubrica) => ({
-                    value: rubrica.id,
-                    label: `${getRubricaNome(rubrica)}${rubrica.centro_custo ? ` — ${rubrica.centro_custo}` : ''}`
-                  }))}
-              />
-            ) : (
-              <Select
-                value={form.rubrica_id}
-                onValueChange={(value) => {
-                  const rubrica = (rubricas || []).find((r) => r.id === value);
-                  setForm((f) => ({
-                    ...f,
-                    rubrica_id: value,
-                    rubrica_nome: rubrica ? getRubricaNome(rubrica) : ''
-                  }));
-                }}
-                disabled={!isCoordinator}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a rubrica" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(rubricas || [])
-                    .filter((r) => r?.ativo !== false)
-                    .sort((a, b) =>
-                      getRubricaNome(a).localeCompare(getRubricaNome(b), 'pt-BR')
-                    )
-                    .map((rubrica) => (
-                      <SelectItem key={rubrica.id} value={rubrica.id}>
-                        {getRubricaNome(rubrica)}
-                        {rubrica.centro_custo ? ` — ${rubrica.centro_custo}` : ''}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-
-          {(payment.nota_fiscal_url || payment.xml_url || payment.file_url) && (
-            <div className="rounded-lg border border-gray-200 p-3 space-y-2">
-              <p className="text-xs font-medium text-gray-500">Documentos vinculados</p>
-
-              {(payment.nota_fiscal_url || payment.file_url) && (
-                <a
-                  href={payment.nota_fiscal_url || payment.file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
-                >
-                  <FileText className="h-4 w-4" />
-                  Ver PDF da Nota Fiscal
-                </a>
-              )}
-
-              {payment.xml_url && (
-                <a
-                  href={payment.xml_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
-                >
-                  <LinkIcon className="h-4 w-4" />
-                  Ver XML vinculado
-                </a>
-              )}
-            </div>
-          )}
-
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Observações</p>
-            <Input
-              value={form.observacoes}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, observacoes: e.target.value }))
-              }
-              disabled={!isCoordinator}
-            />
-          </div>
-
-          {isCoordinator && (
-            <div className="space-y-3 border-t pt-4">
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">
-                  Comentário da coordenação
-                </label>
-                <Input
-                  placeholder="Comentário para aprovação ou devolução..."
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-2 justify-end">
-                <Button
-                  variant="outline"
-                  className="border-2 border-black text-black hover:bg-black hover:text-white"
-                  onClick={handleSave}
-                  disabled={loading}
-                >
-                  {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
-                  Salvar edição
-                </Button>
-
-                {podeAprovar && (
-                  <>
-                    <Button
-                      variant="outline"
-                      className="border-2 border-black text-black hover:bg-black hover:text-white"
-                      onClick={() => handleAction('devolver')}
-                      disabled={loading}
-                    >
-                      {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
-                      Devolver
-                    </Button>
-
-                    <Button
-                      className="bg-black text-white hover:bg-gray-900"
-                      onClick={() => handleAction('aprovar')}
-                      disabled={loading || !form.rubrica_id}
-                    >
-                      {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />}
-                      Aprovar e debitar rubrica
-                    </Button>
-                  </>
-                )}
-
-                {podePagar && (
-                  <Button
-                    className="bg-black text-white hover:bg-gray-900"
-                    onClick={() => handleAction('pagar')}
-                    disabled={loading}
-                  >
-                    {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <DollarSign className="h-4 w-4 mr-1" />}
-                    Marcar como Pago
-                  </Button>
-                )}
-
-                <Button
-                  variant="outline"
-                  className="border-2 border-red-500 text-red-600 hover:bg-red-500 hover:text-white"
-                  onClick={() => handleAction('deletar')}
-                  disabled={loading}
-                >
-                  {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
-                  Deletar
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export default function TeamPaymentReview() {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedPayment, setSelectedPayment] = useState(null);
-  const queryClient = useQueryClient();
-  const isMobile = useIsMobile();
-
-  useEffect(() => {
-    base44.auth.me().then(setCurrentUser).catch(() => setCurrentUser(null));
-  }, []);
-
-  const isCoordinator = [
-    'admin',
-    'ADMIN',
-    'COORDENADOR',
-    'COORD_COMUNICACAO',
-    'COORD_ADMINISTRATIVA',
-    'COORD_PRODUCAO'
-  ].includes(currentUser?.role);
-
-  const { data: payments = [], isLoading } = useQuery({
-    queryKey: ['team-payments'],
-    queryFn: () => base44.entities.TeamPayment.list('-created_date', 500),
-    enabled: !!currentUser
-  });
-
-  const { data: rubricas = [] } = useQuery({
-    queryKey: ['rubricas-team-payment-review'],
-    queryFn: () => base44.entities.Rubrica.list('rubrica', 2000),
-    enabled: !!currentUser
-  });
-
-  const handleSavePayment = async (paymentId, payload) => {
-    const rubrica = (rubricas || []).find((r) => r.id === payload.rubrica_id);
-    
-    // Optimistic update
-    const previousData = queryClient.getQueryData(['team-payments']);
-    const optimisticPayment = {
-      ...payload,
-      id: paymentId,
-      rubrica_nome: rubrica ? getRubricaNome(rubrica) : payload.rubrica_nome,
-      atualizado_por_coord: currentUser?.email || '',
-      atualizado_em: new Date().toISOString()
-    };
-    
-    queryClient.setQueryData(['team-payments'], (old) =>
-      Array.isArray(old) ? old.map((p) => (p.id === paymentId ? { ...p, ...optimisticPayment } : p)) : old
-    );
+    setLoading(true);
 
     try {
-      await base44.entities.TeamPayment.update(paymentId, optimisticPayment);
-      queryClient.invalidateQueries({ queryKey: ['team-payments'] });
-      queryClient.invalidateQueries({ queryKey: ['rubricas'] });
-      queryClient.invalidateQueries({ queryKey: ['rubricas-team-payment-review'] });
-      queryClient.invalidateQueries({ queryKey: ['purchases'] });
-    } catch (error) {
-      // Rollback on error
-      queryClient.setQueryData(['team-payments'], previousData);
-      toast.error('Erro ao salvar pagamento: ' + error.message);
-    }
-  };
 
-  const handleStatusChange = async (paymentId, action, comment, editedPayload = {}) => {
-    const previousData = queryClient.getQueryData(['team-payments']);
-    
-    // Optimistic update based on action
-    let newStatus = editedPayload.status || 'PENDENTE';
-    if (action === 'aprovar') newStatus = 'APROVADO_COORD';
-    if (action === 'devolver') newStatus = 'DEVOLVIDO';
-    if (action === 'pagar') newStatus = 'PAGO';
-    
-    queryClient.setQueryData(['team-payments'], (old) =>
-      Array.isArray(old) ? old.map((p) => (p.id === paymentId ? { ...p, status: newStatus, ...editedPayload } : p)) : old
-    );
+      await deleteIntake(intake);
 
-    try {
-      if (action === 'deletar') {
-        await base44.functions.invoke('processTeamPayment', {
-          id: paymentId,
-          action: 'deletar'
-        });
-        queryClient.setQueryData(['team-payments'], (old) =>
-          Array.isArray(old) ? old.filter((p) => p.id !== paymentId) : old
-        );
-      } else {
-        await handleSavePayment(paymentId, editedPayload);
+      toast.success(
+        'Registro deletado e rubrica estornada com sucesso.'
+      );
 
-        const response = await base44.functions.invoke('processTeamPayment', {
-          id: paymentId,
-          paymentId,
-          action,
-          comentario: comment || ''
-        });
-
-        const result = response?.data || response;
-
-        if (result?.success === false) {
-          throw new Error(result?.error || 'Erro ao processar pagamento da equipe.');
-        }
+      if (onDeleted) {
+        onDeleted(intake.id);
       }
 
-      queryClient.invalidateQueries({ queryKey: ['team-payments'] });
-      queryClient.invalidateQueries({ queryKey: ['rubricas'] });
-      queryClient.invalidateQueries({ queryKey: ['rubricas-team-payment-review'] });
-      queryClient.invalidateQueries({ queryKey: ['purchases'] });
-      toast.success('Pagamento atualizado com sucesso');
-    } catch (error) {
-      // Rollback on error
-      queryClient.setQueryData(['team-payments'], previousData);
-      toast.error('Erro ao processar pagamento: ' + error.message);
+    } catch (e) {
+
+      toast.error(
+        'Erro ao deletar: ' + e.message
+      );
+
+    } finally {
+
+      setLoading(false);
+
     }
-  };
+  }
 
-  const filtered = payments.filter((p) => {
-    const matchStatus = statusFilter === 'all' || normalizeStatus(p.status) === statusFilter;
-    const busca = search.trim().toLowerCase();
+  function handleLinkXml() {
 
-    const matchSearch =
-      !busca ||
-      String(p.member_name || p.user_name || p.nf_emitente_nome || '').toLowerCase().includes(busca) ||
-      String(p.mes_referencia || p.nf_competencia || '').toLowerCase().includes(busca) ||
-      String(p.numero_nf || p.nf_numero || '').toLowerCase().includes(busca) ||
-      String(p.rubrica_nome || '').toLowerCase().includes(busca);
+    if (!onLinkXml) {
 
-    return matchStatus && matchSearch && getPaymentValue(p) > 0;
-  });
+      toast.error(
+        'Função de vínculo não disponível.'
+      );
 
-  const pendentes = payments.filter(
-    (p) =>
-      normalizeStatus(p.status) === 'PENDENTE' ||
-      normalizeStatus(p.status) === 'AGUARDANDO_APROVACAO' ||
-      normalizeStatus(p.status) === 'EM_ANALISE' ||
-      normalizeStatus(p.status) === 'DEVOLVIDO'
-  ).length;
+      return;
+    }
 
-  const automaticos = payments.filter((p) => p.origem_automatica || p.origem === 'entrada_unica').length;
+    onLinkXml(intake);
+  }
 
-  const totalAprovado = payments
-    .filter((p) =>
-      normalizeStatus(p.status) === 'APROVADO' ||
-      normalizeStatus(p.status) === 'APROVADO_COORD' ||
-      normalizeStatus(p.status) === 'PAGO'
-    )
-    .reduce((s, p) => s + getPaymentValue(p), 0);
+  async function handleXmlFileSelected(e) {
+
+    const file = e.target.files?.[0];
+
+    if (!file || !onAddXmlToPdf) return;
+
+    e.target.value = '';
+
+    setAddingXml(true);
+
+    try {
+
+      await onAddXmlToPdf(intake, file);
+
+    } finally {
+
+      setAddingXml(false);
+
+    }
+  }
+
+  async function handleSendToApproval() {
+
+    if (sendingApproval) return;
+
+    const ia = intake.resultado_ia || {};
+
+    const rubrica_id =
+      intake.rubrica_id_sugerida ||
+      ia.rubrica_id ||
+      ia.rubrica_id_sugerida ||
+      '';
+
+    const centro_custo =
+      intake.centro_custo ||
+      ia.centro_custo_sugerido ||
+      ia.centro_custo ||
+      'GERAL';
+
+    const valor = parseValorBR(
+      ia.nf_valor_total ||
+      ia.valor_total ||
+      ia.valor ||
+      intake.valor ||
+      0
+    );
+
+    if (!rubrica_id || !valor) {
+
+      toast.error(
+        'Revise a nota antes de enviar. Rubrica e valor são obrigatórios.'
+      );
+
+      if (onReview) {
+        onReview({ ...intake });
+      }
+
+      return;
+    }
+
+    setSendingApproval(true);
+
+    try {
+
+      const rubrica =
+        await base44.entities.Rubrica
+          .get(rubrica_id)
+          .catch(() => null);
+
+      const rubrica_nome =
+        rubrica?.rubrica ||
+        rubrica?.nome ||
+        rubrica?.descricao ||
+        ia.rubrica_nome_sugerida ||
+        '';
+
+      const descricao =
+        ia.descricao_servico ||
+        ia.descricao ||
+        ia.nf_emitente_nome ||
+        fileName;
+
+      const fornecedorNome =
+        ia.nf_emitente_nome ||
+        ia.fornecedor_nome ||
+        '';
+
+      const fornecedorCnpj =
+        ia.nf_emitente_cpf_cnpj ||
+        ia.fornecedor_cpf_cnpj ||
+        '';
+
+      const nfNumero =
+        ia.nf_numero ||
+        intake.nf_numero ||
+        '';
+
+      const nfData =
+        ia.nf_data_emissao ||
+        ia.data_emissao ||
+        intake.nf_data_emissao ||
+        '';
+
+      const novaPurchase =
+        await base44.entities.PurchaseRequest.create({
+
+          descricao_item: descricao,
+
+          fornecedor_nome: fornecedorNome,
+
+          fornecedor_cpf_cnpj: fornecedorCnpj,
+
+          valor_solicitado: valor,
+          valor_total: valor,
+          valor: valor,
+
+          rubrica_id: rubrica_id,
+          rubrica_nome: rubrica_nome,
+
+          budgetline_id: rubrica_id,
+
+          centro_custo: centro_custo,
+
+          nota_fiscal_url:
+            intake.arquivo_original_url || '',
+
+          arquivo_url:
+            intake.arquivo_original_url || '',
+
+          status: 'SOLICITADO',
+
+          origem: 'EntradaUnica',
+
+          intake_id: intake.id,
+          documento_intake_id: intake.id,
+
+          nf_numero: nfNumero,
+          nf_data_emissao: nfData,
+
+          observacoes:
+            'Criado automaticamente pela Entrada Única'
+        });
+
+      await base44.entities.Attachment.create({
+
+        purchase_request_id:
+          novaPurchase?.id || '',
+
+        document_intake_id:
+          intake.id,
+
+        file_name:
+          intake.file_name_final ||
+          intake.file_name_original ||
+          fileName,
+
+        file_url:
+          intake.arquivo_original_url || '',
+
+        file_type:
+          intake.mime_type ||
+          'application/pdf',
+
+        description:
+          'Nota fiscal enviada pela Entrada Única',
+
+        nf_numero: nfNumero,
+        nf_valor_total: valor,
+        nf_emitente_nome: fornecedorNome,
+        nf_emitente_cpf_cnpj: fornecedorCnpj,
+
+        rubrica_id,
+        rubrica_nome,
+
+      }).catch((e) => {
+
+        console.warn(
+          'Erro ao criar attachment:',
+          e
+        );
+
+      });
+
+      await base44.entities.DocumentIntake.update(
+        intake.id,
+        {
+          status_processamento:
+            'ENVIADO_APROVACAO',
+
+          ocultar_entrada_unica: true,
+
+          entidade_destino:
+            'PurchaseRequest',
+
+          entidade_destino_id:
+            novaPurchase?.id || '',
+
+          rubrica_id_sugerida:
+            rubrica_id,
+
+          rubrica_nome_sugerida:
+            rubrica_nome,
+
+          centro_custo:
+            centro_custo,
+        }
+      );
+
+      toast.success(
+        'Enviado para aprovação com sucesso.'
+      );
+
+      if (onSentToApproval) {
+        onSentToApproval(intake.id);
+      }
+
+    } catch (e) {
+
+      console.error(
+        'Erro ao enviar para aprovação:',
+        e
+      );
+
+      toast.error(
+        'Erro ao enviar para aprovação: ' +
+        (e?.message || 'erro interno')
+      );
+
+    } finally {
+
+      setSendingApproval(false);
+
+    }
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <div className="rounded-xl border-2 border-black bg-white p-4">
-          <p className="text-xs font-medium text-gray-600">Pendentes de Análise</p>
-          <p className="mt-1 text-2xl font-bold text-black">{pendentes}</p>
+    <div className="border border-slate-200 rounded-xl p-4 bg-white hover:shadow-sm transition-shadow">
+
+      <div className="flex items-center gap-3">
+
+        <div
+          className={cn(
+            'w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0',
+            isImage
+              ? 'bg-purple-100'
+              : 'bg-slate-100'
+          )}
+        >
+          {
+            isImage
+              ? (
+                <Image className="w-5 h-5 text-purple-500" />
+              )
+              : (
+                <FileText className="w-5 h-5 text-slate-400" />
+              )
+          }
         </div>
 
-        <div className="rounded-xl border-2 border-black bg-white p-4">
-          <p className="text-xs font-medium text-gray-600">Total de Pagamentos</p>
-          <p className="mt-1 text-2xl font-bold text-black">{payments.length}</p>
-        </div>
+        <div className="flex-1 min-w-0">
 
-        <div className="rounded-xl border-2 border-black bg-white p-4">
-          <p className="text-xs font-medium text-gray-600">Criados por NF</p>
-          <p className="mt-1 text-2xl font-bold text-black">{automaticos}</p>
-        </div>
-
-        <div className="rounded-xl border-2 border-black bg-white p-4">
-          <p className="text-xs font-medium text-gray-600">Total Aprovado / Pago</p>
-          <p className="mt-1 text-2xl font-bold text-black">{fmtBRL(totalAprovado)}</p>
-        </div>
-      </div>
-
-      <div className="flex flex-col md:flex-row flex-wrap gap-3">
-        <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Buscar por profissional, mês, NF ou rubrica..."
-            className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        {isMobile ? (
-          <NativeSelect
-            value={statusFilter}
-            onValueChange={setStatusFilter}
-            placeholder="Status"
-            items={[
-              { value: 'all', label: 'Todos os status' },
-              ...Object.entries(STATUS_CONFIG).map(([k, v]) => ({
-                value: k,
-                label: v.label
-              }))
-            ]}
-          />
-        ) : (
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-44">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os status</SelectItem>
-              {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                <SelectItem key={k} value={k}>
-                  {v.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      {isLoading ? (
-        <div className="py-16 text-center text-gray-400">
-          Carregando pagamentos...
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center">
-          <DollarSign className="mx-auto mb-3 h-12 w-12 text-gray-300" />
-          <p className="font-medium text-gray-400">
-            Nenhum pagamento encontrado
+          <p
+            className="text-sm font-medium text-slate-800 truncate"
+            title={fileName}
+          >
+            {fileName}
           </p>
+
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+
+            <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+              {tipoLabel}
+            </span>
+
+            {
+              isXML &&
+              !intake.nf_pdf_intake_id &&
+              intake.grupo_status !== 'COMPLETO' && (
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">
+                  <Clock className="w-3 h-3" />
+                  Aguardando vínculo
+                </span>
+              )
+            }
+
+            {
+              !isXML && (
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
+                    status.color
+                  )}
+                >
+                  <Icon
+                    className={cn(
+                      'w-3 h-3',
+                      status.spin && 'animate-spin'
+                    )}
+                  />
+                  {status.label}
+                </span>
+              )
+            }
+
+            {
+              valorDisplay && (
+                <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                  {valorDisplay}
+                </span>
+              )
+            }
+
+          </div>
         </div>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border-2 border-black">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b-2 border-black bg-black text-white text-left">
-                <th className="px-3 py-3 font-medium">Profissional</th>
-                <th className="px-3 py-3 font-medium">Referência</th>
-                <th className="px-3 py-3 font-medium">NF</th>
-                <th className="px-3 py-3 font-medium">Rubrica</th>
-                <th className="px-3 py-3 font-medium">Status</th>
-                <th className="px-3 py-3 text-right font-medium">Valor</th>
-                <th className="px-3 py-3 text-center font-medium">Ações</th>
-              </tr>
-            </thead>
 
-            <tbody>
-              {filtered.map((p, i) => {
-                const status = STATUS_CONFIG[normalizeStatus(p.status)] || {
-                  label: p.status,
-                  color: 'bg-white border-2 border-black text-black',
-                  icon: Clock
-                };
+        <div className="flex items-center gap-1 flex-shrink-0">
 
-                const StatusIcon = status.icon || Clock;
-                const valor = getPaymentValue(p);
+          {
+            intake.arquivo_original_url && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0"
+                title="Ver arquivo"
+                onClick={() =>
+                  window.open(
+                    intake.arquivo_original_url,
+                    '_blank'
+                  )
+                }
+              >
+                <ExternalLink className="w-4 h-4 text-slate-400" />
+              </Button>
+            )
+          }
 
-                return (
-                  <tr
-                    key={p.id}
-                    className={`border-b border-gray-200 transition-colors hover:bg-gray-50 ${
-                      i % 2 === 0 ? 'bg-white' : 'bg-white'
-                    }`}
-                  >
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-gray-400" />
-                        <div>
-                          <span className="font-medium text-gray-900">
-                            {p.member_name || p.user_name || p.nf_emitente_nome || p.created_by || '—'}
-                          </span>
+          {
+            intake.arquivo_original_url && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0"
+                title="Baixar arquivo"
+                onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = intake.arquivo_original_url;
+                  a.download = fileName;
+                  a.click();
+                }}
+              >
+                <Download className="w-4 h-4 text-slate-400" />
+              </Button>
+            )
+          }
 
-                          {(p.origem_automatica || p.origem === 'entrada_unica') && (
-                            <p className="text-[11px] text-green-700">
-                              Criado automaticamente por NF
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
+          {
+            hasError && !isXML && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleReanalyse}
+                disabled={loading}
+                className="text-xs h-8 px-2"
+              >
+                {
+                  loading
+                    ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    )
+                    : (
+                      <RefreshCw className="w-3 h-3 mr-1" />
+                    )
+                }
 
-                    <td className="px-3 py-2.5 text-gray-600">
-                      {p.mes_referencia || p.nf_competencia || '—'}{p.ano ? ` / ${p.ano}` : ''}
-                    </td>
+                {!loading && 'Reanalisar'}
+              </Button>
+            )
+          }
 
-                    <td className="px-3 py-2.5 text-gray-600">
-                      {p.numero_nf || p.nf_numero ? `NF ${p.numero_nf || p.nf_numero}` : '—'}
-                      {(p.nota_fiscal_url || p.file_url) && (
-                        <p className="text-[11px] text-blue-600">PDF vinculado</p>
-                      )}
-                      {p.xml_url && (
-                        <p className="text-[11px] text-blue-600">XML vinculado</p>
-                      )}
-                    </td>
+          {
+            canLinkXml && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleLinkXml}
+                disabled={loading}
+                className="h-8 text-xs px-3"
+              >
+                {
+                  loading
+                    ? (
+                      <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                    )
+                    : (
+                      <Link2 className="w-3 h-3 mr-1" />
+                    )
+                }
 
-                    <td className="max-w-[220px] px-3 py-2.5 text-gray-600">
-                      <span className="line-clamp-2 text-xs">
-                        {p.rubrica_nome || p.rubrica_id || '—'}
-                      </span>
-                    </td>
+                Vincular XML ao PDF
+              </Button>
+            )
+          }
 
-                    <td className="px-3 py-2.5">
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>
-                        <StatusIcon className="h-3 w-3" />
-                        {status.label}
-                      </span>
-                    </td>
+          {
+            isPDF &&
+            !intake.nf_xml_intake_id &&
+            intake.grupo_status !== 'COMPLETO' && (
+              <>
+                <input
+                  ref={xmlInputRef}
+                  type="file"
+                  accept=".xml,application/xml,text/xml"
+                  className="hidden"
+                  onChange={handleXmlFileSelected}
+                />
 
-                    <td className="px-3 py-2.5 text-right font-medium tabular-nums text-gray-900">
-                      {fmtBRL(valor)}
-                    </td>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={addingXml}
+                  onClick={() =>
+                    xmlInputRef.current?.click()
+                  }
+                  className="h-8 text-xs px-3 border-amber-300 text-amber-700 hover:bg-amber-50"
+                >
+                  {
+                    addingXml
+                      ? (
+                        <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                      )
+                      : (
+                        <Plus className="w-3 h-3 mr-1" />
+                      )
+                  }
 
-                    <td className="px-3 py-2.5 text-center">
-                      <button
-                        onClick={() => setSelectedPayment(p)}
-                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-black"
-                        title="Ver detalhes"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  {
+                    addingXml
+                      ? 'Vinculando...'
+                      : 'Adicionar XML'
+                  }
+                </Button>
+              </>
+            )
+          }
+
+          {
+            canReview && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  onReview({ ...intake })
+                }
+                className="h-8 text-xs px-3"
+              >
+                Revisar
+              </Button>
+            )
+          }
+
+          {
+            canSendApproval && (
+              <Button
+                size="sm"
+                onClick={handleSendToApproval}
+                disabled={sendingApproval}
+                className="h-8 text-xs px-3 bg-black text-white hover:bg-gray-800"
+              >
+                {
+                  sendingApproval
+                    ? (
+                      <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                    )
+                    : (
+                      <Send className="w-3 h-3 mr-1" />
+                    )
+                }
+
+                {
+                  sendingApproval
+                    ? 'Enviando...'
+                    : 'Enviar'
+                }
+              </Button>
+            )
+          }
+
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleDelete}
+            disabled={
+              loading ||
+              sendingApproval ||
+              addingXml
+            }
+            className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+          >
+            {
+              loading
+                ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                )
+                : (
+                  <X className="w-4 h-4" />
+                )
+            }
+          </Button>
+
         </div>
-      )}
-
-      {selectedPayment && (
-        <PaymentDetailModal
-          payment={selectedPayment}
-          rubricas={rubricas}
-          onClose={() => setSelectedPayment(null)}
-          onSave={handleSavePayment}
-          onStatusChange={handleStatusChange}
-          isCoordinator={isCoordinator}
-        />
-      )}
+      </div>
     </div>
   );
 }
