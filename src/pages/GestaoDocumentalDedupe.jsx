@@ -28,12 +28,21 @@ function num(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function source(doc) {
+  return doc?.__source || 'Attachment';
+}
+
+function uid(doc) {
+  if (!doc?.id) return '';
+  return `${source(doc)}:${doc.id}`;
+}
+
 function name(d) {
-  return d?.file_name || d?.nf_nome_renomeado || d?.nf_nome_original || 'Documento';
+  return d?.file_name || d?.file_name_final || d?.file_name_original || d?.nf_nome_renomeado || d?.nf_nome_original || 'Documento';
 }
 
 function url(d) {
-  return d?.file_url || d?.nf_pdf_url || d?.nf_xml_url || d?.comprovante_url || '';
+  return d?.file_url || d?.url || d?.arquivo_original_url || d?.nf_pdf_url || d?.nf_xml_url || d?.comprovante_url || '';
 }
 
 function ext(d) {
@@ -43,11 +52,21 @@ function ext(d) {
 function tipo(d) {
   const m = String(d?.file_type || d?.mime_type || '').toLowerCase();
   const e = ext(d);
-  const t = norm(d?.nf_tipo_documento);
-  const all = norm([name(d), d?.description, d?.categoria, d?.tipo].filter(Boolean).join(' '));
-  if (t === 'xml_nf' || m.includes('xml') || e === 'xml') return 'XML';
-  if (all.includes('recibo') || all.includes('comprovante') || all.includes('pagamento') || all.includes('boleto') || all.includes('pix')) return 'RECIBO';
-  if (t === 'pdf_nf' || m.includes('pdf') || e === 'pdf') return 'PDF';
+  const t = norm(d?.nf_tipo_documento || d?.tipo_detectado || d?.resultado_ia?.tipo_documento || '');
+  const all = norm([
+    name(d),
+    d?.description,
+    d?.categoria,
+    d?.tipo,
+    d?.tipo_detectado,
+    d?.resultado_ia?.tipo_documento,
+    d?.resultado_ia?.categoria_sugerida,
+    d?.resultado_ia?.descricao_servico,
+  ].filter(Boolean).join(' '));
+
+  if (t === 'xml_nf' || t === 'nota_fiscal_xml' || m.includes('xml') || e === 'xml') return 'XML';
+  if (t === 'recibo_pdf' || all.includes('recibo') || all.includes('comprovante') || all.includes('pagamento') || all.includes('boleto') || all.includes('pix')) return 'RECIBO';
+  if (t === 'pdf_nf' || t === 'nota_fiscal_pdf' || m.includes('pdf') || e === 'pdf') return 'PDF';
   return 'DOC';
 }
 
@@ -56,11 +75,11 @@ function isImg(d) {
 }
 
 function fornecedor(d) {
-  return d?.nf_emitente_nome || d?.fornecedor_nome || d?.description || 'Fornecedor não identificado';
+  return d?.nf_emitente_nome || d?.fornecedor_nome || d?.resultado_ia?.nf_emitente_nome || d?.resultado_ia?.fornecedor_nome || d?.description || 'Fornecedor não identificado';
 }
 
 function dataDoc(d) {
-  return d?.nf_data_emissao || d?.competencia || d?.created_date || d?.updated_date || '';
+  return d?.nf_data_emissao || d?.resultado_ia?.nf_data_emissao || d?.resultado_ia?.data_emissao || d?.competencia || d?.created_date || d?.updated_date || '';
 }
 
 function dataFmt(v) {
@@ -80,14 +99,41 @@ function mesLabel(k) {
 }
 
 function ids(d) {
-  return [d?.purchase_id, d?.purchase_request_id, d?.purchaseRequestId, d?.solicitacao_id, d?.report_id, d?.nf_pdf_intake_id, d?.nf_xml_intake_id, d?.nf_xml_vinculado_a, d?.nf_pdf_vinculado_a, d?.documento_pai_id, d?.pair_id, d?.par_id, d?.intake_pair_id, d?.entrada_unica_pair_id, d?.comprovante_pdf_id, d?.recibo_pdf_id, d?.pdf_recibo_id, d?.intake_id].filter(Boolean).map(String);
+  return [
+    d?.purchase_id,
+    d?.purchase_request_id,
+    d?.purchaseRequestId,
+    d?.solicitacao_id,
+    d?.report_id,
+    d?.nf_pdf_intake_id,
+    d?.nf_xml_intake_id,
+    d?.nf_xml_vinculado_a,
+    d?.nf_pdf_vinculado_a,
+    d?.documento_pai_id,
+    d?.grupo_documental_id,
+    d?.pair_id,
+    d?.par_id,
+    d?.intake_pair_id,
+    d?.entrada_unica_pair_id,
+    d?.comprovante_pdf_id,
+    d?.recibo_pdf_id,
+    d?.pdf_recibo_id,
+    d?.intake_id,
+    d?.document_intake_id,
+    d?.documento_intake_id,
+    d?.vinculado_a_intake_id,
+  ].filter(Boolean).map(String);
+}
+
+function isLinked(d) {
+  return ids(d).length > 0 || d?.grupo_status === 'COMPLETO';
 }
 
 function placeholder(d) {
   const n = key(name(d));
-  const nf = key(d?.nf_numero || d?.numero_nf || d?.nota_numero || '');
-  const f = key(d?.nf_emitente_nome || d?.fornecedor_nome || fornecedor(d));
-  const v = num(d?.nf_valor_total || d?.valor_total || d?.valor);
+  const nf = key(d?.nf_numero || d?.resultado_ia?.nf_numero || d?.numero_nf || d?.nota_numero || '');
+  const f = key(d?.nf_emitente_nome || d?.resultado_ia?.nf_emitente_nome || d?.fornecedor_nome || fornecedor(d));
+  const v = num(d?.nf_valor_total || d?.resultado_ia?.nf_valor_total || d?.valor_total || d?.valor);
   return n.includes('semnumfornecedormuseuscentro') || ((nf === '' || nf === 'semnum') && f.includes('fornecedor') && v === 0);
 }
 
@@ -98,16 +144,16 @@ function baseKey(d) {
 function fiscalKey(d) {
   const t = tipo(d);
   if (placeholder(d)) return `placeholder:${t}`;
-  const nf = key(d?.nf_numero || d?.numero_nf || d?.nota_numero || '');
-  const cnpj = key(d?.nf_emitente_cpf_cnpj || d?.fornecedor_cpf_cnpj || d?.fornecedor_cnpj || '');
-  const f = key(d?.nf_emitente_nome || d?.fornecedor_nome || '');
-  const v = num(d?.nf_valor_total || d?.valor_total || d?.valor);
+  const nf = key(d?.nf_numero || d?.resultado_ia?.nf_numero || d?.numero_nf || d?.nota_numero || '');
+  const cnpj = key(d?.nf_emitente_cpf_cnpj || d?.resultado_ia?.nf_emitente_cpf_cnpj || d?.fornecedor_cpf_cnpj || d?.fornecedor_cnpj || '');
+  const f = key(d?.nf_emitente_nome || d?.resultado_ia?.nf_emitente_nome || d?.fornecedor_nome || '');
+  const v = num(d?.nf_valor_total || d?.resultado_ia?.nf_valor_total || d?.valor_total || d?.valor);
   if (nf && nf !== 'semnum' && cnpj) return `nf:${nf}:${cnpj}`;
   if (nf && nf !== 'semnum' && f) return `nf:${nf}:${f}`;
   if (nf && nf !== 'semnum' && v) return `nf:${nf}:${v}`;
   const b = baseKey(d);
   if (b.length >= 6) return `base:${b}`;
-  return `id:${d?.id}`;
+  return `id:${uid(d)}`;
 }
 
 function docKey(d) {
@@ -121,11 +167,11 @@ function rowKey(d) {
   if (placeholder(d)) return `${tipo(d)}:placeholder:semnum`;
   const f = fiscalKey(d);
   if (!f.startsWith('id:')) return f;
-  return `single:${d?.id}`;
+  return `single:${uid(d)}`;
 }
 
 function best(a, b) {
-  const s = (d) => (ids(d).length ? 20 : 0) + (url(d) ? 3 : 0) + (d?.nf_numero ? 1 : 0);
+  const s = (d) => (ids(d).length ? 20 : 0) + (url(d) ? 3 : 0) + (d?.nf_numero || d?.resultado_ia?.nf_numero ? 1 : 0) + (source(d) === 'Attachment' ? 1 : 0);
   const diff = s(b) - s(a);
   if (diff) return diff;
   return new Date(dataDoc(b) || 0) - new Date(dataDoc(a) || 0);
@@ -153,7 +199,7 @@ function buildRows(raw) {
     const docs = dedupeDocs(list).sort((a, b) => ({ PDF: 1, XML: 2, RECIBO: 3, DOC: 4 }[tipo(a)] || 9) - ({ PDF: 1, XML: 2, RECIBO: 3, DOC: 4 }[tipo(b)] || 9));
     const primary = docs.find((d) => tipo(d) === 'PDF') || docs[0];
     const types = new Set(docs.map(tipo));
-    const nf = primary?.nf_numero || primary?.numero_nf || primary?.nota_numero;
+    const nf = primary?.nf_numero || primary?.resultado_ia?.nf_numero || primary?.numero_nf || primary?.nota_numero;
     const forn = fornecedor(primary);
     return {
       key: k,
@@ -162,8 +208,8 @@ function buildRows(raw) {
       month: mesKey(primary),
       ref: nf && forn ? `NF ${nf} — ${forn}` : nf ? `NF ${nf}` : name(primary),
       fornecedor: forn,
-      categoria: nf || primary?.nf_emitente_nome || primary?.nf_valor_total ? 'Nota Fiscal' : tipo(primary),
-      tipo: types.has('PDF') && types.has('XML') ? 'XML + PDF' : types.has('PDF') && types.has('RECIBO') ? 'Recibo + PDF' : 'Sem par',
+      categoria: nf || primary?.nf_emitente_nome || primary?.resultado_ia?.nf_emitente_nome || primary?.nf_valor_total || primary?.resultado_ia?.nf_valor_total ? 'Nota Fiscal' : tipo(primary),
+      tipo: types.has('PDF') && types.has('XML') ? 'Com XML' : types.has('PDF') && types.has('RECIBO') ? 'Com Recibo' : 'Sem par',
     };
   });
 
@@ -202,7 +248,7 @@ function DocLink({ doc }) {
 }
 
 function DocumentSelect({ label, value, onChange, docs, allowedTypes }) {
-  const options = docs.filter((doc) => allowedTypes.includes(tipo(doc)));
+  const options = docs.filter((doc) => allowedTypes.includes(tipo(doc)) && (!isLinked(doc) || uid(doc) === value));
 
   return (
     <div className="space-y-1">
@@ -214,11 +260,12 @@ function DocumentSelect({ label, value, onChange, docs, allowedTypes }) {
       >
         <option value="">Não vincular</option>
         {options.map((doc) => (
-          <option key={doc.id} value={doc.id}>
-            {tipo(doc)} — {name(doc)}
+          <option key={uid(doc)} value={uid(doc)}>
+            {tipo(doc)} — {name(doc)}{source(doc) === 'DocumentIntake' ? ' — Entrada Única' : ''}
           </option>
         ))}
       </select>
+      <p className="text-[10px] text-gray-400">{options.length} arquivo(s) disponível(is)</p>
     </div>
   );
 }
@@ -249,7 +296,7 @@ function EditarVinculosDialog({ row, docs, form, setForm, saving, onSave, onClos
           </div>
 
           <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            O vínculo salva os IDs e URLs nos registros selecionados. A lista é atualizada em seguida mantendo a deduplicação.
+            A lista inclui anexos existentes e todos os arquivos enviados pela Entrada Única que ainda não foram vinculados. Cada XML/recibo só pode ser usado em um par.
           </div>
 
           <div className="flex justify-end gap-2">
@@ -265,6 +312,25 @@ function EditarVinculosDialog({ row, docs, form, setForm, saving, onSave, onClos
   );
 }
 
+async function updateDoc(doc, payload) {
+  if (!doc?.id) return;
+  if (source(doc) === 'DocumentIntake') {
+    await base44.entities.DocumentIntake.update(doc.id, payload);
+    return;
+  }
+  await base44.entities.Attachment.update(doc.id, payload);
+}
+
+async function deleteDoc(doc) {
+  if (!doc?.id) return;
+  if (source(doc) === 'DocumentIntake') {
+    await base44.entities.DocumentIntake.update(doc.id, { status_registro: 'DELETADO' });
+    return;
+  }
+  try { await base44.entities.Attachment.delete(doc.id); }
+  catch { await base44.entities.Attachment.update(doc.id, { status_registro: 'DELETADO' }); }
+}
+
 export default function GestaoDocumentalDedupe() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -272,24 +338,48 @@ export default function GestaoDocumentalDedupe() {
   const [editingRow, setEditingRow] = useState(null);
   const [editForm, setEditForm] = useState({ pdfId: '', xmlId: '', reciboId: '' });
   const [savingLinks, setSavingLinks] = useState(false);
-  const { data = [], isLoading } = useQuery({ queryKey: ['gestao-documental'], queryFn: async () => base44.entities.Attachment.list('-created_date', 1000) });
+  const { data = [], isLoading } = useQuery({
+    queryKey: ['gestao-documental'],
+    queryFn: async () => {
+      const [attachments, intakes] = await Promise.all([
+        base44.entities.Attachment.list('-created_date', 2000).catch(() => []),
+        base44.entities.DocumentIntake.list('-created_date', 2000).catch(() => []),
+      ]);
+
+      return [
+        ...(attachments || []).map((doc) => ({ ...doc, __source: 'Attachment' })),
+        ...(intakes || []).map((doc) => ({
+          ...doc,
+          __source: 'DocumentIntake',
+          file_name: doc.file_name_final || doc.file_name_original,
+          file_url: doc.arquivo_original_url,
+          nf_numero: doc.nf_numero || doc.resultado_ia?.nf_numero,
+          nf_valor_total: doc.nf_valor_total || doc.resultado_ia?.nf_valor_total,
+          nf_data_emissao: doc.nf_data_emissao || doc.resultado_ia?.nf_data_emissao || doc.resultado_ia?.data_emissao,
+          nf_emitente_nome: doc.nf_emitente_nome || doc.resultado_ia?.nf_emitente_nome,
+          nf_emitente_cpf_cnpj: doc.nf_emitente_cpf_cnpj || doc.resultado_ia?.nf_emitente_cpf_cnpj,
+          nf_tipo_documento: doc.tipo_detectado === 'NOTA_FISCAL_XML' ? 'xml_nf' : doc.tipo_detectado === 'RECIBO_PDF' ? 'recibo_pdf' : doc.tipo_detectado === 'NOTA_FISCAL_PDF' ? 'pdf_nf' : doc.nf_tipo_documento,
+        })),
+      ];
+    }
+  });
 
   const valid = useMemo(() => (data || []).filter((d) => d?.id && d?.status_registro !== 'DELETADO' && !isImg(d)), [data]);
-  const docsById = useMemo(() => new Map(valid.map((doc) => [String(doc.id), doc])), [valid]);
+  const docsById = useMemo(() => new Map(valid.map((doc) => [uid(doc), doc])), [valid]);
   const dupIds = useMemo(() => {
     const m = new Map();
     valid.forEach((d) => {
       const k = docKey(d);
       if (!m.has(k)) m.set(k, []);
-      m.get(k).push(d.id);
+      m.get(k).push(uid(d));
     });
     return new Set(Array.from(m.values()).filter((ids) => ids.length > 1).flat());
   }, [valid]);
   const filtered = useMemo(() => {
     const q = norm(search);
-    const source = onlyDup ? valid.filter((d) => dupIds.has(d.id)) : valid;
-    if (!q) return source;
-    return source.filter((d) => norm([name(d), fornecedor(d), d?.nf_numero, tipo(d), d?.description].filter(Boolean).join(' ')).includes(q));
+    const sourceDocs = onlyDup ? valid.filter((d) => dupIds.has(uid(d))) : valid;
+    if (!q) return sourceDocs;
+    return sourceDocs.filter((d) => norm([name(d), fornecedor(d), d?.nf_numero, d?.resultado_ia?.nf_numero, tipo(d), d?.description].filter(Boolean).join(' ')).includes(q));
   }, [valid, dupIds, search, onlyDup]);
   const groups = useMemo(() => buildRows(filtered), [filtered]);
   const dupCount = useMemo(() => countDup(valid), [valid]);
@@ -304,7 +394,7 @@ export default function GestaoDocumentalDedupe() {
     const xml = row.docs.find((doc) => tipo(doc) === 'XML');
     const recibo = row.docs.find((doc) => tipo(doc) === 'RECIBO' || tipo(doc) === 'DOC');
     setEditingRow(row);
-    setEditForm({ pdfId: pdf?.id || '', xmlId: xml?.id || '', reciboId: recibo?.id || '' });
+    setEditForm({ pdfId: pdf ? uid(pdf) : '', xmlId: xml ? uid(xml) : '', reciboId: recibo ? uid(recibo) : '' });
   }
 
   async function saveLinks() {
@@ -319,6 +409,11 @@ export default function GestaoDocumentalDedupe() {
       return;
     }
 
+    if ((xml && isLinked(xml) && uid(xml) !== editForm.xmlId) || (recibo && isLinked(recibo) && uid(recibo) !== editForm.reciboId)) {
+      toast.warning('Este complemento já está vinculado a outro par.');
+      return;
+    }
+
     setSavingLinks(true);
 
     try {
@@ -326,35 +421,54 @@ export default function GestaoDocumentalDedupe() {
       const pdfUrl = pdf ? url(pdf) : '';
       const xmlUrl = xml ? url(xml) : '';
       const reciboUrl = recibo ? url(recibo) : '';
-      const pairId = [pdf?.id, xml?.id, recibo?.id].filter(Boolean).sort().join('__') || editingRow.key;
+      const pairId = [uid(pdf), uid(xml), uid(recibo)].filter(Boolean).sort().join('__') || editingRow.key;
+      const pdfId = pdf?.id || '';
+      const xmlId = xml?.id || '';
+      const reciboId = recibo?.id || '';
 
       if (pdf) {
-        updates.push(base44.entities.Attachment.update(pdf.id, {
+        updates.push(updateDoc(pdf, {
           pair_id: pairId,
-          nf_pdf_intake_id: pdf.id,
+          grupo_documental_id: pairId,
+          grupo_status: (xml || recibo) ? 'COMPLETO' : pdf.grupo_status,
+          nf_pdf_intake_id: pdfId,
           nf_pdf_url: pdfUrl,
-          nf_xml_intake_id: xml?.id || pdf.nf_xml_intake_id || '',
+          nf_xml_intake_id: xmlId || pdf.nf_xml_intake_id || '',
           nf_xml_url: xmlUrl || pdf.nf_xml_url || '',
-          recibo_pdf_id: recibo?.id || pdf.recibo_pdf_id || '',
+          recibo_pdf_id: reciboId || pdf.recibo_pdf_id || '',
+          comprovante_pdf_id: reciboId || pdf.comprovante_pdf_id || '',
           comprovante_url: reciboUrl || pdf.comprovante_url || '',
+          arquivo_complementar_status: (xml || recibo) ? 'VINCULADO' : pdf.arquivo_complementar_status,
+          arquivo_complementar_tipo: xml ? 'XML' : recibo ? 'RECIBO' : pdf.arquivo_complementar_tipo,
         }));
       }
 
       if (xml) {
-        updates.push(base44.entities.Attachment.update(xml.id, {
+        updates.push(updateDoc(xml, {
           pair_id: pairId,
-          nf_pdf_intake_id: pdf?.id || xml.nf_pdf_intake_id || '',
+          grupo_documental_id: pairId,
+          grupo_status: 'COMPLETO',
+          nf_pdf_intake_id: pdfId || xml.nf_pdf_intake_id || '',
           nf_pdf_url: pdfUrl || xml.nf_pdf_url || '',
-          nf_xml_vinculado_a: pdf?.id || xml.nf_xml_vinculado_a || '',
+          nf_xml_vinculado_a: pdfId || xml.nf_xml_vinculado_a || '',
+          vinculado_a_intake_id: pdfId || xml.vinculado_a_intake_id || '',
+          ocultar_entrada_unica: source(xml) === 'DocumentIntake' ? true : xml.ocultar_entrada_unica,
+          arquivo_complementar_status: 'VINCULADO',
         }));
       }
 
       if (recibo) {
-        updates.push(base44.entities.Attachment.update(recibo.id, {
+        updates.push(updateDoc(recibo, {
           pair_id: pairId,
-          documento_pai_id: pdf?.id || recibo.documento_pai_id || '',
-          pdf_recibo_id: pdf?.id || recibo.pdf_recibo_id || '',
+          grupo_documental_id: pairId,
+          grupo_status: 'COMPLETO',
+          documento_pai_id: pdfId || recibo.documento_pai_id || '',
+          pdf_recibo_id: pdfId || recibo.pdf_recibo_id || '',
+          nf_pdf_intake_id: pdfId || recibo.nf_pdf_intake_id || '',
           nf_pdf_url: pdfUrl || recibo.nf_pdf_url || '',
+          vinculado_a_intake_id: pdfId || recibo.vinculado_a_intake_id || '',
+          ocultar_entrada_unica: source(recibo) === 'DocumentIntake' ? true : recibo.ocultar_entrada_unica,
+          arquivo_complementar_status: 'VINCULADO',
         }));
       }
 
@@ -372,8 +486,7 @@ export default function GestaoDocumentalDedupe() {
   async function remove(doc) {
     if (!window.confirm(`Remover ${name(doc)}?`)) return;
     try {
-      try { await base44.entities.Attachment.delete(doc.id); }
-      catch { await base44.entities.Attachment.update(doc.id, { status_registro: 'DELETADO' }); }
+      await deleteDoc(doc);
       toast.success('Documento removido.');
       await refresh();
     } catch (e) { toast.error(`Erro ao remover: ${e.message}`); }
@@ -390,8 +503,7 @@ export default function GestaoDocumentalDedupe() {
     if (!duplicates.length) return toast.info('Nenhuma entrada repetida encontrada.');
     if (!window.confirm(`Remover ${duplicates.length} entradas repetidas?`)) return;
     for (const d of duplicates) {
-      try { await base44.entities.Attachment.delete(d.id); }
-      catch { await base44.entities.Attachment.update(d.id, { status_registro: 'DELETADO' }); }
+      await deleteDoc(d);
     }
     toast.success(`${duplicates.length} entradas repetidas removidas.`);
     await refresh();
@@ -452,13 +564,13 @@ export default function GestaoDocumentalDedupe() {
                         <td className="px-2 py-2 align-top text-gray-600"><p className="line-clamp-2 leading-snug" title={r.fornecedor}>{r.fornecedor}</p></td>
                         <td className="px-2 py-2 align-top text-[11px] tabular-nums text-gray-500">{dataFmt(r.date)}</td>
                         <td className="px-2 py-2 align-top">
-                          <div className="grid min-w-0 grid-cols-1 gap-1 xl:grid-cols-2">{r.docs.map((d) => <DocLink key={d.id} doc={d} />)}</div>
+                          <div className="grid min-w-0 grid-cols-1 gap-1 xl:grid-cols-2">{r.docs.map((d) => <DocLink key={uid(d)} doc={d} />)}</div>
                         </td>
                         <td className="px-2 py-2 align-top">
                           <div className="flex items-center justify-center gap-1">
                             <button type="button" onClick={() => openEdit(r)} title="Editar vínculos" className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"><Pencil className="h-3.5 w-3.5" /></button>
                             <Link2 className="h-3.5 w-3.5 text-gray-300" />
-                            {r.docs.map((d) => <button key={d.id} type="button" onClick={() => remove(d)} title={`Deletar ${name(d)}`} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>)}
+                            {r.docs.map((d) => <button key={uid(d)} type="button" onClick={() => remove(d)} title={`Deletar ${name(d)}`} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>)}
                           </div>
                         </td>
                       </tr>
