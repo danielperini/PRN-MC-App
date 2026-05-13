@@ -21,6 +21,7 @@ import EntradaUnica from './pages/EntradaUnica.jsx';
 import Mensagens from './pages/Mensagens.jsx';
 import GuiaNotaFiscal from './pages/GuiaNotaFiscal';
 import NFDriveBackupSyncInstaller from '@/lib/nfDriveBackupSync';
+import PublicoAprovadoAuditButton from '@/components/dashboard/PublicoAprovadoAuditButton';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -153,6 +154,7 @@ function AuthenticatedApp() {
   return (
     <>
       <NFDriveBackupSyncInstaller />
+      <PublicoAprovadoAuditButton />
 
       <AnimatePresence mode="wait">
         <motion.div
