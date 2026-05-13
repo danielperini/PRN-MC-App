@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import {
   FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2,
-  Eye, Send, RefreshCw, X, Download, ExternalLink, Link2, Plus
-} from 'lucide-react';
+  Eye, Send, RefreshCw, X, Download, ExternalLink, Link2, Plus } from
+'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -11,23 +11,23 @@ import { toast } from 'sonner';
 import { deleteIntake } from '@/lib/deleteIntegrado';
 
 const STATUS_CONFIG = {
-  ENVIADO:            { label: 'Enviado',              color: 'bg-blue-100 text-blue-700',    icon: Clock },
-  ANALISANDO_IA:      { label: 'Analisando...',        color: 'bg-yellow-100 text-yellow-700', icon: Loader2, spin: true },
-  AGUARDANDO_REVISAO: { label: 'Aguardando revisão',   color: 'bg-orange-100 text-orange-700', icon: Eye },
-  RASCUNHO:           { label: 'Rascunho',             color: 'bg-slate-100 text-slate-600',   icon: FileText },
-  ENVIADO_APROVACAO:  { label: 'Enviado p/ aprovação', color: 'bg-purple-100 text-purple-700', icon: Send },
-  APROVADO:           { label: 'Aprovado',             color: 'bg-green-100 text-green-700',   icon: CheckCircle2 },
-  REJEITADO:          { label: 'Rejeitado',            color: 'bg-red-100 text-red-700',       icon: AlertCircle },
-  ERRO_PROCESSAMENTO: { label: 'Erro',                 color: 'bg-red-100 text-red-700',       icon: AlertCircle },
+  ENVIADO: { label: 'Enviado', color: 'bg-blue-100 text-blue-700', icon: Clock },
+  ANALISANDO_IA: { label: 'Analisando...', color: 'bg-yellow-100 text-yellow-700', icon: Loader2, spin: true },
+  AGUARDANDO_REVISAO: { label: 'Aguardando revisão', color: 'bg-orange-100 text-orange-700', icon: Eye },
+  RASCUNHO: { label: 'Rascunho', color: 'bg-slate-100 text-slate-600', icon: FileText },
+  ENVIADO_APROVACAO: { label: 'Enviado p/ aprovação', color: 'bg-purple-100 text-purple-700', icon: Send },
+  APROVADO: { label: 'Aprovado', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
+  REJEITADO: { label: 'Rejeitado', color: 'bg-red-100 text-red-700', icon: AlertCircle },
+  ERRO_PROCESSAMENTO: { label: 'Erro', color: 'bg-red-100 text-red-700', icon: AlertCircle }
 };
 
 const TIPO_LABEL = {
-  NOTA_FISCAL_PDF:          'NF PDF',
-  NOTA_FISCAL_XML:          'NF XML',
-  FOTO_ATIVIDADE:           'Foto',
+  NOTA_FISCAL_PDF: 'NF PDF',
+  NOTA_FISCAL_XML: 'NF XML',
+  FOTO_ATIVIDADE: 'Foto',
   DOCUMENTO_ADMINISTRATIVO: 'Documento',
-  OUTRO:                    'Outro',
-  PENDENTE:                 'Pendente',
+  OUTRO: 'Outro',
+  PENDENTE: 'Pendente'
 };
 
 function parseValorBR(v) {
@@ -74,9 +74,9 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
 
   // XML nunca pode revisar nem enviar. PDF em análise com dados no nome pode revisar para não ficar travado.
   const canReview = (
-    ['AGUARDANDO_REVISAO', 'RASCUNHO', 'ERRO_PROCESSAMENTO'].includes(statusKey) ||
-    canFallbackReview
-  ) && !isXML;
+  ['AGUARDANDO_REVISAO', 'RASCUNHO', 'ERRO_PROCESSAMENTO'].includes(statusKey) ||
+  canFallbackReview) &&
+  !isXML;
   const hasError = intake.status_processamento === 'ERRO_PROCESSAMENTO';
   const canSendApproval = canReview && isPDF && !isProcessing;
 
@@ -168,7 +168,7 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
         intake_id: intake.id,
         documento_intake_id: intake.id,
         nf_numero: ia.nf_numero || '',
-        nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || '',
+        nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || ''
       });
 
       await base44.entities.Attachment.create({
@@ -190,14 +190,14 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
         nf_status_leitura: 'lido_com_sucesso',
         nf_revisado: true,
         rubrica_id,
-        rubrica_nome,
+        rubrica_nome
       }).catch(() => null);
 
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'ENVIADO_APROVACAO',
         ocultar_entrada_unica: true,
         entidade_destino: 'PurchaseRequest',
-        entidade_destino_id: novaPurchase?.id || '',
+        entidade_destino_id: novaPurchase?.id || ''
       });
 
       toast.success('Enviado para aprovação com sucesso.');
@@ -217,9 +217,9 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
           'w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0',
           isImage ? 'bg-purple-100' : 'bg-slate-100'
         )}>
-          {isImage
-            ? <Image className="w-5 h-5 text-purple-500" />
-            : <FileText className="w-5 h-5 text-slate-400" />
+          {isImage ?
+          <Image className="w-5 h-5 text-purple-500" /> :
+          <FileText className="w-5 h-5 text-slate-400" />
           }
         </div>
 
@@ -233,155 +233,155 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
               {tipoLabel}
             </span>
             {/* XML vinculado: só mostrar "Aguardando vínculo"; se já vinculado, não mostrar status */}
-            {isXML && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO' && (
-              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">
+            {isXML && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO' &&
+            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">
                 <Clock className="w-3 h-3" />
                 Aguardando vínculo
               </span>
-            )}
-            {!isXML && (
-              <span className={cn('inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium', status.color)}>
+            }
+            {!isXML &&
+            <span className={cn('inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium', status.color)}>
                 <Icon className={cn('w-3 h-3', status.spin && 'animate-spin')} />
                 {status.label}
               </span>
-            )}
-            {valorDisplay && (
-              <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+            }
+            {valorDisplay &&
+            <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
                 {valorDisplay}
               </span>
-            )}
+            }
           </div>
         </div>
 
         {/* Ações */}
         <div className="flex items-center gap-1 flex-shrink-0">
           {/* Ver arquivo */}
-          {intake.arquivo_original_url && (
-            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Ver arquivo"
-              onClick={() => window.open(intake.arquivo_original_url, '_blank')}>
+          {intake.arquivo_original_url &&
+          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Ver arquivo"
+          onClick={() => window.open(intake.arquivo_original_url, '_blank')}>
               <ExternalLink className="w-4 h-4 text-slate-400" />
             </Button>
-          )}
+          }
 
           {/* Baixar */}
-          {intake.arquivo_original_url && (
-            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Baixar arquivo"
-              onClick={() => { const a = document.createElement('a'); a.href = intake.arquivo_original_url; a.download = fileName; a.click(); }}>
+          {intake.arquivo_original_url &&
+          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Baixar arquivo"
+          onClick={() => {const a = document.createElement('a');a.href = intake.arquivo_original_url;a.download = fileName;a.click();}}>
               <Download className="w-4 h-4 text-slate-400" />
             </Button>
-          )}
+          }
 
           {/* Reanalisar (em erro ou análise travada, não XML) */}
-          {(hasError || canFallbackReview) && !isXML && (
-            <Button size="sm" variant="outline" onClick={handleReanalyse} disabled={loading}
-              className="text-xs h-8 px-2" title="Reanalisar com IA">
+          {(hasError || canFallbackReview) && !isXML &&
+          <Button size="sm" variant="outline" onClick={handleReanalyse} disabled={loading}
+          className="text-xs h-8 px-2" title="Reanalisar com IA">
               {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
               {!loading && 'Reanalisar'}
             </Button>
-          )}
+          }
 
           {/* XML: botão Vincular ao PDF (se não vinculado) */}
-          {canLinkXml && (
-            <Button size="sm" variant="outline" onClick={handleLinkXml} disabled={loading}
-              className="h-8 text-xs px-3">
+          {canLinkXml &&
+          <Button size="sm" variant="outline" onClick={handleLinkXml} disabled={loading}
+          className="h-8 text-xs px-3">
               {loading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Link2 className="w-3 h-3 mr-1" />}
               Vincular XML ao PDF
             </Button>
-          )}
+          }
 
           {/* XML: já vinculado — não mostrar mais ações */}
-          {isXML && (intake.nf_pdf_intake_id || intake.grupo_status === 'COMPLETO') && (
-            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+          {isXML && (intake.nf_pdf_intake_id || intake.grupo_status === 'COMPLETO') &&
+          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
               <CheckCircle2 className="w-3 h-3" />
               XML vinculado
             </span>
-          )}
+          }
 
           {/* PDF: Adicionar XML (se não tem XML vinculado) */}
-          {isPDF && !intake.nf_xml_intake_id && intake.grupo_status !== 'COMPLETO' && (
-            <>
+          {isPDF && !intake.nf_xml_intake_id && intake.grupo_status !== 'COMPLETO' &&
+          <>
               <input
-                ref={xmlInputRef}
-                type="file"
-                accept=".xml,application/xml,text/xml"
-                className="hidden"
-                onChange={handleXmlFileSelected}
-              />
+              ref={xmlInputRef}
+              type="file"
+              accept=".xml,application/xml,text/xml"
+              className="hidden"
+              onChange={handleXmlFileSelected} />
+            
               <Button size="sm" variant="outline" disabled={addingXml}
-                onClick={() => xmlInputRef.current?.click()}
-                className="h-8 text-xs px-3 border-amber-300 text-amber-700 hover:bg-amber-50">
+            onClick={() => xmlInputRef.current?.click()}
+            className="h-8 text-xs px-3 border-amber-300 text-amber-700 hover:bg-amber-50">
                 {addingXml ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
                 {addingXml ? 'Vinculando...' : 'Adicionar XML'}
               </Button>
             </>
-          )}
+          }
 
           {/* PDF: Revisar (não XML) */}
-          {canReview && (
-            <Button size="sm" variant="outline" onClick={() => onReview({ ...intake })}
-              className="h-8 text-xs px-3">
+          {canReview &&
+          <Button size="sm" variant="outline" onClick={() => onReview({ ...intake })}
+          className="h-8 text-xs px-3">
               Revisar
             </Button>
-          )}
+          }
 
           {/* PDF: Enviar para aprovação */}
-          {canSendApproval && (
-            <Button size="sm" onClick={handleSendToApproval} disabled={sendingApproval}
-              className="h-8 text-xs px-3 bg-black text-white hover:bg-gray-800">
-              {sendingApproval
-                ? <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                : <Send className="w-3 h-3 mr-1" />}
+          {canSendApproval &&
+          <Button size="sm" onClick={handleSendToApproval} disabled={sendingApproval}
+          className="h-8 text-xs px-3 bg-black text-white hover:bg-gray-800 hidden">
+              {sendingApproval ?
+            <Loader2 className="w-3 h-3 animate-spin mr-1" /> :
+            <Send className="w-3 h-3 mr-1" />}
               {sendingApproval ? 'Enviando...' : 'Enviar'}
             </Button>
-          )}
+          }
 
           {/* Deletar (XML: mostrar; PDF: mostrar) */}
           <Button size="sm" variant="ghost" onClick={handleDelete} disabled={loading || sendingApproval || addingXml}
-            className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" title="Deletar arquivo">
+          className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" title="Deletar arquivo">
             {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-4 h-4" />}
           </Button>
         </div>
       </div>
 
       {/* Aviso de erro (não XML) */}
-      {hasError && !isXML && (
-        <div className="mt-3 flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+      {hasError && !isXML &&
+      <div className="mt-3 flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
           <span>Erro na análise. Clique em "Reanalisar" para tentar novamente ou em "Revisar" para editar manualmente.</span>
         </div>
-      )}
+      }
 
       {/* Aviso análise travada */}
-      {canFallbackReview && (
-        <div className="mt-3 flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+      {canFallbackReview &&
+      <div className="mt-3 flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
           <span>A IA ainda não concluiu. Como o nome do arquivo contém dados da NF, clique em "Revisar" para preencher/conferir manualmente.</span>
         </div>
-      )}
+      }
 
       {/* Aviso XML aguardando vínculo */}
-      {isXML && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO' && (
-        <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
+      {isXML && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO' &&
+      <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
           <span>Aguardando vínculo com o PDF correspondente.</span>
         </div>
-      )}
+      }
 
       {/* Aviso PDF sem XML — sempre que PDF não tiver XML vinculado */}
-      {isPDF && !intake.nf_xml_intake_id && intake.grupo_status !== 'COMPLETO' && (
-        <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
+      {isPDF && !intake.nf_xml_intake_id && intake.grupo_status !== 'COMPLETO' &&
+      <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
           <span>Envie o XML correspondente desta nota.</span>
         </div>
-      )}
+      }
 
       {/* PDF+XML completo */}
-      {isNF && intake.grupo_status === 'COMPLETO' && intake.nf_xml_url && (
-        <div className="mt-3 flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">
+      {isNF && intake.grupo_status === 'COMPLETO' && intake.nf_xml_url &&
+      <div className="mt-3 flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">
           <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
           <span>XML vinculado automaticamente.</span>
         </div>
-      )}
-    </div>
-  );
+      }
+    </div>);
+
 }
