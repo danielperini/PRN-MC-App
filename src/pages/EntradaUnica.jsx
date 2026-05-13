@@ -8,6 +8,7 @@ import ReviewModalFoto from '@/components/entrada/ReviewModalFoto';
 import ReviewModalDocAdmin from '@/components/entrada/ReviewModalDocAdmin';
 import ReviewModalOutro from '@/components/entrada/ReviewModalOutro';
 import LinkXmlModal from '@/components/entrada/LinkXmlModal';
+import LinkArquivoModal from '@/components/entrada/LinkArquivoModal';
 import {
   Loader2,
   InboxIcon,
@@ -180,6 +181,7 @@ export default function EntradaUnica() {
   const [loadingIntakes, setLoadingIntakes] = useState(true);
   const [reviewIntake, setReviewIntake] = useState(null);
   const [linkXmlIntake, setLinkXmlIntake] = useState(null);
+  const [linkArquivoIntake, setLinkArquivoIntake] = useState(null);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -205,17 +207,68 @@ export default function EntradaUnica() {
     const ativos = (lista || []).filter((i) => !i.ocultar_entrada_unica);
     const pdfs = ativos.filter((i) => getTipoByFile(i) === 'NOTA_FISCAL_PDF');
     const xmls = ativos.filter((i) => getTipoByFile(i) === 'NOTA_FISCAL_XML');
+    const recibos = ativos.filter((i) => {
+      const tipo = i.tipo_detectado || getTipoByFile(i);
+      return tipo === 'RECIBO_PDF' || isReciboLike(i);
+    });
+
+    // Vincular XMLs a PDFs
     for (const xml of xmls) {
       if (xml.nf_pdf_intake_id || xml.grupo_status === 'COMPLETO') continue;
       let melhorPdf = null; let melhorScore = 0;
       for (const pdf of pdfs) {
-        if (pdf.nf_xml_intake_id || pdf.grupo_status === 'COMPLETO') continue;
         const score = calcularScoreVinculo(xml, pdf);
         if (score > melhorScore) { melhorScore = score; melhorPdf = pdf; }
       }
       if (melhorPdf && melhorScore >= 2) {
-        await base44.entities.DocumentIntake.update(melhorPdf.id, { grupo_status: 'COMPLETO', nf_xml_intake_id: xml.id, nf_xml_url: xml.arquivo_original_url }).catch(() => {});
-        await base44.entities.DocumentIntake.update(xml.id, { grupo_status: 'COMPLETO', nf_pdf_intake_id: melhorPdf.id, nf_pdf_url: melhorPdf.arquivo_original_url, ocultar_entrada_unica: true }).catch(() => {});
+        await base44.entities.DocumentIntake.update(melhorPdf.id, {
+          nf_xml_intake_id: xml.id,
+          nf_xml_url: xml.arquivo_original_url,
+        }).catch(() => {});
+        await base44.entities.DocumentIntake.update(xml.id, {
+          grupo_status: 'COMPLETO',
+          nf_pdf_intake_id: melhorPdf.id,
+          nf_pdf_url: melhorPdf.arquivo_original_url,
+          ocultar_entrada_unica: true,
+        }).catch(() => {});
+      }
+    }
+
+    // Vincular Recibos/Comprovantes a PDFs de NF — sem criar solicitação, sem debitar rubrica
+    for (const recibo of recibos) {
+      if (recibo.nf_pdf_intake_id || recibo.grupo_status === 'COMPLETO') continue;
+      let melhorPdf = null; let melhorScore = 0;
+      for (const pdf of pdfs) {
+        const score = calcularScoreVinculo(recibo, pdf);
+        if (score > melhorScore) { melhorScore = score; melhorPdf = pdf; }
+      }
+      if (melhorPdf && melhorScore >= 2) {
+        // Marca recibo como vinculado (ocultar da fila principal, não cria compra)
+        await base44.entities.DocumentIntake.update(recibo.id, {
+          grupo_status: 'COMPLETO',
+          nf_pdf_intake_id: melhorPdf.id,
+          nf_pdf_url: melhorPdf.arquivo_original_url,
+          ocultar_entrada_unica: true,
+          // Propaga purchase_request_id se PDF já gerou solicitação
+          ...(melhorPdf.entidade_destino_id ? { entidade_destino_id: melhorPdf.entidade_destino_id, entidade_destino: 'PurchaseRequest' } : {}),
+        }).catch(() => {});
+        // Atualiza PDF com referência ao recibo
+        await base44.entities.DocumentIntake.update(melhorPdf.id, {
+          recibo_intake_id: recibo.id,
+          recibo_url: recibo.arquivo_original_url,
+        }).catch(() => {});
+        // Se PDF já tem purchase_request, cria attachment do recibo na solicitação
+        if (melhorPdf.entidade_destino_id) {
+          await base44.entities.Attachment.create({
+            purchase_request_id: melhorPdf.entidade_destino_id,
+            document_intake_id: recibo.id,
+            file_name: recibo.file_name_final || recibo.file_name_original || 'comprovante.pdf',
+            file_url: recibo.arquivo_original_url || '',
+            file_type: recibo.mime_type || 'application/pdf',
+            description: 'Comprovante/Recibo vinculado — Entrada Única',
+            nf_tipo_documento: 'pdf_nf',
+          }).catch(() => {});
+        }
       }
     }
   }, []);
@@ -234,8 +287,11 @@ export default function EntradaUnica() {
         if (status === 'ENVIADO_APROVACAO') return false;
         if (status === 'DELETADO') return false;
         if (i.ocultar_entrada_unica === true) return false;
-        const isXML = getTipoByFile(i) === 'NOTA_FISCAL_XML';
-        if (isXML && (i.grupo_status === 'COMPLETO' || i.nf_pdf_intake_id || i.entidade_destino_id)) return false;
+        // XMLs e recibos vinculados ficam ocultos (aparecem como parte do PDF âncora)
+        const tipo = i.tipo_detectado || getTipoByFile(i);
+        const isXML = tipo === 'NOTA_FISCAL_XML';
+        const isRecibo = tipo === 'RECIBO_PDF' || isReciboLike(i);
+        if ((isXML || isRecibo) && (i.grupo_status === 'COMPLETO' || i.nf_pdf_intake_id || i.entidade_destino_id)) return false;
         return true;
       });
       setIntakes(filtrados);
@@ -373,6 +429,80 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
   async function handleLinkXml(xmlIntake) {
     setLinkXmlIntake(xmlIntake);
+  }
+
+  function handleLinkArquivo(intake) {
+    setLinkArquivoIntake(intake);
+  }
+
+  async function handleConfirmLinkArquivo(origemIntake, alvoIntake) {
+    try {
+      // Determina quem é o PDF NF e quem é o anexo (XML ou recibo)
+      const origemTipo = origemIntake.tipo_detectado || getTipoByFile(origemIntake);
+      const alvoTipo = alvoIntake.tipo_detectado || getTipoByFile(alvoIntake);
+
+      // O PDF NF é a "âncora" da solicitação
+      const pdfNF = origemTipo === 'NOTA_FISCAL_PDF' ? origemIntake
+        : alvoTipo === 'NOTA_FISCAL_PDF' ? alvoIntake : null;
+      const outro = pdfNF?.id === origemIntake.id ? alvoIntake : origemIntake;
+      const outreTipo = outro.tipo_detectado || getTipoByFile(outro);
+
+      const purchaseId = pdfNF?.entidade_destino_id || origemIntake.entidade_destino_id || alvoIntake.entidade_destino_id || '';
+
+      if (pdfNF) {
+        // Atualiza PDF NF com referência ao outro
+        const pdfUpdate = {};
+        if (outreTipo === 'NOTA_FISCAL_XML') {
+          pdfUpdate.nf_xml_intake_id = outro.id;
+          pdfUpdate.nf_xml_url = outro.arquivo_original_url;
+        } else {
+          pdfUpdate.recibo_intake_id = outro.id;
+          pdfUpdate.recibo_url = outro.arquivo_original_url;
+        }
+        await base44.entities.DocumentIntake.update(pdfNF.id, pdfUpdate);
+
+        // Atualiza o outro (XML ou recibo) apontando para o PDF
+        await base44.entities.DocumentIntake.update(outro.id, {
+          grupo_status: 'COMPLETO',
+          nf_pdf_intake_id: pdfNF.id,
+          nf_pdf_url: pdfNF.arquivo_original_url,
+          ocultar_entrada_unica: true,
+          ...(purchaseId ? { entidade_destino_id: purchaseId, entidade_destino: 'PurchaseRequest' } : {}),
+        });
+
+        // Cria attachment na solicitação se existir
+        if (purchaseId) {
+          await base44.entities.Attachment.create({
+            purchase_request_id: purchaseId,
+            document_intake_id: outro.id,
+            file_name: outro.file_name_final || outro.file_name_original || 'arquivo.pdf',
+            file_url: outro.arquivo_original_url || '',
+            file_type: outro.mime_type || 'application/pdf',
+            description: outreTipo === 'NOTA_FISCAL_XML' ? 'XML da NF — vinculado manualmente' : 'Comprovante/Recibo — vinculado manualmente',
+            nf_tipo_documento: outreTipo === 'NOTA_FISCAL_XML' ? 'xml_nf' : 'pdf_nf',
+          }).catch(() => {});
+        }
+      } else {
+        // Sem PDF NF identificado: apenas marca ambos como vinculados entre si
+        await base44.entities.DocumentIntake.update(origemIntake.id, {
+          grupo_status: 'COMPLETO',
+          nf_pdf_intake_id: alvoIntake.id,
+          ocultar_entrada_unica: true,
+        });
+        await base44.entities.DocumentIntake.update(alvoIntake.id, {
+          grupo_status: 'COMPLETO',
+          nf_pdf_intake_id: origemIntake.id,
+          ocultar_entrada_unica: true,
+        });
+      }
+
+      toast.success('Arquivos vinculados com sucesso.');
+      setLinkArquivoIntake(null);
+      await loadIntakes();
+    } catch (e) {
+      console.error('Erro ao vincular arquivo:', e);
+      toast.error('Erro ao vincular: ' + (e?.message || e));
+    }
   }
 
   async function handleConfirmLinkXml(xmlIntake, pdfIntake) {
@@ -556,12 +686,14 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                   <DocumentIntakeCard
                     key={intake.id}
                     intake={intake}
+                    allIntakes={intakes}
                     onReview={handleReview}
                     onDeleted={handleDeleted}
                     onSentToApproval={handleSentToApproval}
                     onReanalyse={handleReanalyse}
                     onLinkXml={handleLinkXml}
                     onAddXmlToPdf={handleAddXmlToPdf}
+                    onLinkArquivo={handleLinkArquivo}
                   />
                 ))}
               </div>
@@ -589,6 +721,24 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
             onClose={() => setLinkXmlIntake(null)}
           />
         )}
+        {linkArquivoIntake && (() => {
+          // Candidatos: arquivos sem vínculo, tipo diferente do origem
+          const origemTipo = linkArquivoIntake.tipo_detectado || getTipoByFile(linkArquivoIntake);
+          const candidatos = intakes.filter((i) => {
+            if (i.id === linkArquivoIntake.id) return false;
+            if (i.grupo_status === 'COMPLETO') return false;
+            if (i.nf_pdf_intake_id) return false;
+            return true;
+          });
+          return (
+            <LinkArquivoModal
+              intake={linkArquivoIntake}
+              candidatos={candidatos}
+              onConfirm={(alvo) => handleConfirmLinkArquivo(linkArquivoIntake, alvo)}
+              onClose={() => setLinkArquivoIntake(null)}
+            />
+          );
+        })()}
       </div>
     </div>
   );

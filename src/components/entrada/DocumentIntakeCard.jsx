@@ -24,6 +24,7 @@ const STATUS_CONFIG = {
 const TIPO_LABEL = {
   NOTA_FISCAL_PDF: 'NF PDF',
   NOTA_FISCAL_XML: 'NF XML',
+  RECIBO_PDF: 'Recibo/Comprovante',
   FOTO_ATIVIDADE: 'Foto',
   DOCUMENTO_ADMINISTRATIVO: 'Documento',
   OUTRO: 'Outro',
@@ -52,7 +53,7 @@ function hasStrongFileNameData(fileName) {
   return /\bnf\s*\d+/i.test(text) || /r\$?\s*\d+[.,]\d{2}/i.test(text) || /museus\s+centro/i.test(text);
 }
 
-export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSentToApproval, onReanalyse, onLinkXml, onAddXmlToPdf }) {
+export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSentToApproval, onReanalyse, onLinkXml, onAddXmlToPdf, onLinkArquivo }) {
   const [loading, setLoading] = useState(false);
   const [sendingApproval, setSendingApproval] = useState(false);
   const [addingXml, setAddingXml] = useState(false);
@@ -64,8 +65,16 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
   const tipo = intake.tipo_detectado;
   const isXML = tipo === 'NOTA_FISCAL_XML';
   const isPDF = tipo === 'NOTA_FISCAL_PDF';
+  const isRecibo = tipo === 'RECIBO_PDF';
   const isNF = isPDF || isXML;
   const isImage = tipo === 'FOTO_ATIVIDADE';
+
+  // Status de vinculação
+  const temXmlVinculado = isPDF && !!intake.nf_xml_intake_id;
+  const temReciboVinculado = isPDF && !!intake.recibo_intake_id;
+  const estaSemVinculo = (isPDF && !intake.nf_xml_intake_id && !intake.recibo_intake_id && intake.grupo_status !== 'COMPLETO') ||
+    (isXML && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO') ||
+    (isRecibo && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO');
 
   const fileName = intake.file_name_final || intake.file_name_original || 'Arquivo';
   const statusKey = String(intake.status_processamento || '').toUpperCase();
@@ -82,6 +91,9 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
 
   // XML: mostrar "Vincular XML" apenas se não vinculado e não completo
   const canLinkXml = isXML && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO';
+
+  // Qualquer arquivo sem vínculo pode usar vínculo manual genérico
+  const canLinkArquivo = estaSemVinculo && !!onLinkArquivo;
 
   const valorDisplay = getValorDisplay(intake);
   const tipoLabel = TIPO_LABEL[tipo] || tipo || 'Pendente';
@@ -239,10 +251,34 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
                 Aguardando vínculo
               </span>
             }
-            {!isXML &&
+            {!isXML && !isRecibo &&
             <span className={cn('inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium', status.color)}>
-                <Icon className={cn('w-3 h-3', status.spin && 'animate-spin')} />
-                {status.label}
+                 <Icon className={cn('w-3 h-3', status.spin && 'animate-spin')} />
+                 {status.label}
+               </span>
+             }
+            {isRecibo && !intake.nf_pdf_intake_id &&
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">
+                <Clock className="w-3 h-3" />
+                Sem NF vinculada
+              </span>
+            }
+            {isRecibo && intake.nf_pdf_intake_id &&
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
+                <CheckCircle2 className="w-3 h-3" />
+                Vinculado à NF
+              </span>
+            }
+            {isPDF && temXmlVinculado &&
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700">
+                <CheckCircle2 className="w-3 h-3" />
+                XML vinculado
+              </span>
+            }
+            {isPDF && temReciboVinculado &&
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
+                <CheckCircle2 className="w-3 h-3" />
+                Comprovante vinculado
               </span>
             }
             {valorDisplay &&
@@ -284,8 +320,17 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
           {canLinkXml &&
           <Button size="sm" variant="outline" onClick={handleLinkXml} disabled={loading}
           className="h-8 text-xs px-3">
-              {loading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Link2 className="w-3 h-3 mr-1" />}
-              Vincular XML ao PDF
+               {loading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Link2 className="w-3 h-3 mr-1" />}
+               Vincular XML ao PDF
+             </Button>
+           }
+
+          {/* Recibo / qualquer arquivo sem vínculo: vínculo manual genérico */}
+          {canLinkArquivo && !canLinkXml &&
+            <Button size="sm" variant="outline" onClick={() => onLinkArquivo(intake)} disabled={loading}
+              className="h-8 text-xs px-3 border-purple-200 text-purple-700 hover:bg-purple-50">
+              <Link2 className="w-3 h-3 mr-1" />
+              Vincular arquivo
             </Button>
           }
 
@@ -367,19 +412,35 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
         </div>
       }
 
-      {/* Aviso PDF sem XML — sempre que PDF não tiver XML vinculado */}
-      {isPDF && !intake.nf_xml_intake_id && intake.grupo_status !== 'COMPLETO' &&
-      <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
+      {/* Aviso PDF sem XML e sem recibo */}
+      {isPDF && !intake.nf_xml_intake_id && !intake.recibo_intake_id && intake.grupo_status !== 'COMPLETO' &&
+        <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>Envie o XML correspondente desta nota.</span>
+          <span>Envie o XML e/ou comprovante correspondente desta nota. Sem XML/comprovante, apenas a NF será enviada.</span>
+        </div>
+      }
+
+      {/* Aviso recibo sem NF */}
+      {isRecibo && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO' &&
+        <div className="mt-3 flex items-center gap-2 text-xs text-purple-700 bg-purple-50 px-3 py-2 rounded-lg">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+          <span>Recibo/comprovante sem NF vinculada. Não cria solicitação financeira. Use "Vincular arquivo" para associar à NF correspondente.</span>
         </div>
       }
 
       {/* PDF+XML completo */}
-      {isNF && intake.grupo_status === 'COMPLETO' && intake.nf_xml_url &&
-      <div className="mt-3 flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">
+      {isPDF && intake.nf_xml_url && temXmlVinculado &&
+        <div className="mt-3 flex items-center gap-2 text-xs text-blue-700 bg-blue-50 px-3 py-2 rounded-lg">
           <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>XML vinculado automaticamente.</span>
+          <span>XML vinculado {intake.grupo_status === 'COMPLETO' ? 'automaticamente' : 'manualmente'}.</span>
+        </div>
+      }
+
+      {/* PDF + Recibo/Comprovante vinculado */}
+      {isPDF && intake.recibo_url && temReciboVinculado &&
+        <div className="mt-3 flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">
+          <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+          <span>Comprovante/recibo vinculado — <a href={intake.recibo_url} target="_blank" rel="noopener noreferrer" className="underline">ver arquivo</a>.</span>
         </div>
       }
     </div>);
