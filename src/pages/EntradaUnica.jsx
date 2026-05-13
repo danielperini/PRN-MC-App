@@ -47,6 +47,14 @@ function getFileExt(intake) {
   return '';
 }
 
+function isReciboLike(intake) {
+  const name = normalizeText(intake?.file_name_original || '');
+  const ia = intake?.resultado_ia || {};
+  const tipo = normalizeText(ia.tipo_documento || '');
+  return name.includes('recibo') || name.includes('comprovante') || name.includes('boleto') || name.includes('pix') ||
+    tipo.includes('recibo') || tipo.includes('comprovante');
+}
+
 function getTipoByFile(intake) {
   const mime = String(intake?.mime_type || '').toLowerCase();
   const ext = getFileExt(intake);
@@ -403,30 +411,40 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
   async function handleFilesSelected(files, orientacoes) {
     if (!user || !files || files.length === 0) return;
     setUploading(true);
-    let successCount = 0; let errorCount = 0;
+    let successCount = 0;
+    const failedFiles = [];
     const intakesCriados = [];
     for (const file of files) {
       try {
-        const { file_url } = await base44.integrations.Core.UploadFile({ file });
+        // Garantir MIME type correto para XMLs (alguns SOs enviam application/octet-stream)
+        let fileToUpload = file;
+        if (file.name.toLowerCase().endsWith('.xml') && (!file.type || file.type === 'application/octet-stream')) {
+          fileToUpload = new File([file], file.name, { type: 'text/xml' });
+        }
+        const uploadResult = await base44.integrations.Core.UploadFile({ file: fileToUpload });
+        if (!uploadResult?.file_url) throw new Error('URL do arquivo não retornada pelo servidor');
+        const { file_url } = uploadResult;
         const ext = file.name.toLowerCase().endsWith('.xml') ? 'NOTA_FISCAL_XML' : file.name.toLowerCase().endsWith('.pdf') ? 'NOTA_FISCAL_PDF' : 'PENDENTE';
         const isXmlFile = ext === 'NOTA_FISCAL_XML';
         const intake = await base44.entities.DocumentIntake.create({
           user_email: user.email, user_name: user.full_name || user.email,
           arquivo_original_url: file_url, file_name_original: file.name,
-          mime_type: file.type, status_processamento: isXmlFile ? 'AGUARDANDO_REVISAO' : 'ENVIADO',
+          mime_type: fileToUpload.type || file.type, status_processamento: isXmlFile ? 'AGUARDANDO_REVISAO' : 'ENVIADO',
           status_registro: 'ATIVO', tipo_detectado: ext,
           revisado_pelo_usuario: false, resultado_ia: orientacoes ? { orientacoes_usuario: orientacoes } : {},
         });
-        intakesCriados.push({ intake, file_url, mime_type: file.type });
+        intakesCriados.push({ intake, file_url, mime_type: fileToUpload.type || file.type });
         successCount++;
       } catch (e) {
-        console.error('Erro ao enviar arquivo:', e);
-        errorCount++;
+        console.error(`Erro ao enviar arquivo "${file.name}":`, e);
+        failedFiles.push(file.name);
       }
     }
     setUploading(false);
     if (successCount > 0) toast.success(`${successCount} arquivo(s) enviado(s). Analisando com IA...`);
-    if (errorCount > 0) toast.error(`${errorCount} arquivo(s) falharam ao enviar.`);
+    if (failedFiles.length > 0) {
+      toast.error(`Falha ao enviar: ${failedFiles.join(', ')}`);
+    }
     await loadIntakes();
     for (const { intake, file_url, mime_type } of intakesCriados) {
       if (intake?.id) {

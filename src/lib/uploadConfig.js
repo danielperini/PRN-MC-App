@@ -66,6 +66,13 @@ export function validateFile(file) {
     errors.push(UPLOAD_CONFIG.MESSAGES.FILE_TOO_LARGE);
   }
 
+  // Validar extensão (mais confiável que MIME type, que pode vir como octet-stream no Windows)
+  const nameLower = file.name.toLowerCase();
+  const hasValidExtension = UPLOAD_CONFIG.ACCEPTED_EXTENSIONS.some((ext) => nameLower.endsWith(ext));
+  if (!hasValidExtension) {
+    errors.push(`Tipo de arquivo não suportado. Use: ${UPLOAD_CONFIG.ACCEPTED_EXTENSIONS.join(', ')}`);
+  }
+
   return { 
     valid: errors.length === 0, 
     errors,
