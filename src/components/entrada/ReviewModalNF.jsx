@@ -14,6 +14,16 @@ function normalizarTexto(value) {
     .trim();
 }
 
+function textoLivre(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value);
+  } catch (_) {
+    return '';
+  }
+}
+
 function parseValorBR(value) {
   const raw = String(value || '').trim().replace(/\s/g, '');
   if (!raw) return '';
@@ -23,6 +33,35 @@ function parseValorBR(value) {
   }
 
   return Number(raw.replace(',', '.')) || '';
+}
+
+function extrairCpfCnpj(texto) {
+  const raw = String(texto || '');
+
+  const formatado = raw.match(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b|\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/);
+  if (formatado) return formatado[0];
+
+  const labels = raw.match(/(?:CNPJ|CPF|CPF\/CNPJ|CNPJ\/CPF)[^0-9]{0,30}(\d{11,14})/i);
+  if (labels) return labels[1];
+
+  const soltos = Array.from(raw.matchAll(/\b\d{11,14}\b/g)).map((m) => m[0]);
+  return soltos.find((n) => n.length === 14 || n.length === 11) || '';
+}
+
+function extrairMunicipio(texto) {
+  const raw = String(texto || '');
+  const upper = normalizarTexto(raw);
+
+  const label = raw.match(/(?:Munic[ií]pio|Cidade|Localidade)[\s:\-]+([A-Za-zÀ-ÿ\s]{3,40})(?:\n|,|\-|UF|Estado|CEP|$)/i);
+  if (label?.[1]) return label[1].trim().replace(/\s+/g, ' ').toUpperCase();
+
+  const cidades = [
+    'BELO HORIZONTE', 'CONTAGEM', 'BETIM', 'SABARA', 'NOVA LIMA',
+    'SANTA LUZIA', 'RIBEIRAO DAS NEVES', 'SETE LAGOAS', 'RIO DE JANEIRO',
+    'SAO PAULO', 'CURITIBA', 'BRASILIA'
+  ];
+
+  return cidades.find((cidade) => upper.includes(cidade)) || '';
 }
 
 function formatCompetencia(dateLike) {
@@ -51,6 +90,30 @@ function formatCompetencia(dateLike) {
   return `${meses[data.getMonth()]}/${data.getFullYear()}`;
 }
 
+function coletarTextoDaNF(intake) {
+  const ia = intake?.resultado_ia || {};
+
+  return [
+    intake?.raw_text,
+    intake?.ocr_text,
+    intake?.texto_extraido,
+    intake?.texto_lido,
+    intake?.conteudo_extraido,
+    intake?.nf_texto_extraido,
+    ia?.raw_text,
+    ia?.ocr_text,
+    ia?.texto_extraido,
+    ia?.texto_lido,
+    ia?.conteudo_extraido,
+    ia?.nf_texto_extraido,
+    ia?.full_text,
+    ia?.markdown,
+    ia?.dados_extraidos,
+    ia?.documento,
+    ia?.analise,
+  ].map(textoLivre).filter(Boolean).join('\n');
+}
+
 function extrairNomeArquivo(fileName, intake = {}) {
   const nomeOriginal = limparExtensao(fileName);
   const nome = normalizarTexto(nomeOriginal);
@@ -76,7 +139,7 @@ function extrairNomeArquivo(fileName, intake = {}) {
   const primeiraParte = partes[0] || nomeOriginal;
   const segundaParte = partes[1] || '';
 
-  let funcao = primeiraParte
+  const funcao = primeiraParte
     .replace(/^\d+\s*/i, '')
     .replace(/\bNF\s*\d+\b/i, '')
     .replace(/\bNOTA\s*\d+\b/i, '')
@@ -113,6 +176,13 @@ function extrairNomeArquivo(fileName, intake = {}) {
     result.centro_custo_sugerido = 'Atuação Geral';
   }
 
+  const textoNF = coletarTextoDaNF(intake);
+  const cpfCnpj = extrairCpfCnpj(textoNF);
+  const municipio = extrairMunicipio(textoNF);
+
+  if (cpfCnpj) result.nf_emitente_cpf_cnpj = cpfCnpj;
+  if (municipio) result.municipio = municipio;
+
   const dataEmissao =
     intake.nf_data_emissao ||
     intake.resultado_ia?.nf_data_emissao ||
@@ -126,7 +196,7 @@ function extrairNomeArquivo(fileName, intake = {}) {
     result.competencia_sugerida = result.competencia;
   }
 
-  result.justificativa_ia = result.justificativa_ia || 'Campos preenchidos automaticamente a partir do nome do arquivo enviado.';
+  result.justificativa_ia = result.justificativa_ia || 'Campos preenchidos automaticamente a partir da leitura da NF e do nome do arquivo enviado.';
 
   return result;
 }
@@ -160,8 +230,9 @@ export default function ReviewModalNF(props) {
       competencia_sugerida: escolherValor(ia.competencia_sugerida, ia.competencia, arquivo.competencia_sugerida),
       nf_emitente_nome: escolherValor(ia.nf_emitente_nome, ia.fornecedor_nome, intake.nf_emitente_nome, intake.fornecedor_nome, arquivo.nf_emitente_nome),
       fornecedor_nome: escolherValor(ia.fornecedor_nome, ia.nf_emitente_nome, arquivo.fornecedor_nome),
-      nf_emitente_cpf_cnpj: escolherValor(ia.nf_emitente_cpf_cnpj, ia.fornecedor_cpf_cnpj, intake.nf_emitente_cpf_cnpj, intake.fornecedor_cpf_cnpj),
-      municipio: escolherValor(ia.municipio, intake.municipio),
+      nf_emitente_cpf_cnpj: escolherValor(ia.nf_emitente_cpf_cnpj, ia.fornecedor_cpf_cnpj, intake.nf_emitente_cpf_cnpj, intake.fornecedor_cpf_cnpj, arquivo.nf_emitente_cpf_cnpj),
+      fornecedor_cpf_cnpj: escolherValor(ia.fornecedor_cpf_cnpj, ia.nf_emitente_cpf_cnpj, intake.fornecedor_cpf_cnpj, intake.nf_emitente_cpf_cnpj, arquivo.nf_emitente_cpf_cnpj),
+      municipio: escolherValor(ia.municipio, intake.municipio, arquivo.municipio),
       descricao_servico: escolherValor(ia.descricao_servico, ia.descricao, arquivo.descricao_servico),
       meta_sugerida: escolherValor(ia.meta_sugerida, ia.meta_id, arquivo.meta_sugerida),
       meta_id: escolherValor(ia.meta_id, ia.meta_sugerida, arquivo.meta_id),
