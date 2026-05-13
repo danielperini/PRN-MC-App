@@ -19,6 +19,10 @@ function norm(v) {
   return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
 
+function key(v) {
+  return norm(v).replace(/[^a-z0-9]/g, '');
+}
+
 function source(doc) {
   return doc?.__source || 'Attachment';
 }
@@ -59,6 +63,30 @@ function tipo(d) {
   if (t === 'recibo_pdf' || all.includes('recibo') || all.includes('comprovante') || all.includes('pagamento') || all.includes('boleto') || all.includes('pix')) return 'RECIBO';
   if (t === 'pdf_nf' || t === 'nota_fiscal_pdf' || m.includes('pdf') || e === 'pdf') return 'PDF';
   return 'DOC';
+}
+
+function baseArquivo(d) {
+  return key(name(d)
+    .replace(/\.[^.]+$/i, '')
+    .replace(/\s*\(\d+\)\s*$/i, '')
+    .replace(/\b(pdf|xml|nf|nota|fiscal|arquivo)\b/gi, ''));
+}
+
+function pairIdPorNome(pdf, xml) {
+  const b = baseArquivo(pdf) || baseArquivo(xml);
+  if (b) return `PAR-${b}`;
+  return [uid(pdf), uid(xml)].filter(Boolean).sort().join('__');
+}
+
+function sequencialPorPairId(pairId) {
+  let hash = 0;
+  const str = String(pairId || '');
+  for (let i = 0; i < str.length; i += 1) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  const n = Math.abs(hash % 999999) + 1;
+  return `SOL-${String(n).padStart(6, '0')}`;
 }
 
 function isImg(d) {
@@ -117,8 +145,20 @@ function isLinked(d) {
   return ids(d).length > 0 || d?.grupo_status === 'COMPLETO';
 }
 
-function pairStatus(d) {
+function getPairId(d) {
+  return d?.grupo_documental_id || d?.pair_id || d?.par_id || d?.intake_pair_id || d?.entrada_unica_pair_id || '';
+}
+
+function pairStatus(d, byPairId = new Map()) {
   const t = tipo(d);
+  const pairId = getPairId(d);
+  const pairDocs = pairId ? (byPairId.get(pairId) || []) : [];
+  const hasPdf = pairDocs.some((doc) => tipo(doc) === 'PDF') || t === 'PDF';
+  const hasXml = pairDocs.some((doc) => tipo(doc) === 'XML') || t === 'XML';
+  const hasRecibo = pairDocs.some((doc) => tipo(doc) === 'RECIBO') || t === 'RECIBO';
+
+  if (hasPdf && hasXml) return 'Com XML';
+  if (hasPdf && hasRecibo) return 'Com Recibo';
 
   if (t === 'PDF') {
     if (d?.nf_xml_intake_id || d?.nf_xml_url) return 'Com XML';
@@ -266,6 +306,73 @@ function normalizeIntake(doc) {
   };
 }
 
+async function autoParearPdfXmlPorNome(docs) {
+  const ativos = (docs || []).filter((d) => d?.id && d?.status_registro !== 'DELETADO' && !isImg(d));
+  const porBase = new Map();
+
+  for (const doc of ativos) {
+    const b = baseArquivo(doc);
+    if (!b || b.length < 8) continue;
+    if (!porBase.has(b)) porBase.set(b, []);
+    porBase.get(b).push(doc);
+  }
+
+  const atualizados = new Map(ativos.map((d) => [uid(d), { ...d }]));
+  const updates = [];
+
+  for (const grupo of porBase.values()) {
+    const pdfs = grupo.filter((d) => tipo(d) === 'PDF');
+    const xmls = grupo.filter((d) => tipo(d) === 'XML');
+    if (!pdfs.length || !xmls.length) continue;
+
+    for (const pdf of pdfs) {
+      if (getPairId(pdf) || pdf.nf_xml_intake_id || pdf.nf_xml_url) continue;
+      const xml = xmls.find((x) => !getPairId(x) || getPairId(x) === getPairId(pdf));
+      if (!xml) continue;
+
+      const pairId = pairIdPorNome(pdf, xml);
+      const sequencial = sequencialPorPairId(pairId);
+      const comum = {
+        pair_id: pairId,
+        grupo_documental_id: pairId,
+        grupo_status: 'COMPLETO',
+        solicitacao_sequencial: sequencial,
+        numero_solicitacao: sequencial,
+        arquivo_complementar_status: 'VINCULADO',
+      };
+
+      const pdfPayload = {
+        ...comum,
+        nf_xml_intake_id: xml.id,
+        nf_xml_url: url(xml),
+        arquivo_complementar_tipo: 'XML',
+        arquivo_complementar_dispensado: false,
+      };
+
+      const xmlPayload = {
+        ...comum,
+        nf_pdf_intake_id: pdf.id,
+        nf_pdf_url: url(pdf),
+        nf_xml_vinculado_a: pdf.id,
+        vinculado_a_intake_id: pdf.id,
+        ocultar_entrada_unica: source(xml) === 'DocumentIntake' ? true : xml.ocultar_entrada_unica,
+      };
+
+      updates.push(updateDoc(pdf, pdfPayload).catch(() => null));
+      updates.push(updateDoc(xml, xmlPayload).catch(() => null));
+
+      atualizados.set(uid(pdf), { ...atualizados.get(uid(pdf)), ...pdfPayload });
+      atualizados.set(uid(xml), { ...atualizados.get(uid(xml)), ...xmlPayload });
+    }
+  }
+
+  if (updates.length) {
+    await Promise.all(updates);
+  }
+
+  return Array.from(atualizados.values());
+}
+
 export default function GestaoDocumentalDedupe() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -284,10 +391,12 @@ export default function GestaoDocumentalDedupe() {
         base44.entities.DocumentIntake.list('-created_date', 5000).catch(() => []),
       ]);
 
-      return [
+      const docs = [
         ...(attachments || []).map((doc) => ({ ...doc, __source: 'Attachment' })),
         ...(intakes || []).map(normalizeIntake),
       ];
+
+      return autoParearPdfXmlPorNome(docs);
     }
   });
 
@@ -296,6 +405,17 @@ export default function GestaoDocumentalDedupe() {
       .filter((d) => d?.id && d?.status_registro !== 'DELETADO' && !isImg(d))
       .sort((a, b) => new Date(dataDoc(b) || b.created_date || 0) - new Date(dataDoc(a) || a.created_date || 0));
   }, [data]);
+
+  const byPairId = useMemo(() => {
+    const map = new Map();
+    valid.forEach((doc) => {
+      const p = getPairId(doc);
+      if (!p) return;
+      if (!map.has(p)) map.set(p, []);
+      map.get(p).push(doc);
+    });
+    return map;
+  }, [valid]);
 
   const docsById = useMemo(() => new Map(valid.map((doc) => [uid(doc), doc])), [valid]);
 
@@ -318,10 +438,12 @@ export default function GestaoDocumentalDedupe() {
       fornecedor(d),
       nfNumero(d),
       tipo(d),
-      pairStatus(d),
+      pairStatus(d, byPairId),
+      d?.numero_solicitacao,
+      d?.solicitacao_sequencial,
       d?.description,
     ].filter(Boolean).join(' ')).includes(q));
-  }, [valid, dupIds, search, onlyDup]);
+  }, [valid, dupIds, search, onlyDup, byPairId]);
 
   const dupCount = useMemo(() => countDup(valid), [valid]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -369,6 +491,7 @@ export default function GestaoDocumentalDedupe() {
       const xmlUrl = xml ? url(xml) : '';
       const reciboUrl = recibo ? url(recibo) : '';
       const pairId = [uid(pdf), uid(xml), uid(recibo)].filter(Boolean).sort().join('__') || uid(editingDoc);
+      const sequencial = sequencialPorPairId(pairId);
       const pdfId = pdf?.id || '';
       const xmlId = xml?.id || '';
       const reciboId = recibo?.id || '';
@@ -378,6 +501,8 @@ export default function GestaoDocumentalDedupe() {
           pair_id: pairId,
           grupo_documental_id: pairId,
           grupo_status: (xml || recibo) ? 'COMPLETO' : pdf.grupo_status,
+          solicitacao_sequencial: sequencial,
+          numero_solicitacao: sequencial,
           nf_pdf_intake_id: pdfId,
           nf_pdf_url: pdfUrl,
           nf_xml_intake_id: xmlId || pdf.nf_xml_intake_id || '',
@@ -395,6 +520,8 @@ export default function GestaoDocumentalDedupe() {
           pair_id: pairId,
           grupo_documental_id: pairId,
           grupo_status: 'COMPLETO',
+          solicitacao_sequencial: sequencial,
+          numero_solicitacao: sequencial,
           nf_pdf_intake_id: pdfId || xml.nf_pdf_intake_id || '',
           nf_pdf_url: pdfUrl || xml.nf_pdf_url || '',
           nf_xml_vinculado_a: pdfId || xml.nf_xml_vinculado_a || '',
@@ -409,6 +536,8 @@ export default function GestaoDocumentalDedupe() {
           pair_id: pairId,
           grupo_documental_id: pairId,
           grupo_status: 'COMPLETO',
+          solicitacao_sequencial: sequencial,
+          numero_solicitacao: sequencial,
           documento_pai_id: pdfId || recibo.documento_pai_id || '',
           pdf_recibo_id: pdfId || recibo.pdf_recibo_id || '',
           nf_pdf_intake_id: pdfId || recibo.nf_pdf_intake_id || '',
@@ -457,7 +586,6 @@ export default function GestaoDocumentalDedupe() {
       } catch (e) {
         console.warn('Erro ao remover duplicado:', e.message);
       }
-      // Throttle para evitar rate limit
       await new Promise((res) => setTimeout(res, 300));
     }
     toast.success(`${removed} entradas repetidas removidas.`);
@@ -526,11 +654,13 @@ export default function GestaoDocumentalDedupe() {
               <tbody>
                 {pageItems.map((doc, i) => {
                   const href = url(doc);
-                  const status = pairStatus(doc);
+                  const status = pairStatus(doc, byPairId);
+                  const seq = doc.numero_solicitacao || doc.solicitacao_sequencial || '';
                   return (
                     <tr key={uid(doc)} className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
                       <td className="px-2 py-2 align-middle">
                         <span className={`inline-block max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-medium ${status === 'Sem par' ? 'border border-gray-200 bg-white text-gray-700' : 'bg-black text-white'}`}>{status}</span>
+                        {seq && <p className="mt-1 truncate text-[10px] text-gray-400">{seq}</p>}
                       </td>
                       <td className="px-2 py-2 align-middle"><DocTypeBadge doc={doc} /></td>
                       <td className="px-2 py-2 align-middle">
