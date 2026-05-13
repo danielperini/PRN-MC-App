@@ -28,8 +28,7 @@ function source(doc) {
 }
 
 function uid(doc) {
-  if (!doc?.id) return '';
-  return `${source(doc)}:${doc.id}`;
+  return doc?.id ? `${source(doc)}:${doc.id}` : '';
 }
 
 function name(d) {
@@ -49,44 +48,14 @@ function tipo(d) {
   const e = ext(d);
   const t = norm(d?.nf_tipo_documento || d?.tipo_detectado || d?.resultado_ia?.tipo_documento || '');
   const all = norm([
-    name(d),
-    d?.description,
-    d?.categoria,
-    d?.tipo,
-    d?.tipo_detectado,
-    d?.resultado_ia?.tipo_documento,
-    d?.resultado_ia?.categoria_sugerida,
-    d?.resultado_ia?.descricao_servico,
+    name(d), d?.description, d?.categoria, d?.tipo, d?.tipo_detectado,
+    d?.resultado_ia?.tipo_documento, d?.resultado_ia?.categoria_sugerida, d?.resultado_ia?.descricao_servico,
   ].filter(Boolean).join(' '));
 
   if (t === 'xml_nf' || t === 'nota_fiscal_xml' || m.includes('xml') || e === 'xml') return 'XML';
   if (t === 'recibo_pdf' || all.includes('recibo') || all.includes('comprovante') || all.includes('pagamento') || all.includes('boleto') || all.includes('pix')) return 'RECIBO';
   if (t === 'pdf_nf' || t === 'nota_fiscal_pdf' || m.includes('pdf') || e === 'pdf') return 'PDF';
   return 'DOC';
-}
-
-function baseArquivo(d) {
-  return key(name(d)
-    .replace(/\.[^.]+$/i, '')
-    .replace(/\s*\(\d+\)\s*$/i, '')
-    .replace(/\b(pdf|xml|nf|nota|fiscal|arquivo)\b/gi, ''));
-}
-
-function pairIdPorNome(pdf, xml) {
-  const b = baseArquivo(pdf) || baseArquivo(xml);
-  if (b) return `PAR-${b}`;
-  return [uid(pdf), uid(xml)].filter(Boolean).sort().join('__');
-}
-
-function sequencialPorPairId(pairId) {
-  let hash = 0;
-  const str = String(pairId || '');
-  for (let i = 0; i < str.length; i += 1) {
-    hash = ((hash << 5) - hash) + str.charCodeAt(i);
-    hash |= 0;
-  }
-  const n = Math.abs(hash % 999999) + 1;
-  return `SOL-${String(n).padStart(6, '0')}`;
 }
 
 function isImg(d) {
@@ -114,39 +83,46 @@ function dataFmt(v) {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
+function baseArquivo(d) {
+  return key(name(d)
+    .replace(/\.[^.]+$/i, '')
+    .replace(/\s*\(\d+\)\s*$/i, '')
+    .replace(/\b(pdf|xml|nf|nota|fiscal|arquivo)\b/gi, ''));
+}
+
 function ids(d) {
   return [
-    d?.purchase_id,
-    d?.purchase_request_id,
-    d?.purchaseRequestId,
-    d?.solicitacao_id,
-    d?.report_id,
-    d?.nf_pdf_intake_id,
-    d?.nf_xml_intake_id,
-    d?.nf_xml_vinculado_a,
-    d?.nf_pdf_vinculado_a,
-    d?.documento_pai_id,
-    d?.grupo_documental_id,
-    d?.pair_id,
-    d?.par_id,
-    d?.intake_pair_id,
-    d?.entrada_unica_pair_id,
-    d?.comprovante_pdf_id,
-    d?.recibo_pdf_id,
-    d?.pdf_recibo_id,
-    d?.intake_id,
-    d?.document_intake_id,
-    d?.documento_intake_id,
-    d?.vinculado_a_intake_id,
+    d?.purchase_id, d?.purchase_request_id, d?.purchaseRequestId, d?.solicitacao_id, d?.report_id,
+    d?.nf_pdf_intake_id, d?.nf_xml_intake_id, d?.nf_xml_vinculado_a, d?.nf_pdf_vinculado_a,
+    d?.documento_pai_id, d?.grupo_documental_id, d?.pair_id, d?.par_id, d?.intake_pair_id,
+    d?.entrada_unica_pair_id, d?.comprovante_pdf_id, d?.recibo_pdf_id, d?.pdf_recibo_id,
+    d?.intake_id, d?.document_intake_id, d?.documento_intake_id, d?.vinculado_a_intake_id,
   ].filter(Boolean).map(String);
+}
+
+function getPairId(d) {
+  return d?.grupo_documental_id || d?.pair_id || d?.par_id || d?.intake_pair_id || d?.entrada_unica_pair_id || '';
 }
 
 function isLinked(d) {
   return ids(d).length > 0 || d?.grupo_status === 'COMPLETO';
 }
 
-function getPairId(d) {
-  return d?.grupo_documental_id || d?.pair_id || d?.par_id || d?.intake_pair_id || d?.entrada_unica_pair_id || '';
+function pairIdPorNome(pdf, xml) {
+  const b = baseArquivo(pdf) || baseArquivo(xml);
+  if (b) return `PAR-${b}`;
+  return [uid(pdf), uid(xml)].filter(Boolean).sort().join('__');
+}
+
+function sequencialPorPairId(pairId) {
+  let hash = 0;
+  const str = String(pairId || '');
+  for (let i = 0; i < str.length; i += 1) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  const n = Math.abs(hash % 999999) + 1;
+  return `SOL-${String(n).padStart(6, '0')}`;
 }
 
 function pairStatus(d, byPairId = new Map()) {
@@ -159,32 +135,25 @@ function pairStatus(d, byPairId = new Map()) {
 
   if (hasPdf && hasXml) return 'Com XML';
   if (hasPdf && hasRecibo) return 'Com Recibo';
-
   if (t === 'PDF') {
     if (d?.nf_xml_intake_id || d?.nf_xml_url) return 'Com XML';
     if (d?.recibo_pdf_id || d?.comprovante_pdf_id || d?.comprovante_url) return 'Com Recibo';
     if (d?.arquivo_complementar_dispensado) return 'Sem complemento';
     return 'Sem par';
   }
-
   if (isLinked(d)) return 'Vinculado';
   return 'Sem par';
 }
 
 function docKey(d) {
-  const nf = nfNumero(d);
-  const f = fornecedor(d);
-  const v = valorDoc(d);
-  const n = name(d);
-  return `${tipo(d)}:${nf}:${f}:${v}:${n}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return `${tipo(d)}:${nfNumero(d)}:${fornecedor(d)}:${valorDoc(d)}:${name(d)}`.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 function countDup(raw) {
   const m = new Map();
   (raw || []).filter((d) => d?.id && d?.status_registro !== 'DELETADO' && !isImg(d)).forEach((d) => {
     const k = docKey(d);
-    if (!m.has(k)) m.set(k, 0);
-    m.set(k, m.get(k) + 1);
+    m.set(k, (m.get(k) || 0) + 1);
   });
   return Array.from(m.values()).reduce((a, n) => a + Math.max(0, n - 1), 0);
 }
@@ -201,8 +170,17 @@ function DocTypeBadge({ doc }) {
   );
 }
 
+function optionLabel(doc) {
+  const origem = source(doc) === 'DocumentIntake' ? ' — Entrada Única' : ' — Anexo';
+  const nf = nfNumero(doc) ? ` — NF ${nfNumero(doc)}` : '';
+  const vinculado = isLinked(doc) ? ' — já vinculado' : '';
+  return `${tipo(doc)}${nf} — ${name(doc)}${origem}${vinculado}`;
+}
+
 function DocumentSelect({ label, value, onChange, docs, allowedTypes }) {
-  const options = docs.filter((doc) => allowedTypes.includes(tipo(doc)) && (!isLinked(doc) || uid(doc) === value));
+  const options = docs
+    .filter((doc) => allowedTypes.includes(tipo(doc)))
+    .sort((a, b) => name(a).localeCompare(name(b), 'pt-BR'));
 
   return (
     <div className="space-y-1">
@@ -215,7 +193,7 @@ function DocumentSelect({ label, value, onChange, docs, allowedTypes }) {
         <option value="">Não vincular</option>
         {options.map((doc) => (
           <option key={uid(doc)} value={uid(doc)}>
-            {tipo(doc)} — {name(doc)}{source(doc) === 'DocumentIntake' ? ' — Entrada Única' : ''}
+            {optionLabel(doc)}
           </option>
         ))}
       </select>
@@ -250,7 +228,7 @@ function EditarVinculosDialog({ doc, docs, form, setForm, saving, onSave, onClos
           </div>
 
           <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            A lista inclui anexos existentes e arquivos enviados pela Entrada Única que ainda não foram vinculados. Cada XML/recibo só pode ser usado em um par.
+            As listas mostram todos os PDFs, XMLs e recibos/comprovantes disponíveis, incluindo arquivos enviados pela Entrada Única. Ao salvar, o sistema grava o par documental selecionado.
           </div>
 
           <div className="flex justify-end gap-2">
@@ -366,10 +344,7 @@ async function autoParearPdfXmlPorNome(docs) {
     }
   }
 
-  if (updates.length) {
-    await Promise.all(updates);
-  }
-
+  if (updates.length) await Promise.all(updates);
   return Array.from(atualizados.values());
 }
 
@@ -400,11 +375,9 @@ export default function GestaoDocumentalDedupe() {
     }
   });
 
-  const valid = useMemo(() => {
-    return (data || [])
-      .filter((d) => d?.id && d?.status_registro !== 'DELETADO' && !isImg(d))
-      .sort((a, b) => new Date(dataDoc(b) || b.created_date || 0) - new Date(dataDoc(a) || a.created_date || 0));
-  }, [data]);
+  const valid = useMemo(() => (data || [])
+    .filter((d) => d?.id && d?.status_registro !== 'DELETADO' && !isImg(d))
+    .sort((a, b) => new Date(dataDoc(b) || b.created_date || 0) - new Date(dataDoc(a) || a.created_date || 0)), [data]);
 
   const byPairId = useMemo(() => {
     const map = new Map();
@@ -434,14 +407,8 @@ export default function GestaoDocumentalDedupe() {
     const sourceDocs = onlyDup ? valid.filter((d) => dupIds.has(uid(d))) : valid;
     if (!q) return sourceDocs;
     return sourceDocs.filter((d) => norm([
-      name(d),
-      fornecedor(d),
-      nfNumero(d),
-      tipo(d),
-      pairStatus(d, byPairId),
-      d?.numero_solicitacao,
-      d?.solicitacao_sequencial,
-      d?.description,
+      name(d), fornecedor(d), nfNumero(d), tipo(d), pairStatus(d, byPairId),
+      d?.numero_solicitacao, d?.solicitacao_sequencial, d?.description,
     ].filter(Boolean).join(' ')).includes(q));
   }, [valid, dupIds, search, onlyDup, byPairId]);
 
@@ -456,13 +423,35 @@ export default function GestaoDocumentalDedupe() {
     await queryClient.invalidateQueries({ queryKey: ['attachments-compras'] });
   }
 
+  function findDocByEntityId(entityId, targetType = null) {
+    if (!entityId) return null;
+    return valid.find((doc) => String(doc.id) === String(entityId) && (!targetType || tipo(doc) === targetType)) || null;
+  }
+
+  function findPairDoc(doc, targetType) {
+    const p = getPairId(doc);
+    if (p) {
+      const match = (byPairId.get(p) || []).find((item) => tipo(item) === targetType && uid(item) !== uid(doc));
+      if (match) return match;
+    }
+
+    if (targetType === 'PDF') return findDocByEntityId(doc.nf_pdf_intake_id || doc.documento_pai_id || doc.vinculado_a_intake_id, 'PDF');
+    if (targetType === 'XML') return findDocByEntityId(doc.nf_xml_intake_id, 'XML');
+    if (targetType === 'RECIBO') return findDocByEntityId(doc.recibo_pdf_id || doc.comprovante_pdf_id, 'RECIBO');
+    return null;
+  }
+
   function openEdit(doc) {
     const t = tipo(doc);
+    const pdf = t === 'PDF' ? doc : findPairDoc(doc, 'PDF');
+    const xml = t === 'XML' ? doc : findPairDoc(doc, 'XML');
+    const recibo = t === 'RECIBO' || t === 'DOC' ? doc : findPairDoc(doc, 'RECIBO');
+
     setEditingDoc(doc);
     setEditForm({
-      pdfId: t === 'PDF' ? uid(doc) : '',
-      xmlId: t === 'XML' ? uid(doc) : '',
-      reciboId: t === 'RECIBO' || t === 'DOC' ? uid(doc) : '',
+      pdfId: pdf ? uid(pdf) : '',
+      xmlId: xml ? uid(xml) : '',
+      reciboId: recibo ? uid(recibo) : '',
     });
   }
 
@@ -478,15 +467,8 @@ export default function GestaoDocumentalDedupe() {
       return;
     }
 
-    if ((xml && isLinked(xml) && uid(xml) !== editForm.xmlId) || (recibo && isLinked(recibo) && uid(recibo) !== editForm.reciboId)) {
-      toast.warning('Este complemento já está vinculado a outro par.');
-      return;
-    }
-
     setSavingLinks(true);
-
     try {
-      const updates = [];
       const pdfUrl = pdf ? url(pdf) : '';
       const xmlUrl = xml ? url(xml) : '';
       const reciboUrl = recibo ? url(recibo) : '';
@@ -495,6 +477,7 @@ export default function GestaoDocumentalDedupe() {
       const pdfId = pdf?.id || '';
       const xmlId = xml?.id || '';
       const reciboId = recibo?.id || '';
+      const updates = [];
 
       if (pdf) {
         updates.push(updateDoc(pdf, {
@@ -505,11 +488,11 @@ export default function GestaoDocumentalDedupe() {
           numero_solicitacao: sequencial,
           nf_pdf_intake_id: pdfId,
           nf_pdf_url: pdfUrl,
-          nf_xml_intake_id: xmlId || pdf.nf_xml_intake_id || '',
-          nf_xml_url: xmlUrl || pdf.nf_xml_url || '',
-          recibo_pdf_id: reciboId || pdf.recibo_pdf_id || '',
-          comprovante_pdf_id: reciboId || pdf.comprovante_pdf_id || '',
-          comprovante_url: reciboUrl || pdf.comprovante_url || '',
+          nf_xml_intake_id: xmlId || '',
+          nf_xml_url: xmlUrl || '',
+          recibo_pdf_id: reciboId || '',
+          comprovante_pdf_id: reciboId || '',
+          comprovante_url: reciboUrl || '',
           arquivo_complementar_status: (xml || recibo) ? 'VINCULADO' : pdf.arquivo_complementar_status,
           arquivo_complementar_tipo: xml ? 'XML' : recibo ? 'RECIBO' : pdf.arquivo_complementar_tipo,
         }));
@@ -522,10 +505,10 @@ export default function GestaoDocumentalDedupe() {
           grupo_status: 'COMPLETO',
           solicitacao_sequencial: sequencial,
           numero_solicitacao: sequencial,
-          nf_pdf_intake_id: pdfId || xml.nf_pdf_intake_id || '',
-          nf_pdf_url: pdfUrl || xml.nf_pdf_url || '',
-          nf_xml_vinculado_a: pdfId || xml.nf_xml_vinculado_a || '',
-          vinculado_a_intake_id: pdfId || xml.vinculado_a_intake_id || '',
+          nf_pdf_intake_id: pdfId,
+          nf_pdf_url: pdfUrl,
+          nf_xml_vinculado_a: pdfId,
+          vinculado_a_intake_id: pdfId,
           ocultar_entrada_unica: source(xml) === 'DocumentIntake' ? true : xml.ocultar_entrada_unica,
           arquivo_complementar_status: 'VINCULADO',
         }));
@@ -538,11 +521,11 @@ export default function GestaoDocumentalDedupe() {
           grupo_status: 'COMPLETO',
           solicitacao_sequencial: sequencial,
           numero_solicitacao: sequencial,
-          documento_pai_id: pdfId || recibo.documento_pai_id || '',
-          pdf_recibo_id: pdfId || recibo.pdf_recibo_id || '',
-          nf_pdf_intake_id: pdfId || recibo.nf_pdf_intake_id || '',
-          nf_pdf_url: pdfUrl || recibo.nf_pdf_url || '',
-          vinculado_a_intake_id: pdfId || recibo.vinculado_a_intake_id || '',
+          documento_pai_id: pdfId,
+          pdf_recibo_id: pdfId,
+          nf_pdf_intake_id: pdfId,
+          nf_pdf_url: pdfUrl,
+          vinculado_a_intake_id: pdfId,
           ocultar_entrada_unica: source(recibo) === 'DocumentIntake' ? true : recibo.ocultar_entrada_unica,
           arquivo_complementar_status: 'VINCULADO',
         }));
@@ -565,7 +548,9 @@ export default function GestaoDocumentalDedupe() {
       await deleteDoc(doc);
       toast.success('Documento removido.');
       await refresh();
-    } catch (e) { toast.error(`Erro ao remover: ${e.message}`); }
+    } catch (e) {
+      toast.error(`Erro ao remover: ${e.message}`);
+    }
   }
 
   async function removeDup() {
@@ -582,7 +567,7 @@ export default function GestaoDocumentalDedupe() {
     for (const d of duplicates) {
       try {
         await deleteDoc(d);
-        removed++;
+        removed += 1;
       } catch (e) {
         console.warn('Erro ao remover duplicado:', e.message);
       }
@@ -603,11 +588,7 @@ export default function GestaoDocumentalDedupe() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={pageSize}
-            onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-            className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700"
-          >
+          <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700">
             <option value={10}>10 por página</option>
             <option value={20}>20 por página</option>
           </select>
