@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Calculator, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
@@ -91,12 +91,58 @@ function calcular(reports) {
   return { relatorios, brutas, duplicadas, atividades, total };
 }
 
+function findPublicoCard() {
+  const labels = Array.from(document.querySelectorAll('span'));
+  const label = labels.find((el) => {
+    const text = norm(el.textContent);
+    return text.includes('publico total') && text.includes('aprovados');
+  });
+  return label?.closest('.rounded-2xl') || null;
+}
+
 export default function PublicoAprovadoAuditButton() {
   const [open, setOpen] = useState(false);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [position, setPosition] = useState(null);
 
   const audit = useMemo(() => calcular(reports), [reports]);
+
+  useEffect(() => {
+    let raf = null;
+
+    const updatePosition = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const card = findPublicoCard();
+        if (!card) {
+          setPosition(null);
+          return;
+        }
+
+        const rect = card.getBoundingClientRect();
+        setPosition({
+          top: Math.max(8, rect.bottom + 6),
+          left: Math.max(8, rect.left),
+          width: Math.max(180, rect.width),
+        });
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+
+    const observer = new MutationObserver(updatePosition);
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+      observer.disconnect();
+    };
+  }, []);
 
   async function abrir() {
     setOpen(true);
@@ -111,10 +157,19 @@ export default function PublicoAprovadoAuditButton() {
     }
   }
 
+  if (!position) return null;
+
   return (
     <>
-      <button type="button" onClick={abrir} className="fixed bottom-4 right-4 z-50 rounded-full bg-black text-white shadow-lg px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-gray-800">
-        <Calculator className="w-4 h-4" /> Memória público aprovado
+      <button
+        type="button"
+        onClick={abrir}
+        className="fixed z-40 rounded-xl border border-gray-200 bg-white/95 px-3 py-1.5 text-[11px] font-medium text-gray-600 shadow-sm hover:border-gray-300 hover:text-black hover:bg-white flex items-center justify-center gap-1.5"
+        style={{ top: position.top, left: position.left, width: position.width }}
+        title="Ver memória do cálculo do público aprovado"
+      >
+        <Calculator className="w-3.5 h-3.5" />
+        memória de cálculo do público
       </button>
 
       {open && (
