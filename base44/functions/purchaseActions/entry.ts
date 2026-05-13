@@ -102,12 +102,40 @@ async function estornarSeNecessario(base44: any, purchase: any, valor: number) {
   await estornarRubrica(base44, rubrica, valorEstorno);
 }
 
+// Troca de rubrica: estorna da antiga e debita na nova (ou apenas atualiza se ainda não debitado)
+async function trocarRubricaSeNecessario(
+  base44: any,
+  purchase: any,
+  novaRubricaId: string,
+  novoValor: number
+) {
+  const rubricaAntigaId = purchase.rubrica_id;
+  const jaDebitado = !!purchase.rubrica_debitada_em;
+
+  if (!jaDebitado) {
+    // Ainda não foi debitado: apenas atualiza o vínculo, sem movimentar saldo
+    return { debitou: false };
+  }
+
+  // Já foi debitado: precisamos estornar a antiga e debitar na nova
+  if (rubricaAntigaId && rubricaAntigaId !== novaRubricaId) {
+    const rubricaAntiga = await getRubrica(base44, rubricaAntigaId);
+    const valorEstorno = toNumber(purchase.rubrica_debitada_valor) || novoValor;
+    await estornarRubrica(base44, rubricaAntiga, valorEstorno);
+  }
+
+  const rubricaNova = await getRubrica(base44, novaRubricaId);
+  await debitarRubrica(base44, rubricaNova, novoValor);
+
+  return { debitou: true };
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const body = await req.json().catch(() => ({}));
 
-    const { action, purchaseId, comentario } = body;
+    const { action, purchaseId, comentario, novaRubricaId, novoValor } = body;
 
     if (!purchaseId) {
       return json({ success: false, error: 'purchaseId obrigatório.' }, 400);
@@ -122,14 +150,49 @@ Deno.serve(async (req) => {
     const valor = getPurchaseValue(purchase);
 
     // =========================
+    // TROCAR RUBRICA
+    // (estorna antiga, debita nova — mesmo se já aprovado)
+    // =========================
+    if (action === 'trocar_rubrica') {
+      if (!novaRubricaId) {
+        return json({ success: false, error: 'novaRubricaId obrigatório.' }, 400);
+      }
+
+      const valorTroca = novoValor != null ? toNumber(novoValor) : getPurchaseValue(purchase);
+
+      const { debitou } = await trocarRubricaSeNecessario(base44, purchase, novaRubricaId, valorTroca);
+
+      const now = new Date().toISOString();
+      const updated = await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
+        rubrica_id: novaRubricaId,
+        ...(debitou ? {
+          rubrica_debitada_em: now,
+          rubrica_debitada_valor: valorTroca,
+          financeiro_lancado_em: purchase.financeiro_lancado_em || now
+        } : {})
+      });
+
+      return json({ success: true, purchase: updated });
+    }
+
+    // =========================
     // APROVAR (CORE CORRETO)
     // =========================
     if (action === 'aprovar') {
-      const rubrica = await getRubrica(base44, purchase.rubrica_id);
+      // Verifica se a rubrica foi trocada antes de aprovar
+      const rubricaAprovacaoId = novaRubricaId || purchase.rubrica_id;
+      if (!rubricaAprovacaoId) {
+        return json({ success: false, error: 'Rubrica obrigatória para aprovação.' }, 400);
+      }
 
       const jaDebitado = !!purchase.rubrica_debitada_em;
+      const rubricaMudou = jaDebitado && novaRubricaId && novaRubricaId !== purchase.rubrica_id;
 
-      if (!jaDebitado) {
+      if (rubricaMudou) {
+        // Estorna antiga e debita na nova
+        await trocarRubricaSeNecessario(base44, purchase, novaRubricaId, valor);
+      } else if (!jaDebitado) {
+        const rubrica = await getRubrica(base44, rubricaAprovacaoId);
         await debitarRubrica(base44, rubrica, valor);
       }
 
@@ -137,6 +200,7 @@ Deno.serve(async (req) => {
         purchase.id,
         {
           status: 'APROVADO_COORD',
+          rubrica_id: rubricaAprovacaoId,
           financeiro_lancado_em:
             purchase.financeiro_lancado_em || new Date().toISOString(),
           rubrica_debitada_em:

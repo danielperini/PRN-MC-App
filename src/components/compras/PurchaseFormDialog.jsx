@@ -433,6 +433,18 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         await base44.entities.PurchaseRequest.update(prefill.id, payload)
         await createAttachmentForPurchase({ id: prefill.id }, payload)
 
+        // Se rubrica mudou e já estava debitada, reequilibra os saldos
+        const rubricaMudou = form.rubrica_id && form.rubrica_id !== prefill?.rubrica_id
+        const jaDebitado = !!prefill?.rubrica_debitada_em
+        if (rubricaMudou && jaDebitado && form.rubrica_id) {
+          await base44.functions.invoke('purchaseActions', {
+            action: 'trocar_rubrica',
+            purchaseId: prefill.id,
+            novaRubricaId: form.rubrica_id,
+            novoValor: toNumber(form.valor_solicitado),
+          })
+        }
+
         smartToast.success('Solicitação atualizada.')
       } else {
         const payload = buildPayload('SOLICITADO')
@@ -463,7 +475,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   }
 
   async function handleApprove() {
-    if (!prefill?.rubrica_id && !form.rubrica_id) {
+    const rubricaId = form.rubrica_id || prefill?.rubrica_id
+    if (!rubricaId) {
       smartToast.error('Vincule uma rubrica antes de aprovar.')
       return
     }
@@ -471,33 +484,22 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     setApproving(true)
 
     try {
+      // Salva metadados da aprovação primeiro
       await base44.entities.PurchaseRequest.update(prefill.id, {
         ...buildPayload('APROVADO_COORD'),
         aprov_coord_nome: currentUser?.full_name || currentUser?.email,
         aprov_coord_data: new Date().toISOString().split('T')[0]
       })
 
-      const rubricaId = form.rubrica_id || prefill.rubrica_id
-
-      if (rubricaId) {
-        try {
-          const rubrica = await base44.entities.Rubrica.get(rubricaId)
-
-          if (rubrica) {
-            const valor = toNumber(form.valor_solicitado || prefill.valor_solicitado)
-            const utilizado = toNumber(rubrica.valor_utilizado) + valor
-            const total = toNumber(rubrica.valor_rubrica || rubrica.valor_total)
-            const saldo = total - utilizado
-
-            await base44.entities.Rubrica.update(rubricaId, {
-              valor_utilizado: utilizado,
-              saldo,
-              saldo_real: saldo,
-              percentual_utilizado: total > 0 ? (utilizado / total) * 100 : 0
-            })
-          }
-        } catch (_) {}
-      }
+      // Usa purchaseActions para aprovar — trata troca de rubrica corretamente
+      const novaRubricaId = form.rubrica_id !== prefill?.rubrica_id ? form.rubrica_id : undefined
+      await base44.functions.invoke('purchaseActions', {
+        action: 'aprovar',
+        purchaseId: prefill.id,
+        novaRubricaId: novaRubricaId || undefined,
+        aprovadorEmail: currentUser?.email || '',
+        aprovadorNome: currentUser?.full_name || currentUser?.email || '',
+      })
 
       smartToast.success('Solicitação aprovada.')
       onSuccess?.()
