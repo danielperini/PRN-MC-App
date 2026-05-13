@@ -6,9 +6,11 @@ import {
   CheckCircle,
   Loader2,
   AlertCircle,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import PurchaseTimeline from './PurchaseTimeline';
+import PagarSolicitacaoDialog from './PagarSolicitacaoDialog';
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -28,12 +30,14 @@ export default function PurchaseCard({
   statusConfig,
   isCoordenador,
   isAdmin,
+  currentUser,
   onRefresh,
 }) {
 
   const queryClient = useQueryClient();
   const [actionLoading, setActionLoading] = useState(false);
   const [teamPayment, setTeamPayment] = useState(null);
+  const [showPagarDialog, setShowPagarDialog] = useState(false);
 
   const statusInfo = statusConfig[purchase.status] || {
     label: purchase.status,
@@ -74,56 +78,26 @@ export default function PurchaseCard({
 
   /* ================= PAGAMENTO ================= */
 
-  const handleMarkAsPaid = async () => {
-
-    if (!hasRubricaVinculada) {
-      toast.error('❌ Vincule uma rubrica antes de pagar');
-      return;
-    }
-
+  // Para pagamentos de equipe (TeamPayment), mantém fluxo legado sem comprovante obrigatório
+  const handleMarkAsPaidTeam = async () => {
+    if (!hasRubricaVinculada) { toast.error('❌ Vincule uma rubrica antes de pagar'); return; }
     if (isTeamPayment && teamPayment) {
-
-      if (teamPayment.nf_valida === false) {
-        toast.error('❌ NF inválida. Não é possível pagar.');
-        return;
-      }
-
-      if (!teamPayment.nota_fiscal_url) {
-        toast.error('❌ Nota fiscal não anexada.');
-        return;
-      }
+      if (teamPayment.nf_valida === false) { toast.error('❌ NF inválida.'); return; }
+      if (!teamPayment.nota_fiscal_url) { toast.error('❌ Nota fiscal não anexada.'); return; }
     }
-
     setActionLoading(true);
-
-    // Optimistic update: update local state immediately
     const previousData = queryClient.getQueryData(['purchases']);
-    const optimisticPurchase = { ...purchase, status: 'PAGO' };
     queryClient.setQueryData(['purchases'], (old) =>
-      Array.isArray(old) ? old.map((p) => (p.id === purchase.id ? optimisticPurchase : p)) : old
+      Array.isArray(old) ? old.map((p) => (p.id === purchase.id ? { ...p, status: 'PAGO' } : p)) : old
     );
-
     try {
-
-      await base44.functions.invoke('purchaseActions', {
-        action: 'marcar_pago',
-        purchaseId: purchase.id,
-      });
-
-      toast.success(
-        isTeamPayment
-          ? 'Pagamento da equipe realizado e contabilizado'
-          : 'Pagamento realizado'
-      );
-
-      // Invalidate queries for server sync
+      await base44.functions.invoke('purchaseActions', { action: 'marcar_pago', purchaseId: purchase.id });
+      toast.success('Pagamento da equipe realizado e contabilizado');
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
       queryClient.invalidateQueries({ queryKey: ['team-payments'] });
       onRefresh?.();
-
     } catch (e) {
       toast.error('Erro ao pagar: ' + e.message);
-      // Rollback on error
       queryClient.setQueryData(['purchases'], previousData);
     } finally {
       setActionLoading(false);
@@ -175,32 +149,68 @@ export default function PurchaseCard({
         </div>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
 
-        {canMarkAsPaidBase && (
+        {/* Pagamentos de equipe: fluxo antigo sem comprovante */}
+        {canMarkAsPaidBase && isTeamPayment && (
           <Button
             size="sm"
             className={`font-medium gap-1 ${actionLoading || !canMarkAsPaid ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}`}
-            onClick={handleMarkAsPaid}
+            onClick={handleMarkAsPaidTeam}
             disabled={actionLoading || !canMarkAsPaid}
           >
-            {actionLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {isTeamPayment ? 'Pagando...' : 'Salvando...'}
-              </>
-            ) : (
-              <>
-                <CheckCircle className="w-4 h-4" />
-                {isTeamPayment ? 'Pagar equipe' : 'Marcar pago'}
-              </>
-            )}
+            {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+            {actionLoading ? 'Pagando...' : 'Pagar equipe'}
           </Button>
+        )}
+
+        {/* Solicitações normais: abre dialog com upload de comprovante */}
+        {canMarkAsPaidBase && !isTeamPayment && (
+          <Button
+            size="sm"
+            className={`font-medium gap-1 ${!canMarkAsPaid ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
+            onClick={() => setShowPagarDialog(true)}
+            disabled={!canMarkAsPaid}
+          >
+            <CheckCircle className="w-4 h-4" />
+            Pago
+          </Button>
+        )}
+
+        {/* Badge de comprovante anexado */}
+        {purchase.comprovante_pagamento_url && (
+          <a
+            href={purchase.comprovante_pagamento_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-blue-700 underline"
+            onClick={e => e.stopPropagation()}
+          >
+            <FileText className="w-3 h-3" />
+            Comprovante
+          </a>
+        )}
+
+        {purchase.numero_processamento && (
+          <span className="text-xs font-mono text-gray-400 self-center">#{purchase.numero_processamento}</span>
         )}
 
       </div>
 
       <PurchaseTimeline purchase={purchase} />
+
+      {showPagarDialog && (
+        <PagarSolicitacaoDialog
+          purchase={purchase}
+          currentUser={currentUser}
+          onClose={() => setShowPagarDialog(false)}
+          onSuccess={() => {
+            setShowPagarDialog(false);
+            queryClient.invalidateQueries({ queryKey: ['purchases'] });
+            onRefresh?.();
+          }}
+        />
+      )}
 
     </div>
   );

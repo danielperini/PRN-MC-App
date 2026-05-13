@@ -175,6 +175,19 @@ Deno.serve(async (req) => {
       return json({ success: true, purchase: updated });
     }
 
+    // Helper: gerar número de processamento único
+    async function gerarNumeroProcessamento() {
+      const now = new Date();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const yyyy = now.getFullYear();
+      const prefixo = `${mm}${dd}${yyyy}`;
+      const todas = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', 500);
+      const deHoje = (todas || []).filter((p: any) => (p.numero_processamento || '').startsWith(prefixo));
+      const seq = deHoje.length + 1;
+      return `${prefixo}${String(seq).padStart(4, '0')}`;
+    }
+
     // =========================
     // APROVAR (CORE CORRETO)
     // =========================
@@ -196,11 +209,14 @@ Deno.serve(async (req) => {
         await debitarRubrica(base44, rubrica, valor);
       }
 
+      const numeroProcessamento = purchase.numero_processamento || await gerarNumeroProcessamento();
+
       const updated = await base44.asServiceRole.entities.PurchaseRequest.update(
         purchase.id,
         {
           status: 'APROVADO_COORD',
           rubrica_id: rubricaAprovacaoId,
+          numero_processamento: numeroProcessamento,
           financeiro_lancado_em:
             purchase.financeiro_lancado_em || new Date().toISOString(),
           rubrica_debitada_em:
@@ -289,6 +305,35 @@ Deno.serve(async (req) => {
       );
 
       await syncAttachments(base44, updated, 'CANCELADO');
+
+      return json({ success: true, purchase: updated });
+    }
+
+    // =========================
+    // MARCAR PAGO (sem comprovante — legado / equipe)
+    // =========================
+    if (action === 'marcar_pago') {
+      const now = new Date();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const yyyy = now.getFullYear();
+      const prefixo = `${mm}${dd}${yyyy}`;
+
+      let numeroProcessamento = purchase.numero_processamento;
+      if (!numeroProcessamento) {
+        const todas = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', 500);
+        const deHoje = (todas || []).filter((p: any) => (p.numero_processamento || '').startsWith(prefixo));
+        const seq = deHoje.length + 1;
+        numeroProcessamento = `${prefixo}${String(seq).padStart(4, '0')}`;
+      }
+
+      const updated = await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
+        status: 'PAGO',
+        pago: true,
+        status_pagamento: 'pago',
+        data_pagamento: now.toISOString(),
+        numero_processamento: numeroProcessamento,
+      });
 
       return json({ success: true, purchase: updated });
     }

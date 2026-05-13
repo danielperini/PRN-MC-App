@@ -1,0 +1,67 @@
+{
+  "name": "Rubrica",
+  "type": "object",
+  "properties": {
+    "rubrica": {
+      "type": "string",
+      "description": "Nome da rubrica"
+    },
+    "grupo": {
+      "type": "string",
+      "description": "Grupo da rubrica (ex: Equipe e gest\u00e3o, Manuten\u00e7\u00e3o e opera\u00e7\u00e3o)"
+    },
+    "meta": {
+      "type": "string",
+      "description": "Meta vinculada (ex: MC3A-20, MC3A-21)"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o detalhada da rubrica"
+    },
+    "numero_parcelas_unidades": {
+      "type": "string",
+      "description": "N\u00famero de parcelas/meses/unidades"
+    },
+    "valor_rubrica": {
+      "type": "number",
+      "description": "Valor total previsto da rubrica"
+    },
+    "valor_total": {
+      "type": "number",
+      "description": "Alias para valor_rubrica"
+    },
+    "valor_utilizado": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor utilizado (soma dos lan\u00e7amentos)"
+    },
+    "saldo": {
+      "type": "number",
+      "description": "Saldo dispon\u00edvel"
+    },
+    "saldo_real": {
+      "type": "number",
+      "description": "Saldo real calculado"
+    },
+    "percentual_utilizado": {
+      "type": "number",
+      "default": 0
+    },
+    "observacao_uso": {
+      "type": "string"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true
+    },
+    "ordem_exibicao": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "grupo",
+    "rubrica",
+    "valor_rubrica"
+  ]
+}

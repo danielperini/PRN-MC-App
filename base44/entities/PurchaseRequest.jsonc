@@ -1,0 +1,332 @@
+{
+  "name": "PurchaseRequest",
+  "type": "object",
+  "properties": {
+    "numero_processamento": {
+      "type": "string",
+      "description": "N\u00famero \u00fanico de processamento no formato MMDDYYYYXXXX"
+    },
+    "report_id": {
+      "type": "string",
+      "description": "ID do relat\u00f3rio mensal vinculado (FK \u2192 Report)"
+    },
+    "activity_id": {
+      "type": "string",
+      "description": "ID da atividade vinculada (opcional)"
+    },
+    "product_id": {
+      "type": "string",
+      "description": "ID do produto vinculado (opcional)"
+    },
+    "meta_id": {
+      "type": "string",
+      "enum": [
+        "MC3A-20",
+        "MC3A-21",
+        "MC3A-22",
+        "MC3A-23",
+        "MC3A-24",
+        "MC3A-25",
+        "MC3A-EXTRA"
+      ],
+      "description": "Meta do 3\u00ba Aditivo vinculada"
+    },
+    "meta_extra_descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o quando meta = MC3A-EXTRA"
+    },
+    "budgetline_id": {
+      "type": "string",
+      "description": "ID da rubrica or\u00e7ament\u00e1ria (FK \u2192 BudgetLine)"
+    },
+    "rubrica_id": {
+      "type": "string",
+      "description": "ID da rubrica direta (FK \u2192 Rubrica)"
+    },
+    "categoria": {
+      "type": "string",
+      "enum": [
+        "Servi\u00e7os (equipe/coordena\u00e7\u00e3o)",
+        "Servi\u00e7os (comunica\u00e7\u00e3o: designer, foto, v\u00eddeo, imprensa, redes)",
+        "Servi\u00e7os (produ\u00e7\u00e3o/infraestrutura/expografia)",
+        "Servi\u00e7os (eventos/atra\u00e7\u00f5es/artistas)",
+        "Servi\u00e7os (seguran\u00e7a/limpeza)",
+        "Log\u00edstica (transporte/vans)",
+        "Alimenta\u00e7\u00e3o (lanche/caf\u00e9/coffeebreak)",
+        "Consultoria / Forma\u00e7\u00e3o / Acessibilidade",
+        "Materiais de consumo",
+        "Outros"
+      ]
+    },
+    "tipo_gasto": {
+      "type": "string",
+      "enum": [
+        "Produto",
+        "Servi\u00e7o"
+      ]
+    },
+    "centro_custo": {
+      "type": "string",
+      "enum": [
+        "MUMO",
+        "MIS",
+        "MHAB",
+        "Noturno nos Museus 2026",
+        "Publica\u00e7\u00f5es",
+        "Geral"
+      ]
+    },
+    "descricao_item": {
+      "type": "string"
+    },
+    "qtd": {
+      "type": "number",
+      "default": 1
+    },
+    "unidade": {
+      "type": "string"
+    },
+    "valor_solicitado": {
+      "type": "number"
+    },
+    "fornecedor_nome": {
+      "type": "string"
+    },
+    "fornecedor_cnpj": {
+      "type": "string"
+    },
+    "fornecedor_contato": {
+      "type": "string"
+    },
+    "link_proposta": {
+      "type": "string"
+    },
+    "meio_pagamento": {
+      "type": "string",
+      "enum": [
+        "PIX",
+        "TED/Transfer\u00eancia",
+        "Boleto",
+        "Cart\u00e3o",
+        "Dinheiro"
+      ]
+    },
+    "detalhe_pagamento": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "RASCUNHO",
+        "SOLICITADO",
+        "APROVADO_COORD",
+        "APROVADO_ADMIN",
+        "RECUSADO",
+        "CANCELADO",
+        "DEVOLVIDO",
+        "PAGO"
+      ],
+      "default": "RASCUNHO"
+    },
+    "pago": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o pagamento foi realizado"
+    },
+    "status_pagamento": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "pago",
+        "aguardando_comprovante",
+        "revisao_manual"
+      ],
+      "default": "pendente",
+      "description": "Status granular do pagamento"
+    },
+    "comprovante_pagamento_url": {
+      "type": "string",
+      "description": "URL do comprovante de dep\u00f3sito/transfer\u00eancia em PDF"
+    },
+    "data_pagamento": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora do pagamento"
+    },
+    "usuario_pagamento": {
+      "type": "string",
+      "description": "Email do coordenador que marcou como pago"
+    },
+    "usuario_pagamento_nome": {
+      "type": "string",
+      "description": "Nome do coordenador que marcou como pago"
+    },
+    "confianca_vinculo_pagamento": {
+      "type": "number",
+      "description": "Score 0-100 de confian\u00e7a do v\u00ednculo autom\u00e1tico por IA"
+    },
+    "vinculo_automatico_ia": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o v\u00ednculo foi feito automaticamente pela IA"
+    },
+    "aprov_coord_nome": {
+      "type": "string"
+    },
+    "aprov_coord_data": {
+      "type": "string",
+      "format": "date"
+    },
+    "aprov_coord_comentario": {
+      "type": "string"
+    },
+    "aprov_admin_nome": {
+      "type": "string"
+    },
+    "aprov_admin_data": {
+      "type": "string",
+      "format": "date"
+    },
+    "aprov_admin_comentario": {
+      "type": "string"
+    },
+    "valor_aprovado_admin": {
+      "type": "number"
+    },
+    "valor_pago": {
+      "type": "number"
+    },
+    "data_pagamento_efetivo": {
+      "type": "string",
+      "format": "date"
+    },
+    "comprovante_url": {
+      "type": "string"
+    },
+    "nota_fiscal_url": {
+      "type": "string"
+    },
+    "orcamento_url": {
+      "type": "string"
+    },
+    "observacoes": {
+      "type": "string"
+    },
+    "ai_meta_score": {
+      "type": "number"
+    },
+    "ai_meta_sugerida": {
+      "type": "string"
+    },
+    "ai_analise": {
+      "type": "string"
+    },
+    "quitada": {
+      "type": "boolean",
+      "default": false
+    },
+    "nf_numero": {
+      "type": "string"
+    },
+    "nf_emitente_nome": {
+      "type": "string"
+    },
+    "nf_valor_total": {
+      "type": "number"
+    },
+    "nf_data_emissao": {
+      "type": "string",
+      "format": "date"
+    },
+    "valor_total": {
+      "type": "number"
+    },
+    "valor_aprovado": {
+      "type": "number"
+    },
+    "comentario_aprovacao": {
+      "type": "string"
+    },
+    "comentario_desaprovacao": {
+      "type": "string"
+    },
+    "comentario_devolucao": {
+      "type": "string"
+    },
+    "approved_by": {
+      "type": "string"
+    },
+    "approved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "rejected_by": {
+      "type": "string"
+    },
+    "rejected_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "comentario_rejeicao": {
+      "type": "string"
+    },
+    "rubrica_debitada_em": {
+      "type": "string"
+    },
+    "rubrica_debitada_valor": {
+      "type": "number"
+    },
+    "financeiro_lancado_em": {
+      "type": "string"
+    },
+    "file_url": {
+      "type": "string"
+    },
+    "arquivo_url": {
+      "type": "string"
+    },
+    "arquivo_nome": {
+      "type": "string"
+    },
+    "arquivo_tipo": {
+      "type": "string"
+    },
+    "nf_pdf_url": {
+      "type": "string"
+    },
+    "documento_url": {
+      "type": "string"
+    },
+    "nf_emitente_cpf_cnpj": {
+      "type": "string"
+    },
+    "origem": {
+      "type": "string"
+    },
+    "tipo_origem": {
+      "type": "string"
+    },
+    "intake_id": {
+      "type": "string"
+    },
+    "documento_intake_id": {
+      "type": "string"
+    },
+    "entidade_destino_id": {
+      "type": "string"
+    },
+    "attachment_id": {
+      "type": "string"
+    },
+    "rubrica_nome": {
+      "type": "string"
+    },
+    "team_payment_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "descricao_item",
+    "valor_solicitado"
+  ]
+}

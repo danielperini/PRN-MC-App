@@ -41,6 +41,7 @@ import GestaoDocumental from '@/pages/GestaoDocumental';
 import RubricasGrid from '@/components/compras/RubricasGrid';
 import RubricaDetail from '@/components/rubricas/RubricaDetail';
 import AuditoriaFinanceiraCard from '@/components/compras/AuditoriaFinanceiraCard';
+import EntradaUnicaComprovante from '@/components/compras/EntradaUnicaComprovante';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -1079,6 +1080,9 @@ function ComprasInner() {
 
         {tab === 'documentos' && (
           <div className="max-w-7xl space-y-6">
+            {isCoordenador && (
+              <EntradaUnicaComprovante onSuccess={refreshFinanceiroCompleto} />
+            )}
             <GestaoDocumental />
           </div>
         )}
