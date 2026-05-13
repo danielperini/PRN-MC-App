@@ -3,15 +3,14 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
-import { Cloud, Calendar, AlertTriangle, HardDrive, ChevronDown, Loader2, FileText, Info, Download, File, ExternalLink, Eye, Trash2 } from 'lucide-react';
+import { AlertTriangle, Loader2, FileText, Info, Download, File, Eye, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import BackupMonthlyDialog from '../components/backup/BackupMonthlyDialog';
 import BackupHistoryTable from '../components/backup/BackupHistoryTable';
 import FileBackupStatus from '../components/backup/FileBackupStatus';
 import FileHierarchy from '../components/gallery/FileHierarchy';
@@ -30,9 +29,7 @@ function GestorArquivosInner() {
   const [previewFile, setPreviewFile] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
   const [showHistory, setShowHistory] = useState('contratos');
-  const [showMonthlyBackup, setShowMonthlyBackup] = useState(false);
-  const [backupDriveLoading, setBackupDriveLoading] = useState(false);
-  const [backupFullLoading, setBackupFullLoading] = useState(false);
+
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [uploadFiles, setUploadFiles] = useState([]);
   const [uploadNotes, setUploadNotes] = useState('');
@@ -148,31 +145,6 @@ function GestorArquivosInner() {
     if (isGeneralCoordinator) return true;
     if (isOtherCoordinator) return true;
     return backup.created_by === currentUser?.email;
-  };
-
-  const handleBackupFull = async () => {
-    setBackupFullLoading(true);
-    try {
-      await base44.functions.invoke('backupToGoogleDrive');
-      toastMessages.createSuccess();
-    } catch (error) {
-      toastMessages.createFailed(error?.message);
-    } finally {
-      setBackupFullLoading(false);
-    }
-  };
-
-  const handleBackupDrive = async () => {
-    setBackupDriveLoading(true);
-    try {
-      const response = await base44.functions.invoke('backupDriveFolders', {});
-      const count = response.data?.totalFilesCopied || 0;
-      toastMessages.createSuccess();
-    } catch (error) {
-      toastMessages.createFailed(error?.message);
-    } finally {
-      setBackupDriveLoading(false);
-    }
   };
 
   const handleDownloadBackup = async (backup) => {
@@ -294,7 +266,7 @@ function GestorArquivosInner() {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-6">
         <div className="text-center">
-          <Cloud className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <Loader2 className="w-16 h-16 text-gray-300 mx-auto mb-4 animate-spin" />
           <h2 className="text-xl font-semibold text-gray-900">Carregando...</h2>
         </div>
       </div>
@@ -375,7 +347,6 @@ function GestorArquivosInner() {
         </DialogContent>
       </Dialog>
 
-      <BackupMonthlyDialog isOpen={showMonthlyBackup} onClose={() => setShowMonthlyBackup(false)} />
       <FilePreviewViewer file={previewFile} isOpen={showPreview} onClose={() => setShowPreview(false)} />
       <GoogleDriveImporter
         isOpen={showDriveImporter}
@@ -405,32 +376,7 @@ function GestorArquivosInner() {
                 <Download className="w-4 h-4" />
                 Google Drive
               </Button>
-              {isGeneralCoordinator && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button className="bg-black hover:bg-gray-800 text-white gap-2 flex-1 md:flex-none">
-                      <HardDrive className="w-4 h-4" />
-                      Backup
-                      <ChevronDown className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52">
-                    <DropdownMenuItem onClick={handleBackupDrive} disabled={backupDriveLoading}>
-                      {backupDriveLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Cloud className="w-4 h-4 mr-2 text-blue-500" />}
-                      Backup Drive (Pastas)
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setShowMonthlyBackup(true)}>
-                      <Calendar className="w-4 h-4 mr-2 text-green-600" />
-                      Backup Relatórios do Mês
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleBackupFull} disabled={backupFullLoading}>
-                      {backupFullLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <HardDrive className="w-4 h-4 mr-2 text-gray-600" />}
-                      Backup Completo (Drive)
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+
             </div>
           </div>
 
