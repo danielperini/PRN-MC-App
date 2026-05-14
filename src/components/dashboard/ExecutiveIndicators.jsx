@@ -433,19 +433,23 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
           agendaIndex={agendaIndex}
         />
 
-        <KpiCard
-          label="Execução"
-          value={`${orcamento.percentual.toFixed(1)}%`}
-          icon={BarChart3}
-          helper="orçamento utilizado"
-        />
+        {isCoordenador && (
+        <>
+          <KpiCard
+            label="Execução"
+            value={`${orcamento.percentual.toFixed(1)}%`}
+            icon={BarChart3}
+            helper="orçamento utilizado"
+          />
 
-        <KpiCard
-          label="Utilizado"
-          value={fmtBRL(orcamento.totalUtilizado)}
-          icon={Wallet}
-          helper="valor realizado"
-        />
+          <KpiCard
+            label="Utilizado"
+            value={fmtBRL(orcamento.totalUtilizado)}
+            icon={Wallet}
+            helper="valor realizado"
+          />
+        </>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
