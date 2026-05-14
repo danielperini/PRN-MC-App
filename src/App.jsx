@@ -13,7 +13,7 @@ import { PatrocinadorViewProvider } from '@/context/PatrocinadorViewContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import Aparencia from './pages/Aparencia';
-import ChecklistProducao from './pages/ChecklistProducao';
+
 import ProgramacaoEspelho from './pages/ProgramacaoEspelho';
 import Agenda from './pages/Agenda';
 import RubricasPorMuseu from './pages/RubricasPorMuseu';
@@ -160,7 +160,7 @@ function AuthenticatedApp() {
               />
             ))}
 
-            <Route path="/ChecklistProducao" element={<SafePage Page={ChecklistProducao} pageName="ChecklistProducao" />} />
+
             <Route path="/RubricasPorMuseu" element={<SafePage Page={RubricasPorMuseu} pageName="RubricasPorMuseu" />} />
             <Route path="/BaseConhecimento" element={<SafePage Page={BaseConhecimento} pageName="BaseConhecimento" />} />
             <Route path="/ProgramacaoEspelho" element={<SafePage Page={ProgramacaoEspelho} pageName="ProgramacaoEspelho" />} />
