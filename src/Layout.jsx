@@ -9,6 +9,7 @@ import MobileHeader from '@/components/mobile/MobileHeader';
 import { HelpContextProvider } from '@/components/help/HelpContextProvider';
 import GlobalAnnouncementBanner from '@/components/common/GlobalAnnouncementBanner';
 import SystemBannerDisplay from '@/components/mensagens/SystemBannerDisplay';
+import NotificationBell from '@/components/notifications/NotificationBell';
 import { RotateCw } from 'lucide-react';
 
 const PAGE_TITLES = {

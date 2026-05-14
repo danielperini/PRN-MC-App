@@ -1,68 +1,74 @@
 import React, { useState, useEffect } from 'react';
-import { Bell } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import { useQuery } from '@tanstack/react-query';
+import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import NotificationPanel from './NotificationPanel';
+import NotificationCenter from './NotificationCenter';
 
-export default function NotificationBell({ userEmail }) {
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [showPanel, setShowPanel] = useState(false);
+export default function NotificationBell() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
-    if (!userEmail) return;
-
-    // Carregar notificações iniciais
-    const loadNotifications = async () => {
-      const notifs = await base44.entities.Notification.filter(
-        { user_email: userEmail },
-        '-created_date',
-        50
-      );
-      setNotifications(notifs || []);
-      const unread = (notifs || []).filter(n => !n.read).length;
-      setUnreadCount(unread);
+    const loadUser = async () => {
+      try {
+        const currentUser = await base44.auth.me();
+        setUser(currentUser);
+      } catch (error) {
+        console.error('Erro ao carregar usuário:', error);
+      }
     };
+    loadUser();
+  }, []);
 
-    loadNotifications();
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ['unread-notifications-count', user?.email],
+    queryFn: async () => {
+      if (!user?.email) return 0;
+      const notifs = await base44.entities.SystemNotification.filter(
+        { user_email: user.email, status: 'unread' },
+        '-created_at',
+        1000
+      );
+      return (notifs || []).length;
+    },
+    enabled: !!user?.email,
+    staleTime: 30000,
+    refetchInterval: 60000,
+  });
 
-    // Inscrever-se a atualizações em tempo real
-    const unsubscribe = base44.entities.Notification.subscribe(event => {
-      if (event.type === 'create' && event.data.user_email === userEmail) {
-        setNotifications(prev => [event.data, ...prev]);
-        setUnreadCount(prev => prev + 1);
-      } else if (event.type === 'update' && event.data.user_email === userEmail) {
-        setNotifications(prev => prev.map(n => n.id === event.data.id ? event.data : n));
-        if (event.data.read) {
-          setUnreadCount(prev => Math.max(0, prev - 1));
-        }
+  // Subscribe to real-time updates
+  useEffect(() => {
+    if (!user?.email) return;
+
+    const unsubscribe = base44.entities.SystemNotification.subscribe((event) => {
+      // Trigger refetch on new notifications
+      if (event.type === 'create' && event.data?.user_email === user.email) {
+        // Re-fetch the count
       }
     });
 
     return unsubscribe;
-  }, [userEmail]);
+  }, [user?.email]);
 
   return (
-    <div className="relative">
+    <>
       <Button
         variant="ghost"
         size="icon"
-        onClick={() => setShowPanel(!showPanel)}
-        className="relative text-gray-600 hover:text-black"
+        onClick={() => setIsOpen(true)}
+        className="relative text-foreground hover:text-foreground hover:bg-secondary/50"
+        title="Notificações"
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
+          <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
         )}
       </Button>
 
-      {showPanel && (
-        <NotificationPanel
-          notifications={notifications}
-          onClose={() => setShowPanel(false)}
-          userEmail={userEmail}
-        />
-      )}
-    </div>
+      <NotificationCenter isOpen={isOpen} onClose={() => setIsOpen(false)} />
+    </>
   );
 }

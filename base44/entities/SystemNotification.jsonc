@@ -1,0 +1,103 @@
+{
+  "name": "SystemNotification",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email do destinat\u00e1rio"
+    },
+    "title": {
+      "type": "string",
+      "description": "T\u00edtulo da notifica\u00e7\u00e3o"
+    },
+    "message": {
+      "type": "string",
+      "description": "Conte\u00fado da notifica\u00e7\u00e3o"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "system",
+        "financial",
+        "reports",
+        "programming",
+        "communication",
+        "web_clipping",
+        "approvals",
+        "documents",
+        "agenda",
+        "ai_suggestions",
+        "backup",
+        "team"
+      ],
+      "description": "Categoria da notifica\u00e7\u00e3o"
+    },
+    "type": {
+      "type": "string",
+      "description": "Tipo espec\u00edfico de notifica\u00e7\u00e3o (ex: purchase_approved, report_returned)"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "normal",
+        "high",
+        "critical"
+      ],
+      "default": "normal",
+      "description": "N\u00edvel de prioridade"
+    },
+    "related_entity_type": {
+      "type": "string",
+      "description": "Tipo de entidade relacionada (ex: PurchaseRequest, Report)"
+    },
+    "related_entity_id": {
+      "type": "string",
+      "description": "ID da entidade relacionada"
+    },
+    "action_url": {
+      "type": "string",
+      "description": "URL para a\u00e7\u00e3o da notifica\u00e7\u00e3o"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "unread",
+        "read",
+        "important",
+        "pinned",
+        "archived"
+      ],
+      "default": "unread",
+      "description": "Status da notifica\u00e7\u00e3o"
+    },
+    "email_sent": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se email foi enviado"
+    },
+    "email_sent_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "read_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "museum": {
+      "type": "string",
+      "description": "Museu relacionado (MHAB, MIS, MUMO, etc)"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "user_email",
+    "title",
+    "message",
+    "category",
+    "type"
+  ]
+}

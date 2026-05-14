@@ -4,9 +4,8 @@ import { LogOut, UserCircle, Home, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { usePatrocinadorView } from '@/context/PatrocinadorViewContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import NotificationCenter from '@/components/notifications/NotificationCenter';
+import NotificationBell from '@/components/notifications/NotificationBell';
 import PendingActionsAlert from '@/components/notifications/PendingActionsAlert';
-import PurchaseNotificationBell from '@/components/notifications/PurchaseNotificationBell';
 import GlobalSearch from './GlobalSearch';
 
 export default function TopNav({ currentUser }) {
@@ -30,9 +29,8 @@ export default function TopNav({ currentUser }) {
              <span className="hidden sm:inline">Dashboard</span>
            </Button>
          </Link>
-        {currentUser?.email && <PendingActionsAlert />}
-        {currentUser?.email && <NotificationCenter />}
-        {currentUser?.email && <PurchaseNotificationBell currentUser={currentUser} />}
+        {currentUser?.email && <NotificationBell />}
+          {currentUser?.email && <PendingActionsAlert />}
         
         {currentUser?.email && (
           <Button

@@ -1,0 +1,137 @@
+{
+  "name": "NotificationPreference",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio"
+    },
+    "user_role": {
+      "type": "string",
+      "enum": [
+        "coordenador",
+        "profissional",
+        "observador",
+        "patrocinador",
+        "admin"
+      ],
+      "description": "Perfil do usu\u00e1rio"
+    },
+    "email_address": {
+      "type": "string",
+      "description": "Email principal para notifica\u00e7\u00f5es (pode ser diferente do email de login)"
+    },
+    "receive_email_notifications": {
+      "type": "boolean",
+      "default": true,
+      "description": "Ativar notifica\u00e7\u00f5es por email"
+    },
+    "email_frequency": {
+      "type": "string",
+      "enum": [
+        "immediate",
+        "daily",
+        "weekly",
+        "important_only",
+        "disabled"
+      ],
+      "default": "daily",
+      "description": "Frequ\u00eancia de envio de emails"
+    },
+    "receive_in_app": {
+      "type": "boolean",
+      "default": true,
+      "description": "Ativar notifica\u00e7\u00f5es no sistema"
+    },
+    "receive_push": {
+      "type": "boolean",
+      "default": false,
+      "description": "Ativar notifica\u00e7\u00f5es push"
+    },
+    "notification_categories": {
+      "type": "object",
+      "properties": {
+        "system": {
+          "type": "boolean",
+          "default": true
+        },
+        "financial": {
+          "type": "boolean",
+          "default": true
+        },
+        "reports": {
+          "type": "boolean",
+          "default": true
+        },
+        "programming": {
+          "type": "boolean",
+          "default": true
+        },
+        "communication": {
+          "type": "boolean",
+          "default": true
+        },
+        "web_clipping": {
+          "type": "boolean",
+          "default": true
+        },
+        "approvals": {
+          "type": "boolean",
+          "default": true
+        },
+        "documents": {
+          "type": "boolean",
+          "default": true
+        },
+        "agenda": {
+          "type": "boolean",
+          "default": true
+        },
+        "ai_suggestions": {
+          "type": "boolean",
+          "default": true
+        },
+        "backup": {
+          "type": "boolean",
+          "default": true
+        },
+        "team": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "description": "Categorias de notifica\u00e7\u00e3o habilitadas"
+    },
+    "priority_alerts_only": {
+      "type": "boolean",
+      "default": false,
+      "description": "Receber apenas alertas marcados como importantes"
+    },
+    "unsubscribed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data de desinscri\u00e7\u00e3o (se aplic\u00e1vel)"
+    },
+    "unsubscribe_reason": {
+      "type": "string",
+      "description": "Motivo da desinscri\u00e7\u00e3o"
+    },
+    "last_email_sent_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "\u00daltima vez que um email foi enviado para este usu\u00e1rio"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "user_email",
+    "user_role"
+  ]
+}
