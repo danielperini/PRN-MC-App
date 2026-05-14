@@ -153,62 +153,92 @@ export default function AutoRubricasSync() {
   const queryClient = useQueryClient();
   const runningRef = useRef(false);
   const lastRunRef = useRef(0);
+  const queuedRef = useRef(false);
+
+  const invalidateFinanceQueries = useCallback(async () => {
+    await Promise.allSettled([
+      queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard-rubricas'] }),
+      queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
+      queryClient.invalidateQueries({ queryKey: ['purchases'] }),
+      queryClient.invalidateQueries({ queryKey: ['purchases-for-rubricas-sync'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard-financeiro'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard-coordenacao'] }),
+    ]);
+  }, [queryClient]);
 
   const runSync = useCallback(async (force = false) => {
     const now = Date.now();
-    if (!force && now - lastRunRef.current < 2500) return;
-    if (runningRef.current) return;
+
+    if (!force && now - lastRunRef.current < 1200) {
+      queuedRef.current = true;
+      return;
+    }
+
+    if (runningRef.current) {
+      queuedRef.current = true;
+      return;
+    }
 
     runningRef.current = true;
+    queuedRef.current = false;
     lastRunRef.current = now;
 
     try {
       const result = await recalculateAllRubricasFromPurchases();
-      if (result.updated > 0) {
-        await Promise.allSettled([
-          queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
-          queryClient.invalidateQueries({ queryKey: ['dashboard-rubricas'] }),
-          queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
-          queryClient.invalidateQueries({ queryKey: ['purchases'] }),
-          queryClient.invalidateQueries({ queryKey: ['purchases-for-rubricas-sync'] }),
-        ]);
-
-        window.dispatchEvent(new CustomEvent('rubricas:recalculadas', { detail: result }));
-        window.dispatchEvent(new CustomEvent('dashboard:update'));
-      }
+      await invalidateFinanceQueries();
+      window.dispatchEvent(new CustomEvent('rubricas:recalculadas', { detail: result }));
+      window.dispatchEvent(new CustomEvent('dashboard:update', { detail: result }));
     } finally {
       runningRef.current = false;
+
+      if (queuedRef.current) {
+        queuedRef.current = false;
+        window.setTimeout(() => runSync(true), 250);
+      }
     }
-  }, [queryClient]);
+  }, [invalidateFinanceQueries]);
 
   useEffect(() => {
     runSync(true);
 
     const handleManualSync = () => runSync(true);
+    const handleVisibilitySync = () => {
+      if (document.visibilityState === 'visible') runSync(true);
+    };
+
     window.addEventListener('rubricas:sync', handleManualSync);
+    window.addEventListener('rubricas:sync:request', handleManualSync);
     window.addEventListener('purchase:changed', handleManualSync);
+    window.addEventListener('focus', handleManualSync);
+    document.addEventListener('visibilitychange', handleVisibilitySync);
 
     let unsubscribePurchase = null;
     let unsubscribeRubrica = null;
 
     try {
       if (typeof base44.entities.PurchaseRequest.subscribe === 'function') {
-        unsubscribePurchase = base44.entities.PurchaseRequest.subscribe(() => runSync());
+        unsubscribePurchase = base44.entities.PurchaseRequest.subscribe(() => runSync(true));
       }
     } catch {}
 
     try {
       if (typeof base44.entities.Rubrica.subscribe === 'function') {
-        unsubscribeRubrica = base44.entities.Rubrica.subscribe(() => runSync());
+        unsubscribeRubrica = base44.entities.Rubrica.subscribe(() => runSync(true));
       }
     } catch {}
 
-    const interval = window.setInterval(() => runSync(), 60_000);
+    const fastInterval = window.setInterval(() => runSync(), 3000);
+    const fullInterval = window.setInterval(() => runSync(true), 60000);
 
     return () => {
       window.removeEventListener('rubricas:sync', handleManualSync);
+      window.removeEventListener('rubricas:sync:request', handleManualSync);
       window.removeEventListener('purchase:changed', handleManualSync);
-      window.clearInterval(interval);
+      window.removeEventListener('focus', handleManualSync);
+      document.removeEventListener('visibilitychange', handleVisibilitySync);
+      window.clearInterval(fastInterval);
+      window.clearInterval(fullInterval);
 
       if (typeof unsubscribePurchase === 'function') unsubscribePurchase();
       if (typeof unsubscribeRubrica === 'function') unsubscribeRubrica();
