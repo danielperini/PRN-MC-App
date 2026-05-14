@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { base44 } from '@/api/base44Client'
 import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload } from 'lucide-react'
 import { useSmartToast } from '@/lib/useSmartToast'
+import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard'
+import DuplicatePurchaseDetectedModal from './DuplicatePurchaseDetectedModal'
 
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Publicações','Geral']
 
@@ -163,6 +165,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   const [attachedFile, setAttachedFile] = useState(null)
   const [returnComment, setReturnComment] = useState('')
   const [showReturnInput, setShowReturnInput] = useState(false)
+  const [duplicateWarning, setDuplicateWarning] = useState(null)
+  const [ignoreDuplicate, setIgnoreDuplicate] = useState(false)
 
   const isEditing = !!prefill?.id
   const statusKey = String(prefill?.status || '').trim().toUpperCase()
@@ -424,6 +428,24 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       return
     }
 
+    // Validar duplicidade apenas ao criar nova solicitação
+    if (!isEditing && !ignoreDuplicate) {
+      try {
+        const payload = buildPayload('SOLICITADO')
+        const duplicate = await findDuplicatePurchaseRequest({
+          base44,
+          payload,
+          currentId: prefill?.id
+        })
+        if (duplicate) {
+          setDuplicateWarning(duplicate)
+          return
+        }
+      } catch (err) {
+        console.warn('Erro ao verificar duplicidade:', err)
+      }
+    }
+
     setSaving(true)
 
     try {
@@ -634,8 +656,39 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     prefill?.link_proposta
 
   return (
-    <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+    <>
+      <DuplicatePurchaseDetectedModal
+        duplicate={duplicateWarning}
+        onClose={() => setDuplicateWarning(null)}
+        onProceed={() => {
+          setIgnoreDuplicate(true)
+          setDuplicateWarning(null)
+          setSaving(true)
+          const payload = buildPayload('SOLICITADO')
+          base44.entities.PurchaseRequest.create({
+            ...payload,
+            status: 'SOLICITADO',
+            data_solicitacao: new Date().toISOString(),
+            solicitante_nome: currentUser?.full_name || currentUser?.name || currentUser?.email || '',
+            solicitante_email: currentUser?.email || '',
+            requester_email: currentUser?.email || '',
+            user_email: currentUser?.email || '',
+            created_by: currentUser?.email
+          }).then(async (created) => {
+            await createAttachmentForPurchase(created, payload)
+            await tryNotifyPurchaseSubmitted(created)
+            smartToast.success('Solicitação criada (duplicidade detectada e confirmada).')
+            onSuccess?.()
+            setSaving(false)
+          }).catch((err) => {
+            smartToast.error('Erro ao salvar', err.message)
+            setSaving(false)
+          })
+        }}
+      />
+
+      <Dialog open={true} onOpenChange={onClose}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
             {isEditing ? 'Editar Solicitação' : 'Nova Solicitação'}
@@ -1094,5 +1147,6 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         </div>
       </DialogContent>
     </Dialog>
+    </>
   )
 }

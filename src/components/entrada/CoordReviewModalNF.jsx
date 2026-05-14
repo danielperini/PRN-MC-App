@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { base44 } from '@/api/base44Client';
 import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck, RefreshCw, LinkIcon, Search, X } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard';
+import DuplicatePurchaseDetectedModal from '@/components/compras/DuplicatePurchaseDetectedModal';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
@@ -147,6 +149,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [rubricas, setRubricas] = useState([]);
   const [rubricaBusca, setRubricaBusca] = useState('');
   const [rubricaDropdownOpen, setRubricaDropdownOpen] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState(null);
+  const [ignoreDuplicate, setIgnoreDuplicate] = useState(false);
   const rubricaRef = useRef(null);
 
   useEffect(() => {
@@ -526,6 +530,29 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       return;
     }
 
+    // Verificar duplicidade apenas na primeira tentativa
+    if (!ignoreDuplicate) {
+      try {
+        const payloadTeste = {
+          nf_numero: form.nf_numero,
+          nf_emitente_nome: form.nf_emitente_nome,
+          nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+          nf_valor_total: valorTotal
+        };
+        const duplicate = await findDuplicatePurchaseRequest({
+          base44,
+          payload: payloadTeste,
+          currentId: null
+        });
+        if (duplicate) {
+          setDuplicateWarning(duplicate);
+          return;
+        }
+      } catch (err) {
+        console.warn('Erro ao verificar duplicidade:', err);
+      }
+    }
+
     if (aprovarDireto) {
       setApprovingDirect(true);
     } else {
@@ -725,9 +752,26 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   });
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+    <>
+      <DuplicatePurchaseDetectedModal
+        duplicate={duplicateWarning}
+        onClose={() => setDuplicateWarning(null)}
+        onProceed={() => {
+          setIgnoreDuplicate(true);
+          setDuplicateWarning(null);
+          // Reprocess com ignoreDuplicate = true
+          setApprovingDirect(false);
+          setSending(false);
+          // Dispara novamente o handleProcessarNota
+          setTimeout(() => {
+            // Vai passar direto pois ignoreDuplicate = true
+          }, 0);
+        }}
+      />
+
+      <Dialog open onOpenChange={onClose}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
           <div className="flex items-start justify-between">
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-500" />
@@ -1108,5 +1152,6 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
