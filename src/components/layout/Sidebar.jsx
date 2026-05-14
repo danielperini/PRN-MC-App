@@ -352,14 +352,12 @@ export default function Sidebar({
   const isObs = isObservador(currentUser, userPermission) || isPatrocinador(currentUser);
 
   function shouldShowItem(item) {
-    // COORDENADOR: vê tudo (exceto itens com permission específica sem acesso)
     if (isCoord) {
       if (item.permission === 'canManageUsers') return canManageUsers(currentUser);
       if (item.permission === 'canManagePlatform') return isAdmin || isCoord;
       return true;
     }
 
-    // OBSERVADOR / PATROCINADOR: lista restrita
     if (isObs) {
       if (item.hideForObservador) return false;
       if (item.roles.includes('coord') && !item.roles.includes('all')) return false;
@@ -367,10 +365,8 @@ export default function Sidebar({
       return SIDEBAR_OBSERVADOR.has(item.path);
     }
 
-    // PROFISSIONAL: lista definida no permissions.js
     if (item.permission === 'canManageUsers') return false;
     if (item.permission === 'canManagePlatform') return false;
-    if (item.hideForObservador) return false;
     if (item.roles.includes('coord') && !item.roles.includes('all')) return false;
     if (item.roles.includes('admin') && !item.roles.includes('all')) return false;
     return SIDEBAR_PROFISSIONAL.has(item.path);
