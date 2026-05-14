@@ -40,7 +40,12 @@ Deno.serve(async (req) => {
     }
 
     const fileBuffer = await fileResponse.arrayBuffer();
-    const fileHash = crypto.createHash('sha256').update(new Uint8Array(fileBuffer)).digest('hex');
+    
+    // Gerar hash SHA-256
+    const hashBuffer = await crypto.subtle.digest('SHA-256', fileBuffer);
+    const fileHash = Array.from(new Uint8Array(hashBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
 
     // Extrair data da foto ou usar data atual
     const photoDate = activityDate ? new Date(activityDate) : new Date();
@@ -174,11 +179,17 @@ async function countFilesInFolder(accessToken, folderId) {
 }
 
 async function uploadFileToFolder(accessToken, folderId, fileName, fileBuffer) {
+  // Gerar hash SHA-256 para propriedade
+  const hashBuffer = await crypto.subtle.digest('SHA-256', fileBuffer);
+  const fileHash = Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+
   const metadata = {
     name: fileName,
     parents: [folderId],
     properties: {
-      file_hash: crypto.createHash('sha256').update(new Uint8Array(fileBuffer)).digest('hex'),
+      file_hash: fileHash,
     },
   };
 
