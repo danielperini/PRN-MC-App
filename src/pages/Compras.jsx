@@ -40,6 +40,8 @@ import { useBudgetLines } from '@/components/compras/useBudgetLines';
 import GestaoDocumental from '@/pages/GestaoDocumental';
 import RubricasGrid from '@/components/compras/RubricasGrid';
 import RubricaDetail from '@/components/rubricas/RubricaDetail';
+import RubricasByMuseuDashboard from '@/components/compras/RubricasByMuseuDashboard';
+import MuseuPerformanceDashboard from '@/components/compras/MuseuPerformanceDashboard';
 import AuditoriaFinanceiraCard from '@/components/compras/AuditoriaFinanceiraCard';
 import EntradaUnicaComprovante from '@/components/compras/EntradaUnicaComprovante';
 import MeusPagamentosTab from '@/components/compras/MeusPagamentosTab';
@@ -1133,6 +1135,149 @@ function ComprasInner() {
             {selectedRubrica ? (
               <RubricaDetail rubrica={selectedRubrica} onClose={async () => { setSelectedRubrica(null); await refreshFinanceiroCompleto(); }} />
             ) : (
+              <>
+                <div className="flex gap-2 border-b border-gray-200">
+                  <button
+                    onClick={() => setTab('rubricas-resumo')}
+                    className="px-4 py-2 font-medium text-sm text-gray-900 border-b-2 border-black"
+                  >
+                    Visão Consolidada
+                  </button>
+                  <button
+                    onClick={() => setTab('rubricas-museus')}
+                    className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                  >
+                    Por Museu
+                  </button>
+                  <button
+                    onClick={() => setTab('rubricas-performance')}
+                    className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                  >
+                    Performance
+                  </button>
+                  <button
+                    onClick={() => setTab('rubricas-detalhe')}
+                    className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                  >
+                    Detalhe
+                  </button>
+                </div>
+
+                <RubricasGrid
+                  rubricas={rubricas}
+                  onSelectRubrica={setSelectedRubrica}
+                  onRefresh={refreshFinanceiroCompleto}
+                  isCoordenador={isCoordenador}
+                  totalPrevisto={totaisConsolidados.totalPrevisto}
+                />
+              </>
+            )}
+            {loadingRubricas && <div className="text-sm text-gray-400">Atualizando dados financeiros...</div>}
+          </div>
+        )}
+
+        {tab === 'rubricas-museus' && isCoordenador && (
+          <div className="space-y-6">
+            <div className="flex gap-2 border-b border-gray-200 mb-4">
+              <button
+                onClick={() => setTab('rubricas')}
+                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+              >
+                Visão Consolidada
+              </button>
+              <button
+                onClick={() => setTab('rubricas-museus')}
+                className="px-4 py-2 font-medium text-sm text-gray-900 border-b-2 border-black"
+              >
+                Por Museu
+              </button>
+              <button
+                onClick={() => setTab('rubricas-performance')}
+                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+              >
+                Performance
+              </button>
+              <button
+                onClick={() => setTab('rubricas-detalhe')}
+                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+              >
+                Detalhe
+              </button>
+            </div>
+            <RubricasByMuseuDashboard
+              rubricas={rubricas}
+              purchases={purchases}
+              onRefresh={refreshFinanceiroCompleto}
+            />
+          </div>
+        )}
+
+        {tab === 'rubricas-performance' && isCoordenador && (
+          <div className="space-y-6">
+            <div className="flex gap-2 border-b border-gray-200 mb-4">
+              <button
+                onClick={() => setTab('rubricas')}
+                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+              >
+                Visão Consolidada
+              </button>
+              <button
+                onClick={() => setTab('rubricas-museus')}
+                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+              >
+                Por Museu
+              </button>
+              <button
+                onClick={() => setTab('rubricas-performance')}
+                className="px-4 py-2 font-medium text-sm text-gray-900 border-b-2 border-black"
+              >
+                Performance
+              </button>
+              <button
+                onClick={() => setTab('rubricas-detalhe')}
+                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+              >
+                Detalhe
+              </button>
+            </div>
+            <MuseuPerformanceDashboard
+              purchases={purchases}
+              rubricas={rubricas}
+            />
+          </div>
+        )}
+
+        {tab === 'rubricas-detalhe' && isCoordenador && (
+          <div className="space-y-6">
+            <div className="flex gap-2 border-b border-gray-200 mb-4">
+              <button
+                onClick={() => setTab('rubricas')}
+                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+              >
+                Visão Consolidada
+              </button>
+              <button
+                onClick={() => setTab('rubricas-museus')}
+                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+              >
+                Por Museu
+              </button>
+              <button
+                onClick={() => setTab('rubricas-performance')}
+                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+              >
+                Performance
+              </button>
+              <button
+                onClick={() => setTab('rubricas-detalhe')}
+                className="px-4 py-2 font-medium text-sm text-gray-900 border-b-2 border-black"
+              >
+                Detalhe
+              </button>
+            </div>
+            {selectedRubrica ? (
+              <RubricaDetail rubrica={selectedRubrica} onClose={async () => { setSelectedRubrica(null); await refreshFinanceiroCompleto(); }} />
+            ) : (
               <RubricasGrid
                 rubricas={rubricas}
                 onSelectRubrica={setSelectedRubrica}
@@ -1141,7 +1286,6 @@ function ComprasInner() {
                 totalPrevisto={totaisConsolidados.totalPrevisto}
               />
             )}
-            {loadingRubricas && <div className="text-sm text-gray-400">Atualizando dados financeiros...</div>}
           </div>
         )}
 
