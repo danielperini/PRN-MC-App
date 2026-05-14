@@ -11,12 +11,12 @@ function inteiro(value) {
 }
 
 function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
+  return String(value || '').
+  normalize('NFD').
+  replace(/[\u0300-\u036f]/g, '').
+  trim().
+  toLowerCase().
+  replace(/\s+/g, ' ');
 }
 
 function isApprovedReport(report) {
@@ -29,19 +29,19 @@ function getActivityPublico(activity) {
 
   const publicoMedio = inteiro(
     activity?.publico_medio_por_sessao ??
-      activity?.publico_medio_sessao ??
-      activity?.publico_medio ??
-      activity?.publico_por_sessao ??
-      0
+    activity?.publico_medio_sessao ??
+    activity?.publico_medio ??
+    activity?.publico_por_sessao ??
+    0
   );
 
   const ocorrencias = inteiro(
     activity?.quantas_vezes_ocorreu ??
-      activity?.quantas_repeticoes ??
-      activity?.qtd_ocorrencias ??
-      activity?.ocorrencias ??
-      activity?.quantidade_ocorrencias ??
-      1
+    activity?.quantas_repeticoes ??
+    activity?.qtd_ocorrencias ??
+    activity?.ocorrencias ??
+    activity?.quantidade_ocorrencias ??
+    1
   );
 
   return publicoMedio * Math.max(ocorrencias, 1);
@@ -49,31 +49,31 @@ function getActivityPublico(activity) {
 
 function getActivityKey(activity, report) {
   const explicitId =
-    activity?.atividade_id ||
-    activity?.programacao_id ||
-    activity?.programacaoId ||
-    activity?.id_programacao ||
-    activity?.agenda_id ||
-    activity?.id;
+  activity?.atividade_id ||
+  activity?.programacao_id ||
+  activity?.programacaoId ||
+  activity?.id_programacao ||
+  activity?.agenda_id ||
+  activity?.id;
 
   if (explicitId) return `id:${explicitId}`;
 
   const title = normalizeText(
     activity?.nome_atividade ||
-      activity?.nome ||
-      activity?.titulo ||
-      activity?.acao ||
-      activity?.atividade ||
-      ''
+    activity?.nome ||
+    activity?.titulo ||
+    activity?.acao ||
+    activity?.atividade ||
+    ''
   );
 
   const date = normalizeText(
     activity?.data_realizacao ||
-      activity?.data_inicio ||
-      activity?.data_fim ||
-      activity?.data ||
-      report?.mes_referencia ||
-      ''
+    activity?.data_inicio ||
+    activity?.data_fim ||
+    activity?.data ||
+    report?.mes_referencia ||
+    ''
   );
 
   const museum = normalizeText(activity?.museu || activity?.centro_custo || report?.museu || '');
@@ -115,7 +115,7 @@ function deduplicateActivities(activities) {
 
   return {
     uniqueActivities: Array.from(unique.values()),
-    duplicateCount,
+    duplicateCount
   };
 }
 
@@ -128,7 +128,7 @@ function buildApprovedSummary(reports) {
       _reportId: report?.id,
       _reportStatus: report?.status,
       _publico: getActivityPublico(activity),
-      _auditKey: getActivityKey(activity, report),
+      _auditKey: getActivityKey(activity, report)
     }));
   });
 
@@ -141,7 +141,7 @@ function buildApprovedSummary(reports) {
     rawActivities,
     totalPublico,
     totalActivities: uniqueActivities.length,
-    duplicateCount,
+    duplicateCount
   };
 }
 
@@ -182,7 +182,7 @@ export default function ActivitySummary({ activities = [], reports: reportsProp 
 
     return () => {
       mounted = false;
-      try { unsubscribe?.(); } catch {}
+      try {unsubscribe?.();} catch {}
     };
   }, [reportsProp]);
 
@@ -196,14 +196,14 @@ export default function ActivitySummary({ activities = [], reports: reportsProp 
     const normalized = safeActivities.map((activity) => ({
       ...activity,
       _publico: getActivityPublico(activity),
-      _auditKey: getActivityKey(activity, {}),
+      _auditKey: getActivityKey(activity, {})
     }));
     const { uniqueActivities, duplicateCount } = deduplicateActivities(normalized);
 
     return {
       totalPublico: uniqueActivities.reduce((sum, activity) => sum + inteiro(activity._publico), 0),
       totalActivities: uniqueActivities.length,
-      duplicateCount,
+      duplicateCount
     };
   }, [activities]);
 
@@ -215,28 +215,28 @@ export default function ActivitySummary({ activities = [], reports: reportsProp 
     return (
       <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center text-sm text-gray-400">
         Carregando resumo auditado...
-      </div>
-    );
+      </div>);
+
   }
 
   if (!loading && totalActivities === 0) {
     return (
       <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center text-sm text-gray-400">
         Nenhuma atividade aprovada para exibir
-      </div>
-    );
+      </div>);
+
   }
 
   return (
     <div className="space-y-3">
-      {duplicateCount > 0 && (
-        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+      {duplicateCount > 0 &&
+      <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 hidden">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
           <span>
             Auditoria detectou {duplicateCount.toLocaleString('pt-BR')} possível(is) atividade(s) repetida(s). O total abaixo já está deduplicado e usa apenas atividades únicas dos relatórios aprovados.
           </span>
         </div>
-      )}
+      }
 
       <div className="grid grid-cols-2 gap-4">
         <div className="rounded-2xl bg-black text-white p-6 flex flex-col gap-1">
@@ -251,6 +251,6 @@ export default function ActivitySummary({ activities = [], reports: reportsProp 
           <p className="text-sm text-gray-300">Atividades realizadas</p>
         </div>
       </div>
-    </div>
-  );
+    </div>);
+
 }
