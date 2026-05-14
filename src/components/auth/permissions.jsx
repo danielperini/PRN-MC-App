@@ -85,7 +85,6 @@ export const OBSERVADOR_PAGES = new Set([
   'Aparencia',
   'MeusDados',
   'Perfil',
-  'LeitorNoticias',
   'Manual',
 ]);
 
@@ -105,6 +104,7 @@ export const PROFISSIONAL_EXTRA_PAGES = new Set([
   'CoordReview',       // só vê os próprios relatórios
   'GaleriaFotos',
   'Mensagens',
+  'LeitorNoticias',
 ]);
 
 /** Conjunto completo de páginas do PROFISSIONAL */
@@ -158,7 +158,6 @@ export const SIDEBAR_OBSERVADOR = new Set([
   'RubricasPorMuseu',
   'Aparencia',
   'MeusDados',
-  'LeitorNoticias',
 ]);
 
 /** Páginas visíveis na sidebar do PROFISSIONAL */
@@ -171,7 +170,6 @@ export const SIDEBAR_PROFISSIONAL = new Set([
   'GaleriaFotos',
   'Compras',
   'RubricasPorMuseu',
-  'LeitorNoticias',
   'ProgramacaoEspelho',
   'AssistentePlanejamento',
   'Manual',
