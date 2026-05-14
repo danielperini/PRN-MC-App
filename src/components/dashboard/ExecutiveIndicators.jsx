@@ -85,18 +85,18 @@ function getProgramacaoMuseu(item) {
   );
 }
 
-function MiniBar({ label, value, max, color = 'bg-black' }) {
+function MiniBar({ label, value, max, color = 'bg-primary' }) {
   const safeValue = toInt(value);
   const safeMax = Math.max(toInt(max), 1);
   const pct = Math.min((safeValue / safeMax) * 100, 100);
 
   return (
     <div className="mb-2.5">
-      <div className="flex justify-between text-xs text-gray-600 mb-1">
+      <div className="flex justify-between text-xs text-muted-foreground mb-1">
         <span className="truncate max-w-[60%]">{label}</span>
-        <span className="font-semibold text-black">{fmtInt(safeValue)}</span>
+        <span className="font-semibold text-foreground">{fmtInt(safeValue)}</span>
       </div>
-      <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
+      <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
         <div className={`h-1 rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -105,10 +105,10 @@ function MiniBar({ label, value, max, color = 'bg-black' }) {
 
 function CardSection({ title, children, empty, className = '' }) {
   return (
-    <div className={`border border-gray-200 rounded-2xl p-4 bg-white shadow-sm ${className}`}>
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{title}</p>
+    <div className={`border border-border rounded-2xl p-4 bg-card shadow-sm ${className}`}>
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">{title}</p>
       {empty ? (
-        <p className="text-xs text-gray-400">Sem dados disponíveis</p>
+        <p className="text-xs text-muted-foreground">Sem dados disponíveis</p>
       ) : children}
     </div>
   );
@@ -118,20 +118,20 @@ function KpiCard({ label, value, icon: Icon, highlight = false, helper }) {
   return (
     <div className={`p-5 border rounded-2xl transition-all shadow-sm min-w-0 ${
       highlight
-        ? 'border-black bg-black text-white shadow-md'
-        : 'border-gray-200 bg-white hover:shadow-md'
+        ? 'border-primary bg-primary text-primary-foreground shadow-md'
+        : 'border-border bg-card hover:shadow-md'
     }`}>
       <div className="flex items-center gap-2 mb-3 min-w-0">
-        {Icon && <Icon className={`w-4 h-4 flex-shrink-0 ${highlight ? 'text-white' : 'text-gray-500'}`} />}
-        <span className={`text-[11px] font-semibold uppercase tracking-wide truncate ${highlight ? 'text-gray-300' : 'text-gray-500'}`}>
+        {Icon && <Icon className={`w-4 h-4 flex-shrink-0 ${highlight ? 'text-primary-foreground' : 'text-muted-foreground'}`} />}
+        <span className={`text-[11px] font-semibold uppercase tracking-wide truncate ${highlight ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
           {label}
         </span>
       </div>
-      <p className={`text-3xl font-bold leading-tight truncate ${highlight ? 'text-white' : 'text-black'}`}>
+      <p className={`text-3xl font-bold leading-tight truncate ${highlight ? 'text-primary-foreground' : 'text-foreground'}`}>
         {value}
       </p>
       {helper && (
-        <p className={`text-xs mt-1 truncate ${highlight ? 'text-gray-300' : 'text-gray-500'}`}>
+        <p className={`text-xs mt-1 truncate ${highlight ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
           {helper}
         </p>
       )}
@@ -145,23 +145,23 @@ function AgendaKpiCard({ agendaItems = [], agendaDate, agendaIndex }) {
   const isHoje = agendaDate && sameDay(agendaDate, hoje);
 
   return (
-    <div className="p-5 border border-gray-200 rounded-2xl transition-all shadow-sm min-w-0 bg-white hover:shadow-md">
+    <div className="p-5 border border-border rounded-2xl transition-all shadow-sm min-w-0 bg-card hover:shadow-md">
       <div className="flex items-center gap-2 mb-3 min-w-0">
-        <CalendarDays className="w-4 h-4 flex-shrink-0 text-gray-500" />
-        <span className="text-[11px] font-semibold uppercase tracking-wide truncate text-gray-500">
+        <CalendarDays className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+        <span className="text-[11px] font-semibold uppercase tracking-wide truncate text-muted-foreground">
           {isHoje ? 'Agenda de hoje' : 'Próxima agenda'}
         </span>
       </div>
 
       {current ? (
         <>
-          <p className="text-3xl font-bold leading-tight truncate text-black">
+          <p className="text-3xl font-bold leading-tight truncate text-foreground">
             {formatDateBR(agendaDate)}
           </p>
-          <p className="text-xs mt-1 truncate text-gray-500">
+          <p className="text-xs mt-1 truncate text-muted-foreground">
             {getProgramacaoTitle(current)}
           </p>
-          <p className="text-xs mt-1 truncate text-black font-semibold flex items-center gap-1">
+          <p className="text-xs mt-1 truncate text-foreground font-semibold flex items-center gap-1">
             <MapPin className="w-3 h-3 flex-shrink-0" />
             {getProgramacaoMuseu(current)}
           </p>
@@ -172,7 +172,7 @@ function AgendaKpiCard({ agendaItems = [], agendaDate, agendaIndex }) {
                 <span
                   key={idx}
                   className={`h-1 rounded-full transition-all ${
-                    idx === agendaIndex % agendaItems.length ? 'w-5 bg-black' : 'w-1.5 bg-gray-300'
+                    idx === agendaIndex % agendaItems.length ? 'w-5 bg-primary' : 'w-1.5 bg-muted'
                   }`}
                 />
               ))}
@@ -181,8 +181,8 @@ function AgendaKpiCard({ agendaItems = [], agendaDate, agendaIndex }) {
         </>
       ) : (
         <>
-          <p className="text-3xl font-bold leading-tight truncate text-black">—</p>
-          <p className="text-xs mt-1 truncate text-gray-500">sem atividade futura</p>
+          <p className="text-3xl font-bold leading-tight truncate text-foreground">—</p>
+          <p className="text-xs mt-1 truncate text-muted-foreground">sem atividade futura</p>
         </>
       )}
     </div>
@@ -399,8 +399,8 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
     <div className="mt-8 space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-lg font-semibold text-black">Indicadores Executivos</h2>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <h2 className="text-lg font-semibold text-foreground">Indicadores Executivos</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
             Síntese operacional, agenda, museus e execução financeira.
           </p>
         </div>
@@ -447,27 +447,27 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <CardSection title="Atividades por Mês" empty={activitiesByMonth.length === 0}>
           {activitiesByMonth.map(m => (
-            <MiniBar key={m.mes} label={m.mes} value={m.atividades} max={maxAtiv} />
+            <MiniBar key={m.mes} label={m.mes} value={m.atividades} max={maxAtiv} color="bg-primary" />
           ))}
         </CardSection>
 
         <CardSection title="Público por Mês" empty={activitiesByMonth.length === 0}>
           {activitiesByMonth.map(m => (
-            <MiniBar key={m.mes} label={m.mes} value={m.publico} max={maxPub} color="bg-gray-700" />
+            <MiniBar key={m.mes} label={m.mes} value={m.publico} max={maxPub} color="bg-chart-secondary" />
           ))}
         </CardSection>
 
         <CardSection title="Classificação de Atividades" empty={totalClasse === 0}>
           {[
-            { label: 'Meta', value: classificacaoStats.META, color: 'bg-black' },
-            { label: 'Rotina', value: classificacaoStats.ROTINA, color: 'bg-gray-500' },
-            { label: 'Extra', value: classificacaoStats.EXTRA, color: 'bg-gray-300' },
+            { label: 'Meta', value: classificacaoStats.META, color: 'bg-primary' },
+            { label: 'Rotina', value: classificacaoStats.ROTINA, color: 'bg-chart-secondary' },
+            { label: 'Extra', value: classificacaoStats.EXTRA, color: 'bg-muted' },
           ].map(item => (
             <MiniBar key={item.label} label={item.label} value={item.value} max={Math.max(totalClasse, 1)} color={item.color} />
           ))}
 
           {totalClasse > 0 && (
-            <p className="text-xs text-gray-400 mt-2">
+            <p className="text-xs text-muted-foreground mt-2">
               Total: {fmtInt(totalClasse)} atividade{totalClasse !== 1 ? 's' : ''}
             </p>
           )}
@@ -478,25 +478,25 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
         <CardSection title="Comparativo por Museu" empty={comparativoMuseu.every(m => m.relatorios === 0)} className="xl:col-span-2">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {comparativoMuseu.map(m => (
-              <div key={m.museu} className="border border-gray-100 rounded-xl p-3 bg-gray-50/50 space-y-2">
+              <div key={m.museu} className="border border-border rounded-xl p-3 bg-secondary/50 space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-bold text-black">{m.museu}</span>
-                  <span className="text-xs text-gray-500">{fmtInt(m.relatorios)} rel.</span>
+                  <span className="text-sm font-bold text-foreground">{m.museu}</span>
+                  <span className="text-xs text-muted-foreground">{fmtInt(m.relatorios)} rel.</span>
                 </div>
 
                 {m.publicoGeral > 0 && (
-                  <div className="border-t border-gray-200 pt-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Público Geral Declarado</p>
-                    <p className="text-sm font-bold text-black">{fmtInt(m.publicoGeral)}</p>
+                  <div className="border-t border-border pt-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Público Geral Declarado</p>
+                    <p className="text-sm font-bold text-foreground">{fmtInt(m.publicoGeral)}</p>
                   </div>
                 )}
 
-                <div className={m.publicoGeral > 0 ? 'border-t border-dashed border-gray-200 pt-2' : ''}>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Atividades com Público</p>
-                  <MiniBar label={`${fmtInt(m.atividadesComPublico)} de ${fmtInt(m.atividades)}`} value={m.atividadesComPublico} max={maxMuseuAtiv} />
-                  <MiniBar label={`Participantes`} value={m.publico} max={maxMuseuPub} color="bg-gray-600" />
+                <div className={m.publicoGeral > 0 ? 'border-t border-dashed border-border pt-2' : ''}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Atividades com Público</p>
+                  <MiniBar label={`${fmtInt(m.atividadesComPublico)} de ${fmtInt(m.atividades)}`} value={m.atividadesComPublico} max={maxMuseuAtiv} color="bg-primary" />
+                  <MiniBar label={`Participantes`} value={m.publico} max={maxMuseuPub} color="bg-chart-secondary" />
                   {m.mediaPublico > 0 && (
-                    <p className="text-[10px] text-gray-400 mt-1">Média: {fmtInt(m.mediaPublico)} por atividade</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Média: {fmtInt(m.mediaPublico)} por atividade</p>
                   )}
                 </div>
               </div>
@@ -507,30 +507,30 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
         <CardSection title="Execução Orçamentária" empty={false}>
           <div className="space-y-2">
             <div className="flex justify-between text-xs">
-              <span className="text-gray-500">Previsto</span>
-              <span className="font-semibold text-black">{fmtBRL(TOTAL_PREVISTO)}</span>
+              <span className="text-muted-foreground">Previsto</span>
+              <span className="font-semibold text-foreground">{fmtBRL(TOTAL_PREVISTO)}</span>
             </div>
 
             <div className="flex justify-between text-xs">
-              <span className="text-gray-500">Utilizado</span>
-              <span className="font-semibold text-black">{fmtBRL(orcamento.totalUtilizado)}</span>
+              <span className="text-muted-foreground">Utilizado</span>
+              <span className="font-semibold text-foreground">{fmtBRL(orcamento.totalUtilizado)}</span>
             </div>
 
             <div className="flex justify-between text-xs">
-              <span className="text-gray-500">Saldo</span>
-              <span className={`font-semibold ${orcamento.saldo >= 0 ? 'text-black' : 'text-red-600'}`}>
+              <span className="text-muted-foreground">Saldo</span>
+              <span className={`font-semibold ${orcamento.saldo >= 0 ? 'text-foreground' : 'text-status-error'}`}>
                 {fmtBRL(orcamento.saldo)}
               </span>
             </div>
 
             <div className="mt-3">
-              <div className="flex justify-between text-xs text-gray-500 mb-1">
+              <div className="flex justify-between text-xs text-muted-foreground mb-1">
                 <span>Execução</span>
                 <span>{orcamento.percentual.toFixed(1)}%</span>
               </div>
-              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-2 rounded-full bg-black transition-all"
+                  className="h-2 rounded-full bg-primary transition-all"
                   style={{ width: `${Math.min(orcamento.percentual, 100)}%` }}
                 />
               </div>

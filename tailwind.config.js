@@ -59,7 +59,17 @@ module.exports = {
   				'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
   				border: 'hsl(var(--sidebar-border))',
   				ring: 'hsl(var(--sidebar-ring))'
-  			}
+  			},
+  			status: {
+  				success: 'hsl(var(--status-success))',
+  				error: 'hsl(var(--status-error))',
+  				warning: 'hsl(var(--status-warning))',
+  				info: 'hsl(var(--status-info))',
+  				neutral: 'hsl(var(--status-neutral))'
+  			},
+  			'chart-primary': 'hsl(var(--chart-primary))',
+  			'chart-secondary': 'hsl(var(--chart-secondary))',
+  			'chart-tertiary': 'hsl(var(--chart-tertiary))'
   		},
   		keyframes: {
   			'accordion-down': {
