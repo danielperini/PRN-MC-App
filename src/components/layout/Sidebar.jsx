@@ -243,27 +243,37 @@ function NavItem({ item, currentPageName, collapsed }) {
     currentTheme === 'atual' ||
     currentTheme === 'nuit';
 
-  const activeClasses = isDarkTheme
+  const isNuitTheme = currentTheme === 'nuit';
+
+  const activeClasses = isNuitTheme
+    ? 'bg-white text-black border border-white'
+    : isDarkTheme
     ? 'bg-secondary text-secondary-foreground border border-border'
     : 'bg-primary text-primary-foreground border border-border';
 
   return (
     <SidebarTooltip label={item.label} collapsed={collapsed}>
       <Link
-        to={`/${item.path}`}
-        title={collapsed ? item.label : undefined}
-        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors group ${
-          isActive
-            ? activeClasses
-            : 'text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground'
-        }`}
-      >
+         to={`/${item.path}`}
+         title={collapsed ? item.label : undefined}
+         className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors group ${
+           isActive
+             ? activeClasses
+             : isNuitTheme
+             ? 'text-white hover:bg-gray-900 hover:text-white'
+             : 'text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground'
+         }`}
+       >
         <Icon
           className={`w-4 h-4 flex-shrink-0 ${
             isActive
-              ? isDarkTheme
+              ? isNuitTheme
+                ? 'text-black'
+                : isDarkTheme
                 ? 'text-secondary-foreground'
                 : 'text-primary-foreground'
+              : isNuitTheme
+              ? 'text-white group-hover:text-white'
               : 'text-primary-foreground group-hover:text-primary-foreground'
           }`}
         />
@@ -271,29 +281,37 @@ function NavItem({ item, currentPageName, collapsed }) {
         {!collapsed && (
           <div className="min-w-0">
             <span
-              className={`truncate block leading-tight ${
-                isActive
-                  ? isDarkTheme
-                    ? 'text-secondary-foreground'
-                    : 'text-primary-foreground'
-                  : 'text-primary-foreground'
-              }`}
-            >
-              {item.label}
-            </span>
+               className={`truncate block leading-tight ${
+                 isActive
+                   ? isNuitTheme
+                     ? 'text-black'
+                     : isDarkTheme
+                     ? 'text-secondary-foreground'
+                     : 'text-primary-foreground'
+                   : isNuitTheme
+                   ? 'text-white'
+                   : 'text-primary-foreground'
+               }`}
+             >
+               {item.label}
+             </span>
 
             {item.subtitle && (
               <span
-                className={`text-[10px] truncate block leading-tight mt-0.5 ${
-                  isActive
-                    ? isDarkTheme
-                      ? 'text-muted-foreground'
-                      : 'text-primary-foreground/80'
-                    : 'text-muted-foreground'
-                }`}
-              >
-                {item.subtitle}
-              </span>
+                 className={`text-[10px] truncate block leading-tight mt-0.5 ${
+                   isActive
+                     ? isNuitTheme
+                       ? 'text-gray-700'
+                       : isDarkTheme
+                       ? 'text-muted-foreground'
+                       : 'text-primary-foreground/80'
+                     : isNuitTheme
+                     ? 'text-gray-400'
+                     : 'text-muted-foreground'
+                 }`}
+               >
+                 {item.subtitle}
+               </span>
             )}
           </div>
         )}
@@ -355,33 +373,42 @@ export default function Sidebar({
     return SIDEBAR_PROFISSIONAL.has(item.path);
   }
 
+  const currentTheme = document?.documentElement?.getAttribute('data-theme') || 'atual';
+  const isNuitTheme = currentTheme === 'nuit';
+
   return (
     <div
-      className={`flex flex-col bg-primary border-r border-border transition-all duration-200 ${
-        collapsed ? 'w-16' : 'w-60'
-      } min-h-screen`}
+      className={`flex flex-col transition-all duration-200 ${
+        isNuitTheme
+          ? 'bg-black border-r border-gray-800'
+          : 'bg-primary border-r border-border'
+      } ${collapsed ? 'w-16' : 'w-60'} min-h-screen`}
     >
       <div
-        className={`flex items-center justify-between px-3 py-4 border-b border-border ${
-          collapsed ? 'flex-col gap-2' : ''
-        }`}
+        className={`flex items-center justify-between px-3 py-4 ${
+          isNuitTheme ? 'border-b border-gray-800' : 'border-b border-border'
+        } ${collapsed ? 'flex-col gap-2' : ''}`}
       >
         {!collapsed && (
           <div className="flex flex-col">
-            <span className="text-xs font-bold text-primary-foreground leading-tight">
+            <span className={`text-xs font-bold leading-tight ${isNuitTheme ? 'text-white' : 'text-primary-foreground'}`}>
               Museus Centro
             </span>
 
-            <span className="text-[10px] text-primary-foreground/70">
+            <span className={`text-[10px] ${isNuitTheme ? 'text-gray-400' : 'text-primary-foreground/70'}`}>
               Plataforma de Gestão
             </span>
           </div>
         )}
 
         <button
-          onClick={onToggle}
-          className="p-1.5 rounded-md text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground transition-colors"
-        >
+           onClick={onToggle}
+           className={`p-1.5 rounded-md transition-colors ${
+             isNuitTheme
+               ? 'text-white hover:bg-gray-900'
+               : 'text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground'
+           }`}
+         >
           {collapsed ? (
             <ChevronRight className="w-4 h-4" />
           ) : (
@@ -399,7 +426,9 @@ export default function Sidebar({
           return (
             <div key={group.label}>
               {!collapsed && group.label && (
-                <p className="px-3 mb-1 text-[10px] font-semibold text-primary-foreground/60 uppercase tracking-wider">
+                <p className={`px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider ${
+                  isNuitTheme ? 'text-gray-500' : 'text-primary-foreground/60'
+                }`}>
                   {group.label}
                 </p>
               )}
@@ -420,17 +449,21 @@ export default function Sidebar({
       </nav>
 
       <div
-        className={`border-t border-border px-3 py-3 ${
-          collapsed ? 'flex justify-center' : ''
-        }`}
+        className={`px-3 py-3 ${
+          isNuitTheme ? 'border-t border-gray-800' : 'border-t border-border'
+        } ${collapsed ? 'flex justify-center' : ''}`}
       >
         <Link
-          to="/Perfil"
-          className="flex items-center gap-2 text-sm text-primary-foreground hover:text-primary-foreground transition-colors"
-          title={collapsed ? currentUser?.full_name || 'Perfil' : undefined}
-        >
-          <div className="w-7 h-7 rounded-full bg-primary/80 flex items-center justify-center flex-shrink-0">
-            <span className="text-xs font-semibold text-primary-foreground">
+           to="/Perfil"
+           className={`flex items-center gap-2 text-sm transition-colors ${
+             isNuitTheme ? 'text-white hover:text-gray-300' : 'text-primary-foreground hover:text-primary-foreground'
+           }`}
+           title={collapsed ? currentUser?.full_name || 'Perfil' : undefined}
+         >
+           <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+             isNuitTheme ? 'bg-gray-800' : 'bg-primary/80'
+           }`}>
+             <span className={`text-xs font-semibold ${isNuitTheme ? 'text-white' : 'text-primary-foreground'}`}>
               {(
                 currentUser?.full_name ||
                 currentUser?.email ||
@@ -441,11 +474,11 @@ export default function Sidebar({
 
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-xs font-medium text-primary-foreground truncate">
+              <p className={`text-xs font-medium truncate ${isNuitTheme ? 'text-white' : 'text-primary-foreground'}`}>
                 {currentUser?.full_name || 'Usuário'}
               </p>
 
-              <p className="text-[10px] text-primary-foreground/70 truncate">
+              <p className={`text-[10px] truncate ${isNuitTheme ? 'text-gray-400' : 'text-primary-foreground/70'}`}>
                 {currentUser?.email || ''}
               </p>
             </div>
