@@ -23,11 +23,16 @@ function normalizeText(value) {
 function normalizeMuseu(value) {
   const raw = String(value || '').toUpperCase();
 
+  if (raw.includes('NOTURNO')) return 'NOTURNO';
   if (raw.includes('MHAB') || raw.includes('ABILIO') || raw.includes('ABÍLIO')) return 'MHAB';
   if (raw.includes('MIS') || raw.includes('IMAGEM E SOM')) return 'MIS';
   if (raw.includes('MUMO') || raw.includes('MODA')) return 'MUMO';
 
   return value || 'Atuação Geral';
+}
+
+function isNoturnoMuseus(value) {
+  return normalizeText(value).includes('noturno');
 }
 
 function isApprovedReport(report) {
@@ -260,14 +265,14 @@ function detectarCategoriaEditorial(activity = {}, report = {}) {
 function getActivityPublico(activity, categoria) {
   if (categoria !== 'atividade_publico') return null;
 
-  const n = inteiro(
-    activity?.publico_total ??
-    activity?.publico_estimado ??
-    activity?.publico ??
-    0
-  );
+  const repeticoes = Math.max(inteiro(activity?.quantas_repeticoes ?? activity?.repeticoes ?? 1), 1);
+  const publicoTotal = inteiro(activity?.publico_total);
+  const publicoEstimado = inteiro(activity?.publico_estimado ?? activity?.publico);
 
-  return n > 0 ? n : null;
+  if (publicoTotal > 0) return publicoTotal;
+  if (publicoEstimado > 0) return publicoEstimado * repeticoes;
+
+  return null;
 }
 
 function isImageAttachment(attachment) {
@@ -501,6 +506,8 @@ export function buildRelatorioFisicoFinanceiroContext({
 
   const reports = (Array.isArray(reportsRaw) ? reportsRaw : [])
     .filter(isApprovedReport)
+    .filter((r) => normalizeMuseu(r?.museu) !== 'NOTURNO')
+    .filter((r) => !isNoturnoMuseus([r?.museu, r?.titulo, r?.nome, r?.descricao].filter(Boolean).join(' ')))
     .filter((r) => MESES_ALVO.includes(reportMes(r)) || dateInRange(r?.created_date || r?.updated_date, dateFrom, dateTo))
     .filter((r) => !museuFiltro || normalizeMuseu(r?.museu) === museuFiltro);
 
@@ -508,6 +515,18 @@ export function buildRelatorioFisicoFinanceiroContext({
 
   reports.forEach((report) => {
     (Array.isArray(report?.atividades) ? report.atividades : []).forEach((atividade, index) => {
+      const atividadeTexto = [
+        atividade?.nome,
+        atividade?.titulo,
+        atividade?.nome_atividade,
+        atividade?.descricao,
+        atividade?.classificacao,
+        atividade?.categoria,
+        atividade?.local,
+      ].filter(Boolean).join(' ');
+
+      if (isNoturnoMuseus(atividadeTexto)) return;
+
       const agenda = matchAgenda(atividade, report, programacaoRaw);
       const dataAtividade = getActivityDate(atividade, report, agenda);
 
@@ -574,6 +593,7 @@ export function buildRelatorioFisicoFinanceiroContext({
     : 0;
 
   const compras = (Array.isArray(comprasRaw) ? comprasRaw : [])
+    .filter((c) => !isNoturnoMuseus([c?.centro_custo, c?.museu, c?.descricao, c?.rubrica_nome, c?.rubrica].filter(Boolean).join(' ')))
     .filter((c) => !museuFiltro || normalizeMuseu(c?.centro_custo || c?.museu) === museuFiltro)
     .filter((c) => {
       const data = c?.data_emissao || c?.nf_data_emissao || c?.created_date || c?.updated_date;
@@ -593,14 +613,17 @@ export function buildRelatorioFisicoFinanceiroContext({
     .reduce((sum, a) => sum + inteiro(a.publico), 0);
 
   const trechosRelatorios = buildTrechosRelatorios(reports);
+  const periodoExtenso = dateFrom === '2026-02-02' && dateTo === '2026-04-30'
+    ? '2 de fevereiro a 30 de abril de 2026'
+    : `${dateFrom} a ${dateTo}`;
 
   return {
     periodo: { dateFrom, dateTo },
-    periodo_extenso: '2 de fevereiro a 30 de abril de 2026',
+    periodo_extenso: periodoExtenso,
     museu: museuFiltro || 'Todos',
-    total_relatorios: reports.length || 25,
+    total_relatorios: reports.length,
     total_atividades: atividades.length,
-    publico_total: publicoTotal || 1625,
+    publico_total: publicoTotal,
     por_museu: porMuseu,
     atividades,
     atividades_por_categoria: atividadesPorCategoria,
@@ -612,7 +635,7 @@ export function buildRelatorioFisicoFinanceiroContext({
     total_compras: compras.length,
     compras,
     fotos: atividades.flatMap((a) => a.fotos_destaque || []),
-    programacao_total: Array.isArray(programacaoRaw) ? programacaoRaw.length : 0,
+    programacao_total: Array.isArray(programacaoRaw) ? programacaoRaw.filter((p) => !isNoturnoMuseus([p?.titulo, p?.nome, p?.museu, p?.descricao].filter(Boolean).join(' '))).length : 0,
   };
 }
 
