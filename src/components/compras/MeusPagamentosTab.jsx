@@ -380,11 +380,15 @@ export default function MeusPagamentosTab({ purchases = [], attachments = [], cu
 
   // ── Unir props passadas + busca ampla ─────────────────────────────────────
   const minhasSolicitacoes = useMemo(() => {
-    // Começa com as solicitações passadas por prop (já filtradas na página pai)
     const map = new Map();
-    purchases.forEach(p => { if (p?.id) map.set(p.id, p); });
 
-    // Adiciona as encontradas na busca ampla
+    // Props passadas pela página pai — sempre filtrar pelo pertenceAoUsuario,
+    // independente do que veio (coordenador pode passar tudo, mas aqui só mostramos do usuário)
+    purchases.forEach(p => {
+      if (p?.id && pertenceAoUsuario(p)) map.set(p.id, p);
+    });
+
+    // Adiciona as encontradas na busca ampla que ainda não estejam no mapa
     todasSolicitacoes.forEach(p => {
       if (p?.id && !map.has(p.id) && pertenceAoUsuario(p)) {
         map.set(p.id, p);
@@ -392,7 +396,6 @@ export default function MeusPagamentosTab({ purchases = [], attachments = [], cu
     });
 
     return Array.from(map.values())
-      .filter(p => pertenceAoUsuario(p))
       .sort((a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0));
   }, [purchases, todasSolicitacoes, pertenceAoUsuario]);
 
@@ -402,16 +405,8 @@ export default function MeusPagamentosTab({ purchases = [], attachments = [], cu
     [minhasSolicitacoes]
   );
 
-  // ── Alerta: existem solicitações sem vínculo? ─────────────────────────────
-  const semVinculo = useMemo(() => {
-    if (hasGestaoCompras || isCoordenador || !email) return false;
-    const comVinculo = new Set(minhasSolicitacoes.map(p => p.id));
-    return todasSolicitacoes.some(p =>
-      p?.id && !comVinculo.has(p.id) &&
-      STATUS_VISIVEIS.has(String(p.status || '').toUpperCase()) &&
-      (String(p.fornecedor_nome || '') || String(p.descricao_item || ''))
-    );
-  }, [minhasSolicitacoes, todasSolicitacoes, email, hasGestaoCompras, isCoordenador]);
+  // semVinculo removido — o alerta causava confusão ao exibir registros de terceiros como "sem vínculo"
+  const semVinculo = false;
 
   // ── Listas de filtros dinâmicos ───────────────────────────────────────────
   const museus = useMemo(() => {
