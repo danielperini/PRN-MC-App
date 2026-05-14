@@ -403,14 +403,38 @@ function KpiCard({ label, value, helper, icon: Icon, dark = false }) {
 }
 
 export default function ComunicacaoVisibilidade() {
+  const CACHE_KEY = 'comunicacao_cache_v2';
+
+  function loadCache() {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      const cached = JSON.parse(raw);
+      // Verificar se o cache é do dia atual
+      const today = new Date().toDateString();
+      if (cached.date !== today) return null;
+      return cached;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveCache(data) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ ...data, date: new Date().toDateString() }));
+    } catch {}
+  }
+
+  const cached = loadCache();
+
   const [query, setQuery] = useState('');
   const [sourceFilter, setSourceFilter] = useState('TODOS');
-  const [items, setItems] = useState(STATIC_ITEMS);
-  const [summary, setSummary] = useState(ZERO_SUMMARY);
-  const [clippingItems, setClippingItems] = useState(SEEDED_CLIPPING);
+  const [items, setItems] = useState(cached?.items || STATIC_ITEMS);
+  const [summary, setSummary] = useState(cached?.summary || ZERO_SUMMARY);
+  const [clippingItems, setClippingItems] = useState(cached?.clippingItems || SEEDED_CLIPPING);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState(null);
-  const [syncMessage, setSyncMessage] = useState('Clipping consolidado dos últimos 60 dias com base nas palavras-chave do projeto.');
+  const [lastSync, setLastSync] = useState(cached?.lastSync ? new Date(cached.lastSync) : null);
+  const [syncMessage, setSyncMessage] = useState(cached ? 'Painel carregado do cache diário.' : 'Clipping consolidado dos últimos 60 dias com base nas palavras-chave do projeto.');
 
   const recentClipping = useMemo(() => {
     return clippingItems.filter((item) => isWithinLastDays(item.publishedDate, DAYS_WINDOW));
@@ -492,8 +516,15 @@ export default function ComunicacaoVisibilidade() {
         console.warn('Busca IA de clipping indisponível. Usando base consolidada local.', clippingError);
       }
 
-      setLastSync(new Date());
+      const now = new Date();
+      setLastSync(now);
       setSyncMessage('Painel atualizado. Lista aberta limitada aos últimos 60 dias e agrupada por mês.');
+      saveCache({
+        items: mergedFiles.length > 0 ? mergedFiles : STATIC_ITEMS,
+        summary: Object.values(nextSummary).some((v) => Number(v || 0) > 0) ? nextSummary : ZERO_SUMMARY,
+        clippingItems: clippingItems,
+        lastSync: now.toISOString(),
+      });
     } catch (error) {
       console.error('Erro ao sincronizar Comunicação:', error);
       setItems(STATIC_ITEMS);
@@ -505,7 +536,10 @@ export default function ComunicacaoVisibilidade() {
   }
 
   useEffect(() => {
-    runSync({ silent: true, preferCache: true });
+    // Só sincroniza se não houver cache válido do dia
+    if (!loadCache()) {
+      runSync({ silent: true, preferCache: true });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
