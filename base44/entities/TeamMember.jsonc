@@ -1,0 +1,271 @@
+{
+  "name": "TeamMember",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email do membro da equipe (plataforma)"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Nome do membro"
+    },
+    "email_pessoal": {
+      "type": "string",
+      "description": "Email pessoal do membro"
+    },
+    "telefone": {
+      "type": "string",
+      "description": "Telefone de contato"
+    },
+    "tipo_pessoa": {
+      "type": "string",
+      "enum": [
+        "PF",
+        "MEI",
+        "ME"
+      ],
+      "description": "Tipo de pessoa: F\u00edsica, MEI ou ME"
+    },
+    "cpf": {
+      "type": "string",
+      "description": "CPF (se Pessoa F\u00edsica)"
+    },
+    "cnpj": {
+      "type": "string",
+      "description": "CNPJ (se MEI ou ME)"
+    },
+    "funcao": {
+      "type": "string",
+      "description": "Fun\u00e7\u00e3o/cargo do membro"
+    },
+    "tipo_equipe": {
+      "type": "string",
+      "description": "Tipo/\u00e1rea da equipe"
+    },
+    "museu_projeto": {
+      "type": "string",
+      "description": "Museu ou projeto vinculado"
+    },
+    "coordenador_responsavel": {
+      "type": "string",
+      "description": "Nome/email do coordenador respons\u00e1vel"
+    },
+    "empresa_nome": {
+      "type": "string",
+      "description": "Nome da empresa/raz\u00e3o social"
+    },
+    "empresa_endereco": {
+      "type": "string",
+      "description": "Endere\u00e7o da empresa"
+    },
+    "representante_legal_nome": {
+      "type": "string",
+      "description": "Nome do representante legal"
+    },
+    "representante_legal_cpf": {
+      "type": "string",
+      "description": "CPF do representante legal"
+    },
+    "cargo_representante": {
+      "type": "string",
+      "description": "Cargo do representante legal"
+    },
+    "budgetline_id": {
+      "type": "string",
+      "description": "ID da rubrica or\u00e7ament\u00e1ria correspondente (FK \u2192 BudgetLine)"
+    },
+    "centro_custo": {
+      "type": "string",
+      "description": "Centro de custo vinculado"
+    },
+    "fornecedor_id": {
+      "type": "string",
+      "description": "ID do fornecedor vinculado (FK \u2192 Fornecedor)"
+    },
+    "numero_contrato": {
+      "type": "string",
+      "description": "N\u00famero/identificador do contrato"
+    },
+    "tipo_contrato": {
+      "type": "string",
+      "description": "Tipo do contrato (CONTRATO, TERMO_ADITIVO, etc.)"
+    },
+    "data_assinatura": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de assinatura do contrato"
+    },
+    "status_contrato": {
+      "type": "string",
+      "enum": [
+        "VIGENTE",
+        "ENCERRADO",
+        "SUSPENSO",
+        "EM_ELABORACAO"
+      ],
+      "description": "Status atual do contrato"
+    },
+    "contrato_url": {
+      "type": "string",
+      "description": "URL do contrato em PDF"
+    },
+    "descricao_contrato": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do contrato gerada por IA"
+    },
+    "objeto_contrato": {
+      "type": "string",
+      "description": "Objeto/escopo do contrato extra\u00eddo pela IA"
+    },
+    "data_inicio_contrato": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de in\u00edcio do contrato"
+    },
+    "data_fim_contrato": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de t\u00e9rmino do contrato"
+    },
+    "contratante_nome": {
+      "type": "string",
+      "description": "Nome da contratante"
+    },
+    "contratante_cnpj": {
+      "type": "string",
+      "description": "CNPJ da contratante"
+    },
+    "escopo_descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o completa do escopo de trabalho"
+    },
+    "escopo_atividades": {
+      "type": "string",
+      "description": "Atividades previstas no contrato"
+    },
+    "escopo_entregas": {
+      "type": "string",
+      "description": "Entregas obrigat\u00f3rias"
+    },
+    "escopo_responsabilidades": {
+      "type": "string",
+      "description": "Responsabilidades do profissional"
+    },
+    "escopo_local": {
+      "type": "string",
+      "description": "Local de atua\u00e7\u00e3o"
+    },
+    "escopo_carga_horaria": {
+      "type": "string",
+      "description": "Carga hor\u00e1ria prevista"
+    },
+    "escopo_periodo": {
+      "type": "string",
+      "description": "Per\u00edodo de execu\u00e7\u00e3o"
+    },
+    "escopo_observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es do contrato"
+    },
+    "valor_total": {
+      "type": "number",
+      "description": "Valor total a receber (contrato)"
+    },
+    "numero_parcelas": {
+      "type": "number",
+      "description": "N\u00famero de parcelas (lido do contrato)"
+    },
+    "valor_parcela": {
+      "type": "number",
+      "description": "Valor de cada parcela (calculado)"
+    },
+    "forma_pagamento": {
+      "type": "string",
+      "enum": [
+        "PIX",
+        "TED/Transfer\u00eancia",
+        "Boleto"
+      ],
+      "description": "Forma de pagamento"
+    },
+    "cronograma_parcelas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "numero": {
+            "type": "number"
+          },
+          "vencimento": {
+            "type": "string"
+          },
+          "valor": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "purchase_request_id": {
+            "type": "string"
+          },
+          "comprovante_url": {
+            "type": "string"
+          },
+          "descricao": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Cronograma de parcelas extra\u00eddo pela IA"
+    },
+    "banco": {
+      "type": "string",
+      "description": "Banco para transfer\u00eancia"
+    },
+    "agencia": {
+      "type": "string",
+      "description": "Ag\u00eancia banc\u00e1ria"
+    },
+    "conta": {
+      "type": "string",
+      "description": "N\u00famero da conta"
+    },
+    "tipo_conta": {
+      "type": "string",
+      "enum": [
+        "Corrente",
+        "Poupan\u00e7a"
+      ],
+      "description": "Tipo de conta"
+    },
+    "pix_key": {
+      "type": "string",
+      "description": "Chave PIX (CPF, email, telefone ou aleat\u00f3ria)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ATIVO",
+        "INATIVO",
+        "SUSPENSO"
+      ],
+      "default": "ATIVO",
+      "description": "Status do membro"
+    },
+    "parcelas_pagas": {
+      "type": "number",
+      "default": 0,
+      "description": "N\u00famero de parcelas j\u00e1 pagas"
+    },
+    "data_criacao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de cria\u00e7\u00e3o do contrato"
+    }
+  },
+  "required": [
+    "user_email",
+    "user_name"
+  ]
+}
