@@ -1,6 +1,7 @@
 import React from 'react';
 import { base44 } from '@/api/base44Client';
 import { Activity, Wallet, BarChart3, CalendarDays, MapPin } from 'lucide-react';
+import { useCurrentUser } from '@/components/auth/useCurrentUser';
 
 const MONTH_ORDER = [
   'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -195,6 +196,8 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
   const [agendaItems, setAgendaItems] = React.useState([]);
   const [agendaDate, setAgendaDate] = React.useState(null);
   const [agendaIndex, setAgendaIndex] = React.useState(0);
+  const { user } = useCurrentUser();
+  const isCoordenador = user?.role === 'COORDENADOR' || user?.base_role === 'COORDENADOR';
 
   React.useEffect(() => {
     let mounted = true;
@@ -475,6 +478,7 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
         </CardSection>
       </div>
 
+      {isCoordenador && (
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <CardSection title="Comparativo por Museu" empty={comparativoMuseu.every(m => m.relatorios === 0)} className="xl:col-span-2">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -539,6 +543,7 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
           </div>
         </CardSection>
       </div>
+      )}
     </div>
   );
 }
