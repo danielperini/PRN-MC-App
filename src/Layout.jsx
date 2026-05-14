@@ -45,6 +45,7 @@ const PAGE_TITLES = {
   EntradaUnica: 'Entrada Única de Documentos',
   Mensagens: 'Mensagens',
   Aparencia: 'Aparência e Manutenção',
+  RelatorioFisicoFinanceiro: 'Relatório Físico-Financeiro',
   ChecklistProducao: 'Checklist de Produção',
 };
 
