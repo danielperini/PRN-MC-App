@@ -1,5 +1,34 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// Seleção determinística pseudo-aleatória baseada em seed
+function seededRandom(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 4294967296;
+  };
+}
+
+function shuffleWithSeed(array, seed) {
+  const rng = seededRandom(seed);
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Gera seed numérico a partir da string de data (ex: "2026-05-14")
+function dateSeedFromString(dateStr) {
+  let hash = 0;
+  for (let i = 0; i < dateStr.length; i++) {
+    hash = ((hash << 5) - hash) + dateStr.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -7,11 +36,11 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { museu, limit = 3 } = body;
+    const { museu, limit = 3, daily_seed } = body;
 
     // Buscar relatórios aprovados e attachments com imagens em paralelo
     const [reports, attachments] = await Promise.all([
-      base44.asServiceRole.entities.Report.filter({ status: 'APPROVED' }, '-updated_date', 80),
+      base44.asServiceRole.entities.Report.filter({ status: 'APPROVED' }, '-updated_date', 200),
       base44.asServiceRole.entities.Attachment.list('-created_date', 200),
     ]);
 
@@ -32,8 +61,13 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Usar seed diário para embaralhar de forma determinística
+    const seedStr = daily_seed || new Date().toISOString().slice(0, 10);
+    const seedNum = dateSeedFromString(seedStr + (museu || 'Todos'));
+    const shuffled = shuffleWithSeed(filtered, seedNum);
+
     // Montar texto dos relatórios para a IA analisar
-    const excerpts = filtered.slice(0, 30).map(r => {
+    const excerpts = shuffled.slice(0, 30).map(r => {
       const parts = [];
       if (r.resumo_periodo) parts.push(r.resumo_periodo);
       if (r.resumo_executivo) parts.push(r.resumo_executivo);

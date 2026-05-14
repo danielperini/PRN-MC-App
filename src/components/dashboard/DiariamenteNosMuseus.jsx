@@ -109,21 +109,66 @@ function SkeletonCard() {
   );
 }
 
+// Calcula o seed do dia: dia muda às 6h da manhã (horário de Brasília)
+function getDailySeed() {
+  const now = new Date();
+  // BRT = UTC-3, então 6h BRT = 9h UTC
+  const utcHour = now.getUTCHours();
+  const utcMinutes = now.getUTCMinutes();
+  // Se ainda não passou das 9h UTC (6h BRT), usa data de ontem como seed
+  const d = new Date(now);
+  if (utcHour < 9 || (utcHour === 9 && utcMinutes === 0)) {
+    d.setUTCDate(d.getUTCDate() - 1);
+  }
+  return d.toISOString().slice(0, 10); // "YYYY-MM-DD"
+}
+
+function getCacheKey(museu) {
+  return `diariamente_museus_${getDailySeed()}_${museu}`;
+}
+
 export default function DiariamenteNosMuseus() {
   const [frases, setFrases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [museuFilter, setMuseuFilter] = useState('Todos');
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [forceRefresh, setForceRefresh] = useState(false);
 
-  const load = useCallback(async (museu) => {
+  const load = useCallback(async (museu, force = false) => {
     setLoading(true);
     setFrases([]);
+
+    const cacheKey = getCacheKey(museu);
+
+    // Usar cache do dia se disponível e não forçando refresh
+    if (!force) {
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.frases?.length > 0) {
+            setFrases(parsed.frases);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {}
+    }
+
     try {
       const res = await base44.functions.invoke('extrairFrasesMuseus', {
         museu: museu === 'Todos' ? null : museu,
         limit: 3,
+        daily_seed: getDailySeed(),
       });
-      setFrases(res?.data?.frases || []);
+      const resultado = res?.data?.frases || [];
+      setFrases(resultado);
+
+      // Salvar no cache diário
+      if (resultado.length > 0) {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({ frases: resultado }));
+        } catch {}
+      }
     } catch (e) {
       console.error('DiariamenteNosMuseus:', e);
       setFrases([]);
@@ -133,8 +178,9 @@ export default function DiariamenteNosMuseus() {
   }, []);
 
   useEffect(() => {
-    load(museuFilter);
-  }, [museuFilter, refreshKey, load]);
+    load(museuFilter, forceRefresh);
+    if (forceRefresh) setForceRefresh(false);
+  }, [museuFilter, forceRefresh, load]);
 
   return (
     <div className="space-y-5">
@@ -143,7 +189,7 @@ export default function DiariamenteNosMuseus() {
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">Diariamente nos Museus</h2>
           <p className="text-sm text-slate-500 mt-0.5">
-            Fragmentos positivos dos relatórios que revelam o cotidiano vivo dos museus.
+            3 fragmentos selecionados hoje — renova às 6h. Curadoria automática dos relatórios aprovados.
           </p>
         </div>
 
@@ -167,7 +213,11 @@ export default function DiariamenteNosMuseus() {
 
           {/* Atualizar */}
           <button
-            onClick={() => setRefreshKey((k) => k + 1)}
+            onClick={() => {
+              // Limpa cache do dia para forçar nova chamada IA
+              try { localStorage.removeItem(getCacheKey(museuFilter)); } catch {}
+              setForceRefresh(true);
+            }}
             disabled={loading}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-xs text-slate-600 hover:border-slate-400 transition-all disabled:opacity-50"
           >
