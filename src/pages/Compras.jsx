@@ -274,6 +274,30 @@ async function carregarSolicitacoes({ isCoordenador, currentUser }) {
   );
 }
 
+function categorizeSolicitacoes(purchases) {
+  const categories = {
+    geral: [],
+    mhab: [],
+    mis: [],
+    mumo: [],
+    pessoas: []
+  };
+
+  purchases.forEach((p) => {
+    if (isCompraEquipe(p)) {
+      categories.pessoas.push(p);
+    } else {
+      const centro = normalizeCentro(p?.centro_custo);
+      if (centro === 'MHAB') categories.mhab.push(p);
+      else if (centro === 'MIS') categories.mis.push(p);
+      else if (centro === 'MUMO') categories.mumo.push(p);
+      else categories.geral.push(p);
+    }
+  });
+
+  return categories;
+}
+
 function TabelaSolicitacoes({
   purchases,
   rubricas,
@@ -301,29 +325,36 @@ function TabelaSolicitacoes({
   if (!purchases || purchases.length === 0) return null;
 
   const podeAprovar = isCoordenador || podeAprovarSolicitacoes === true || hasGestaoCompras === true;
+  const categories = categorizeSolicitacoes(purchases);
+  const visibleCategories = [
+    { key: 'geral', label: 'Geral', visible: true },
+    { key: 'mhab', label: 'MHAB', visible: true },
+    { key: 'mis', label: 'MIS', visible: true },
+    { key: 'mumo', label: 'MUMO', visible: true },
+    { key: 'pessoas', label: 'Pessoas', visible: isCoordenador }
+  ].filter((cat) => cat.visible && categories[cat.key].length > 0);
 
-  return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200">
-      <table className="w-full table-fixed border-collapse text-sm">
-        <colgroup>
-          <col className="w-[27%]" /><col className="w-[14%]" /><col className="w-[8%]" />
-          <col className="w-[15%]" /><col className="w-[10%]" /><col className="w-[10%]" />
-          <col className="w-[7%]" /><col className="w-[9%]" />
-        </colgroup>
-        <thead>
-          <tr className="border-b border-gray-200 bg-gray-50 text-left">
-            <th className="px-3 py-3 font-medium text-gray-600">Descrição</th>
-            <th className="px-3 py-3 font-medium text-gray-600">Fornecedor</th>
-            <th className="px-3 py-3 font-medium text-gray-600">Centro</th>
-            <th className="px-3 py-3 font-medium text-gray-600">Rubrica</th>
-            <th className="px-3 py-3 font-medium text-gray-600">Status</th>
-            <th className="px-3 py-3 text-right font-medium text-gray-600">Valor</th>
-            <th className="px-3 py-3 text-center font-medium text-gray-600">Arquivo</th>
-            <th className="px-3 py-3 text-center font-medium text-gray-600">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {purchases.map((p, i) => {
+  const renderTabela = (items) => (
+    <table className="w-full table-fixed border-collapse text-sm">
+      <colgroup>
+        <col className="w-[27%]" /><col className="w-[14%]" /><col className="w-[8%]" />
+        <col className="w-[15%]" /><col className="w-[10%]" /><col className="w-[10%]" />
+        <col className="w-[7%]" /><col className="w-[9%]" />
+      </colgroup>
+      <thead>
+        <tr className="border-b border-gray-200 bg-gray-50 text-left">
+          <th className="px-3 py-3 font-medium text-gray-600">Descrição</th>
+          <th className="px-3 py-3 font-medium text-gray-600">Fornecedor</th>
+          <th className="px-3 py-3 font-medium text-gray-600">Centro</th>
+          <th className="px-3 py-3 font-medium text-gray-600">Rubrica</th>
+          <th className="px-3 py-3 font-medium text-gray-600">Status</th>
+          <th className="px-3 py-3 text-right font-medium text-gray-600">Valor</th>
+          <th className="px-3 py-3 text-center font-medium text-gray-600">Arquivo</th>
+          <th className="px-3 py-3 text-center font-medium text-gray-600">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((p, i) => {
             const statusKey = normalizeStatus(p.status);
             const status = STATUS_CONFIG[statusKey] || { label: p.status || '—', color: 'bg-gray-100 text-gray-600' };
             const aprovado = STATUS_APROVADOS.has(statusKey);
@@ -473,8 +504,25 @@ function TabelaSolicitacoes({
               </tr>
             );
           })}
-        </tbody>
-      </table>
+      </tbody>
+    </table>
+  );
+
+  return (
+    <div className="space-y-8">
+      {visibleCategories.map((cat) => (
+        <div key={cat.key}>
+          <div className="mb-3 flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-gray-900">{cat.label}</h3>
+            <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+              {categories[cat.key].length}
+            </span>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            {renderTabela(categories[cat.key])}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
