@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, AlertTriangle } from 'lucide-react';
+import RubricasCompartilhadasRateio from './RubricasCompartilhadasRateio';
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -397,6 +398,13 @@ export default function RubricasMuseuEditor({
           </section>
         ))}
       </div>
+
+      {/* Seção de rubricas compartilhadas com rateio ÷ 3 (exceto NOTURNO) */}
+      {normalizedMuseu !== 'NOTURNO' && (
+        <div className="border-t border-gray-100 pt-6">
+          <RubricasCompartilhadasRateio museu={normalizedMuseu} refreshKey={refreshKey} />
+        </div>
+      )}
     </div>
   );
 }
