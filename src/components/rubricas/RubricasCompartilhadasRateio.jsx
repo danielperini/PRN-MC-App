@@ -16,9 +16,9 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, SplitSquareHorizontal } from 'lucide-react';
 
 const MUSEUS_TOKENS = {
-  MIS:  ['mis', 'imagem', 'som'],
+  MIS: ['mis', 'imagem', 'som'],
   MHAB: ['mhab', 'abilio', 'historico'],
-  MUMO: ['mumo', 'moda'],
+  MUMO: ['mumo', 'moda']
 };
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 
@@ -31,12 +31,12 @@ function toNumber(value) {
 }
 
 function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+  return String(value || '').
+  normalize('NFD').
+  replace(/[\u0300-\u036f]/g, '').
+  replace(/\s+/g, ' ').
+  trim().
+  toLowerCase();
 }
 
 function getRubricaNome(r = {}) {
@@ -64,21 +64,21 @@ function formatCurrency(value) {
   return toNumber(value).toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 0
   });
 }
 
 // Retorna quantos museus distintos aparecem no texto da rubrica
 function getSearchText(r = {}) {
   return normalizeText([
-    r?.rubrica, r?.nome, r?.descricao, r?.grupo, r?.categoria,
-    r?.categoria_key, r?.centro_custo, r?.observacao_uso,
-  ].filter(Boolean).join(' '));
+  r?.rubrica, r?.nome, r?.descricao, r?.grupo, r?.categoria,
+  r?.categoria_key, r?.centro_custo, r?.observacao_uso].
+  filter(Boolean).join(' '));
 }
 
 function countMuseuTokens(text = '') {
   return MUSEUS.filter((museu) =>
-    MUSEUS_TOKENS[museu].some((tok) => text.includes(tok))
+  MUSEUS_TOKENS[museu].some((tok) => text.includes(tok))
   ).length;
 }
 
@@ -95,8 +95,8 @@ function isExcludedFromRateio(r = {}) {
     text.includes('educador') ||
     text.includes('educadores') ||
     text.includes('diaria educador') ||
-    text.includes('diarias educador')
-  );
+    text.includes('diarias educador'));
+
 }
 
 /**
@@ -143,12 +143,12 @@ function deduplicateRubricas(rows = []) {
 function RubricaRateioCard({ rubrica }) {
   const fator = 1 / 3;
 
-  const orcado     = Number((getValorOrcado(rubrica)     * fator).toFixed(2));
-  const utilizado  = Number((getValorUtilizado(rubrica)  * fator).toFixed(2));
-  const pago       = Number((getValorPago(rubrica)       * fator).toFixed(2));
-  const lancamentos= Number((getValorLancamentos(rubrica)* fator).toFixed(2));
-  const saldo      = Number((orcado - utilizado).toFixed(2));
-  const pct        = orcado > 0 ? Number(((utilizado / orcado) * 100).toFixed(1)) : 0;
+  const orcado = Number((getValorOrcado(rubrica) * fator).toFixed(2));
+  const utilizado = Number((getValorUtilizado(rubrica) * fator).toFixed(2));
+  const pago = Number((getValorPago(rubrica) * fator).toFixed(2));
+  const lancamentos = Number((getValorLancamentos(rubrica) * fator).toFixed(2));
+  const saldo = Number((orcado - utilizado).toFixed(2));
+  const pct = orcado > 0 ? Number((utilizado / orcado * 100).toFixed(1)) : 0;
   const progressWidth = `${Math.min(Math.max(pct, 0), 100)}%`;
 
   return (
@@ -180,8 +180,8 @@ function RubricaRateioCard({ rubrica }) {
         <div className="w-full h-1.5 bg-blue-100 rounded-full overflow-hidden">
           <div
             className={`h-1.5 rounded-full ${pct >= 100 ? 'bg-red-600' : pct >= 80 ? 'bg-orange-500' : 'bg-blue-600'}`}
-            style={{ width: progressWidth }}
-          />
+            style={{ width: progressWidth }} />
+          
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-xs">
@@ -214,8 +214,8 @@ function RubricaRateioCard({ rubrica }) {
           Valor total da rubrica: {formatCurrency(getValorOrcado(rubrica))} · dividido igualmente entre MHAB, MIS e MUMO
         </p>
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 }
 
 // ---------- componente principal ----------
@@ -229,34 +229,34 @@ export default function RubricasCompartilhadasRateio({ museu = 'MIS', refreshKey
         const rows = flattenAllRubricas(res?.data || {});
         if (rows.length > 0) return rows;
       } catch {
+
         // fallback
-      }
-      const rubricas = await base44.entities.Rubrica.list('ordem_exibicao', 1000);
+      }const rubricas = await base44.entities.Rubrica.list('ordem_exibicao', 1000);
       return Array.isArray(rubricas) ? rubricas : [];
     },
     staleTime: 0,
     gcTime: 0,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: false
   });
 
   const compartilhadas = useMemo(() => {
     const all = Array.isArray(data) ? data : [];
     const unique = deduplicateRubricas(all);
-    return unique
-      .filter((r) => r?.ativo !== false)
-      .filter(isRubricaCompartilhada)
-      .filter((r) => !isExcludedFromRateio(r))
-      .sort((a, b) => getRubricaNome(a).localeCompare(getRubricaNome(b), 'pt-BR'));
+    return unique.
+    filter((r) => r?.ativo !== false).
+    filter(isRubricaCompartilhada).
+    filter((r) => !isExcludedFromRateio(r)).
+    sort((a, b) => getRubricaNome(a).localeCompare(getRubricaNome(b), 'pt-BR'));
   }, [data]);
 
   // Totais rateados para o museu
   const totais = useMemo(() => {
     return compartilhadas.reduce(
       (acc, r) => {
-        acc.orcado     += getValorOrcado(r)     / 3;
-        acc.utilizado  += getValorUtilizado(r)  / 3;
-        acc.pago       += getValorPago(r)        / 3;
-        acc.saldo      += (getValorOrcado(r) - getValorUtilizado(r)) / 3;
+        acc.orcado += getValorOrcado(r) / 3;
+        acc.utilizado += getValorUtilizado(r) / 3;
+        acc.pago += getValorPago(r) / 3;
+        acc.saldo += (getValorOrcado(r) - getValorUtilizado(r)) / 3;
         return acc;
       },
       { orcado: 0, utilizado: 0, pago: 0, saldo: 0 }
@@ -279,16 +279,16 @@ export default function RubricasCompartilhadasRateio({ museu = 'MIS', refreshKey
       <div className="flex items-center gap-2 py-6 text-gray-400 text-sm">
         <Loader2 className="w-4 h-4 animate-spin" />
         Carregando rubricas compartilhadas...
-      </div>
-    );
+      </div>);
+
   }
 
   if (compartilhadas.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-400">
         Nenhuma rubrica compartilhada elegível para rateio.
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -296,11 +296,11 @@ export default function RubricasCompartilhadasRateio({ museu = 'MIS', refreshKey
       {/* cabeçalho */}
       <div className="flex items-center gap-2 mb-1">
         <SplitSquareHorizontal className="w-4 h-4 text-blue-600" />
-        <h3 className="text-sm font-bold text-blue-700 uppercase tracking-wide">
+        <h3 className="text-sm font-bold text-blue-700 uppercase tracking-wide hidden">
           Rubricas Compartilhadas — Rateio ÷ 3 — {museu}
         </h3>
       </div>
-      <p className="text-xs text-gray-500 -mt-3">
+      <p className="text-xs text-gray-500 -mt-3 hidden">
         Rubricas sem museu específico ou compartilhadas entre museus, divididas igualmente.
         Excluídas do rateio: Produção e Educadores.
       </p>
@@ -308,24 +308,24 @@ export default function RubricasCompartilhadasRateio({ museu = 'MIS', refreshKey
       {/* totais rateados */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Previsto (1/3)',   value: totais.orcado,    color: 'text-black' },
-          { label: 'Utilizado (1/3)',  value: totais.utilizado, color: 'text-black' },
-          { label: 'Pago (1/3)',       value: totais.pago,      color: 'text-green-700' },
-          { label: 'Saldo (1/3)',      value: totais.saldo,     color: totais.saldo < 0 ? 'text-red-600' : 'text-black' },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="rounded-xl border border-blue-100 bg-blue-50 p-3">
+        { label: 'Previsto (1/3)', value: totais.orcado, color: 'text-black' },
+        { label: 'Utilizado (1/3)', value: totais.utilizado, color: 'text-black' },
+        { label: 'Pago (1/3)', value: totais.pago, color: 'text-green-700' },
+        { label: 'Saldo (1/3)', value: totais.saldo, color: totais.saldo < 0 ? 'text-red-600' : 'text-black' }].
+        map(({ label, value, color }) =>
+        <div key={label} className="rounded-xl border border-blue-100 bg-blue-50 p-3 hidden">
             <p className="text-[10px] uppercase tracking-wide text-blue-500 font-semibold">{label}</p>
             <p className={`text-lg font-bold mt-1 ${color}`}>{formatCurrency(value)}</p>
           </div>
-        ))}
+        )}
       </div>
 
       {/* cards por categoria */}
       <div className="space-y-5">
-        {grouped.map(([categoria, items]) => (
-          <section key={categoria} className="space-y-3">
+        {grouped.map(([categoria, items]) =>
+        <section key={categoria} className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <h4 className="text-xs font-bold uppercase tracking-wide text-blue-600">
+              <h4 className="text-xs font-bold uppercase tracking-wide text-blue-600 hidden">
                 {categoria}
               </h4>
               <span className="text-xs text-gray-400">
@@ -333,13 +333,13 @@ export default function RubricasCompartilhadasRateio({ museu = 'MIS', refreshKey
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {items.map((rubrica, index) => (
-                <RubricaRateioCard key={rubrica?.id || `shared-${index}`} rubrica={rubrica} />
-              ))}
+              {items.map((rubrica, index) =>
+            <RubricaRateioCard key={rubrica?.id || `shared-${index}`} rubrica={rubrica} />
+            )}
             </div>
           </section>
-        ))}
+        )}
       </div>
-    </div>
-  );
+    </div>);
+
 }
