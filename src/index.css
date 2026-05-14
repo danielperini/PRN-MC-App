@@ -255,3 +255,48 @@
   background: #050505 !important;
   color: #f5f5f5 !important;
 }
+
+/* Sidebar Noturno — Preto e Branco */
+[data-theme="nuit"] aside,
+[data-theme="nuit"] .sidebar {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border-color: #333333 !important;
+}
+
+[data-theme="nuit"] aside .text-primary-foreground,
+[data-theme="nuit"] .sidebar .text-primary-foreground {
+  color: #ffffff !important;
+}
+
+[data-theme="nuit"] aside .bg-primary,
+[data-theme="nuit"] .sidebar .bg-primary {
+  background: #000000 !important;
+}
+
+/* Item ativo no sidebar */
+[data-theme="nuit"] aside .bg-secondary.text-secondary-foreground,
+[data-theme="nuit"] .sidebar .bg-secondary.text-secondary-foreground {
+  background: #ffffff !important;
+  color: #000000 !important;
+  border-color: #ffffff !important;
+}
+
+[data-theme="nuit"] aside .bg-secondary .text-secondary-foreground,
+[data-theme="nuit"] .sidebar .bg-secondary .text-secondary-foreground {
+  color: #000000 !important;
+}
+
+/* Hover states */
+[data-theme="nuit"] aside .hover\:bg-primary\/80:hover,
+[data-theme="nuit"] .sidebar .hover\:bg-primary\/80:hover {
+  background: #1a1a1a !important;
+}
+
+/* Texto secundário */
+[data-theme="nuit"] aside .text-primary-foreground\/70,
+[data-theme="nuit"] .sidebar .text-primary-foreground\/70,
+[data-theme="nuit"] aside .text-primary-foreground\/60,
+[data-theme="nuit"] .sidebar .text-primary-foreground\/60 {
+  color: #cccccc !important;
+}
