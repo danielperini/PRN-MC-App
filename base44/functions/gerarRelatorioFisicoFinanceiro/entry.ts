@@ -207,7 +207,7 @@ function calcMetricasExpandidas({ relsFiltrados, allAtividades, comprasFiltradas
 // ── contexto editorial integral com análise de imagens ────────────────────────
 
 function buildContextoEditorial(dados, metricas, periodoStr, museuStr, fotosAnalisadas = []) {
-  const { relsFiltrados, allAtividades, releasesFiltrados, agendaFiltrada, teamFiltrado, comprasFiltradas, knowledgeAtivo, momentosFiltrados } = dados;
+  const { relsFiltrados, allAtividades, releasesFiltrados, agendaFiltrada, teamFiltrado, comprasFiltradas, knowledgeAtivo, momentosFiltrados, progFiltradas } = dados;
 
   const atividadesTitulos = allAtividades.slice(0, 50).map(a => a.titulo || a.nome || '').filter(Boolean).join('; ');
   const releasesTitulos = releasesFiltrados.slice(0, 20).map(r => r.titulo || r.conteudo_resumido?.slice(0, 50) || '').filter(Boolean).join('; ');
@@ -222,6 +222,13 @@ function buildContextoEditorial(dados, metricas, periodoStr, museuStr, fotosAnal
     [r.resumo_executivo, r.resumo_periodo, r.avaliacao_pontos_positivos]
       .filter(Boolean).join(' | ').slice(0, 300)
   ).filter(Boolean).join('\n');
+  
+  const releasesCuratoriais = releasesFiltrados.slice(0, 5).map(r => ({
+    titulo: r.titulo,
+    resumo: r.conteudo_resumido || r.titulo,
+    mes: r.mes,
+    ano: r.ano
+  }));
 
   return `Contexto Editorial Integral — Relatório Físico-Financeiro do Projeto Museus Centro
 Período: ${periodoStr} | Museus: ${museuStr}
@@ -379,43 +386,85 @@ async function gerarHTMLCompleto(dados, metricas, secoes, dateFrom, dateTo, muse
   if (introIA && secoes.includes('introducao')) {
     prompts.introducao = `${ctxEditorial}
 
-Redija a Introdução (máximo 2 parágrafos): apresente o projeto, contextualize o período, mencione tipos de atividades realizadas e público alcançado. Tom: institucional, editorial, envolvente.`;
+DIRETRIZES OBRIGATÓRIAS DE REDAÇÃO:
+- Mínimo 3 parágrafos completos (evite conter em 2)
+- Cada parágrafo: mínimo 80 palavras, linguagem densa
+- Parágrafo 1: contextualização institucional, síntese período, leitura geral ações
+- Parágrafo 2: cruzamento agenda↔atividades↔releases, contexto cultural
+- Parágrafo 3: interpretação resultados, participação, continuidade, impacto
+- Evitar: "foi realizado", repetição, texto automático, superficialidade
+- Estilo: institucional, elegante, editorial, técnico, curatorial, sofisticado
+- Usar EXCLUSIVAMENTE dados listados acima — NUNCA invente
+
+Redija a Introdução do relatório (mínimo 3 parágrafos densos):`;
   }
 
   if (secoes.includes('agenda_programacao')) {
     prompts.agenda = `${ctxEditorial}
 
-Redija texto sobre Agenda e Programação (máximo 5 parágrafos): descreva as programações executadas no período, cruzando agenda com atividades aprovadas e releases. Mencione destaques, dinâmica dos espaços, participação pública. Use linguagem narrativa e editorial.`;
+DIRETRIZES: Densidade textual obrigatória. Cruzar agenda com atividades e releases. 
+Parágrafo 1: contexto operacional das programações
+Parágrafo 2: descrição das atividades e dinâmica dos espaços
+Parágrafo 3: participação, continuidade, integração
+Evitar linguagem automática. Estilo: editorial, analítico.
+
+Redija Agenda e Programação (mínimo 3 parágrafos):`;
   }
 
   if (secoes.includes('relatorios_completos')) {
     prompts.relatorios = `${ctxEditorial}
 
-Analise os relatórios mensais aprovados (${metricas.totalRels}) e redija síntese executiva (máximo 4 parágrafos): descreva dinâmica das equipes, atividades por museu, desafios identificados, sucessos alcançados. Remova repetições.`;
+DIRETRIZES: Síntese dos ${metricas.totalRels} relatórios aprovados com densidade narrativa.
+Integrar: dinâmica das equipes, atividades por museu, desafios, sucessos.
+Estrutura: Contextualização → Descrição → Interpretação
+Evitar repetição de palavras e frases genéricas.
+
+Redija Relatórios Completos (mínimo 3 parágrafos densos):`;
   }
 
   if (secoes.includes('atividades_consolidadas')) {
     prompts.atividades = `${ctxEditorial}
 
-Redija narrativa sobre atividades consolidadas (máximo 4 parágrafos): contextualize as ${metricas.totalAtiv} atividades realizadas, agrupe por tipologia, mencione público atingido, impacto educativo e territorial. Use releases como base.`;
+DIRETRIZES: Consolidar ${metricas.totalAtiv} atividades em narrativa coerente.
+Cruzar: atividades + releases + agenda + imagens
+Tipologia, público, impacto territorial, mediação cultural
+Estrutura: Contexto → Descrição → Interpretação institucional
+
+Redija Atividades Consolidadas (mínimo 3 parágrafos):`;
   }
 
   if (secoes.includes('comunicacao')) {
     prompts.comunicacao = `${ctxEditorial}
 
-Redija seção Comunicação (máximo 3 parágrafos): descreva campanhas, alcance em redes sociais, publicações, ações de divulgação e clipping. Cite tipos de conteúdo produzido.`;
+DIRETRIZES: ${releasesCuratoriais.length} releases institucionais mapeados.
+Descrever cobertura de comunicação, campanhas, alcance, tipos de conteúdo.
+Usar releases como base textual — reutilizar trechos curatoriais.
+Linguagem: editorial, narrativa.
+
+Redija Comunicação (mínimo 3 parágrafos densos):`;
   }
 
   if (secoes.includes('prestacao_integral')) {
     prompts.prestacao = `${ctxEditorial}
 
-Redija Prestação de Contas Integral (máximo 5 parágrafos): analise coerência entre execução física (atividades, público) e execução financeira (orçamento, compras, rubricas). Cite documentação completa e conformidade. Tom: formal, técnico, auditável.`;
+DIRETRIZES: Prestação integral de contas - MÁXIMA DENSIDADE.
+Cruzar: execução física (atividades=${metricas.totalAtiv}, público=${metricas.publicoTotal.toLocaleString('pt-BR')}) 
++ execução financeira (${metricas.percentual}%, R$ utilizado)
+Citar documentação completa (rubricas, compras, NFs, contratos)
+Tom: formal, técnico, auditável, profissional
+Estrutura: Síntese → Análise financeira → Rastreabilidade
+
+Redija Prestação de Contas (mínimo 4 parágrafos muito densos):`;
   }
 
   if (secoes.includes('conclusao')) {
     prompts.conclusao = `${ctxEditorial}
 
-Redija Conclusão (máximo 2 parágrafos): destaque avanços do período, impacto cultural alcançado, aprendizados, compromisso com transparência. Tom: positivo, institucional.`;
+DIRETRIZES: Conclusão sofisticada. Destaque avanços, impacto cultural, aprendizados.
+Tom: positivo, institucional, com densidade narrativa
+Mencionar: sustentabilidade operacional, memória institucional, continuidade
+
+Redija Conclusão (mínimo 2 parágrafos densos):`;
   }
 
   // Executar IA em lotes
