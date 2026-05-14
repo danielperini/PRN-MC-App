@@ -18,6 +18,7 @@ import ProgramacaoEspelho from './pages/ProgramacaoEspelho';
 import Agenda from './pages/Agenda';
 import RubricasPorMuseu from './pages/RubricasPorMuseu';
 import RelatorioFisicoFinanceiro from './pages/RelatorioFisicoFinanceiro';
+import RelatorioFisicoFinanceiroRevisao from './pages/RelatorioFisicoFinanceiroRevisao';
 import BaseConhecimento from './pages/BaseConhecimento';
 import DashboardPatrocinador from './pages/DashboardPatrocinadorSync';
 import EntradaUnica from './pages/EntradaUnica.jsx';
@@ -172,6 +173,7 @@ function AuthenticatedApp() {
             <Route path="/GuiaNotaFiscal" element={<SafePage Page={GuiaNotaFiscal} pageName="GuiaNotaFiscal" />} />
             <Route path="/Aparencia" element={<SafePage Page={Aparencia} pageName="Aparencia" />} />
             <Route path="/RelatorioFisicoFinanceiro" element={<SafePage Page={RelatorioFisicoFinanceiro} pageName="RelatorioFisicoFinanceiro" />} />
+            <Route path="/RelatorioFisicoFinanceiroRevisao" element={<SafePage Page={RelatorioFisicoFinanceiroRevisao} pageName="RelatorioFisicoFinanceiroRevisao" />} />
             <Route path="/ConviteAcesso" element={<ConviteAcesso />} />
             <Route path="/NotificationSettings" element={<SafePage Page={NotificationSettings} pageName="NotificationSettings" />} />
 

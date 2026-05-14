@@ -46,6 +46,7 @@ const PAGE_TITLES = {
   Mensagens: 'Mensagens',
   Aparencia: 'Aparência e Manutenção',
   RelatorioFisicoFinanceiro: 'Relatório Físico-Financeiro',
+  RelatorioFisicoFinanceiroRevisao: 'Revisão e Aprovação do Relatório',
   ChecklistProducao: 'Checklist de Produção',
 };
 

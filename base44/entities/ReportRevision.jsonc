@@ -1,0 +1,138 @@
+{
+  "name": "ReportRevision",
+  "type": "object",
+  "properties": {
+    "report_id": {
+      "type": "string",
+      "description": "ID do relat\u00f3rio f\u00edsico-financeiro (FK \u2192 Report)"
+    },
+    "periodo_from": {
+      "type": "string",
+      "format": "date",
+      "description": "Data inicial do per\u00edodo"
+    },
+    "periodo_to": {
+      "type": "string",
+      "format": "date",
+      "description": "Data final do per\u00edodo"
+    },
+    "museu": {
+      "type": "string",
+      "description": "Museu (MHAB, MIS, MUMO, ou todos)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "GERADO_IA",
+        "EM_REVISAO",
+        "EDITADO_MANUALMENTE",
+        "APROVADO_PARA_EXPORTACAO",
+        "EXPORTADO_PDF"
+      ],
+      "default": "GERADO_IA",
+      "description": "Status da revis\u00e3o"
+    },
+    "conteudo_texto": {
+      "type": "object",
+      "description": "Dicion\u00e1rio de textos por se\u00e7\u00e3o: { introducao, agenda, atividades, comunicacao, prestacao, conclusao, etc }",
+      "properties": {
+        "introducao": {
+          "type": "string"
+        },
+        "agenda": {
+          "type": "string"
+        },
+        "atividades": {
+          "type": "string"
+        },
+        "comunicacao": {
+          "type": "string"
+        },
+        "prestacao": {
+          "type": "string"
+        },
+        "conclusao": {
+          "type": "string"
+        }
+      }
+    },
+    "conteudo_imagens": {
+      "type": "array",
+      "description": "Mapeamento de imagens: { secao, indice, url_original, url_substituida, legenda_original, legenda_editada, attachment_id }",
+      "items": {
+        "type": "object",
+        "properties": {
+          "secao": {
+            "type": "string"
+          },
+          "indice": {
+            "type": "number"
+          },
+          "url_original": {
+            "type": "string"
+          },
+          "url_substituida": {
+            "type": "string"
+          },
+          "legenda_original": {
+            "type": "string"
+          },
+          "legenda_editada": {
+            "type": "string"
+          },
+          "attachment_id": {
+            "type": "string"
+          },
+          "data_substituicao": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "secoes_editadas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Lista de se\u00e7\u00f5es que foram manualmente editadas"
+    },
+    "usuario_revisor": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que iniciou a revis\u00e3o"
+    },
+    "usuario_aprovador": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que aprovou para exporta\u00e7\u00e3o"
+    },
+    "data_criacao": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data de cria\u00e7\u00e3o da vers\u00e3o de revis\u00e3o"
+    },
+    "data_aprovacao": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data de aprova\u00e7\u00e3o para exporta\u00e7\u00e3o"
+    },
+    "data_exportacao": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data de exporta\u00e7\u00e3o do PDF"
+    },
+    "pdf_drive_id": {
+      "type": "string",
+      "description": "ID do PDF exportado no Google Drive"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es ou coment\u00e1rios do revisor"
+    }
+  },
+  "required": [
+    "periodo_from",
+    "periodo_to",
+    "status",
+    "conteudo_texto"
+  ]
+}
