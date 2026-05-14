@@ -141,11 +141,11 @@ export default function RemoverDuplicadosPanel() {
       </div>
 
       {/* Aviso de segurança */}
-      <div className="flex gap-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-        <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
+      <div className="flex gap-3 bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm text-gray-200 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200">
+        <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5 text-gray-400" />
         <div>
           <p className="font-semibold mb-0.5">Esta ação remove apenas duplicados e preserva os arquivos originais.</p>
-          <p className="text-xs text-amber-700">
+          <p className="text-xs text-gray-400">
             A detecção é feita com base em: autor, mês/ano de referência e museu. O relatório mais antigo de cada grupo é mantido. Um registro de auditoria é criado antes de qualquer exclusão.
           </p>
         </div>
