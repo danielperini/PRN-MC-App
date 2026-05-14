@@ -12,8 +12,8 @@ import {
   CartesianGrid,
   PieChart,
   Pie,
-  Cell,
-} from 'recharts';
+  Cell } from
+'recharts';
 import { Activity, Calendar, MapPin, RotateCw, TrendingUp, Users } from 'lucide-react';
 import AgendaCard from '@/components/patrocinador/AgendaCard';
 
@@ -33,12 +33,12 @@ function inteiro(value) {
 }
 
 function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
+  return String(value || '').
+  normalize('NFD').
+  replace(/[\u0300-\u036f]/g, '').
+  trim().
+  toLowerCase().
+  replace(/\s+/g, ' ');
 }
 
 function startOfDay(date) {
@@ -105,37 +105,37 @@ function getActivityPublico(atividade) {
 
 function isAtividadeConsolidadoMensal(activity) {
   const text = normalizeText([
-    activity?.nome_atividade,
-    activity?.nome,
-    activity?.titulo,
-    activity?.acao,
-    activity?.atividade,
-    activity?.descricao,
-    activity?.observacoes,
-    activity?.tipo_atividade,
-    activity?.classificacao,
-  ].filter(Boolean).join(' '));
+  activity?.nome_atividade,
+  activity?.nome,
+  activity?.titulo,
+  activity?.acao,
+  activity?.atividade,
+  activity?.descricao,
+  activity?.observacoes,
+  activity?.tipo_atividade,
+  activity?.classificacao].
+  filter(Boolean).join(' '));
 
   if (!text) return false;
 
   const hasConsolidado =
-    text.includes('publico geral') ||
-    text.includes('público geral') ||
-    text.includes('publico total') ||
-    text.includes('público total') ||
-    text.includes('total do mes') ||
-    text.includes('total do mês') ||
-    text.includes('consolidado') ||
-    text.includes('consolidada') ||
-    text.includes('balanco mensal') ||
-    text.includes('balanço mensal') ||
-    text.includes('resumo mensal');
+  text.includes('publico geral') ||
+  text.includes('público geral') ||
+  text.includes('publico total') ||
+  text.includes('público total') ||
+  text.includes('total do mes') ||
+  text.includes('total do mês') ||
+  text.includes('consolidado') ||
+  text.includes('consolidada') ||
+  text.includes('balanco mensal') ||
+  text.includes('balanço mensal') ||
+  text.includes('resumo mensal');
 
   const hasMensal =
-    text.includes('mes') ||
-    text.includes('mês') ||
-    text.includes('mensal') ||
-    text.includes('geral');
+  text.includes('mes') ||
+  text.includes('mês') ||
+  text.includes('mensal') ||
+  text.includes('geral');
 
   return hasConsolidado && hasMensal;
 }
@@ -168,7 +168,7 @@ function getMonthFromDate(date) {
     monthName: MESES[date.getMonth()],
     year: date.getFullYear(),
     key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
-    label: `${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`,
+    label: `${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
   };
 }
 
@@ -217,10 +217,10 @@ function normalizeMuseu(value) {
 
 function getActivityAuditKey(activity, report) {
   const explicitProgramacaoId =
-    activity?.programacao_id ||
-    activity?.programacaoId ||
-    activity?.id_programacao ||
-    activity?.agenda_id;
+  activity?.programacao_id ||
+  activity?.programacaoId ||
+  activity?.id_programacao ||
+  activity?.agenda_id;
 
   if (explicitProgramacaoId) return `programacao:${explicitProgramacaoId}`;
 
@@ -258,7 +258,7 @@ function getReportActivities(report) {
     _reportYear: reportYear,
     _publico: getActivityPublico(activity),
     _isConsolidadoMensal: isAtividadeConsolidadoMensal(activity),
-    _auditKey: getActivityAuditKey(activity, report),
+    _auditKey: getActivityAuditKey(activity, report)
   }));
 }
 
@@ -312,7 +312,7 @@ function applyPublicoConsolidadoMensal(activities) {
     }
 
     consolidatedKeys.add(key);
-    const consolidadoPrincipal = consolidados.reduce((best, item) => (inteiro(item._publico) > inteiro(best?._publico) ? item : best), consolidados[0]);
+    const consolidadoPrincipal = consolidados.reduce((best, item) => inteiro(item._publico) > inteiro(best?._publico) ? item : best, consolidados[0]);
 
     items.forEach((item) => {
       if (item === consolidadoPrincipal || item._auditKey === consolidadoPrincipal._auditKey) {
@@ -325,7 +325,7 @@ function applyPublicoConsolidadoMensal(activities) {
 
   return {
     activities: result,
-    consolidatedGroupCount: consolidatedKeys.size,
+    consolidatedGroupCount: consolidatedKeys.size
   };
 }
 
@@ -342,7 +342,7 @@ function buildApprovedMetrics(reportsAll) {
     activities: publicoConsolidado.activities,
     duplicateCount,
     consolidatedGroupCount: publicoConsolidado.consolidatedGroupCount,
-    totalPublico,
+    totalPublico
   };
 }
 
@@ -355,8 +355,8 @@ function KpiCard({ icon: Icon, label, value, helper, dark = false }) {
       </div>
       <p className={`text-3xl font-bold leading-tight truncate ${dark ? 'text-white' : 'text-black'}`}>{value}</p>
       {helper && <p className={`text-xs mt-1 truncate ${dark ? 'text-gray-300' : 'text-gray-500'}`}>{helper}</p>}
-    </div>
-  );
+    </div>);
+
 }
 
 function SectionCard({ title, children }) {
@@ -366,8 +366,8 @@ function SectionCard({ title, children }) {
         <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-4">{title}</h3>
         {children}
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 }
 
 export default function DashboardPatrocinadorSync() {
@@ -396,15 +396,15 @@ export default function DashboardPatrocinadorSync() {
     totalUtilizado: 0,
     saldoTotal: TOTAL_OFICIAL,
     percentualExecucao: 0,
-    hasData: false,
+    hasData: false
   });
 
   const loadDashboardData = useCallback(async (silent = false) => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     setLoadError('');
-    if (!silent) setLoading(true);
-    else setRefreshing(true);
+    if (!silent) setLoading(true);else
+    setRefreshing(true);
 
     try {
       const hoje = new Date();
@@ -413,31 +413,31 @@ export default function DashboardPatrocinadorSync() {
       const mesAgenda = getCurrentMonth();
 
       const [reportsAll, programacaoRaw, rubricasRaw] = await Promise.all([
-        safeList(base44.entities.Report, '-updated_date', 1000),
-        safeList(base44.entities.Programacao, '-data_realizacao', 1000),
-        safeList(base44.entities.Rubrica, 'ordem_exibicao', 1000),
-      ]);
+      safeList(base44.entities.Report, '-updated_date', 1000),
+      safeList(base44.entities.Programacao, '-data_realizacao', 1000),
+      safeList(base44.entities.Rubrica, 'ordem_exibicao', 1000)]
+      );
 
       const metrics = buildApprovedMetrics(reportsAll);
       const atividadesRealizadas = metrics.activities;
       const atividadesMes = atividadesRealizadas.filter((item) => item._reportMonthNumber === mesReferencia.monthNumber && item._reportYear === mesReferencia.year);
 
-      const programacao = programacaoRaw
-        .filter((item) => {
-          const status = String(item?.status || item?.situacao || '').toUpperCase();
-          return !['CANCELADO', 'CANCELADA', 'INATIVO', 'INATIVA'].includes(status);
-        })
-        .map((item) => ({ ...item, _date: getDateValue(item), _museu: normalizeMuseu(getProgramacaoMuseu(item)) }));
+      const programacao = programacaoRaw.
+      filter((item) => {
+        const status = String(item?.status || item?.situacao || '').toUpperCase();
+        return !['CANCELADO', 'CANCELADA', 'INATIVO', 'INATIVA'].includes(status);
+      }).
+      map((item) => ({ ...item, _date: getDateValue(item), _museu: normalizeMuseu(getProgramacaoMuseu(item)) }));
 
       const programacaoMes = programacao.filter((item) => item._date && item._date.getMonth() === mesAgenda.monthIndex && item._date.getFullYear() === mesAgenda.year);
 
-      const agendaHoje = programacao
-        .filter((item) => item._date && startOfDay(item._date).getTime() === hojeInicio.getTime())
-        .sort((a, b) => String(a.horario || '').localeCompare(String(b.horario || '')));
+      const agendaHoje = programacao.
+      filter((item) => item._date && startOfDay(item._date).getTime() === hojeInicio.getTime()).
+      sort((a, b) => String(a.horario || '').localeCompare(String(b.horario || '')));
 
-      const futuras = programacao
-        .filter((item) => item._date && startOfDay(item._date).getTime() >= hojeInicio.getTime())
-        .sort((a, b) => startOfDay(a._date).getTime() - startOfDay(b._date).getTime());
+      const futuras = programacao.
+      filter((item) => item._date && startOfDay(item._date).getTime() >= hojeInicio.getTime()).
+      sort((a, b) => startOfDay(a._date).getTime() - startOfDay(b._date).getTime());
 
       const atividadesPorMes = {};
       atividadesRealizadas.forEach((item) => {
@@ -448,10 +448,10 @@ export default function DashboardPatrocinadorSync() {
         atividadesPorMes[chave].publico += getPublicoContabil(item);
       });
 
-      const dadosMensais = Object.values(atividadesPorMes)
-        .sort((a, b) => a.key.localeCompare(b.key))
-        .slice(-6)
-        .map((item) => ({ mes: item.mes, atividades: Math.round(item.atividades), publico: Math.round(item.publico) }));
+      const dadosMensais = Object.values(atividadesPorMes).
+      sort((a, b) => a.key.localeCompare(b.key)).
+      slice(-6).
+      map((item) => ({ mes: item.mes, atividades: Math.round(item.atividades), publico: Math.round(item.publico) }));
 
       const classificacao = {};
       atividadesRealizadas.forEach((item) => {
@@ -462,7 +462,7 @@ export default function DashboardPatrocinadorSync() {
       const dadosClassificacao = Object.entries(classificacao).map(([nome, quantidade]) => ({
         nome,
         quantidade,
-        display: nome === 'META' ? 'Metas' : nome === 'ROTINA' ? 'Rotina' : nome === 'EXTRA' ? 'Extra' : nome,
+        display: nome === 'META' ? 'Metas' : nome === 'ROTINA' ? 'Rotina' : nome === 'EXTRA' ? 'Extra' : nome
       }));
 
       const comparativoMuseu = MUSEUS.map((museu) => {
@@ -470,7 +470,7 @@ export default function DashboardPatrocinadorSync() {
         return {
           museu,
           atividades: items.length,
-          publico: Math.round(items.reduce((sum, item) => sum + getPublicoContabil(item), 0)),
+          publico: Math.round(items.reduce((sum, item) => sum + getPublicoContabil(item), 0))
         };
       });
 
@@ -482,7 +482,7 @@ export default function DashboardPatrocinadorSync() {
 
       const totalUtilizado = Array.from(rubricasUnicas.values()).reduce((sum, rubrica) => sum + Number(rubrica?.valor_utilizado || 0), 0);
       const saldoTotal = TOTAL_OFICIAL - totalUtilizado;
-      const percentualExecucao = TOTAL_OFICIAL > 0 ? Number(((totalUtilizado / TOTAL_OFICIAL) * 100).toFixed(1)) : 0;
+      const percentualExecucao = TOTAL_OFICIAL > 0 ? Number((totalUtilizado / TOTAL_OFICIAL * 100).toFixed(1)) : 0;
       const publicoMes = atividadesMes.reduce((sum, item) => sum + getPublicoContabil(item), 0);
       const totalPublico = metrics.totalPublico;
 
@@ -506,7 +506,7 @@ export default function DashboardPatrocinadorSync() {
         totalUtilizado,
         saldoTotal,
         percentualExecucao,
-        hasData: metrics.reports.length > 0 || atividadesRealizadas.length > 0,
+        hasData: metrics.reports.length > 0 || atividadesRealizadas.length > 0
       });
 
       setLastUpdate(new Date());
@@ -545,8 +545,8 @@ export default function DashboardPatrocinadorSync() {
           </div>
           <div className="rounded-full border border-black px-3 py-1 text-[11px] font-semibold text-black">{data.agendaDoDia.length > 0 ? 'Hoje' : 'Próxima'}</div>
         </div>
-      </div>
-    );
+      </div>);
+
   }, [data.proximaAgenda, data.agendaDoDia.length]);
 
   if (loading) {
@@ -556,8 +556,8 @@ export default function DashboardPatrocinadorSync() {
           <div className="w-8 h-8 border-2 border-gray-200 border-t-black rounded-full animate-spin mx-auto" />
           <p className="text-gray-500 text-sm">Carregando painel...</p>
         </div>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -566,12 +566,12 @@ export default function DashboardPatrocinadorSync() {
 
       {!data.hasData && <div className="bg-white border border-black rounded-2xl p-5 text-sm text-black font-medium">Sem dados disponíveis. Sincronize relatórios aprovados e atividades para visualizar métricas.</div>}
 
-      {(data.duplicateCount > 0 || data.consolidatedGroupCount > 0) && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 text-sm">
+      {(data.duplicateCount > 0 || data.consolidatedGroupCount > 0) &&
+      <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 text-sm hidden">
           Auditoria ativa: {data.duplicateCount > 0 ? `${fmtInt(data.duplicateCount)} atividade(s) repetida(s) removida(s). ` : ''}
           {data.consolidatedGroupCount > 0 ? `${fmtInt(data.consolidatedGroupCount)} grupo(s) museu/mês com público consolidado; atividades detalhadas foram ignoradas apenas na soma de público.` : ''}
         </div>
-      )}
+      }
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
@@ -613,8 +613,8 @@ export default function DashboardPatrocinadorSync() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <SectionCard title="Atividades realizadas por mês">
-          {data.dadosMensais.length === 0 ? <p className="text-sm text-gray-400">Sem dados disponíveis.</p> : (
-            <div className="h-64">
+          {data.dadosMensais.length === 0 ? <p className="text-sm text-gray-400">Sem dados disponíveis.</p> :
+          <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.dadosMensais}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
@@ -625,12 +625,12 @@ export default function DashboardPatrocinadorSync() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          )}
+          }
         </SectionCard>
 
         <SectionCard title="Classificação de atividades">
-          {data.dadosClassificacao.length === 0 ? <p className="text-sm text-gray-400">Sem dados disponíveis.</p> : (
-            <div className="h-64">
+          {data.dadosClassificacao.length === 0 ? <p className="text-sm text-gray-400">Sem dados disponíveis.</p> :
+          <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={data.dadosClassificacao} dataKey="quantidade" nameKey="display" outerRadius={86} innerRadius={48} paddingAngle={3}>
@@ -640,7 +640,7 @@ export default function DashboardPatrocinadorSync() {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-          )}
+          }
         </SectionCard>
       </div>
 
@@ -652,6 +652,6 @@ export default function DashboardPatrocinadorSync() {
         <span>Fonte oficial dos indicadores: atividades deduplicadas dos relatórios aprovados; público consolidado mensal prevalece quando informado.</span>
         {lastUpdate && <span>Última atualização: {lastUpdate.toLocaleString('pt-BR')}</span>}
       </div>
-    </div>
-  );
+    </div>);
+
 }
