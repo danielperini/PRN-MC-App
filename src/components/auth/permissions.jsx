@@ -52,10 +52,9 @@ export function isProfissional(user, userPermission) {
   if (isCoordenador(user)) return false;
   if (isObservador(user, userPermission)) return false;
   if (isPatrocinador(user)) return false;
-  return true; // todos os demais autenticados são Profissional
+  return true;
 }
 
-/** Helper: retorna o perfil canônico do usuário */
 export function getUserPerfil(user, userPermission) {
   if (!user) return 'ANONIMO';
   if (isCoordenador(user)) return 'COORDENADOR';
@@ -64,16 +63,11 @@ export function getUserPerfil(user, userPermission) {
   return 'PROFISSIONAL';
 }
 
-// ─── Coordenador Geral ────────────────────────────────────────────────────────
-
 export function isCoordGeral(user) {
   if (!user) return false;
   return user.email === COORD_GERAL_EMAIL || user.can_manage_users === true;
 }
 
-// ─── Páginas por perfil ───────────────────────────────────────────────────────
-
-/** Páginas visíveis para OBSERVADOR (inclui PATROCINADOR) */
 export const OBSERVADOR_PAGES = new Set([
   'Dashboard',
   'DashboardPatrocinador',
@@ -88,7 +82,6 @@ export const OBSERVADOR_PAGES = new Set([
   'Manual',
 ]);
 
-/** Páginas adicionais para PROFISSIONAL (além das do Observador) */
 export const PROFISSIONAL_EXTRA_PAGES = new Set([
   'Relatorios',
   'ReportEditor',
@@ -96,24 +89,24 @@ export const PROFISSIONAL_EXTRA_PAGES = new Set([
   'EntradaUnica',
   'Compras',
   'Rubricas',
+  'DashboardFinanceiro',
+  'PrestacaoDeContas',
   'AssistentePlanejamento',
   'GeradorListaPresenca',
   'GeradorTermoCompromisso',
   'DashboardProfissional',
   'BaseConhecimento',
-  'CoordReview',       // só vê os próprios relatórios
+  'CoordReview',
   'GaleriaFotos',
   'Mensagens',
   'LeitorNoticias',
 ]);
 
-/** Conjunto completo de páginas do PROFISSIONAL */
 export const PROFISSIONAL_PAGES = new Set([
   ...OBSERVADOR_PAGES,
   ...PROFISSIONAL_EXTRA_PAGES,
 ]);
 
-/** Páginas exclusivas do COORDENADOR (além de todas acima) */
 export const COORDENADOR_ONLY_PAGES = new Set([
   'UserManagement',
   'PlataformaAdmin',
@@ -125,30 +118,20 @@ export const COORDENADOR_ONLY_PAGES = new Set([
   'GestaoDocumental',
   'GestaoDocumentalClean',
   'GestaoPagamentos',
-  'DashboardFinanceiro',
   'ConsolidacaoFinanceira',
   'MonitoringPanel',
   'RelatorioMeta',
-  'CoordReview',
-  'PrestacaoDeContas',
   'GestorArquivos',
 ]);
 
-/**
- * Verifica se o usuário pode acessar uma página pelo seu path/nome
- */
 export function canAccessPage(pageName, user, userPermission) {
   if (!user) return false;
-  if (isCoordenador(user)) return true; // coord acessa tudo
+  if (isCoordenador(user)) return true;
   if (isPatrocinador(user)) return OBSERVADOR_PAGES.has(pageName);
   if (isObservador(user, userPermission)) return OBSERVADOR_PAGES.has(pageName);
-  // profissional
   return PROFISSIONAL_PAGES.has(pageName);
 }
 
-// ─── Itens de Sidebar por perfil ──────────────────────────────────────────────
-
-/** Páginas visíveis na sidebar do OBSERVADOR */
 export const SIDEBAR_OBSERVADOR = new Set([
   'Dashboard',
   'GaleriaFotos',
@@ -160,7 +143,6 @@ export const SIDEBAR_OBSERVADOR = new Set([
   'MeusDados',
 ]);
 
-/** Páginas visíveis na sidebar do PROFISSIONAL */
 export const SIDEBAR_PROFISSIONAL = new Set([
   'Dashboard',
   'EntradaUnica',
@@ -169,6 +151,8 @@ export const SIDEBAR_PROFISSIONAL = new Set([
   'Agenda',
   'GaleriaFotos',
   'Compras',
+  'DashboardFinanceiro',
+  'PrestacaoDeContas',
   'RubricasPorMuseu',
   'LeitorNoticias',
   'ProgramacaoEspelho',
@@ -181,9 +165,6 @@ export const SIDEBAR_PROFISSIONAL = new Set([
   'Mensagens',
 ]);
 
-// ─── Rubricas ─────────────────────────────────────────────────────────────────
-
-/** Grupos de rubrica bloqueados para Profissional */
 export const GRUPOS_RUBRICA_BLOQUEADOS_PROFISSIONAL = [
   'equipe e gestao',
   'equipe e gestão',
@@ -198,7 +179,6 @@ export const GRUPOS_RUBRICA_BLOQUEADOS_PROFISSIONAL = [
   'administração',
 ];
 
-/** Palavras-chave no nome da rubrica que bloqueiam para Profissional */
 export const RUBRICAS_BLOQUEADAS_KEYWORDS_PROFISSIONAL = [
   'coordenador',
   'coordenação',
@@ -219,10 +199,6 @@ function normalizeStr(s) {
   return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
 
-/**
- * Retorna true se a rubrica deve ser ocultada para o Profissional.
- * Coordenadores veem todas as rubricas.
- */
 export function shouldHideRubricaForProfissional(rubrica, user, userPermission) {
   if (isCoordenador(user)) return false;
   if (!isProfissional(user, userPermission)) return false;
@@ -239,19 +215,12 @@ export function shouldHideRubricaForProfissional(rubrica, user, userPermission) 
   return false;
 }
 
-/** Filtra lista de rubricas conforme perfil do usuário */
 export function filterRubricasForUser(rubricas, user, userPermission) {
   if (!Array.isArray(rubricas)) return [];
   if (isCoordenador(user)) return rubricas;
   return rubricas.filter(r => !shouldHideRubricaForProfissional(r, user, userPermission));
 }
 
-// ─── Compras / Solicitações ───────────────────────────────────────────────────
-
-/**
- * Verifica se uma PurchaseRequest pertence ao usuário logado.
- * Coordenadores enxergam tudo.
- */
 export function purchaseBelongsToUser(purchase, user) {
   if (!purchase || !user) return false;
   if (isCoordenador(user)) return true;
@@ -268,21 +237,19 @@ export function purchaseBelongsToUser(purchase, user) {
   return ownerEmails.includes(email);
 }
 
-// ─── Aprovações ───────────────────────────────────────────────────────────────
-
 export function canApproveRequests(user, userPermission) {
   if (!user) return false;
-  if (isCoordenador(user)) return true;
-  return userPermission?.pode_aprovar_solicitacoes === true || userPermission?.gestao_compras === true;
+  if (isObservador(user, userPermission)) return false;
+  if (isPatrocinador(user)) return false;
+  return true;
 }
 
 export function canManageFinanceiro(user, userPermission) {
   if (!user) return false;
-  if (isCoordenador(user)) return true;
-  return userPermission?.gestao_compras === true;
+  if (isObservador(user, userPermission)) return false;
+  if (isPatrocinador(user)) return false;
+  return true;
 }
-
-// ─── Relatórios ───────────────────────────────────────────────────────────────
 
 export function canEditReport(currentUser, reportAuthorEmail) {
   if (!currentUser) return false;
@@ -296,8 +263,6 @@ export function canViewReport(currentUser, reportAuthorEmail) {
   return String(currentUser.email || '').toLowerCase() === String(reportAuthorEmail || '').toLowerCase();
 }
 
-// ─── Usuários ─────────────────────────────────────────────────────────────────
-
 export function canManageUsers(user) {
   if (!user) return false;
   return isCoordGeral(user) || user.can_manage_users === true || isCoordenador(user);
@@ -308,9 +273,6 @@ export function canManagePermissions(user) {
   return isCoordenador(user);
 }
 
-// ─── Equipe ───────────────────────────────────────────────────────────────────
-
-/** Apenas coordenadores acessam a aba Equipe completa */
 export function canAccessEquipe(user) {
   if (!user) return false;
   return isCoordenador(user);
@@ -340,15 +302,11 @@ export function canViewTeamProfile(user, targetEmail) {
   return String(user.email || '').toLowerCase() === String(targetEmail || '').toLowerCase();
 }
 
-// ─── Domínio / Auto-aprovação ─────────────────────────────────────────────────
-
 export function isAutoApprovedDomain(email) {
   if (!email) return false;
   const lower = email.toLowerCase();
   return AUTO_APPROVED_DOMAINS.some(domain => lower.endsWith(domain));
 }
-
-// ─── Patrocinador ─────────────────────────────────────────────────────────────
 
 export const PATROCINADOR_PERMISSIONS = {
   can_view_sponsor_dashboard: true,
