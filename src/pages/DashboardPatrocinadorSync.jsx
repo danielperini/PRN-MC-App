@@ -21,7 +21,7 @@ const TOTAL_OFICIAL = 1320000;
 const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
 const CHART_COLORS = ['#111827', '#4B5563', '#9CA3AF', '#D1D5DB'];
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-const APPROVED_STATUSES = new Set(['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN']);
+const APPROVED_STATUSES = new Set(['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(Number(v || 0));
 const fmtInt = (v) => Math.round(Number(v || 0)).toLocaleString('pt-BR');
@@ -81,25 +81,38 @@ function isApprovedReport(report) {
   return APPROVED_STATUSES.has(String(report?.status || '').trim().toUpperCase());
 }
 
-// Retorna APENAS público de atividades/eventos com público efetivamente preenchido.
-// Público geral declarado do museu NÃO entra nesta função — exibir separadamente.
+// Público de atividades/eventos. Mantém compatibilidade com campos antigos e novos do ReportEditor.
+// Público geral declarado do museu NÃO entra nesta função — é exibido separadamente.
 function getActivityPublico(atividade) {
-  // Usar publico_total como fonte primária (já considera repetições)
-  const total = inteiro(atividade?.publico_total ?? 0);
+  const total = inteiro(
+    atividade?.publico_total ??
+    atividade?.publicoTotal ??
+    atividade?.total_publico ??
+    atividade?.publico ??
+    0
+  );
   if (total > 0) return total;
 
-  // Fallback: publico_estimado * quantas_repeticoes
-  const estimado = inteiro(atividade?.publico_estimado ?? 0);
-  const repeticoes = inteiro(atividade?.quantas_repeticoes ?? 1);
-  if (estimado > 0) return estimado * Math.max(repeticoes, 1);
+  const publicoMedio = inteiro(
+    atividade?.publico_medio_por_sessao ??
+    atividade?.publico_medio_sessao ??
+    atividade?.publico_medio ??
+    atividade?.publico_por_sessao ??
+    atividade?.publico_estimado ??
+    0
+  );
 
-  // Sem público declarado → não contabilizar
+  const repeticoes = inteiro(
+    atividade?.quantas_vezes_ocorreu ??
+    atividade?.quantas_repeticoes ??
+    atividade?.qtd_ocorrencias ??
+    atividade?.ocorrencias ??
+    atividade?.quantidade_ocorrencias ??
+    1
+  );
+
+  if (publicoMedio > 0) return publicoMedio * Math.max(repeticoes, 1);
   return 0;
-}
-
-// Verifica se a atividade tem público válido (> 0) para ser contabilizada
-function atividadeTemPublico(atividade) {
-  return getActivityPublico(atividade) > 0;
 }
 
 function isAtividadeConsolidadoMensal(activity) {
@@ -229,6 +242,7 @@ function getActivityAuditKey(activity, report) {
     activity?.titulo ||
     activity?.acao ||
     activity?.atividade ||
+    activity?.id ||
     ''
   );
   const date = getDateValue(activity) || getReportMonthDate(report);
@@ -257,7 +271,7 @@ function getReportActivities(report) {
     _reportYear: reportYear,
     _publico: getActivityPublico(activity),
     _isConsolidadoMensal: isAtividadeConsolidadoMensal(activity),
-    _auditKey: getActivityAuditKey(activity, report)
+    _auditKey: getActivityAuditKey(activity, report) || `${report?.id || 'report'}|${index}`
   }));
 }
 
@@ -332,14 +346,12 @@ function buildApprovedMetrics(reportsAll) {
   const reports = reportsAll.filter(isApprovedReport);
   const rawActivities = reports.flatMap(getReportActivities);
 
-  // REGRA: só considerar atividades que efetivamente tiveram público informado (> 0)
-  const atividadesComPublico = rawActivities.filter(atividadeTemPublico);
-
-  const { uniqueActivities, duplicateCount } = deduplicateActivities(atividadesComPublico);
+  // Atividade aprovada deve contar mesmo quando o público ainda não foi preenchido.
+  // Público continua sendo somado apenas quando houver valor válido.
+  const { uniqueActivities, duplicateCount } = deduplicateActivities(rawActivities);
   const publicoConsolidado = applyPublicoConsolidadoMensal(uniqueActivities);
   const totalPublico = publicoConsolidado.activities.reduce((sum, activity) => sum + getPublicoContabil(activity), 0);
 
-  // Público geral declarado nos relatórios (campo separado — NÃO entra na soma de atividades)
   const publicoGeralPorMuseu = {};
   reports.forEach((r) => {
     const museu = normalizeMuseu(r.museu || r.museu_secundario);
@@ -480,15 +492,14 @@ export default function DashboardPatrocinadorSync() {
       }));
 
       const comparativoMuseu = MUSEUS.map((museu) => {
-        // Apenas atividades com público preenchido
-        const items = atividadesRealizadas.filter((item) => item._museu === museu && getPublicoContabil(item) > 0);
+        const itemsComPublico = atividadesRealizadas.filter((item) => item._museu === museu && getPublicoContabil(item) > 0);
         const totalAtivMuseu = atividadesRealizadas.filter((item) => item._museu === museu).length;
-        const publicoAtividades = Math.round(items.reduce((sum, item) => sum + getPublicoContabil(item), 0));
-        const mediaPublico = items.length > 0 ? Math.round(publicoAtividades / items.length) : 0;
+        const publicoAtividades = Math.round(itemsComPublico.reduce((sum, item) => sum + getPublicoContabil(item), 0));
+        const mediaPublico = itemsComPublico.length > 0 ? Math.round(publicoAtividades / itemsComPublico.length) : 0;
         return {
           museu,
           atividades: totalAtivMuseu,
-          atividadesComPublico: items.length,
+          atividadesComPublico: itemsComPublico.length,
           publico: publicoAtividades,
           publicoGeral: metrics.publicoGeralPorMuseu[museu] || 0,
           mediaPublico
