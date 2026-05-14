@@ -16,7 +16,7 @@ const PAGE_TITLES = {
   Dashboard: 'Painel',
   DashboardProfissional: 'Meu Painel',
   DashboardFinanceiro: 'Dashboard Financeiro',
-  DashboardPatrocinador: 'Painel do Patrocinador',
+  DashboardPatrocinador: 'Painel',
   RubricasPorMuseu: 'Rubricas por Museu',
   Relatorios: 'Relatórios',
   ReportEditor: 'Relatório',
