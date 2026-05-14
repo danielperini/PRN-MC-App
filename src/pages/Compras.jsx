@@ -310,7 +310,8 @@ function TabelaSolicitacoes({
   onApprove,
   onReturn,
   onUnapprove,
-  onAccess
+  onAccess,
+  userPermission
 }) {
   const [menuOpenId, setMenuOpenId] = useState(null);
 
@@ -326,11 +327,14 @@ function TabelaSolicitacoes({
 
   const podeAprovar = isCoordenador || podeAprovarSolicitacoes === true || hasGestaoCompras === true;
   const categories = categorizeSolicitacoes(purchases);
+  
+  // Visibilidade de categorias baseado no papel do usuário
+  const isObservador = !isCoordenador && userPermission?.base_role === 'OBSERVADOR';
   const visibleCategories = [
-    { key: 'geral', label: 'Geral', visible: true },
-    { key: 'mhab', label: 'MHAB', visible: true },
-    { key: 'mis', label: 'MIS', visible: true },
-    { key: 'mumo', label: 'MUMO', visible: true },
+    { key: 'geral', label: 'Geral', visible: isCoordenador },
+    { key: 'mhab', label: 'MHAB', visible: !isObservador },
+    { key: 'mis', label: 'MIS', visible: !isObservador },
+    { key: 'mumo', label: 'MUMO', visible: !isObservador },
     { key: 'pessoas', label: 'Pessoas', visible: isCoordenador }
   ].filter((cat) => cat.visible && categories[cat.key].length > 0);
 
@@ -365,6 +369,9 @@ function TabelaSolicitacoes({
             const fileUrl = getPurchaseFileUrl(p, attachmentByPurchaseId);
             const compraEquipe = isCompraEquipe(p);
             const menuAberto = menuOpenId === p.id;
+            // Apenas coordenadores podem editar solicitações já aprovadas
+            const podeEditarAprovada = isCoordenador && aprovado;
+            const podeAcessar = !aprovado || podeEditarAprovada;
 
             return (
               <tr key={p.id} className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
@@ -407,18 +414,21 @@ function TabelaSolicitacoes({
                 </td>
                 <td className="px-3 py-2.5 align-top">
                   <div className="relative flex items-center justify-center gap-2">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onAccess(p);
-                      }}
-                      className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
-                      title="Ações"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
+                    {podeAcessar && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onAccess(p);
+                        }}
+                        className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
+                        title={aprovado ? 'Apenas coordenadores podem editar aprovadas' : 'Ações'}
+                        disabled={!podeAcessar}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
 
                     {isCoordenador && (
                       <button
@@ -1107,6 +1117,7 @@ function ComprasInner() {
                 currentUser={currentUser}
                 podeAprovarSolicitacoes={podeAprovarSolicitacoes}
                 hasGestaoCompras={hasGestaoCompras}
+                userPermission={userPermission}
                 onApprove={handleApprovePurchase}
                 onReturn={handleReturnPurchase}
                 onUnapprove={handleUnapprovePurchase}
