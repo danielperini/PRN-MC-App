@@ -11,7 +11,6 @@ import {
 import PDFGeneratorDialog from '../components/reports/PDFGeneratorDialog';
 import PeriodExportDialog from '../components/reports/PeriodExportDialog';
 import RelatorioFisicoFinanceiroDialog from '../components/reports/RelatorioFisicoFinanceiroDialog';
-import RelatorioEditorialFase3 from '../components/reports/RelatorioEditorialFase3';
 import ActivityFilters from '../components/reports/ActivityFilters';
 import ActivitySummary from '../components/reports/ActivitySummary';
 import { Button } from '@/components/ui/button';
@@ -199,8 +198,6 @@ function RelatoriosInner() {
   const [periodExportOpen, setPeriodExportOpen] = useState(false);
   const [fisicoFinanceiroOpen, setFisicoFinanceiroOpen] = useState(false);
   const [exportingSingleId, setExportingSingleId] = useState(null);
-  const [fase3Open, setFase3Open] = useState(false);
-  const [selectedReportForFase3, setSelectedReportForFase3] = useState(null);
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Report.delete(id),
@@ -428,23 +425,14 @@ function RelatoriosInner() {
             )}
 
             {isCoordenador && (
-              <>
-                <Button
-                  variant="outline"
-                  className="border-black gap-2 bg-purple-50 border-purple-200 hover:bg-purple-100 text-purple-700"
-                  onClick={() => setFase3Open(true)}
-                >
-                  ✨ Editorial Fase 3
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-black gap-2"
-                  onClick={() => setFisicoFinanceiroOpen(true)}
-                >
-                  <Download className="w-4 h-4" />
-                  Relatório Físico-Financeiro
-                </Button>
-              </>
+              <Button
+                variant="outline"
+                className="border-black gap-2"
+                onClick={() => setFisicoFinanceiroOpen(true)}
+              >
+                <Download className="w-4 h-4" />
+                Relatório Físico-Financeiro
+              </Button>
             )}
 
             <Button
@@ -689,32 +677,7 @@ function RelatoriosInner() {
         onClose={() => setFisicoFinanceiroOpen(false)}
       />
 
-      {/* Dialog Fase 3 — Editorial Institucional */}
-      {fase3Open && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-auto">
-            <div className="sticky top-0 bg-white border-b p-6 flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Relatório Editorial — Fase 3</h2>
-                <p className="text-sm text-gray-600 mt-1">Consolidação editorial institucional com seleção de seções</p>
-              </div>
-              <button
-                onClick={() => setFase3Open(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-            <div className="p-6">
-              <RelatorioEditorialFase3
-                relatorioId={selectedReportForFase3?.id}
-                museu={selectedReportForFase3?.museu}
-                periodo={{ mes: selectedReportForFase3?.mes_referencia, ano: selectedReportForFase3?.ano }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>

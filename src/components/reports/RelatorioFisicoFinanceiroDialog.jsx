@@ -21,6 +21,7 @@ const SECOES = [
   { id: 'atividades', label: 'Atividades por eixo' },
   { id: 'financeiro', label: 'Execução financeira' },
   { id: 'prestacao', label: 'Prestação de contas' },
+  { id: 'memoria', label: 'Memória institucional' },
   { id: 'conclusao', label: 'Conclusão' },
 ];
 
@@ -83,15 +84,16 @@ function abrirPreview(html) {
 }
 
 export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
-  const [dateFrom, setDateFrom] = useState('2026-02-02');
-  const [dateTo, setDateTo] = useState('2026-04-30');
-  const [museu, setMuseu] = useState('todos');
-  const [secoes, setSecoes] = useState(Object.fromEntries(SECOES.map((s) => [s.id, true])));
-  const [modoEntrega, setModoEntrega] = useState(true);
-  const [introIA, setIntroIA] = useState(true);
-  const [loadingPrevia, setLoadingPrevia] = useState(false);
-  const [loadingPDF, setLoadingPDF] = useState(false);
-  const [previa, setPrevia] = useState(null);
+   const [dateFrom, setDateFrom] = useState('2026-02-02');
+   const [dateTo, setDateTo] = useState('2026-04-30');
+   const [museu, setMuseu] = useState('todos');
+   const [secoes, setSecoes] = useState(Object.fromEntries(SECOES.map((s) => [s.id, true])));
+   const [modoEntrega, setModoEntrega] = useState(true);
+   const [introIA, setIntroIA] = useState(true);
+   const [editorialFase3Ativo, setEditorialFase3Ativo] = useState(true);
+   const [loadingPrevia, setLoadingPrevia] = useState(false);
+   const [loadingPDF, setLoadingPDF] = useState(false);
+   const [previa, setPrevia] = useState(null);
 
   const toggleSecao = (id) => setSecoes((p) => ({ ...p, [id]: !p[id] }));
   const toggleAll = (val) => setSecoes(Object.fromEntries(SECOES.map((s) => [s.id, val])));
@@ -307,6 +309,27 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
                   </Label>
                   <p className="text-xs text-gray-500 mt-0.5">
                     A IA usa os relatórios aprovados, programação e base de conhecimento para escrever textos longos e técnicos.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${editorialFase3Ativo ? 'border-black bg-black/5' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                onClick={() => setEditorialFase3Ativo((p) => !p)}
+              >
+                <Checkbox
+                  id="editorialFase3"
+                  checked={editorialFase3Ativo}
+                  onCheckedChange={(v) => setEditorialFase3Ativo(!!v)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-0.5"
+                />
+                <div>
+                  <Label htmlFor="editorialFase3" className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
+                    ✨ Editorial Fase 3 — Consolidação
+                  </Label>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Integra releases, programação e atividades para gerar narrativa institucional única.
                   </p>
                 </div>
               </div>
