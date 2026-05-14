@@ -1,6 +1,7 @@
 /**
- * Política central de permissões do sistema Museus Centro
- * Referenciar este arquivo em todos os componentes que precisam verificar permissões.
+ * Política DEFINITIVA de permissões — Museus Centro / Viaduto das Artes
+ * Este arquivo é a fonte única de verdade para todas as regras de acesso.
+ * Importar e reutilizar em: Sidebar, rotas, páginas, botões, queries, tabelas.
  */
 
 export const COORD_GERAL_EMAIL = 'daniel@periniprojetos.com.br';
@@ -11,142 +12,327 @@ export const AUTO_APPROVED_DOMAINS = [
   '@pbh.gov.br',
 ];
 
-/** Emails específicos com aprovação automática como OBSERVADOR_PATROCINADOR */
 export const AUTO_APPROVED_EMAILS = [
   'retinaeletricafilmes@gmail.com',
 ];
 
-/** Permissões do perfil OBSERVADOR_PATROCINADOR */
-export const OBSERVADOR_PATROCINADOR_PERMISSIONS = {
-  base_role: 'PATROCINADOR',
-  can_view_all_reports: false,
-  can_review_reports: false,
-  can_manage_users: false,
-  can_manage_files: false,
-  can_manage_museus: false,
-  can_manage_equipes: false,
-  can_view_audit_log: false,
-  can_manage_platform: false,
-  must_submit_monthly_reports: false,
-  gestao_compras: false,
-  pode_ver_saude_orcamentaria: false,
-  pode_gerenciar_rubricas: false,
-  pode_aprovar_solicitacoes: false,
-  can_curate_news: false,
-  can_manage_momentos: false,
-  can_view_sponsor_dashboard: true,
-  can_view_approved_reports: true,
-  can_view_approved_programacao: true,
-  can_view_public_gallery: true,
-  can_view_budget_summary: true,
-  can_view_project_kpis: true,
-};
+// ─── Classificação de perfil ───────────────────────────────────────────────────
 
-/**
- * Verifica se o usuário é o Coordenador Geral (Daniel Perini)
- * Único com poder total de gestão de usuários.
- */
-export function isCoordGeral(user) {
-  if (!user) return false;
-  return (
-    user.email === COORD_GERAL_EMAIL ||
-    user.can_manage_users === true
-  );
-}
-
-/**
- * Verifica se o usuário é coordenador (qualquer tipo, inclui coord geral)
- */
+/** Coordenador: acesso total ao sistema */
 export function isCoordenador(user) {
   if (!user) return false;
-  if (isCoordGeral(user)) return true;
+  if (user.email === COORD_GERAL_EMAIL) return true;
+  if (user.can_manage_users === true) return true;
   return [
-    'COORDENADOR',
-    'ADMIN',
-    'admin',
-    'COORD_PRODUCAO',
-    'COORD_ADMINISTRATIVA',
-    'COORD_COMUNICACAO',
-    'COORD_PROGRAMACAO',
+    'COORDENADOR', 'ADMIN', 'admin',
+    'COORD_PRODUCAO', 'COORD_ADMINISTRATIVA',
+    'COORD_COMUNICACAO', 'COORD_PROGRAMACAO',
     'CONSULTORIA_PROGRAMACAO',
   ].includes(user.role);
 }
 
+/** Patrocinador / Observador externo: acesso apenas a dados públicos aprovados */
+export function isPatrocinador(user) {
+  if (!user) return false;
+  return user.role === 'PATROCINADOR' || user.base_role === 'PATROCINADOR';
+}
+
+/** Observador interno: acesso limitado a módulos públicos/operacionais */
+export function isObservador(user, userPermission) {
+  if (!user) return false;
+  if (isPatrocinador(user)) return true;
+  const baseRole = userPermission?.base_role || user.base_role || '';
+  const role = user.role || '';
+  return baseRole === 'OBSERVADOR' || role === 'OBSERVADOR';
+}
+
+/** Profissional: membro ativo da equipe sem poderes de coordenação */
+export function isProfissional(user, userPermission) {
+  if (!user) return false;
+  if (isCoordenador(user)) return false;
+  if (isObservador(user, userPermission)) return false;
+  if (isPatrocinador(user)) return false;
+  return true; // todos os demais autenticados são Profissional
+}
+
+/** Helper: retorna o perfil canônico do usuário */
+export function getUserPerfil(user, userPermission) {
+  if (!user) return 'ANONIMO';
+  if (isCoordenador(user)) return 'COORDENADOR';
+  if (isPatrocinador(user)) return 'PATROCINADOR';
+  if (isObservador(user, userPermission)) return 'OBSERVADOR';
+  return 'PROFISSIONAL';
+}
+
+// ─── Coordenador Geral ────────────────────────────────────────────────────────
+
+export function isCoordGeral(user) {
+  if (!user) return false;
+  return user.email === COORD_GERAL_EMAIL || user.can_manage_users === true;
+}
+
+// ─── Páginas por perfil ───────────────────────────────────────────────────────
+
+/** Páginas visíveis para OBSERVADOR (inclui PATROCINADOR) */
+export const OBSERVADOR_PAGES = new Set([
+  'Dashboard',
+  'DashboardPatrocinador',
+  'GaleriaFotos',
+  'Agenda',
+  'ComunicacaoVisibilidade',
+  'ProgramacaoEspelho',
+  'RubricasPorMuseu',
+  'Aparencia',
+  'MeusDados',
+  'Perfil',
+  'LeitorNoticias',
+  'Manual',
+]);
+
+/** Páginas adicionais para PROFISSIONAL (além das do Observador) */
+export const PROFISSIONAL_EXTRA_PAGES = new Set([
+  'Relatorios',
+  'ReportEditor',
+  'NovaAtividade',
+  'EntradaUnica',
+  'Compras',
+  'Rubricas',
+  'AssistentePlanejamento',
+  'GeradorListaPresenca',
+  'GeradorTermoCompromisso',
+  'DashboardProfissional',
+  'BaseConhecimento',
+  'CoordReview',       // só vê os próprios relatórios
+  'GaleriaFotos',
+  'Mensagens',
+]);
+
+/** Conjunto completo de páginas do PROFISSIONAL */
+export const PROFISSIONAL_PAGES = new Set([
+  ...OBSERVADOR_PAGES,
+  ...PROFISSIONAL_EXTRA_PAGES,
+]);
+
+/** Páginas exclusivas do COORDENADOR (além de todas acima) */
+export const COORDENADOR_ONLY_PAGES = new Set([
+  'UserManagement',
+  'PlataformaAdmin',
+  'ActivityLog',
+  'AuditLog',
+  'AdminUsers',
+  'PlataformaConfig',
+  'TeamManager',
+  'GestaoDocumental',
+  'GestaoDocumentalClean',
+  'GestaoPagamentos',
+  'DashboardFinanceiro',
+  'ConsolidacaoFinanceira',
+  'MonitoringPanel',
+  'RelatorioMeta',
+  'CoordReview',
+  'PrestacaoDeContas',
+  'GestorArquivos',
+]);
+
 /**
- * Verifica se o email pertence a um domínio com aprovação automática
+ * Verifica se o usuário pode acessar uma página pelo seu path/nome
  */
-export function isAutoApprovedDomain(email) {
-  if (!email) return false;
-  const lower = email.toLowerCase();
-  return AUTO_APPROVED_DOMAINS.some(domain => lower.endsWith(domain));
+export function canAccessPage(pageName, user, userPermission) {
+  if (!user) return false;
+  if (isCoordenador(user)) return true; // coord acessa tudo
+  if (isPatrocinador(user)) return OBSERVADOR_PAGES.has(pageName);
+  if (isObservador(user, userPermission)) return OBSERVADOR_PAGES.has(pageName);
+  // profissional
+  return PROFISSIONAL_PAGES.has(pageName);
+}
+
+// ─── Itens de Sidebar por perfil ──────────────────────────────────────────────
+
+/** Páginas visíveis na sidebar do OBSERVADOR */
+export const SIDEBAR_OBSERVADOR = new Set([
+  'Dashboard',
+  'GaleriaFotos',
+  'Agenda',
+  'ComunicacaoVisibilidade',
+  'ProgramacaoEspelho',
+  'RubricasPorMuseu',
+  'Aparencia',
+  'MeusDados',
+  'LeitorNoticias',
+]);
+
+/** Páginas visíveis na sidebar do PROFISSIONAL */
+export const SIDEBAR_PROFISSIONAL = new Set([
+  'Dashboard',
+  'EntradaUnica',
+  'Relatorios',
+  'ComunicacaoVisibilidade',
+  'Agenda',
+  'GaleriaFotos',
+  'Compras',
+  'RubricasPorMuseu',
+  'LeitorNoticias',
+  'ProgramacaoEspelho',
+  'AssistentePlanejamento',
+  'Manual',
+  'Aparencia',
+  'MeusDados',
+  'GeradorListaPresenca',
+  'Mensagens',
+]);
+
+// ─── Rubricas ─────────────────────────────────────────────────────────────────
+
+/** Grupos de rubrica bloqueados para Profissional */
+export const GRUPOS_RUBRICA_BLOQUEADOS_PROFISSIONAL = [
+  'equipe e gestao',
+  'equipe e gestão',
+  'equipe',
+  'gestao',
+  'gestão',
+  'recursos humanos',
+  'rh',
+  'coordenacao',
+  'coordenação',
+  'administracao',
+  'administração',
+];
+
+/** Palavras-chave no nome da rubrica que bloqueiam para Profissional */
+export const RUBRICAS_BLOQUEADAS_KEYWORDS_PROFISSIONAL = [
+  'coordenador',
+  'coordenação',
+  'coordenacao',
+  'assistente administrativo',
+  'jurídico',
+  'juridico',
+  'financeiro',
+  'comunicação interna',
+  'comunicacao interna',
+  'rh ',
+  'recursos humanos',
+  'gestão de equipe',
+  'gestao de equipe',
+];
+
+function normalizeStr(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
 
 /**
- * Verifica se o usuário pode editar um relatório
+ * Retorna true se a rubrica deve ser ocultada para o Profissional.
+ * Coordenadores veem todas as rubricas.
  */
+export function shouldHideRubricaForProfissional(rubrica, user, userPermission) {
+  if (isCoordenador(user)) return false;
+  if (!isProfissional(user, userPermission)) return false;
+
+  const grupo = normalizeStr(rubrica?.grupo);
+  const nome = normalizeStr(rubrica?.rubrica || rubrica?.nome);
+
+  for (const g of GRUPOS_RUBRICA_BLOQUEADOS_PROFISSIONAL) {
+    if (grupo.includes(g)) return true;
+  }
+  for (const k of RUBRICAS_BLOQUEADAS_KEYWORDS_PROFISSIONAL) {
+    if (nome.includes(k)) return true;
+  }
+  return false;
+}
+
+/** Filtra lista de rubricas conforme perfil do usuário */
+export function filterRubricasForUser(rubricas, user, userPermission) {
+  if (!Array.isArray(rubricas)) return [];
+  if (isCoordenador(user)) return rubricas;
+  return rubricas.filter(r => !shouldHideRubricaForProfissional(r, user, userPermission));
+}
+
+// ─── Compras / Solicitações ───────────────────────────────────────────────────
+
+/**
+ * Verifica se uma PurchaseRequest pertence ao usuário logado.
+ * Coordenadores enxergam tudo.
+ */
+export function purchaseBelongsToUser(purchase, user) {
+  if (!purchase || !user) return false;
+  if (isCoordenador(user)) return true;
+  const email = String(user.email || '').toLowerCase().trim();
+  const ownerEmails = [
+    purchase.created_by,
+    purchase.user_email,
+    purchase.requester_email,
+    purchase.solicitante_email,
+    purchase.email_solicitante,
+    purchase.author_email,
+    purchase.owner_email,
+  ].map(v => String(v || '').toLowerCase().trim()).filter(Boolean);
+  return ownerEmails.includes(email);
+}
+
+// ─── Aprovações ───────────────────────────────────────────────────────────────
+
+export function canApproveRequests(user, userPermission) {
+  if (!user) return false;
+  if (isCoordenador(user)) return true;
+  return userPermission?.pode_aprovar_solicitacoes === true || userPermission?.gestao_compras === true;
+}
+
+export function canManageFinanceiro(user, userPermission) {
+  if (!user) return false;
+  if (isCoordenador(user)) return true;
+  return userPermission?.gestao_compras === true;
+}
+
+// ─── Relatórios ───────────────────────────────────────────────────────────────
+
 export function canEditReport(currentUser, reportAuthorEmail) {
   if (!currentUser) return false;
   if (currentUser.email === reportAuthorEmail) return true;
   return isCoordenador(currentUser);
 }
 
-/**
- * Verifica se o usuário pode gerenciar usuários (aprovar, editar, excluir permissões)
- * COORDENADOR também pode quando tem can_manage_users = true
- */
+export function canViewReport(currentUser, reportAuthorEmail) {
+  if (!currentUser) return false;
+  if (isCoordenador(currentUser)) return true;
+  return String(currentUser.email || '').toLowerCase() === String(reportAuthorEmail || '').toLowerCase();
+}
+
+// ─── Usuários ─────────────────────────────────────────────────────────────────
+
 export function canManageUsers(user) {
   if (!user) return false;
   return isCoordGeral(user) || user.can_manage_users === true || isCoordenador(user);
 }
 
-/**
- * Verifica se o usuário pode gerenciar permissões de outros usuários
- * Qualquer COORDENADOR ou ADMIN pode editar permissões
- */
 export function canManagePermissions(user) {
   if (!user) return false;
   return isCoordenador(user);
 }
 
-/**
- * Todos os usuários autenticados podem acessar a área Equipe.
- */
+// ─── Equipe ───────────────────────────────────────────────────────────────────
+
+/** Apenas coordenadores acessam a aba Equipe completa */
 export function canAccessEquipe(user) {
-  return !!user;
+  if (!user) return false;
+  return isCoordenador(user);
 }
 
-/**
- * Usuário comum pode editar apenas o próprio perfil de equipe.
- * Coordenadores podem editar qualquer perfil.
- */
 export function canEditOwnTeamProfile(user, targetEmail) {
   if (!user || !targetEmail) return false;
   if (isCoordenador(user)) return true;
   return String(user.email || '').toLowerCase() === String(targetEmail || '').toLowerCase();
 }
 
-/**
- * Apenas coordenadores podem editar todos os perfis da equipe.
- */
 export function canEditAllTeamProfiles(user) {
   if (!user) return false;
   return isCoordenador(user);
 }
 
-/**
- * Regra consolidada para edição de perfil de equipe.
- */
 export function canEditTeamProfile(user, targetEmail) {
   if (!user) return false;
   if (canEditAllTeamProfiles(user)) return true;
   return canEditOwnTeamProfile(user, targetEmail);
 }
 
-/**
- * Regra consolidada para visualização de perfil de equipe.
- * Todos acessam a área; usuário comum vê apenas o próprio perfil;
- * coordenadores visualizam todos.
- */
 export function canViewTeamProfile(user, targetEmail) {
   if (!user) return false;
   if (isCoordenador(user)) return true;
@@ -154,17 +340,16 @@ export function canViewTeamProfile(user, targetEmail) {
   return String(user.email || '').toLowerCase() === String(targetEmail || '').toLowerCase();
 }
 
-/**
- * Verifica se o usuário é um PATROCINADOR (leitura apenas, dados aprovados)
- */
-export function isPatrocinador(user) {
-  if (!user) return false;
-  return user.role === 'PATROCINADOR' || user.base_role === 'PATROCINADOR';
+// ─── Domínio / Auto-aprovação ─────────────────────────────────────────────────
+
+export function isAutoApprovedDomain(email) {
+  if (!email) return false;
+  const lower = email.toLowerCase();
+  return AUTO_APPROVED_DOMAINS.some(domain => lower.endsWith(domain));
 }
 
-/**
- * Permissões específicas do PATROCINADOR
- */
+// ─── Patrocinador ─────────────────────────────────────────────────────────────
+
 export const PATROCINADOR_PERMISSIONS = {
   can_view_sponsor_dashboard: true,
   can_view_approved_reports: true,
@@ -181,9 +366,8 @@ export const PATROCINADOR_PERMISSIONS = {
   can_view_audit_log: false,
 };
 
-/**
- * Verifica se um usuário PATROCINADOR pode acessar uma permissão específica
- */
+export const OBSERVADOR_PATROCINADOR_PERMISSIONS = PATROCINADOR_PERMISSIONS;
+
 export function canSponsorAccess(permission) {
   return PATROCINADOR_PERMISSIONS[permission] === true;
 }

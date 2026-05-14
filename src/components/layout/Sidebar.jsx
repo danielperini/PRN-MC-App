@@ -25,7 +25,14 @@ import {
 } from 'lucide-react';
 
 import { base44 } from '@/api/base44Client';
-import { isCoordenador, canManageUsers } from '@/components/auth/permissions';
+import {
+  isCoordenador,
+  isObservador,
+  isPatrocinador,
+  canManageUsers,
+  SIDEBAR_OBSERVADOR,
+  SIDEBAR_PROFISSIONAL,
+} from '@/components/auth/permissions';
 import SidebarTooltip from './SidebarTooltip';
 
 const NAV_GROUPS = [
@@ -56,6 +63,7 @@ const NAV_GROUPS = [
         label: 'Revisão de relatórios',
         icon: Eye,
         roles: ['coord', 'admin'],
+        hideForObservador: true,
       },
 
       {
@@ -101,13 +109,27 @@ const NAV_GROUPS = [
         label: 'Compras e Aprovações',
         icon: ShoppingCart,
         roles: ['all'],
+        hideForObservador: true,
       },
 
       {
         path: 'RubricasPorMuseu',
         label: 'Orçamento por Museu',
         icon: DollarSign,
+        roles: ['all'],
+      },
+    ],
+  },
+
+  {
+    label: '',
+    items: [
+      {
+        path: 'ChecklistProducao',
+        label: 'Checklist de Produção',
+        icon: CheckSquare,
         roles: ['coord', 'admin'],
+        hideForObservador: true,
       },
     ],
   },
@@ -154,7 +176,8 @@ const NAV_GROUPS = [
         path: 'Mensagens',
         label: 'Mensagens',
         icon: MessageSquare,
-        roles: ['coord', 'admin'],
+        roles: ['all'],
+        hideForObservador: true,
       },
 
       {
@@ -203,7 +226,8 @@ const NAV_GROUPS = [
         path: 'GeradorTermoCompromisso',
         label: 'Gerador de termo de compromisso',
         icon: FileText,
-        roles: ['coord', 'admin'],
+        roles: ['all'],
+        hideForObservador: true,
       },
     ],
   },
@@ -305,37 +329,30 @@ export default function Sidebar({
   }, [currentUser?.email]);
 
   const role = currentUser?.role || '';
-  const isCoord = isCoordenador(currentUser, userPermission);
+  const isCoord = isCoordenador(currentUser);
   const isAdmin = role === 'admin' || role === 'ADMIN';
-
-  const baseRole = userPermission?.base_role || '';
-  const isObservador =
-    baseRole === 'OBSERVADOR' || role === 'OBSERVADOR';
+  const isObs = isObservador(currentUser, userPermission) || isPatrocinador(currentUser);
 
   function shouldShowItem(item) {
-    if (isObservador) {
-      return [
-        'Dashboard',
-        'LeitorNoticias',
-        'Agenda',
-        'ComunicacaoVisibilidade',
-      ].includes(item.path);
+    // COORDENADOR: vê tudo (exceto itens com permission específica sem acesso)
+    if (isCoord) {
+      if (item.permission === 'canManageUsers') return canManageUsers(currentUser);
+      if (item.permission === 'canManagePlatform') return isAdmin || isCoord;
+      return true;
     }
 
-    if (item.permission === 'canManageUsers') {
-      return canManageUsers(currentUser);
+    // OBSERVADOR / PATROCINADOR: lista restrita
+    if (isObs) {
+      if (item.hideForObservador) return false;
+      return SIDEBAR_OBSERVADOR.has(item.path);
     }
 
-    if (item.permission === 'canManagePlatform') {
-      return isAdmin;
-    }
-
-    if (item.roles.includes('all')) return true;
-    if (item.roles.includes('admin') && isAdmin) return true;
-    if (item.roles.includes('coord') && isCoord) return true;
-    if (item.roles.includes('prof') && !isCoord && !isAdmin) return true;
-
-    return false;
+    // PROFISSIONAL: lista definida no permissions.js
+    if (item.permission === 'canManageUsers') return false;
+    if (item.permission === 'canManagePlatform') return false;
+    if (item.roles.includes('coord') && !item.roles.includes('all')) return false;
+    if (item.roles.includes('admin') && !item.roles.includes('all')) return false;
+    return SIDEBAR_PROFISSIONAL.has(item.path);
   }
 
   return (
