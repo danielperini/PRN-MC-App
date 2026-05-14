@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 
 import CoordDashboard from '../components/dashboard/CoordDashboard';
 import ComplianceStats from '../components/dashboard/ComplianceStats';
+import BudgetByGroupCards from '../components/dashboard/BudgetByGroupCards';
 import NewsCarousel from '../components/dashboard/NewsCarousel';
 import ExecutiveIndicators from '../components/dashboard/ExecutiveIndicators';
 import DashboardProfissional from './DashboardProfissional';
@@ -137,6 +138,8 @@ function DashboardCoordenadorView({
             currentYear
           }
         />
+
+        <BudgetByGroupCards rubricas={rubricas} />
 
         <CoordDashboard
           reports={
