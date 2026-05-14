@@ -262,11 +262,19 @@ async function carregarSolicitacoes({ isCoordenador, currentUser }) {
 
   const dedup = new Map();
   resultados.filter(Boolean).forEach((p) => {
-    if (p?.id && !isCompraEquipe(p)) {
+    if (p?.id) {
+      // Não-coordenadores não veem compras de equipe
+      if (isCompraEquipe(p)) return;
+      
       const ownsIt = purchaseBelongsToUser(p, email);
       const centroCusto = normalizeCentro(p?.centro_custo);
+      
+      // Não-coordenadores não veem solicitações de "Geral"
+      if (!ownsIt && centroCusto === 'Geral') return;
+      
       const museusCentro = ['MHAB', 'MIS', 'MUMO'];
       const temMuseu = museusCentro.includes(centroCusto);
+      
       if (ownsIt || temMuseu) dedup.set(p.id, p);
     }
   });
