@@ -5,11 +5,12 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
-import { Image, Loader2, CheckCircle2, Trash2 } from 'lucide-react';
+import { Image, Loader2, CheckCircle2, Trash2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 export default function ReviewModalFoto({ intake, onClose, onSaved }) {
   const { toast } = useToast();
+  const [user, setUser] = useState(null);
   const [activities, setActivities] = useState([]);
   const [metas, setMetas] = useState([]);
   const [loadingActivities, setLoadingActivities] = useState(true);
@@ -27,9 +28,10 @@ export default function ReviewModalFoto({ intake, onClose, onSaved }) {
   useEffect(() => {
     async function load() {
       try {
-        const user = await base44.auth.me();
+        const currentUser = await base44.auth.me();
+        setUser(currentUser);
         const acts = await base44.entities.Activity.filter(
-          { created_by: user.email },
+          { created_by: currentUser.email },
           '-created_date',
           100
         );
@@ -126,37 +128,52 @@ export default function ReviewModalFoto({ intake, onClose, onSaved }) {
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Preview */}
-          <div className="rounded-lg overflow-hidden border bg-slate-50 flex items-center justify-center h-48">
-            <img
-              src={intake.arquivo_original_url}
-              alt="preview"
-              className="max-h-48 object-contain"
-            />
-          </div>
+           {/* Preview */}
+           <div className="rounded-lg overflow-hidden border bg-slate-50 flex items-center justify-center h-48">
+             <img
+               src={intake.arquivo_original_url}
+               alt="preview"
+               className="max-h-48 object-contain"
+             />
+           </div>
 
-          {/* Atividade */}
-          <div className="space-y-1">
-            <Label>Atividade <span className="text-red-500">*</span></Label>
-            {loadingActivities ? (
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <Loader2 className="w-4 h-4 animate-spin" /> Carregando atividades...
-              </div>
-            ) : (
-              <Select value={form.activity_id} onValueChange={(v) => setForm(f => ({ ...f, activity_id: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a atividade" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activities.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.titulo} {a.data_realizacao ? `— ${a.data_realizacao}` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+           {/* Alerta se sem atividades */}
+           {!loadingActivities && activities.length === 0 && (
+             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-3">
+               <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+               <div className="text-sm text-amber-800">
+                 <p className="font-semibold mb-1">Nenhuma atividade encontrada</p>
+                 <p className="text-xs">Você precisa criar uma atividade antes de vincular esta foto. Acesse a seção de Atividades para criar uma nova.</p>
+               </div>
+             </div>
+           )}
+
+           {/* Atividade */}
+           <div className="space-y-1">
+             <Label>Atividade <span className="text-red-500">*</span></Label>
+             {loadingActivities ? (
+               <div className="flex items-center gap-2 text-sm text-slate-400">
+                 <Loader2 className="w-4 h-4 animate-spin" /> Carregando atividades...
+               </div>
+             ) : activities.length === 0 ? (
+               <div className="text-sm text-slate-500 p-2 bg-slate-50 rounded border border-slate-200">
+                 Nenhuma atividade disponível
+               </div>
+             ) : (
+               <Select value={form.activity_id} onValueChange={(v) => setForm(f => ({ ...f, activity_id: v }))}>
+                 <SelectTrigger>
+                   <SelectValue placeholder="Selecione a atividade" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   {activities.map((a) => (
+                     <SelectItem key={a.id} value={a.id}>
+                       {a.titulo} {a.data_realizacao ? `— ${a.data_realizacao}` : ''}
+                     </SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
+             )}
+           </div>
 
           {/* Meta do 3º Aditivo */}
           <div className="space-y-1">
@@ -218,7 +235,7 @@ export default function ReviewModalFoto({ intake, onClose, onSaved }) {
               {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
               Deletar
             </Button>
-            <Button onClick={handleSave} disabled={saving || !form.activity_id}>
+            <Button onClick={handleSave} disabled={saving || !form.activity_id || activities.length === 0}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
               Vincular Foto
             </Button>
