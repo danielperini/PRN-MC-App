@@ -12,12 +12,22 @@ import {
   Share2,
   Sparkles,
   TrendingUp,
+  Radio,
+  BarChart3,
+  Link2,
+  Building2,
+  Tag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { base44 } from '@/api/base44Client';
+import KeywordsCloud from '@/components/comunicacao/KeywordsCloud';
+import ImpactoMuseu from '@/components/comunicacao/ImpactoMuseu';
+import SinteseIA from '@/components/comunicacao/SintesseIA';
+import RedesSociaisPanel from '@/components/comunicacao/RedesSociaisPanel';
+import LinksClipping from '@/components/comunicacao/LinksClipping';
 
 const DAYS_WINDOW = 60;
 
@@ -543,21 +553,37 @@ export default function ComunicacaoVisibilidade() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Tabs de navegação
+  const [activeTab, setActiveTab] = useState('clipping');
+
+  const TABS = [
+    { id: 'clipping', label: 'Clipping', icon: Newspaper },
+    { id: 'redes', label: 'Redes Sociais', icon: Share2 },
+    { id: 'analise', label: 'Análise IA', icon: Sparkles },
+    { id: 'acervo', label: 'Acervo Drive', icon: FolderOpen },
+  ];
+
   return (
     <div className="space-y-6">
+      {/* Cabeçalho estratégico */}
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Radio className="w-4 h-4 text-gray-400" />
+            <span className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Painel Estratégico</span>
+          </div>
           <h1 className="text-3xl font-semibold text-black tracking-tight">Comunicação e Visibilidade</h1>
-          <p className="text-sm text-gray-500 mt-1">Painel de clipping, menções públicas, redes sociais e acervo de comunicação do projeto.</p>
+          <p className="text-sm text-gray-500 mt-1">Clipping inteligente · Presença digital · Análise de impacto institucional · Monitoramento de repercussão</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => runSync({ silent: false })} disabled={isSyncing} className="gap-2 rounded-xl">
             <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-            Atualizar IA
+            Atualizar
           </Button>
         </div>
       </div>
 
+      {/* KPIs principais — Visibilidade Geral */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard label="Publicações" value={clippingSummary.total} helper="últimos 60 dias" icon={Newspaper} dark />
         <KpiCard label="Alta relevância" value={clippingSummary.alta} helper="menção direta" icon={TrendingUp} />
@@ -565,90 +591,7 @@ export default function ComunicacaoVisibilidade() {
         <KpiCard label="Veículos" value={clippingSummary.veiculos} helper="fontes distintas" icon={Globe2} />
       </div>
 
-      <Card className="rounded-2xl border-gray-200 bg-white shadow-sm">
-        <CardContent className="p-4 space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-black" />
-                <h2 className="text-lg font-semibold text-black">Painel de notícias e publicações</h2>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">Lista aberta somente dos últimos 60 dias, agrupada por mês, com busca por todas as palavras-chave do projeto.</p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <div className="relative w-full sm:w-72">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
-                <Input className="h-9 pl-8 text-sm" placeholder="Buscar publicação, veículo, palavra-chave..." value={query} onChange={(event) => setQuery(event.target.value)} />
-              </div>
-              <select
-                value={sourceFilter}
-                onChange={(event) => setSourceFilter(event.target.value)}
-                className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700"
-              >
-                <option value="TODOS">Todas as fontes</option>
-                <option value="Site">Sites</option>
-                <option value="Reddit">Redes sociais</option>
-                <option value="Imprensa institucional">Institucional</option>
-                <option value="Mídia cultural">Mídia cultural</option>
-                <option value="Agenda cultural">Agenda cultural</option>
-                <option value="Canal institucional">Canal institucional</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-            <span className="font-semibold text-gray-800">Palavras-chave monitoradas:</span> {KEYWORDS.join(' · ')}
-          </div>
-
-          {clippingByMonth.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">Nenhuma publicação encontrada para os filtros selecionados nos últimos 60 dias.</div>
-          ) : (
-            <div className="space-y-5">
-              {clippingByMonth.map((group) => (
-                <section key={group.key} className="space-y-2">
-                  <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                    <h3 className="text-sm font-semibold capitalize text-black">{group.label}</h3>
-                    <Badge variant="outline" className="bg-white">{group.items.length} publicação(ões)</Badge>
-                  </div>
-
-                  <div className="overflow-x-auto rounded-xl border border-gray-200">
-                    <table className="w-full min-w-[860px] table-fixed border-collapse text-sm">
-                      <colgroup>
-                        <col className="w-[10%]" />
-                        <col className="w-[36%]" />
-                        <col className="w-[18%]" />
-                        <col className="w-[11%]" />
-                        <col className="w-[11%]" />
-                        <col className="w-[8%]" />
-                      </colgroup>
-                      <thead>
-                        <tr className="border-b border-gray-200 bg-gray-50 text-left">
-                          <th className="px-3 py-2 text-xs font-medium text-gray-600">Data</th>
-                          <th className="px-3 py-2 text-xs font-medium text-gray-600">Publicação</th>
-                          <th className="px-3 py-2 text-xs font-medium text-gray-600">Veículo</th>
-                          <th className="px-3 py-2 text-xs font-medium text-gray-600">Relevância</th>
-                          <th className="px-3 py-2 text-xs font-medium text-gray-600">Origem</th>
-                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-600">Link</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.items.map((item) => <ClippingRow key={item.id} item={item} />)}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-              ))}
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-500">
-            <span>{syncMessage}</span>
-            {lastSync && <span>Última atualização: {lastSync.toLocaleString('pt-BR')}</span>}
-          </div>
-        </CardContent>
-      </Card>
-
+      {/* KPIs secundários */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard label="Releases" value={summary.releases} helper="Drive" icon={Megaphone} />
         <KpiCard label="Imagens" value={summary.imagens} helper="Drive" icon={Image} />
@@ -656,54 +599,198 @@ export default function ComunicacaoVisibilidade() {
         <KpiCard label="Posts" value={summary.posts} helper="Drive" icon={CalendarDays} />
       </div>
 
-      <Card className="rounded-2xl border-gray-200 bg-white shadow-sm">
-        <CardContent className="p-4 space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-black">Acervo de comunicação</h2>
-              <p className="text-xs text-gray-500 mt-1">Pastas e arquivos sincronizados do Google Drive.</p>
-            </div>
-            <Badge variant="outline" className="bg-white">{items.length} item(ns)</Badge>
-          </div>
+      {/* Tabs de navegação */}
+      <div className="flex gap-1 border-b border-gray-200 overflow-x-auto">
+        {TABS.map(tab => {
+          const TabIcon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? 'border-black text-black'
+                  : 'border-transparent text-gray-500 hover:text-black hover:border-gray-300'
+              }`}
+            >
+              <TabIcon className="w-3.5 h-3.5" />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
 
-          {Object.keys(groupedByMonth).length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">Nenhum arquivo encontrado.</div>
-          ) : (
-            Object.entries(groupedByMonth).map(([month, files]) => (
-              <section key={month} className="space-y-3">
-                <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-2">
-                  <h3 className="text-sm font-semibold text-slate-900 capitalize">{month}</h3>
-                  <Badge variant="outline" className="bg-white">{files.length} item(ns)</Badge>
+      {/* TAB: CLIPPING */}
+      {activeTab === 'clipping' && (
+        <div className="space-y-6">
+          <Card className="rounded-2xl border-gray-200 bg-white shadow-sm">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Newspaper className="w-4 h-4 text-black" />
+                    <h2 className="text-lg font-semibold text-black">Clipping Institucional</h2>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Notícias, matérias e publicações dos últimos 60 dias, agrupadas por mês.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {files.map((file) => (
-                    <a key={`${file.sourceFolderId}-${file.id}`} href={file.url} target="_blank" rel="noreferrer" className="block">
-                      <Card className="h-full border-slate-200 bg-white hover:border-slate-400 hover:shadow-sm transition-all">
-                        <CardContent className="p-4 space-y-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100 mb-2">{file.typeLabel}</Badge>
-                              <h3 className="font-semibold text-slate-900 truncate">{file.name}</h3>
-                              <p className="text-xs text-slate-500 mt-1 truncate">{file.sourceFolderPath || file.sourceFolderName}</p>
-                            </div>
-                            <ExternalLink className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                          </div>
+                <div className="flex flex-wrap gap-2">
+                  <div className="relative w-full sm:w-72">
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                    <Input className="h-9 pl-8 text-sm" placeholder="Buscar publicação, veículo, palavra-chave..." value={query} onChange={(event) => setQuery(event.target.value)} />
+                  </div>
+                  <select
+                    value={sourceFilter}
+                    onChange={(event) => setSourceFilter(event.target.value)}
+                    className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700"
+                  >
+                    <option value="TODOS">Todas as fontes</option>
+                    <option value="Site">Sites</option>
+                    <option value="Reddit">Redes sociais</option>
+                    <option value="Imprensa institucional">Institucional</option>
+                    <option value="Mídia cultural">Mídia cultural</option>
+                    <option value="Agenda cultural">Agenda cultural</option>
+                    <option value="Canal institucional">Canal institucional</option>
+                  </select>
+                </div>
+              </div>
 
-                          <div className="text-xs text-slate-500 space-y-1">
-                            <p>Origem: Google Drive</p>
-                            <p>{file.isFolderShortcut ? 'Abrir pasta' : 'Abrir arquivo'}</p>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </a>
+              <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                <span className="font-semibold text-gray-800">Palavras-chave monitoradas:</span> {KEYWORDS.join(' · ')}
+              </div>
+
+              {clippingByMonth.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">Nenhuma publicação encontrada para os filtros selecionados nos últimos 60 dias.</div>
+              ) : (
+                <div className="space-y-5">
+                  {clippingByMonth.map((group) => (
+                    <section key={group.key} className="space-y-2">
+                      <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                        <h3 className="text-sm font-semibold capitalize text-black">{group.label}</h3>
+                        <Badge variant="outline" className="bg-white">{group.items.length} publicação(ões)</Badge>
+                      </div>
+
+                      <div className="overflow-x-auto rounded-xl border border-gray-200">
+                        <table className="w-full min-w-[860px] table-fixed border-collapse text-sm">
+                          <colgroup>
+                            <col className="w-[10%]" />
+                            <col className="w-[36%]" />
+                            <col className="w-[18%]" />
+                            <col className="w-[11%]" />
+                            <col className="w-[11%]" />
+                            <col className="w-[8%]" />
+                          </colgroup>
+                          <thead>
+                            <tr className="border-b border-gray-200 bg-gray-50 text-left">
+                              <th className="px-3 py-2 text-xs font-medium text-gray-600">Data</th>
+                              <th className="px-3 py-2 text-xs font-medium text-gray-600">Publicação</th>
+                              <th className="px-3 py-2 text-xs font-medium text-gray-600">Veículo</th>
+                              <th className="px-3 py-2 text-xs font-medium text-gray-600">Relevância</th>
+                              <th className="px-3 py-2 text-xs font-medium text-gray-600">Origem</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-600">Link</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.items.map((item) => <ClippingRow key={item.id} item={item} />)}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
                   ))}
                 </div>
-              </section>
-            ))
-          )}
-        </CardContent>
-      </Card>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                <span>{syncMessage}</span>
+                {lastSync && <span>Última atualização: {lastSync.toLocaleString('pt-BR')}</span>}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Links Relacionados */}
+          <LinksClipping />
+
+          {/* Impacto por museu + keywords side by side */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <KeywordsCloud clippingItems={clippingItems} />
+            <ImpactoMuseu clippingItems={clippingItems} driveItems={items} />
+          </div>
+        </div>
+      )}
+
+      {/* TAB: REDES SOCIAIS */}
+      {activeTab === 'redes' && (
+        <div className="space-y-6">
+          <RedesSociaisPanel />
+        </div>
+      )}
+
+      {/* TAB: ANÁLISE IA */}
+      {activeTab === 'analise' && (
+        <div className="space-y-6">
+          <SinteseIA
+            clippingItems={clippingItems}
+            driveItems={items}
+            keywords={KEYWORDS}
+          />
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <KeywordsCloud clippingItems={clippingItems} />
+            <ImpactoMuseu clippingItems={clippingItems} driveItems={items} />
+          </div>
+        </div>
+      )}
+
+      {/* TAB: ACERVO DRIVE */}
+      {activeTab === 'acervo' && (
+        <div className="space-y-6">
+          <Card className="rounded-2xl border-gray-200 bg-white shadow-sm">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-black">Acervo de comunicação</h2>
+                  <p className="text-xs text-gray-500 mt-1">Pastas e arquivos sincronizados do Google Drive.</p>
+                </div>
+                <Badge variant="outline" className="bg-white">{items.length} item(ns)</Badge>
+              </div>
+
+              {Object.keys(groupedByMonth).length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">Nenhum arquivo encontrado.</div>
+              ) : (
+                Object.entries(groupedByMonth).map(([month, files]) => (
+                  <section key={month} className="space-y-3">
+                    <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-2">
+                      <h3 className="text-sm font-semibold text-slate-900 capitalize">{month}</h3>
+                      <Badge variant="outline" className="bg-white">{files.length} item(ns)</Badge>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      {files.map((file) => (
+                        <a key={`${file.sourceFolderId}-${file.id}`} href={file.url} target="_blank" rel="noreferrer" className="block">
+                          <Card className="h-full border-slate-200 bg-white hover:border-slate-400 hover:shadow-sm transition-all">
+                            <CardContent className="p-4 space-y-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100 mb-2">{file.typeLabel}</Badge>
+                                  <h3 className="font-semibold text-slate-900 truncate">{file.name}</h3>
+                                  <p className="text-xs text-slate-500 mt-1 truncate">{file.sourceFolderPath || file.sourceFolderName}</p>
+                                </div>
+                                <ExternalLink className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                              </div>
+                              <div className="text-xs text-slate-500 space-y-1">
+                                <p>Origem: Google Drive</p>
+                                <p>{file.isFolderShortcut ? 'Abrir pasta' : 'Abrir arquivo'}</p>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </a>
+                      ))}
+                    </div>
+                  </section>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
