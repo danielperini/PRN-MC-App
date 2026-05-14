@@ -94,43 +94,13 @@ TAREFA:
 
 Priorize citações diretas e conexões factuais entre os materiais.`;
 
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-    if (!apiKey) {
-      return Response.json({ error: 'API não configurada' }, { status: 500 });
-    }
+    // Usar integração nativa da Base44
+    const llmResult = await base44.integrations.Core.InvokeLLM({
+      prompt: prompt,
+      model: 'gemini_3_flash'
+    });
 
-    const llmResponse = await fetch(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: 'Você é redator editorial especializado em consolidar narrativas institucionais. Conecte dados de múltiplas fontes em texto coerente e denso. Sempre cite fontes reais.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          max_tokens: 3000,
-          temperature: 0.7
-        })
-      }
-    );
-
-    if (!llmResponse.ok) {
-      return Response.json({ error: 'Falha LLM' }, { status: 500 });
-    }
-
-    const llmData = await llmResponse.json();
-    const narrativaConsolidada = llmData.choices?.[0]?.message?.content || '';
+    const narrativaConsolidada = llmResult || '';
 
     // Salvar consolidação
     const consolidacao = await base44.entities.AIAnalysis.create({
