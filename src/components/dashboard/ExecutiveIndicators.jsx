@@ -127,7 +127,7 @@ function KpiCard({ label, value, icon: Icon, highlight = false, helper }) {
           {label}
         </span>
       </div>
-      <p className={`text-2xl font-bold leading-tight truncate ${highlight ? 'text-primary-foreground' : 'text-foreground'}`}>
+      <p className={`text-xl font-bold leading-tight ${highlight ? 'text-primary-foreground' : 'text-foreground'}`}>
         {value}
       </p>
       {helper && (
