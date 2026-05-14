@@ -16,17 +16,17 @@ function formatCurrency(value) {
   return toNumber(value).toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 0
   });
 }
 
 function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+  return String(value || '').
+  normalize('NFD').
+  replace(/[\u0300-\u036f]/g, '').
+  replace(/\s+/g, ' ').
+  trim().
+  toLowerCase();
 }
 
 function normalizeMuseu(value) {
@@ -48,22 +48,22 @@ function getRubricaNome(rubrica = {}) {
 function getCategoria(rubrica = {}, fallback = 'geral') {
   return String(
     rubrica?.categoria_key ||
-      rubrica?.categoria ||
-      rubrica?.grupo ||
-      rubrica?.grupo_nome ||
-      fallback ||
-      'geral'
+    rubrica?.categoria ||
+    rubrica?.grupo ||
+    rubrica?.grupo_nome ||
+    fallback ||
+    'geral'
   );
 }
 
 function getValorOrcado(rubrica = {}) {
   return toNumber(
     rubrica?.totalOrcado ??
-      rubrica?.valorOrcado ??
-      rubrica?.valor_rubrica ??
-      rubrica?.valor_total ??
-      rubrica?.orcado ??
-      rubrica?.previsto
+    rubrica?.valorOrcado ??
+    rubrica?.valor_rubrica ??
+    rubrica?.valor_total ??
+    rubrica?.orcado ??
+    rubrica?.previsto
   );
 }
 
@@ -78,9 +78,9 @@ function getValorLancamentos(rubrica = {}) {
 function getValorUtilizado(rubrica = {}) {
   return toNumber(
     rubrica?.valorUtilizado ??
-      rubrica?.valor_utilizado ??
-      rubrica?.utilizado ??
-      rubrica?.realizado
+    rubrica?.valor_utilizado ??
+    rubrica?.utilizado ??
+    rubrica?.realizado
   );
 }
 
@@ -93,24 +93,24 @@ function getPct(rubrica = {}) {
   if (rubrica?.pct !== undefined && rubrica?.pct !== null) return toNumber(rubrica.pct);
   const total = getValorOrcado(rubrica);
   if (total <= 0) return 0;
-  return Number(((getValorUtilizado(rubrica) / total) * 100).toFixed(1));
+  return Number((getValorUtilizado(rubrica) / total * 100).toFixed(1));
 }
 
 function getSearchText(rubrica = {}, includeGeneratedOrigin = false) {
   return normalizeText([
-    rubrica?.rubrica,
-    rubrica?.nome,
-    rubrica?.descricao,
-    rubrica?.grupo,
-    rubrica?.categoria,
-    rubrica?.categoria_key,
-    rubrica?.centro_custo,
-    rubrica?.museu,
-    rubrica?.museu_codigo,
-    rubrica?.unidade,
-    includeGeneratedOrigin ? rubrica?.museu_origem : '',
-    rubrica?.observacao_uso,
-  ].filter(Boolean).join(' '));
+  rubrica?.rubrica,
+  rubrica?.nome,
+  rubrica?.descricao,
+  rubrica?.grupo,
+  rubrica?.categoria,
+  rubrica?.categoria_key,
+  rubrica?.centro_custo,
+  rubrica?.museu,
+  rubrica?.museu_codigo,
+  rubrica?.unidade,
+  includeGeneratedOrigin ? rubrica?.museu_origem : '',
+  rubrica?.observacao_uso].
+  filter(Boolean).join(' '));
 }
 
 function isNoturnoRubrica(rubrica = {}) {
@@ -153,7 +153,7 @@ function flattenConsolidado(consolidado = {}, museu = '') {
           rows.push({
             ...item,
             categoria_key: item?.categoria_key || categoriaKey,
-            museu_origem: normalizeMuseu(museuKey),
+            museu_origem: normalizeMuseu(museuKey)
           });
         });
       });
@@ -193,11 +193,11 @@ function RubricaCard({ rubrica }) {
               {getRubricaNome(rubrica)}
             </h3>
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {rubrica?.museu_origem && (
-                <Badge variant="outline" className="text-[10px]">
+              {rubrica?.museu_origem &&
+              <Badge variant="outline" className="text-[10px]">
                   {rubrica.museu_origem}
                 </Badge>
-              )}
+              }
               <Badge variant="outline" className="text-[10px]">
                 {getCategoria(rubrica)}
               </Badge>
@@ -215,8 +215,8 @@ function RubricaCard({ rubrica }) {
         <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div
             className={`h-1.5 rounded-full ${pct >= 100 ? 'bg-red-600' : pct >= 80 ? 'bg-orange-500' : 'bg-black'}`}
-            style={{ width: progressWidth }}
-          />
+            style={{ width: progressWidth }} />
+          
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-xs">
@@ -248,21 +248,21 @@ function RubricaCard({ rubrica }) {
           </span>
         </div>
 
-        {rubrica?.observacao_uso && (
-          <p className="text-[11px] text-gray-500 border-t border-gray-100 pt-2">
+        {rubrica?.observacao_uso &&
+        <p className="text-[11px] text-gray-500 border-t border-gray-100 pt-2">
             {rubrica.observacao_uso}
           </p>
-        )}
+        }
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 }
 
 export default function RubricasMuseuEditor({
   museu = 'MIS',
   canEdit = false,
   refreshKey = 0,
-  rubricaFilter,
+  rubricaFilter
 }) {
   const normalizedMuseu = normalizeMuseu(museu);
 
@@ -282,25 +282,25 @@ export default function RubricasMuseuEditor({
     },
     staleTime: 0,
     gcTime: 0,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: false
   });
 
   const rows = useMemo(() => {
     const baseRows = Array.isArray(data) ? data : [];
     const scopedRows = baseRows.filter((rubrica) => matchRubricaMuseu(rubrica, normalizedMuseu));
-    const filtered = typeof rubricaFilter === 'function'
-      ? scopedRows.filter((rubrica) => {
-          try {
-            return rubricaFilter(rubrica);
-          } catch {
-            return true;
-          }
-        })
-      : scopedRows;
+    const filtered = typeof rubricaFilter === 'function' ?
+    scopedRows.filter((rubrica) => {
+      try {
+        return rubricaFilter(rubrica);
+      } catch {
+        return true;
+      }
+    }) :
+    scopedRows;
 
-    return filtered
-      .filter((rubrica) => rubrica?.ativo !== false)
-      .sort((a, b) => getRubricaNome(a).localeCompare(getRubricaNome(b), 'pt-BR'));
+    return filtered.
+    filter((rubrica) => rubrica?.ativo !== false).
+    sort((a, b) => getRubricaNome(a).localeCompare(getRubricaNome(b), 'pt-BR'));
   }, [data, rubricaFilter, normalizedMuseu]);
 
   const totals = useMemo(() => {
@@ -322,8 +322,8 @@ export default function RubricasMuseuEditor({
       <div className="flex items-center justify-center py-16 text-gray-500">
         <Loader2 className="w-5 h-5 animate-spin mr-2" />
         Carregando rubricas específicas...
-      </div>
-    );
+      </div>);
+
   }
 
   if (isError) {
@@ -336,8 +336,8 @@ export default function RubricasMuseuEditor({
             <p className="text-sm mt-1">{error?.message || 'Falha na consulta de rubricas.'}</p>
           </div>
         </div>
-      </div>
-    );
+      </div>);
+
   }
 
   if (rows.length === 0) {
@@ -347,8 +347,8 @@ export default function RubricasMuseuEditor({
         <p className="text-sm text-gray-500 mt-1">
           Esta aba mostra somente rubricas que mencionam exclusivamente {normalizedMuseu}. Rubricas gerais, compartilhadas ou multi-museu ficam fora desta visão.
         </p>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -372,15 +372,15 @@ export default function RubricasMuseuEditor({
         </div>
       </div>
 
-      {!canEdit && (
-        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-500">
+      {!canEdit &&
+      <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-500">
           Filtro restaurado: esta visão exibe apenas rubricas específicas da aba selecionada.
         </div>
-      )}
+      }
 
       <div className="space-y-6">
-        {grouped.map(([categoria, items]) => (
-          <section key={categoria} className="space-y-3">
+        {grouped.map(([categoria, items]) =>
+        <section key={categoria} className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-bold uppercase tracking-wide text-gray-600">
                 {categoria}
@@ -391,20 +391,20 @@ export default function RubricasMuseuEditor({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {items.map((rubrica, index) => (
-                <RubricaCard key={rubrica?.id || `${categoria}-${index}`} rubrica={rubrica} />
-              ))}
+              {items.map((rubrica, index) =>
+            <RubricaCard key={rubrica?.id || `${categoria}-${index}`} rubrica={rubrica} />
+            )}
             </div>
           </section>
-        ))}
+        )}
       </div>
 
       {/* Seção de rubricas compartilhadas com rateio ÷ 3 (exceto NOTURNO) */}
-      {normalizedMuseu !== 'NOTURNO' && (
-        <div className="border-t border-gray-100 pt-6">
+      {normalizedMuseu !== 'NOTURNO' &&
+      <div className="border-t border-gray-100 pt-6 hidden">
           <RubricasCompartilhadasRateio museu={normalizedMuseu} refreshKey={refreshKey} />
         </div>
-      )}
-    </div>
-  );
+      }
+    </div>);
+
 }
