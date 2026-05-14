@@ -61,6 +61,140 @@ const SECOES_PADRAO = [
     descricao: 'Síntese, aprendizados, recomendações, perspectivas',
     icone: '🎯',
     selecionado: true
+  },
+  // Novas seções adicionadas
+  {
+    id: 'programacao',
+    nome: 'Programação do Período',
+    descricao: 'Agenda, eventos, atividades programadas',
+    icone: '📅',
+    selecionado: false
+  },
+  {
+    id: 'comunicacao',
+    nome: 'Comunicação e Visibilidade',
+    descricao: 'Releases, imprensa, redes sociais, alcance',
+    icone: '📢',
+    selecionado: false
+  },
+  {
+    id: 'registros',
+    nome: 'Registros e Evidências',
+    descricao: 'Fotos, vídeos, documentação, comprovações',
+    icone: '📸',
+    selecionado: false
+  },
+  {
+    id: 'institucionais',
+    nome: 'Indicadores Institucionais',
+    descricao: 'Métricas estratégicas, impacto, sustentabilidade',
+    icone: '📈',
+    selecionado: false
+  },
+  {
+    id: 'museu',
+    nome: 'Execução por Museu',
+    descricao: 'Análise individual: MHAB, MIS, MUMO',
+    icone: '🏛️',
+    selecionado: false
+  },
+  {
+    id: 'grupos_rubrica',
+    nome: 'Execução por Grupo de Rubrica',
+    descricao: 'Distribuição orçamentária por categoria',
+    icone: '📑',
+    selecionado: false
+  },
+  {
+    id: 'compras',
+    nome: 'Compras e Pagamentos',
+    descricao: 'Solicitações, aprovações, execução, status',
+    icone: '🛒',
+    selecionado: false
+  },
+  {
+    id: 'fiscal',
+    nome: 'Documentos Fiscais',
+    descricao: 'Notas fiscais, conformidade fiscal, impostos',
+    icone: '🧾',
+    selecionado: false
+  },
+  {
+    id: 'contratos',
+    nome: 'Contratos e Equipe',
+    descricao: 'Contratos ativos, fornecedores, pessoal',
+    icone: '📝',
+    selecionado: false
+  },
+  {
+    id: 'consolidadas',
+    nome: 'Atividades Consolidadas',
+    descricao: 'Resumo cross-museu, análise comparativa',
+    icone: '📋',
+    selecionado: false
+  },
+  {
+    id: 'curadoria',
+    nome: 'Curadoria Institucional',
+    descricao: 'Destaques, impacto, histórias relevantes',
+    icone: '✨',
+    selecionado: false
+  },
+  {
+    id: 'executivo',
+    nome: 'Painel Executivo',
+    descricao: 'Dashboard executivo, resumo C-level',
+    icone: '🎩',
+    selecionado: false
+  },
+  {
+    id: 'integridade',
+    nome: 'Integridade Financeira',
+    descricao: 'Auditoria, divergências, conformidade',
+    icone: '🔒',
+    selecionado: false
+  },
+  {
+    id: 'galeria',
+    nome: 'Galeria Curada',
+    descricao: 'Melhores fotos, visual story, portfolio',
+    icone: '🎨',
+    selecionado: false
+  },
+  {
+    id: 'conhecimento',
+    nome: 'Base de Conhecimento Utilizada',
+    descricao: 'Documentos, referências, aprendizados',
+    icone: '📚',
+    selecionado: false
+  },
+  {
+    id: 'memoria',
+    nome: 'Memória Institucional',
+    descricao: 'Histórico, evolução, marcos importantes',
+    icone: '🕰️',
+    selecionado: false
+  },
+  {
+    id: 'consolidacao_ia',
+    nome: 'Consolidação Editorial IA',
+    descricao: 'Análise IA, conexões entre dados',
+    icone: '🤖',
+    selecionado: false
+  },
+  {
+    id: 'linha_tempo',
+    nome: 'Linha do Tempo do Período',
+    descricao: 'Cronologia de eventos, marcos, evolução',
+    icone: '📍',
+    selecionado: false
+  },
+  {
+    id: 'formacao',
+    nome: 'Formação e Acessibilidade',
+    descricao: 'Pessoas capacitadas, acessibilidade oferecida',
+    icone: '♿',
+    selecionado: false
   }
 ];
 
