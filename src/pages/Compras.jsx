@@ -243,41 +243,32 @@ async function carregarSolicitacoes({ isCoordenador, currentUser }) {
     return await base44.entities.PurchaseRequest.list('-created_date', 500);
   }
 
-  const email = normalizeEmail(currentUser?.email);
-  const resultados = [];
-
-  try {
-    const r = await base44.entities.PurchaseRequest.filter({ created_by: currentUser?.email }, '-created_date', 300);
-    if (Array.isArray(r)) resultados.push(...r);
-  } catch (error) {
-    console.error('Erro ao buscar PurchaseRequest por created_by:', error);
-  }
+  // Profissional: vê TODAS as solicitações dos museus, exceto compras de equipe e "Geral"
+  const dedup = new Map();
 
   try {
     const listaGeral = await base44.entities.PurchaseRequest.list('-created_date', 500);
-    resultados.push(...listaGeral.filter((p) => purchaseBelongsToUser(p, email)));
+    
+    listaGeral.filter(Boolean).forEach((p) => {
+      if (p?.id) {
+        // Não-profissionais não veem compras de equipe
+        if (isCompraEquipe(p)) return;
+        
+        const centroCusto = normalizeCentro(p?.centro_custo);
+        
+        // Não-profissionais não veem solicitações de "Geral"
+        if (centroCusto === 'Geral') return;
+        
+        const museusCentro = ['MHAB', 'MIS', 'MUMO'];
+        const temMuseu = museusCentro.includes(centroCusto);
+        
+        // Vê tudo dos museus específicos
+        if (temMuseu) dedup.set(p.id, p);
+      }
+    });
   } catch (error) {
     console.error('Erro ao buscar lista geral de PurchaseRequest:', error);
   }
-
-  const dedup = new Map();
-  resultados.filter(Boolean).forEach((p) => {
-    if (p?.id) {
-      // Não-coordenadores não veem compras de equipe
-      if (isCompraEquipe(p)) return;
-      
-      const ownsIt = purchaseBelongsToUser(p, email);
-      const centroCusto = normalizeCentro(p?.centro_custo);
-      
-      // Não-coordenadores não veem solicitações de "Geral"
-      if (!ownsIt && centroCusto === 'Geral') return;
-      
-      const museusCentro = ['MHAB', 'MIS', 'MUMO'];
-      const temMuseu = museusCentro.includes(centroCusto);
-      
-      if (ownsIt || temMuseu) dedup.set(p.id, p);
-    }
-  });
 
   return Array.from(dedup.values()).sort((a, b) =>
     new Date(b?.created_date || 0) - new Date(a?.created_date || 0)
