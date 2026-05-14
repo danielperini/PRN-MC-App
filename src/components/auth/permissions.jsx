@@ -170,6 +170,7 @@ export const SIDEBAR_PROFISSIONAL = new Set([
   'GaleriaFotos',
   'Compras',
   'RubricasPorMuseu',
+  'LeitorNoticias',
   'ProgramacaoEspelho',
   'AssistentePlanejamento',
   'Manual',
