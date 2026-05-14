@@ -187,26 +187,46 @@ async function gerarCapaEditorial(base44, dados) {
   const { relatorio, atividades, attachments } = dados;
 
   // Calcular métricas
-  const publico_geral = relatorio.publico_geral_declarado || 0;
+  const publico_geral = relatorio?.publico_geral_declarado;
   const atividades_com_publico = atividades.filter(a => a.publico_total > 0);
   const publico_atividades = atividades_com_publico.reduce((sum, a) => sum + (a.publico_total || 0), 0);
   const fotos = attachments.filter(a => a.file_type?.includes('image'));
 
-  const texto = `Durante o período, os Museus Centro consolidaram sua atuação institucional com a realização de ${atividades.length} ações culturais e educativas, alcançando um público geral declarado de ${publico_geral.toLocaleString('pt-BR')} pessoas e ${publico_atividades.toLocaleString('pt-BR')} participantes diretos em atividades. A programação envolveu os três museus da rede — MHAB, MIS e MUMO — em um esforço articulado de circulação cultural e formação, consolidando a presença institucional no território urbano com diversidade temática e estratégica.
+  let texto = `Durante o período, os Museus Centro consolidaram sua atuação institucional com a realização de ${atividades.length} ações culturais e educativas`;
+  
+  if (publico_geral && publico_geral > 0) {
+    texto += `, alcançando um público geral declarado de ${publico_geral.toLocaleString('pt-BR')} pessoas`;
+  }
+  
+  if (publico_atividades > 0) {
+    texto += ` e ${publico_atividades.toLocaleString('pt-BR')} participantes diretos em atividades`;
+  }
+  
+  texto += `. A programação envolveu os museus da rede em um esforço articulado de circulação cultural e formação, consolidando a presença institucional no território urbano com diversidade temática e estratégica.
 
-A integração entre os museus permitiu uma oferta equilibrada de ações educativas, mediações, exposições e atividades de formação, com significativo registro visual documentado através de ${fotos.length} fotografias que capturam os momentos de participação e engajamento. A atuação reflete o amadurecimento da rede museológica em sua capacidade de programar, executar e documentar ações que transcendem os muros institucionais, atingindo públicos diversos em diferentes pontos da cidade.
+A integração entre os museus permitiu uma oferta equilibrada de ações educativas, mediações, exposições e atividades de formação`;
+  
+  if (fotos.length > 0) {
+    texto += `, com significativo registro visual documentado através de ${fotos.length} fotografias que capturam os momentos de participação e engajamento`;
+  }
+  
+  texto += `. A atuação reflete o amadurecimento da rede museológica em sua capacidade de programar, executar e documentar ações que transcendem os muros institucionais, atingindo públicos diversos em diferentes pontos da cidade.
 
-O período demonstra a força de uma rede museológica consolidada, capaz de articular recursos humanos, financeiros e culturais para gerar impacto territorial. A participação do público em atividades específicas, comparada ao público geral do período, revela a importância da programação estratégica na formação de audiências e na consolidação de vínculos entre instituição e comunidade.`;
+O período demonstra a força de uma rede museológica consolidada, capaz de articular recursos humanos, financeiros e culturais para gerar impacto territorial.`;
+  
+  if (publico_atividades > 0) {
+    texto += ` A participação do público em atividades específicas revela a importância da programação estratégica na formação de audiências e na consolidação de vínculos entre instituição e comunidade.`;
+  }
 
   return {
     tipo: 'capa',
     titulo: 'Capa Editorial',
     texto,
     metricas: {
-      publico_geral,
-      publico_atividades,
-      atividades_total: atividades.length,
-      fotos: fotos.length
+      ...(publico_geral && publico_geral > 0 && { publico_geral }),
+      ...(publico_atividades > 0 && { publico_atividades }),
+      ...(atividades.length > 0 && { atividades_total: atividades.length }),
+      ...(fotos.length > 0 && { fotos: fotos.length })
     },
     confianca: 95,
     fontes: ['Report', 'Activity', 'Attachment']
