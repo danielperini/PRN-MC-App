@@ -362,12 +362,15 @@ export default function Sidebar({
     // OBSERVADOR / PATROCINADOR: lista restrita
     if (isObs) {
       if (item.hideForObservador) return false;
+      if (item.roles.includes('coord') && !item.roles.includes('all')) return false;
+      if (item.roles.includes('admin') && !item.roles.includes('all')) return false;
       return SIDEBAR_OBSERVADOR.has(item.path);
     }
 
     // PROFISSIONAL: lista definida no permissions.js
     if (item.permission === 'canManageUsers') return false;
     if (item.permission === 'canManagePlatform') return false;
+    if (item.hideForObservador) return false;
     if (item.roles.includes('coord') && !item.roles.includes('all')) return false;
     if (item.roles.includes('admin') && !item.roles.includes('all')) return false;
     return SIDEBAR_PROFISSIONAL.has(item.path);
