@@ -5,7 +5,7 @@ import { Building2, CheckCircle, Send, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toastMessages } from '@/lib/toastMessages';
+import { toastMessages } from '@/lib/actionFeedback';
 import {
   Dialog,
   DialogContent,
@@ -118,13 +118,13 @@ export default function Cadastro() {
     },
     onSuccess: () => {
       if (directPasswordFlow) {
-        toastMessages.createSuccess('Acesso criado com sucesso! Você já pode entrar com e-mail e senha.');
+        toastMessages.created();
         setDirectAccessCreated(true);
         setDone(true);
         return;
       }
 
-      toastMessages.createSuccess('Solicitação enviada com sucesso.');
+      toastMessages.sent();
       setDone(true);
     },
     onError: (error) => {
@@ -148,7 +148,7 @@ export default function Cadastro() {
       setShowRecovery(false);
     },
     onError: (error) => {
-      toastMessages.createFailed(error?.message || 'Não foi possível recuperar a senha.');
+      toastMessages.sendFailed(error?.message);
     },
   });
 
