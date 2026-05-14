@@ -262,21 +262,34 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
     return () => window.clearInterval(timer);
   }, [agendaItems.length]);
 
+  // REGRA: só contar atividades com público_total > 0 (público de atividades/eventos)
+  // publico_geral_declarado do relatório é exibido separadamente, nunca somado aqui
   const activitiesByMonth = React.useMemo(() => {
     const map = {};
 
     reports.forEach(r => {
+      if (!['APPROVED', 'APROVADO'].includes(String(r.status || '').toUpperCase())) return;
       const mes = r.mes_referencia;
       if (!mes) return;
 
       if (!map[mes]) map[mes] = { atividades: 0, publico: 0 };
 
       (Array.isArray(r.atividades) ? r.atividades : []).forEach(a => {
-        const vezes = Number(a.quantas_vezes_ocorreu || 1);
-        const pub = Number(a.publico_medio || a.publico_estimado || a.publico_total || a.publico || 0);
-
-        map[mes].atividades += vezes;
-        map[mes].publico += vezes * pub;
+        // Usar publico_total como fonte primária
+        const pubTotal = toInt(a.publico_total ?? 0);
+        if (pubTotal > 0) {
+          map[mes].atividades += 1;
+          map[mes].publico += pubTotal;
+          return;
+        }
+        // Fallback: publico_estimado * quantas_repeticoes
+        const pubEst = toInt(a.publico_estimado ?? 0);
+        const reps = toInt(a.quantas_repeticoes ?? 1);
+        if (pubEst > 0) {
+          map[mes].atividades += 1;
+          map[mes].publico += pubEst * Math.max(reps, 1);
+        }
+        // publico = 0 → NÃO contabilizar
       });
     });
 
@@ -309,25 +322,45 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
 
   const comparativoMuseu = React.useMemo(() => {
     return MUSEUS.map(museu => {
-      const reps = reports.filter(r => r.museu === museu || r.museu_secundario === museu);
-      let atividades = 0;
+      const reps = reports.filter(r =>
+        ['APPROVED', 'APROVADO'].includes(String(r.status || '').toUpperCase()) &&
+        (r.museu === museu || r.museu_secundario === museu)
+      );
+      let totalAtividades = 0;
+      let atividadesComPublico = 0;
       let publico = 0;
+      let publicoGeral = 0;
 
       reps.forEach(r => {
-        (Array.isArray(r.atividades) ? r.atividades : []).forEach(a => {
-          const vezes = Number(a.quantas_vezes_ocorreu || 1);
-          const pub = Number(a.publico_medio || a.publico_estimado || a.publico_total || a.publico || 0);
+        // Público geral declarado — separado, não entra na soma de atividades
+        publicoGeral += toInt(r.publico_geral_declarado ?? 0);
 
-          atividades += vezes;
-          publico += vezes * pub;
+        (Array.isArray(r.atividades) ? r.atividades : []).forEach(a => {
+          totalAtividades += 1;
+          const pubTotal = toInt(a.publico_total ?? 0);
+          if (pubTotal > 0) {
+            atividadesComPublico += 1;
+            publico += pubTotal;
+            return;
+          }
+          const pubEst = toInt(a.publico_estimado ?? 0);
+          const reps2 = toInt(a.quantas_repeticoes ?? 1);
+          if (pubEst > 0) {
+            atividadesComPublico += 1;
+            publico += pubEst * Math.max(reps2, 1);
+          }
+          // sem público → não contar
         });
       });
 
       return {
         museu,
         relatorios: reps.length,
-        atividades: toInt(atividades),
+        atividades: totalAtividades,
+        atividadesComPublico,
         publico: toInt(publico),
+        publicoGeral: toInt(publicoGeral),
+        mediaPublico: atividadesComPublico > 0 ? Math.round(publico / atividadesComPublico) : 0,
       };
     });
   }, [reports]);
@@ -445,13 +478,27 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
         <CardSection title="Comparativo por Museu" empty={comparativoMuseu.every(m => m.relatorios === 0)} className="xl:col-span-2">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {comparativoMuseu.map(m => (
-              <div key={m.museu} className="border border-gray-100 rounded-xl p-3 bg-gray-50/50">
-                <div className="flex justify-between items-center mb-2">
+              <div key={m.museu} className="border border-gray-100 rounded-xl p-3 bg-gray-50/50 space-y-2">
+                <div className="flex justify-between items-center">
                   <span className="text-sm font-bold text-black">{m.museu}</span>
                   <span className="text-xs text-gray-500">{fmtInt(m.relatorios)} rel.</span>
                 </div>
-                <MiniBar label="Atividades" value={m.atividades} max={maxMuseuAtiv} />
-                <MiniBar label="Público" value={m.publico} max={maxMuseuPub} color="bg-gray-600" />
+
+                {m.publicoGeral > 0 && (
+                  <div className="border-t border-gray-200 pt-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Público Geral Declarado</p>
+                    <p className="text-sm font-bold text-black">{fmtInt(m.publicoGeral)}</p>
+                  </div>
+                )}
+
+                <div className={m.publicoGeral > 0 ? 'border-t border-dashed border-gray-200 pt-2' : ''}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Atividades com Público</p>
+                  <MiniBar label={`${fmtInt(m.atividadesComPublico)} de ${fmtInt(m.atividades)}`} value={m.atividadesComPublico} max={maxMuseuAtiv} />
+                  <MiniBar label={`Participantes`} value={m.publico} max={maxMuseuPub} color="bg-gray-600" />
+                  {m.mediaPublico > 0 && (
+                    <p className="text-[10px] text-gray-400 mt-1">Média: {fmtInt(m.mediaPublico)} por atividade</p>
+                  )}
+                </div>
               </div>
             ))}
           </div>

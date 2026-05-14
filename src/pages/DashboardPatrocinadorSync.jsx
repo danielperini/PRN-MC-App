@@ -81,26 +81,25 @@ function isApprovedReport(report) {
   return APPROVED_STATUSES.has(String(report?.status || '').trim().toUpperCase());
 }
 
+// Retorna APENAS público de atividades/eventos com público efetivamente preenchido.
+// Público geral declarado do museu NÃO entra nesta função — exibir separadamente.
 function getActivityPublico(atividade) {
-  const direct = inteiro(atividade?.publico_total ?? atividade?.publico_estimado ?? atividade?.publico ?? 0);
-  if (direct > 0) return direct;
+  // Usar publico_total como fonte primária (já considera repetições)
+  const total = inteiro(atividade?.publico_total ?? 0);
+  if (total > 0) return total;
 
-  const publicoMedio = inteiro(
-    atividade?.publico_medio_por_sessao ??
-    atividade?.publico_medio_sessao ??
-    atividade?.publico_medio ??
-    atividade?.publico_por_sessao ??
-    0
-  );
-  const ocorrencias = inteiro(
-    atividade?.quantas_vezes_ocorreu ??
-    atividade?.qtd_ocorrencias ??
-    atividade?.ocorrencias ??
-    atividade?.quantidade_ocorrencias ??
-    1
-  );
+  // Fallback: publico_estimado * quantas_repeticoes
+  const estimado = inteiro(atividade?.publico_estimado ?? 0);
+  const repeticoes = inteiro(atividade?.quantas_repeticoes ?? 1);
+  if (estimado > 0) return estimado * Math.max(repeticoes, 1);
 
-  return publicoMedio * Math.max(ocorrencias, 1);
+  // Sem público declarado → não contabilizar
+  return 0;
+}
+
+// Verifica se a atividade tem público válido (> 0) para ser contabilizada
+function atividadeTemPublico(atividade) {
+  return getActivityPublico(atividade) > 0;
 }
 
 function isAtividadeConsolidadoMensal(activity) {
@@ -332,9 +331,23 @@ function applyPublicoConsolidadoMensal(activities) {
 function buildApprovedMetrics(reportsAll) {
   const reports = reportsAll.filter(isApprovedReport);
   const rawActivities = reports.flatMap(getReportActivities);
-  const { uniqueActivities, duplicateCount } = deduplicateActivities(rawActivities);
+
+  // REGRA: só considerar atividades que efetivamente tiveram público informado (> 0)
+  const atividadesComPublico = rawActivities.filter(atividadeTemPublico);
+
+  const { uniqueActivities, duplicateCount } = deduplicateActivities(atividadesComPublico);
   const publicoConsolidado = applyPublicoConsolidadoMensal(uniqueActivities);
   const totalPublico = publicoConsolidado.activities.reduce((sum, activity) => sum + getPublicoContabil(activity), 0);
+
+  // Público geral declarado nos relatórios (campo separado — NÃO entra na soma de atividades)
+  const publicoGeralPorMuseu = {};
+  reports.forEach(r => {
+    const museu = normalizeMuseu(r.museu || r.museu_secundario);
+    const pg = inteiro(r.publico_geral_declarado ?? 0);
+    if (pg > 0) {
+      publicoGeralPorMuseu[museu] = (publicoGeralPorMuseu[museu] || 0) + pg;
+    }
+  });
 
   return {
     reports,
@@ -342,7 +355,8 @@ function buildApprovedMetrics(reportsAll) {
     activities: publicoConsolidado.activities,
     duplicateCount,
     consolidatedGroupCount: publicoConsolidado.consolidatedGroupCount,
-    totalPublico
+    totalPublico,
+    publicoGeralPorMuseu,
   };
 }
 
@@ -466,11 +480,18 @@ export default function DashboardPatrocinadorSync() {
       }));
 
       const comparativoMuseu = MUSEUS.map((museu) => {
-        const items = atividadesRealizadas.filter((item) => item._museu === museu);
+        // Apenas atividades com público preenchido
+        const items = atividadesRealizadas.filter((item) => item._museu === museu && getPublicoContabil(item) > 0);
+        const totalAtivMuseu = atividadesRealizadas.filter((item) => item._museu === museu).length;
+        const publicoAtividades = Math.round(items.reduce((sum, item) => sum + getPublicoContabil(item), 0));
+        const mediaPublico = items.length > 0 ? Math.round(publicoAtividades / items.length) : 0;
         return {
           museu,
-          atividades: items.length,
-          publico: Math.round(items.reduce((sum, item) => sum + getPublicoContabil(item), 0))
+          atividades: totalAtivMuseu,
+          atividadesComPublico: items.length,
+          publico: publicoAtividades,
+          publicoGeral: metrics.publicoGeralPorMuseu[museu] || 0,
+          mediaPublico,
         };
       });
 
@@ -587,7 +608,7 @@ export default function DashboardPatrocinadorSync() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard icon={Activity} label="Atividades do mês" value={fmtInt(data.totalAtividadesMes)} helper={`${fmtInt(data.totalAtividadesAno)} no acumulado`} dark />
         <KpiCard icon={Calendar} label="Previstas na agenda" value={fmtInt(data.atividadesPrevistasMes)} helper={`período ${data.periodoAgenda || data.periodo}`} dark />
-        <KpiCard icon={Users} label="Público total" value={fmtInt(data.totalPublico)} helper={`${fmtInt(data.publicoMes)} no mês`} />
+        <KpiCard icon={Users} label="Participantes em atividades" value={fmtInt(data.totalPublico)} helper={`${fmtInt(data.publicoMes)} no mês`} />
         <KpiCard icon={TrendingUp} label="Execução orçamentária" value={`${data.percentualExecucao}%`} helper={`${fmtBRL(data.totalUtilizado)} utilizado`} />
       </div>
 
@@ -605,7 +626,31 @@ export default function DashboardPatrocinadorSync() {
           <div className="grid grid-cols-3 gap-2">
             {MUSEUS.map((museu) => {
               const item = data.comparativoMuseu.find((x) => x.museu === museu) || {};
-              return <div key={museu} className="rounded-xl border border-gray-200 p-3"><p className="text-sm font-bold text-black">{museu}</p><p className="text-xs text-gray-500 mt-1">{fmtInt(item.atividades)} atividades</p><p className="text-xs text-gray-500">{fmtInt(item.publico)} público</p></div>;
+              return (
+                <div key={museu} className="rounded-xl border border-gray-200 p-3 space-y-2">
+                  <p className="text-sm font-bold text-black">{museu}</p>
+                  {item.publicoGeral > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Público Geral</p>
+                      <p className="text-xs font-bold text-black">{fmtInt(item.publicoGeral)}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Atividades c/ público</p>
+                    <p className="text-xs text-gray-700">{fmtInt(item.atividadesComPublico)} de {fmtInt(item.atividades)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Participantes</p>
+                    <p className="text-xs text-gray-700">{fmtInt(item.publico)}</p>
+                  </div>
+                  {item.mediaPublico > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Média/atividade</p>
+                      <p className="text-xs text-gray-700">{fmtInt(item.mediaPublico)}</p>
+                    </div>
+                  )}
+                </div>
+              );
             })}
           </div>
         </SectionCard>
