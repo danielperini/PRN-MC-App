@@ -230,9 +230,9 @@ export default function RubricasCompartilhadasRateio({ museu = 'MIS', refreshKey
         if (rows.length > 0) return rows;
       } catch {
 
+
         // fallback
-      }const rubricas = await base44.entities.Rubrica.list('ordem_exibicao', 1000);
-      return Array.isArray(rubricas) ? rubricas : [];
+      }const rubricas = await base44.entities.Rubrica.list('ordem_exibicao', 1000);return Array.isArray(rubricas) ? rubricas : [];
     },
     staleTime: 0,
     gcTime: 0,
@@ -323,7 +323,7 @@ export default function RubricasCompartilhadasRateio({ museu = 'MIS', refreshKey
       {/* cards por categoria */}
       <div className="space-y-5">
         {grouped.map(([categoria, items]) =>
-        <section key={categoria} className="space-y-3">
+        <section key={categoria} className="space-y-3 hidden">
             <div className="flex items-center justify-between gap-3">
               <h4 className="text-xs font-bold uppercase tracking-wide text-blue-600 hidden">
                 {categoria}
