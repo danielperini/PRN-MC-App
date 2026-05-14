@@ -1,20 +1,6 @@
 import { base44 } from '@/api/base44Client';
 
 const MIN_CHARS = 600;
-const MAX_ACTIVITY_WORDS = 210;
-
-const FORBIDDEN_OPENINGS = [
-  'o presente relatório',
-  'este relatório',
-  'a atividade foi registrada',
-  'a atividade',
-  'foi realizada',
-  'teve como objetivo',
-  'buscou promover',
-  'em síntese',
-  'dessa forma',
-  'nesse sentido',
-];
 
 function toNumber(value) {
   const n = Number(value);
@@ -29,117 +15,18 @@ function fmtBRL(value) {
   });
 }
 
-function fmtInt(value) {
-  return toNumber(value).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
-}
-
-function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function splitParagraphs(text) {
-  return String(text || '')
-    .split(/\n{2,}|\r?\n/)
-    .map((p) => p.trim())
-    .filter(Boolean);
-}
-
-function sentenceCase(text) {
+function ensureMinText(text, fallback) {
   const raw = String(text || '').trim();
-  if (!raw) return '';
-  return raw.charAt(0).toUpperCase() + raw.slice(1);
-}
-
-function removeRepeatedParagraphs(text) {
-  const seen = new Set();
-  const result = [];
-
-  splitParagraphs(text).forEach((paragraph) => {
-    const signature = normalizeText(paragraph)
-      .split(' ')
-      .filter((word) => word.length > 3)
-      .slice(0, 24)
-      .join(' ');
-
-    if (!signature || seen.has(signature)) return;
-
-    const isNearDuplicate = Array.from(seen).some((item) => {
-      const a = new Set(signature.split(' '));
-      const b = new Set(item.split(' '));
-      let overlap = 0;
-      a.forEach((word) => {
-        if (b.has(word)) overlap += 1;
-      });
-      return overlap / Math.max(1, Math.min(a.size, b.size)) > 0.78;
-    });
-
-    if (isNearDuplicate) return;
-
-    seen.add(signature);
-    result.push(paragraph);
-  });
-
-  return result.join('\n\n');
-}
-
-function reduceForbiddenOpenings(text) {
-  const paragraphs = splitParagraphs(text);
-
-  return paragraphs.map((paragraph, index) => {
-    let p = paragraph.trim();
-    const normalized = normalizeText(p);
-
-    if (index > 0 && normalized.startsWith('o presente relatorio')) {
-      p = p.replace(/^O presente relatório\s*/i, 'A sistematização ');
-    }
-
-    if (index > 0 && normalized.startsWith('este relatorio')) {
-      p = p.replace(/^Este relatório\s*/i, 'A análise consolidada ');
-    }
-
-    if (normalized.startsWith('a atividade foi registrada')) {
-      p = p.replace(/^A atividade foi registrada[^.]*\.\s*/i, 'O registro integra a documentação aprovada pela coordenação. ');
-    }
-
-    if (normalized.startsWith('a atividade ')) {
-      p = p.replace(/^A atividade\s*/i, 'No período consolidado, ');
-    }
-
-    return sentenceCase(p);
-  }).join('\n\n');
-}
-
-function postProcessText(text, fallback) {
-  const base = String(text || '').trim() || String(fallback || '').trim();
-  let cleaned = removeRepeatedParagraphs(base);
-  cleaned = reduceForbiddenOpenings(cleaned);
-  cleaned = cleaned
-    .replace(/\b(o presente relatório)\b/gi, 'o documento')
-    .replace(/\b(esse relatório marca|este relatório marca)\b/gi, 'esta etapa evidencia')
-    .replace(/\b(importante)\b/gi, 'estratégico')
-    .replace(/\b(relevante)\b/gi, 'significativo')
-    .replace(/\s+([,.])/g, '$1')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-
-  if (cleaned.length >= MIN_CHARS) return cleaned;
+  if (raw.length >= MIN_CHARS) return raw;
 
   const complement = String(fallback || '').trim();
-  return removeRepeatedParagraphs([cleaned, complement].filter(Boolean).join('\n\n')).trim();
-}
+  const combined = [raw, complement].filter(Boolean).join('\n\n');
 
-function ensureMinText(text, fallback) {
-  const processed = postProcessText(text, fallback);
-  if (processed.length >= MIN_CHARS) return processed;
+  if (combined.length >= MIN_CHARS) return combined;
 
-  return `${processed}\n\nA leitura foi estruturada a partir dos relatórios aprovados pela coordenação e dos registros disponíveis no sistema do projeto. A análise considera a natureza da ação, sua vinculação institucional, sua função dentro do ciclo de execução e sua contribuição para a memória técnica do Museus Centro. Quando uma ação não corresponde a atendimento direto de público, o indicador é tratado como N/A, preservando a consistência metodológica do relatório.`.trim();
+  return `${combined}
+
+Esta leitura foi estruturada a partir dos relatórios aprovados pela coordenação e dos registros disponíveis no sistema do projeto. A análise considera a natureza da ação, sua vinculação institucional, sua função dentro do ciclo de execução e sua contribuição para a organização da memória técnica do Museus Centro. Quando a ação não corresponde a uma atividade pública, o público é tratado como N/A, preservando a consistência dos indicadores.`;
 }
 
 function categoriaLabel(categoria) {
@@ -151,17 +38,6 @@ function categoriaLabel(categoria) {
   };
 
   return map[categoria] || 'Eixo institucional';
-}
-
-function eixoEditorial(categoria) {
-  const map = {
-    gestao_governanca: 'governança, memória técnica, articulação institucional e organização do trabalho coletivo',
-    producao_operacao: 'produção cultural, operação, infraestrutura, montagem, manutenção e sustentação técnica da programação',
-    comunicacao_produtos: 'comunicação pública, documentação, circulação de informações, registro visual e mediação com públicos ampliados',
-    atividade_publico: 'educação museal, mediação cultural, formação de público, participação social e experiências de visitação',
-  };
-
-  return map[categoria] || 'execução institucional do projeto';
 }
 
 function buildAtividadeResumo(atividade, index) {
@@ -176,11 +52,8 @@ function buildAtividadeResumo(atividade, index) {
     categoria_editorial: atividade.categoria_editorial,
     categoria_label: categoriaLabel(atividade.categoria_editorial),
     classificacao: atividade.classificacao,
-    eixo_interpretativo: eixoEditorial(atividade.categoria_editorial),
-    descricao_original: atividade.descricao_original || atividade.descricao,
-    evidencia_operacional: atividade.evidencia_operacional,
+    descricao_original: atividade.descricao,
     sinopse_agenda: atividade.sinopse_agenda,
-    programacao_vinculada: atividade.programacao_vinculada,
     fotos: Array.isArray(atividade.fotos_destaque) ? atividade.fotos_destaque.length : 0,
   };
 }
@@ -192,59 +65,61 @@ function buildPrompt(contexto = {}) {
 
   const payload = {
     periodo: contexto.periodo_extenso || '2 de fevereiro a 30 de abril de 2026',
-    total_relatorios: contexto.total_relatorios || 0,
-    publico_total: contexto.publico_total || 0,
+    total_relatorios: contexto.total_relatorios || 25,
+    publico_total: contexto.publico_total || 1625,
     museu: contexto.museu || 'Todos',
     valor_utilizado: contexto.valor_utilizado,
     saldo: contexto.saldo,
     percentual_execucao: contexto.percentual_execucao,
     total_compras: contexto.total_compras,
-    por_museu: contexto.por_museu || {},
-    auditoria_visual: contexto.auditoria_visual || {},
-    atividades: atividades.slice(0, 180).map(buildAtividadeResumo),
-    trechos_reais: trechos.slice(0, 140),
-    base_conhecimento: conhecimento.slice(0, 70),
+    atividades: atividades.slice(0, 160).map(buildAtividadeResumo),
+    trechos_reais: trechos.slice(0, 120),
+    base_conhecimento: conhecimento.slice(0, 60),
   };
 
   return `
-Você escreve como um editor institucional e curatorial do projeto Museus Centro.
+Você escreve como Daniel Perini.
 
-Idioma: português do Brasil.
+Idioma:
+Português do Brasil.
 
-Padrão textual esperado:
-- relatório cultural e museológico de alto nível;
-- linguagem institucional, técnica, humana e analítica;
-- estilo compatível com publicação de museus públicos, fundações culturais e prestação de contas cultural;
-- sem tom promocional, sem slogan e sem excesso de adjetivos;
-- sem aparência de texto automático.
+Tom:
+Institucional.
+Técnico.
+Curatorial.
+Analítico.
+Sem linguagem promocional.
+Sem excesso de adjetivos.
+Sem travessões.
+Sem frases genéricas de IA.
 
-Regras de qualidade obrigatórias:
-1. Não iniciar parágrafos repetidamente com "Este relatório", "O presente relatório", "A atividade", "Foi realizada" ou "Teve como objetivo".
-2. Não repetir o mesmo conceito em seções diferentes.
-3. Variar o tamanho dos parágrafos e a estrutura das frases.
-4. Transformar dados operacionais em leitura institucional, sem inventar informação.
-5. Usar contexto territorial, museológico, educativo, patrimonial e de gestão cultural quando houver base nos dados.
-6. Diferenciar claramente ações públicas, rotinas internas, produção, comunicação, manutenção, gestão e mediação cultural.
-7. Tratar público como N/A quando não houver atendimento direto de público.
-8. Não inventar números, datas, locais, fotos, nomes de pessoas ou atividades.
-9. Não criar seção isolada de notas fiscais; compras e notas entram apenas na leitura de prestação de contas.
-10. Explicar a execução financeira pelo cronograma do projeto, destacando que custos maiores virão com exposições, manutenção, fornecedores, adequações e programação ampliada.
-11. Usar trechos reais, programação vinculada, evidências operacionais e base de conhecimento como insumo semântico.
-12. Cada descrição de atividade deve ser única, com até ${MAX_ACTIVITY_WORDS} palavras, conectando nome, data, local, eixo, museu, público quando houver e função institucional.
-13. Se a atividade for técnica ou interna, explicar sua função no ciclo de execução sem tratá-la como ação pública.
-14. Se a atividade tiver público, relacionar sua contribuição à formação de público, mediação cultural, participação e acesso.
-15. Evitar palavras excessivamente repetidas: importante, relevante, promover, fortalecer, buscou, realizou, presente relatório, dessa forma, nesse sentido.
+Regras obrigatórias:
+1. Nenhum texto pode ter menos de 600 caracteres.
+2. Cada subtítulo pode ter até 500 palavras.
+3. Cada descrição de atividade deve ter até 200 palavras, mas deve ser profunda e técnica.
+4. A introdução deve informar que o relatório cobre o período de 2 de fevereiro a 30 de abril de 2026.
+5. Informar que o relatório consolida relatórios mensais das equipes do MHAB, MUMO, MIS, comunicação, produção, coordenação financeira e produção executiva.
+6. Informar que o projeto Museus Centro é realizado em parceria com a Diretoria de Museus da Fundação Municipal de Cultura de Belo Horizonte.
+7. Informar que o relatório foi produzido com aplicativo desenvolvido especificamente para o projeto.
+8. Informar que foi utilizada inteligência artificial para auditoria técnica dos dados.
+9. Reorganizar as ações em:
+   gestão e governança;
+   produção executiva, operação e manutenção;
+   comunicação e produtos;
+   atividades educativas e atividades com público.
+10. Apenas atividades com público devem contabilizar público.
+11. Ações de gestão, produção, comunicação, manutenção, organização de pauta e reuniões devem aparecer como N/A.
+12. Não criar seção específica de notas fiscais.
+13. Notas fiscais e compras devem aparecer apenas dentro da prestação de contas.
+14. Explicar que o baixo percentual de execução financeira decorre do cronograma, pois os maiores custos virão a partir de junho, com exposições, adequações, manutenção e produção.
+15. Use os trechos reais dos relatórios aprovados como base semântica.
+16. Use agenda/programação e base de conhecimento quando disponível.
+17. Não inventar números, datas, locais ou fotos.
 
-Orientação editorial por eixo:
-- Gestão e governança: enfatizar coordenação, pactuação institucional, memória técnica, rastreabilidade, validação de dados e articulação com a Diretoria de Museus.
-- Produção e operações: enfatizar bastidores da execução, infraestrutura, condições de realização, montagem, manutenção, fornecedores, logística e sustentação das atividades.
-- Comunicação e produtos: enfatizar documentação, circulação pública, produção de materiais, cobertura, tradução das ações para públicos ampliados e memória visual.
-- Atividades com público: enfatizar mediação, educação museal, presença territorial, experiência dos participantes, acesso, vínculos com acervos, patrimônio e formação de público.
-
-Dados disponíveis:
+Dados:
 ${JSON.stringify(payload, null, 2)}
 
-Retorne JSON válido, sem markdown:
+Retorne JSON válido:
 {
   "introducao": "...",
   "resumo_geral": "...",
@@ -261,137 +136,77 @@ Retorne JSON válido, sem markdown:
   "atividades_descricoes": [
     {
       "indice": 1,
-      "descricao": "..."
+      "descricao": "texto técnico da atividade, com até 200 palavras, usando local, data, descrição original, agenda e relação com o eixo"
     }
   ]
 }
 `;
 }
 
-function fallbackIntro(contexto = {}) {
-  const periodo = contexto?.periodo_extenso || '2 de fevereiro a 30 de abril de 2026';
-  const totalRelatorios = toNumber(contexto?.total_relatorios);
-
-  return `
-Entre ${periodo}, o Museus Centro avançou na consolidação de uma rotina integrada de registro, acompanhamento e análise das ações desenvolvidas no Museu Histórico Abílio Barreto, no Museu da Moda e no Museu da Imagem e do Som. A documentação reúne ${fmtInt(totalRelatorios)} relatórios aprovados e organiza, em uma mesma leitura, atividades educativas, processos de produção, comunicação, gestão, manutenção e acompanhamento financeiro.
-
-A parceria com a Diretoria de Museus da Fundação Municipal de Cultura de Belo Horizonte estrutura o horizonte institucional do projeto e orienta a articulação entre memória urbana, patrimônio, formação de público e qualificação da gestão cultural. O relatório não se limita a enumerar entregas: ele interpreta o ciclo de execução, diferencia ações abertas ao público de rotinas internas e evidencia a infraestrutura técnica necessária para que a programação aconteça nos museus.
-
-A sistematização foi realizada com apoio de aplicativo desenvolvido especificamente para o Museus Centro. A ferramenta integra relatórios, programação, fotografias, documentos administrativos, rubricas e informações financeiras, criando uma base de evidências mais consistente para acompanhamento pela coordenação e pela Diretoria de Museus. A inteligência artificial foi utilizada como camada auxiliar de auditoria e qualificação textual, sem substituir a validação humana das equipes responsáveis.
-`.trim();
-}
-
-function fallbackResumo(contexto = {}) {
-  const totalRelatorios = toNumber(contexto?.total_relatorios);
-  const publico = toNumber(contexto?.publico_total);
-  const atividades = Array.isArray(contexto?.atividades) ? contexto.atividades : [];
-  const atividadesPublico = atividades.filter((a) => a?.categoria_editorial === 'atividade_publico').length;
-
-  return `
-A consolidação do período organiza ${fmtInt(totalRelatorios)} relatórios aprovados e ${fmtInt(atividades.length)} registros de ação, dos quais ${fmtInt(atividadesPublico)} correspondem a atividades com público direto. O público total contabilizado foi de ${fmtInt(publico)} pessoas, considerando apenas oficinas, visitas mediadas, ações educativas, atividades abertas e experiências de formação de público. Rotinas de gestão, produção, comunicação, manutenção, reuniões e acompanhamentos técnicos foram mantidos como N/A para evitar distorções nos indicadores.
-
-Essa separação qualifica a leitura físico-financeira. O que aparece como atividade sem público não representa ausência de execução, mas trabalho de base: planejamento, articulação, montagem, cobertura, organização de pauta, manutenção de espaços, acompanhamento de fornecedores e estruturação documental. Tais processos sustentam a presença pública dos museus e permitem que a programação se realize com maior consistência operacional.
-
-A leitura integrada também revela amadurecimento na produção de dados. Ao aproximar relatos, programação, fotos, documentos e rubricas, o projeto passa a formar uma memória técnica capaz de apoiar decisões, corrigir inconsistências e ampliar a transparência da execução. O relatório, assim, funciona como instrumento de prestação de contas e como registro institucional do processo de construção do Museus Centro.
-`.trim();
-}
-
-function fallbackPrestacao(contexto = {}) {
-  const valor = fmtBRL(contexto?.valor_utilizado);
-  const saldo = fmtBRL(contexto?.saldo);
-  const pct = toNumber(contexto?.percentual_execucao).toFixed(1).replace('.', ',');
-
-  return `
-A execução financeira registrada até o período consolidado alcança ${valor}, com saldo disponível de ${saldo} e percentual de execução de ${pct}%. A leitura desses números precisa ser vinculada ao cronograma físico do projeto: os primeiros meses concentram estruturação, planejamento, contratação de equipes, rotinas de produção, comunicação, manutenção inicial e organização documental, enquanto despesas de maior porte se intensificam nas etapas posteriores.
-
-Os custos mais expressivos estão associados a exposições, adequações de espaços, fornecedores, infraestrutura, manutenção, ações educativo-culturais e ampliação da programação. Por isso, o percentual financeiro inicial não deve ser interpretado isoladamente como baixa execução, mas como reflexo da curva prevista de desembolso. A análise físico-financeira deve observar a correspondência entre entregas, documentação de suporte, centros de custo, rubricas e solicitações aprovadas.
-
-A organização das compras e notas fiscais no sistema fortalece a rastreabilidade da prestação de contas. Cada lançamento passa a dialogar com o acompanhamento das rubricas e com a leitura das atividades, permitindo que a execução financeira seja compreendida como parte do processo institucional mais amplo de gestão cultural, e não apenas como listagem administrativa de despesas.
-`.trim();
-}
-
-function fallbackConclusao(contexto = {}) {
-  return `
-O período consolidado demonstra avanço na estruturação técnica, administrativa e cultural do Museus Centro. A separação entre ações públicas e rotinas internas tornou os indicadores mais confiáveis, ao mesmo tempo em que evidenciou o volume de trabalho necessário para sustentar programação, mediação, comunicação, manutenção e gestão dos museus envolvidos.
-
-A integração entre relatórios aprovados, registros fotográficos, programação, dados financeiros e documentação administrativa cria uma base de acompanhamento mais robusta para as próximas etapas. O uso do aplicativo próprio e da inteligência artificial como apoio à auditoria contribui para qualificar a prestação de contas, reduzir inconsistências e fortalecer a memória institucional do projeto.
-
-A continuidade do Museus Centro deve aprofundar essa metodologia, ampliando a relação entre dados de público, qualidade da experiência cultural, ocupação dos espaços, gestão de rubricas e produção de evidências. O relatório aponta, portanto, para uma etapa de maior maturidade operacional, com condições mais sólidas para monitoramento, transparência e qualificação das entregas pactuadas.
-`.trim();
-}
-
-function fallbackCapitulo(contexto = {}, categoria = 'gestao_governanca') {
-  const atividades = Array.isArray(contexto?.atividades_por_categoria?.[categoria])
-    ? contexto.atividades_por_categoria[categoria]
-    : [];
-
-  const label = categoriaLabel(categoria);
-  const eixo = eixoEditorial(categoria);
-
-  return `
-O eixo ${label} reúne ${fmtInt(atividades.length)} registros associados a ${eixo}. A leitura desses registros permite compreender dimensões do projeto que nem sempre se traduzem em público direto, mas que são decisivas para a continuidade da programação e para a qualidade da execução institucional.
-
-As informações foram organizadas a partir dos relatórios aprovados, das evidências operacionais e dos vínculos existentes no sistema. Essa metodologia evita que processos internos sejam confundidos com ações abertas ao público, ao mesmo tempo em que reconhece sua função na produção cultural, na preservação da memória técnica e na coordenação entre equipes, museus e gestão pública.
-
-No conjunto, o eixo contribui para demonstrar que a execução do Museus Centro depende de uma rede de trabalho articulada, envolvendo planejamento, acompanhamento, comunicação, operação, documentação e mediação. A análise por natureza institucional amplia a compreensão do projeto e qualifica a prestação de contas.
-`.trim();
-}
-
-function fallbackAtividade(atividade = {}) {
-  const nome = atividade?.nome || 'Atividade sem título';
-  const museu = atividade?.museu || 'museu de referência';
-  const eixo = categoriaLabel(atividade?.categoria_editorial);
-  const publico = atividade?.publico_label || 'N/A';
-  const local = atividade?.local ? ` no espaço ${atividade.local}` : '';
-  const data = atividade?.data ? ` em ${String(atividade.data).slice(0, 10)}` : '';
-  const evidencia = atividade?.evidencia_operacional || atividade?.sinopse_agenda || atividade?.descricao_original || atividade?.descricao || '';
-
-  if (atividade?.categoria_editorial === 'atividade_publico') {
-    return `
-${nome}, vinculada ao ${museu}${local}${data}, integra o eixo ${eixo} e compõe a leitura de participação pública do período. O público registrado foi de ${publico}, indicador considerado na consolidação por se tratar de ação diretamente relacionada à experiência dos participantes, à mediação cultural e à formação de vínculos entre museu, território e comunidade.
-
-${evidencia ? `A documentação disponível informa: ${evidencia}` : 'O registro foi validado a partir dos relatórios aprovados e dos dados consolidados no sistema.'} A atividade contribui para a compreensão do museu como espaço de encontro, aprendizagem e circulação cultural, articulando programação, presença de público e produção de memória institucional.
-`.trim();
-  }
-
-  return `
-${nome}, vinculada ao ${museu}${local}${data}, foi classificada no eixo ${eixo}. Embora não corresponda a atendimento direto de público, sua presença no relatório é necessária para registrar os bastidores da execução, a organização técnica e os processos que sustentam a programação cultural dos museus.
-
-${evidencia ? `A documentação disponível informa: ${evidencia}` : 'O registro foi validado a partir dos relatórios aprovados e dos dados consolidados no sistema.'} Por essa razão, o público é apresentado como N/A, preservando a consistência dos indicadores e diferenciando trabalho institucional de ação pública contabilizável.
-`.trim();
-}
-
 function fallbackTextos(contexto = {}) {
-  const resumo = fallbackResumo(contexto);
+  const periodo = contexto?.periodo_extenso || '2 de fevereiro a 30 de abril de 2026';
+  const totalRelatorios = contexto?.total_relatorios || 25;
+  const publico = contexto?.publico_total || 1625;
+
+  const introducao = `
+O presente relatório cobre o período de ${periodo} e consolida as atividades desenvolvidas no âmbito do projeto Museus Centro, realizado em parceria com a Diretoria de Museus da Fundação Municipal de Cultura de Belo Horizonte. O documento reúne informações produzidas mês a mês pelas equipes que atuam no Museu Histórico Abílio Barreto, no Museu da Moda e no Museu da Imagem e do Som, além das entregas vinculadas à comunicação, produção executiva, coordenação financeira e acompanhamento operacional.
+
+A consolidação resulta da leitura dos relatórios aprovados pela coordenação do projeto e busca organizar, em um único documento, registros produzidos por diferentes profissionais e frentes de trabalho. Trata-se de um relatório produzido por várias mãos, com base na rotina concreta de execução do projeto, nos registros das atividades, na documentação fotográfica, nos indicadores de público e nos dados de acompanhamento financeiro disponíveis no sistema.
+
+Este relatório também marca uma etapa importante do processo de gestão do projeto, pois foi produzido integralmente com o uso de aplicativo desenvolvido especificamente para o Museus Centro. A ferramenta permite integrar relatórios, programação, fotos, registros administrativos, dados financeiros e informações de prestação de contas. A partir das próximas entregas, o sistema também poderá disponibilizar dashboard de acompanhamento para a Diretoria de Museus, fortalecendo a transparência e a produção de evidências.
+
+Foi utilizada inteligência artificial como camada de auditoria técnica dos dados. Essa auditoria não substitui a análise da coordenação, mas auxilia na identificação de inconsistências, na reorganização das atividades por natureza institucional, na diferenciação entre ações públicas e rotinas de gestão, e na qualificação textual do relatório. Dessa forma, atividades sem público direto deixam de ser tratadas como público zero e passam a aparecer como N/A, preservando a consistência dos indicadores.
+`.trim();
+
+  const resumo = `
+No período analisado foram consolidados ${totalRelatorios} relatórios aprovados, com público total de ${publico.toLocaleString('pt-BR')} pessoas nas atividades efetivamente abertas ao público. A leitura dos dados exigiu a reorganização das ações em categorias institucionais distintas, separando atividades educativas, visitas mediadas, oficinas e ações abertas ao público de processos de gestão, produção, manutenção, comunicação e articulação institucional.
+
+Essa distinção é importante para evitar distorções nos indicadores. Reuniões de alinhamento, rituais de gestão, organização de pauta, fechamento de relatórios, visitas técnicas, produção executiva, manutenção de espaços e atividades de comunicação não devem ser contabilizadas como ações de público. Nesses casos, a indicação correta é N/A, pois se trata de trabalho técnico necessário para a execução do projeto, mas sem atendimento direto de público.
+
+As atividades com público concentram os indicadores quantitativos de participação e revelam a presença do projeto nos museus participantes. Oficinas, visitas mediadas, ações educativas, atividades abertas e iniciativas de formação de público são os elementos centrais para leitura de alcance. As demais frentes demonstram a sustentação institucional, técnica e operacional que torna possível a execução das ações públicas e a construção de uma programação mais estruturada.
+
+A consolidação também evidencia o amadurecimento da rotina de produção de dados. O aplicativo desenvolvido para o projeto passa a funcionar como instrumento de gestão, auditoria e memória institucional, permitindo que os relatórios deixem de ser apenas registros narrativos e passem a compor uma base integrada de acompanhamento físico, financeiro e documental.
+`.trim();
+
+  const prestacao = `
+A prestação de contas apresentada considera a execução física e financeira do projeto no período de referência. As compras, notas fiscais e solicitações financeiras não aparecem como seção isolada, mas como parte da leitura consolidada da execução e da responsabilidade administrativa do projeto. A organização desses dados no sistema permite acompanhar rubricas, valores utilizados, documentação de suporte e vínculo entre execução física e gasto realizado.
+
+O percentual de execução financeira ainda reduzido deve ser lido à luz do cronograma do projeto. Os maiores custos estão previstos para os meses seguintes, especialmente a partir de junho, com montagem de exposições, adequações de espaços, manutenção, produção cultural, fornecedores, infraestrutura e etapas ampliadas de programação. Assim, o ritmo financeiro observado não indica atraso estrutural, mas correspondência com a lógica de execução prevista.
+
+O período analisado teve forte componente de preparação, organização, planejamento, registro e estruturação. A execução física aparece tanto nas atividades abertas ao público quanto nas rotinas de gestão, produção e comunicação. O relatório demonstra que o projeto está em processo de consolidação operacional, com investimento crescente na produção de dados, na rastreabilidade documental e na articulação entre equipes, museus e coordenação.
+
+O desenvolvimento do aplicativo fortalece esse processo. A ferramenta permite consolidar evidências, melhorar a qualidade da prestação de contas e ampliar a capacidade de acompanhamento pela coordenação e pela Diretoria de Museus. O relatório, portanto, não apenas descreve ações realizadas, mas inaugura uma forma mais qualificada de monitoramento institucional do Museus Centro.
+`.trim();
 
   return {
-    introducao: fallbackIntro(contexto),
+    introducao,
     resumo_geral: resumo,
     publico_alcancado: resumo,
     producao_executiva: resumo,
-    prestacao: fallbackPrestacao(contexto),
-    conclusao: fallbackConclusao(contexto),
+    prestacao,
+    conclusao: `
+Conclui-se que o período consolidado demonstra avanço relevante na estruturação técnica, administrativa e cultural do projeto Museus Centro. A organização das atividades por natureza institucional permite leitura mais precisa dos resultados e evita distorções nos indicadores de público. O relatório evidencia a importância de diferenciar ações públicas de rotinas internas, reconhecendo que gestão, produção, comunicação e manutenção são dimensões essenciais para que as atividades educativas e culturais aconteçam com qualidade.
+
+A utilização do aplicativo próprio e da inteligência artificial como apoio à auditoria de dados fortalece a produção de evidências e cria uma base mais robusta para acompanhamento institucional. O relatório também indica que a execução financeira segue o cronograma previsto, com concentração dos maiores custos nos meses seguintes. Dessa forma, a análise integrada dos dados confirma a pertinência da metodologia adotada e aponta para a continuidade do projeto com maior capacidade de monitoramento, transparência e qualificação das entregas.
+`.trim(),
     capitulos: {
-      gestao_governanca: fallbackCapitulo(contexto, 'gestao_governanca'),
-      producao_operacao: fallbackCapitulo(contexto, 'producao_operacao'),
-      comunicacao_produtos: fallbackCapitulo(contexto, 'comunicacao_produtos'),
-      atividade_publico: fallbackCapitulo(contexto, 'atividade_publico'),
+      gestao_governanca: resumo,
+      producao_operacao: resumo,
+      comunicacao_produtos: resumo,
+      atividade_publico: resumo,
     },
     atividades_descricoes: (contexto?.atividades || []).map((atividade, index) => ({
       indice: index + 1,
-      descricao: fallbackAtividade(atividade),
+      descricao: `
+A atividade ${atividade.nome || 'sem título'} foi registrada em relatório aprovado pela coordenação e integrada ao eixo ${categoriaLabel(atividade.categoria_editorial)}. Sua leitura considera o museu de referência, a data, o local informado, a descrição original apresentada pela equipe, a programação associada quando localizada e sua relação com o conjunto de ações do projeto Museus Centro. Quando a atividade corresponde a processo de gestão, produção, comunicação ou manutenção, o público é tratado como N/A, pois não se trata de ação aberta ao público. Quando corresponde a atividade educativa ou cultural aberta, o público informado é incorporado aos indicadores consolidados.
+`.trim(),
     })),
   };
 }
 
-function limitWords(text, maxWords = MAX_ACTIVITY_WORDS) {
-  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
-  if (words.length <= maxWords) return String(text || '').trim();
-  return `${words.slice(0, maxWords).join(' ')}.`;
-}
-
 function normalizeResult(result = {}, contexto = {}) {
   const fallback = fallbackTextos(contexto);
+
   const atividades = Array.isArray(contexto?.atividades) ? contexto.atividades : [];
   const desc = Array.isArray(result?.atividades_descricoes) ? result.atividades_descricoes : [];
 
@@ -413,7 +228,7 @@ function normalizeResult(result = {}, contexto = {}) {
       const fallbackItem = fallback.atividades_descricoes[index] || {};
       return {
         indice: index + 1,
-        descricao: limitWords(postProcessText(item.descricao, fallbackItem.descricao), MAX_ACTIVITY_WORDS),
+        descricao: ensureMinText(item.descricao, fallbackItem.descricao),
       };
     }),
   };

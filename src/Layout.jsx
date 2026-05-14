@@ -11,7 +11,6 @@ import GlobalAnnouncementBanner from '@/components/common/GlobalAnnouncementBann
 import SystemBannerDisplay from '@/components/mensagens/SystemBannerDisplay';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import AutoRubricasSync from '@/components/compras/AutoRubricasSync';
-import NewsCarousel from '@/components/dashboard/NewsCarousel';
 import { RotateCw } from 'lucide-react';
 
 const PAGE_TITLES = {
@@ -51,35 +50,6 @@ const PAGE_TITLES = {
   RelatorioFisicoFinanceiroRevisao: 'Revisão e Aprovação do Relatório',
   ChecklistProducao: 'Checklist de Produção',
 };
-
-const NEWS_CAROUSEL_BLOCKED_PAGES = new Set([
-  'ReportEditor',
-  'NovaAtividade',
-  'CoordReview',
-  'RelatorioFisicoFinanceiro',
-  'RelatorioFisicoFinanceiroRevisao',
-  'GeradorListaPresenca',
-  'GeradorTermoCompromisso',
-  'EntradaUnica',
-  'UserManagement',
-  'Aparencia',
-  'LeitorNoticias',
-]);
-
-function shouldShowNewsCarousel(currentPageName) {
-  if (!currentPageName) return true;
-  return !NEWS_CAROUSEL_BLOCKED_PAGES.has(currentPageName);
-}
-
-function GlobalNewsCarouselSlot({ currentPageName, compact = false }) {
-  if (!shouldShowNewsCarousel(currentPageName)) return null;
-
-  return (
-    <div className={compact ? 'mb-4' : 'mb-6'}>
-      <NewsCarousel />
-    </div>
-  );
-}
 
 export default function Layout({ children, currentPageName }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -191,7 +161,6 @@ export default function Layout({ children, currentPageName }) {
             />
 
             <main className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-6">
-              <GlobalNewsCarouselSlot currentPageName={currentPageName} />
               {children}
             </main>
           </div>
@@ -206,7 +175,7 @@ export default function Layout({ children, currentPageName }) {
 
           <main ref={mobileMainRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 relative">
             {pullDistance > 0 && (
-              <div
+              <div 
                 className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center bg-gradient-to-b from-blue-50 to-transparent transition-all"
                 style={{ height: `${pullDistance}px` }}
               >
@@ -224,7 +193,6 @@ export default function Layout({ children, currentPageName }) {
               </div>
             )}
             <div>
-              <GlobalNewsCarouselSlot currentPageName={currentPageName} compact />
               {children}
             </div>
           </main>
