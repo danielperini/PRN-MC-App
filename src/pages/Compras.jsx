@@ -260,7 +260,13 @@ async function carregarSolicitacoes({ isCoordenador, currentUser }) {
 
   const dedup = new Map();
   resultados.filter(Boolean).forEach((p) => {
-    if (p?.id && purchaseBelongsToUser(p, email) && !isCompraEquipe(p)) dedup.set(p.id, p);
+    if (p?.id && !isCompraEquipe(p)) {
+      const ownsIt = purchaseBelongsToUser(p, email);
+      const centroCusto = normalizeCentro(p?.centro_custo);
+      const museusCentro = ['MHAB', 'MIS', 'MUMO'];
+      const temMuseu = museusCentro.includes(centroCusto);
+      if (ownsIt || temMuseu) dedup.set(p.id, p);
+    }
   });
 
   return Array.from(dedup.values()).sort((a, b) =>
