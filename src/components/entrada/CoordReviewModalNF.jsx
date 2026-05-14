@@ -1088,18 +1088,9 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
                 className="bg-green-600 hover:bg-green-700"
               >
                 {sending || approvingDirect ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
-                Aprovar Direto (Coordenador)
+                Aprovar Direto
               </Button>
             )}
-
-            <Button
-              onClick={() => handleProcessarNota(true)}
-              disabled={sending || !form.rubrica_id}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-              Aprovar
-            </Button>
 
             <Button
               onClick={() => handleProcessarNota(false)}
