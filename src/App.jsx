@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Toaster } from "sonner";
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
 import { pagesConfig } from './pages.config';
-import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, useLocation, Navigate } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import ErrorBoundary from './lib/ErrorBoundary';
 import AccessDenied from './lib/AccessDenied';
@@ -26,12 +26,12 @@ import ConviteAcesso from './pages/ConviteAcesso';
 import NotificationSettings from './pages/NotificationSettings';
 import NFDriveBackupSyncInstaller from '@/lib/nfDriveBackupSync';
 import PublicoAprovadoAuditButton from '@/components/dashboard/PublicoAprovadoAuditButton';
+import { base44 } from '@/api/base44Client';
+import { isObservador, isPatrocinador } from '@/components/auth/permissions';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : null;
-
-// ErrorBoundary removido — agora usar lib/ErrorBoundary.jsx
 
 const LayoutWrapper = ({ children, currentPageName }) =>
   Layout ? (
@@ -41,6 +41,44 @@ const LayoutWrapper = ({ children, currentPageName }) =>
   );
 
 function SafePage({ Page, pageName }) {
+  const { user } = useAuth();
+  const [userPermission, setUserPermission] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadPermissions() {
+      if (!user?.email) {
+        if (mounted) setUserPermission(null);
+        return;
+      }
+
+      try {
+        const permissions = await base44.entities.UserPermission.filter({
+          user_email: user.email,
+        });
+
+        if (mounted) {
+          setUserPermission(permissions?.[0] || null);
+        }
+      } catch {
+        if (mounted) setUserPermission(null);
+      }
+    }
+
+    loadPermissions();
+
+    return () => {
+      mounted = false;
+    };
+  }, [user?.email]);
+
+  const sponsorOrObserver = isPatrocinador(user) || isObservador(user, userPermission);
+
+  if (pageName === 'Dashboard' && sponsorOrObserver) {
+    return <Navigate to="/DashboardPatrocinador" replace />;
+  }
+
   if (!Page) {
     return (
       <ErrorBoundary>
