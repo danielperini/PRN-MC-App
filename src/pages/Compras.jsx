@@ -260,7 +260,7 @@ async function carregarSolicitacoes({ isCoordenador, currentUser }) {
 
   const dedup = new Map();
   resultados.filter(Boolean).forEach((p) => {
-    if (p?.id && purchaseBelongsToUser(p, email)) dedup.set(p.id, p);
+    if (p?.id && purchaseBelongsToUser(p, email) && !isCompraEquipe(p)) dedup.set(p.id, p);
   });
 
   return Array.from(dedup.values()).sort((a, b) =>

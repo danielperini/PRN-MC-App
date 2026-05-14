@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -227,15 +227,32 @@ function PagamentoLoteDialog({ open, onClose, selectedPurchases, onSuccess }) {
 }
 
 function GestaoPagamentosInner() {
-  const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState([]);
-  const [dialogOpen, setDialogOpen] = useState(false);
+   const queryClient = useQueryClient();
+   const [search, setSearch] = useState('');
+   const [selected, setSelected] = useState([]);
+   const [dialogOpen, setDialogOpen] = useState(false);
+   const [currentUser, setCurrentUser] = useState(null);
 
-  const { data: purchases = [], isLoading } = useQuery({
-    queryKey: ['purchases_aprovados_admin'],
-    queryFn: () => base44.entities.PurchaseRequest.filter({ status: 'APROVADO_ADMIN' }, '-created_date', 100),
-  });
+   useEffect(() => {
+     base44.auth.me().then((u) => setCurrentUser(u)).catch(() => setCurrentUser(null));
+   }, []);
+
+   const isCoordenador = ['admin', 'ADMIN', 'COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(currentUser?.role);
+
+   const { data: purchases = [], isLoading } = useQuery({
+     queryKey: ['purchases_aprovados_admin', currentUser?.email, isCoordenador],
+     queryFn: async () => {
+       const allPurchases = await base44.entities.PurchaseRequest.filter({ status: 'APROVADO_ADMIN' }, '-created_date', 500);
+       if (isCoordenador) return allPurchases;
+       const userEmail = currentUser?.email?.toLowerCase();
+       return allPurchases.filter(p => {
+         const isTeamPayment = p?.team_payment_id || String(p?.tipo_origem || '').toLowerCase().includes('equipe');
+         const ownerEmails = [p?.created_by, p?.user_email, p?.requester_email].map(e => String(e || '').toLowerCase()).filter(Boolean);
+         return !isTeamPayment && (ownerEmails.includes(userEmail) || p?.created_by?.toLowerCase() === userEmail);
+       });
+     },
+     enabled: !!currentUser
+   });
 
   const { data: budgetLines = [] } = useQuery({
     queryKey: ['budget_lines_pgto'],
@@ -363,7 +380,7 @@ function GestaoPagamentosInner() {
 
 export default function GestaoPagamentos() {
   return (
-    <RequireAuth allowedRoles={['COORDENADOR', 'admin', 'ADMIN']}>
+    <RequireAuth>
       <GestaoPagamentosInner />
     </RequireAuth>
   );
