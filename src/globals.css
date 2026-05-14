@@ -148,17 +148,17 @@
 .modal,
 .drawer,
 .popover {
-  @apply bg-white border border-black/10;
+  @apply bg-card border border-border;
 }
 
 /* Shadcn Dialog */
 div[role="dialog"] {
-  @apply bg-white;
+  @apply bg-card;
 }
 
 /* Sheets e Drawers */
 div[role="presentation"] > div {
-  @apply bg-white;
+  @apply bg-card;
 }
 
 /* Rich Text Editor Styles */
@@ -170,16 +170,16 @@ div[role="presentation"] > div {
 .rich-text-editor .ql-container {
   font-family: inherit;
   font-size: 14px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid hsl(var(--border));
   border-top: none;
   border-radius: 0 0 6px 6px;
-  background-color: white;
+  background-color: hsl(var(--card));
   min-height: 120px;
 }
 
 .rich-text-editor .ql-container.ql-disabled {
-  background-color: #f3f4f6;
-  color: #9ca3af;
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--muted-foreground));
 }
 
 .rich-text-editor .ql-editor {
@@ -190,14 +190,14 @@ div[role="presentation"] > div {
 }
 
 .rich-text-editor .ql-editor.ql-blank::before {
-  color: #d1d5db;
+  color: hsl(var(--border));
   font-style: normal;
 }
 
 .rich-text-editor .ql-toolbar {
-  border: 1px solid #e5e7eb;
+  border: 1px solid hsl(var(--border));
   border-radius: 6px 6px 0 0;
-  background-color: #f9fafb;
+  background-color: hsl(var(--secondary));
 }
 
 .rich-text-editor .ql-toolbar.ql-snow .ql-formats {
@@ -205,28 +205,28 @@ div[role="presentation"] > div {
 }
 
 .rich-text-editor .ql-toolbar.ql-snow .ql-stroke {
-  stroke: #6b7280;
+  stroke: hsl(var(--muted-foreground));
 }
 
 .rich-text-editor .ql-toolbar.ql-snow .ql-fill {
-  fill: #6b7280;
+  fill: hsl(var(--muted-foreground));
 }
 
 .rich-text-editor .ql-toolbar.ql-snow .ql-picker-label {
-  color: #6b7280;
+  color: hsl(var(--muted-foreground));
 }
 
 .rich-text-editor .ql-toolbar.ql-snow button:hover .ql-stroke,
 .rich-text-editor .ql-toolbar.ql-snow button.ql-active .ql-stroke {
-  stroke: #000;
+  stroke: hsl(var(--primary));
 }
 
 .rich-text-editor .ql-toolbar.ql-snow button:hover .ql-fill,
 .rich-text-editor .ql-toolbar.ql-snow button.ql-active .ql-fill {
-  fill: #000;
+  fill: hsl(var(--primary));
 }
 
 .rich-text-editor .ql-toolbar.ql-snow button:hover .ql-picker-label,
 .rich-text-editor .ql-toolbar.ql-snow button.ql-active .ql-picker-label {
-  color: #000;
+  color: hsl(var(--primary));
 }

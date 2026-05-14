@@ -40,7 +40,7 @@ function DashboardViewSelector({ value, onChange }) {
   ];
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white p-2 shadow-sm">
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm">
       {options.map((option) => {
         const Icon = option.icon;
         const active = value === option.key;
@@ -54,8 +54,8 @@ function DashboardViewSelector({ value, onChange }) {
             onClick={() => onChange(option.key)}
             className={`gap-2 rounded-xl px-3 ${
               active
-                ? 'bg-black text-white hover:bg-black hover:text-white'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-black'
+                ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
             }`}
           >
             <Icon className="w-4 h-4" />
@@ -84,16 +84,16 @@ function DashboardCoordenadorView({
   return (
     <div
       ref={containerRef}
-      className="min-h-screen bg-white"
+      className="min-h-screen bg-background"
     >
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
           <div>
-            <h1 className="text-3xl font-semibold text-black">
+            <h1 className="text-3xl font-semibold text-foreground">
               Dashboard
             </h1>
 
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               Atualização automática ativa
             </p>
           </div>
@@ -460,7 +460,7 @@ function DashboardInner() {
 
   if (isCoordenador && dashboardViewMode === 'profissional') {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-background">
         <div className="max-w-6xl mx-auto px-4 md:px-6 pt-6 md:pt-10">
           <div className="flex justify-end mb-4">
             <DashboardViewSelector
@@ -476,14 +476,14 @@ function DashboardInner() {
 
   if (isCoordenador && dashboardViewMode === 'observador') {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-background">
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-6">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-3xl font-semibold text-black">
+              <h1 className="text-3xl font-semibold text-foreground">
                 Dashboard Observador
               </h1>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Visão institucional restaurada para coordenadores.
               </p>
             </div>

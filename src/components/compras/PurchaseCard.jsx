@@ -41,7 +41,7 @@ export default function PurchaseCard({
 
   const statusInfo = statusConfig[purchase.status] || {
     label: purchase.status,
-    color: 'bg-gray-100 text-gray-700'
+    color: 'bg-secondary text-foreground'
   };
 
   const budgetLine = budgetLines.find(
@@ -105,29 +105,29 @@ export default function PurchaseCard({
   };
 
   return (
-    <div className="border-2 border-black rounded-xl p-4 space-y-3 bg-white">
+    <div className="border-2 border-border rounded-xl p-4 space-y-3 bg-card">
 
       <div className="flex justify-between">
 
         <div>
           <div className="flex gap-2 items-center">
 
-            <span className={`text-xs px-2 py-1 rounded border-2 border-black ${statusInfo.color === 'bg-gray-100 text-gray-700' ? 'bg-white text-black' : 'bg-black text-white'}`}>
+            <span className={`text-xs px-2 py-1 rounded border-2 border-border ${statusInfo.color === 'bg-secondary text-foreground' ? 'bg-card text-foreground' : 'bg-primary text-primary-foreground'}`}>
               {statusInfo.label}
             </span>
 
             {isTeamPayment && (
-              <span className="text-xs bg-white border-2 border-black text-black px-2 py-1 rounded font-medium">
+              <span className="text-xs bg-secondary border-2 border-border text-secondary-foreground px-2 py-1 rounded font-medium">
                 👤 Equipe
               </span>
             )}
 
           </div>
 
-          <p className="font-semibold mt-1">{purchase.descricao_item}</p>
+          <p className="font-semibold mt-1 text-foreground">{purchase.descricao_item}</p>
 
           {isTeamPayment && teamPayment && (
-            <div className="text-xs text-black mt-2 bg-white border border-gray-300 p-2 rounded">
+            <div className="text-xs text-foreground mt-2 bg-secondary border border-border p-2 rounded">
               Parcela {teamPayment.numero_parcela} • {teamPayment.mes_referencia}/{teamPayment.ano}
               <br />
               Previsto: {formatBRL(teamPayment.valor_parcela_previsto)}
@@ -137,13 +137,13 @@ export default function PurchaseCard({
         </div>
 
         <div className="text-right">
-          <p className="font-bold">{formatBRL(purchase.valor_solicitado)}</p>
+          <p className="font-bold text-foreground">{formatBRL(purchase.valor_solicitado)}</p>
         </div>
 
       </div>
 
       {!hasRubricaVinculada && (
-        <div className="text-xs bg-white border-2 border-black text-black p-2 rounded flex items-center gap-2">
+        <div className="text-xs bg-secondary border-2 border-border text-foreground p-2 rounded flex items-center gap-2">
           <AlertCircle className="w-3 h-3"/>
           ⚠️ Sem rubrica vinculada — não é possível pagar
         </div>
@@ -155,7 +155,7 @@ export default function PurchaseCard({
         {canMarkAsPaidBase && isTeamPayment && (
           <Button
             size="sm"
-            className={`font-medium gap-1 ${actionLoading || !canMarkAsPaid ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}`}
+            className={`font-medium gap-1 ${actionLoading || !canMarkAsPaid ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-primary text-primary-foreground hover:bg-primary/90'}`}
             onClick={handleMarkAsPaidTeam}
             disabled={actionLoading || !canMarkAsPaid}
           >
@@ -168,7 +168,7 @@ export default function PurchaseCard({
         {canMarkAsPaidBase && !isTeamPayment && (
           <Button
             size="sm"
-            className={`font-medium gap-1 ${!canMarkAsPaid ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
+            className={`font-medium gap-1 ${!canMarkAsPaid ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-primary text-primary-foreground hover:bg-primary/90'}`}
             onClick={() => setShowPagarDialog(true)}
             disabled={!canMarkAsPaid}
           >
@@ -183,7 +183,7 @@ export default function PurchaseCard({
             href={purchase.comprovante_pagamento_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-xs text-blue-700 underline"
+            className="flex items-center gap-1 text-xs text-primary underline"
             onClick={e => e.stopPropagation()}
           >
             <FileText className="w-3 h-3" />
@@ -192,7 +192,7 @@ export default function PurchaseCard({
         )}
 
         {purchase.numero_processamento && (
-          <span className="text-xs font-mono text-gray-400 self-center">#{purchase.numero_processamento}</span>
+          <span className="text-xs font-mono text-muted-foreground self-center">#{purchase.numero_processamento}</span>
         )}
 
       </div>

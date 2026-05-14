@@ -244,8 +244,8 @@ function NavItem({ item, currentPageName, collapsed }) {
     currentTheme === 'nuit';
 
   const activeClasses = isDarkTheme
-    ? 'bg-slate-200 text-slate-900 border border-slate-300'
-    : 'bg-slate-700 text-white border border-slate-600';
+    ? 'bg-secondary text-secondary-foreground border border-border'
+    : 'bg-primary text-primary-foreground border border-border';
 
   return (
     <SidebarTooltip label={item.label} collapsed={collapsed}>
@@ -255,16 +255,16 @@ function NavItem({ item, currentPageName, collapsed }) {
         className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors group ${
           isActive
             ? activeClasses
-            : 'text-white hover:bg-slate-800 hover:text-white'
+            : 'text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground'
         }`}
       >
         <Icon
           className={`w-4 h-4 flex-shrink-0 ${
             isActive
               ? isDarkTheme
-                ? 'text-slate-900'
-                : 'text-white'
-              : 'text-white group-hover:text-white'
+                ? 'text-secondary-foreground'
+                : 'text-primary-foreground'
+              : 'text-primary-foreground group-hover:text-primary-foreground'
           }`}
         />
 
@@ -274,9 +274,9 @@ function NavItem({ item, currentPageName, collapsed }) {
               className={`truncate block leading-tight ${
                 isActive
                   ? isDarkTheme
-                    ? 'text-slate-900'
-                    : 'text-white'
-                  : 'text-white'
+                    ? 'text-secondary-foreground'
+                    : 'text-primary-foreground'
+                  : 'text-primary-foreground'
               }`}
             >
               {item.label}
@@ -287,9 +287,9 @@ function NavItem({ item, currentPageName, collapsed }) {
                 className={`text-[10px] truncate block leading-tight mt-0.5 ${
                   isActive
                     ? isDarkTheme
-                      ? 'text-slate-700'
-                      : 'text-slate-200'
-                    : 'text-slate-300'
+                      ? 'text-muted-foreground'
+                      : 'text-primary-foreground/80'
+                    : 'text-muted-foreground'
                 }`}
               >
                 {item.subtitle}
@@ -357,22 +357,22 @@ export default function Sidebar({
 
   return (
     <div
-      className={`flex flex-col bg-slate-900 border-r border-slate-800 transition-all duration-200 ${
+      className={`flex flex-col bg-primary border-r border-border transition-all duration-200 ${
         collapsed ? 'w-16' : 'w-60'
       } min-h-screen`}
     >
       <div
-        className={`flex items-center justify-between px-3 py-4 border-b border-slate-800 ${
+        className={`flex items-center justify-between px-3 py-4 border-b border-border ${
           collapsed ? 'flex-col gap-2' : ''
         }`}
       >
         {!collapsed && (
           <div className="flex flex-col">
-            <span className="text-xs font-bold text-white leading-tight">
+            <span className="text-xs font-bold text-primary-foreground leading-tight">
               Museus Centro
             </span>
 
-            <span className="text-[10px] text-slate-300">
+            <span className="text-[10px] text-primary-foreground/70">
               Plataforma de Gestão
             </span>
           </div>
@@ -380,7 +380,7 @@ export default function Sidebar({
 
         <button
           onClick={onToggle}
-          className="p-1.5 rounded-md text-white hover:bg-slate-700 hover:text-white transition-colors"
+          className="p-1.5 rounded-md text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground transition-colors"
         >
           {collapsed ? (
             <ChevronRight className="w-4 h-4" />
@@ -399,7 +399,7 @@ export default function Sidebar({
           return (
             <div key={group.label}>
               {!collapsed && group.label && (
-                <p className="px-3 mb-1 text-[10px] font-semibold text-slate-300 uppercase tracking-wider">
+                <p className="px-3 mb-1 text-[10px] font-semibold text-primary-foreground/60 uppercase tracking-wider">
                   {group.label}
                 </p>
               )}
@@ -420,17 +420,17 @@ export default function Sidebar({
       </nav>
 
       <div
-        className={`border-t border-slate-800 px-3 py-3 ${
+        className={`border-t border-border px-3 py-3 ${
           collapsed ? 'flex justify-center' : ''
         }`}
       >
         <Link
           to="/Perfil"
-          className="flex items-center gap-2 text-sm text-white hover:text-white transition-colors"
+          className="flex items-center gap-2 text-sm text-primary-foreground hover:text-primary-foreground transition-colors"
           title={collapsed ? currentUser?.full_name || 'Perfil' : undefined}
         >
-          <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
-            <span className="text-xs font-semibold text-white">
+          <div className="w-7 h-7 rounded-full bg-primary/80 flex items-center justify-center flex-shrink-0">
+            <span className="text-xs font-semibold text-primary-foreground">
               {(
                 currentUser?.full_name ||
                 currentUser?.email ||
@@ -441,11 +441,11 @@ export default function Sidebar({
 
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-xs font-medium text-white truncate">
+              <p className="text-xs font-medium text-primary-foreground truncate">
                 {currentUser?.full_name || 'Usuário'}
               </p>
 
-              <p className="text-[10px] text-slate-300 truncate">
+              <p className="text-[10px] text-primary-foreground/70 truncate">
                 {currentUser?.email || ''}
               </p>
             </div>
