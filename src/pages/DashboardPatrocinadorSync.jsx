@@ -596,13 +596,13 @@ export default function DashboardPatrocinadorSync() {
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-black hidden">Painel do Patrocinador</h1>
-          <p className="text-sm text-gray-500 hidden">Dados sincronizados exclusivamente com relatórios aprovados. Agenda exibida separadamente como previsão.</p>
+          
+          
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => loadDashboardData(true)} disabled={refreshing} className="gap-2 hidden">
-          <RotateCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-          Atualizar
-        </Button>
+        
+
+
+        
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
