@@ -14,6 +14,7 @@ import ExecutiveIndicators from '../components/dashboard/ExecutiveIndicators';
 import DashboardProfissional from './DashboardProfissional';
 import DashboardPatrocinador from './DashboardPatrocinador';
 import GaleriaTickerCarousel from '../components/dashboard/GaleriaTickerCarousel';
+import DiariamenteNosMuseus from '../components/dashboard/DiariamenteNosMuseus';
 
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
@@ -493,6 +494,8 @@ function DashboardInner() {
           </div>
 
           <GaleriaTickerCarousel />
+
+          <DiariamenteNosMuseus />
 
           <DashboardPatrocinador />
         </div>
