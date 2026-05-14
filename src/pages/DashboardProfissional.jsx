@@ -246,7 +246,7 @@ function DashboardProfissionalInner() {
         <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-semibold text-foreground">
-              Painel do Profissional
+              Painel
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               Bem-vindo, {currentUser?.full_name || ''}! Sua atuação nas instituições
