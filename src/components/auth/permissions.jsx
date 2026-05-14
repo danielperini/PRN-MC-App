@@ -177,6 +177,7 @@ export const SIDEBAR_PROFISSIONAL = new Set([
   'Aparencia',
   'MeusDados',
   'GeradorListaPresenca',
+  'GeradorTermoCompromisso',
   'Mensagens',
 ]);
 
