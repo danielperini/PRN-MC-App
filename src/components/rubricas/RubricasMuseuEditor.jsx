@@ -9,7 +9,7 @@ import EditRubricaDialog from './EditRubricaDialog';
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 
 const MUSEU_TOKENS = {
-  MIS: ['mis', 'imagem e som', 'imagem', 'som'],
+  MIS: ['mis', 'imagem e som'],
   MHAB: ['mhab', 'abilio', 'abílio', 'historico', 'histórico'],
   MUMO: ['mumo', 'moda'],
 };
@@ -64,9 +64,9 @@ function normalizeText(value) {
 function normalizeMuseu(value) {
   const text = normalizeText(value);
   if (!text) return '';
-  if (text === 'mis' || text.includes('imagem') || text.includes('som')) return 'MIS';
+  if (text === 'mis' || text.includes('museu da imagem e do som') || text.includes('imagem e som')) return 'MIS';
   if (text === 'mhab' || text.includes('abilio') || text.includes('historico')) return 'MHAB';
-  if (text === 'mumo' || text.includes('moda')) return 'MUMO';
+  if (text === 'mumo' || text.includes('museu da moda') || text.includes('moda')) return 'MUMO';
   if (text.includes('noturno')) return 'NOTURNO';
   return String(value || '').trim().toUpperCase();
 }
@@ -79,8 +79,8 @@ function getCategoria(rubrica = {}) {
   return String(rubrica?.categoria || rubrica?.categoria_key || rubrica?.grupo || rubrica?.grupo_nome || 'geral');
 }
 
-function getSearchText(rubrica = {}) {
-  return normalizeText([
+function getTextFields(rubrica = {}) {
+  return [
     rubrica?.rubrica,
     rubrica?.nome,
     rubrica?.descricao,
@@ -92,8 +92,11 @@ function getSearchText(rubrica = {}) {
     rubrica?.museu_codigo,
     rubrica?.unidade,
     rubrica?.observacao_uso,
-    rubrica?.museu_origem,
-  ].filter(Boolean).join(' '));
+  ].filter(Boolean).join(' ');
+}
+
+function getSearchText(rubrica = {}) {
+  return normalizeText(getTextFields(rubrica));
 }
 
 function hasMuseuToken(text = '', museu = '') {
@@ -121,17 +124,16 @@ function isAdministrativoGeral(rubrica = {}) {
   return TERMOS_ADMINISTRATIVOS_GERAIS.some((termo) => text.includes(normalizeText(termo)));
 }
 
-function isCompartilhadaTresMuseus(rubrica = {}) {
+function isNomeCompartilhadoTresMuseus(rubrica = {}) {
   const text = getSearchText(rubrica);
   const mencionados = getMuseusMencionados(text);
 
   return (
-    rubrica?.divisor === 3 ||
-    rubrica?.distribuicao_mode === 'compartilhada_div3' ||
     text.includes('mis / mumo / mhab') ||
     text.includes('mis/mumo/mhab') ||
     text.includes('mhab / mis / mumo') ||
     text.includes('mhab/mis/mumo') ||
+    text.includes('mis mumo mhab') ||
     mencionados.length >= 2
   );
 }
@@ -139,7 +141,7 @@ function isCompartilhadaTresMuseus(rubrica = {}) {
 function isEspecificaDoMuseu(rubrica = {}, museu = '') {
   const text = getSearchText(rubrica);
   const mencionados = getMuseusMencionados(text);
-  const centro = normalizeMuseu(rubrica?.centro_custo || rubrica?.museu || rubrica?.museu_codigo || rubrica?.unidade || rubrica?.museu_origem || '');
+  const centro = normalizeMuseu(rubrica?.centro_custo || rubrica?.museu || rubrica?.museu_codigo || rubrica?.unidade || '');
 
   if (centro && MUSEUS.includes(centro) && centro !== museu) return false;
   if (centro === museu && mencionados.length <= 1) return true;
@@ -152,16 +154,13 @@ function deveExibirRubricaNoMuseu(rubrica = {}, museu = '') {
   if (!MUSEUS.includes(normalizedMuseu)) return false;
   if (rubrica?.ativo === false) return false;
 
-  // Regra absoluta: Noturno, limpeza e vans não aparecem nas abas MIS/MHAB/MUMO.
   if (isNoturnoOuOperacaoNoturno(rubrica)) return false;
-
-  // Rubricas administrativas gerais/transversais não fazem parte desta visão por museu.
   if (isAdministrativoGeral(rubrica)) return false;
 
-  // Rubricas compartilhadas MIS/MUMO/MHAB entram nos 3 museus com valores já consolidados/rateados pelo backend.
-  if (isCompartilhadaTresMuseus(rubrica)) return true;
+  // Só é compartilhada se o NOME/TEXTO mencionar mais de um museu.
+  // Não confiar em divisor=3 isolado, porque backend pode ratear itens específicos por fallback.
+  if (isNomeCompartilhadoTresMuseus(rubrica)) return true;
 
-  // Rubricas específicas entram apenas no museu correspondente.
   return isEspecificaDoMuseu(rubrica, normalizedMuseu);
 }
 
@@ -196,10 +195,11 @@ function RubricasMuseuEditor({ museu, canEdit, refreshKey }) {
 
     Object.entries(categorias).forEach(([catKey, items]) => {
       (Array.isArray(items) ? items : [])
-        .filter((rubrica) => deveExibirRubricaNoMuseu({ ...rubrica, categoria: rubrica?.categoria || catKey }, normalizedMuseu))
+        .map((rubrica) => ({ ...rubrica, categoria: rubrica?.categoria || catKey }))
+        .filter((rubrica) => deveExibirRubricaNoMuseu(rubrica, normalizedMuseu))
         .forEach((rubrica) => {
           const categoria = rubrica?.categoria || catKey;
-          const key = `${rubrica?.id || getRubricaNome(rubrica)}-${categoria}`;
+          const key = `${rubrica?.id || getRubricaNome(rubrica)}-${categoria}-${normalizedMuseu}`;
           if (seen.has(key)) return;
           seen.add(key);
 
@@ -245,10 +245,10 @@ function RubricasMuseuEditor({ museu, canEdit, refreshKey }) {
           ? toNumber(rubrica.saldo)
           : totalOrcado - totalUtilizado;
         const pct = totalOrcado > 0 ? (totalUtilizado / totalOrcado) * 100 : 0;
-        const compartilhada = isCompartilhadaTresMuseus(rubrica);
+        const compartilhada = isNomeCompartilhadoTresMuseus(rubrica);
 
         return (
-          <Card key={`${rubrica.id || getRubricaNome(rubrica)}-${rubrica.categoria}`} className="border-gray-200 bg-white hover:shadow-sm transition-shadow">
+          <Card key={`${rubrica.id || getRubricaNome(rubrica)}-${rubrica.categoria}-${normalizedMuseu}`} className="border-gray-200 bg-white hover:shadow-sm transition-shadow">
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
