@@ -147,6 +147,34 @@
       "format": "date-time",
       "description": "Data/hora do envio para revis\u00e3o"
     },
+    "drive_file_id": {
+      "type": "string",
+      "description": "ID do arquivo PDF exportado no Google Drive"
+    },
+    "drive_file_url": {
+      "type": "string",
+      "description": "URL do arquivo PDF no Google Drive"
+    },
+    "exported_pdf_url": {
+      "type": "string",
+      "description": "URL p\u00fablica do PDF exportado"
+    },
+    "exported_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora da exporta\u00e7\u00e3o para Drive"
+    },
+    "export_status": {
+      "type": "string",
+      "enum": [
+        "EXPORTANDO",
+        "EXPORTADO",
+        "BACKUP_OK",
+        "ERRO_BACKUP"
+      ],
+      "default": "EXPORTANDO",
+      "description": "Status da exporta\u00e7\u00e3o para Drive"
+    },
     "atividades": {
       "type": "array",
       "description": "Lista de atividades executadas no m\u00eas",
