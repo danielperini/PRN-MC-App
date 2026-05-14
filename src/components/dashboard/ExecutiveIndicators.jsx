@@ -10,6 +10,8 @@ const MONTH_ORDER = [
 
 const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
 
+const APPROVED_STATUS_SET = new Set(['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'APPROVED_COORD', 'APPROVED_ADMIN']);
+
 function toInt(value) {
   const n = Number(value || 0);
   return Number.isFinite(n) ? Math.round(n) : 0;
@@ -271,7 +273,7 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
     const map = {};
 
     reports.forEach(r => {
-      if (!['APPROVED', 'APROVADO'].includes(String(r.status || '').toUpperCase())) return;
+      if (!APPROVED_STATUS_SET.has(String(r.status || '').toUpperCase())) return;
       const mes = r.mes_referencia;
       if (!mes) return;
 
@@ -308,7 +310,7 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
   const classificacaoStats = React.useMemo(() => {
     const map = { META: 0, ROTINA: 0, EXTRA: 0 };
 
-    reports.forEach(r => {
+    reports.filter(r => APPROVED_STATUS_SET.has(String(r.status || '').toUpperCase())).forEach(r => {
       (Array.isArray(r.atividades) ? r.atividades : []).forEach(a => {
         const vezes = Number(a.quantas_vezes_ocorreu || 1);
         const cls = String(a.classificacao || '').toUpperCase();
@@ -326,7 +328,7 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
   const comparativoMuseu = React.useMemo(() => {
     return MUSEUS.map(museu => {
       const reps = reports.filter(r =>
-        ['APPROVED', 'APROVADO'].includes(String(r.status || '').toUpperCase()) &&
+        APPROVED_STATUS_SET.has(String(r.status || '').toUpperCase()) &&
         (r.museu === museu || r.museu_secundario === museu)
       );
       let totalAtividades = 0;

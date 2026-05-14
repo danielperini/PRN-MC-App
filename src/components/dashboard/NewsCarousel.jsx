@@ -528,20 +528,7 @@ export default function NewsCarousel() {
 
               </div>
 
-              <div className="mb-3 overflow-hidden rounded-xl border border-border bg-secondary">
 
-                <img
-                src={item.imagem || makeGeneratedImage(item)}
-                alt={item?.titulo || 'Notícia'}
-                className="h-32 w-full object-cover transition-transform duration-500 group-hover:scale-[1.02] hidden"
-                loading="lazy"
-                onError={(event) => {
-                  event.currentTarget.src =
-                  makeGeneratedImage(item);
-                }} />
-              
-
-              </div>
 
               <h3 className="line-clamp-2 text-base font-bold leading-snug text-foreground">
                 {item.titulo}

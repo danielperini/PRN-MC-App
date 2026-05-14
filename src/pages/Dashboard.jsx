@@ -233,12 +233,18 @@ function DashboardInner() {
         const data =
           await base44.entities.Report.list(
             '-created_date',
-            200
+            500
           );
 
-        return Array.isArray(data)
-          ? data
-          : [];
+        if (Array.isArray(data) && data.length > 0) return data;
+
+        // fallback: buscar aprovados diretamente
+        const aprovados = await base44.entities.Report.filter(
+          { status: 'APPROVED' },
+          '-created_date',
+          500
+        ).catch(() => []);
+        return Array.isArray(aprovados) ? aprovados : [];
       } catch {
         return [];
       }
