@@ -22,24 +22,24 @@ function ProfessionalDataSection({ currentUser, myReports, myActivities, myAttac
   const museums = ['MHAB', 'MIS', 'MUMO'];
 
   // Obter meses únicos dos relatórios
-  const months = [...new Set(myReports.map(r => `${r.mes_referencia}-${r.ano}`))];
+  const months = [...new Set(myReports.map((r) => `${r.mes_referencia}-${r.ano}`))];
 
   // Filtrar atividades
-  const filteredActivities = myActivities.filter(activity => {
+  const filteredActivities = myActivities.filter((activity) => {
     let match = true;
-    
+
     if (selectedMuseum !== 'all') {
-      const report = myReports.find(r => r.id === activity.report_id);
+      const report = myReports.find((r) => r.id === activity.report_id);
       if (!report || report.museu !== selectedMuseum) match = false;
     }
-    
+
     if (selectedStatus !== 'all') {
-      const report = myReports.find(r => r.id === activity.report_id);
+      const report = myReports.find((r) => r.id === activity.report_id);
       if (!report || report.status !== selectedStatus) match = false;
     }
 
     if (selectedMonth !== 'all' && activity.report_id) {
-      const report = myReports.find(r => r.id === activity.report_id);
+      const report = myReports.find((r) => r.id === activity.report_id);
       if (!report || `${report.mes_referencia}-${report.ano}` !== selectedMonth) match = false;
     }
 
@@ -47,11 +47,11 @@ function ProfessionalDataSection({ currentUser, myReports, myActivities, myAttac
   });
 
   // Fotos das atividades
-  const photos = myAttachments.filter(a => a.file_type?.startsWith('image/'));
+  const photos = myAttachments.filter((a) => a.file_type?.startsWith('image/'));
 
   return (
     <div className="space-y-6">
-      <div className="border-t border-border pt-6">
+      <div className="border-t border-border pt-6 hidden">
         <div className="flex items-center justify-between gap-4 mb-4">
           <div>
             <h2 className="text-2xl font-semibold text-foreground">Meus Dados e Atividades</h2>
@@ -61,37 +61,37 @@ function ProfessionalDataSection({ currentUser, myReports, myActivities, myAttac
             variant={showFilters ? 'default' : 'outline'}
             size="sm"
             onClick={() => setShowFilters(!showFilters)}
-            className="gap-2"
-          >
+            className="gap-2">
+            
             <Filter className="w-4 h-4" />
             {showFilters ? 'Ocultar' : 'Filtros'}
           </Button>
         </div>
 
         {/* Filtros */}
-        {showFilters && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-secondary rounded-lg mb-6">
+        {showFilters &&
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-secondary rounded-lg mb-6">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Museu</label>
               <select
-                value={selectedMuseum}
-                onChange={(e) => setSelectedMuseum(e.target.value)}
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm"
-              >
+              value={selectedMuseum}
+              onChange={(e) => setSelectedMuseum(e.target.value)}
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm">
+              
                 <option value="all">Todos os museus</option>
-                {museums.map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
+                {museums.map((m) =>
+              <option key={m} value={m}>{m}</option>
+              )}
               </select>
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Status</label>
               <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm"
-              >
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm">
+              
                 <option value="all">Todos</option>
                 <option value="DRAFT">Rascunho</option>
                 <option value="SUBMITTED">Enviado</option>
@@ -103,18 +103,18 @@ function ProfessionalDataSection({ currentUser, myReports, myActivities, myAttac
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Período</label>
               <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm"
-              >
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm">
+              
                 <option value="all">Todos os períodos</option>
-                {months.map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
+                {months.map((m) =>
+              <option key={m} value={m}>{m}</option>
+              )}
               </select>
             </div>
           </div>
-        )}
+        }
 
         {/* Cards de Dados Pessoais */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -126,13 +126,13 @@ function ProfessionalDataSection({ currentUser, myReports, myActivities, myAttac
 
           <div className="p-4 rounded-lg border border-border bg-card hover:shadow-md transition-shadow">
             <div className="text-sm text-muted-foreground mb-1">Relatórios Enviados</div>
-            <div className="text-2xl font-bold text-foreground">{myReports.filter(r => r.status !== 'DRAFT').length}</div>
+            <div className="text-2xl font-bold text-foreground">{myReports.filter((r) => r.status !== 'DRAFT').length}</div>
             <div className="text-xs text-muted-foreground mt-2">de {myReports.length}</div>
           </div>
 
           <div className="p-4 rounded-lg border border-border bg-card hover:shadow-md transition-shadow">
             <div className="text-sm text-muted-foreground mb-1">Relatórios Aprovados</div>
-            <div className="text-2xl font-bold text-foreground">{myReports.filter(r => r.status === 'APPROVED').length}</div>
+            <div className="text-2xl font-bold text-foreground">{myReports.filter((r) => r.status === 'APPROVED').length}</div>
             <div className="text-xs text-muted-foreground mt-2">pelo coordenador</div>
           </div>
 
@@ -144,35 +144,35 @@ function ProfessionalDataSection({ currentUser, myReports, myActivities, myAttac
         </div>
 
         {/* Seção de Atividades */}
-        {!isLoadingActivities && filteredActivities.length > 0 && (
-          <div className="space-y-4">
+        {!isLoadingActivities && filteredActivities.length > 0 &&
+        <div className="space-y-4">
             <div>
               <h3 className="text-lg font-semibold text-foreground mb-3">Atividades Registradas</h3>
               <div className="grid gap-3 max-h-96 overflow-y-auto">
                 {filteredActivities.slice(0, 10).map((activity) => {
-                  const report = myReports.find(r => r.id === activity.report_id);
-                  return (
-                    <div key={activity.id} className="p-3 rounded-lg border border-border bg-card/50 hover:bg-card transition-colors">
+                const report = myReports.find((r) => r.id === activity.report_id);
+                return (
+                  <div key={activity.id} className="p-3 rounded-lg border border-border bg-card/50 hover:bg-card transition-colors">
                       <div className="font-medium text-sm text-foreground">{activity.titulo}</div>
                       <div className="text-xs text-muted-foreground mt-1">
                         {report?.museu || 'Geral'} • {report?.mes_referencia} {report?.ano}
                       </div>
-                    </div>
-                  );
-                })}
+                    </div>);
+
+              })}
               </div>
             </div>
           </div>
-        )}
+        }
 
-        {!isLoadingActivities && filteredActivities.length === 0 && (
-          <div className="p-8 text-center border border-dashed border-border rounded-lg">
+        {!isLoadingActivities && filteredActivities.length === 0 &&
+        <div className="p-8 text-center border border-dashed border-border rounded-lg">
             <p className="text-muted-foreground">Nenhuma atividade encontrada com os filtros selecionados</p>
           </div>
-        )}
+        }
       </div>
-    </div>
-  );
+    </div>);
+
 }
 
 function DashboardProfissionalInner() {
@@ -181,11 +181,11 @@ function DashboardProfissionalInner() {
   const { data: myReports = [], isLoading } = useQuery({
     queryKey: ['my-reports-prof', currentUser?.email],
     queryFn: () => base44.entities.Report.filter(
-      { created_by: currentUser?.email }, 
+      { created_by: currentUser?.email },
       '-created_date',
       100
     ),
-    enabled: !!currentUser?.email,
+    enabled: !!currentUser?.email
   });
 
   const { data: myActivities = [], isLoading: isLoadingActivities } = useQuery({
@@ -194,12 +194,12 @@ function DashboardProfissionalInner() {
       const activities = [];
       for (const report of myReports) {
         if (report.id && Array.isArray(report.atividades)) {
-          activities.push(...report.atividades.map(a => ({ ...a, report_id: report.id })));
+          activities.push(...report.atividades.map((a) => ({ ...a, report_id: report.id })));
         }
       }
       return activities;
     },
-    enabled: !!currentUser?.email && myReports.length > 0,
+    enabled: !!currentUser?.email && myReports.length > 0
   });
 
   const { data: myAttachments = [] } = useQuery({
@@ -219,20 +219,20 @@ function DashboardProfissionalInner() {
       }
       return attachments;
     },
-    enabled: myReports.length > 0,
+    enabled: myReports.length > 0
   });
 
   // Calcular estatísticas
   const stats = {
     total: myReports.length,
-    rascunhos: myReports.filter(r => r.status === 'DRAFT').length,
-    aprovados: myReports.filter(r => r.status === 'APPROVED').length,
+    rascunhos: myReports.filter((r) => r.status === 'DRAFT').length,
+    aprovados: myReports.filter((r) => r.status === 'APPROVED').length,
     publico: myReports.reduce((sum, r) => {
       const atividades = Array.isArray(r.atividades) ? r.atividades : [];
       return sum + atividades.reduce((s, a) => {
         const repeticoes = a.quantas_repeticoes || 1;
         const est = a.publico_estimado || 0;
-        return s + (est * repeticoes);
+        return s + est * repeticoes;
       }, 0);
     }, 0)
   };
@@ -268,20 +268,20 @@ function DashboardProfissionalInner() {
         </div>
 
         {/* Estatísticas Pessoais */}
-        {!isLoading && (
-          <div className="mb-8">
+        {!isLoading &&
+        <div className="mb-8 hidden">
             <h2 className="text-xl font-semibold text-foreground mb-4">Seu Desempenho</h2>
             <ProfessionalStats stats={stats} />
           </div>
-        )}
+        }
 
         {/* Relatórios Recentes */}
-        {recentReports.length > 0 && (
-          <div className="mb-8">
+        {recentReports.length > 0 &&
+        <div className="mb-8">
             <h2 className="text-xl font-semibold text-foreground mb-4">Relatórios Recentes</h2>
             <RecentReportsCard reports={recentReports} />
           </div>
-        )}
+        }
 
         {/* Seção de Dados Pessoais */}
         <ProfessionalDataSection
@@ -289,12 +289,12 @@ function DashboardProfissionalInner() {
           myReports={myReports}
           myActivities={myActivities}
           myAttachments={myAttachments}
-          isLoadingActivities={isLoadingActivities}
-        />
+          isLoadingActivities={isLoadingActivities} />
+        
 
         {/* Empty State */}
-        {!isLoading && myReports.length === 0 && (
-          <div className="p-12 text-center border border-dashed border-border rounded-2xl mt-8">
+        {!isLoading && myReports.length === 0 &&
+        <div className="p-12 text-center border border-dashed border-border rounded-2xl mt-8">
             <p className="text-foreground font-medium">Você ainda não tem relatórios</p>
             <p className="text-sm text-muted-foreground mt-2">
               Comece criando um novo relatório mensal para registrar suas atividades e atuação
@@ -306,10 +306,10 @@ function DashboardProfissionalInner() {
               </Button>
             </Link>
           </div>
-        )}
+        }
       </div>
-    </div>
-  );
+    </div>);
+
 }
 
 export default function DashboardProfissional() {
