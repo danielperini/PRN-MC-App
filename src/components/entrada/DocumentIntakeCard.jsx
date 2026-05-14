@@ -27,6 +27,7 @@ const TIPO_LABEL = {
   RECIBO_PDF: 'Recibo/Comprovante',
   FOTO_ATIVIDADE: 'Foto',
   DOCUMENTO_ADMINISTRATIVO: 'Documento',
+  CONTRATO: 'Contrato',
   OUTRO: 'Outro',
   PENDENTE: 'Pendente'
 };
@@ -66,6 +67,7 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
   const isXML = tipo === 'NOTA_FISCAL_XML';
   const isPDF = tipo === 'NOTA_FISCAL_PDF';
   const isRecibo = tipo === 'RECIBO_PDF';
+  const isContrato = tipo === 'CONTRATO';
   const isNF = isPDF || isXML;
   const isImage = tipo === 'FOTO_ATIVIDADE';
 
@@ -81,11 +83,12 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
   const isProcessing = ['ANALISANDO_IA', 'ENVIADO'].includes(statusKey);
   const canFallbackReview = isPDF && isProcessing && hasStrongFileNameData(fileName);
 
-  // XML nunca pode revisar nem enviar. PDF em análise com dados no nome pode revisar para não ficar travado.
+  // XML nunca pode revisar nem enviar. Contrato vai para modal próprio.
   const canReview = (
   ['AGUARDANDO_REVISAO', 'RASCUNHO', 'ERRO_PROCESSAMENTO'].includes(statusKey) ||
   canFallbackReview) &&
   !isXML;
+  const canReviewContrato = isContrato && ['AGUARDANDO_REVISAO', 'RASCUNHO', 'ERRO_PROCESSAMENTO', 'ANALISANDO_IA'].includes(statusKey);
   const hasError = intake.status_processamento === 'ERRO_PROCESSAMENTO';
   const canSendApproval = canReview && isPDF && !isProcessing;
 
@@ -361,8 +364,17 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
             </>
           }
 
-          {/* PDF: Revisar (não XML) */}
-          {canReview &&
+          {/* Contrato: botão Revisar Contrato */}
+          {canReviewContrato &&
+            <Button size="sm" variant="outline" onClick={() => onReview({ ...intake })}
+              className="h-8 text-xs px-3 border-indigo-300 text-indigo-700 hover:bg-indigo-50">
+              <FileText className="w-3 h-3 mr-1" />
+              Revisar Contrato
+            </Button>
+          }
+
+          {/* PDF: Revisar (não XML, não contrato) */}
+          {canReview && !isContrato &&
           <Button size="sm" variant="outline" onClick={() => onReview({ ...intake })}
           className="h-8 text-xs px-3">
               Revisar
@@ -417,6 +429,21 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
         <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
           <span>Envie o XML e/ou comprovante correspondente desta nota. Sem XML/comprovante, apenas a NF será enviada.</span>
+        </div>
+      }
+
+      {/* Aviso contrato identificado */}
+      {isContrato && statusKey === 'AGUARDANDO_REVISAO' && !intake.contrato_team_member_id && !intake.contrato_fornecedor_id &&
+        <div className="mt-3 flex items-start gap-2 text-xs text-indigo-700 bg-indigo-50 px-3 py-2 rounded-lg">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+          <span>Contrato identificado. Clique em "Revisar Contrato" para vincular ao membro da equipe ou fornecedor. Nenhum valor será debitado.</span>
+        </div>
+      }
+
+      {isContrato && (intake.contrato_team_member_id || intake.contrato_fornecedor_id) &&
+        <div className="mt-3 flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">
+          <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+          <span>Contrato vinculado e arquivado com sucesso.</span>
         </div>
       }
 

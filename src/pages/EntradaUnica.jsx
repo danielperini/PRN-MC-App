@@ -7,6 +7,7 @@ import ReviewModalNF from '@/components/entrada/ReviewModalNF';
 import ReviewModalFoto from '@/components/entrada/ReviewModalFoto';
 import ReviewModalDocAdmin from '@/components/entrada/ReviewModalDocAdmin';
 import ReviewModalOutro from '@/components/entrada/ReviewModalOutro';
+import ReviewModalContrato from '@/components/entrada/ReviewModalContrato';
 import LinkXmlModal from '@/components/entrada/LinkXmlModal';
 import LinkArquivoModal from '@/components/entrada/LinkArquivoModal';
 import {
@@ -630,6 +631,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
   const isNF = tipo === 'NOTA_FISCAL_PDF' || tipo === 'NOTA_FISCAL_XML';
   const isFoto = tipo === 'FOTO_ATIVIDADE';
   const isDocAdmin = tipo === 'DOCUMENTO_ADMINISTRATIVO';
+  const isContrato = tipo === 'CONTRATO';
 
   return (
     <div className="min-h-screen bg-white">
@@ -748,7 +750,10 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
         {reviewIntake && isDocAdmin && (
           <ReviewModalDocAdmin intake={reviewIntake} onClose={() => setReviewIntake(null)} onSaved={handleSaved} />
         )}
-        {reviewIntake && !isNF && !isFoto && !isDocAdmin && (
+        {reviewIntake && isContrato && (
+          <ReviewModalContrato intake={reviewIntake} onClose={() => setReviewIntake(null)} onSaved={handleSaved} />
+        )}
+        {reviewIntake && !isNF && !isFoto && !isDocAdmin && !isContrato && (
           <ReviewModalOutro intake={reviewIntake} onClose={() => setReviewIntake(null)} onSaved={handleSaved} />
         )}
         {linkXmlIntake && (
