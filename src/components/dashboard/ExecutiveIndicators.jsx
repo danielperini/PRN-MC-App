@@ -127,7 +127,7 @@ function KpiCard({ label, value, icon: Icon, highlight = false, helper }) {
           {label}
         </span>
       </div>
-      <p className={`text-3xl font-bold leading-tight truncate ${highlight ? 'text-primary-foreground' : 'text-foreground'}`}>
+      <p className={`text-2xl font-bold leading-tight truncate ${highlight ? 'text-primary-foreground' : 'text-foreground'}`}>
         {value}
       </p>
       {helper && (
@@ -392,7 +392,8 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
   const fmtBRL = (v) => Number(v || 0).toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 
   return (
