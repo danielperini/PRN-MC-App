@@ -1,0 +1,119 @@
+{
+  "name": "TrustValidation",
+  "type": "object",
+  "properties": {
+    "report_id": {
+      "type": "string",
+      "description": "ID do relat\u00f3rio sendo validado"
+    },
+    "tipo_dado": {
+      "type": "string",
+      "enum": [
+        "texto",
+        "numero",
+        "imagem",
+        "publico",
+        "atividade",
+        "programacao",
+        "financeiro",
+        "v\u00ednculo"
+      ],
+      "description": "Tipo de informa\u00e7\u00e3o validada"
+    },
+    "fonte_primaria": {
+      "type": "string",
+      "description": "Fonte original (relat\u00f3rio, atividade, programa\u00e7\u00e3o, etc)"
+    },
+    "fonte_secundaria": {
+      "type": "string",
+      "description": "Fonte de valida\u00e7\u00e3o cruzada"
+    },
+    "fonte_terciaria": {
+      "type": "string",
+      "description": "Terceira fonte de confirma\u00e7\u00e3o (opcional)"
+    },
+    "conteudo_validado": {
+      "type": "string",
+      "description": "O conte\u00fado/valor que foi validado"
+    },
+    "score_confianca": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Score de confian\u00e7a 0-100"
+    },
+    "nivel_confianca": {
+      "type": "string",
+      "enum": [
+        "ALTA",
+        "MEDIA",
+        "BAIXA"
+      ],
+      "description": "N\u00edvel classificado (ALTA >= 95%)"
+    },
+    "detalhes_validacao": {
+      "type": "object",
+      "properties": {
+        "fonte_primaria_match": {
+          "type": "boolean",
+          "description": "Fonte prim\u00e1ria cont\u00e9m o dado"
+        },
+        "fonte_secundaria_match": {
+          "type": "boolean",
+          "description": "Fonte secund\u00e1ria confirma"
+        },
+        "compatibilidade_periodo": {
+          "type": "boolean",
+          "description": "Per\u00edodo \u00e9 compat\u00edvel"
+        },
+        "compatibilidade_museu": {
+          "type": "boolean",
+          "description": "Museu \u00e9 compat\u00edvel"
+        },
+        "compatibilidade_tematica": {
+          "type": "boolean",
+          "description": "Tema \u00e9 compat\u00edvel"
+        },
+        "vinculo_confirmado": {
+          "type": "boolean",
+          "description": "V\u00ednculo entre dados confirmado"
+        },
+        "duplicidade_detectada": {
+          "type": "boolean",
+          "description": "Dados duplicados encontrados"
+        },
+        "inconsistencias": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Lista de inconsist\u00eancias encontradas"
+        }
+      }
+    },
+    "recomendacao": {
+      "type": "string",
+      "enum": [
+        "usar",
+        "revisar",
+        "rejeitar"
+      ],
+      "description": "Recomenda\u00e7\u00e3o de a\u00e7\u00e3o"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es da valida\u00e7\u00e3o"
+    },
+    "validado_em": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Quando foi validado"
+    }
+  },
+  "required": [
+    "report_id",
+    "tipo_dado",
+    "conteudo_validado",
+    "score_confianca"
+  ]
+}

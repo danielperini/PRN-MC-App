@@ -7,6 +7,7 @@ import ReportPhotoSection from '@/components/reports/ReportPhotoSection';
 import DepoimentosSection from '@/components/reports/DepoimentosSection';
 import EditorialEnhancer from '@/components/reports/EditorialEnhancer';
 import ReleasePanelEditor from '@/components/reports/ReleasePanelEditor';
+import TrustValidationPanel from '@/components/reports/TrustValidationPanel';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -336,12 +337,21 @@ export default function ReportEditor() {
         return;
       }
 
-      await handleSave('DRAFT');
+      const revisao = await base44.functions.invoke('revisarRelatorioAntesExportPDF', {
+         reportId: report.id
+       });
 
-      const response = await base44.functions.invoke('generateSingleReportPDF', {
-        reportId: report.id,
-        mode: 'assinatura',
-      });
+       if (!revisao.data?.podeExportar) {
+         toast.error(revisao.data?.mensagem || 'Relatório não passou na validação');
+         return;
+       }
+
+       await handleSave('DRAFT');
+
+       const response = await base44.functions.invoke('generateSingleReportPDF', {
+         reportId: report.id,
+         mode: 'assinatura',
+       });
 
       const html = response?.data?.html || response?.html;
       const fileName = response?.data?.file_name || response?.file_name || 'relatorio_assinatura';
@@ -377,6 +387,17 @@ export default function ReportEditor() {
       <ReportTabsNavigation currentTab={activeTab} formData={form} onTabChange={setActiveTab} />
 
       <Card className="p-6">
+        {activeTab === 'validacao' && (
+          <TrustValidationPanel 
+            reportId={report.id}
+            onStatusChange={(revisao) => {
+              if (!revisao.podeExportar) {
+                toast.error('Relatório não passou na validação. Revise os itens indicados.');
+              }
+            }}
+          />
+        )}
+
         {activeTab === 'relatorio' && (
           <div className="space-y-6">
             <div className="grid md:grid-cols-2 gap-4">
@@ -647,6 +668,9 @@ export default function ReportEditor() {
 
       <div className="flex gap-3 justify-end">
         <Button variant="outline" onClick={() => navigate('/Relatorios')}>Cancelar</Button>
+        <Button onClick={() => setActiveTab('validacao')} variant="outline">
+          🛡️ Validar
+        </Button>
         <Button onClick={() => handleSave('DRAFT')} disabled={saving} variant="secondary">
           {saving ? 'Salvando...' : 'Salvar Rascunho'}
         </Button>

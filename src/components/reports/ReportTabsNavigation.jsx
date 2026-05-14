@@ -5,6 +5,7 @@ const TABS_INFO = [
   { value: 'relatorio', label: 'Relatório', icon: '📋' },
   { value: 'atividades', label: 'Atividades', icon: '📝' },
   { value: 'fotos', label: 'Fotos', icon: '📸' },
+  { value: 'validacao', label: 'Validação', icon: '🛡️' },
 ];
 
 export default function ReportTabsNavigation({ currentTab, formData, onTabChange }) {
