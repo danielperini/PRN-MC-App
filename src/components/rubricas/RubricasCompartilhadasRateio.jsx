@@ -231,12 +231,12 @@ export default function RubricasCompartilhadasRateio({ museu = 'MIS', refreshKey
       } catch {
 
 
+
+
+
+
         // fallback
-      }const rubricas = await base44.entities.Rubrica.list('ordem_exibicao', 1000);return Array.isArray(rubricas) ? rubricas : [];
-    },
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnWindowFocus: false
+      }const rubricas = await base44.entities.Rubrica.list('ordem_exibicao', 1000);return Array.isArray(rubricas) ? rubricas : [];}, staleTime: 0, gcTime: 0, refetchOnWindowFocus: false
   });
 
   const compartilhadas = useMemo(() => {
@@ -296,14 +296,14 @@ export default function RubricasCompartilhadasRateio({ museu = 'MIS', refreshKey
       {/* cabeçalho */}
       <div className="flex items-center gap-2 mb-1">
         <SplitSquareHorizontal className="w-4 h-4 text-blue-600" />
-        <h3 className="text-sm font-bold text-blue-700 uppercase tracking-wide hidden">
-          Rubricas Compartilhadas — Rateio ÷ 3 — {museu}
-        </h3>
+        
+
+        
       </div>
-      <p className="text-xs text-gray-500 -mt-3 hidden">
-        Rubricas sem museu específico ou compartilhadas entre museus, divididas igualmente.
-        Excluídas do rateio: Produção e Educadores.
-      </p>
+      
+
+
+      
 
       {/* totais rateados */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -322,22 +322,22 @@ export default function RubricasCompartilhadasRateio({ museu = 'MIS', refreshKey
 
       {/* cards por categoria */}
       <div className="space-y-5">
-        {grouped.map(([categoria, items]) =>
-        <section key={categoria} className="space-y-3 hidden">
-            <div className="flex items-center justify-between gap-3">
-              <h4 className="text-xs font-bold uppercase tracking-wide text-blue-600 hidden">
-                {categoria}
-              </h4>
-              <span className="text-xs text-gray-400">
-                {items.length} {items.length === 1 ? 'rubrica' : 'rubricas'} compartilhadas
-              </span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {items.map((rubrica, index) =>
-            <RubricaRateioCard key={rubrica?.id || `shared-${index}`} rubrica={rubrica} />
-            )}
-            </div>
-          </section>
+        {grouped.map(([categoria, items]) => null
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         )}
       </div>
     </div>);
