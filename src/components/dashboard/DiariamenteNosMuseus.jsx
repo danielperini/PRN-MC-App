@@ -5,16 +5,16 @@ import { Quote, MapPin, Calendar, User, RefreshCw, BookOpen, ChevronRight } from
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
 
 const MUSEU_COLORS = {
-  MIS:  { bg: 'bg-blue-50',    border: 'border-blue-200',   badge: 'bg-blue-100 text-blue-700',   dot: 'bg-blue-500' },
-  MHAB: { bg: 'bg-emerald-50', border: 'border-emerald-200', badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
-  MUMO: { bg: 'bg-violet-50',  border: 'border-violet-200', badge: 'bg-violet-100 text-violet-700', dot: 'bg-violet-500' },
+  MIS:  { bg: 'bg-white', accentBar: 'bg-blue-600',  badge: 'bg-blue-600 text-white',   dot: 'bg-blue-600' },
+  MHAB: { bg: 'bg-white', accentBar: 'bg-emerald-700', badge: 'bg-emerald-700 text-white', dot: 'bg-emerald-700' },
+  MUMO: { bg: 'bg-white', accentBar: 'bg-violet-700', badge: 'bg-violet-700 text-white', dot: 'bg-violet-700' },
 };
 
 function getMuseuStyle(museu) {
   for (const key of Object.keys(MUSEU_COLORS)) {
     if (museu && museu.toUpperCase().includes(key)) return MUSEU_COLORS[key];
   }
-  return { bg: 'bg-amber-50', border: 'border-amber-200', badge: 'bg-amber-100 text-amber-700', dot: 'bg-amber-400' };
+  return { bg: 'bg-white', accentBar: 'bg-slate-700', badge: 'bg-slate-800 text-white', dot: 'bg-slate-700' };
 }
 
 function FraseCard({ item, idx }) {
@@ -25,12 +25,20 @@ function FraseCard({ item, idx }) {
 
   return (
     <div
-      className={`relative flex flex-col rounded-2xl border ${style.border} shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden`}
-      style={{ animation: `fade-up 0.4s ease both`, animationDelay: `${delay}ms` }}
+      className="relative flex flex-col rounded-xl bg-white overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
+      style={{
+        border: '1px solid rgba(0,0,0,0.18)',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
+        animation: `fade-up 0.4s ease both`,
+        animationDelay: `${delay}ms`,
+      }}
     >
-      {/* Thumbnail */}
+      {/* Barra de acento colorido no topo */}
+      <div className={`h-1 w-full ${style.accentBar} shrink-0`} />
+
+      {/* Thumbnail — menor e proporcional */}
       {hasThumb && (
-        <div className="w-full h-36 overflow-hidden shrink-0">
+        <div className="w-full h-24 overflow-hidden shrink-0">
           <img
             src={item.imagem_url}
             alt=""
@@ -40,50 +48,53 @@ function FraseCard({ item, idx }) {
       )}
 
       {/* Corpo */}
-      <div className={`flex flex-col gap-3 p-5 flex-1 ${style.bg}`}>
-        {/* Quote icon */}
-        <Quote className="w-6 h-6 text-slate-200 absolute top-3 right-3" />
+      <div className="flex flex-col gap-2.5 p-4 flex-1">
+        {/* Quote + frase */}
+        <div className="relative">
+          <Quote className="w-4 h-4 text-slate-300 mb-1" />
+          <p className="text-slate-900 text-sm leading-relaxed font-medium">
+            {item.frase}
+          </p>
+        </div>
 
-        {/* Frase */}
-        <p className="text-slate-800 text-sm leading-relaxed font-medium pr-4">
-          "{item.frase}"
-        </p>
-
-        {/* Autor destaque */}
+        {/* Autor */}
         {autorValido && (
-          <div className="flex items-center gap-2 mt-1">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${style.badge}`}>
+          <div className="flex items-center gap-2 mt-0.5">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${style.badge}`}>
               {item.autor.charAt(0).toUpperCase()}
             </div>
-            <span className="text-xs text-slate-600 font-medium truncate">{item.autor}</span>
+            <span className="text-xs text-slate-700 font-semibold truncate">{item.autor}</span>
           </div>
         )}
 
-        {/* Meta inferior */}
-        <div className="flex flex-col gap-1.5 mt-auto pt-2 border-t border-black/5">
+        {/* Rodapé */}
+        <div
+          className="mt-auto pt-2.5 flex flex-col gap-1.5"
+          style={{ borderTop: '1px solid rgba(0,0,0,0.12)' }}
+        >
           <div className="flex items-center justify-between">
             {item.museu && (
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${style.badge}`}>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm tracking-wide uppercase ${style.badge}`}>
                 {item.museu}
               </span>
             )}
             {item.data && (
-              <span className="flex items-center gap-1 text-xs text-slate-400">
+              <span className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
                 <Calendar className="w-3 h-3" />
                 {item.data}
               </span>
             )}
           </div>
 
-          <div className="flex items-center justify-between mt-0.5">
-            <span className="flex items-center gap-1 text-xs text-slate-400 italic">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1 text-[10px] text-slate-400">
               <BookOpen className="w-3 h-3" />
-              {item.fonte || 'Fonte: relatório interno'}
+              {item.fonte || 'Relatório interno'}
             </span>
             {item.report_id && (
               <a
                 href={`/ReportEditor?id=${item.report_id}`}
-                className="flex items-center gap-0.5 text-xs text-slate-500 hover:text-slate-800 font-medium transition-colors"
+                className="flex items-center gap-0.5 text-[10px] text-slate-600 hover:text-slate-900 font-semibold transition-colors"
               >
                 Ver relatório
                 <ChevronRight className="w-3 h-3" />
@@ -98,12 +109,14 @@ function FraseCard({ item, idx }) {
 
 function SkeletonCard() {
   return (
-    <div className="rounded-2xl border border-slate-100 overflow-hidden animate-pulse">
-      <div className="h-36 bg-slate-200" />
-      <div className="p-5 space-y-3 bg-slate-50">
-        <div className="h-4 bg-slate-200 rounded w-full" />
-        <div className="h-4 bg-slate-200 rounded w-4/5" />
-        <div className="h-3 bg-slate-100 rounded w-1/3 mt-4" />
+    <div className="rounded-xl overflow-hidden animate-pulse" style={{ border: '1px solid rgba(0,0,0,0.12)' }}>
+      <div className="h-1 bg-slate-300" />
+      <div className="h-24 bg-slate-100" />
+      <div className="p-4 space-y-3 bg-white">
+        <div className="h-3 bg-slate-200 rounded w-full" />
+        <div className="h-3 bg-slate-200 rounded w-4/5" />
+        <div className="h-3 bg-slate-200 rounded w-3/5" />
+        <div className="h-2 bg-slate-100 rounded w-1/3 mt-3" />
       </div>
     </div>
   );
@@ -229,9 +242,9 @@ export default function DiariamenteNosMuseus() {
 
       {/* Separador decorativo */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-px bg-slate-100" />
-        <Quote className="w-4 h-4 text-slate-300" />
-        <div className="flex-1 h-px bg-slate-100" />
+        <div className="flex-1 h-px bg-slate-300" />
+        <Quote className="w-4 h-4 text-slate-500" />
+        <div className="flex-1 h-px bg-slate-300" />
       </div>
 
       {/* Grid de cards */}
