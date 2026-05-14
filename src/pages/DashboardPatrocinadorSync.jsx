@@ -341,7 +341,7 @@ function buildApprovedMetrics(reportsAll) {
 
   // Público geral declarado nos relatórios (campo separado — NÃO entra na soma de atividades)
   const publicoGeralPorMuseu = {};
-  reports.forEach(r => {
+  reports.forEach((r) => {
     const museu = normalizeMuseu(r.museu || r.museu_secundario);
     const pg = inteiro(r.publico_geral_declarado ?? 0);
     if (pg > 0) {
@@ -356,7 +356,7 @@ function buildApprovedMetrics(reportsAll) {
     duplicateCount,
     consolidatedGroupCount: publicoConsolidado.consolidatedGroupCount,
     totalPublico,
-    publicoGeralPorMuseu,
+    publicoGeralPorMuseu
   };
 }
 
@@ -491,7 +491,7 @@ export default function DashboardPatrocinadorSync() {
           atividadesComPublico: items.length,
           publico: publicoAtividades,
           publicoGeral: metrics.publicoGeralPorMuseu[museu] || 0,
-          mediaPublico,
+          mediaPublico
         };
       });
 
@@ -596,10 +596,10 @@ export default function DashboardPatrocinadorSync() {
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-black">Painel do Patrocinador</h1>
-          <p className="text-sm text-gray-500">Dados sincronizados exclusivamente com relatórios aprovados. Agenda exibida separadamente como previsão.</p>
+          <h1 className="text-2xl font-semibold text-black hidden">Painel do Patrocinador</h1>
+          <p className="text-sm text-gray-500 hidden">Dados sincronizados exclusivamente com relatórios aprovados. Agenda exibida separadamente como previsão.</p>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => loadDashboardData(true)} disabled={refreshing} className="gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={() => loadDashboardData(true)} disabled={refreshing} className="gap-2 hidden">
           <RotateCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
           Atualizar
         </Button>
@@ -629,12 +629,12 @@ export default function DashboardPatrocinadorSync() {
               return (
                 <div key={museu} className="rounded-xl border border-gray-200 p-3 space-y-2">
                   <p className="text-sm font-bold text-black">{museu}</p>
-                  {item.publicoGeral > 0 && (
-                    <div>
+                  {item.publicoGeral > 0 &&
+                  <div>
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Público Geral</p>
                       <p className="text-xs font-bold text-black">{fmtInt(item.publicoGeral)}</p>
                     </div>
-                  )}
+                  }
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Atividades c/ público</p>
                     <p className="text-xs text-gray-700">{fmtInt(item.atividadesComPublico)} de {fmtInt(item.atividades)}</p>
@@ -643,14 +643,14 @@ export default function DashboardPatrocinadorSync() {
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Participantes</p>
                     <p className="text-xs text-gray-700">{fmtInt(item.publico)}</p>
                   </div>
-                  {item.mediaPublico > 0 && (
-                    <div>
+                  {item.mediaPublico > 0 &&
+                  <div>
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Média/atividade</p>
                       <p className="text-xs text-gray-700">{fmtInt(item.mediaPublico)}</p>
                     </div>
-                  )}
-                </div>
-              );
+                  }
+                </div>);
+
             })}
           </div>
         </SectionCard>
