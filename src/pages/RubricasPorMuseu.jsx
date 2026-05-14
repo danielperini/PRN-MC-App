@@ -13,56 +13,42 @@ import CardRubricaEditor from '@/components/rubricas/CardRubricaEditor';
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 const ABAS = ['MHAB', 'MIS', 'MUMO', 'NOTURNO'];
 
-// Rubricas administrativas/transversais continuam existindo no financeiro,
-// mas ficam ocultas nesta página para preservar a leitura operacional por museu.
-const GRUPOS_OCULTOS_RUBRICAS_POR_MUSEU = [
-  'consultorias',
-  'consultoria',
-  'despesas_gerais',
-  'despesas gerais',
-  'despesa geral',
-  'equipe',
-  'equipe e gestao',
-  'equipe e gestão',
+const MUSEU_TOKENS = {
+  MIS: ['mis', 'imagem e som'],
+  MHAB: ['mhab', 'abilio', 'abílio', 'historico', 'histórico'],
+  MUMO: ['mumo', 'moda'],
+};
+
+const TERMOS_NOTURNO = [
+  'noturno',
+  'limpeza',
+  'van',
+  'vans',
+  'transporte noturno',
+  'noturno nos museus',
 ];
 
-const TERMOS_OCULTOS_RUBRICAS_POR_MUSEU = [
-  'coordenador',
-  'coordenacao',
-  'coord ',
-  'coord.',
-  'assistente',
-  'analista',
+const TERMOS_ADMINISTRATIVOS_GERAIS = [
+  'coordenador geral',
+  'coordenador de comunicacao',
+  'coordenador de comunicação',
+  'assistente administrativo',
+  'assistente de coordenacao',
+  'assistente de coordenação',
+  'analista adm',
+  'analista administrativo',
   'assessor de imprensa',
-  'assessoria juridica',
-  'juridico',
-  'contador',
-  'contabilidade',
-  'designer',
-  'fotografo',
   'rede social',
   'marketing cultural',
-  'equipe',
-  'gestao',
-  'administrativo',
-  'adm ',
-  'adm.',
   'consultoria',
   'consultorias',
-  'temas transversais',
-  'ambiente seguro',
-  'diversidade',
-  'inclusao',
+  'contador',
+  'contabilidade',
+  'juridico',
+  'jurídico',
   'energia eletrica',
+  'energia elétrica',
   'transporte',
-  'material escritorio',
-  'material de escritorio',
-  'educador',
-  'educadora',
-  'educadores',
-  'diaria educador',
-  'diarias educador',
-  'diarias de educador',
 ];
 
 function toNumber(value) {
@@ -71,120 +57,113 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function normalizeMuseu(value) {
-  const raw = String(value || '').trim().toUpperCase();
-
-  if (!raw) return '';
-  if (raw === 'MIS') return 'MIS';
-  if (raw === 'MHAB') return 'MHAB';
-  if (raw === 'MUMO') return 'MUMO';
-
-  return raw;
-}
-
 function normalizeText(value) {
   return String(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
-function buildRubricaSearchText(rubrica = {}) {
+function normalizeMuseu(value) {
+  const text = normalizeText(value);
+  if (!text) return '';
+  if (text === 'mis' || text.includes('museu da imagem e do som') || text.includes('imagem e som')) return 'MIS';
+  if (text === 'mhab' || text.includes('abilio') || text.includes('historico')) return 'MHAB';
+  if (text === 'mumo' || text.includes('museu da moda') || text.includes('moda')) return 'MUMO';
+  if (text.includes('noturno')) return 'NOTURNO';
+  return String(value || '').trim().toUpperCase();
+}
+
+function getRubricaNome(rubrica = {}) {
+  return String(rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || 'Rubrica sem nome');
+}
+
+function getCategoria(rubrica = {}) {
+  return String(rubrica?.categoria || rubrica?.categoria_key || rubrica?.grupo || rubrica?.grupo_nome || 'geral');
+}
+
+function getSearchText(rubrica = {}) {
   return normalizeText([
     rubrica?.rubrica,
     rubrica?.nome,
     rubrica?.descricao,
     rubrica?.grupo,
     rubrica?.categoria,
+    rubrica?.categoria_key,
     rubrica?.centro_custo,
-    rubrica?.meta_id,
+    rubrica?.museu,
+    rubrica?.museu_codigo,
+    rubrica?.unidade,
     rubrica?.observacao_uso,
   ].filter(Boolean).join(' '));
 }
 
-function isGrupoOcultoRubricasPorMuseu(value) {
-  const texto = normalizeText(value);
-  if (!texto) return false;
-
-  return GRUPOS_OCULTOS_RUBRICAS_POR_MUSEU.some((grupo) => texto === normalizeText(grupo));
+function hasMuseuToken(text = '', museu = '') {
+  return (MUSEU_TOKENS[museu] || []).some((token) => text.includes(normalizeText(token)));
 }
 
-function isRubricaOcultaRubricasPorMuseu(rubrica = {}) {
-  const grupo = rubrica?.grupo ?? rubrica?.categoria;
-  const texto = buildRubricaSearchText(rubrica);
-
-  if (isGrupoOcultoRubricasPorMuseu(grupo)) return true;
-
-  return TERMOS_OCULTOS_RUBRICAS_POR_MUSEU.some((termo) => texto.includes(normalizeText(termo)));
+function getMuseusMencionados(text = '') {
+  return MUSEUS.filter((museu) => hasMuseuToken(text, museu));
 }
 
-function isRubricaNoturno(rubrica = {}) {
-  const texto = buildRubricaSearchText(rubrica);
-
-  return texto.includes('noturno');
+function isNoturnoRubrica(rubrica = {}) {
+  const text = getSearchText(rubrica);
+  const categoria = normalizeText(getCategoria(rubrica));
+  if (categoria.includes('noturno')) return true;
+  return TERMOS_NOTURNO.some((termo) => text.includes(normalizeText(termo)));
 }
 
-function isRubricaValida(rubrica = {}) {
-  return !isRubricaOcultaRubricasPorMuseu(rubrica);
+function isAdministrativoGeral(rubrica = {}) {
+  const text = getSearchText(rubrica);
+  const categoria = normalizeText(getCategoria(rubrica));
+
+  if (categoria === 'equipe' || categoria === 'despesas_gerais' || categoria === 'consultorias') return true;
+
+  return TERMOS_ADMINISTRATIVOS_GERAIS.some((termo) => text.includes(normalizeText(termo)));
 }
 
-function extractResumoMapFromSource(source) {
-  const result = {};
+function isNomeCompartilhadoTresMuseus(rubrica = {}) {
+  const text = getSearchText(rubrica);
+  const mencionados = getMuseusMencionados(text);
 
-  if (!source) return result;
+  return (
+    text.includes('mis / mumo / mhab') ||
+    text.includes('mis/mumo/mhab') ||
+    text.includes('mhab / mis / mumo') ||
+    text.includes('mhab/mis/mumo') ||
+    text.includes('mis mumo mhab') ||
+    mencionados.length >= 2
+  );
+}
 
-  const totaisPorMuseu = source?.totais_por_museu;
-  if (totaisPorMuseu && typeof totaisPorMuseu === 'object' && !Array.isArray(totaisPorMuseu)) {
-    Object.entries(totaisPorMuseu).forEach(([key, dados]) => {
-      const museu = normalizeMuseu(key);
-      if (!MUSEUS.includes(museu)) return;
+function isEspecificaDoMuseu(rubrica = {}, museu = '') {
+  const text = getSearchText(rubrica);
+  const mencionados = getMuseusMencionados(text);
+  const centro = normalizeMuseu(rubrica?.centro_custo || rubrica?.museu || rubrica?.museu_codigo || rubrica?.unidade || '');
 
-      result[museu] = {
-        museu,
-        totalOrcado: toNumber(dados?.totalOrcado),
-        totalUtilizado: toNumber(dados?.totalUtilizado),
-        totalPago: toNumber(dados?.totalPago),
-        totalLancamentos: toNumber(dados?.totalLancamentos),
-        totalSaldo: toNumber(dados?.totalSaldo),
-        pct: dados?.pct !== undefined && dados?.pct !== null ? toNumber(dados.pct) : null,
-      };
-    });
-  }
+  if (centro && MUSEUS.includes(centro) && centro !== museu) return false;
+  if (centro === museu && mencionados.length <= 1) return true;
 
-  const sumarioPorMuseu = source?.sumario_por_museu || source?.sumario?.sumario_por_museu || [];
+  return mencionados.length === 1 && mencionados[0] === museu;
+}
 
-  if (Array.isArray(sumarioPorMuseu)) {
-    sumarioPorMuseu.forEach((item) => {
-      const museu = normalizeMuseu(item?.museu);
-      if (!MUSEUS.includes(museu)) return;
-
-      result[museu] = {
-        museu,
-        totalOrcado: toNumber(item?.valor_orcado),
-        totalUtilizado: toNumber(item?.valor_utilizado),
-        totalPago: toNumber(item?.valor_pago),
-        totalLancamentos: toNumber(item?.valor_lancamentos),
-        totalSaldo: toNumber(item?.saldo),
-        pct: toNumber(item?.valor_orcado) > 0
-          ? Number(((toNumber(item?.valor_utilizado) / toNumber(item?.valor_orcado)) * 100).toFixed(2))
-          : 0,
-      };
-    });
-  }
-
-  return result;
+function deveExibirRubricaNoMuseu(rubrica = {}, museu = '') {
+  const normalizedMuseu = normalizeMuseu(museu);
+  if (!MUSEUS.includes(normalizedMuseu)) return false;
+  if (rubrica?.ativo === false) return false;
+  if (isNoturnoRubrica(rubrica)) return false;
+  if (isAdministrativoGeral(rubrica)) return false;
+  if (isNomeCompartilhadoTresMuseus(rubrica)) return true;
+  return isEspecificaDoMuseu(rubrica, normalizedMuseu);
 }
 
 function extractResumoMapFromRubricas(source) {
   const result = {};
 
-  if (!source?.por_museu || typeof source.por_museu !== 'object') return result;
-
   MUSEUS.forEach((museu) => {
-    const categorias = source.por_museu?.[museu];
-    if (!categorias || typeof categorias !== 'object') return;
-
+    const categorias = source?.por_museu?.[museu];
     const acc = {
       museu,
       totalOrcado: 0,
@@ -195,27 +174,34 @@ function extractResumoMapFromRubricas(source) {
       pct: 0,
     };
 
-    Object.entries(categorias).forEach(([catKey, rubricas]) => {
-      if (isGrupoOcultoRubricasPorMuseu(catKey)) return;
+    if (categorias && typeof categorias === 'object') {
+      const seen = new Set();
 
-      (Array.isArray(rubricas) ? rubricas : [])
-        .filter(isRubricaValida)
-        .forEach((rubrica) => {
-          const totalOrcado = toNumber(rubrica?.totalOrcado ?? rubrica?.valor_rubrica);
-          const totalUtilizado = toNumber(rubrica?.valorUtilizado ?? rubrica?.valor_utilizado);
-          const totalPago = toNumber(rubrica?.valorPago ?? rubrica?.valor_pago);
-          const totalLancamentos = toNumber(rubrica?.valorLancamentos ?? rubrica?.valor_lancamentos);
-          const totalSaldo = rubrica?.saldo !== undefined && rubrica?.saldo !== null
-            ? toNumber(rubrica.saldo)
-            : totalOrcado - totalUtilizado;
+      Object.entries(categorias).forEach(([catKey, rubricas]) => {
+        (Array.isArray(rubricas) ? rubricas : [])
+          .map((rubrica) => ({ ...rubrica, categoria: rubrica?.categoria || catKey }))
+          .filter((rubrica) => deveExibirRubricaNoMuseu(rubrica, museu))
+          .forEach((rubrica) => {
+            const key = `${rubrica?.id || getRubricaNome(rubrica)}-${rubrica?.categoria}-${museu}`;
+            if (seen.has(key)) return;
+            seen.add(key);
 
-          acc.totalOrcado += totalOrcado;
-          acc.totalUtilizado += totalUtilizado;
-          acc.totalPago += totalPago;
-          acc.totalLancamentos += totalLancamentos;
-          acc.totalSaldo += totalSaldo;
-        });
-    });
+            const totalOrcado = toNumber(rubrica?.totalOrcado ?? rubrica?.valor_rubrica);
+            const totalUtilizado = toNumber(rubrica?.valorUtilizado ?? rubrica?.valor_utilizado);
+            const totalPago = toNumber(rubrica?.valorPago ?? rubrica?.valor_pago);
+            const totalLancamentos = toNumber(rubrica?.valorLancamentos ?? rubrica?.valor_lancamentos);
+            const totalSaldo = rubrica?.saldo !== undefined && rubrica?.saldo !== null
+              ? toNumber(rubrica.saldo)
+              : totalOrcado - totalUtilizado;
+
+            acc.totalOrcado += totalOrcado;
+            acc.totalUtilizado += totalUtilizado;
+            acc.totalPago += totalPago;
+            acc.totalLancamentos += totalLancamentos;
+            acc.totalSaldo += totalSaldo;
+          });
+      });
+    }
 
     acc.totalOrcado = Number(acc.totalOrcado.toFixed(2));
     acc.totalUtilizado = Number(acc.totalUtilizado.toFixed(2));
@@ -367,14 +353,8 @@ export default function RubricasPorMuseu() {
   });
 
   const resumoPorMuseu = useMemo(() => {
-    const baseRubricasMap = extractResumoMapFromRubricas(consolidado);
-    const recalcRubricasMap = extractResumoMapFromRubricas(lastRecalcResponse);
-    const baseMap = Object.keys(baseRubricasMap).length > 0
-      ? baseRubricasMap
-      : extractResumoMapFromSource(consolidado);
-    const recalcMap = Object.keys(recalcRubricasMap).length > 0
-      ? recalcRubricasMap
-      : extractResumoMapFromSource(lastRecalcResponse);
+    const baseMap = extractResumoMapFromRubricas(consolidado);
+    const recalcMap = extractResumoMapFromRubricas(lastRecalcResponse);
     const merged = { ...baseMap, ...recalcMap };
 
     return MUSEUS.map((m) => {
@@ -383,14 +363,13 @@ export default function RubricasPorMuseu() {
       const totalUtilizado = toNumber(dados.totalUtilizado);
       const totalPago = toNumber(dados.totalPago);
       const totalLancamentos = toNumber(dados.totalLancamentos);
-      const totalSaldo = toNumber(dados.totalSaldo);
+      const totalSaldo = dados.totalSaldo !== undefined && dados.totalSaldo !== null
+        ? toNumber(dados.totalSaldo)
+        : Number((totalOrcado - totalUtilizado).toFixed(2));
 
-      const pct =
-        dados.pct !== undefined && dados.pct !== null
-          ? toNumber(dados.pct)
-          : totalOrcado > 0
-            ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(2))
-            : 0;
+      const pct = totalOrcado > 0
+        ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(2))
+        : 0;
 
       return { museu: m, totalOrcado, totalUtilizado, totalPago, totalLancamentos, totalSaldo, pct };
     });
@@ -547,7 +526,7 @@ export default function RubricasPorMuseu() {
                 {museuAtivo === 'NOTURNO' ? 'Rubricas do Noturno' : 'Detalhamento por Museu'}
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                Visualização e edição das rubricas operacionais, específicas e rateáveis.
+                Visualização das rubricas específicas e compartilhadas filtradas por museu.
               </p>
             </div>
 
@@ -574,7 +553,6 @@ export default function RubricasPorMuseu() {
                   museu={m}
                   canEdit={canEdit}
                   refreshKey={refreshNonce}
-                  rubricaFilter={m === 'NOTURNO' ? isRubricaNoturno : isRubricaValida}
                 />
               </TabsContent>
             ))}
