@@ -1,0 +1,150 @@
+{
+  "name": "Release",
+  "type": "object",
+  "properties": {
+    "titulo": {
+      "type": "string",
+      "description": "T\u00edtulo do release"
+    },
+    "conteudo_completo": {
+      "type": "string",
+      "description": "Texto completo do release extra\u00eddo do arquivo"
+    },
+    "conteudo_resumido": {
+      "type": "string",
+      "description": "Resumo editorial para uso em relat\u00f3rios"
+    },
+    "drive_file_id": {
+      "type": "string",
+      "description": "ID do arquivo no Google Drive"
+    },
+    "drive_file_name": {
+      "type": "string",
+      "description": "Nome do arquivo original"
+    },
+    "pasta_drive": {
+      "type": "string",
+      "description": "Caminho da pasta no Drive (ex: Releases/2026/05-maio)"
+    },
+    "mes": {
+      "type": "string",
+      "enum": [
+        "Janeiro",
+        "Fevereiro",
+        "Mar\u00e7o",
+        "Abril",
+        "Maio",
+        "Junho",
+        "Julho",
+        "Agosto",
+        "Setembro",
+        "Outubro",
+        "Novembro",
+        "Dezembro"
+      ],
+      "description": "M\u00eas do release"
+    },
+    "ano": {
+      "type": "number",
+      "default": 2026,
+      "description": "Ano do release"
+    },
+    "museus": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Museus mencionados (MHAB, MIS, MUMO)"
+    },
+    "tipos_atividade": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tipos de atividades (oficina, palestra, exposi\u00e7\u00e3o, etc)"
+    },
+    "palavras_chave": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags para busca sem\u00e2ntica"
+    },
+    "atividades_vinculadas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "activity_id": {
+            "type": "string"
+          },
+          "titulo_atividade": {
+            "type": "string"
+          },
+          "confianca": {
+            "type": "number",
+            "description": "0-100, n\u00edvel de confian\u00e7a do match"
+          }
+        }
+      },
+      "description": "Atividades do sistema relacionadas"
+    },
+    "programacao_vinculada": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "programacao_id": {
+            "type": "string"
+          },
+          "titulo": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Programa\u00e7\u00f5es vinculadas"
+    },
+    "relatorios_vinculados": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "report_id": {
+            "type": "string"
+          },
+          "uso": {
+            "type": "string",
+            "description": "onde foi usado (introducao, resumo, destaque)"
+          }
+        }
+      },
+      "description": "Relat\u00f3rios que utilizam este release"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "novo",
+        "indexado",
+        "vinculado",
+        "aprovado"
+      ],
+      "default": "novo",
+      "description": "Status de processamento"
+    },
+    "data_sincronizacao": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Quando foi sincronizado do Drive"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se est\u00e1 ativo para uso editorial"
+    }
+  },
+  "required": [
+    "titulo",
+    "conteudo_completo",
+    "drive_file_id"
+  ]
+}

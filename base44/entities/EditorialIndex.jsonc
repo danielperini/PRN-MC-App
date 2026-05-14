@@ -1,0 +1,73 @@
+{
+  "name": "EditorialIndex",
+  "type": "object",
+  "properties": {
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "release",
+        "programacao",
+        "atividade",
+        "comunicacao",
+        "referencia_externa"
+      ],
+      "description": "Tipo de conte\u00fado indexado"
+    },
+    "titulo": {
+      "type": "string",
+      "description": "T\u00edtulo do conte\u00fado"
+    },
+    "resumo": {
+      "type": "string",
+      "description": "Resumo executivo"
+    },
+    "conteudo_editorial": {
+      "type": "string",
+      "description": "Fragmento editorializado para uso em relat\u00f3rios"
+    },
+    "origem_id": {
+      "type": "string",
+      "description": "ID da entidade original (release_id, activity_id, programacao_id, etc)"
+    },
+    "museu": {
+      "type": "string",
+      "description": "Museu relacionado"
+    },
+    "mes": {
+      "type": "string",
+      "description": "M\u00eas"
+    },
+    "ano": {
+      "type": "number",
+      "description": "Ano"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags para busca"
+    },
+    "relevancia_editorial": {
+      "type": "number",
+      "description": "Score 0-100 de relev\u00e2ncia para narrativa"
+    },
+    "usado_em_relatorios": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs de relat\u00f3rios que usam este conte\u00fado"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se est\u00e1 ativo para uso"
+    }
+  },
+  "required": [
+    "tipo",
+    "titulo",
+    "conteudo_editorial"
+  ]
+}

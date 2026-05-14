@@ -5,6 +5,8 @@ import AtividadesSection from '@/components/reports/AtividadesSection';
 import AttachmentsSection from '@/components/reports/AttachmentsSection';
 import ReportPhotoSection from '@/components/reports/ReportPhotoSection';
 import DepoimentosSection from '@/components/reports/DepoimentosSection';
+import EditorialEnhancer from '@/components/reports/EditorialEnhancer';
+import ReleasePanelEditor from '@/components/reports/ReleasePanelEditor';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -464,6 +466,42 @@ export default function ReportEditor() {
                 placeholder="Descreva o resumo executivo"
                 className="min-h-[150px] text-base p-4"
               />
+            </div>
+
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-semibold mb-4">Inteligência Editorial</h3>
+              <div className="grid md:grid-cols-2 gap-6">
+                <ReleasePanelEditor
+                  mes={form.mes_referencia}
+                  ano={form.ano}
+                  museu={form.museu}
+                  onSelect={(release) => {
+                    // Adicionar release ao resumo executivo
+                    if (release.conteudo_resumido) {
+                      setForm((prev) => ({
+                        ...prev,
+                        resumo_executivo: `${prev.resumo_executivo}\n\n📰 ${release.titulo}:\n${release.conteudo_resumido}`
+                      }));
+                      toast.success('Release adicionado ao resumo executivo');
+                    }
+                  }}
+                />
+                <EditorialEnhancer
+                  reportId={report.id}
+                  mes={form.mes_referencia}
+                  ano={form.ano}
+                  museu={form.museu}
+                  onEnhance={(editorial) => {
+                    if (editorial.introducao) {
+                      setForm((prev) => ({
+                        ...prev,
+                        resumo_periodo: editorial.introducao
+                      }));
+                    }
+                    toast.success('Relatório enriquecido com inteligência editorial!');
+                  }}
+                />
+              </div>
             </div>
 
             <div>
