@@ -13,6 +13,58 @@ import CardRubricaEditor from '@/components/rubricas/CardRubricaEditor';
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 const ABAS = ['MHAB', 'MIS', 'MUMO', 'NOTURNO'];
 
+// Rubricas administrativas/transversais continuam existindo no financeiro,
+// mas ficam ocultas nesta página para preservar a leitura operacional por museu.
+const GRUPOS_OCULTOS_RUBRICAS_POR_MUSEU = [
+  'consultorias',
+  'consultoria',
+  'despesas_gerais',
+  'despesas gerais',
+  'despesa geral',
+  'equipe',
+  'equipe e gestao',
+  'equipe e gestão',
+];
+
+const TERMOS_OCULTOS_RUBRICAS_POR_MUSEU = [
+  'coordenador',
+  'coordenacao',
+  'coord ',
+  'coord.',
+  'assistente',
+  'analista',
+  'assessor de imprensa',
+  'assessoria juridica',
+  'juridico',
+  'contador',
+  'contabilidade',
+  'designer',
+  'fotografo',
+  'rede social',
+  'marketing cultural',
+  'equipe',
+  'gestao',
+  'administrativo',
+  'adm ',
+  'adm.',
+  'consultoria',
+  'consultorias',
+  'temas transversais',
+  'ambiente seguro',
+  'diversidade',
+  'inclusao',
+  'energia eletrica',
+  'transporte',
+  'material escritorio',
+  'material de escritorio',
+  'educador',
+  'educadora',
+  'educadores',
+  'diaria educador',
+  'diarias educador',
+  'diarias de educador',
+];
+
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
   const n = Number(value);
@@ -38,8 +90,8 @@ function normalizeText(value) {
     .trim();
 }
 
-function isRubricaNoturno(rubrica = {}) {
-  const texto = normalizeText([
+function buildRubricaSearchText(rubrica = {}) {
+  return normalizeText([
     rubrica?.rubrica,
     rubrica?.nome,
     rubrica?.descricao,
@@ -49,51 +101,32 @@ function isRubricaNoturno(rubrica = {}) {
     rubrica?.meta_id,
     rubrica?.observacao_uso,
   ].filter(Boolean).join(' '));
+}
+
+function isGrupoOcultoRubricasPorMuseu(value) {
+  const texto = normalizeText(value);
+  if (!texto) return false;
+
+  return GRUPOS_OCULTOS_RUBRICAS_POR_MUSEU.some((grupo) => texto === normalizeText(grupo));
+}
+
+function isRubricaOcultaRubricasPorMuseu(rubrica = {}) {
+  const grupo = rubrica?.grupo ?? rubrica?.categoria;
+  const texto = buildRubricaSearchText(rubrica);
+
+  if (isGrupoOcultoRubricasPorMuseu(grupo)) return true;
+
+  return TERMOS_OCULTOS_RUBRICAS_POR_MUSEU.some((termo) => texto.includes(normalizeText(termo)));
+}
+
+function isRubricaNoturno(rubrica = {}) {
+  const texto = buildRubricaSearchText(rubrica);
 
   return texto.includes('noturno');
 }
 
 function isRubricaValida(rubrica = {}) {
-  const texto = normalizeText([
-    rubrica?.rubrica,
-    rubrica?.nome,
-    rubrica?.descricao,
-    rubrica?.grupo,
-    rubrica?.categoria,
-    rubrica?.centro_custo,
-    rubrica?.meta_id,
-  ].filter(Boolean).join(' '));
-
-  if (
-    texto.includes('coordenador') ||
-    texto.includes('coordenacao') ||
-    texto.includes('coord ') ||
-    texto.includes('coord.') ||
-    texto.includes('assistente') ||
-    texto.includes('analista') ||
-    texto.includes('equipe') ||
-    texto.includes('gestao') ||
-    texto.includes('administrativo') ||
-    texto.includes('adm ') ||
-    texto.includes('adm.') ||
-    texto.includes('consultoria') ||
-    texto.includes('consultorias') ||
-    texto.includes('juridico') ||
-    texto.includes('contador') ||
-    texto.includes('contabilidade') ||
-    texto.includes('energia eletrica') ||
-    texto.includes('material escritorio') ||
-    texto.includes('educador') ||
-    texto.includes('educadora') ||
-    texto.includes('educadores') ||
-    texto.includes('diaria educador') ||
-    texto.includes('diarias educador') ||
-    texto.includes('diarias de educador')
-  ) {
-    return false;
-  }
-
-  return true;
+  return !isRubricaOcultaRubricasPorMuseu(rubrica);
 }
 
 function extractResumoMapFromSource(source) {
@@ -163,20 +196,7 @@ function extractResumoMapFromRubricas(source) {
     };
 
     Object.entries(categorias).forEach(([catKey, rubricas]) => {
-      const cat = normalizeText(catKey);
-
-      if (
-        cat.includes('equipe') ||
-        cat.includes('educador') ||
-        cat.includes('diarias_educador') ||
-        cat.includes('diarias educador') ||
-        cat.includes('coordenacao') ||
-        cat.includes('gestao') ||
-        cat.includes('administrativo') ||
-        cat.includes('consultoria')
-      ) {
-        return;
-      }
+      if (isGrupoOcultoRubricasPorMuseu(catKey)) return;
 
       (Array.isArray(rubricas) ? rubricas : [])
         .filter(isRubricaValida)
