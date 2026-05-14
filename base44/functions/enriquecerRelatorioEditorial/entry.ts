@@ -116,12 +116,26 @@ Deno.serve(async (req) => {
       buscarProgramacaoRelevante(base44, mes, ano, museu)
     ]);
 
-    // Gerar conteúdo editorial
-    const introducao = gerarIntroducaoEditorial(releases, atividades, programacao, mes, ano);
-    const resumo = gerarResumoExecutivo(releases, { atividades, programacao });
-    const narrativaMetas = gerarNarrativaMetas(atividades);
-    
-    // Vincular releases com atividades
+    // Gerar conteúdo editorial via IA
+    const prompt = `Crie introdução editorial para relatório de ${mes}/${ano} com:
+- ${releases.length} releases publicados
+- ${atividades.length} atividades realizadas
+- ${programacao.length} programações
+
+Introdução deve:
+1. Conectar temas principais dos releases
+2. Destacar alcance e participação
+3. Refletir qualidade editorial
+
+1 parágrafo denso, tom institucional.`;
+
+    const introducao = await base44.integrations.Core.InvokeLLM({
+      prompt: prompt,
+      model: 'gemini_3_flash'
+    });
+
+    const resumo = releases.filter(r => r.conteudo_resumido).slice(0, 2).map(r => `**${r.titulo}**: ${r.conteudo_resumido}`).join('\n\n') || null;
+    const narrativaMetas = atividades.filter(a => a.classificacao === 'META').slice(0, 3).map(m => `${m.titulo}: alcançado`).join('; ') || null;
     const releasesVinculados = vincularReleaseAAtividade(releases, atividades);
 
     return Response.json({

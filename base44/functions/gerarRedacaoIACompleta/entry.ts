@@ -725,30 +725,44 @@ A consolidação institucional que marca este período representa realização: 
 // ============================================
 
 async function gerarConsolidacaoEditorial(base44, dados) {
-  const { relatorio, atividades, releases, programacao, attachments } = dados;
+   const { relatorio, atividades, releases, programacao, attachments } = dados;
 
-  const public_geral = relatorio.publico_geral_declarado || 0;
-  const ativ_realizadas = atividades.length;
-  const rel_publicados = releases.length;
-  const prog_realizada = programacao.filter(p => p.status === 'realizado').length;
+   const public_geral = relatorio.publico_geral_declarado || 0;
+   const ativ_realizadas = atividades.length;
+   const rel_publicados = releases.length;
+   const prog_realizada = programacao.filter(p => p.status === 'realizado').length;
 
-  const texto = `A consolidação editorial integrada deste relatório emerge da síntese de múltiplas fontes documentais: ${ativ_realizadas} atividades documentadas em seus detalhes (público, eixo, educadores, impacto percebido), ${rel_publicados} releases que comunicaram ações ao espaço público, ${programacao.length} programações planejadas com ${prog_realizada} executadas, e ${attachments.length} registros visuais e documentais que capturam a multiplicidade de momentos institucionais. Essa integração não é merely administrativa — é epistemológica, reconhecendo que verdade institucional emerge da convergência de múltiplas narrativas parciais.
+   const prompt = `Crie uma narrativa de consolidação editorial que integra:
+- ${ativ_realizadas} atividades documentadas
+- ${rel_publicados} releases publicados
+- ${programacao.length} programações com ${prog_realizada} realizadas
+- ${attachments.length} registros visuais/documentais
+- Público geral de ${public_geral} pessoas
 
-A análise integrada revela coerências profundas: as atividades mais documentadas fotograficamente tendem a ser aquelas de maior público e impacto territorial; os releases publicados enfatizam ações alinhadas com prioridades estratégicas claramente definidas; a programação realizada reflete planejamento cuidadoso que equilibra ousadia com viabilidade. Essas convergências não são coincidência, mas expressão de instituição que funciona de forma integrada, onde decisões estratégicas, execução, comunicação e documentação alinham-se em direção comum.
+Narrativa deve:
+1. Explicar como múltiplas fontes convergem em narrativa única
+2. Destacar coerências entre atividades, releases e programação
+3. Refletir sobre maturidade institucional
+4. Concluir com visão de futuro
 
-A narrativa que emerge dessa consolidação é de instituição madura, comprometida com excelência em atuação e comunicação responsável de resultados. Os Museus Centro não apenas realizam ações culturais e educativas, mas assumem responsabilidade de documentá-las, comunicá-las, e refletir criticamente sobre seu impacto. Essa reflexividade — capacidade de olhar para próprio trabalho e aprender com ele — é marca de instituição que evolui. O período encerrado não é fim de ciclo, mas consolidação de plataforma para ambição futura.`;
+3 parágrafos densos, tom reflexivo.`;
 
-  return {
-    tipo: 'consolidacao_ia',
-    titulo: 'Consolidação Editorial IA',
-    texto,
-    metricas: {
-      publico_geral,
-      atividades_realizadas: ativ_realizadas,
-      releases_publicados: rel_publicados,
-      programacoes_realizadas: prog_realizada
-    },
-    confianca: 95,
-    fontes: ['Report', 'Activity', 'Release', 'Programacao', 'Attachment']
-  };
+   const texto = await base44.integrations.Core.InvokeLLM({
+     prompt: prompt,
+     model: 'gemini_3_flash'
+   });
+
+   return {
+     tipo: 'consolidacao_ia',
+     titulo: 'Consolidação Editorial IA',
+     texto: texto || '',
+     metricas: {
+       publico_geral,
+       atividades_realizadas: ativ_realizadas,
+       releases_publicados: rel_publicados,
+       programacoes_realizadas: prog_realizada
+     },
+     confianca: 85,
+     fontes: ['Report', 'Activity', 'Release', 'Programacao', 'Attachment']
+   };
 }
