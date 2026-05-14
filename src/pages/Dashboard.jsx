@@ -86,8 +86,8 @@ function DashboardCoordenadorView({
       ref={containerRef}
       className="min-h-screen bg-background"
     >
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
-        <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-6">
+        <div className="flex items-center justify-between mb-2 gap-4 flex-wrap">
           <div>
             <h1 className="text-3xl font-semibold text-foreground">
               Dashboard
@@ -123,7 +123,11 @@ function DashboardCoordenadorView({
           </div>
         </div>
 
+        <GaleriaTickerCarousel />
+
         <NewsCarousel />
+
+        <DiariamenteNosMuseus />
 
         <ComplianceStats
           currentMonth={
@@ -494,6 +498,8 @@ function DashboardInner() {
           </div>
 
           <GaleriaTickerCarousel />
+
+          <NewsCarousel />
 
           <DiariamenteNosMuseus />
 
