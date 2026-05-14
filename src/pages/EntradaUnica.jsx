@@ -623,7 +623,27 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
   }
 
   function handleReview(intake) { setReviewIntake(intake); }
-  async function handleSaved() { await loadIntakes(); setReviewIntake(null); }
+  
+  async function handleSaved() {
+    // Se foi salva uma foto, encaminha para galeria e envia email
+    if (reviewIntake && reviewIntake.tipo_detectado === 'FOTO_ATIVIDADE') {
+      try {
+        await base44.functions.invoke('processarFotoEntradaUnica', {
+          intake_id: reviewIntake.id,
+          file_url: reviewIntake.arquivo_original_url,
+          file_name: reviewIntake.file_name_original || reviewIntake.file_name_final,
+          user_email: user.email,
+          user_name: user.full_name || user.email
+        });
+      } catch (err) {
+        console.error('Erro ao processar foto:', err);
+        toast.error('Erro ao encaminhar foto para galeria');
+      }
+    }
+    await loadIntakes();
+    setReviewIntake(null);
+  }
+  
   function handleDeleted(id) { setIntakes((prev) => prev.filter((i) => i.id !== id)); }
   function handleSentToApproval(id) { setIntakes((prev) => prev.filter((i) => i.id !== id)); toast.success('Enviado para aprovação com sucesso.'); }
 
