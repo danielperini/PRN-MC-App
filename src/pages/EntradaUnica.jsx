@@ -319,7 +319,45 @@ export default function EntradaUnica() {
       await base44.entities.DocumentIntake.update(intakeId, { status_processamento: 'AGUARDANDO_REVISAO', tipo_detectado: tipoFallback, erros_validacao: ['IA não conseguiu concluir a análise. Revise manualmente.'] }).catch(() => {});
     };
     try {
+      // Pré-triagem rápida para detectar contratos antes da análise completa
       await base44.entities.DocumentIntake.update(intakeId, { status_processamento: 'ANALISANDO_IA' });
+
+      // Verificar se pode ser contrato (análise de tipo rápida)
+      const tipagemRapida = await Promise.race([
+        base44.integrations.Core.InvokeLLM({
+          prompt: `Este documento é um CONTRATO (contrato de prestação de serviços, contrato de trabalho, termo de prestação, etc.) ou uma NOTA FISCAL / RECIBO / OUTRO?
+Responda apenas com uma palavra: CONTRATO ou NOTA_FISCAL ou OUTRO.`,
+          file_urls: [fileUrl],
+          response_json_schema: { type: 'object', properties: { tipo: { type: 'string' } } },
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 15000)),
+      ]).catch(() => ({ tipo: 'NOTA_FISCAL' }));
+
+      const tipoRapido = String(tipagemRapida?.tipo || '').toUpperCase();
+
+      if (tipoRapido === 'CONTRATO') {
+        // Delegar ao processamento especializado de contratos
+        await base44.entities.DocumentIntake.update(intakeId, {
+          tipo_detectado: 'CONTRATO',
+          status_processamento: 'ANALISANDO_IA',
+        });
+        try {
+          await base44.functions.invoke('processarContratoEntradaUnica', {
+            intake_id: intakeId,
+            file_url: fileUrl,
+            file_name: orientacoes ? undefined : undefined,
+          });
+        } catch (contratoErr) {
+          console.error('Erro ao processar contrato:', contratoErr);
+          await base44.entities.DocumentIntake.update(intakeId, {
+            status_processamento: 'AGUARDANDO_REVISAO',
+            tipo_detectado: 'CONTRATO',
+            erros_validacao: ['Análise de contrato falhou. Revise manualmente.'],
+          }).catch(() => {});
+        }
+        return;
+      }
+
       const prompt = `Você é um especialista em notas fiscais, XML fiscal, recibos e comprovantes brasileiros.
 Analise o documento anexado e extraia os campos em JSON.
 

@@ -42,6 +42,7 @@ import RubricasGrid from '@/components/compras/RubricasGrid';
 import RubricaDetail from '@/components/rubricas/RubricaDetail';
 import AuditoriaFinanceiraCard from '@/components/compras/AuditoriaFinanceiraCard';
 import EntradaUnicaComprovante from '@/components/compras/EntradaUnicaComprovante';
+import MeusPagamentosTab from '@/components/compras/MeusPagamentosTab';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -923,7 +924,8 @@ function ComprasInner() {
             { id: 'lista', label: 'Solicitações' },
             ...(isCoordenador ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
             { id: 'documentos', label: 'Documentos' },
-            { id: 'equipe', label: 'Equipe' }
+            ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
+            { id: 'meus_pagamentos', label: 'Meus Pagamentos' }
           ].map((t) => (
             <button
               key={t.id}
@@ -1087,7 +1089,17 @@ function ComprasInner() {
           </div>
         )}
 
-        {tab === 'equipe' && <TeamManager budgetLines={budgetLines} />}
+        {tab === 'equipe' && isCoordenador && <TeamManager budgetLines={budgetLines} />}
+
+        {tab === 'meus_pagamentos' && (
+          <MeusPagamentosTab
+            purchases={purchasesWithFlags}
+            attachments={anexosCompras}
+            currentUser={currentUser}
+            isCoordenador={isCoordenador}
+            hasGestaoCompras={hasGestaoCompras}
+          />
+        )}
 
         {isCoordenador && (
           <div className="mt-8">
