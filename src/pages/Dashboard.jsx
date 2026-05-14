@@ -13,6 +13,7 @@ import NewsCarousel from '../components/dashboard/NewsCarousel';
 import ExecutiveIndicators from '../components/dashboard/ExecutiveIndicators';
 import DashboardProfissional from './DashboardProfissional';
 import DashboardPatrocinador from './DashboardPatrocinador';
+import GaleriaTickerCarousel from '../components/dashboard/GaleriaTickerCarousel';
 
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
@@ -490,6 +491,8 @@ function DashboardInner() {
               onChange={setDashboardViewMode}
             />
           </div>
+
+          <GaleriaTickerCarousel />
 
           <DashboardPatrocinador />
         </div>
