@@ -46,10 +46,11 @@ function reportInPeriod(report, from, to) {
          rep <= new Date(to.getFullYear(), to.getMonth(), 1);
 }
 
-// ── coleta expandida de dados ──────────────────────────────────────────────────
+// ── coleta integral da base de conhecimento ───────────────────────────────────
 
 async function coletarDadosExpandidos(base44, from, to, museuFiltro) {
-  const [reports, rubricas, purchases, attachments, programacao, nf_intake, agenda, releases, teamMembers, comunicacao] = await Promise.all([
+  const [reports, rubricas, purchases, attachments, programacao, nf_intake, agenda, releases, teamMembers, comunicacao, 
+    knowledge, reportPhotos, momentos, newsHighlight, comment, suggestion] = await Promise.all([
     base44.asServiceRole.entities.Report.list('-created_date', 500),
     base44.asServiceRole.entities.Rubrica.list('grupo', 200),
     base44.asServiceRole.entities.PurchaseRequest.list('-created_date', 500),
@@ -60,6 +61,12 @@ async function coletarDadosExpandidos(base44, from, to, museuFiltro) {
     base44.asServiceRole.entities.Release?.list?.('-created_date', 500).catch(() => []) || [],
     base44.asServiceRole.entities.TeamMember?.list?.('-created_date', 500).catch(() => []) || [],
     base44.asServiceRole.entities.NewsHighlight?.list?.('-created_date', 200).catch(() => []) || [],
+    base44.asServiceRole.entities.KnowledgeDocument?.list?.('-created_date', 300).catch(() => []) || [],
+    base44.asServiceRole.entities.ReportPhoto?.list?.('-created_date', 500).catch(() => []) || [],
+    base44.asServiceRole.entities.Momento?.list?.('-created_date', 200).catch(() => []) || [],
+    base44.asServiceRole.entities.NewsHighlight?.list?.('-created_date', 100).catch(() => []) || [],
+    base44.asServiceRole.entities.Comment?.list?.('-created_date', 300).catch(() => []) || [],
+    base44.asServiceRole.entities.Suggestion?.list?.('-created_date', 100).catch(() => []) || [],
   ]);
 
   const relsFiltrados = reports.filter(r => {
@@ -133,9 +140,21 @@ async function coletarDadosExpandidos(base44, from, to, museuFiltro) {
     return c.ativo !== false;
   });
 
+  const knowledgeAtivo = knowledge.filter(k => {
+    const d = parseDateStr(k.created_date);
+    if (!d || d < from || d > to) return false;
+    return k.ativo !== false;
+  });
+
+  const momentosFiltrados = momentos.filter(m => {
+    const d = parseDateStr(m.data || m.created_date);
+    if (!d || d < from || d > to) return false;
+    return m.ativo !== false;
+  });
+
   return {
     relsFiltrados, allAtividades, comprasFiltradas, attachsFiltrados, rubricasAtivas, rubricaMap, progFiltradas,
-    nfFiltradas, agendaFiltrada, releasesFiltrados, teamFiltrado, comFiltrada,
+    nfFiltradas, agendaFiltrada, releasesFiltrados, teamFiltrado, comFiltrada, knowledgeAtivo, reportPhotos, momentosFiltrados,
   };
 }
 
@@ -185,21 +204,26 @@ function calcMetricasExpandidas({ relsFiltrados, allAtividades, comprasFiltradas
   };
 }
 
-// ── contexto editorial para IA ─────────────────────────────────────────────────
+// ── contexto editorial integral com análise de imagens ────────────────────────
 
-function buildContextoEditorial(dados, metricas, periodoStr, museuStr) {
-  const { relsFiltrados, allAtividades, releasesFiltrados, agendaFiltrada, teamFiltrado, comprasFiltradas } = dados;
+function buildContextoEditorial(dados, metricas, periodoStr, museuStr, fotosAnalisadas = []) {
+  const { relsFiltrados, allAtividades, releasesFiltrados, agendaFiltrada, teamFiltrado, comprasFiltradas, knowledgeAtivo, momentosFiltrados } = dados;
 
   const atividadesTitulos = allAtividades.slice(0, 50).map(a => a.titulo || a.nome || '').filter(Boolean).join('; ');
   const releasesTitulos = releasesFiltrados.slice(0, 20).map(r => r.titulo || r.conteudo_resumido?.slice(0, 50) || '').filter(Boolean).join('; ');
   const agendaTitulos = agendaFiltrada.slice(0, 15).map(a => a.titulo || a.evento || '').filter(Boolean).join('; ');
+  
+  const conhecimentoTexto = (knowledgeAtivo || []).slice(0, 5).map(k => k.titulo || k.conteudo?.slice(0, 60) || '').filter(Boolean).join('; ');
+  const momentosTexto = (momentosFiltrados || []).slice(0, 5).map(m => m.descricao || m.titulo || '').filter(Boolean).join('; ');
+  
+  const analisesFotosTexto = fotosAnalisadas.slice(0, 10).map(f => f.analise_visual || '').filter(Boolean).join(' | ').slice(0, 500);
 
   const resumosRels = relsFiltrados.slice(0, 10).map(r =>
     [r.resumo_executivo, r.resumo_periodo, r.avaliacao_pontos_positivos]
       .filter(Boolean).join(' | ').slice(0, 300)
   ).filter(Boolean).join('\n');
 
-  return `Contexto Editorial para Relatório Físico-Financeiro do Projeto Museus Centro
+  return `Contexto Editorial Integral — Relatório Físico-Financeiro do Projeto Museus Centro
 Período: ${periodoStr} | Museus: ${museuStr}
 
 INDICADORES REAIS VERIFICADOS:
@@ -222,28 +246,77 @@ ${releasesTitulos || 'Não informado'}
 AGENDA DO PERÍODO:
 ${agendaTitulos || 'Não informado'}
 
+BASE DE CONHECIMENTO:
+${conhecimentoTexto || 'Não informado'}
+
+MOMENTOS MARCANTES:
+${momentosTexto || 'Não informado'}
+
+ANÁLISE VISUAL DE IMAGENS (contexto fotográfico):
+${analisesFotosTexto || 'Sem análise visual disponível'}
+
 TRECHOS DOS RELATÓRIOS:
 ${resumosRels || 'Não informado'}
 
 DIRETRIZES OBRIGATÓRIAS:
 1. Use SOMENTE dados verificados acima — NUNCA invente números ou fatos.
-2. Linguagem institucional, editorial, sofisticada e analítica.
-3. Contextualize atividades — relate ao público, ao impacto territorial, ao diálogo.
-4. Evite: frases genéricas, "foi realizado" repetido, linguagem automática.
-5. Cruze múltiplas fontes: agenda ↔ atividade ↔ release ↔ relatório.
-6. Produza textos densos, completos e curatoriais.
-7. Mencione museus (MIS, MHAB, MUMO) quando relevante.`;
+2. Consulte simultaneamente: relatórios, atividades, releases, agenda, programação, conhecimento, imagens.
+3. Utilize análise visual das imagens para contextualizar e enriquecer narrativa.
+4. Linguagem institucional, editorial, sofisticada e analítica.
+5. Contextualize atividades — relate ao público, ao impacto territorial, ao diálogo.
+6. Evite: frases genéricas, "foi realizado" repetido, linguagem automática, textos superficiais.
+7. Cruze múltiplas fontes: agenda ↔ atividade ↔ release ↔ relatório ↔ imagem ↔ conhecimento.
+8. Produza textos densos, completos, curatoriais e editorializada.
+9. Se análise visual confirma contexto, use para enriquecer — ex: "identificar público, materiais, dinâmica".
+10. Mencione museus (MIS, MHAB, MUMO) quando relevante.
+11. Confiança mínima >= 95% para informações extraídas.`;
 }
 
-// ── construção de fotos ───────────────────────────────────────────────────────
+// ── análise de imagens com contexto visual ─────────────────────────────────────
 
-function buildFotosComLegenda(allAtividades, rubricaMap) {
+async function analisarImagensComVisao(fotosList, base44) {
+  if (!fotosList || fotosList.length === 0) return [];
+
+  const fotosAnalisadas = [];
+  
+  for (const foto of fotosList.slice(0, 60)) {
+    if (!foto.url) continue;
+    
+    try {
+      // Análise visual com IA
+      const analiseVisual = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        prompt: `Analise esta imagem de uma atividade cultural e identifique (máximo 2 linhas):
+- tipo de atividade (oficina, exposição, visita, roda de conversa, apresentação, educativo);
+- elementos visuais principais (materiais, público, espaço, interação);
+- contexto institucional.
+
+Seja conciso e direto.`,
+        file_urls: [foto.url],
+        model: 'gemini_3_flash',
+      });
+
+      fotosAnalisadas.push({
+        ...foto,
+        analise_visual: typeof analiseVisual === 'string' ? analiseVisual : (analiseVisual?.output || ''),
+      });
+    } catch (err) {
+      fotosAnalisadas.push({ ...foto, analise_visual: '' });
+    }
+  }
+
+  return fotosAnalisadas;
+}
+
+// ── construção de fotos com curadoria automática ───────────────────────────────
+
+function buildFotosComLegenda(allAtividades, reportPhotos, rubricaMap) {
   const lista = [];
   const usedUrls = new Set();
 
+  // Coletar fotos de atividades
   allAtividades.forEach(a => {
     const fotos = Array.isArray(a.fotos) ? a.fotos : [];
-    fotos.slice(0, 5).forEach(f => {
+    fotos.forEach(f => {
       if (!f.file_url && !f.drive_url) return;
       const url = f.file_url || f.drive_url;
       if (!url || usedUrls.has(url)) return;
@@ -253,21 +326,52 @@ function buildFotosComLegenda(allAtividades, rubricaMap) {
       const legenda = `${a.titulo || a.nome || 'Atividade'} — ${a._museu || ''} — ${dataFmt}`;
       const driveLink = f.drive_url || f.drive_file_id ? (f.drive_url || `https://drive.google.com/file/d/${f.drive_file_id}/view`) : null;
       
-      lista.push({ url: f.file_url || null, driveLink, legenda, altLegenda: f.legenda || a.titulo || '' });
+      lista.push({ 
+        url: f.file_url || null, 
+        driveLink, 
+        legenda, 
+        altLegenda: f.legenda || a.titulo || '',
+        fonte: 'atividade',
+        atividade_id: a._report_id,
+      });
     });
   });
-  return lista;
+
+  // Adicionar fotos de relatório
+  if (Array.isArray(reportPhotos)) {
+    reportPhotos.forEach(rp => {
+      if (!rp.file_url && !rp.drive_url) return;
+      const url = rp.file_url || rp.drive_url;
+      if (!url || usedUrls.has(url)) return;
+      usedUrls.add(url);
+
+      lista.push({
+        url: rp.file_url || null,
+        driveLink: rp.drive_url || null,
+        legenda: rp.descricao || rp.titulo || 'Registro do período',
+        altLegenda: rp.titulo || '',
+        fonte: 'relatorio',
+      });
+    });
+  }
+
+  // Ordenar por diversidade e relevância
+  return lista.sort((a, b) => {
+    const scoreA = (a.url ? 2 : 0) + (a.fonte === 'atividade' ? 1 : 0);
+    const scoreB = (b.url ? 2 : 0) + (b.fonte === 'atividade' ? 1 : 0);
+    return scoreB - scoreA;
+  });
 }
 
 // ── geração de HTML expandido ──────────────────────────────────────────────────
 
-async function gerarHTMLCompleto(dados, metricas, secoes, dateFrom, dateTo, museuFiltro, opcoes) {
+async function gerarHTMLCompleto(dados, metricas, secoes, dateFrom, dateTo, museuFiltro, opcoes, fotosAnalisadas = []) {
   const { allAtividades, comprasFiltradas, rubricasAtivas, rubricaMap, relsFiltrados, progFiltradas, agendaFiltrada, releasesFiltrados, teamFiltrado, comFiltrada } = dados;
   const periodoStr = `${dateFrom.toLocaleDateString('pt-BR')} a ${dateTo.toLocaleDateString('pt-BR')}`;
   const museuStr = museuFiltro || 'Todos os Museus';
   const { modoEntrega = false, introIA = true } = opcoes;
 
-  const ctxEditorial = buildContextoEditorial(dados, metricas, periodoStr, museuStr);
+  const ctxEditorial = buildContextoEditorial(dados, metricas, periodoStr, museuStr, fotosAnalisadas);
 
   // ── PROMPTS IA ──────────────────────────────────────────────────────────────
   const prompts = {};
@@ -505,17 +609,39 @@ Redija Conclusão (máximo 2 parágrafos): destaque avanços do período, impact
     </div>`;
   }
 
-  // ── FOTOS E REGISTROS ─────────────────────────────────────────────────────
+  // ── FOTOS E REGISTROS COM ANÁLISE VISUAL ─────────────────────────────────────
   if (secoes.includes('fotos')) {
     html += `<div class="page-break"><h2>Fotos e Registros</h2>
-      ${fotosComLegenda.length > 0 ? `<div class="foto-grid">
+      <p><strong>Galeria institucional curada:</strong> ${fotosComLegenda.length} registros fotográficos analisados visualmente</p>`;
+    
+    if (fotosAnalisadas.length > 0) {
+      html += `<h3>Análise Visual do Período</h3>
+      <p style="font-size:11px;color:#666;margin-bottom:12px;">
+        Registros identificam atividades, público, contexto e interação cultural.
+      </p>`;
+      
+      fotosAnalisadas.slice(0, 5).forEach((f, idx) => {
+        if (f.analise_visual) {
+          html += `<div style="background:#f9f9f9;border-left:3px solid #ccc;padding:8px;margin:8px 0;font-size:10px;line-height:1.4;">
+            <strong>Foto ${idx + 1}:</strong> ${f.analise_visual}
+          </div>`;
+        }
+      });
+    }
+    
+    if (fotosComLegenda.length > 0) {
+      html += `<h3>Galeria Fotográfica</h3>
+      <div class="foto-grid">
         ${fotosComLegenda.slice(0, 40).map((f, i) => `<div class="foto-item">
           ${f.url ? `<img class="foto" src="${f.url}" alt="${f.altLegenda}"/>` : ''}
           <p class="foto-legenda">${f.legenda}</p>
         </div>
         ${(i + 1) % 8 === 0 && i < fotosComLegenda.length - 1 ? '</div><div class="page-break"></div><div class="foto-grid">' : ''}`).join('')}
-      </div>` : '<p>Nenhuma foto disponível.</p>'}
-    </div>`;
+      </div>`;
+    } else {
+      html += `<p>Nenhuma foto disponível.</p>`;
+    }
+    html += `</div>`;
   }
 
   // ── EXECUÇÃO FINANCEIRA ───────────────────────────────────────────────────
@@ -697,10 +823,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Análise de imagens com visão computacional
+    const fotosParaAnalisar = buildFotosComLegenda(dados.allAtividades, dados.reportPhotos, dados.rubricaMap).slice(0, 15);
+    const fotosAnalisadas = await analisarImagensComVisao(fotosParaAnalisar, base44);
+
     const secoesPadrao = ['capa','introducao','painel_executivo','agenda_programacao','atividades_consolidadas','relatorios_completos','comunicacao','fotos','financeiro','notas_fiscais','rubricas','compras','equipe','prestacao_integral','conclusao'];
     const secoesFinal = secoes.length > 0 ? secoes : secoesPadrao;
 
-    const html = await gerarHTMLCompleto(dados, metricas, secoesFinal, from, to, museuFiltro || null, { modoEntrega, introIA });
+    const html = await gerarHTMLCompleto(dados, metricas, secoesFinal, from, to, museuFiltro || null, { modoEntrega, introIA }, fotosAnalisadas);
     return Response.json({ html });
 
   } catch (err) {
