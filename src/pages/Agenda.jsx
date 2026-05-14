@@ -38,7 +38,7 @@ function ActivityCard({ item }) {
   const cfg = MUSEU_CONFIG[museu] || MUSEU_CONFIG.Externo;
 
   return (
-    <div className={`bg-white rounded-2xl border border-slate-200 border-l-4 ${cfg.bar} shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col overflow-hidden`}>
+    <div className={`bg-card rounded-2xl border border-border border-l-4 ${cfg.bar} shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col overflow-hidden`}>
       {/* Header colorido */}
       <div className="px-4 pt-4 pb-3 flex items-center justify-between gap-2">
         <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${cfg.light}`}>
@@ -46,7 +46,7 @@ function ActivityCard({ item }) {
           {museu}
         </span>
         {item.data && (
-          <span className="flex items-center gap-1 text-xs text-slate-400 shrink-0">
+          <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
             <Calendar className="w-3 h-3" />
             <span className="truncate max-w-[130px]">{item.data}</span>
           </span>
@@ -56,11 +56,11 @@ function ActivityCard({ item }) {
       {/* Corpo */}
       <div className="px-4 pb-4 flex-1 flex flex-col gap-3">
         <div>
-          <h3 className="font-bold text-slate-900 text-sm leading-snug line-clamp-2">
+          <h3 className="font-bold text-foreground text-sm leading-snug line-clamp-2">
             {item.titulo || item.nome_acao || '—'}
           </h3>
           {item.horario && (
-            <p className="flex items-center gap-1 text-xs text-slate-500 mt-1">
+            <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
               <Clock className="w-3 h-3" />
               {item.horario}
             </p>
@@ -68,33 +68,33 @@ function ActivityCard({ item }) {
         </div>
 
         {(item.sinopse || item.descricao) && (
-          <p className="text-xs text-slate-500 leading-relaxed line-clamp-3">
+          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
             {item.sinopse || item.descricao}
           </p>
         )}
 
-        <div className="space-y-1.5 text-xs text-slate-600 mt-auto">
+        <div className="space-y-1.5 text-xs text-foreground mt-auto">
           {item.local && (
             <div className="flex items-start gap-1.5">
-              <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
+              <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground" />
               <span className="line-clamp-1">{item.local}</span>
             </div>
           )}
           {item.publico_alvo && (
             <div className="flex items-start gap-1.5">
-              <Users className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
+              <Users className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground" />
               <span className="line-clamp-1">{item.publico_alvo}</span>
             </div>
           )}
           {item.vagas && (
             <div className="flex items-start gap-1.5">
-              <Ticket className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
+              <Ticket className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground" />
               <span><strong>Vagas:</strong> {item.vagas}</span>
             </div>
           )}
           {item.inscricao && (
             <div className="flex items-start gap-1.5">
-              <span className="shrink-0 text-slate-400 mt-0.5">📋</span>
+              <span className="shrink-0 text-muted-foreground mt-0.5">📋</span>
               <span className="line-clamp-2"><strong>Inscrição:</strong> {item.inscricao}</span>
             </div>
           )}
@@ -102,12 +102,12 @@ function ActivityCard({ item }) {
       </div>
 
       {item.link_imagens && (
-        <div className="px-4 pb-4 border-t border-slate-100 pt-3 mt-1">
+        <div className="px-4 pb-4 border-t border-border pt-3 mt-1">
           <a
             href={item.link_imagens}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
           >
             <ExternalLink className="w-3 h-3" />
             Ver material de comunicação
@@ -119,15 +119,15 @@ function ActivityCard({ item }) {
 }
 
 function MuseuFilterBtn({ museu, active, count, onClick }) {
-  const cfg = MUSEU_CONFIG[museu];
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-        active
-          ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
-          : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
-      }`}
+   const cfg = MUSEU_CONFIG[museu];
+   return (
+     <button
+       onClick={onClick}
+       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+         active
+           ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+           : 'bg-card text-foreground border-border hover:border-muted-foreground'
+       }`}
     >
       {cfg && (
         <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-white' : cfg.dot}`} />
@@ -216,29 +216,29 @@ export default function Agenda() {
       {/* Hero header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Agenda</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Programação dos Museus Centro · Viaduto das Artes</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Agenda</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Programação dos Museus Centro · Viaduto das Artes</p>
         </div>
 
         {/* Navegação de mês */}
-        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-2 shadow-sm w-fit">
+        <div className="flex items-center gap-2 bg-card border border-border rounded-2xl px-3 py-2 shadow-sm w-fit">
           <button
             disabled={!hasPrev}
             onClick={() => setCurrentMonth(prevMonth(currentMonth))}
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
-            <ChevronLeft className="w-4 h-4 text-slate-600" />
+            <ChevronLeft className="w-4 h-4 text-foreground" />
           </button>
           <div className="text-center min-w-[130px]">
-            <p className="text-xs text-slate-400 uppercase tracking-wide font-medium leading-none">{yearName}</p>
-            <p className="text-base font-bold text-slate-900 capitalize leading-tight mt-0.5">{monthName}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium leading-none">{yearName}</p>
+            <p className="text-base font-bold text-foreground capitalize leading-tight mt-0.5">{monthName}</p>
           </div>
           <button
             disabled={!hasNext}
             onClick={() => setCurrentMonth(nextMonth(currentMonth))}
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
-            <ChevronRight className="w-4 h-4 text-slate-600" />
+            <ChevronRight className="w-4 h-4 text-foreground" />
           </button>
         </div>
       </div>
@@ -247,13 +247,13 @@ export default function Agenda() {
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
         {/* Busca */}
         <div className="relative w-full sm:max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Buscar atividade..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300"
+            className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
 
@@ -270,22 +270,22 @@ export default function Agenda() {
           ))}
         </div>
 
-        <span className="text-xs text-slate-400 sm:ml-auto whitespace-nowrap">
+        <span className="text-xs text-muted-foreground sm:ml-auto whitespace-nowrap">
           {filtered.length} atividade{filtered.length !== 1 ? 's' : ''}
         </span>
       </div>
 
       {/* Grid */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-3">
-          <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin" />
+        <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-3">
+          <div className="w-8 h-8 border-2 border-border border-t-primary rounded-full animate-spin" />
           <p className="text-sm">Carregando agenda...</p>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-3">
+        <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-3">
           <Calendar className="w-12 h-12 opacity-20" />
           <p className="text-sm font-medium">Nenhuma atividade encontrada</p>
-          <p className="text-xs text-slate-400 capitalize">{monthLabel}</p>
+          <p className="text-xs text-muted-foreground capitalize">{monthLabel}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
