@@ -8,6 +8,8 @@ import DepoimentosSection from '@/components/reports/DepoimentosSection';
 import EditorialEnhancer from '@/components/reports/EditorialEnhancer';
 import ReleasePanelEditor from '@/components/reports/ReleasePanelEditor';
 import TrustValidationPanel from '@/components/reports/TrustValidationPanel';
+import ReportSectionSelector from '@/components/reports/ReportSectionSelector';
+import PagamentosTabelaDetalhada from '@/components/reports/PagamentosTabelaDetalhada';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -657,14 +659,44 @@ export default function ReportEditor() {
         {activeTab === 'attachments' && <AttachmentsSection reportId={report.id} canEdit={true} reportData={form} />}
 
         {activeTab === 'depoimentos' && (
-          <DepoimentosSection
-            depoimentos={form.depoimentos || []}
-            onChange={(nextDepoimentos) => setForm((prev) => ({ ...prev, depoimentos: nextDepoimentos }))}
-            canEdit={true}
-            museu={form.museu}
-          />
-        )}
-      </Card>
+           <DepoimentosSection
+             depoimentos={form.depoimentos || []}
+             onChange={(nextDepoimentos) => setForm((prev) => ({ ...prev, depoimentos: nextDepoimentos }))}
+             canEdit={true}
+             museu={form.museu}
+           />
+         )}
+
+         {activeTab === 'financeiro' && (
+           <div className="space-y-6">
+             <ReportSectionSelector
+               secoesSelecionadas={form.secoesSelecionadas || []}
+               onSelectionChange={(secoes) => setForm((prev) => ({ ...prev, secoesSelecionadas: secoes }))}
+               onGerar={async (secoes) => {
+                 try {
+                   const tabelaPagamentos = await base44.functions.invoke('gerarTabelaPagamentosPeriodo', {
+                     reportId: report.id
+                   });
+
+                   if (tabelaPagamentos?.data?.pagamentos) {
+                     toast.success(`Tabela de pagamentos carregada: ${tabelaPagamentos.data.pagamentos.length} registros`);
+                   }
+                 } catch (error) {
+                   toast.error('Erro ao gerar tabela de pagamentos');
+                   console.error(error);
+                 }
+               }}
+             />
+
+             <PagamentosTabelaDetalhada
+               pagamentos={form.pagamentosDetalhados || []}
+               agrupadoPor="museu"
+               totalPago={form.totalPago || 0}
+               totalPagamentos={form.totalPagamentos || 0}
+             />
+           </div>
+         )}
+        </Card>
 
       <div className="flex gap-3 justify-end">
         <Button variant="outline" onClick={() => navigate('/Relatorios')}>Cancelar</Button>
