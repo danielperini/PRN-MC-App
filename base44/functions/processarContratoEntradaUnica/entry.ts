@@ -237,6 +237,109 @@ Campos obrigatórios:
       } catch (_) {}
     }
 
+    // 5. Criar TeamMember automaticamente se não existir
+    // Determina os candidatos: membros_equipe extraídos OU o próprio fornecedor (PF)
+    const candidatos = [];
+
+    // Membros explicitamente listados no contrato
+    const membrosIA = Array.isArray(resultado?.membros_equipe) ? resultado.membros_equipe : [];
+    for (const m of membrosIA) {
+      if (m?.nome && String(m.nome).trim()) {
+        candidatos.push({
+          user_name: String(m.nome).trim(),
+          cpf: String(m.cpf || '').replace(/\D/g, '') || null,
+          funcao: String(m.funcao || '').trim(),
+          valor_mensal: toNumber(m.valor_mensal),
+          tipo_pessoa: 'PF',
+        });
+      }
+    }
+
+    // Se nenhum membro foi encontrado, usa o próprio fornecedor como membro
+    if (candidatos.length === 0 && resultado?.fornecedor_nome) {
+      const cpfFornecedor = String(resultado.fornecedor_cpf_cnpj || '').replace(/\D/g, '');
+      const tipoPessoa = resultado.fornecedor_tipo === 'PJ' ? 'ME' : 'PF';
+      candidatos.push({
+        user_name: String(resultado.fornecedor_nome).trim(),
+        cpf: tipoPessoa === 'PF' ? cpfFornecedor : null,
+        cnpj: tipoPessoa !== 'PF' ? cpfFornecedor : null,
+        funcao: String(resultado.responsavel_tecnico || resultado.objeto_contrato || 'Prestador de Serviço').slice(0, 80),
+        valor_mensal: toNumber(resultado.valor_parcela || resultado.valor_total),
+        tipo_pessoa: tipoPessoa,
+        empresa_nome: tipoPessoa !== 'PF' ? String(resultado.fornecedor_nome).trim() : null,
+      });
+    }
+
+    const membrisCriados = [];
+
+    for (const candidato of candidatos) {
+      try {
+        // Chave de busca: CPF ou nome normalizado
+        let existente = null;
+
+        if (candidato.cpf) {
+          const porCpf = await base44.asServiceRole.entities.TeamMember.filter({ cpf: candidato.cpf });
+          existente = (porCpf || [])[0] || null;
+        }
+
+        if (!existente && candidato.cnpj) {
+          const porCnpj = await base44.asServiceRole.entities.TeamMember.filter({ cnpj: candidato.cnpj });
+          existente = (porCnpj || [])[0] || null;
+        }
+
+        if (!existente) {
+          // Busca por nome (fallback)
+          const porNome = await base44.asServiceRole.entities.TeamMember.filter({ user_name: candidato.user_name });
+          existente = (porNome || [])[0] || null;
+        }
+
+        if (existente) {
+          // Atualiza dados bancários/contrato se estiverem vazios
+          const updates = {};
+          if (!existente.banco       && resultado.fornecedor_banco)  updates.banco        = resultado.fornecedor_banco;
+          if (!existente.agencia     && resultado.fornecedor_agencia) updates.agencia      = resultado.fornecedor_agencia;
+          if (!existente.conta       && resultado.fornecedor_conta)   updates.conta        = resultado.fornecedor_conta;
+          if (!existente.pix_key     && resultado.fornecedor_pix)    updates.pix_key      = resultado.fornecedor_pix;
+          if (!existente.contrato_url && file_url)                    updates.contrato_url = file_url;
+          if (!existente.objeto_contrato && resultado.objeto_contrato) updates.objeto_contrato = resultado.objeto_contrato;
+          if (Object.keys(updates).length > 0) {
+            await base44.asServiceRole.entities.TeamMember.update(existente.id, updates).catch(() => {});
+          }
+          membrisCriados.push({ acao: 'atualizado', id: existente.id, nome: candidato.user_name });
+        } else {
+          // Cria novo TeamMember
+          const novoMembro = {
+            user_email: candidato.cpf
+              ? `cpf.${candidato.cpf}@contrato.interno`
+              : `membro.${String(candidato.user_name).toLowerCase().replace(/\s+/g, '.')}.${Date.now()}@contrato.interno`,
+            user_name: candidato.user_name,
+            tipo_pessoa: candidato.tipo_pessoa || 'PF',
+            cpf:   candidato.cpf   || null,
+            cnpj:  candidato.cnpj  || null,
+            funcao: candidato.funcao || '',
+            empresa_nome: candidato.empresa_nome || null,
+            banco:    resultado.fornecedor_banco    || '',
+            agencia:  resultado.fornecedor_agencia  || '',
+            conta:    resultado.fornecedor_conta    || '',
+            pix_key:  resultado.fornecedor_pix      || '',
+            valor_total:     toNumber(resultado.valor_total),
+            numero_parcelas: toNumber(resultado.numero_parcelas) || 1,
+            valor_parcela:   candidato.valor_mensal || toNumber(resultado.valor_parcela),
+            data_inicio_contrato: resultado.vigencia_inicio || null,
+            data_fim_contrato:    resultado.vigencia_fim    || null,
+            contrato_url:         file_url                  || '',
+            objeto_contrato:      resultado.objeto_contrato || '',
+            status: 'ATIVO',
+          };
+
+          const criado = await base44.asServiceRole.entities.TeamMember.create(novoMembro);
+          membrisCriados.push({ acao: 'criado', id: criado?.id, nome: candidato.user_name });
+        }
+      } catch (membroErr) {
+        console.error('Erro ao criar/atualizar TeamMember:', candidato.user_name, membroErr.message);
+      }
+    }
+
     return Response.json({
       success: true,
       tipo_documento: resultado?.tipo_documento || 'CONTRATO',
@@ -244,6 +347,7 @@ Campos obrigatórios:
       drive_folder_id,
       drive_file_id,
       drive_file_url,
+      membros_criados: membrisCriados,
     });
   } catch (error) {
     console.error('processarContratoEntradaUnica error:', error);
