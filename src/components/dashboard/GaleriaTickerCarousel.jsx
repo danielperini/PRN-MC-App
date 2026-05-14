@@ -187,7 +187,7 @@ export default function GaleriaTickerCarousel() {
   // Duplicar para loop visual infinito
   const looped = [...images, ...images];
   const totalWidth = images.length * 88; // 80px + 8px gap
-  const duration = images.length * 3;
+  const duration = images.length * 3.9; // 30% mais lento para leitura visual mais confortável
 
   return (
     <>
