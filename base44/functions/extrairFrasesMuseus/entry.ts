@@ -7,14 +7,13 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { museu, limit = 6 } = body;
+    const { museu, limit = 3 } = body;
 
-    // Buscar relatórios aprovados/submetidos recentes
-    const reports = await base44.asServiceRole.entities.Report.filter(
-      { status: 'APPROVED' },
-      '-updated_date',
-      80
-    );
+    // Buscar relatórios aprovados e attachments com imagens em paralelo
+    const [reports, attachments] = await Promise.all([
+      base44.asServiceRole.entities.Report.filter({ status: 'APPROVED' }, '-updated_date', 80),
+      base44.asServiceRole.entities.Attachment.list('-created_date', 200),
+    ]);
 
     if (!reports || reports.length === 0) {
       return Response.json({ frases: [] });
@@ -24,6 +23,14 @@ Deno.serve(async (req) => {
     const filtered = museu && museu !== 'Todos'
       ? reports.filter(r => r.museu === museu || r.museu_secundario === museu)
       : reports;
+
+    // Mapear imagens por report_id
+    const imgByReport = {};
+    for (const att of (attachments || [])) {
+      if (att.report_id && att.file_url && /\.(jpg|jpeg|png|webp)/i.test(att.file_url)) {
+        if (!imgByReport[att.report_id]) imgByReport[att.report_id] = att.file_url;
+      }
+    }
 
     // Montar texto dos relatórios para a IA analisar
     const excerpts = filtered.slice(0, 30).map(r => {
@@ -51,6 +58,7 @@ Deno.serve(async (req) => {
         mes: r.mes_referencia || '',
         ano: r.ano || '',
         autor: r.author_name || '',
+        imagem_url: imgByReport[r.id] || null,
         texto: parts.join('\n').slice(0, 1200),
       };
     }).filter(e => e.texto.length > 50);
@@ -69,9 +77,10 @@ REGRAS OBRIGATÓRIAS:
 - Se uma frase vier de depoimento identificado, inclua o autor. Caso contrário, use "Fonte: relatório interno".
 - Prefira frases completas com contexto claro.
 - Se um trecho não tiver frases positivas adequadas, ignore-o.
+- Copie o campo imagem_url do relatório para o JSON de resposta quando disponível.
 
 RELATÓRIOS:
-${excerpts.map((e, i) => `[${i+1}] Museu: ${e.museu} | ${e.mes} ${e.ano} | Autor: ${e.autor}
+${excerpts.map((e, i) => `[${i+1}] Museu: ${e.museu} | ${e.mes} ${e.ano} | Autor: ${e.autor} | imagem_url: ${e.imagem_url || ''}
 ---
 ${e.texto}
 `).join('\n')}
@@ -85,7 +94,8 @@ Retorne JSON com esta estrutura exata:
       "data": "Mês Ano (ex: Março 2026)",
       "autor": "nome da pessoa ou grupo, ou null",
       "fonte": "Fonte: relatório interno",
-      "report_id": "id do relatório de onde veio"
+      "report_id": "id do relatório de onde veio",
+      "imagem_url": "url da imagem do relatório ou null"
     }
   ]
 }`;
@@ -100,12 +110,13 @@ Retorne JSON com esta estrutura exata:
             items: {
               type: 'object',
               properties: {
-                frase:     { type: 'string' },
-                museu:     { type: 'string' },
-                data:      { type: 'string' },
-                autor:     { type: 'string' },
-                fonte:     { type: 'string' },
-                report_id: { type: 'string' },
+              frase:      { type: 'string' },
+              museu:      { type: 'string' },
+              data:       { type: 'string' },
+              autor:      { type: 'string' },
+              fonte:      { type: 'string' },
+              report_id:  { type: 'string' },
+              imagem_url: { type: 'string' },
               },
             },
           },

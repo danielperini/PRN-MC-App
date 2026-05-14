@@ -20,60 +20,76 @@ function getMuseuStyle(museu) {
 function FraseCard({ item, idx }) {
   const style = getMuseuStyle(item.museu);
   const delay = idx * 80;
+  const hasThumb = item.imagem_url && item.imagem_url.length > 0;
+  const autorValido = item.autor && item.autor !== 'null' && item.autor !== 'undefined';
 
   return (
     <div
-      className={`relative flex flex-col gap-3 p-5 rounded-2xl border ${style.bg} ${style.border} shadow-sm hover:shadow-md transition-all duration-300`}
+      className={`relative flex flex-col rounded-2xl border ${style.border} shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden`}
       style={{ animation: `fade-up 0.4s ease both`, animationDelay: `${delay}ms` }}
     >
-      {/* Quote icon decorativa */}
-      <Quote className="w-7 h-7 text-slate-200 absolute top-4 right-4" />
+      {/* Thumbnail */}
+      {hasThumb && (
+        <div className="w-full h-36 overflow-hidden shrink-0">
+          <img
+            src={item.imagem_url}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
 
-      {/* Frase */}
-      <p className="text-slate-800 text-sm leading-relaxed font-medium pr-6">
-        "{item.frase}"
-      </p>
+      {/* Corpo */}
+      <div className={`flex flex-col gap-3 p-5 flex-1 ${style.bg}`}>
+        {/* Quote icon */}
+        <Quote className="w-6 h-6 text-slate-200 absolute top-3 right-3" />
 
-      {/* Meta */}
-      <div className="flex flex-col gap-1.5 mt-auto">
-        {item.museu && (
-          <div className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${style.dot}`} />
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${style.badge}`}>
-              {item.museu}
-            </span>
+        {/* Frase */}
+        <p className="text-slate-800 text-sm leading-relaxed font-medium pr-4">
+          "{item.frase}"
+        </p>
+
+        {/* Autor destaque */}
+        {autorValido && (
+          <div className="flex items-center gap-2 mt-1">
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${style.badge}`}>
+              {item.autor.charAt(0).toUpperCase()}
+            </div>
+            <span className="text-xs text-slate-600 font-medium truncate">{item.autor}</span>
           </div>
         )}
 
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-          {item.data && (
-            <span className="flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
-              {item.data}
-            </span>
-          )}
-          {item.autor && item.autor !== 'null' && (
-            <span className="flex items-center gap-1">
-              <User className="w-3 h-3" />
-              {item.autor}
-            </span>
-          )}
-        </div>
+        {/* Meta inferior */}
+        <div className="flex flex-col gap-1.5 mt-auto pt-2 border-t border-black/5">
+          <div className="flex items-center justify-between">
+            {item.museu && (
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${style.badge}`}>
+                {item.museu}
+              </span>
+            )}
+            {item.data && (
+              <span className="flex items-center gap-1 text-xs text-slate-400">
+                <Calendar className="w-3 h-3" />
+                {item.data}
+              </span>
+            )}
+          </div>
 
-        <div className="flex items-center justify-between mt-1">
-          <span className="flex items-center gap-1 text-xs text-slate-400 italic">
-            <BookOpen className="w-3 h-3" />
-            {item.fonte || 'Fonte: relatório interno'}
-          </span>
-          {item.report_id && (
-            <a
-              href={`/ReportEditor?id=${item.report_id}`}
-              className="flex items-center gap-0.5 text-xs text-slate-500 hover:text-slate-800 font-medium transition-colors"
-            >
-              Ver relatório
-              <ChevronRight className="w-3 h-3" />
-            </a>
-          )}
+          <div className="flex items-center justify-between mt-0.5">
+            <span className="flex items-center gap-1 text-xs text-slate-400 italic">
+              <BookOpen className="w-3 h-3" />
+              {item.fonte || 'Fonte: relatório interno'}
+            </span>
+            {item.report_id && (
+              <a
+                href={`/ReportEditor?id=${item.report_id}`}
+                className="flex items-center gap-0.5 text-xs text-slate-500 hover:text-slate-800 font-medium transition-colors"
+              >
+                Ver relatório
+                <ChevronRight className="w-3 h-3" />
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -82,11 +98,13 @@ function FraseCard({ item, idx }) {
 
 function SkeletonCard() {
   return (
-    <div className="p-5 rounded-2xl border border-slate-100 bg-slate-50 space-y-3 animate-pulse">
-      <div className="h-4 bg-slate-200 rounded w-full" />
-      <div className="h-4 bg-slate-200 rounded w-4/5" />
-      <div className="h-4 bg-slate-200 rounded w-3/5" />
-      <div className="h-3 bg-slate-100 rounded w-1/3 mt-4" />
+    <div className="rounded-2xl border border-slate-100 overflow-hidden animate-pulse">
+      <div className="h-36 bg-slate-200" />
+      <div className="p-5 space-y-3 bg-slate-50">
+        <div className="h-4 bg-slate-200 rounded w-full" />
+        <div className="h-4 bg-slate-200 rounded w-4/5" />
+        <div className="h-3 bg-slate-100 rounded w-1/3 mt-4" />
+      </div>
     </div>
   );
 }
@@ -103,7 +121,7 @@ export default function DiariamenteNosMuseus() {
     try {
       const res = await base44.functions.invoke('extrairFrasesMuseus', {
         museu: museu === 'Todos' ? null : museu,
-        limit: 6,
+        limit: 3,
       });
       setFrases(res?.data?.frases || []);
     } catch (e) {
@@ -168,8 +186,8 @@ export default function DiariamenteNosMuseus() {
 
       {/* Grid de cards */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => <SkeletonCard key={i} />)}
         </div>
       ) : frases.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
@@ -177,8 +195,8 @@ export default function DiariamenteNosMuseus() {
           <p className="text-sm">Nenhuma frase encontrada para este filtro.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {frases.map((item, idx) => (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {frases.slice(0, 3).map((item, idx) => (
             <FraseCard key={idx} item={item} idx={idx} />
           ))}
         </div>
