@@ -17,90 +17,11 @@ function getMuseuStyle(museu) {
   return { bg: 'bg-white', accentBar: 'bg-slate-700', badge: 'bg-slate-800 text-white', dot: 'bg-slate-700' };
 }
 
-function escapeSvgText(value = '') {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function makeFallbackImage(item = {}) {
-  const museu = escapeSvgText(item?.museu || 'Museus Centro');
-  const fonte = escapeSvgText(item?.fonte || 'Relatório interno');
-
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
-      <rect width="200" height="200" rx="18" fill="#f8fafc"/>
-      <rect x="14" y="14" width="172" height="172" rx="16" fill="#ffffff" stroke="#e2e8f0"/>
-      <circle cx="100" cy="78" r="28" fill="#0f172a" opacity="0.08"/>
-      <path d="M52 136 C78 104 99 116 118 96 C137 76 152 99 168 82 L168 158 L52 158 Z" fill="#0f172a" opacity="0.10"/>
-      <text x="100" y="52" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" fill="#0f172a">${museu}</text>
-      <text x="100" y="176" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="9" font-weight="600" fill="#64748b">${fonte}</text>
-    </svg>
-  `;
-
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-}
-
-function getImageCandidates(item = {}) {
-  const raw = [
-    item?.imagem_url,
-    item?.imagem,
-    item?.image_url,
-    item?.foto_url,
-    item?.foto,
-    item?.thumbnail_url,
-    item?.thumbnail,
-    item?.cover_url,
-    item?.cover_image,
-    item?.arquivo_url,
-    item?.file_url,
-    item?.url_imagem,
-    item?.imagem_original,
-    item?.imagem_gerada,
-    item?.imagem_ia,
-  ].filter(Boolean);
-
-  const unique = Array.from(new Set(raw.map(String).filter((url) => url.trim().length > 0)));
-  return [...unique, makeFallbackImage(item)];
-}
-
-function SmartCardImage({ item }) {
-  const candidates = useMemo(() => getImageCandidates(item), [item]);
-  const [imageIndex, setImageIndex] = useState(0);
-  const src = candidates[imageIndex] || makeFallbackImage(item);
-
-  useEffect(() => {
-    setImageIndex(0);
-  }, [candidates.join('|')]);
-
-  if (!src) return null;
-
-  return (
-    <div className="w-full h-24 overflow-hidden shrink-0 bg-slate-100">
-      <img
-        src={src}
-        alt=""
-        width={200}
-        height={200}
-        loading="lazy"
-        className="w-full h-full object-cover"
-        onError={() => {
-          setImageIndex((current) => {
-            const next = current + 1;
-            return next < candidates.length ? next : current;
-          });
-        }}
-      />
-    </div>
-  );
-}
-
 function FraseCard({ item, idx }) {
   const style = getMuseuStyle(item.museu);
   const delay = idx * 80;
   const autorValido = item.autor && item.autor !== 'null' && item.autor !== 'undefined';
+  const frase = String(item.frase || '').trim();
 
   return (
     <div
@@ -114,12 +35,10 @@ function FraseCard({ item, idx }) {
     >
       <div className={`h-1 w-full ${style.accentBar} shrink-0`} />
 
-      <SmartCardImage item={item} />
-
       <div className="flex flex-col gap-2.5 p-4 flex-1">
         <div className="relative">
           <Quote className="w-4 h-4 text-slate-300 mb-1" />
-          <p className="text-slate-900 text-sm leading-relaxed font-medium">{item.frase}</p>
+          <p className="text-slate-900 text-sm leading-relaxed font-medium">“{frase}”</p>
         </div>
 
         {autorValido && (
@@ -161,7 +80,6 @@ function SkeletonCard() {
   return (
     <div className="rounded-xl overflow-hidden animate-pulse" style={{ border: '1px solid rgba(0,0,0,0.12)' }}>
       <div className="h-1 bg-slate-300" />
-      <div className="h-24 bg-slate-100" />
       <div className="p-4 space-y-3 bg-white">
         <div className="h-3 bg-slate-200 rounded w-full" />
         <div className="h-3 bg-slate-200 rounded w-4/5" />
@@ -227,7 +145,6 @@ export default function DiariamenteNosMuseus() {
         limit: 100,
         daily_seed: getDailySeed(),
         daily_rotation: true,
-        image_size: '200x200',
       });
       const resultadoCompleto = res?.data?.frases || [];
       const resultado = rotateDailyItems(resultadoCompleto, 3);
