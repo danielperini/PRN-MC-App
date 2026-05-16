@@ -293,11 +293,11 @@ function StatCard({ title, value, helper, icon: Icon }) {
   );
 }
 
-function ChartCard({ title, children }) {
+function ChartCard({ title, children, className = '' }) {
   return (
-    <div className="border border-gray-100 rounded-2xl p-5 bg-white">
+    <div className={`border border-gray-100 rounded-2xl p-5 bg-white ${className}`}>
       <h3 className="text-sm font-semibold text-black mb-4">{title}</h3>
-      <ResponsiveContainer width="100%" height={250}>
+      <ResponsiveContainer width="100%" height={280}>
         {children}
       </ResponsiveContainer>
     </div>
@@ -353,15 +353,17 @@ export default function ProfessionalGeneralCharts({ reports = [], programacao = 
             </BarChart>
           </ChartCard>
 
-          <ChartCard title="Programações por Mês">
-            <LineChart data={porMes}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-              <XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Programações']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
-              <Line type="monotone" dataKey="programacoes" stroke={programacaoLineColor} strokeWidth={2} dot={{ r: 4, fill: programacaoLineColor, stroke: programacaoLineColor }} activeDot={{ r: 6, fill: programacaoLineColor, stroke: programacaoLineColor }} />
-            </LineChart>
-          </ChartCard>
+          <div className="lg:col-span-2 flex justify-center">
+            <ChartCard title="Programações por Mês" className="w-full max-w-5xl mx-auto">
+              <LineChart data={porMes}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                <XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Programações']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
+                <Line type="monotone" dataKey="programacoes" stroke={programacaoLineColor} strokeWidth={2} dot={{ r: 4, fill: programacaoLineColor, stroke: programacaoLineColor }} activeDot={{ r: 6, fill: programacaoLineColor, stroke: programacaoLineColor }} />
+              </LineChart>
+            </ChartCard>
+          </div>
         </div>
       )}
     </section>
