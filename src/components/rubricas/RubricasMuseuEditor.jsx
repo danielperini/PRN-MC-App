@@ -113,6 +113,26 @@ function getSearchText(rubrica = {}, includeGeneratedOrigin = false) {
   ].filter(Boolean).join(' '));
 }
 
+function isHiddenRubrica(text = '') {
+  return (
+    text.includes('transporte') ||
+    text.includes('assessoria juridica') ||
+    text.includes('assessor juridico') ||
+    text.includes('juridico') ||
+    text.includes('contador') ||
+    text.includes('contabilidade') ||
+    text.includes('energia eletrica') ||
+    text.includes('formacao sobre ambiente seguro') ||
+    text.includes('ambiente seguro') ||
+    text.includes('diversidade') ||
+    text.includes('inclusao') ||
+    text.includes('material escritorio') ||
+    text.includes('material de escritorio') ||
+    text.includes('fornecimento de som e iluminacao') ||
+    text.includes('fornecimento de som')
+  );
+}
+
 function isNoturnoRubrica(rubrica = {}) {
   return getSearchText(rubrica, true).includes('noturno');
 }
@@ -133,7 +153,8 @@ function matchRubricaMuseu(rubrica = {}, museu = '') {
   const explicitText = getSearchText(rubrica, false);
 
   if (!normalizedMuseu || normalizedMuseu === 'GERAL') return false;
-  if (normalizedMuseu === 'NOTURNO') return isNoturnoRubrica(rubrica);
+  if (isHiddenRubrica(explicitText)) return false;
+  if (normalizedMuseu === 'NOTURNO') return isNoturnoRubrica(rubrica) && !isHiddenRubrica(explicitText);
   if (isNoturnoRubrica(rubrica)) return false;
 
   const tokenCount = countMuseuTokens(explicitText);
@@ -399,7 +420,6 @@ export default function RubricasMuseuEditor({
         ))}
       </div>
 
-      {/* Seção de rubricas compartilhadas com rateio ÷ 3 (exceto NOTURNO) */}
       {normalizedMuseu !== 'NOTURNO' && (
         <div className="border-t border-gray-100 pt-6">
           <RubricasCompartilhadasRateio museu={normalizedMuseu} refreshKey={refreshKey} />
