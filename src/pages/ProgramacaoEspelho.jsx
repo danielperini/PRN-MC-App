@@ -12,6 +12,7 @@ const MESES = [
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Externo'];
 const ALL_VALUE = '__ALL__';
+const SYNC_TIMEOUT_MS = 6000;
 
 const DATA_CORRECAO_NOTURNO_2024 = '06/12/2024';
 const DATA_ISO_CORRECAO_NOTURNO_2024 = '2024-12-06';
@@ -236,11 +237,14 @@ function sortProgramacoes(a, b) {
 
 async function syncProgramacaoFromFonte() {
   try {
-    await base44.functions.invoke('syncBaseConhecimento', {
-      mode: 'programacao-page',
-      origem: 'ProgramacaoEspelho',
-      force_programacao_sync: true,
-    });
+    await Promise.race([
+      base44.functions.invoke('syncBaseConhecimento', {
+        mode: 'programacao-page',
+        origem: 'ProgramacaoEspelho',
+        force_programacao_sync: true,
+      }),
+      new Promise((resolve) => setTimeout(resolve, SYNC_TIMEOUT_MS)),
+    ]);
   } catch (error) {
     console.warn('Sincronização da programação indisponível. Carregando dados locais.', error);
   }
@@ -251,12 +255,14 @@ export default function ProgramacaoEspelho() {
   const [allProgramacoes, setAllProgramacoes] = useState([]);
   const [programacoes, setProgramacoes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [mesSelecionado, setMesSelecionado] = useState(nextMonthSelection.mes);
   const [museuSelecionado, setMuseuSelecionado] = useState(ALL_VALUE);
   const [anoSelecionado, setAnoSelecionado] = useState(nextMonthSelection.ano);
 
   useEffect(() => {
-    carregarProgramacoes();
+    carregarProgramacoes({ syncFonte: false });
+    sincronizarEmSegundoPlano();
   }, []);
 
   useEffect(() => {
@@ -267,36 +273,56 @@ export default function ProgramacaoEspelho() {
     setProgramacoes(filtradas);
   }, [allProgramacoes, mesSelecionado, museuSelecionado, anoSelecionado]);
 
-  async function carregarProgramacoes() {
+  async function aplicarSelecaoPadrao(normalized) {
+    const visibleItems = normalized.filter((item) => !shouldHideProgramacao(item));
+    const years = Array.from(new Set(visibleItems.map(getYearFromContext).filter(Boolean))).sort((a, b) => b - a);
+    const defaultSelection = getNextMonthSelection();
+    const hasNextMonthData = visibleItems.some((item) => {
+      const monthNumber = getMonthNumberFromContext(item);
+      const mes = monthNumber ? MESES[monthNumber - 1] : item?.mes;
+      return String(getYearFromContext(item)) === defaultSelection.ano && mes === defaultSelection.mes;
+    });
+
+    if (hasNextMonthData) {
+      setAnoSelecionado(defaultSelection.ano);
+      setMesSelecionado(defaultSelection.mes);
+    } else if (years.length > 0 && !years.includes(Number(anoSelecionado))) {
+      setAnoSelecionado(String(years[0]));
+    }
+  }
+
+  async function carregarProgramacoes({ syncFonte = false } = {}) {
     setLoading(true);
     try {
-      await syncProgramacaoFromFonte();
+      if (syncFonte) {
+        await syncProgramacaoFromFonte();
+      }
 
       const data = await base44.entities.Programacao.list('-data_inicio', 5000);
       const normalized = (Array.isArray(data) ? data : []).map(normalizeDateBySheetContext);
       setAllProgramacoes(normalized);
-
-      const visibleItems = normalized.filter((item) => !shouldHideProgramacao(item));
-      const years = Array.from(new Set(visibleItems.map(getYearFromContext).filter(Boolean))).sort((a, b) => b - a);
-      const defaultSelection = getNextMonthSelection();
-      const hasNextMonthData = visibleItems.some((item) => {
-        const monthNumber = getMonthNumberFromContext(item);
-        const mes = monthNumber ? MESES[monthNumber - 1] : item?.mes;
-        return String(getYearFromContext(item)) === defaultSelection.ano && mes === defaultSelection.mes;
-      });
-
-      if (hasNextMonthData) {
-        setAnoSelecionado(defaultSelection.ano);
-        setMesSelecionado(defaultSelection.mes);
-      } else if (years.length > 0 && !years.includes(Number(anoSelecionado))) {
-        setAnoSelecionado(String(years[0]));
-      }
+      await aplicarSelecaoPadrao(normalized);
     } catch (err) {
       console.error('Erro ao carregar programações:', err);
       setAllProgramacoes([]);
       setProgramacoes([]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function sincronizarEmSegundoPlano() {
+    setSyncing(true);
+    try {
+      await syncProgramacaoFromFonte();
+      const data = await base44.entities.Programacao.list('-data_inicio', 5000);
+      const normalized = (Array.isArray(data) ? data : []).map(normalizeDateBySheetContext);
+      setAllProgramacoes(normalized);
+      await aplicarSelecaoPadrao(normalized);
+    } catch (error) {
+      console.warn('Falha na sincronização em segundo plano da programação:', error);
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -345,9 +371,9 @@ export default function ProgramacaoEspelho() {
           <h1 className="text-2xl font-bold text-slate-900">Programação</h1>
           <p className="text-slate-500 text-sm mt-1">Visualização da programação registrada no sistema</p>
         </div>
-        <Button variant="outline" size="sm" onClick={carregarProgramacoes} disabled={loading}>
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Atualizar
+        <Button variant="outline" size="sm" onClick={() => carregarProgramacoes({ syncFonte: true })} disabled={loading || syncing}>
+          <RefreshCw className={`w-4 h-4 mr-2 ${(loading || syncing) ? 'animate-spin' : ''}`} />
+          {syncing ? 'Sincronizando' : 'Atualizar'}
         </Button>
       </div>
 
@@ -395,6 +421,7 @@ export default function ProgramacaoEspelho() {
             {totalGeral} atividade{totalGeral !== 1 ? 's' : ''} encontrada{totalGeral !== 1 ? 's' : ''}
             {mesSelecionado !== ALL_VALUE ? ` em ${mesSelecionado}` : ''}
             {anoSelecionado !== ALL_VALUE ? ` de ${anoSelecionado}` : ''}
+            {syncing ? ' · sincronizando fonte em segundo plano' : ''}
           </span>
         </div>
       </div>
@@ -402,7 +429,7 @@ export default function ProgramacaoEspelho() {
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <RefreshCw className="w-6 h-6 animate-spin text-slate-400" />
-          <span className="ml-2 text-slate-500">Sincronizando e carregando programação...</span>
+          <span className="ml-2 text-slate-500">Carregando programação...</span>
         </div>
       ) : totalGeral === 0 ? (
         <div className="text-center py-16 text-slate-400">
