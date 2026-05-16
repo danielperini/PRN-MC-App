@@ -3,59 +3,59 @@ import RelatorioFisicoFinanceiroGenerator from '@/components/reports/RelatorioFi
 
 export default function RelatorioFisicoFinanceiroPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-white">
       <div className="max-w-6xl mx-auto p-6">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">
-            Relatório Físico-Financeiro
+          <h1 className="text-4xl font-bold text-black mb-2 tracking-tight">
+            Gerador de Relatório
           </h1>
           <p className="text-slate-600">
-            Geração automática e inteligente do relatório consolidado do Projeto Museus Centro
+            Relatório editorial, programático, financeiro e de prestação de contas do Projeto Museus Centro.
           </p>
         </div>
 
         <RelatorioFisicoFinanceiroGenerator />
 
         <div className="mt-12 grid md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-lg border p-6">
-            <h3 className="font-bold text-lg mb-2">📊 Dados Reais</h3>
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <h3 className="font-bold text-lg mb-2 text-black">Dados reais do sistema</h3>
             <p className="text-sm text-slate-600">
-              Consulta automaticamente relatórios aprovados, atividades, agenda, programação, releases, comunicação, compras, notas fiscais e documentação.
+              Consulta relatórios, atividades, agenda, programação, comunicação, compras, rubricas, notas fiscais, anexos e evidências já registrados no app.
             </p>
           </div>
 
-          <div className="bg-white rounded-lg border p-6">
-            <h3 className="font-bold text-lg mb-2">🎨 Análise Visual</h3>
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <h3 className="font-bold text-lg mb-2 text-black">Atividades por museu</h3>
             <p className="text-sm text-slate-600">
-              IA analisa imagens para identificar atividades, público, contexto e dinâmica cultural. Sem duplicidade fotográfica.
+              Organiza as atividades por MIS, MHAB e MUMO, reproduzindo integralmente os textos das equipes e vinculando fotos quando existirem.
             </p>
           </div>
 
-          <div className="bg-white rounded-lg border p-6">
-            <h3 className="font-bold text-lg mb-2">💾 Backup Automático</h3>
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <h3 className="font-bold text-lg mb-2 text-black">Metas do 3º Aditivo</h3>
             <p className="text-sm text-slate-600">
-              Exportação em PDF com armazenamento automático no Google Drive, organizado por ano/mês/museu.
+              Inclui capítulo próprio de metas, com execução, rubricas associadas, indicadores e análise institucional.
             </p>
           </div>
 
-          <div className="bg-white rounded-lg border p-6">
-            <h3 className="font-bold text-lg mb-2">✍️ Textos Editoriais</h3>
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <h3 className="font-bold text-lg mb-2 text-black">Galeria e evidências</h3>
             <p className="text-sm text-slate-600">
-              Geração de narrativas sofisticadas, institucionais e curatoriais usando IA nativa do Base44.
+              Seleciona até duas fotos principais por atividade com imagem e lista os demais arquivos disponíveis como repositório de evidências.
             </p>
           </div>
 
-          <div className="bg-white rounded-lg border p-6">
-            <h3 className="font-bold text-lg mb-2">🔍 Auditável</h3>
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <h3 className="font-bold text-lg mb-2 text-black">Execução financeira</h3>
             <p className="text-sm text-slate-600">
-              Cada dado referencia sua fonte (relatório, atividade, release, agenda, imagem). Hash de integridade.
+              Usa rubricas, compras e prestação de contas para apresentar previsto, utilizado, saldo, percentuais e execução por grupo.
             </p>
           </div>
 
-          <div className="bg-white rounded-lg border p-6">
-            <h3 className="font-bold text-lg mb-2">📋 21 Seções</h3>
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <h3 className="font-bold text-lg mb-2 text-black">Capítulos editoriais</h3>
             <p className="text-sm text-slate-600">
-              Capa, introdução, painel executivo, atividades, agenda, comunicação, fotos, financeiro, rubricas, compras, equipe, prestação de contas e muito mais.
+              Estrutura capa, introdução, território, resumo, público, programação, comunicação, prestação de contas, Museu Centro APP e conclusão.
             </p>
           </div>
         </div>
