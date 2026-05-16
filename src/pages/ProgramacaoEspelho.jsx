@@ -18,6 +18,33 @@ const MUSEU_COLORS = {
   Externo: 'bg-gray-100 text-gray-700',
 };
 
+const MONTH_NAME_TO_NUMBER = {
+  janeiro: 1,
+  jan: 1,
+  fevereiro: 2,
+  fev: 2,
+  marco: 3,
+  mar: 3,
+  abril: 4,
+  abr: 4,
+  maio: 5,
+  mai: 5,
+  junho: 6,
+  jun: 6,
+  julho: 7,
+  jul: 7,
+  agosto: 8,
+  ago: 8,
+  setembro: 9,
+  set: 9,
+  outubro: 10,
+  out: 10,
+  novembro: 11,
+  nov: 11,
+  dezembro: 12,
+  dez: 12,
+};
+
 const ATIVIDADES_NOTURNO_2024 = [
   'pensamento do fora',
   'iluminacao das esculturas dos jardins',
@@ -63,25 +90,150 @@ function isAtividadeNoturno2024(item) {
   return ATIVIDADES_NOTURNO_2024.some((needle) => text.includes(normalizeText(needle)));
 }
 
-function normalizeNoturno2024Date(item) {
-  if (!isAtividadeNoturno2024(item)) return item;
-
-  return {
-    ...item,
-    data: DATA_CORRECAO_NOTURNO_2024,
-    data_inicio: DATA_ISO_CORRECAO_NOTURNO_2024,
-    data_realizacao: DATA_ISO_CORRECAO_NOTURNO_2024,
-    month_key: MONTH_KEY_CORRECAO_NOTURNO_2024,
-    sync_month: MONTH_KEY_CORRECAO_NOTURNO_2024,
-    ano: 2024,
-    ano_referencia: 2024,
-  };
-}
-
 function getMonthKey(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
+}
+
+function getYearFromSheetContext(item) {
+  const explicitYear = Number(item?.ano || item?.ano_referencia || item?.year || item?.sync_year);
+  if (Number.isFinite(explicitYear) && explicitYear >= 2020 && explicitYear <= 2035) return explicitYear;
+
+  const possibleKeys = [
+    item?.month_key,
+    item?.sync_month,
+    item?.aba,
+    item?.sheet_name,
+    item?.sheet,
+    item?.worksheet,
+    item?.origem_aba,
+    item?.nome_aba,
+    item?.tab,
+    item?.source_tab,
+    item?.source_sheet,
+  ];
+
+  for (const value of possibleKeys) {
+    const text = String(value || '');
+    const fullYear = text.match(/20\d{2}/);
+    if (fullYear) return Number(fullYear[0]);
+
+    const shortYear = text.match(/(?:^|\D)(2[4-9]|3[0-5])(?:\D|$)/);
+    if (shortYear) return 2000 + Number(shortYear[1]);
+  }
+
+  return null;
+}
+
+function getMonthFromSheetContext(item) {
+  const key = item?.month_key || item?.sync_month;
+  const keyMatch = String(key || '').match(/20\d{2}-(\d{2})/);
+  if (keyMatch) return Number(keyMatch[1]);
+
+  const text = normalizeText([
+    item?.month_key,
+    item?.sync_month,
+    item?.aba,
+    item?.sheet_name,
+    item?.sheet,
+    item?.worksheet,
+    item?.origem_aba,
+    item?.nome_aba,
+    item?.tab,
+    item?.source_tab,
+    item?.source_sheet,
+    item?.mes,
+    item?.mes_referencia,
+  ].filter(Boolean).join(' '));
+
+  for (const [monthName, monthNumber] of Object.entries(MONTH_NAME_TO_NUMBER)) {
+    if (text.includes(monthName)) return monthNumber;
+  }
+
+  return null;
+}
+
+function parseDateInfo(value, item = {}) {
+  const raw = String(value || '').trim();
+  const text = normalizeText(raw);
+
+  if (!raw) return null;
+
+  const iso = raw.match(/^(20\d{2})-(\d{2})-(\d{2})/);
+  if (iso) {
+    return { day: Number(iso[3]), month: Number(iso[2]), year: Number(iso[1]), hasYear: true };
+  }
+
+  const brFull = raw.match(/(\d{1,2})\/(\d{1,2})\/(20\d{2})/);
+  if (brFull) {
+    return { day: Number(brFull[1]), month: Number(brFull[2]), year: Number(brFull[3]), hasYear: true };
+  }
+
+  const dayMonth = raw.match(/(\d{1,2})\/(\d{1,2})(?!\/) /) || raw.match(/(\d{1,2})\/(\d{1,2})(?!\/)/);
+  if (dayMonth) {
+    return { day: Number(dayMonth[1]), month: Number(dayMonth[2]), year: null, hasYear: false };
+  }
+
+  const monthFromName = Object.entries(MONTH_NAME_TO_NUMBER).find(([name]) => text.includes(name));
+  const dayMatch = text.match(/(?:^|\D)(\d{1,2})(?:\D|$)/);
+  if (monthFromName && dayMatch) {
+    return { day: Number(dayMatch[1]), month: monthFromName[1], year: null, hasYear: false };
+  }
+
+  const contextMonth = getMonthFromSheetContext(item);
+  if (dayMatch && contextMonth) {
+    return { day: Number(dayMatch[1]), month: contextMonth, year: null, hasYear: false };
+  }
+
+  return null;
+}
+
+function formatDateBR(day, month, year) {
+  return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+}
+
+function formatDateISO(day, month, year) {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function normalizeDateBySheetYear(item) {
+  if (isAtividadeNoturno2024(item)) {
+    return {
+      ...item,
+      data: DATA_CORRECAO_NOTURNO_2024,
+      data_inicio: DATA_ISO_CORRECAO_NOTURNO_2024,
+      data_realizacao: DATA_ISO_CORRECAO_NOTURNO_2024,
+      month_key: MONTH_KEY_CORRECAO_NOTURNO_2024,
+      sync_month: MONTH_KEY_CORRECAO_NOTURNO_2024,
+      ano: 2024,
+      ano_referencia: 2024,
+    };
+  }
+
+  const sheetYear = getYearFromSheetContext(item);
+  if (!sheetYear) return item;
+
+  const dateInfo = parseDateInfo(item?.data || item?.data_inicio || item?.data_realizacao, item);
+  if (!dateInfo || dateInfo.hasYear) return item;
+
+  const month = dateInfo.month || getMonthFromSheetContext(item);
+  if (!dateInfo.day || !month) return item;
+
+  const data = formatDateBR(dateInfo.day, month, sheetYear);
+  const iso = formatDateISO(dateInfo.day, month, sheetYear);
+  const monthKey = `${sheetYear}-${String(month).padStart(2, '0')}`;
+
+  return {
+    ...item,
+    data,
+    data_inicio: item?.data_inicio || iso,
+    data_realizacao: item?.data_realizacao || iso,
+    month_key: item?.month_key || monthKey,
+    sync_month: item?.sync_month || monthKey,
+    ano: item?.ano || sheetYear,
+    ano_referencia: item?.ano_referencia || sheetYear,
+  };
 }
 
 function getItemMonthKey(item) {
@@ -125,7 +277,7 @@ export default function ProgramacaoEspelho() {
     async function load() {
       setLoading(true);
       const data = await base44.entities.Programacao.list('-data_inicio', 5000);
-      const items = (Array.isArray(data) ? data : []).map(normalizeNoturno2024Date);
+      const items = (Array.isArray(data) ? data : []).map(normalizeDateBySheetYear);
       setAllItems(items);
 
       const monthSet = new Set();
