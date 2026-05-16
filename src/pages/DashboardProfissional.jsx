@@ -12,6 +12,7 @@ import DiariamenteNosMuseus from '../components/dashboard/DiariamenteNosMuseus';
 import ProfessionalStats from '../components/dashboard/ProfessionalStats';
 import RecentReportsCard from '../components/dashboard/RecentReportsCard';
 import ProfessionalGeneralCharts from '../components/dashboard/ProfessionalGeneralCharts';
+import MetasAditivoSection from '../components/dashboard/MetasAditivoSection';
 
 const APPROVED = new Set(['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN']);
 const SUBMITTED = new Set(['SUBMITTED', 'ENVIADO', 'ENVIADO_REVISAO', 'AGUARDANDO_REVISAO', 'SOLICITADO']);
@@ -277,81 +278,4 @@ function PersonalCards({ myReports, myActivities, myAttachments, myRequests, myP
       )}
     </section>
   );
-}
-
-function ProfessionalDataSection({ myReports, myActivities, isLoadingActivities }) {
-  const [showFilters, setShowFilters] = useState(false);
-  const [selectedMuseum, setSelectedMuseum] = useState('all');
-  const [selectedStatus, setSelectedStatus] = useState('all');
-  const [selectedMonth, setSelectedMonth] = useState('all');
-  const museums = ['MHAB', 'MIS', 'MUMO'];
-  const months = [...new Set(myReports.map((r) => `${r.mes_referencia}-${r.ano}`))].filter((m) => m !== 'undefined-undefined');
-  const filteredActivities = myActivities.filter((activity) => {
-    let match = true;
-    if (selectedMuseum !== 'all') {
-      const report = myReports.find((r) => r.id === activity.report_id);
-      if (!report || normalizeMuseu(getReportMuseu(report)) !== selectedMuseum) match = false;
-    }
-    if (selectedStatus !== 'all') {
-      const report = myReports.find((r) => r.id === activity.report_id);
-      if (!report || report.status !== selectedStatus) match = false;
-    }
-    if (selectedMonth !== 'all' && activity.report_id) {
-      const report = myReports.find((r) => r.id === activity.report_id);
-      if (!report || `${report.mes_referencia}-${report.ano}` !== selectedMonth) match = false;
-    }
-    return match;
-  });
-
-  return (
-    <div className="space-y-6">
-      <div className="border-t border-border pt-6">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <div><h2 className="text-2xl font-semibold text-foreground">Meus Dados e Atividades</h2><p className="mt-1 text-sm text-muted-foreground">Visualize suas atividades, relatórios e documentos.</p></div>
-          <Button variant={showFilters ? 'default' : 'outline'} size="sm" onClick={() => setShowFilters(!showFilters)} className="gap-2"><Filter className="h-4 w-4" />{showFilters ? 'Ocultar' : 'Filtros'}</Button>
-        </div>
-        {showFilters && <div className="mb-6 grid grid-cols-1 gap-3 rounded-lg bg-secondary p-4 sm:grid-cols-3"><div className="space-y-2"><label className="text-sm font-medium text-foreground">Museu</label><select value={selectedMuseum} onChange={(e) => setSelectedMuseum(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="all">Todos os museus</option>{museums.map((m) => <option key={m} value={m}>{m}</option>)}</select></div><div className="space-y-2"><label className="text-sm font-medium text-foreground">Status</label><select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="all">Todos</option><option value="DRAFT">Rascunho</option><option value="SUBMITTED">Enviado</option><option value="APPROVED">Aprovado</option><option value="DEVOLVIDO">Devolvido</option></select></div><div className="space-y-2"><label className="text-sm font-medium text-foreground">Período</label><select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="all">Todos os períodos</option>{months.map((m) => <option key={m} value={m}>{m}</option>)}</select></div></div>}
-        {!isLoadingActivities && filteredActivities.length > 0 && <div className="space-y-3"><h3 className="text-lg font-semibold text-foreground">Atividades Registradas</h3><div className="grid max-h-96 gap-3 overflow-y-auto">{filteredActivities.slice(0, 10).map((activity, index) => { const report = myReports.find((r) => r.id === activity.report_id); return <div key={activity.id || `${activity.titulo}-${index}`} className="rounded-lg border border-border bg-card/50 p-3 transition-colors hover:bg-card"><div className="text-sm font-medium text-foreground">{activity.titulo || activity.nome || 'Atividade sem título'}</div><div className="mt-1 text-xs text-muted-foreground">{getReportMuseu(report) || 'Geral'} • {report?.mes_referencia || ''} {report?.ano || ''}</div></div>; })}</div></div>}
-        {!isLoadingActivities && filteredActivities.length === 0 && <div className="rounded-lg border border-dashed border-border p-8 text-center"><p className="text-muted-foreground">Nenhuma atividade encontrada com os filtros selecionados.</p></div>}
-      </div>
-    </div>
-  );
-}
-
-function DashboardProfissionalInner() {
-  const { user: currentUser } = useCurrentUser();
-  const userMuseu = getUserMuseu(currentUser);
-
-  const { data: myReports = [], isLoading } = useQuery({ queryKey: ['my-reports-prof', currentUser?.email], queryFn: () => base44.entities.Report.filter({ created_by: currentUser?.email }, '-created_date', 100), enabled: !!currentUser?.email });
-  const { data: myActivities = [], isLoading: isLoadingActivities } = useQuery({ queryKey: ['my-activities-prof', currentUser?.email, myReports], queryFn: async () => getReportsActivities(myReports), enabled: !!currentUser?.email && myReports.length > 0 });
-  const { data: myAttachments = [] } = useQuery({ queryKey: ['my-attachments-prof', myReports], queryFn: async () => { const attachments = []; for (const report of myReports) { try { const reportAttachments = await base44.entities.Attachment.filter({ report_id: report.id }, '-created_date'); attachments.push(...reportAttachments); } catch (e) { console.warn('Error fetching attachments:', e); } } return attachments; }, enabled: myReports.length > 0 });
-  const { data: myRequests = [] } = useQuery({ queryKey: ['my-purchase-requests-prof', currentUser?.email], queryFn: async () => { try { const list = await base44.entities.PurchaseRequest.list('-created_date', 300); return (Array.isArray(list) ? list : []).filter((item) => isMine(item, currentUser?.email)); } catch { return []; } }, enabled: !!currentUser?.email });
-  const { data: myProgramacao = [] } = useQuery({ queryKey: ['my-programacao-prof', currentUser?.email], queryFn: async () => { try { const list = await base44.entities.Programacao.list('-data_realizacao', 200); return (Array.isArray(list) ? list : []).filter((item) => isMine(item, currentUser?.email)); } catch { return []; } }, enabled: !!currentUser?.email });
-  const { data: allReports = [], isLoading: isLoadingAllReports } = useQuery({ queryKey: ['all-reports-prof-general'], queryFn: () => base44.entities.Report.list('-created_date', 500), enabled: !!currentUser?.email });
-  const { data: allProgramacao = [], isLoading: isLoadingAllProgramacao } = useQuery({ queryKey: ['all-programacao-prof-general'], queryFn: () => base44.entities.Programacao.list('-data_realizacao', 500), enabled: !!currentUser?.email });
-
-  const approvedMetrics = useMemo(() => getApprovedMetrics(allReports), [allReports]);
-  const museuAtualPublico = userMuseu ? toNumber(approvedMetrics.byMuseum?.[userMuseu]?.publicoTotal) : myActivities.reduce((sum, a) => sum + getActivityPublic(a), 0);
-  const recentReports = myReports.slice(0, 5);
-
-  const stats = { publico: museuAtualPublico, publicoTodosMuseus: approvedMetrics.publicoTotal, atividadesTresMuseus: approvedMetrics.approvedActivities.length };
-
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-4 py-6 md:px-8 md:py-10">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4"><div><h1 className="text-3xl font-semibold text-foreground">Painel</h1><p className="mt-1 text-sm text-muted-foreground">Bem-vindo, {currentUser?.full_name || ''}! Sua atuação nas instituições{userMuseu ? ` · ${userMuseu}` : ''}</p></div><Link to="/ReportEditor"><Button className="gap-2"><Plus className="h-4 w-4" />Novo Relatório</Button></Link></div>
-        <div className="mb-6 space-y-6"><GaleriaTickerCarousel /><NewsCarousel /><DiariamenteNosMuseus /></div>
-        {!isLoadingAllReports && !isLoadingAllProgramacao && <ProfessionalGeneralCharts reports={allReports} programacao={allProgramacao} />}
-        {!isLoading && <PersonalCards myReports={myReports} myActivities={myActivities} myAttachments={myAttachments} myRequests={myRequests} myProgramacao={myProgramacao} userMuseu={userMuseu} />}
-        {!isLoading && <div className="mb-8"><h2 className="mb-4 text-xl font-semibold text-foreground">Dados</h2><ProfessionalStats stats={stats} /></div>}
-        {recentReports.length > 0 && <div className="mb-8"><h2 className="mb-4 text-xl font-semibold text-foreground">Relatórios Recentes</h2><RecentReportsCard reports={recentReports} /></div>}
-        <ProfessionalDataSection myReports={myReports} myActivities={myActivities} isLoadingActivities={isLoadingActivities} />
-        {!isLoading && myReports.length === 0 && <div className="mt-8 rounded-2xl border border-dashed border-border p-12 text-center"><p className="font-medium text-foreground">Você ainda não tem relatórios</p><p className="mt-2 text-sm text-muted-foreground">Comece criando um novo relatório mensal para registrar suas atividades e atuação.</p><Link to="/ReportEditor"><Button className="mt-6 gap-2"><Plus className="h-4 w-4" />Criar Primeiro Relatório</Button></Link></div>}
-      </div>
-    </div>
-  );
-}
-
-export default function DashboardProfissional() {
-  return <RequireAuth><DashboardProfissionalInner /></RequireAuth>;
 }
