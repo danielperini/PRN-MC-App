@@ -331,8 +331,8 @@ export default function ProgramacaoEspelho() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Programação — Espelho da Planilha</h1>
-          <p className="text-slate-500 text-sm mt-1">Visualização espelho da programação registrada no sistema</p>
+          <h1 className="text-2xl font-bold text-slate-900">Programação</h1>
+          <p className="text-slate-500 text-sm mt-1">Visualização da programação registrada no sistema</p>
         </div>
         <Button variant="outline" size="sm" onClick={carregarProgramacoes} disabled={loading}>
           <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
