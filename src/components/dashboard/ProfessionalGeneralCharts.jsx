@@ -9,8 +9,8 @@ import {
   CartesianGrid,
   XAxis,
   YAxis,
-  Tooltip,
-} from 'recharts';
+  Tooltip } from
+'recharts';
 
 const MESES_ORDER = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const publicoLineColor = '#111827';
@@ -123,23 +123,23 @@ function StatCard({ title, value, helper, icon: Icon }) {
       </div>
       <div className="text-2xl font-bold text-foreground">{value}</div>
       {helper && <div className="mt-1 text-xs text-muted-foreground">{helper}</div>}
-    </div>
-  );
+    </div>);
+
 }
 
 function ChartCard({ title, children }) {
   return (
-    <div className="border border-gray-100 rounded-2xl p-5 bg-card shadow-sm">
+    <div className="border border-gray-100 rounded-2xl p-5 bg-card shadow-sm hidden">
       <h3 className="text-sm font-semibold text-black mb-4">{title}</h3>
       <ResponsiveContainer width="100%" height={250}>{children}</ResponsiveContainer>
-    </div>
-  );
+    </div>);
+
 }
 
 export default function ProfessionalGeneralCharts({ reports = [], programacao = [] }) {
   const porMes = useMemo(() => buildMonthlyRows(reports, programacao), [reports, programacao]);
   const totals = useMemo(() => {
-    const activities = reports.flatMap((report) => (Array.isArray(report?.atividades) ? report.atividades : []));
+    const activities = reports.flatMap((report) => Array.isArray(report?.atividades) ? report.atividades : []);
     const publicActivities = activities.reduce((sum, a) => sum + getActivityPublic(a), 0);
     const publicGeneral = reports.reduce((sum, r) => sum + toNumber(r.publico_geral_declarado || r.publico_geral || 0), 0);
     return { reports: reports.length, activities: activities.length, publicTotal: publicActivities + publicGeneral, programacao: programacao.length };
@@ -157,14 +157,14 @@ export default function ProfessionalGeneralCharts({ reports = [], programacao = 
         <StatCard title="Público Total" value={fmtInt(totals.publicTotal)} helper="público das atividades e público geral declarado" icon={Activity} />
         <StatCard title="Total de Programações" value={fmtInt(totals.programacao)} helper="programações cadastradas" icon={CalendarDays} />
       </div>
-      {porMes.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {porMes.length > 0 &&
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <ChartCard title="Público por Mês"><LineChart data={porMes}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} /><XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} /><Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Público']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} /><Line type="monotone" dataKey="publico" stroke={publicoLineColor} strokeWidth={2} dot={{ r: 4, fill: publicoLineColor, stroke: publicoLineColor }} activeDot={{ r: 6, fill: publicoLineColor, stroke: publicoLineColor }} /></LineChart></ChartCard>
           <ChartCard title="Atividades por Mês"><BarChart data={porMes}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} /><XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} /><Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Atividades']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} /><Bar dataKey="atividades" fill={activityBarColor} radius={[8, 8, 0, 0]} /></BarChart></ChartCard>
           <ChartCard title="Relatórios por Mês"><BarChart data={porMes}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} /><XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} /><Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Relatórios']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} /><Bar dataKey="relatorios" fill={reportBarColor} radius={[8, 8, 0, 0]} /></BarChart></ChartCard>
           <ChartCard title="Programações por Mês"><LineChart data={porMes}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} /><XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} /><Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Programações']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} /><Line type="monotone" dataKey="programacoes" stroke={programacaoLineColor} strokeWidth={2} dot={{ r: 4, fill: programacaoLineColor, stroke: programacaoLineColor }} activeDot={{ r: 6, fill: programacaoLineColor, stroke: programacaoLineColor }} /></LineChart></ChartCard>
         </div>
-      )}
-    </section>
-  );
+      }
+    </section>);
+
 }
