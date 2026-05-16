@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { CheckCircle2, AlertCircle, Target } from 'lucide-react';
 
 const COMMUNICATION_CURVE = [
@@ -11,7 +11,7 @@ const COMMUNICATION_CURVE = [
   { mes: 'Nov/26', esperado: 100 },
 ];
 
-const METAS_ADITIVO = [
+const BASE_METAS_ADITIVO = [
   {
     numero: 'META 01',
     titulo: 'Equipe principal',
@@ -38,7 +38,7 @@ const METAS_ADITIVO = [
     numero: 'META 03',
     titulo: 'Manutenção das exposições',
     percentual: 0,
-    detalhe: 'Execução financeira da rubrica de manutenção, sem educadoras',
+    detalhe: 'Execução financeira da rubrica de manutenção e disposição, sem educadoras',
     indicador: 'Percentual da rubrica utilizada',
     status: 'EM EXECUÇÃO',
   },
@@ -162,6 +162,111 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, Math.round(number)));
 }
 
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const parsed = Number(String(value).replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function formatCurrency(value) {
+  return toNumber(value).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  });
+}
+
+function getRubricaText(rubrica = {}) {
+  return normalizeText([
+    rubrica?.rubrica,
+    rubrica?.nome,
+    rubrica?.descricao,
+    rubrica?.grupo,
+    rubrica?.categoria,
+    rubrica?.categoria_key,
+    rubrica?.meta,
+    rubrica?.centro_custo,
+  ].filter(Boolean).join(' '));
+}
+
+function getRubricaPrevisto(rubrica = {}) {
+  return toNumber(
+    rubrica?.valor_total ??
+      rubrica?.valor_rubrica ??
+      rubrica?.totalOrcado ??
+      rubrica?.valorOrcado ??
+      rubrica?.orcado ??
+      rubrica?.previsto ??
+      rubrica?.valor_previsto
+  );
+}
+
+function getRubricaUtilizado(rubrica = {}) {
+  return toNumber(
+    rubrica?.valor_utilizado ??
+      rubrica?.valorUtilizado ??
+      rubrica?.utilizado ??
+      rubrica?.realizado ??
+      rubrica?.valor_pago ??
+      rubrica?.valorPago
+  );
+}
+
+function isRubricaMeta03(rubrica = {}) {
+  const text = getRubricaText(rubrica);
+  const includesMeta = text.includes('manutencao') || text.includes('disposicao');
+  const excluded =
+    text.includes('educador') ||
+    text.includes('educadora') ||
+    text.includes('educadores') ||
+    text.includes('educadoras') ||
+    text.includes('mediacao') ||
+    text.includes('diaria') ||
+    text.includes('diarias');
+
+  return includesMeta && !excluded;
+}
+
+function calculateMeta03(rubricas = []) {
+  const selected = (Array.isArray(rubricas) ? rubricas : []).filter(isRubricaMeta03);
+  const previsto = selected.reduce((sum, rubrica) => sum + getRubricaPrevisto(rubrica), 0);
+  const utilizado = selected.reduce((sum, rubrica) => sum + getRubricaUtilizado(rubrica), 0);
+  const percentual = previsto > 0 ? clampPercent((utilizado / previsto) * 100) : 0;
+
+  return {
+    quantidade: selected.length,
+    previsto,
+    utilizado,
+    percentual,
+  };
+}
+
+function buildMetas(rubricas = []) {
+  const meta03 = calculateMeta03(rubricas);
+
+  return BASE_METAS_ADITIVO.map((meta) => {
+    if (meta.numero !== 'META 03') return meta;
+
+    return {
+      ...meta,
+      percentual: meta03.percentual,
+      indicador: `${formatCurrency(meta03.utilizado)} utilizados de ${formatCurrency(meta03.previsto)} previstos`,
+      detalhe: `${meta03.quantidade} rubrica${meta03.quantidade === 1 ? '' : 's'} de manutenção/disposição consideradas, excluindo educadoras`,
+      status: meta03.percentual >= 100 ? 'CONCLUÍDA' : 'EM EXECUÇÃO',
+    };
+  });
+}
+
 function getStatusClass(status) {
   if (status === 'CONCLUÍDA') return 'border-black bg-black text-white';
   if (status === 'NÃO CONSIDERAR') return 'border-neutral-200 bg-neutral-100 text-neutral-500';
@@ -198,7 +303,7 @@ function CommunicationCurve({ curva }) {
       <div className="grid grid-cols-7 gap-2">
         {curva.map((item) => (
           <div key={item.mes} className="space-y-2 text-center">
-            <div className="mx-auto flex h-20 w-full max-w-8 items-end rounded-full bg-neutral-200 overflow-hidden">
+            <div className="mx-auto flex h-20 w-full max-w-8 items-end overflow-hidden rounded-full bg-neutral-200">
               <div
                 className="w-full rounded-full bg-black"
                 style={{ height: `${clampPercent(item.esperado)}%` }}
@@ -263,8 +368,9 @@ function MetaCard({ meta }) {
   );
 }
 
-export default function MetasAditivoSection() {
-  const metasValidas = METAS_ADITIVO.filter((meta) => meta.status !== 'NÃO CONSIDERAR');
+export default function MetasAditivoSection({ rubricas = [] }) {
+  const metas = useMemo(() => buildMetas(rubricas), [rubricas]);
+  const metasValidas = metas.filter((meta) => meta.status !== 'NÃO CONSIDERAR');
   const concluidas = metasValidas.filter((meta) => clampPercent(meta.percentual) >= 100).length;
   const andamento = metasValidas.filter((meta) => meta.status === 'EM EXECUÇÃO').length;
   const media = metasValidas.length
@@ -292,7 +398,7 @@ export default function MetasAditivoSection() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        {METAS_ADITIVO.map((meta) => (
+        {metas.map((meta) => (
           <MetaCard key={meta.numero} meta={meta} />
         ))}
       </div>
