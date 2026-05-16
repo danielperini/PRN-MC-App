@@ -40,7 +40,7 @@ const PAGE_TITLES = {
   GeradorListaPresenca: 'Gerador de Lista de Presença',
   GeradorTermoCompromisso: 'Gerador de Termo de Compromisso',
   MeusDados: 'Informações',
-  ProgramacaoEspelho: 'Programação — Espelho da Planilha',
+  ProgramacaoEspelho: 'Programação',
   Agenda: 'Agenda Museu Centro',
   EntradaUnica: 'Entrada Única de Documentos',
   Mensagens: 'Mensagens',
