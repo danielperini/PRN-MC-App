@@ -1,24 +1,33 @@
 import React from 'react';
 import { CheckCircle2, AlertCircle, Target } from 'lucide-react';
 
-const COMMUNICATION_CURVE = [
-  { mes: 'Mai/26', esperado: 20 },
-  { mes: 'Jun/26', esperado: 32 },
-  { mes: 'Jul/26', esperado: 44 },
-  { mes: 'Ago/26', esperado: 58 },
-  { mes: 'Set/26', esperado: 72 },
-  { mes: 'Out/26', esperado: 86 },
-  { mes: 'Nov/26', esperado: 100 },
-];
-
 const BASE_METAS_ADITIVO = [
-  { numero: 'META 01', titulo: 'Equipe principal', percentual: 100, detalhe: 'Cargos previstos e cargos ocupados na equipe', indicador: '100% concluído · contagem de cargos ativa', status: 'CONCLUÍDA', editableRubricas: false },
-  { numero: 'META 02', titulo: 'Plano de comunicação', percentual: 20, detalhe: 'Indicador composto: releases 70%, posts 20% e fotos válidas 10%', indicador: '20% concluído · média operacional dos últimos 3 meses', status: 'EM EXECUÇÃO', editableRubricas: false, curva: COMMUNICATION_CURVE, subindicadores: [{ label: 'Releases', peso: '70%' }, { label: 'Posts', peso: '20%' }, { label: 'Fotos válidas', peso: '10%' }] },
+  { numero: 'META 01', titulo: 'Equipe principal', percentual: 100, detalhe: 'Cargos previstos e cargos ocupados na equipe', indicador: '100% concluído · contagem de cargos ativa', status: 'CONCLUÍDA' },
+  { numero: 'META 07', titulo: 'Contratação de educadores', percentual: 100, detalhe: 'Educadores contratados para MIS, MUMO e MHAB', indicador: '100% concluído', status: 'CONCLUÍDA' },
   { numero: 'META 03', titulo: 'Manutenção das exposições', percentual: 0, detalhe: 'Execução financeira da rubrica de manutenção e disposição, sem educadoras', indicador: 'Percentual da rubrica utilizada', status: 'EM EXECUÇÃO' },
   { numero: 'META 04', titulo: 'Alteração de núcleos e salas expositivas', percentual: 0, detalhe: 'Rubricas de núcleos, salas expositivas, montagem, expografia e ambientação', indicador: 'Percentual das rubricas relacionadas utilizadas', status: 'EM EXECUÇÃO' },
   { numero: 'META 05', titulo: 'Atividades Educativas e Culturais', percentual: 0, detalhe: 'Atividades únicas da Programação/Agenda, filtradas mensalmente desde março/2026', indicador: '0/30 atividades da programação validadas', status: 'EM EXECUÇÃO' },
-  { numero: 'META 07', titulo: 'Contratação de educadores', percentual: 100, detalhe: 'Educadores contratados para MIS, MUMO e MHAB', indicador: '100% concluído', status: 'CONCLUÍDA', editableRubricas: false },
-];
+  { numero: 'META 10', titulo: 'Mostras e exposições', percentual: 0, detalhe: 'MIS pequeno + MHAB + MUMO grande', indicador: 'MUMO = 70% · MIS + MHAB = 30%', status: 'EM EXECUÇÃO' },
+  { numero: 'META 11', titulo: 'Noturno nos Museus', percentual: 0, detalhe: 'Execução vinculada ao grupo/rubrica Noturno nos Museus', indicador: 'Percentual do custeio Noturno utilizado', status: 'EM EXECUÇÃO' },
+  { numero: 'META 12', titulo: 'Exposição MHAB', percentual: 0, detalhe: 'Rubricas relacionadas à exposição MHAB/MAB', indicador: 'Percentual das rubricas relacionadas utilizadas', status: 'EM EXECUÇÃO' },
+  { numero: 'META 12B', titulo: 'Exposição MUMO', percentual: 0, detalhe: 'Rubricas relacionadas à exposição MUMO', indicador: 'Percentual das rubricas relacionadas utilizadas', status: 'EM EXECUÇÃO' },
+  { numero: 'META 14', titulo: 'Acessibilidade', percentual: 100, detalhe: 'Entrega de dispositivos acessíveis', indicador: '100% entregue', status: 'CONCLUÍDA' },
+  { numero: 'META 15', titulo: 'Diárias de educadores', percentual: 0, detalhe: 'Execução financeira da rubrica Diários Educadores', indicador: 'Percentual da rubrica utilizada', status: 'EM EXECUÇÃO' },
+  { numero: 'META 16', titulo: 'Publicações e catálogos', percentual: 0, detalhe: 'Rubricas de catálogo, publicação, revisão, tradução, impressão, fotógrafo, pesquisa e texto', indicador: 'Percentual das rubricas relacionadas utilizadas', status: 'EM EXECUÇÃO' },
+  { numero: 'META 17', titulo: 'Custeio das atividades educativas e culturais', percentual: 0, detalhe: 'Materiais, lanches e apoio pedagógico', indicador: 'Percentual das rubricas de custeio utilizadas', status: 'EM EXECUÇÃO' },
+].sort((a, b) => {
+  const prioridade = {
+    'META 01': 0,
+    'META 07': 1,
+  };
+
+  const pa = prioridade[a.numero] ?? 2;
+  const pb = prioridade[b.numero] ?? 2;
+
+  if (pa !== pb) return pa - pb;
+
+  return a.titulo.localeCompare(b.titulo, 'pt-BR');
+});
 
 function MetaCard({ meta }) {
   const isConcluida = meta.status === 'CONCLUÍDA';
@@ -69,7 +78,7 @@ function MetaCard({ meta }) {
   );
 }
 
-export default function MetasAditivoSection({ rubricas = [] }) {
+export default function MetasAditivoSection() {
   return (
     <div className="space-y-3">
       <div className="mb-1 flex items-center gap-2">
@@ -79,7 +88,7 @@ export default function MetasAditivoSection({ rubricas = [] }) {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {BASE_METAS_ADITIVO.map((meta) => (
-          <MetaCard key={meta.numero} meta={meta} rubricas={rubricas} />
+          <MetaCard key={meta.numero} meta={meta} />
         ))}
       </div>
     </div>
