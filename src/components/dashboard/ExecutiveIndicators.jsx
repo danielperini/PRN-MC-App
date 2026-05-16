@@ -134,16 +134,16 @@ function KpiCard({ label, value, icon: Icon, highlight = false, helper }) {
         : 'border-border bg-card hover:shadow-md'
     }`}>
       <div className="flex items-center gap-2 mb-3 min-w-0">
-        {Icon && <Icon className={`w-4 h-4 flex-shrink-0 ${highlight ? 'text-primary-foreground' : 'text-muted-foreground'}`} />}
-        <span className={`text-[11px] font-semibold uppercase tracking-wide truncate ${highlight ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+        {Icon && <Icon className={`w-5 h-5 flex-shrink-0 ${highlight ? 'text-primary-foreground' : 'text-muted-foreground'}`} />}
+        <span className={`text-sm font-semibold uppercase tracking-wide truncate ${highlight ? 'text-primary-foreground/85' : 'text-muted-foreground'}`}>
           {label}
         </span>
       </div>
-      <div className={`text-lg md:text-xl xl:text-[1.15rem] leading-tight font-bold break-words tabular-nums ${highlight ? 'text-primary-foreground' : 'text-foreground'}`}>
+      <div className={`text-3xl font-bold leading-tight break-words tabular-nums ${highlight ? 'text-primary-foreground' : 'text-foreground'}`}>
         {formatKpiValue(value)}
       </div>
       {helper && (
-        <p className={`text-xs mt-1 truncate ${highlight ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+        <p className={`text-base font-medium mt-1 truncate ${highlight ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
           {helper}
         </p>
       )}
@@ -159,8 +159,8 @@ function AgendaKpiCard({ agendaItems = [], agendaDate, agendaIndex }) {
   return (
     <div className="p-5 border border-border rounded-2xl transition-all shadow-sm min-w-0 bg-card hover:shadow-md">
       <div className="flex items-center gap-2 mb-3 min-w-0">
-        <CalendarDays className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
-        <span className="text-[11px] font-semibold uppercase tracking-wide truncate text-muted-foreground">
+        <CalendarDays className="w-5 h-5 flex-shrink-0 text-muted-foreground" />
+        <span className="text-sm font-semibold uppercase tracking-wide truncate text-muted-foreground">
           {isHoje ? 'Agenda de hoje' : 'Próxima agenda'}
         </span>
       </div>
@@ -170,11 +170,11 @@ function AgendaKpiCard({ agendaItems = [], agendaDate, agendaIndex }) {
           <p className="text-3xl font-bold leading-tight truncate text-foreground">
             {formatDateBR(agendaDate)}
           </p>
-          <p className="text-xs mt-1 truncate text-muted-foreground">
+          <p className="text-base font-medium mt-1 truncate text-muted-foreground">
             {getProgramacaoTitle(current)}
           </p>
-          <p className="text-xs mt-1 truncate text-foreground font-semibold flex items-center gap-1">
-            <MapPin className="w-3 h-3 flex-shrink-0" />
+          <p className="text-base mt-1 truncate text-foreground font-semibold flex items-center gap-1">
+            <MapPin className="w-4 h-4 flex-shrink-0" />
             {getProgramacaoMuseu(current)}
           </p>
 
@@ -194,7 +194,7 @@ function AgendaKpiCard({ agendaItems = [], agendaDate, agendaIndex }) {
       ) : (
         <>
           <p className="text-3xl font-bold leading-tight truncate text-foreground">—</p>
-          <p className="text-xs mt-1 truncate text-muted-foreground">sem atividade futura</p>
+          <p className="text-base font-medium mt-1 truncate text-muted-foreground">sem atividade futura</p>
         </>
       )}
     </div>
