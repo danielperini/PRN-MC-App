@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { CheckCircle2, AlertCircle, Target, X, Search } from 'lucide-react';
+import { CheckCircle2, AlertCircle, X, Search } from 'lucide-react';
 
 const BASE_METAS_ADITIVO = [
   { numero: 'META 01', titulo: 'Equipe principal', percentual: 100, detalhe: 'Cargos previstos e cargos ocupados na equipe', indicador: '100% concluído · contagem de cargos ativa', status: 'CONCLUÍDA' },
@@ -77,7 +77,6 @@ function MetaCard({ meta, onOpen }) {
           <StatusIcon className="h-4 w-4 flex-shrink-0 text-black" />
           <span className="text-xs font-semibold uppercase tracking-wide text-neutral-600">{meta.numero}</span>
         </div>
-
         <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${isConcluida ? 'border-black bg-black text-white' : 'border-neutral-300 bg-neutral-100 text-neutral-800'}`}>
           {meta.status}
         </span>
@@ -145,64 +144,7 @@ function MetaRubricasModal({ meta, rubricas, onClose, onUpdated }) {
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[88vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-xl">
-        <div className="flex items-start justify-between gap-4 border-b border-neutral-200 p-5">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">{meta.numero}</p>
-            <h3 className="text-lg font-semibold text-black">{meta.titulo}</h3>
-            <p className="mt-1 text-sm text-neutral-500">
-              {vinculadas.length} rubrica{vinculadas.length === 1 ? '' : 's'} vinculada{vinculadas.length === 1 ? '' : 's'} · {fmtBRL(utilizado)} utilizados de {fmtBRL(previsto)} previstos
-            </p>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-full border border-neutral-200 p-2 hover:bg-neutral-50">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="border-b border-neutral-100 p-4">
-          <div className="flex items-center gap-2 rounded-2xl border border-neutral-200 px-3 py-2">
-            <Search className="h-4 w-4 text-neutral-400" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar rubrica..." className="w-full bg-transparent text-sm outline-none" />
-          </div>
-        </div>
-
-        <div className="max-h-[52vh] overflow-y-auto p-4">
-          <div className="grid grid-cols-1 gap-2">
-            {filteredRubricas.map((rubrica) => {
-              const checked = isRubricaLinkedToMeta(rubrica, meta);
-              const id = rubrica?.id || getRubricaNome(rubrica);
-
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => toggleRubrica(rubrica)}
-                  disabled={savingId === rubrica?.id}
-                  className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3 text-left text-sm transition ${checked ? 'border-black bg-neutral-50' : 'border-neutral-200 bg-white hover:bg-neutral-50'}`}
-                >
-                  <span className={`mt-1 h-4 w-4 rounded border ${checked ? 'border-black bg-black' : 'border-neutral-300 bg-white'}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-black">{getRubricaNome(rubrica)}</p>
-                    <p className="text-xs text-neutral-500">{rubrica?.grupo || rubrica?.categoria || rubrica?.centro_custo || 'Sem grupo informado'}</p>
-                  </div>
-                  <div className="shrink-0 text-right text-xs text-neutral-600">
-                    <p>{fmtBRL(getRubricaUtilizado(rubrica))}</p>
-                    <p className="text-neutral-400">de {fmtBRL(getRubricaValor(rubrica))}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="flex justify-end border-t border-neutral-200 p-4">
-          <button type="button" onClick={onClose} className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800">Concluir</button>
-        </div>
-      </div>
-    </div>
-  );
+  return null;
 }
 
 export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRefresh }) {
@@ -232,10 +174,9 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
   }
 
   return (
-    <div className="space-y-3">
-      <div className="mb-1 flex items-center gap-2">
-        <Target className="h-4 w-4 text-black" />
-        <h3 className="text-sm font-semibold text-black">Metas do 3º Aditivo</h3>
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-bold text-slate-900 tracking-tight">Metas do 3º Aditivo</h2>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
