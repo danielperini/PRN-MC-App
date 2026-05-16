@@ -7,6 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import ExportProgramacaoDialog from '@/components/programacao/ExportProgramacaoDialog';
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO', 'Externo'];
+const DATA_CORRECAO_NOTURNO_2024 = '06/12/2024';
+const DATA_ISO_CORRECAO_NOTURNO_2024 = '2024-12-06';
+const MONTH_KEY_CORRECAO_NOTURNO_2024 = '2024-12';
 
 const MUSEU_COLORS = {
   MIS: 'bg-blue-100 text-blue-800',
@@ -15,10 +18,74 @@ const MUSEU_COLORS = {
   Externo: 'bg-gray-100 text-gray-700',
 };
 
+const ATIVIDADES_NOTURNO_2024 = [
+  'pensamento do fora',
+  'iluminacao das esculturas dos jardins',
+  'instalacao da obra pensamento do fora',
+  'corpo agua',
+  'corpo-agua',
+  'samba de roda oridende',
+  'mostra digital de trabalhos de arte da galeria aut',
+  'coletivo as pandeirista',
+  'oficina de estamparia com preta aya',
+  'aline calixto',
+  'clara nunes',
+  'victor santana',
+  'samba da meia noite',
+  'visitas mediadas complexa cidade',
+  'belo horizonte fora dos planos',
+  'quarteto chico amaral',
+];
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/["“”'’]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getProgramacaoTitle(item) {
+  return item?.titulo || item?.nome_acao || item?.nome || item?.acao || '';
+}
+
+function isAtividadeNoturno2024(item) {
+  const text = normalizeText([
+    getProgramacaoTitle(item),
+    item?.sinopse,
+    item?.descricao,
+    item?.local,
+  ].filter(Boolean).join(' '));
+
+  return ATIVIDADES_NOTURNO_2024.some((needle) => text.includes(normalizeText(needle)));
+}
+
+function normalizeNoturno2024Date(item) {
+  if (!isAtividadeNoturno2024(item)) return item;
+
+  return {
+    ...item,
+    data: DATA_CORRECAO_NOTURNO_2024,
+    data_inicio: DATA_ISO_CORRECAO_NOTURNO_2024,
+    data_realizacao: DATA_ISO_CORRECAO_NOTURNO_2024,
+    month_key: MONTH_KEY_CORRECAO_NOTURNO_2024,
+    sync_month: MONTH_KEY_CORRECAO_NOTURNO_2024,
+    ano: 2024,
+    ano_referencia: 2024,
+  };
+}
+
 function getMonthKey(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
+}
+
+function getItemMonthKey(item) {
+  return item.month_key || item.sync_month || (item.data_inicio ? getMonthKey(new Date(item.data_inicio)) : null);
 }
 
 function parseMonthKey(key) {
@@ -58,28 +125,24 @@ export default function ProgramacaoEspelho() {
     async function load() {
       setLoading(true);
       const data = await base44.entities.Programacao.list('-data_inicio', 5000);
-      const items = Array.isArray(data) ? data : [];
+      const items = (Array.isArray(data) ? data : []).map(normalizeNoturno2024Date);
       setAllItems(items);
 
-      // extrair meses disponíveis
       const monthSet = new Set();
       items.forEach((item) => {
-        const key = item.month_key || item.sync_month || (item.data_inicio ? getMonthKey(new Date(item.data_inicio)) : null);
+        const key = getItemMonthKey(item);
         if (key) monthSet.add(key);
       });
       const sorted = Array.from(monthSet).sort().reverse();
       setAvailableMonths(sorted);
 
-      // extrair anos disponíveis
       const yearSet = new Set(sorted.map(k => parseInt(k.split('-')[0])));
       const years = Array.from(yearSet).sort().reverse();
       setAvailableYears(years);
 
-      // definir ano inicial como o mais recente
       const latestYear = years[0] || new Date().getFullYear();
       setYearFilter(latestYear);
 
-      // ir para o mês mais recente desse ano
       const latestMonthOfYear = sorted.find(k => k.startsWith(String(latestYear)));
       if (latestMonthOfYear) setCurrentMonth(latestMonthOfYear);
 
@@ -88,13 +151,12 @@ export default function ProgramacaoEspelho() {
     load();
   }, []);
 
-  // meses disponíveis para o ano selecionado
   const monthsOfYear = availableMonths.filter(k => k.startsWith(String(yearFilter)));
   const hasPrevInYear = monthsOfYear.includes(prevMonth(currentMonth));
   const hasNextInYear = monthsOfYear.includes(nextMonth(currentMonth));
 
   const filtered = allItems.filter((item) => {
-    const key = item.month_key || item.sync_month || (item.data_inicio ? getMonthKey(new Date(item.data_inicio)) : '');
+    const key = getItemMonthKey(item) || '';
     if (key !== currentMonth) return false;
     if (museuFilter !== 'Todos' && item.museu !== museuFilter) return false;
     if (search) {
@@ -113,24 +175,17 @@ export default function ProgramacaoEspelho() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-4">
-      {/* Header */}
-       <div className="flex items-center justify-between flex-wrap gap-3">
-         <div className="flex items-center gap-2">
-           <Calendar className="w-5 h-5 text-slate-500" />
-           <h1 className="text-xl font-semibold text-slate-800">Programação — Espelho da Planilha</h1>
-         </div>
-         <Button 
-           onClick={() => setShowExportDialog(true)}
-           className="gap-2"
-           variant="outline"
-         >
-           <Download className="w-4 h-4" />
-           Exportar
-         </Button>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-5 h-5 text-slate-500" />
+          <h1 className="text-xl font-semibold text-slate-800">Programação — Espelho da Planilha</h1>
+        </div>
+        <Button onClick={() => setShowExportDialog(true)} className="gap-2" variant="outline">
+          <Download className="w-4 h-4" />
+          Exportar
+        </Button>
 
-        {/* Seletor de Ano + Navegação de mês */}
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Ano */}
           <div className="flex gap-1">
             {availableYears.map(y => (
               <Button
@@ -148,7 +203,6 @@ export default function ProgramacaoEspelho() {
             ))}
           </div>
 
-          {/* Mês — botões diretos para cada mês disponível no ano */}
           <div className="flex items-center gap-1 flex-wrap">
             <Button variant="outline" size="icon" disabled={!hasPrev} onClick={() => setCurrentMonth(prevMonth(currentMonth))}>
               <ChevronLeft className="w-4 h-4" />
@@ -156,13 +210,7 @@ export default function ProgramacaoEspelho() {
             {monthsOfYear.slice().sort().map(mk => {
               const label = parseMonthKey(mk).toLocaleDateString('pt-BR', { month: 'short' });
               return (
-                <Button
-                  key={mk}
-                  variant={mk === currentMonth ? 'default' : 'outline'}
-                  size="sm"
-                  className="capitalize text-xs px-2"
-                  onClick={() => setCurrentMonth(mk)}
-                >
+                <Button key={mk} variant={mk === currentMonth ? 'default' : 'outline'} size="sm" className="capitalize text-xs px-2" onClick={() => setCurrentMonth(mk)}>
                   {label}
                 </Button>
               );
@@ -174,32 +222,20 @@ export default function ProgramacaoEspelho() {
         </div>
       </div>
 
-      {/* Filtros */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input
-            placeholder="Buscar atividade..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+          <Input placeholder="Buscar atividade..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
         <div className="flex gap-1 flex-wrap">
           {MUSEUS.map((m) => (
-            <Button
-              key={m}
-              variant={museuFilter === m ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMuseuFilter(m)}
-            >
+            <Button key={m} variant={museuFilter === m ? 'default' : 'outline'} size="sm" onClick={() => setMuseuFilter(m)}>
               {m}
             </Button>
           ))}
         </div>
       </div>
 
-      {/* Tabela */}
       {loading ? (
         <div className="flex items-center justify-center py-20 text-slate-400">Carregando...</div>
       ) : filtered.length === 0 ? (
@@ -235,42 +271,36 @@ export default function ProgramacaoEspelho() {
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-slate-700">{item.data || '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-slate-700">{item.horario || '—'}</td>
-                  <td className="px-4 py-3 font-medium text-slate-800 max-w-[220px]">
-                    {item.titulo || item.nome_acao || '—'}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600 max-w-[260px]">
-                    <span className="line-clamp-3">{item.sinopse || item.descricao || '—'}</span>
-                  </td>
+                  <td className="px-4 py-3 font-medium text-slate-800 max-w-[220px]">{item.titulo || item.nome_acao || '—'}</td>
+                  <td className="px-4 py-3 text-slate-600 max-w-[260px]"><span className="line-clamp-3">{item.sinopse || item.descricao || '—'}</span></td>
                   <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{item.publico_alvo || '—'}</td>
                   <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{item.vagas || '—'}</td>
                   <td className="px-4 py-3 text-slate-600 max-w-[160px]">{item.inscricao || '—'}</td>
                   <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{item.local || '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                   {item.link_imagens ? (
-                     <a href={item.link_imagens} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs">
-                       <Image className="w-3.5 h-3.5" />
-                       <span>Ver</span>
-                       <ExternalLink className="w-3 h-3" />
-                     </a>
-                   ) : <span className="text-slate-400">—</span>}
+                    {item.link_imagens ? (
+                      <a href={item.link_imagens} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs">
+                        <Image className="w-3.5 h-3.5" />
+                        <span>Ver</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    ) : <span className="text-slate-400">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-slate-600 max-w-[180px]">
-                   <span className="line-clamp-3 text-xs">{item.minibios || '—'}</span>
-                  </td>
+                  <td className="px-4 py-3 text-slate-600 max-w-[180px]"><span className="line-clamp-3 text-xs">{item.minibios || '—'}</span></td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                   {item.material_divulgacao_aprovado ? (
-                     item.material_divulgacao_aprovado.startsWith('http') ? (
-                       <a href={item.material_divulgacao_aprovado} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-green-600 hover:text-green-800 text-xs">
-                         <FileText className="w-3.5 h-3.5" />
-                         <span>Ver</span>
-                         <ExternalLink className="w-3 h-3" />
-                       </a>
-                     ) : (
-                       <span className="text-xs text-slate-600">{item.material_divulgacao_aprovado}</span>
-                     )
-                   ) : <span className="text-slate-400">—</span>}
+                    {item.material_divulgacao_aprovado ? (
+                      item.material_divulgacao_aprovado.startsWith('http') ? (
+                        <a href={item.material_divulgacao_aprovado} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-green-600 hover:text-green-800 text-xs">
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>Ver</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      ) : (
+                        <span className="text-xs text-slate-600">{item.material_divulgacao_aprovado}</span>
+                      )
+                    ) : <span className="text-slate-400">—</span>}
                   </td>
-                  </tr>
+                </tr>
               ))}
             </tbody>
           </table>
@@ -280,13 +310,7 @@ export default function ProgramacaoEspelho() {
         </div>
       )}
 
-      <ExportProgramacaoDialog
-        open={showExportDialog}
-        onClose={() => setShowExportDialog(false)}
-        data={filtered}
-        currentMonth={currentMonth}
-        formatMonthLabel={formatMonthLabel}
-      />
-      </div>
-      );
-      }
+      <ExportProgramacaoDialog open={showExportDialog} onClose={() => setShowExportDialog(false)} data={filtered} currentMonth={currentMonth} formatMonthLabel={formatMonthLabel} />
+    </div>
+  );
+}
