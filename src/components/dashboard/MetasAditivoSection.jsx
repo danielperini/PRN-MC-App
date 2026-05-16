@@ -326,6 +326,23 @@ function buildMetas({ rubricas = [], reports = [], programacao = [], purchaseReq
   });
 }
 
+function ordenarMetasParaExibicao(metas = []) {
+  const prioridade = {
+    'META 01': 0,
+    'META 07': 1,
+  };
+
+  return [...metas]
+    .filter((meta) => meta.numero !== 'META 02')
+    .sort((a, b) => {
+      const prioridadeA = prioridade[a.numero] ?? 2;
+      const prioridadeB = prioridade[b.numero] ?? 2;
+
+      if (prioridadeA !== prioridadeB) return prioridadeA - prioridadeB;
+      return String(a.titulo || '').localeCompare(String(b.titulo || ''), 'pt-BR', { sensitivity: 'base' });
+    });
+}
+
 function getStatusClass(status) {
   if (status === 'CONCLUÍDA') return 'border-black bg-black text-white';
   return 'border-neutral-300 bg-neutral-50 text-neutral-700';
@@ -447,7 +464,8 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], repor
   const programacao = programacaoProp.length > 0 ? programacaoProp : programacaoFetched;
   const purchaseRequests = purchaseRequestsProp.length > 0 ? purchaseRequestsProp : purchaseRequestsFetched;
   const metas = useMemo(() => buildMetas({ rubricas, reports, programacao, purchaseRequests, overrides }), [rubricas, reports, programacao, purchaseRequests, overrides]);
-  const metasValidas = metas.filter((meta) => meta.status !== 'NÃO CONSIDERAR');
+  const metasOrdenadas = useMemo(() => ordenarMetasParaExibicao(metas), [metas]);
+  const metasValidas = metasOrdenadas.filter((meta) => meta.status !== 'NÃO CONSIDERAR');
   const concluidas = metasValidas.filter((meta) => clampPercent(meta.percentual) >= 100).length;
   const andamento = metasValidas.filter((meta) => meta.status === 'EM EXECUÇÃO').length;
   const media = metasValidas.length ? Math.round(metasValidas.reduce((sum, meta) => sum + clampPercent(meta.percentual), 0) / metasValidas.length) : 0;
@@ -469,7 +487,7 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], repor
     <section className="space-y-5 rounded-3xl border border-neutral-200 bg-neutral-50/60 p-4 md:p-6">
       <div><div className="flex items-center gap-2"><Target className="h-5 w-5 text-black" /><h2 className="text-xl font-semibold text-black">Metas do 3º Aditivo</h2></div><p className="mt-1 text-sm text-neutral-500">Acompanhamento executivo das metas de 2026, mantendo a numeração oficial para prestação de contas.</p></div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3"><ResumoCard label="Metas concluídas" value={`${concluidas}/${metasValidas.length}`} helper="metas com execução integral" /><ResumoCard label="Média de execução" value={`${media}%`} helper="média simples dos indicadores" /><ResumoCard label="Em andamento" value={andamento} helper="metas com acompanhamento ativo" /></div>
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">{metas.map((meta) => <MetaCard key={meta.numero} meta={meta} onOpen={setSelectedMeta} />)}</div>
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">{metasOrdenadas.map((meta) => <MetaCard key={meta.numero} meta={meta} onOpen={setSelectedMeta} />)}</div>
       <RubricasModal meta={selectedMeta} rubricas={rubricas} overrides={overrides} onToggle={handleToggleRubrica} onReset={handleResetRubricas} onClose={() => setSelectedMeta(null)} />
     </section>
   );
