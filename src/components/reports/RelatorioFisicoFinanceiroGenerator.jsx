@@ -4,44 +4,69 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Download, FileText, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Download, FileText, Loader2, CheckCircle2 } from 'lucide-react';
 
 const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
-const SEÇÕES_DISPONÍVEIS = [
-  ['capa', 'Capa'],
-  ['introducao', 'Introdução'],
-  ['painel_executivo', 'Painel Executivo'],
-  ['agenda_programacao', 'Agenda e Programação'],
-  ['atividades_consolidadas', 'Atividades Consolidadas'],
-  ['relatorios_completos', 'Relatórios Completos'],
+
+const CAPITULOS_DISPONIVEIS = [
+  ['capa', 'Capa editorial'],
+  ['introducao', 'Introdução institucional'],
+  ['territorio', 'Território e contexto'],
+  ['resumo_geral', 'Resumo e indicadores'],
+  ['publico', 'Público alcançado'],
+  ['metas', 'Metas do 3º Aditivo'],
+  ['programacao', 'Programação'],
+  ['agenda_programacao', 'Agenda de programação'],
+  ['atividades_museu', 'Atividades por museu'],
+  ['relatorios_completos', 'Relatórios integrais das equipes'],
+  ['galeria_evidencias', 'Galeria e evidências'],
   ['comunicacao', 'Comunicação'],
-  ['fotos', 'Fotos e Registros'],
-  ['financeiro', 'Execução Financeira'],
-  ['notas_fiscais', 'Documentação Fiscal'],
-  ['rubricas', 'Rubricas Orçamentárias'],
-  ['compras', 'Compras e Pagamentos'],
-  ['equipe', 'Equipe'],
-  ['prestacao_integral', 'Prestação de Contas'],
+  ['financeiro', 'Execução financeira'],
+  ['rubricas', 'Rubricas, orçamento e execução por grupo'],
+  ['prestacao', 'Prestação de contas'],
+  ['app_museu_centro', 'Museu Centro APP'],
   ['conclusao', 'Conclusão'],
 ];
+
+const REPORT_GENERATOR_STRATEGY = {
+  nome: 'Gerador de Relatório',
+  idioma: 'pt-BR',
+  tom: 'institucional, técnico, cultural e analítico',
+  atividades: {
+    agrupamento: 'por_museu',
+    fotos_por_atividade: 2,
+    textos_integrais: true,
+    arquivos_drive_em_tres_colunas: true,
+  },
+  capitulos_removidos: ['memoria_institucional', 'atividades_por_eixo'],
+};
 
 export default function RelatorioFisicoFinanceiroGenerator() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [museu, setMuseu] = useState('');
-  const [secoes, setSecoes] = useState(SEÇÕES_DISPONÍVEIS.map(s => s[0]));
+  const [capitulos, setCapitulos] = useState(CAPITULOS_DISPONIVEIS.map((s) => s[0]));
   const [loading, setLoading] = useState(false);
-  const [preview, setPreview] = useState(false);
   const [metricas, setMetricas] = useState(null);
   const [html, setHtml] = useState(null);
   const [introIA, setIntroIA] = useState(true);
-  const [modoEntrega, setModoEntrega] = useState(false);
+  const [modoEntrega, setModoEntrega] = useState(true);
 
-  const toggleSecao = (id) => {
-    setSecoes(prev => 
-      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
-    );
+  const toggleCapitulo = (id) => {
+    setCapitulos((prev) => prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]);
   };
+
+  const payloadBase = (modo) => ({
+    dateFrom,
+    dateTo,
+    museu: museu || null,
+    secoes: capitulos,
+    capitulos,
+    modo,
+    introIA,
+    modoEntrega,
+    reportGeneratorStrategy: REPORT_GENERATOR_STRATEGY,
+  });
 
   const handlePreview = async () => {
     if (!dateFrom || !dateTo) {
@@ -51,21 +76,12 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
     setLoading(true);
     try {
-      const res = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', {
-        dateFrom,
-        dateTo,
-        museu: museu || null,
-        secoes,
-        modo: 'previa',
-        introIA,
-        modoEntrega,
-      });
+      const res = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', payloadBase('previa'));
 
       if (res.data?.error) {
         toast.error('Erro: ' + res.data.error);
       } else {
         setMetricas(res.data);
-        setPreview(true);
         toast.success('Métricas carregadas');
       }
     } catch (err) {
@@ -83,15 +99,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
     setLoading(true);
     try {
-      const res = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', {
-        dateFrom,
-        dateTo,
-        museu: museu || null,
-        secoes,
-        modo: 'completo',
-        introIA,
-        modoEntrega,
-      });
+      const res = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', payloadBase('completo'));
 
       if (res.data?.error) {
         toast.error('Erro: ' + res.data.error);
@@ -120,6 +128,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         dateTo,
         museu: museu || 'Consolidado',
         formato: 'ambos',
+        reportGeneratorStrategy: REPORT_GENERATOR_STRATEGY,
       });
 
       if (res.data?.error) {
@@ -137,74 +146,45 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   return (
     <div className="space-y-6 p-6">
       <Card className="p-6">
-        <h2 className="text-xl font-bold mb-6">Gerar Relatório Físico-Financeiro</h2>
+        <h2 className="text-xl font-bold mb-1">Gerador de Relatório</h2>
+        <p className="text-sm text-gray-500 mb-6">Relatório editorial, programático, financeiro e de prestação de contas.</p>
 
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div>
             <label className="block text-sm font-medium mb-2">Data Inicial</label>
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              disabled={loading}
-            />
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} disabled={loading} />
           </div>
           <div>
             <label className="block text-sm font-medium mb-2">Data Final</label>
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              disabled={loading}
-            />
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} disabled={loading} />
           </div>
         </div>
 
         <div className="mb-6">
           <label className="block text-sm font-medium mb-2">Museu (opcional)</label>
-          <select 
-            value={museu}
-            onChange={(e) => setMuseu(e.target.value)}
-            disabled={loading}
-            className="w-full border rounded px-3 py-2"
-          >
+          <select value={museu} onChange={(e) => setMuseu(e.target.value)} disabled={loading} className="w-full border rounded px-3 py-2">
             <option value="">Todos</option>
-            {MUSEUS.map(m => <option key={m} value={m}>{m}</option>)}
+            {MUSEUS.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
 
         <div className="mb-6 space-y-2">
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={introIA}
-              onChange={(e) => setIntroIA(e.target.checked)}
-              disabled={loading}
-            />
-            <span className="text-sm">Gerar introdução com IA</span>
+            <input type="checkbox" checked={introIA} onChange={(e) => setIntroIA(e.target.checked)} disabled={loading} />
+            <span className="text-sm">Redigir textos com IA em português BR</span>
           </label>
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={modoEntrega}
-              onChange={(e) => setModoEntrega(e.target.checked)}
-              disabled={loading}
-            />
-            <span className="text-sm">Modo entrega (sem edições)</span>
+            <input type="checkbox" checked={modoEntrega} onChange={(e) => setModoEntrega(e.target.checked)} disabled={loading} />
+            <span className="text-sm">Modo entrega / prestação de contas</span>
           </label>
         </div>
 
         <div className="mb-6">
-          <h3 className="font-semibold mb-3">Seções do Relatório</h3>
+          <h3 className="font-semibold mb-3">Capítulos do relatório</h3>
           <div className="grid grid-cols-2 gap-3">
-            {SEÇÕES_DISPONÍVEIS.map(([id, label]) => (
+            {CAPITULOS_DISPONIVEIS.map(([id, label]) => (
               <label key={id} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={secoes.includes(id)}
-                  onChange={() => toggleSecao(id)}
-                  disabled={loading}
-                />
+                <input type="checkbox" checked={capitulos.includes(id)} onChange={() => toggleCapitulo(id)} disabled={loading} />
                 <span className="text-sm">{label}</span>
               </label>
             ))}
@@ -212,27 +192,16 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         </div>
 
         <div className="flex gap-3">
-          <Button
-            onClick={handlePreview}
-            disabled={loading || !dateFrom || !dateTo}
-            variant="outline"
-          >
+          <Button onClick={handlePreview} disabled={loading || !dateFrom || !dateTo} variant="outline">
             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Carregar Métricas
           </Button>
-          <Button
-            onClick={handleGerarCompleto}
-            disabled={loading || !dateFrom || !dateTo}
-          >
+          <Button onClick={handleGerarCompleto} disabled={loading || !dateFrom || !dateTo}>
             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Gerar Relatório
           </Button>
           {html && (
-            <Button
-              onClick={handleExportarPDF}
-              disabled={loading}
-              className="bg-green-600 hover:bg-green-700"
-            >
+            <Button onClick={handleExportarPDF} disabled={loading} className="bg-green-600 hover:bg-green-700">
               <Download className="w-4 h-4 mr-2" />
               Exportar PDF
             </Button>
@@ -273,8 +242,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
             <p><strong>Status:</strong> Pronto para exportação</p>
             <p><strong>Formato:</strong> HTML + PDF (via Drive)</p>
             <p><strong>Backup:</strong> Automático no Google Drive</p>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 const blob = new Blob([html], { type: 'text/html' });
                 const url = URL.createObjectURL(blob);
