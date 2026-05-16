@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, AlertCircle, Target } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
 
 const COMMUNICATION_CURVE = [
   { mes: 'Mai/26', esperado: 20 },
@@ -54,17 +56,9 @@ const BASE_METAS_ADITIVO = [
     numero: 'META 05',
     titulo: '30 atividades culturais ou educativas',
     percentual: 0,
-    detalhe: 'Atividades únicas confirmadas por programação, relatórios e vínculos',
+    detalhe: 'Atividades únicas confirmadas por programação, relatórios, custeio e notas fiscais',
     indicador: '0/30 atividades validadas',
     status: 'EM EXECUÇÃO',
-  },
-  {
-    numero: 'META 06',
-    titulo: 'Incorporada operacionalmente à META 05',
-    percentual: 0,
-    detalhe: 'Mantida na numeração oficial para prestação de contas',
-    indicador: 'Não operacionalizar separadamente',
-    status: 'DOCUMENTAL',
   },
   {
     numero: 'META 07',
@@ -75,52 +69,36 @@ const BASE_METAS_ADITIVO = [
     status: 'CONCLUÍDA',
   },
   {
-    numero: 'META 08',
-    titulo: 'Não considerar',
-    percentual: 0,
-    detalhe: 'Meta não operacionalizada em 2026',
-    indicador: 'Ignorada no acompanhamento operacional',
-    status: 'NÃO CONSIDERAR',
-  },
-  {
-    numero: 'META 09',
-    titulo: 'Não considerar',
-    percentual: 0,
-    detalhe: 'Meta não operacionalizada em 2026',
-    indicador: 'Ignorada no acompanhamento operacional',
-    status: 'NÃO CONSIDERAR',
-  },
-  {
     numero: 'META 10',
     titulo: 'Mostras e exposições',
-    percentual: 50,
-    detalhe: 'Uma no MHAB e uma no MIS',
-    indicador: '1/2 mostras realizadas ou em curso',
+    percentual: 0,
+    detalhe: 'MIS pequeno + MHAB + MUMO grande',
+    indicador: 'MUMO = 70% · MIS + MHAB = 30%',
     status: 'EM EXECUÇÃO',
   },
   {
     numero: 'META 11',
     titulo: 'Noturno nos Museus',
     percentual: 0,
-    detalhe: 'Atividades realizadas no Noturno, cada atividade conta percentual',
-    indicador: 'A validar pela programação e relatórios',
+    detalhe: 'Execução vinculada ao grupo/rubrica Noturno nos Museus',
+    indicador: 'Percentual do custeio Noturno utilizado',
     status: 'EM EXECUÇÃO',
   },
   {
     numero: 'META 12',
     titulo: 'Exposição MHAB',
     percentual: 0,
-    detalhe: 'Pesquisa, identidade visual, curadoria e expografia',
+    detalhe: 'Pesquisa, identidade visual, curadoria e expografia do MHAB',
     indicador: 'Andamento identificado em relatórios, NFs e evidências',
     status: 'EM EXECUÇÃO',
   },
   {
-    numero: 'META 13',
-    titulo: 'Leis de incentivo e editais',
+    numero: 'META 12B',
+    titulo: 'Exposição MUMO',
     percentual: 0,
-    detalhe: 'Ao menos uma inscrição/submissão',
-    indicador: '0% sem submissão · 100% com uma submissão',
-    status: 'A MONITORAR',
+    detalhe: 'Mostra grande do MUMO, com peso próprio no acompanhamento',
+    indicador: 'Andamento identificado em relatórios, NFs e evidências',
+    status: 'EM EXECUÇÃO',
   },
   {
     numero: 'META 14',
@@ -134,7 +112,7 @@ const BASE_METAS_ADITIVO = [
     numero: 'META 15',
     titulo: 'Diárias de educadores',
     percentual: 0,
-    detalhe: 'Execução financeira da rubrica de diárias de educadores',
+    detalhe: 'Execução financeira da rubrica Diários Educadores',
     indicador: 'Percentual da rubrica utilizada',
     status: 'EM EXECUÇÃO',
   },
@@ -150,8 +128,8 @@ const BASE_METAS_ADITIVO = [
     numero: 'META 17',
     titulo: 'Custeio das atividades educativas e culturais',
     percentual: 0,
-    detalhe: 'Materiais, insumos, lanches, consultorias e apoio pedagógico',
-    indicador: 'Percentual da rubrica utilizada',
+    detalhe: 'Materiais, lanches e apoio pedagógico',
+    indicador: 'Percentual das rubricas de custeio utilizadas',
     status: 'EM EXECUÇÃO',
   },
 ];
@@ -184,6 +162,10 @@ function formatCurrency(value) {
     currency: 'BRL',
     maximumFractionDigits: 0,
   });
+}
+
+function getAnyText(item = {}) {
+  return normalizeText(Object.values(item).filter((value) => typeof value === 'string' || typeof value === 'number').join(' '));
 }
 
 function getRubricaText(rubrica = {}) {
@@ -222,6 +204,15 @@ function getRubricaUtilizado(rubrica = {}) {
   );
 }
 
+function calculateRubricaPercent(rubricas = [], predicate) {
+  const selected = (Array.isArray(rubricas) ? rubricas : []).filter(predicate);
+  const previsto = selected.reduce((sum, rubrica) => sum + getRubricaPrevisto(rubrica), 0);
+  const utilizado = selected.reduce((sum, rubrica) => sum + getRubricaUtilizado(rubrica), 0);
+  const percentual = previsto > 0 ? clampPercent((utilizado / previsto) * 100) : 0;
+
+  return { selected, quantidade: selected.length, previsto, utilizado, percentual };
+}
+
 function isRubricaMeta03(rubrica = {}) {
   const text = getRubricaText(rubrica);
   const includesMeta = text.includes('manutencao') || text.includes('disposicao');
@@ -237,33 +228,264 @@ function isRubricaMeta03(rubrica = {}) {
   return includesMeta && !excluded;
 }
 
-function calculateMeta03(rubricas = []) {
-  const selected = (Array.isArray(rubricas) ? rubricas : []).filter(isRubricaMeta03);
-  const previsto = selected.reduce((sum, rubrica) => sum + getRubricaPrevisto(rubrica), 0);
-  const utilizado = selected.reduce((sum, rubrica) => sum + getRubricaUtilizado(rubrica), 0);
-  const percentual = previsto > 0 ? clampPercent((utilizado / previsto) * 100) : 0;
+function isRubricaCusteioAtividades(rubrica = {}) {
+  const text = getRubricaText(rubrica);
+  return (
+    text.includes('material') ||
+    text.includes('materiais') ||
+    text.includes('lanche') ||
+    text.includes('lanches') ||
+    text.includes('alimentacao') ||
+    text.includes('apoio pedagogico') ||
+    text.includes('pedagogico') ||
+    text.includes('atividade cultural') ||
+    text.includes('atividades culturais') ||
+    text.includes('atividade educativa') ||
+    text.includes('atividades educativas')
+  );
+}
 
+function isRubricaDiariosEducadores(rubrica = {}) {
+  const text = getRubricaText(rubrica);
+  return (text.includes('diaria') || text.includes('diarias') || text.includes('diario')) && text.includes('educador');
+}
+
+function isRubricaNoturno(rubrica = {}) {
+  const text = getRubricaText(rubrica);
+  return text.includes('noturno') && text.includes('muse');
+}
+
+function getProgramacaoTitle(item = {}) {
+  return item?.titulo || item?.nome_acao || item?.nome || item?.atividade || item?.acao || '';
+}
+
+function getProgramacaoDate(item = {}) {
+  return item?.data_inicio || item?.data_realizacao || item?.data || item?.inicio || '';
+}
+
+function getActivityKey(title = '', date = '', museu = '') {
+  return normalizeText([title, date, museu].filter(Boolean).join('|'));
+}
+
+function isRoutineActivity(text = '') {
+  return (
+    text.includes('visita mediada') ||
+    text.includes('visitas mediadas') ||
+    text.includes('visita orientada') ||
+    text.includes('agendamento') ||
+    text.includes('reuniao') ||
+    text.includes('plantao') ||
+    text.includes('rotina') ||
+    text.includes('mediação ao publico espontaneo') ||
+    text.includes('mediacao ao publico espontaneo')
+  );
+}
+
+function isCulturalEducationalActivity(item = {}) {
+  const text = normalizeText([
+    getProgramacaoTitle(item),
+    item?.sinopse,
+    item?.descricao,
+    item?.tipo,
+    item?.tipo_atividade,
+    item?.categoria,
+  ].filter(Boolean).join(' '));
+
+  if (!text || isRoutineActivity(text)) return false;
+
+  return (
+    text.includes('oficina') ||
+    text.includes('show') ||
+    text.includes('apresentacao') ||
+    text.includes('performance') ||
+    text.includes('roda') ||
+    text.includes('samba') ||
+    text.includes('cinema') ||
+    text.includes('cine') ||
+    text.includes('palestra') ||
+    text.includes('workshop') ||
+    text.includes('mostra') ||
+    text.includes('exposicao') ||
+    text.includes('noturno') ||
+    text.includes('atividade cultural') ||
+    text.includes('atividade educativa') ||
+    text.includes('acao cultural') ||
+    text.includes('acao educativa')
+  );
+}
+
+function flattenReportActivities(reports = []) {
+  return (Array.isArray(reports) ? reports : []).flatMap((report) => {
+    const atividades = Array.isArray(report?.atividades) ? report.atividades : [];
+    return atividades.map((activity) => ({ ...activity, _report: report }));
+  });
+}
+
+function hasTextMatch(base = '', candidates = []) {
+  const text = normalizeText(base);
+  if (!text) return false;
+  return candidates.some((candidate) => {
+    const candidateText = normalizeText(candidate);
+    if (!candidateText) return false;
+    return text.includes(candidateText) || candidateText.includes(text);
+  });
+}
+
+function calculateMeta05(programacao = [], reports = [], purchaseRequests = []) {
+  const reportActivities = flattenReportActivities(reports);
+  const reportTitles = reportActivities.map((item) => item?.titulo || item?.nome || item?.nome_atividade || item?.atividade || item?.acao || '').filter(Boolean);
+  const nfTexts = (Array.isArray(purchaseRequests) ? purchaseRequests : []).map(getAnyText);
+  const validated = new Map();
+
+  (Array.isArray(programacao) ? programacao : []).forEach((item) => {
+    if (!isCulturalEducationalActivity(item)) return;
+
+    const title = getProgramacaoTitle(item);
+    const date = getProgramacaoDate(item);
+    const museu = item?.museu || item?.centro_custo || item?.unidade || '';
+    const key = getActivityKey(title, date, museu);
+    if (!key) return;
+
+    const itemText = normalizeText([title, item?.sinopse, item?.descricao, item?.museu, item?.centro_custo].filter(Boolean).join(' '));
+    const hasReport = hasTextMatch(title, reportTitles) || reportTitles.some((reportTitle) => itemText.includes(normalizeText(reportTitle)));
+    const hasNF = nfTexts.some((nfText) => {
+      const isCulturalNF = nfText.includes('atividade cultural') || nfText.includes('atividade educativa') || nfText.includes('acao cultural') || nfText.includes('acao educativa') || nfText.includes('meta 05') || nfText.includes('meta 5');
+      const sameActivity = title && nfText.includes(normalizeText(title));
+      const sameMuseum = museu && nfText.includes(normalizeText(museu));
+      return sameActivity || (isCulturalNF && sameMuseum) || isCulturalNF;
+    });
+
+    if (hasReport || hasNF) {
+      validated.set(key, { title, date, museu, hasReport, hasNF });
+    }
+  });
+
+  const count = validated.size;
   return {
-    quantidade: selected.length,
-    previsto,
-    utilizado,
-    percentual,
+    count,
+    withNF: Array.from(validated.values()).filter((item) => item.hasNF).length,
+    withReport: Array.from(validated.values()).filter((item) => item.hasReport).length,
+    percentual: clampPercent((count / 30) * 100),
   };
 }
 
-function buildMetas(rubricas = []) {
-  const meta03 = calculateMeta03(rubricas);
+function calculateMeta10(reports = [], purchaseRequests = []) {
+  const text = normalizeText([...(reports || []).map(getAnyText), ...(purchaseRequests || []).map(getAnyText)].join(' '));
+  const mis = text.includes('mis') && (text.includes('mostra') || text.includes('exposicao'));
+  const mhab = (text.includes('mhab') || text.includes('abilio')) && (text.includes('mostra') || text.includes('exposicao'));
+  const mumo = (text.includes('mumo') || text.includes('moda')) && (text.includes('mostra') || text.includes('exposicao'));
+  const percentual = (mumo ? 70 : 0) + (mis ? 15 : 0) + (mhab ? 15 : 0);
+
+  return { mis, mhab, mumo, percentual: clampPercent(percentual) };
+}
+
+function calculateTextEvidencePercent(text, terms = []) {
+  const normalized = normalizeText(text);
+  const found = terms.some((term) => normalized.includes(normalizeText(term)));
+  return found ? 100 : 0;
+}
+
+function buildMetas({ rubricas = [], reports = [], programacao = [], purchaseRequests = [] }) {
+  const meta03 = calculateRubricaPercent(rubricas, isRubricaMeta03);
+  const meta05 = calculateMeta05(programacao, reports, purchaseRequests);
+  const meta10 = calculateMeta10(reports, purchaseRequests);
+  const meta11 = calculateRubricaPercent(rubricas, isRubricaNoturno);
+  const meta15 = calculateRubricaPercent(rubricas, isRubricaDiariosEducadores);
+  const meta17 = calculateRubricaPercent(rubricas, isRubricaCusteioAtividades);
+  const evidenceText = normalizeText([...(reports || []).map(getAnyText), ...(purchaseRequests || []).map(getAnyText)].join(' '));
+  const meta12Mhab = calculateTextEvidencePercent(evidenceText, ['mhab exposicao', 'abilio barreto exposicao', 'curadoria mhab', 'expografia mhab', 'catalogo mhab']);
+  const meta12Mumo = calculateTextEvidencePercent(evidenceText, ['mumo exposicao', 'museu da moda exposicao', 'curadoria mumo', 'expografia mumo', 'mostra mumo']);
+  const meta16 = calculateTextEvidencePercent(evidenceText, ['catalogo mhab', 'publicacao mhab', 'catálogo mhab']);
 
   return BASE_METAS_ADITIVO.map((meta) => {
-    if (meta.numero !== 'META 03') return meta;
+    if (meta.numero === 'META 03') {
+      return {
+        ...meta,
+        percentual: meta03.percentual,
+        indicador: `${formatCurrency(meta03.utilizado)} utilizados de ${formatCurrency(meta03.previsto)} previstos`,
+        detalhe: `${meta03.quantidade} rubrica${meta03.quantidade === 1 ? '' : 's'} de manutenção/disposição consideradas`,
+        status: meta03.percentual >= 100 ? 'CONCLUÍDA' : 'EM EXECUÇÃO',
+      };
+    }
 
-    return {
-      ...meta,
-      percentual: meta03.percentual,
-      indicador: `${formatCurrency(meta03.utilizado)} utilizados de ${formatCurrency(meta03.previsto)} previstos`,
-      detalhe: `${meta03.quantidade} rubrica${meta03.quantidade === 1 ? '' : 's'} de manutenção/disposição consideradas, excluindo educadoras`,
-      status: meta03.percentual >= 100 ? 'CONCLUÍDA' : 'EM EXECUÇÃO',
-    };
+    if (meta.numero === 'META 05') {
+      return {
+        ...meta,
+        percentual: meta05.percentual,
+        indicador: `${meta05.count}/30 atividades validadas · ${meta05.withNF} com NF · ${meta05.withReport} com relatório`,
+        detalhe: 'Programação + relatório da equipe + custeio/nota fiscal vinculada à atividade cultural ou educativa',
+        status: meta05.percentual >= 100 ? 'CONCLUÍDA' : 'EM EXECUÇÃO',
+      };
+    }
+
+    if (meta.numero === 'META 10') {
+      return {
+        ...meta,
+        percentual: meta10.percentual,
+        indicador: `MIS ${meta10.mis ? '✓' : '—'} · MHAB ${meta10.mhab ? '✓' : '—'} · MUMO ${meta10.mumo ? '✓' : '—'}`,
+        detalhe: 'MUMO grande vale 70%; MIS e MHAB somam 30%',
+        status: meta10.percentual >= 100 ? 'CONCLUÍDA' : 'EM EXECUÇÃO',
+      };
+    }
+
+    if (meta.numero === 'META 11') {
+      return {
+        ...meta,
+        percentual: meta11.percentual,
+        indicador: `${formatCurrency(meta11.utilizado)} utilizados de ${formatCurrency(meta11.previsto)} previstos`,
+        detalhe: `${meta11.quantidade} rubrica${meta11.quantidade === 1 ? '' : 's'} vinculada${meta11.quantidade === 1 ? '' : 's'} ao Noturno nos Museus`,
+        status: meta11.percentual >= 100 ? 'CONCLUÍDA' : 'EM EXECUÇÃO',
+      };
+    }
+
+    if (meta.numero === 'META 12') {
+      return {
+        ...meta,
+        percentual: meta12Mhab,
+        indicador: meta12Mhab >= 100 ? 'Evidência de exposição MHAB identificada' : 'Aguardando evidência vinculada à exposição MHAB',
+        status: meta12Mhab >= 100 ? 'CONCLUÍDA' : 'EM EXECUÇÃO',
+      };
+    }
+
+    if (meta.numero === 'META 12B') {
+      return {
+        ...meta,
+        percentual: meta12Mumo,
+        indicador: meta12Mumo >= 100 ? 'Evidência de exposição MUMO identificada' : 'Aguardando evidência vinculada à exposição MUMO',
+        status: meta12Mumo >= 100 ? 'CONCLUÍDA' : 'EM EXECUÇÃO',
+      };
+    }
+
+    if (meta.numero === 'META 15') {
+      return {
+        ...meta,
+        percentual: meta15.percentual,
+        indicador: `${formatCurrency(meta15.utilizado)} utilizados de ${formatCurrency(meta15.previsto)} previstos`,
+        detalhe: `${meta15.quantidade} rubrica${meta15.quantidade === 1 ? '' : 's'} Diários Educadores`,
+        status: meta15.percentual >= 100 ? 'CONCLUÍDA' : 'EM EXECUÇÃO',
+      };
+    }
+
+    if (meta.numero === 'META 16') {
+      return {
+        ...meta,
+        percentual: meta16,
+        indicador: meta16 >= 100 ? 'Catálogo/publicação MHAB identificado' : 'Aguardando evidência do catálogo MHAB',
+        status: meta16 >= 100 ? 'CONCLUÍDA' : 'EM EXECUÇÃO',
+      };
+    }
+
+    if (meta.numero === 'META 17') {
+      return {
+        ...meta,
+        percentual: meta17.percentual,
+        indicador: `${formatCurrency(meta17.utilizado)} utilizados de ${formatCurrency(meta17.previsto)} previstos`,
+        detalhe: `${meta17.quantidade} rubrica${meta17.quantidade === 1 ? '' : 's'} de materiais, lanches e apoio pedagógico`,
+        status: meta17.percentual >= 100 ? 'CONCLUÍDA' : 'EM EXECUÇÃO',
+      };
+    }
+
+    return meta;
   });
 }
 
@@ -275,10 +497,7 @@ function getStatusClass(status) {
 }
 
 function StatusIcon({ status }) {
-  if (status === 'CONCLUÍDA') {
-    return <CheckCircle2 className="w-4 h-4" />;
-  }
-
+  if (status === 'CONCLUÍDA') return <CheckCircle2 className="w-4 h-4" />;
   return <AlertCircle className="w-4 h-4" />;
 }
 
@@ -297,17 +516,12 @@ function CommunicationCurve({ curva }) {
 
   return (
     <div className="mt-4 rounded-2xl border border-neutral-100 bg-neutral-50 p-3">
-      <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
-        Curva esperada até novembro/2026
-      </p>
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Curva esperada até novembro/2026</p>
       <div className="grid grid-cols-7 gap-2">
         {curva.map((item) => (
           <div key={item.mes} className="space-y-2 text-center">
             <div className="mx-auto flex h-20 w-full max-w-8 items-end overflow-hidden rounded-full bg-neutral-200">
-              <div
-                className="w-full rounded-full bg-black"
-                style={{ height: `${clampPercent(item.esperado)}%` }}
-              />
+              <div className="w-full rounded-full bg-black" style={{ height: `${clampPercent(item.esperado)}%` }} />
             </div>
             <div>
               <p className="text-[10px] font-semibold text-neutral-700">{item.esperado}%</p>
@@ -346,10 +560,7 @@ function MetaCard({ meta }) {
       </div>
 
       <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-neutral-200">
-        <div
-          className="h-full rounded-full bg-black transition-all"
-          style={{ width: `${percentual}%` }}
-        />
+        <div className="h-full rounded-full bg-black transition-all" style={{ width: `${percentual}%` }} />
       </div>
 
       {Array.isArray(meta.subindicadores) && meta.subindicadores.length > 0 && (
@@ -368,8 +579,61 @@ function MetaCard({ meta }) {
   );
 }
 
-export default function MetasAditivoSection({ rubricas = [] }) {
-  const metas = useMemo(() => buildMetas(rubricas), [rubricas]);
+export default function MetasAditivoSection({ rubricas: rubricasProp = [], reports: reportsProp = [], programacao: programacaoProp = [], purchaseRequests: purchaseRequestsProp = [] }) {
+  const { data: rubricasFetched = [] } = useQuery({
+    queryKey: ['metas-aditivo-rubricas'],
+    queryFn: async () => {
+      try {
+        const data = await base44.entities.Rubrica.list('rubrica', 1000);
+        return Array.isArray(data) ? data.filter((item) => item?.ativo !== false) : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const { data: reportsFetched = [] } = useQuery({
+    queryKey: ['metas-aditivo-reports'],
+    queryFn: async () => {
+      try {
+        const data = await base44.entities.Report.list('-created_date', 500);
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const { data: programacaoFetched = [] } = useQuery({
+    queryKey: ['metas-aditivo-programacao'],
+    queryFn: async () => {
+      try {
+        const data = await base44.entities.Programacao.list('-data_inicio', 1000);
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const { data: purchaseRequestsFetched = [] } = useQuery({
+    queryKey: ['metas-aditivo-purchase-requests'],
+    queryFn: async () => {
+      try {
+        const data = await base44.entities.PurchaseRequest.list('-created_date', 1000);
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const rubricas = rubricasProp.length > 0 ? rubricasProp : rubricasFetched;
+  const reports = reportsProp.length > 0 ? reportsProp : reportsFetched;
+  const programacao = programacaoProp.length > 0 ? programacaoProp : programacaoFetched;
+  const purchaseRequests = purchaseRequestsProp.length > 0 ? purchaseRequestsProp : purchaseRequestsFetched;
+
+  const metas = useMemo(() => buildMetas({ rubricas, reports, programacao, purchaseRequests }), [rubricas, reports, programacao, purchaseRequests]);
   const metasValidas = metas.filter((meta) => meta.status !== 'NÃO CONSIDERAR');
   const concluidas = metasValidas.filter((meta) => clampPercent(meta.percentual) >= 100).length;
   const andamento = metasValidas.filter((meta) => meta.status === 'EM EXECUÇÃO').length;
@@ -385,9 +649,7 @@ export default function MetasAditivoSection({ rubricas = [] }) {
             <Target className="h-5 w-5 text-black" />
             <h2 className="text-xl font-semibold text-black">Metas do 3º Aditivo</h2>
           </div>
-          <p className="mt-1 text-sm text-neutral-500">
-            Acompanhamento executivo das metas de 2026, mantendo a numeração oficial para prestação de contas.
-          </p>
+          <p className="mt-1 text-sm text-neutral-500">Acompanhamento executivo das metas de 2026, mantendo a numeração oficial para prestação de contas.</p>
         </div>
       </div>
 
