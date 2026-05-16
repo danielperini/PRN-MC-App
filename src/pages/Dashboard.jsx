@@ -12,14 +12,13 @@ import ComplianceStats from '../components/dashboard/ComplianceStats';
 import BudgetByGroupCards from '../components/dashboard/BudgetByGroupCards';
 import NewsCarousel from '../components/dashboard/NewsCarousel';
 import ExecutiveIndicators from '../components/dashboard/ExecutiveIndicators';
-import * as DashboardProfissionalModule from './DashboardProfissional';
+import DashboardProfissional from './DashboardProfissional.jsx';
 import DashboardPatrocinador from './DashboardPatrocinador';
 import GaleriaTickerCarousel from '../components/dashboard/GaleriaTickerCarousel';
 import DiariamenteNosMuseus from '../components/dashboard/DiariamenteNosMuseus';
 
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
-const DashboardProfissional = DashboardProfissionalModule.default || DashboardProfissionalModule.DashboardProfissional;
 const DASHBOARD_VIEW_KEY = 'museus_centro_dashboard_view_mode';
 
 function DashboardViewSelector({ value, onChange }) {
