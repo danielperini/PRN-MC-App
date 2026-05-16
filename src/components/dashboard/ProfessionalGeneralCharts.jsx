@@ -13,65 +13,114 @@ import {
 } from 'recharts';
 
 const MESES_ORDER = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const PERIODO_INICIAL = { year: 2026, monthNumber: 2 };
 const publicoLineColor = '#111827';
 const activityBarColor = '#374151';
-const reportBarColor = '#6b7280';
 const programacaoLineColor = '#4b5563';
+const APPROVED_STATUSES = new Set(['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN']);
 
 function toNumber(value) {
   const n = Number(value || 0);
   return Number.isFinite(n) ? n : 0;
 }
 
+function inteiro(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n);
+}
+
 function fmtInt(value) {
-  return Math.round(toNumber(value)).toLocaleString('pt-BR');
+  return inteiro(value).toLocaleString('pt-BR');
+}
+
+function normalizeStatus(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function isApprovedReport(report) {
+  return APPROVED_STATUSES.has(normalizeStatus(report?.status));
 }
 
 function getActivityPublic(activity) {
-  const publicoTotal = toNumber(activity?.publico_total);
-  if (publicoTotal > 0) return publicoTotal;
-  const publicoEstimado = toNumber(activity?.publico_estimado);
-  const repeticoes = Math.max(toNumber(activity?.quantas_repeticoes || activity?.quantas_vezes_ocorreu || 1), 1);
-  return publicoEstimado > 0 ? publicoEstimado * repeticoes : 0;
+  const direct = inteiro(activity?.publico_total ?? activity?.publico_estimado ?? activity?.publico ?? 0);
+  if (direct > 0) return direct;
+
+  const publicoMedio = inteiro(
+    activity?.publico_medio_por_sessao ??
+      activity?.publico_medio_sessao ??
+      activity?.publico_medio ??
+      activity?.publico_por_sessao ??
+      0
+  );
+
+  const ocorrencias = inteiro(
+    activity?.quantas_vezes_ocorreu ??
+      activity?.qtd_ocorrencias ??
+      activity?.ocorrencias ??
+      activity?.quantidade_ocorrencias ??
+      1
+  );
+
+  return publicoMedio * Math.max(ocorrencias, 1);
 }
 
 function getReportMonthNumber(report) {
   const raw = report?.mes_referencia ?? report?.mes ?? report?.competencia;
   const numeric = Number(raw);
+
   if (numeric >= 1 && numeric <= 12) return numeric;
+
   const text = String(raw || '').toLowerCase();
   const idx = MESES_ORDER.findIndex((mes) => text.includes(mes.toLowerCase()));
+
   if (idx >= 0) return idx + 1;
   if (text.includes('marco')) return 3;
-  const created = report?.created_date || report?.updated_date;
-  if (created) {
-    const d = new Date(created);
-    if (!Number.isNaN(d.getTime())) return d.getMonth() + 1;
-  }
+
   return null;
 }
 
 function getReportYear(report) {
   const year = Number(report?.ano ?? report?.ano_referencia);
-  if (Number.isFinite(year) && year > 1900) return year;
-  const created = report?.created_date || report?.updated_date;
-  if (created) {
-    const d = new Date(created);
-    if (!Number.isNaN(d.getTime())) return d.getFullYear();
-  }
-  return new Date().getFullYear();
+  return Number.isFinite(year) && year > 1900 ? year : new Date().getFullYear();
 }
 
 function getDateValue(item) {
   const raw = item?.data_realizacao || item?.data_inicio || item?.data || item?.inicio || item?.created_date || item?.updated_date;
   if (!raw) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(raw))) {
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
   const br = String(raw).match(/^(\d{2})\/(\d{2})\/(\d{4})/);
   if (br) {
     const d = new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
     return Number.isNaN(d.getTime()) ? null : d;
   }
+
   const d = new Date(raw);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function getPreviousClosedMonth() {
+  const now = new Date();
+  const date = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+  return {
+    year: date.getFullYear(),
+    monthNumber: date.getMonth() + 1
+  };
 }
 
 function monthKey(year, monthNumber) {
@@ -83,56 +132,152 @@ function monthLabel(monthNumber, year) {
   return `${mes.slice(0, 3)}/${String(year).slice(-2)}`;
 }
 
-function buildMonthlyRows(reports = [], programacao = []) {
-  const map = new Map();
+function compareMonth(aYear, aMonth, bYear, bMonth) {
+  return (aYear * 12 + aMonth) - (bYear * 12 + bMonth);
+}
 
-  const ensureRow = (year, monthNumber) => {
-    if (!year || !monthNumber) return null;
+function buildPeriodRows() {
+  const end = getPreviousClosedMonth();
+  const rows = [];
+  let year = PERIODO_INICIAL.year;
+  let monthNumber = PERIODO_INICIAL.monthNumber;
 
-    const key = monthKey(year, monthNumber);
+  while (compareMonth(year, monthNumber, end.year, end.monthNumber) <= 0) {
+    rows.push({
+      key: monthKey(year, monthNumber),
+      ano: year,
+      mesNumero: monthNumber,
+      mes: monthLabel(monthNumber, year),
+      publico: 0,
+      atividades: 0,
+      programacoes: 0
+    });
 
-    if (!map.has(key)) {
-      map.set(key, {
-        key,
-        ano: year,
-        mesNumero: monthNumber,
-        mes: monthLabel(monthNumber, year),
-        publico: 0,
-        atividades: 0,
-        relatorios: 0,
-        programacoes: 0
-      });
+    monthNumber += 1;
+    if (monthNumber > 12) {
+      monthNumber = 1;
+      year += 1;
+    }
+  }
+
+  return rows;
+}
+
+function getActivityAuditKey(activity, report, index = 0) {
+  const explicitProgramacaoId =
+    activity?.programacao_id ||
+    activity?.programacaoId ||
+    activity?.id_programacao ||
+    activity?.agenda_id;
+
+  if (explicitProgramacaoId) return `programacao:${explicitProgramacaoId}`;
+
+  const nome = normalizeText(
+    activity?.nome_atividade ||
+      activity?.nome ||
+      activity?.titulo ||
+      activity?.acao ||
+      activity?.atividade ||
+      ''
+  );
+
+  const data = activity?.data_realizacao || activity?.data_inicio || activity?.data || activity?.inicio || '';
+  const museu = normalizeText(activity?.museu || activity?.centro_custo || report?.museu || report?.museu_secundario || '');
+  const periodo = data || `${getReportYear(report)}-${String(getReportMonthNumber(report) || '').padStart(2, '0')}`;
+
+  return [nome || `atividade-${index}`, periodo, museu].filter(Boolean).join('|');
+}
+
+function getReportActivities(report) {
+  const atividades = Array.isArray(report?.atividades) ? report.atividades : [];
+  const reportMonthNumber = getReportMonthNumber(report);
+  const reportYear = getReportYear(report);
+
+  return atividades.map((activity, index) => ({
+    ...activity,
+    _activityIndex: index,
+    _reportId: report?.id,
+    _reportMonthNumber: reportMonthNumber,
+    _reportYear: reportYear,
+    _publico: getActivityPublic(activity),
+    _auditKey: getActivityAuditKey(activity, report, index)
+  }));
+}
+
+function deduplicateActivities(activities) {
+  const unique = new Map();
+
+  (activities || []).forEach((activity) => {
+    const key = activity?._auditKey;
+    if (!key) return;
+
+    if (!unique.has(key)) {
+      unique.set(key, activity);
+      return;
     }
 
-    return map.get(key);
-  };
+    const current = unique.get(key);
+    if (inteiro(activity?._publico) > inteiro(current?._publico)) {
+      unique.set(key, activity);
+    }
+  });
 
-  (Array.isArray(reports) ? reports : []).forEach((report) => {
-    const row = ensureRow(getReportYear(report), getReportMonthNumber(report));
+  return Array.from(unique.values());
+}
+
+function isInDashboardPeriod(year, monthNumber) {
+  const end = getPreviousClosedMonth();
+  return (
+    compareMonth(year, monthNumber, PERIODO_INICIAL.year, PERIODO_INICIAL.monthNumber) >= 0 &&
+    compareMonth(year, monthNumber, end.year, end.monthNumber) <= 0
+  );
+}
+
+function buildMonthlyRows(reports = [], programacao = []) {
+  const rows = buildPeriodRows();
+  const map = new Map(rows.map((row) => [row.key, row]));
+  const approvedReports = (Array.isArray(reports) ? reports : []).filter(isApprovedReport);
+  const approvedActivities = deduplicateActivities(approvedReports.flatMap(getReportActivities));
+
+  approvedActivities.forEach((activity) => {
+    const year = activity?._reportYear;
+    const monthNumber = activity?._reportMonthNumber;
+    if (!year || !monthNumber || !isInDashboardPeriod(year, monthNumber)) return;
+
+    const row = map.get(monthKey(year, monthNumber));
     if (!row) return;
 
-    row.relatorios += 1;
-    row.publico += toNumber(report?.publico_geral_declarado || report?.publico_geral || 0);
-
-    const atividades = Array.isArray(report?.atividades) ? report.atividades : [];
-
-    row.atividades += atividades.length;
-
-    atividades.forEach((activity) => {
-      row.publico += getActivityPublic(activity);
-    });
+    row.atividades += 1;
+    row.publico += inteiro(activity?._publico);
   });
 
   (Array.isArray(programacao) ? programacao : []).forEach((item) => {
     const date = getDateValue(item);
     if (!date) return;
 
-    const row = ensureRow(date.getFullYear(), date.getMonth() + 1);
+    const year = date.getFullYear();
+    const monthNumber = date.getMonth() + 1;
+    if (!isInDashboardPeriod(year, monthNumber)) return;
 
+    const row = map.get(monthKey(year, monthNumber));
     if (row) row.programacoes += 1;
   });
 
-  return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
+  return rows;
+}
+
+function getApprovedTotals(reports = []) {
+  const approvedReports = (Array.isArray(reports) ? reports : []).filter(isApprovedReport);
+  const approvedActivities = deduplicateActivities(approvedReports.flatMap(getReportActivities)).filter((activity) => {
+    const year = activity?._reportYear;
+    const monthNumber = activity?._reportMonthNumber;
+    return year && monthNumber && isInDashboardPeriod(year, monthNumber);
+  });
+
+  return {
+    activities: approvedActivities.length,
+    publicTotal: approvedActivities.reduce((sum, activity) => sum + inteiro(activity?._publico), 0)
+  };
 }
 
 function StatCard({ title, value, helper, icon: Icon }) {
@@ -161,48 +306,27 @@ function ChartCard({ title, children }) {
 
 export default function ProfessionalGeneralCharts({ reports = [], programacao = [] }) {
   const porMes = useMemo(() => buildMonthlyRows(reports, programacao), [reports, programacao]);
-
-  const totals = useMemo(() => {
-    const activities = reports.flatMap((report) => Array.isArray(report?.atividades) ? report.atividades : []);
-
-    const publicActivities = activities.reduce((sum, a) => sum + getActivityPublic(a), 0);
-
-    const publicGeneral = reports.reduce((sum, r) => sum + toNumber(r.publico_geral_declarado || r.publico_geral || 0), 0);
-
-    return {
-      activities: activities.length,
-      publicTotal: publicActivities + publicGeneral,
-      publicActivities,
-      publicGeneral
-    };
-  }, [reports]);
+  const totals = useMemo(() => getApprovedTotals(reports), [reports]);
 
   return (
     <section className="mb-8 space-y-4">
       <div>
         <h2 className="text-xl font-semibold text-foreground">Dados Gerais</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Indicadores consolidados dos três museus.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Indicadores consolidados dos três museus, de fevereiro/2026 até o mês anterior.</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <StatCard
           title="Total de Atividades"
           value={fmtInt(totals.activities)}
-          helper="atividades registradas nos três museus"
+          helper="atividades aprovadas e deduplicadas dos três museus"
           icon={Activity}
         />
 
         <StatCard
           title="Público Total"
           value={fmtInt(totals.publicTotal)}
-          helper="público das atividades e público geral declarado"
-          icon={Users}
-        />
-
-        <StatCard
-          title="Público das Atividades"
-          value={fmtInt(totals.publicActivities)}
-          helper="somente público registrado nas atividades"
+          helper="mesma regra do dashboard de coordenação"
           icon={Users}
         />
       </div>
@@ -226,16 +350,6 @@ export default function ProfessionalGeneralCharts({ reports = [], programacao = 
               <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Atividades']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
               <Bar dataKey="atividades" fill={activityBarColor} radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ChartCard>
-
-          <ChartCard title="Relatórios por Mês">
-            <BarChart data={porMes}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-              <XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Relatórios']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
-              <Bar dataKey="relatorios" fill={reportBarColor} radius={[8, 8, 0, 0]} />
             </BarChart>
           </ChartCard>
 
