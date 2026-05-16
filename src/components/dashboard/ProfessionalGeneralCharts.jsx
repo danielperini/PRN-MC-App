@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { FileText, Activity, CalendarDays } from 'lucide-react';
+import { Activity, Users } from 'lucide-react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -9,8 +9,8 @@ import {
   CartesianGrid,
   XAxis,
   YAxis,
-  Tooltip } from
-'recharts';
+  Tooltip
+} from 'recharts';
 
 const MESES_ORDER = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const publicoLineColor = '#111827';
@@ -85,20 +85,39 @@ function monthLabel(monthNumber, year) {
 
 function buildMonthlyRows(reports = [], programacao = []) {
   const map = new Map();
+
   const ensureRow = (year, monthNumber) => {
     if (!year || !monthNumber) return null;
+
     const key = monthKey(year, monthNumber);
-    if (!map.has(key)) map.set(key, { key, ano: year, mesNumero: monthNumber, mes: monthLabel(monthNumber, year), publico: 0, atividades: 0, relatorios: 0, programacoes: 0 });
+
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        ano: year,
+        mesNumero: monthNumber,
+        mes: monthLabel(monthNumber, year),
+        publico: 0,
+        atividades: 0,
+        relatorios: 0,
+        programacoes: 0
+      });
+    }
+
     return map.get(key);
   };
 
   (Array.isArray(reports) ? reports : []).forEach((report) => {
     const row = ensureRow(getReportYear(report), getReportMonthNumber(report));
     if (!row) return;
+
     row.relatorios += 1;
     row.publico += toNumber(report?.publico_geral_declarado || report?.publico_geral || 0);
+
     const atividades = Array.isArray(report?.atividades) ? report.atividades : [];
+
     row.atividades += atividades.length;
+
     atividades.forEach((activity) => {
       row.publico += getActivityPublic(activity);
     });
@@ -107,7 +126,9 @@ function buildMonthlyRows(reports = [], programacao = []) {
   (Array.isArray(programacao) ? programacao : []).forEach((item) => {
     const date = getDateValue(item);
     if (!date) return;
+
     const row = ensureRow(date.getFullYear(), date.getMonth() + 1);
+
     if (row) row.programacoes += 1;
   });
 
@@ -116,55 +137,119 @@ function buildMonthlyRows(reports = [], programacao = []) {
 
 function StatCard({ title, value, helper, icon: Icon }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm transition-all hover:shadow-md">
-      <div className="mb-3 flex items-center gap-2 text-muted-foreground">
-        {Icon && <Icon className="h-4 w-4" />}
-        <span className="text-[11px] font-semibold uppercase tracking-wide">{title}</span>
+    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:shadow-md">
+      <div className="mb-3 flex items-center gap-2 text-gray-500">
+        {Icon && <Icon className="h-4 w-4 text-black" />}
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">{title}</span>
       </div>
-      <div className="text-2xl font-bold text-foreground">{value}</div>
-      {helper && <div className="mt-1 text-xs text-muted-foreground">{helper}</div>}
-    </div>);
-
+      <div className="text-2xl font-bold text-black">{value}</div>
+      {helper && <div className="mt-1 text-xs text-gray-500">{helper}</div>}
+    </div>
+  );
 }
 
 function ChartCard({ title, children }) {
-  return null;
-
-
-
-
-
+  return (
+    <div className="border border-gray-100 rounded-2xl p-5 bg-white">
+      <h3 className="text-sm font-semibold text-black mb-4">{title}</h3>
+      <ResponsiveContainer width="100%" height={250}>
+        {children}
+      </ResponsiveContainer>
+    </div>
+  );
 }
 
 export default function ProfessionalGeneralCharts({ reports = [], programacao = [] }) {
   const porMes = useMemo(() => buildMonthlyRows(reports, programacao), [reports, programacao]);
+
   const totals = useMemo(() => {
     const activities = reports.flatMap((report) => Array.isArray(report?.atividades) ? report.atividades : []);
+
     const publicActivities = activities.reduce((sum, a) => sum + getActivityPublic(a), 0);
+
     const publicGeneral = reports.reduce((sum, r) => sum + toNumber(r.publico_geral_declarado || r.publico_geral || 0), 0);
-    return { reports: reports.length, activities: activities.length, publicTotal: publicActivities + publicGeneral, programacao: programacao.length };
-  }, [reports, programacao]);
+
+    return {
+      activities: activities.length,
+      publicTotal: publicActivities + publicGeneral,
+      publicActivities,
+      publicGeneral
+    };
+  }, [reports]);
 
   return (
     <section className="mb-8 space-y-4">
       <div>
         <h2 className="text-xl font-semibold text-foreground">Dados Gerais</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Indicadores consolidados do sistema, sem restringir ao usuário logado.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Indicadores consolidados dos três museus.</p>
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Total de Relatórios" value={fmtInt(totals.reports)} helper="relatórios cadastrados" icon={FileText} />
-        <StatCard title="Total de Atividades" value={fmtInt(totals.activities)} helper="atividades registradas nos relatórios" icon={Activity} />
-        <StatCard title="Público Total" value={fmtInt(totals.publicTotal)} helper="público das atividades e público geral declarado" icon={Activity} />
-        <StatCard title="Total de Programações" value={fmtInt(totals.programacao)} helper="programações cadastradas" icon={CalendarDays} />
-      </div>
-      {porMes.length > 0 &&
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <ChartCard title="Público por Mês"><LineChart data={porMes}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} /><XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} /><Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Público']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} /><Line type="monotone" dataKey="publico" stroke={publicoLineColor} strokeWidth={2} dot={{ r: 4, fill: publicoLineColor, stroke: publicoLineColor }} activeDot={{ r: 6, fill: publicoLineColor, stroke: publicoLineColor }} /></LineChart></ChartCard>
-          <ChartCard title="Atividades por Mês"><BarChart data={porMes}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} /><XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} /><Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Atividades']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} /><Bar dataKey="atividades" fill={activityBarColor} radius={[8, 8, 0, 0]} /></BarChart></ChartCard>
-          <ChartCard title="Relatórios por Mês"><BarChart data={porMes}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} /><XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} /><Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Relatórios']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} /><Bar dataKey="relatorios" fill={reportBarColor} radius={[8, 8, 0, 0]} /></BarChart></ChartCard>
-          <ChartCard title="Programações por Mês"><LineChart data={porMes}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} /><XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} /><Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Programações']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} /><Line type="monotone" dataKey="programacoes" stroke={programacaoLineColor} strokeWidth={2} dot={{ r: 4, fill: programacaoLineColor, stroke: programacaoLineColor }} activeDot={{ r: 6, fill: programacaoLineColor, stroke: programacaoLineColor }} /></LineChart></ChartCard>
-        </div>
-      }
-    </section>);
 
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <StatCard
+          title="Total de Atividades"
+          value={fmtInt(totals.activities)}
+          helper="atividades registradas nos três museus"
+          icon={Activity}
+        />
+
+        <StatCard
+          title="Público Total"
+          value={fmtInt(totals.publicTotal)}
+          helper="público das atividades e público geral declarado"
+          icon={Users}
+        />
+
+        <StatCard
+          title="Público das Atividades"
+          value={fmtInt(totals.publicActivities)}
+          helper="somente público registrado nas atividades"
+          icon={Users}
+        />
+      </div>
+
+      {porMes.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <ChartCard title="Público por Mês">
+            <LineChart data={porMes}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Público']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
+              <Line type="monotone" dataKey="publico" stroke={publicoLineColor} strokeWidth={2} dot={{ r: 4, fill: publicoLineColor, stroke: publicoLineColor }} activeDot={{ r: 6, fill: publicoLineColor, stroke: publicoLineColor }} />
+            </LineChart>
+          </ChartCard>
+
+          <ChartCard title="Atividades por Mês">
+            <BarChart data={porMes}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Atividades']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
+              <Bar dataKey="atividades" fill={activityBarColor} radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ChartCard>
+
+          <ChartCard title="Relatórios por Mês">
+            <BarChart data={porMes}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Relatórios']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
+              <Bar dataKey="relatorios" fill={reportBarColor} radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ChartCard>
+
+          <ChartCard title="Programações por Mês">
+            <LineChart data={porMes}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip formatter={(value) => [Math.round(value).toLocaleString('pt-BR'), 'Programações']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
+              <Line type="monotone" dataKey="programacoes" stroke={programacaoLineColor} strokeWidth={2} dot={{ r: 4, fill: programacaoLineColor, stroke: programacaoLineColor }} activeDot={{ r: 6, fill: programacaoLineColor, stroke: programacaoLineColor }} />
+            </LineChart>
+          </ChartCard>
+        </div>
+      )}
+    </section>
+  );
 }
