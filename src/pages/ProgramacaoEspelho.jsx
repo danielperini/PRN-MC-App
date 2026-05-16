@@ -36,6 +36,12 @@ const ATIVIDADES_NOTURNO_2024 = [
   'quarteto chico amaral',
 ];
 
+const ATIVIDADES_OCULTAS = [
+  'grupo de percursao do projeto querubins',
+  'grupo de percussao do projeto querubins',
+  'faraoeste',
+];
+
 const MONTH_NAME_TO_NUMBER = {
   janeiro: 1,
   jan: 1,
@@ -80,6 +86,11 @@ function getProgramacaoTitle(item) {
 
 function getProgramacaoSinopse(item) {
   return item?.sinopse || item?.descricao || item?.resumo || item?.observacoes || '—';
+}
+
+function shouldHideProgramacao(item) {
+  const title = normalizeText(getProgramacaoTitle(item));
+  return ATIVIDADES_OCULTAS.some((needle) => title.includes(needle));
 }
 
 function isAtividadeNoturno2024(item) {
@@ -192,6 +203,8 @@ function normalizeDateBySheetContext(item) {
 }
 
 function itemMatchesFilters(item, anoSelecionado, mesSelecionado, museuSelecionado) {
+  if (shouldHideProgramacao(item)) return false;
+
   const year = getYearFromContext(item);
   const monthNumber = getMonthNumberFromContext(item);
   const mes = monthNumber ? MESES[monthNumber - 1] : item?.mes;
@@ -239,7 +252,8 @@ export default function ProgramacaoEspelho() {
       const normalized = (Array.isArray(data) ? data : []).map(normalizeDateBySheetContext);
       setAllProgramacoes(normalized);
 
-      const years = Array.from(new Set(normalized.map(getYearFromContext).filter(Boolean))).sort((a, b) => b - a);
+      const visibleItems = normalized.filter((item) => !shouldHideProgramacao(item));
+      const years = Array.from(new Set(visibleItems.map(getYearFromContext).filter(Boolean))).sort((a, b) => b - a);
       if (years.length > 0 && !years.includes(Number(anoSelecionado))) {
         setAnoSelecionado(String(years[0]));
       }
@@ -253,12 +267,13 @@ export default function ProgramacaoEspelho() {
   }
 
   const anosDisponiveis = useMemo(() => {
-    return Array.from(new Set(allProgramacoes.map(getYearFromContext).filter(Boolean))).sort((a, b) => b - a);
+    return Array.from(new Set(allProgramacoes.filter((item) => !shouldHideProgramacao(item)).map(getYearFromContext).filter(Boolean))).sort((a, b) => b - a);
   }, [allProgramacoes]);
 
   const mesesDisponiveis = useMemo(() => {
     const set = new Set();
     allProgramacoes.forEach((item) => {
+      if (shouldHideProgramacao(item)) return;
       if (anoSelecionado !== ALL_VALUE && String(getYearFromContext(item)) !== String(anoSelecionado)) return;
       const monthNumber = getMonthNumberFromContext(item);
       if (monthNumber) set.add(monthNumber);
@@ -269,6 +284,7 @@ export default function ProgramacaoEspelho() {
   const museusDisponiveis = useMemo(() => {
     const set = new Set(MUSEUS);
     allProgramacoes.forEach((item) => {
+      if (shouldHideProgramacao(item)) return;
       if (item?.museu) set.add(item.museu);
     });
     return Array.from(set);
