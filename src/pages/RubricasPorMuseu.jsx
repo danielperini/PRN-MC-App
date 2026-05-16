@@ -78,11 +78,15 @@ function isRubricaValida(rubrica = {}) {
     texto.includes('adm.') ||
     texto.includes('consultoria') ||
     texto.includes('consultorias') ||
+    texto.includes('consultorias transversais') ||
+    texto.includes('despesas gerais') ||
+    texto.includes('despesa geral') ||
     texto.includes('juridico') ||
     texto.includes('contador') ||
     texto.includes('contabilidade') ||
     texto.includes('energia eletrica') ||
     texto.includes('material escritorio') ||
+    texto.includes('material de escritorio') ||
     texto.includes('educador') ||
     texto.includes('educadora') ||
     texto.includes('educadores') ||
@@ -173,7 +177,13 @@ function extractResumoMapFromRubricas(source) {
         cat.includes('coordenacao') ||
         cat.includes('gestao') ||
         cat.includes('administrativo') ||
-        cat.includes('consultoria')
+        cat.includes('consultoria') ||
+        cat.includes('consultorias') ||
+        cat.includes('consultorias transversais') ||
+        cat.includes('despesas gerais') ||
+        cat.includes('despesa geral') ||
+        cat.includes('material escritorio') ||
+        cat.includes('material de escritorio')
       ) {
         return;
       }
@@ -554,7 +564,11 @@ export default function RubricasPorMuseu() {
                   museu={m}
                   canEdit={canEdit}
                   refreshKey={refreshNonce}
-                  rubricaFilter={m === 'NOTURNO' ? isRubricaNoturno : isRubricaValida}
+                  rubricaFilter={
+                    m === 'NOTURNO'
+                      ? (rubrica) => isRubricaNoturno(rubrica) && isRubricaValida(rubrica)
+                      : isRubricaValida
+                  }
                 />
               </TabsContent>
             ))}
