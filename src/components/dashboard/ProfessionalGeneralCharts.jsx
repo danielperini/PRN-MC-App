@@ -128,11 +128,11 @@ function StatCard({ title, value, helper, icon: Icon }) {
 }
 
 function ChartCard({ title, children }) {
-  return (
-    <div className="border border-gray-100 rounded-2xl p-5 bg-card shadow-sm hidden">
-      <h3 className="text-sm font-semibold text-black mb-4">{title}</h3>
-      <ResponsiveContainer width="100%" height={250}>{children}</ResponsiveContainer>
-    </div>);
+  return null;
+
+
+
+
 
 }
 
