@@ -13,16 +13,6 @@ const MESES = [
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Externo'];
 const ALL_VALUE = '__ALL__';
 
-const TIPO_CORES = {
-  'Exposição': 'bg-purple-100 text-purple-800',
-  'Oficina': 'bg-blue-100 text-blue-800',
-  'Palestra': 'bg-green-100 text-green-800',
-  'Evento': 'bg-orange-100 text-orange-800',
-  'Visita': 'bg-teal-100 text-teal-800',
-  'Formação': 'bg-pink-100 text-pink-800',
-  'default': 'bg-slate-100 text-slate-800',
-};
-
 const DATA_CORRECAO_NOTURNO_2024 = '06/12/2024';
 const DATA_ISO_CORRECAO_NOTURNO_2024 = '2024-12-06';
 const MONTH_KEY_CORRECAO_NOTURNO_2024 = '2024-12';
@@ -82,12 +72,6 @@ function normalizeText(value) {
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-function getTipoCor(tipo) {
-  if (!tipo) return TIPO_CORES.default;
-  const key = Object.keys(TIPO_CORES).find(k => tipo.toLowerCase().includes(k.toLowerCase()));
-  return key ? TIPO_CORES[key] : TIPO_CORES.default;
 }
 
 function getProgramacaoTitle(item) {
@@ -200,41 +184,7 @@ function normalizeDateBySheetContext(item) {
     };
   }
 
-  const year = getYearFromContext(item);
-  const monthNumber = getMonthNumberFromContext(item);
-  if (!year || !monthNumber) return item;
-
-  const date = getDateFromItem(item);
-  const day = date ? date.getDate() : null;
-
-  const monthKey = `${year}-${String(monthNumber).padStart(2, '0')}`;
-  const mes = MESES[monthNumber - 1];
-
-  if (!day) {
-    return {
-      ...item,
-      month_key: item?.month_key || monthKey,
-      sync_month: item?.sync_month || monthKey,
-      ano: item?.ano || year,
-      ano_referencia: item?.ano_referencia || year,
-      mes: item?.mes || mes,
-    };
-  }
-
-  const iso = `${year}-${String(monthNumber).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-  const data = `${String(day).padStart(2, '0')}/${String(monthNumber).padStart(2, '0')}/${year}`;
-
-  return {
-    ...item,
-    data,
-    data_inicio: item?.data_inicio || iso,
-    data_realizacao: item?.data_realizacao || iso,
-    month_key: item?.month_key || monthKey,
-    sync_month: item?.sync_month || monthKey,
-    ano: item?.ano || year,
-    ano_referencia: item?.ano_referencia || year,
-    mes: item?.mes || mes,
-  };
+  return item;
 }
 
 function itemMatchesFilters(item, anoSelecionado, mesSelecionado, museuSelecionado) {
@@ -416,10 +366,8 @@ export default function ProgramacaoEspelho() {
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="text-left px-4 py-3 font-medium text-slate-600">Data</th>
-                        <th className="text-left px-4 py-3 font-medium text-slate-600">Título / Atividade</th>
-                        <th className="text-left px-4 py-3 font-medium text-slate-600">Tipo</th>
+                        <th className="text-left px-4 py-3 font-medium text-slate-600">Nome da Ação</th>
                         <th className="text-left px-4 py-3 font-medium text-slate-600">Espaço</th>
-                        <th className="text-right px-4 py-3 font-medium text-slate-600">Participantes</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -433,17 +381,7 @@ export default function ProgramacaoEspelho() {
                           <td className="px-4 py-3 font-medium text-slate-800 max-w-xs">
                             {item.titulo || item.nome || item.atividade || item.nome_acao || '—'}
                           </td>
-                          <td className="px-4 py-3">
-                            {item.tipo ? (
-                              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${getTipoCor(item.tipo)}`}>
-                                {item.tipo}
-                              </span>
-                            ) : '—'}
-                          </td>
                           <td className="px-4 py-3 text-slate-500">{item.espaco || item.local || '—'}</td>
-                          <td className="px-4 py-3 text-right text-slate-600">
-                            {item.participantes != null ? Number(item.participantes).toLocaleString('pt-BR') : '—'}
-                          </td>
                         </tr>
                       ))}
                     </tbody>
