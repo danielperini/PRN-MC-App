@@ -200,3 +200,154 @@ const NAV_GROUPS = [
     ],
   },
 ];
+
+function NavItem({ item, isActive, collapsed, userPermission, user }) {
+  const Icon = item.icon;
+
+  return (
+    <SidebarTooltip label={item.path} collapsed={collapsed}>
+      <Link
+        to={`/${item.path}`}
+        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150 group relative
+          ${isActive
+            ? 'bg-secondary text-secondary-foreground font-semibold'
+            : 'text-primary-foreground/70 hover:bg-primary/80 hover:text-primary-foreground'
+          }
+          ${collapsed ? 'justify-center px-2' : ''}
+        `}
+        title={collapsed ? item.label : undefined}
+      >
+        <Icon className={`flex-shrink-0 ${collapsed ? 'w-5 h-5' : 'w-4 h-4'}`} />
+        {!collapsed && (
+          <span className="truncate leading-tight">{item.label}</span>
+        )}
+      </Link>
+    </SidebarTooltip>
+  );
+}
+
+export default function Sidebar({ currentPageName, collapsed, onToggle, currentUser }) {
+  const [userPermission, setUserPermission] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadPerm() {
+      if (!currentUser?.email) return;
+      try {
+        const perms = await base44.entities.UserPermission.filter({ user_email: currentUser.email });
+        if (mounted) setUserPermission(perms?.[0] || null);
+      } catch {
+        if (mounted) setUserPermission(null);
+      }
+    }
+    loadPerm();
+    return () => { mounted = false; };
+  }, [currentUser?.email]);
+
+  const coord = isCoordenador(currentUser);
+  const obs = isObservador(currentUser, userPermission);
+  const sponsor = isPatrocinador(currentUser);
+
+  const filteredGroups = NAV_GROUPS.map(group => ({
+    ...group,
+    items: group.items.filter(item => {
+      if (item.hideForObservador && obs) return false;
+      if (item.permission === 'canManageUsers' && !canManageUsers(currentUser, userPermission)) return false;
+      if (item.permission === 'canManagePlatform' && currentUser?.role !== 'admin') return false;
+      if (item.roles?.includes('admin') && !item.roles?.includes('all') && currentUser?.role !== 'admin') return false;
+      if (item.roles?.includes('coord') && !item.roles?.includes('all') && !coord && currentUser?.role !== 'admin') return false;
+
+      // Observador: mostrar apenas items permitidos
+      if (obs) {
+        return SIDEBAR_OBSERVADOR.includes(item.path);
+      }
+      // Patrocinador: redireciona no App.jsx, mas se chegou aqui mostrar painel
+      return true;
+    }),
+  })).filter(group => group.items.length > 0);
+
+  return (
+    <aside
+      className={`bg-primary text-primary-foreground flex flex-col transition-all duration-300 ease-in-out flex-shrink-0
+        ${collapsed ? 'w-16' : 'w-56'}
+      `}
+      style={{ minHeight: '100vh' }}
+    >
+      {/* Header */}
+      <div className={`flex items-center border-b border-primary-foreground/10 flex-shrink-0
+        ${collapsed ? 'justify-center py-4 px-2' : 'justify-between py-4 px-4'}
+      `}>
+        {!collapsed && (
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-primary-foreground/90 truncate leading-tight">
+              Museus Centro
+            </p>
+            <p className="text-[10px] text-primary-foreground/50 truncate">Gestão Integrada</p>
+          </div>
+        )}
+        <button
+          onClick={onToggle}
+          className="p-1 rounded hover:bg-primary-foreground/10 text-primary-foreground/60 hover:text-primary-foreground transition-colors flex-shrink-0"
+          title={collapsed ? 'Expandir sidebar' : 'Recolher sidebar'}
+        >
+          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
+        {filteredGroups.map((group, gi) => (
+          <div key={gi}>
+            {group.label && !collapsed && (
+              <p className="text-[10px] uppercase tracking-widest text-primary-foreground/30 px-2 mb-1 font-semibold">
+                {group.label}
+              </p>
+            )}
+            <div className="space-y-0.5">
+              {group.items.map(item => (
+                <NavItem
+                  key={item.path}
+                  item={item}
+                  isActive={currentPageName === item.path}
+                  collapsed={collapsed}
+                  userPermission={userPermission}
+                  user={currentUser}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </nav>
+
+      {/* Footer user */}
+      {currentUser && (
+        <div className={`border-t border-primary-foreground/10 py-3 px-2 flex-shrink-0
+          ${collapsed ? 'flex justify-center' : ''}
+        `}>
+          <Link
+            to="/Perfil"
+            className={`flex items-center gap-2 rounded-lg p-2 hover:bg-primary-foreground/10 transition-colors w-full
+              ${collapsed ? 'justify-center' : ''}
+            `}
+          >
+            <div className="w-7 h-7 rounded-full bg-primary-foreground/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-bold text-primary-foreground">
+                {(currentUser.full_name || currentUser.email || '?')[0].toUpperCase()}
+              </span>
+            </div>
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-primary-foreground truncate leading-tight">
+                  {currentUser.full_name || currentUser.email}
+                </p>
+                <p className="text-[10px] text-primary-foreground/50 truncate">
+                  {currentUser.role || 'user'}
+                </p>
+              </div>
+            )}
+          </Link>
+        </div>
+      )}
+    </aside>
+  );
+}
