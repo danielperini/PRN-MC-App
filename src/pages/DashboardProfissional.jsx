@@ -51,16 +51,26 @@ function normalizeMuseu(value) {
   const text = normalizeText(value);
   if (!text) return '';
   if (text.includes('mumo') || text.includes('moda')) return 'MUMO';
-  if (text.includes('mhab') || text.includes('abilio') || text.includes('historico')) return 'MHAB';
+  if (text.includes('mhab') || text.includes('abilio') || text.includes('histórico') || text.includes('historico')) return 'MHAB';
   if (text.includes('mis') || text.includes('imagem') || text.includes('som')) return 'MIS';
-  return String(value || '').trim().toUpperCase();
+  return '';
 }
 
 function getUserMuseu(user) {
-  const email = normalizeEmail(user?.email);
+  const email = normalizeEmail(user?.email || user?.created_by || user?.author_email || user?.responsavel_email);
   if (USER_MUSEU_MAP[email]) return USER_MUSEU_MAP[email];
 
-  const text = normalizeText([user?.full_name, user?.name, user?.display_name, user?.email].filter(Boolean).join(' '));
+  const text = normalizeText([
+    user?.full_name,
+    user?.name,
+    user?.display_name,
+    user?.author_name,
+    user?.responsavel_nome,
+    user?.created_by_name,
+    user?.email,
+    user?.created_by,
+  ].filter(Boolean).join(' '));
+
   const rule = USER_NAME_MUSEU_RULES.find(({ match }) => match.some((term) => text.includes(term)));
   return rule?.museu || '';
 }
@@ -95,8 +105,52 @@ function getActivityPublic(activity) {
   return Math.round(publicoMedio) * Math.max(Math.round(ocorrencias), 1);
 }
 
+function getReportMuseu(report) {
+  const direct = normalizeMuseu([
+    report?.museu,
+    report?.museu_secundario,
+    report?.museu_principal,
+    report?.museu_nome,
+    report?.instituicao,
+    report?.unidade,
+    report?.unidade_museu,
+    report?.centro_custo,
+    report?.local,
+    report?.espaco,
+    report?.titulo,
+    report?.nome,
+    report?.descricao,
+  ].filter(Boolean).join(' '));
+
+  if (direct) return direct;
+
+  return getUserMuseu({
+    email: report?.created_by || report?.user_email || report?.author_email || report?.responsavel_email,
+    full_name: report?.author_name || report?.responsavel_nome || report?.created_by_name || report?.nome_responsavel,
+    created_by: report?.created_by,
+    author_name: report?.author_name,
+    responsavel_nome: report?.responsavel_nome,
+  });
+}
+
 function getActivityMuseu(activity, report) {
-  return normalizeMuseu(activity?.museu || activity?.centro_custo || activity?.unidade || report?.museu || report?.museu_secundario || report?.centro_custo);
+  const direct = normalizeMuseu([
+    activity?.museu,
+    activity?.centro_custo,
+    activity?.unidade,
+    activity?.unidade_museu,
+    activity?.instituicao,
+    activity?.local,
+    activity?.espaco,
+    activity?.nome_atividade,
+    activity?.nome,
+    activity?.titulo,
+    activity?.acao,
+    activity?.atividade,
+    activity?.descricao,
+  ].filter(Boolean).join(' '));
+
+  return direct || getReportMuseu(report);
 }
 
 function getActivityAuditKey(activity, report, index = 0) {
@@ -236,7 +290,7 @@ function ProfessionalDataSection({ myReports, myActivities, isLoadingActivities 
     let match = true;
     if (selectedMuseum !== 'all') {
       const report = myReports.find((r) => r.id === activity.report_id);
-      if (!report || normalizeMuseu(report.museu) !== selectedMuseum) match = false;
+      if (!report || normalizeMuseu(getReportMuseu(report)) !== selectedMuseum) match = false;
     }
     if (selectedStatus !== 'all') {
       const report = myReports.find((r) => r.id === activity.report_id);
@@ -253,33 +307,11 @@ function ProfessionalDataSection({ myReports, myActivities, isLoadingActivities 
     <div className="space-y-6">
       <div className="border-t border-border pt-6">
         <div className="mb-4 flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-semibold text-foreground">Meus Dados e Atividades</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Visualize suas atividades, relatórios e documentos.</p>
-          </div>
-          <Button variant={showFilters ? 'default' : 'outline'} size="sm" onClick={() => setShowFilters(!showFilters)} className="gap-2">
-            <Filter className="h-4 w-4" />
-            {showFilters ? 'Ocultar' : 'Filtros'}
-          </Button>
+          <div><h2 className="text-2xl font-semibold text-foreground">Meus Dados e Atividades</h2><p className="mt-1 text-sm text-muted-foreground">Visualize suas atividades, relatórios e documentos.</p></div>
+          <Button variant={showFilters ? 'default' : 'outline'} size="sm" onClick={() => setShowFilters(!showFilters)} className="gap-2"><Filter className="h-4 w-4" />{showFilters ? 'Ocultar' : 'Filtros'}</Button>
         </div>
-        {showFilters && (
-          <div className="mb-6 grid grid-cols-1 gap-3 rounded-lg bg-secondary p-4 sm:grid-cols-3">
-            <div className="space-y-2"><label className="text-sm font-medium text-foreground">Museu</label><select value={selectedMuseum} onChange={(e) => setSelectedMuseum(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="all">Todos os museus</option>{museums.map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
-            <div className="space-y-2"><label className="text-sm font-medium text-foreground">Status</label><select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="all">Todos</option><option value="DRAFT">Rascunho</option><option value="SUBMITTED">Enviado</option><option value="APPROVED">Aprovado</option><option value="DEVOLVIDO">Devolvido</option></select></div>
-            <div className="space-y-2"><label className="text-sm font-medium text-foreground">Período</label><select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="all">Todos os períodos</option>{months.map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
-          </div>
-        )}
-        {!isLoadingActivities && filteredActivities.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold text-foreground">Atividades Registradas</h3>
-            <div className="grid max-h-96 gap-3 overflow-y-auto">
-              {filteredActivities.slice(0, 10).map((activity, index) => {
-                const report = myReports.find((r) => r.id === activity.report_id);
-                return <div key={activity.id || `${activity.titulo}-${index}`} className="rounded-lg border border-border bg-card/50 p-3 transition-colors hover:bg-card"><div className="text-sm font-medium text-foreground">{activity.titulo || activity.nome || 'Atividade sem título'}</div><div className="mt-1 text-xs text-muted-foreground">{report?.museu || 'Geral'} • {report?.mes_referencia || ''} {report?.ano || ''}</div></div>;
-              })}
-            </div>
-          </div>
-        )}
+        {showFilters && <div className="mb-6 grid grid-cols-1 gap-3 rounded-lg bg-secondary p-4 sm:grid-cols-3"><div className="space-y-2"><label className="text-sm font-medium text-foreground">Museu</label><select value={selectedMuseum} onChange={(e) => setSelectedMuseum(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="all">Todos os museus</option>{museums.map((m) => <option key={m} value={m}>{m}</option>)}</select></div><div className="space-y-2"><label className="text-sm font-medium text-foreground">Status</label><select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="all">Todos</option><option value="DRAFT">Rascunho</option><option value="SUBMITTED">Enviado</option><option value="APPROVED">Aprovado</option><option value="DEVOLVIDO">Devolvido</option></select></div><div className="space-y-2"><label className="text-sm font-medium text-foreground">Período</label><select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="all">Todos os períodos</option>{months.map((m) => <option key={m} value={m}>{m}</option>)}</select></div></div>}
+        {!isLoadingActivities && filteredActivities.length > 0 && <div className="space-y-3"><h3 className="text-lg font-semibold text-foreground">Atividades Registradas</h3><div className="grid max-h-96 gap-3 overflow-y-auto">{filteredActivities.slice(0, 10).map((activity, index) => { const report = myReports.find((r) => r.id === activity.report_id); return <div key={activity.id || `${activity.titulo}-${index}`} className="rounded-lg border border-border bg-card/50 p-3 transition-colors hover:bg-card"><div className="text-sm font-medium text-foreground">{activity.titulo || activity.nome || 'Atividade sem título'}</div><div className="mt-1 text-xs text-muted-foreground">{getReportMuseu(report) || 'Geral'} • {report?.mes_referencia || ''} {report?.ano || ''}</div></div>; })}</div></div>}
         {!isLoadingActivities && filteredActivities.length === 0 && <div className="rounded-lg border border-dashed border-border p-8 text-center"><p className="text-muted-foreground">Nenhuma atividade encontrada com os filtros selecionados.</p></div>}
       </div>
     </div>
@@ -302,19 +334,12 @@ function DashboardProfissionalInner() {
   const museuAtualPublico = userMuseu ? toNumber(approvedMetrics.byMuseum?.[userMuseu]?.publicoTotal) : myActivities.reduce((sum, a) => sum + getActivityPublic(a), 0);
   const recentReports = myReports.slice(0, 5);
 
-  const stats = {
-    publico: museuAtualPublico,
-    publicoTodosMuseus: approvedMetrics.publicoTotal,
-    atividadesTresMuseus: approvedMetrics.approvedActivities.length,
-  };
+  const stats = { publico: museuAtualPublico, publicoTodosMuseus: approvedMetrics.publicoTotal, atividadesTresMuseus: approvedMetrics.approvedActivities.length };
 
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 py-6 md:px-8 md:py-10">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div><h1 className="text-3xl font-semibold text-foreground">Painel</h1><p className="mt-1 text-sm text-muted-foreground">Bem-vindo, {currentUser?.full_name || ''}! Sua atuação nas instituições{userMuseu ? ` · ${userMuseu}` : ''}</p></div>
-          <Link to="/ReportEditor"><Button className="gap-2"><Plus className="h-4 w-4" />Novo Relatório</Button></Link>
-        </div>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4"><div><h1 className="text-3xl font-semibold text-foreground">Painel</h1><p className="mt-1 text-sm text-muted-foreground">Bem-vindo, {currentUser?.full_name || ''}! Sua atuação nas instituições{userMuseu ? ` · ${userMuseu}` : ''}</p></div><Link to="/ReportEditor"><Button className="gap-2"><Plus className="h-4 w-4" />Novo Relatório</Button></Link></div>
         <div className="mb-6 space-y-6"><GaleriaTickerCarousel /><NewsCarousel /><DiariamenteNosMuseus /></div>
         {!isLoadingAllReports && !isLoadingAllProgramacao && <ProfessionalGeneralCharts reports={allReports} programacao={allProgramacao} />}
         {!isLoading && <PersonalCards myReports={myReports} myActivities={myActivities} myAttachments={myAttachments} myRequests={myRequests} myProgramacao={myProgramacao} userMuseu={userMuseu} />}
