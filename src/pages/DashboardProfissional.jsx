@@ -9,7 +9,6 @@ import { Plus, Filter, FileText, Activity, Image, Wallet, CalendarDays } from 'l
 import GaleriaTickerCarousel from '../components/dashboard/GaleriaTickerCarousel';
 import NewsCarousel from '../components/dashboard/NewsCarousel';
 import DiariamenteNosMuseus from '../components/dashboard/DiariamenteNosMuseus';
-import DashboardPatrocinador from './DashboardPatrocinador';
 import ProfessionalStats from '../components/dashboard/ProfessionalStats';
 import RecentReportsCard from '../components/dashboard/RecentReportsCard';
 
@@ -379,7 +378,6 @@ function DashboardProfissionalInner() {
           <GaleriaTickerCarousel />
           <NewsCarousel />
           <DiariamenteNosMuseus />
-          <DashboardPatrocinador />
         </div>
 
         {!isLoading && (
