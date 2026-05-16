@@ -265,8 +265,6 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
     return () => window.clearInterval(timer);
   }, [agendaItems.length]);
 
-  // REGRA: só contar atividades com público_total > 0 (público de atividades/eventos)
-  // publico_geral_declarado do relatório é exibido separadamente, nunca somado aqui
   const activitiesByMonth = React.useMemo(() => {
     const map = {};
 
@@ -278,21 +276,18 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
       if (!map[mes]) map[mes] = { atividades: 0, publico: 0 };
 
       (Array.isArray(r.atividades) ? r.atividades : []).forEach(a => {
-        // Usar publico_total como fonte primária
         const pubTotal = toInt(a.publico_total ?? 0);
         if (pubTotal > 0) {
           map[mes].atividades += 1;
           map[mes].publico += pubTotal;
           return;
         }
-        // Fallback: publico_estimado * quantas_repeticoes
         const pubEst = toInt(a.publico_estimado ?? 0);
         const reps = toInt(a.quantas_repeticoes ?? 1);
         if (pubEst > 0) {
           map[mes].atividades += 1;
           map[mes].publico += pubEst * Math.max(reps, 1);
         }
-        // publico = 0 → NÃO contabilizar
       });
     });
 
@@ -335,7 +330,6 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
       let publicoGeral = 0;
 
       reps.forEach(r => {
-        // Público geral declarado — separado, não entra na soma de atividades
         publicoGeral += toInt(r.publico_geral_declarado ?? 0);
 
         (Array.isArray(r.atividades) ? r.atividades : []).forEach(a => {
@@ -352,7 +346,6 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
             atividadesComPublico += 1;
             publico += pubEst * Math.max(reps2, 1);
           }
-          // sem público → não contar
         });
       });
 
@@ -410,46 +403,48 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-        <KpiCard
-          label={`Atividades ${ultimoMes.mes}`}
-          value={fmtInt(ultimoMes.atividades)}
-          icon={Activity}
-          highlight
-          helper="relatórios aprovados"
-        />
-
-        <KpiCard
-          label="Atividades previstas"
-          value={fmtInt(atividadesPrevistasMes)}
-          icon={CalendarDays}
-          highlight
-          helper="mês atual na agenda"
-        />
-
-        <AgendaKpiCard
-          agendaItems={agendaItems}
-          agendaDate={agendaDate}
-          agendaIndex={agendaIndex}
-        />
-
-        {isCoordenador && (
-        <>
+      <div className="flex justify-center">
+        <div className="grid w-full max-w-7xl grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
           <KpiCard
-            label="Execução"
-            value={`${orcamento.percentual.toFixed(1)}%`}
-            icon={BarChart3}
-            helper="orçamento utilizado"
+            label={`Atividades ${ultimoMes.mes}`}
+            value={fmtInt(ultimoMes.atividades)}
+            icon={Activity}
+            highlight
+            helper="relatórios aprovados"
           />
 
           <KpiCard
-            label="Utilizado"
-            value={fmtBRL(orcamento.totalUtilizado)}
-            icon={Wallet}
-            helper="valor realizado"
+            label="Atividades previstas"
+            value={fmtInt(atividadesPrevistasMes)}
+            icon={CalendarDays}
+            highlight
+            helper="mês atual na agenda"
           />
-        </>
-        )}
+
+          <AgendaKpiCard
+            agendaItems={agendaItems}
+            agendaDate={agendaDate}
+            agendaIndex={agendaIndex}
+          />
+
+          {isCoordenador && (
+          <>
+            <KpiCard
+              label="Execução"
+              value={`${orcamento.percentual.toFixed(1)}%`}
+              icon={BarChart3}
+              helper="orçamento utilizado"
+            />
+
+            <KpiCard
+              label="Utilizado"
+              value={fmtBRL(orcamento.totalUtilizado)}
+              icon={Wallet}
+              helper="valor realizado"
+            />
+          </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
