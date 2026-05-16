@@ -191,13 +191,12 @@ function DashboardInner() {
   }, []);
 
   React.useEffect(() => {
-    if (!isCoordenador && dashboardViewMode !== 'coordenador') {
-      setDashboardViewModeState('coordenador');
+    if (!isCoordenador) {
       try {
         localStorage.removeItem(DASHBOARD_VIEW_KEY);
       } catch {}
     }
-  }, [isCoordenador, dashboardViewMode]);
+  }, [isCoordenador]);
 
   const now = new Date();
 
@@ -299,7 +298,8 @@ function DashboardInner() {
       }
     },
     enabled:
-      !!currentUser?.email
+      !!currentUser?.email &&
+      isCoordenador
   });
 
   const refetchDashboardData =
@@ -464,6 +464,10 @@ function DashboardInner() {
   } = usePullToRefresh(
     handleRefresh
   );
+
+  if (!userLoading && currentUser && !isCoordenador) {
+    return <DashboardProfissional />;
+  }
 
   if (isCoordenador && dashboardViewMode === 'profissional') {
     return (
