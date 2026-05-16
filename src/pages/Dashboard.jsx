@@ -168,7 +168,7 @@ function DashboardInner() {
         return [];
       }
     },
-    enabled: !!currentUser?.email && isCoordenador,
+    enabled: !!currentUser?.email,
   });
 
   const refetchDashboardData = React.useCallback(async () => {
@@ -264,6 +264,7 @@ function DashboardInner() {
           <GaleriaTickerCarousel />
           <NewsCarousel />
           <DiariamenteNosMuseus />
+          <MetasAditivoSection rubricas={rubricas} />
           <DashboardPatrocinador />
         </div>
       </div>
