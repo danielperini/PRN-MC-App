@@ -2,9 +2,18 @@ import React from 'react';
 import { Activity, Users } from 'lucide-react';
 
 const STAT_CONFIG = {
-  publico: { icon: Users, label: 'Público Total' },
-  publicoTodosMuseus: { icon: Users, label: 'Público Total de Todos os Museus' },
-  atividadesTresMuseus: { icon: Activity, label: 'Total de Atividades dos Três Museus' },
+  publico: {
+    icon: Users,
+    label: 'Público Total do Museu Atual'
+  },
+  publicoTodosMuseus: {
+    icon: Users,
+    label: 'Público Total dos Três Museus'
+  },
+  atividadesTresMuseus: {
+    icon: Activity,
+    label: 'Total de Atividades dos Três Museus'
+  },
 };
 
 export default function ProfessionalStats({ stats }) {
@@ -18,11 +27,17 @@ export default function ProfessionalStats({ stats }) {
         const numberValue = Number(value || 0);
 
         return (
-          <div key={key} className="p-4 rounded-xl border border-gray-200 bg-white text-black shadow-sm hover:shadow-md transition-shadow">
+          <div
+            key={key}
+            className="p-4 rounded-xl border border-gray-200 bg-white text-black shadow-sm hover:shadow-md transition-shadow"
+          >
             <div className="flex items-center gap-2 mb-2 text-gray-500">
               <Icon className="w-4 h-4 text-black" />
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">{config.label}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                {config.label}
+              </p>
             </div>
+
             <p className="text-2xl font-bold text-black">
               {Math.round(numberValue).toLocaleString('pt-BR')}
             </p>
