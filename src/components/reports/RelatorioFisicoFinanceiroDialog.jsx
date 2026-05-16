@@ -13,17 +13,27 @@ import buildRelatorioFisicoFinanceiroContext from '@/utils/buildRelatorioFisicoF
 import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinanceiroTemplate';
 import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
 
-const SECOES = [
+const CAPITULOS_RELATORIO = [
   { id: 'capa', label: 'Capa editorial' },
-  { id: 'introducao', label: 'Introdução e território' },
+  { id: 'introducao', label: 'Introdução institucional' },
+  { id: 'territorio', label: 'Território e contexto' },
   { id: 'resumo_geral', label: 'Resumo e indicadores' },
   { id: 'publico', label: 'Público alcançado' },
-  { id: 'atividades', label: 'Atividades por eixo' },
+  { id: 'metas', label: 'Metas do 3º Aditivo' },
+  { id: 'programacao', label: 'Programação' },
+  { id: 'agenda_programacao', label: 'Agenda de programação' },
+  { id: 'atividades_museu', label: 'Atividades por museu' },
+  { id: 'relatorios_completos', label: 'Relatórios integrais das equipes' },
+  { id: 'galeria_evidencias', label: 'Galeria e evidências' },
+  { id: 'comunicacao', label: 'Comunicação' },
   { id: 'financeiro', label: 'Execução financeira' },
+  { id: 'rubricas', label: 'Rubricas, orçamento e execução por grupo' },
   { id: 'prestacao', label: 'Prestação de contas' },
-  { id: 'memoria', label: 'Memória institucional' },
+  { id: 'app_museu_centro', label: 'Museu Centro APP' },
   { id: 'conclusao', label: 'Conclusão' },
 ];
+
+const SECOES = CAPITULOS_RELATORIO;
 
 const MUSEUS_OPTIONS = [
   { value: 'todos', label: 'Todos os museus' },
@@ -31,6 +41,30 @@ const MUSEUS_OPTIONS = [
   { value: 'MHAB', label: 'MHAB' },
   { value: 'MUMO', label: 'MUMO' },
 ];
+
+const REPORT_GENERATOR_STRATEGY = {
+  nome: 'Gerador de Relatório',
+  idioma: 'pt-BR',
+  tom: 'institucional, técnico, cultural e analítico',
+  atividades: {
+    agrupamento: 'por_museu',
+    museus: ['MIS', 'MHAB', 'MUMO'],
+    reproduzir_textos_integrais: true,
+    fotos_por_atividade: 2,
+    renderizar_fotos_apenas_quando_existirem: true,
+    grade_arquivos_drive: '3_colunas',
+    link_drive_generico: true,
+  },
+  ia: {
+    redigir_introducao_institucional: true,
+    redigir_conclusao: true,
+    sugerir_capitulos: true,
+    interpretar_metas: true,
+    interpretar_execucao_financeira: true,
+    pode_usar_web_no_base44: true,
+  },
+  capitulos_removidos: ['memoria_institucional'],
+};
 
 async function safeList(entity, order = '-created_date', limit = 1000) {
   try {
@@ -129,12 +163,21 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
         dateTo,
         museu,
         modoEntrega,
+        capitulos: secoesSelecionadas,
+        reportGeneratorStrategy: REPORT_GENERATOR_STRATEGY,
       },
     });
 
-    const textos = await gerarTextosRelatorioFisicoFinanceiro(contexto, introIA);
+    const contextoComEstrategia = {
+      ...contexto,
+      report_generator_strategy: REPORT_GENERATOR_STRATEGY,
+      capitulos_relatorio: CAPITULOS_RELATORIO,
+      secoesSelecionadas,
+    };
 
-    return { contexto, textos };
+    const textos = await gerarTextosRelatorioFisicoFinanceiro(contextoComEstrategia, introIA);
+
+    return { contexto: contextoComEstrategia, textos };
   }
 
   async function gerarHtml() {
@@ -149,6 +192,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
         dateFrom,
         dateTo,
         museu: museu === 'todos' ? 'Todos os museus' : museu,
+        reportGeneratorStrategy: REPORT_GENERATOR_STRATEGY,
       },
     });
   }
@@ -160,7 +204,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
     }
 
     if (secoesSelecionadas.length === 0) {
-      toast.error('Selecione ao menos uma seção');
+      toast.error('Selecione ao menos um capítulo');
       return;
     }
 
@@ -169,7 +213,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
     try {
       const html = await gerarHtml();
       abrirPreview(html);
-      toast.success('Prévia editorial aberta.');
+      toast.success('Prévia do relatório aberta.');
     } catch (error) {
       console.error(error);
       toast.error('Erro ao gerar prévia: ' + (error?.message || 'tente novamente'));
@@ -185,7 +229,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
     }
 
     if (secoesSelecionadas.length === 0) {
-      toast.error('Selecione ao menos uma seção');
+      toast.error('Selecione ao menos um capítulo');
       return;
     }
 
@@ -225,8 +269,8 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">Relatório Editorial Institucional</DialogTitle>
-          <p className="text-sm text-gray-500 mt-0.5">Museus Centro — publicação cultural consolidada com curadoria IA</p>
+          <DialogTitle className="text-lg font-semibold">Gerador de Relatório</DialogTitle>
+          <p className="text-sm text-gray-500 mt-0.5">Museus Centro — relatório editorial, programático, financeiro e de prestação de contas</p>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
@@ -286,7 +330,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
                     Entrega / Prestação de Contas
                   </Label>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Reorganiza relatórios aprovados, fotos, atividades, execução financeira e prestação de contas.
+                    Reorganiza relatórios aprovados, atividades por museu, fotos, execução financeira e documentos.
                   </p>
                 </div>
               </div>
@@ -305,10 +349,10 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
                 <div>
                   <Label htmlFor="introIA" className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5" />
-                    Redigir e auditar textos com IA
+                    Redigir textos em português BR com IA
                   </Label>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    A IA usa os relatórios aprovados, programação e base de conhecimento para escrever textos longos e técnicos.
+                    A IA organiza introdução, metas, programação, dados financeiros, conclusão e análises dos registros.
                   </p>
                 </div>
               </div>
@@ -325,11 +369,11 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
                   className="mt-0.5"
                 />
                 <div>
-                  <Label htmlFor="editorialFase3" className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
-                    ✨ Editorial Fase 3 — Consolidação
+                  <Label htmlFor="editorialFase3" className="text-sm font-medium cursor-pointer">
+                    Consolidação editorial
                   </Label>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Integra releases, programação e atividades para gerar narrativa institucional única.
+                    Integra programação, metas, relatórios das equipes, galeria, dashboards e prestação de contas.
                   </p>
                 </div>
               </div>
@@ -338,11 +382,11 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">Seções do relatório</Label>
+              <Label className="text-sm font-medium">Capítulos do relatório</Label>
               <div className="flex gap-2 text-xs">
-                <button type="button" onClick={() => toggleAll(true)} className="text-blue-600 hover:underline">Todas</button>
+                <button type="button" onClick={() => toggleAll(true)} className="text-blue-600 hover:underline">Todos</button>
                 <span className="text-gray-300">|</span>
-                <button type="button" onClick={() => toggleAll(false)} className="text-gray-500 hover:underline">Nenhuma</button>
+                <button type="button" onClick={() => toggleAll(false)} className="text-gray-500 hover:underline">Nenhum</button>
               </div>
             </div>
 
@@ -360,7 +404,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
             </div>
 
             <p className="text-xs text-gray-400">
-              {secoesCount} de {SECOES.length} seções selecionadas
+              {secoesCount} de {SECOES.length} capítulos selecionados
             </p>
           </div>
 
@@ -405,7 +449,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
             disabled={isLoading}
           >
             {loadingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-            {loadingPDF ? 'Gerando PDF...' : 'Gerar PDF'}
+            {loadingPDF ? 'Gerando relatório...' : 'Gerar relatório'}
           </Button>
         </DialogFooter>
       </DialogContent>
