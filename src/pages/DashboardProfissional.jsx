@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Plus, Filter, FileText, Activity, Image, Wallet, CalendarDays } from 'lucide-react';
+import { Plus, FileText, Activity, Image, Wallet, CalendarDays } from 'lucide-react';
 import GaleriaTickerCarousel from '../components/dashboard/GaleriaTickerCarousel';
 import NewsCarousel from '../components/dashboard/NewsCarousel';
 import DiariamenteNosMuseus from '../components/dashboard/DiariamenteNosMuseus';
@@ -19,18 +19,6 @@ const SUBMITTED = new Set(['SUBMITTED', 'ENVIADO', 'ENVIADO_REVISAO', 'AGUARDAND
 const RETURNED = new Set(['DEVOLVIDO', 'RETURNED']);
 const PAID = new Set(['PAGO', 'PAID']);
 
-const USER_MUSEU_MAP = {
-  'claragas@gmail.com': 'MUMO',
-};
-
-const USER_NAME_MUSEU_RULES = [
-  { match: ['clara'], museu: 'MUMO' },
-  { match: ['juliana'], museu: 'MIS' },
-  { match: ['isabella', 'isabela'], museu: 'MIS' },
-  { match: ['lara'], museu: 'MHAB' },
-  { match: ['wanda'], museu: 'MHAB' },
-];
-
 function normalize(value) {
   return String(value || '').trim().toUpperCase();
 }
@@ -40,40 +28,16 @@ function normalizeEmail(value) {
 }
 
 function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 function normalizeMuseu(value) {
   const text = normalizeText(value);
   if (!text) return '';
   if (text.includes('mumo') || text.includes('moda')) return 'MUMO';
-  if (text.includes('mhab') || text.includes('abilio') || text.includes('histórico') || text.includes('historico')) return 'MHAB';
+  if (text.includes('mhab') || text.includes('abilio') || text.includes('historico')) return 'MHAB';
   if (text.includes('mis') || text.includes('imagem') || text.includes('som')) return 'MIS';
   return '';
-}
-
-function getUserMuseu(user) {
-  const email = normalizeEmail(user?.email || user?.created_by || user?.author_email || user?.responsavel_email);
-  if (USER_MUSEU_MAP[email]) return USER_MUSEU_MAP[email];
-
-  const text = normalizeText([
-    user?.full_name,
-    user?.name,
-    user?.display_name,
-    user?.author_name,
-    user?.responsavel_nome,
-    user?.created_by_name,
-    user?.email,
-    user?.created_by,
-  ].filter(Boolean).join(' '));
-
-  const rule = USER_NAME_MUSEU_RULES.find(({ match }) => match.some((term) => text.includes(term)));
-  return rule?.museu || '';
 }
 
 function toNumber(value) {
@@ -83,6 +47,14 @@ function toNumber(value) {
 
 function fmtInt(value) {
   return Math.round(toNumber(value)).toLocaleString('pt-BR');
+}
+
+function getUserMuseu(user) {
+  const text = normalizeText([user?.full_name, user?.name, user?.display_name, user?.email].filter(Boolean).join(' '));
+  if (text.includes('clara')) return 'MUMO';
+  if (text.includes('juliana') || text.includes('isabella') || text.includes('isabela')) return 'MIS';
+  if (text.includes('lara') || text.includes('wanda')) return 'MHAB';
+  return normalizeMuseu(user?.museu || user?.centro_custo || '');
 }
 
 function isApprovedReport(report) {
@@ -99,71 +71,36 @@ function isMine(item, email) {
 function getActivityPublic(activity) {
   const direct = toNumber(activity?.publico_total ?? activity?.publico_estimado ?? activity?.publico ?? 0);
   if (direct > 0) return Math.round(direct);
-
-  const publicoMedio = toNumber(activity?.publico_medio_por_sessao ?? activity?.publico_medio_sessao ?? activity?.publico_medio ?? activity?.publico_por_sessao ?? 0);
-  const ocorrencias = toNumber(activity?.quantas_vezes_ocorreu ?? activity?.qtd_ocorrencias ?? activity?.ocorrencias ?? activity?.quantidade_ocorrencias ?? 1);
-
-  return Math.round(publicoMedio) * Math.max(Math.round(ocorrencias), 1);
+  const medio = toNumber(activity?.publico_medio_por_sessao ?? activity?.publico_medio_sessao ?? activity?.publico_medio ?? activity?.publico_por_sessao ?? 0);
+  const vezes = toNumber(activity?.quantas_vezes_ocorreu ?? activity?.qtd_ocorrencias ?? activity?.ocorrencias ?? activity?.quantidade_ocorrencias ?? 1);
+  return Math.round(medio) * Math.max(Math.round(vezes), 1);
 }
 
 function getReportMuseu(report) {
-  const direct = normalizeMuseu([
+  return normalizeMuseu([
     report?.museu,
     report?.museu_secundario,
     report?.museu_principal,
-    report?.museu_nome,
     report?.instituicao,
     report?.unidade,
-    report?.unidade_museu,
     report?.centro_custo,
     report?.local,
-    report?.espaco,
     report?.titulo,
-    report?.nome,
     report?.descricao,
   ].filter(Boolean).join(' '));
-
-  if (direct) return direct;
-
-  return getUserMuseu({
-    email: report?.created_by || report?.user_email || report?.author_email || report?.responsavel_email,
-    full_name: report?.author_name || report?.responsavel_nome || report?.created_by_name || report?.nome_responsavel,
-    created_by: report?.created_by,
-    author_name: report?.author_name,
-    responsavel_nome: report?.responsavel_nome,
-  });
 }
 
 function getActivityMuseu(activity, report) {
-  const direct = normalizeMuseu([
+  return normalizeMuseu([
     activity?.museu,
     activity?.centro_custo,
     activity?.unidade,
-    activity?.unidade_museu,
     activity?.instituicao,
     activity?.local,
-    activity?.espaco,
     activity?.nome_atividade,
-    activity?.nome,
     activity?.titulo,
-    activity?.acao,
-    activity?.atividade,
     activity?.descricao,
-  ].filter(Boolean).join(' '));
-
-  return direct || getReportMuseu(report);
-}
-
-function getActivityAuditKey(activity, report, index = 0) {
-  const explicitProgramacaoId = activity?.programacao_id || activity?.programacaoId || activity?.id_programacao || activity?.agenda_id;
-  if (explicitProgramacaoId) return `programacao:${explicitProgramacaoId}`;
-
-  const nome = normalizeText(activity?.nome_atividade || activity?.nome || activity?.titulo || activity?.acao || activity?.atividade || '');
-  const data = activity?.data_realizacao || activity?.data_inicio || activity?.data || activity?.inicio || '';
-  const museu = normalizeText(getActivityMuseu(activity, report));
-  const periodo = data || `${report?.ano || ''}-${report?.mes_referencia || report?.mes || ''}`;
-
-  return [nome || `atividade-${index}`, periodo, museu].filter(Boolean).join('|');
+  ].filter(Boolean).join(' ')) || getReportMuseu(report);
 }
 
 function getReportActivities(report) {
@@ -174,8 +111,12 @@ function getReportActivities(report) {
     _activityIndex: index,
     _publico: getActivityPublic(activity),
     _museu: getActivityMuseu(activity, report),
-    _auditKey: getActivityAuditKey(activity, report, index),
+    _auditKey: [activity?.programacao_id || activity?.id || activity?.titulo || activity?.nome_atividade || index, activity?.data || report?.mes_referencia, getActivityMuseu(activity, report)].filter(Boolean).join('|'),
   }));
+}
+
+function getReportsActivities(reports) {
+  return (Array.isArray(reports) ? reports : []).flatMap(getReportActivities);
 }
 
 function deduplicateActivities(activities) {
@@ -186,10 +127,6 @@ function deduplicateActivities(activities) {
     if (!unique.has(key) || toNumber(activity?._publico) > toNumber(unique.get(key)?._publico)) unique.set(key, activity);
   });
   return Array.from(unique.values());
-}
-
-function getReportsActivities(reports) {
-  return (Array.isArray(reports) ? reports : []).flatMap(getReportActivities);
 }
 
 function getApprovedMetrics(reports) {
@@ -232,26 +169,14 @@ function PersonalCards({ myReports, myActivities, myAttachments, myRequests, myP
     const attachments = Array.isArray(myAttachments) ? myAttachments : [];
     const requests = Array.isArray(myRequests) ? myRequests : [];
     const programacao = Array.isArray(myProgramacao) ? myProgramacao : [];
-
-    const activitiesWithPublic = activities.filter((a) => getActivityPublic(a) > 0);
-    const publicActivities = activitiesWithPublic.reduce((sum, a) => sum + getActivityPublic(a), 0);
-    const publicGeneral = reports.reduce((sum, r) => sum + toNumber(r.publico_geral_declarado || r.publico_geral || 0), 0);
-    const photos = attachments.filter((a) => {
-      const type = String(a?.file_type || a?.mime_type || '').toLowerCase();
-      const url = String(a?.file_url || a?.url || a?.filename || '').toLowerCase();
-      return type.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/.test(url);
-    });
+    const photos = attachments.filter((a) => String(a?.file_type || a?.mime_type || '').toLowerCase().startsWith('image/'));
     const docs = attachments.filter((a) => !photos.includes(a));
-    const exported = attachments.filter((a) => /relat[oó]rio|export/i.test(`${a?.filename || ''} ${a?.nome || ''} ${a?.tipo || ''}`));
-    const approvedRequests = requests.filter((r) => APPROVED.has(normalize(r.status)));
-    const paidRequests = requests.filter((r) => PAID.has(normalize(r.status)) || r.pago === true);
-    const pendingRequests = requests.filter((r) => SUBMITTED.has(normalize(r.status)) || ['PENDENTE', 'EM_ANALISE'].includes(normalize(r.status)));
-
+    const activitiesWithPublic = activities.filter((a) => getActivityPublic(a) > 0);
     return {
       reports: { total: reports.length, returned: reports.filter((r) => RETURNED.has(normalize(r.status))).length },
-      activities: { total: activities.length, withPublic: activitiesWithPublic.length, publicActivities, publicGeneral },
-      evidence: { photos: photos.length, docs: docs.length, attachments: attachments.length, exported: exported.length },
-      requests: { total: requests.length, approved: approvedRequests.length, paid: paidRequests.length, pending: pendingRequests.length },
+      activities: { total: activities.length, withPublic: activitiesWithPublic.length, publicActivities: activitiesWithPublic.reduce((sum, a) => sum + getActivityPublic(a), 0), publicGeneral: reports.reduce((sum, r) => sum + toNumber(r.publico_geral_declarado || r.publico_geral || 0), 0) },
+      evidence: { photos: photos.length, docs: docs.length, attachments: attachments.length },
+      requests: { total: requests.length, approved: requests.filter((r) => APPROVED.has(normalize(r.status))).length, paid: requests.filter((r) => PAID.has(normalize(r.status)) || r.pago === true).length, pending: requests.filter((r) => SUBMITTED.has(normalize(r.status))).length },
       programacao: { total: programacao.length },
     };
   }, [myReports, myActivities, myAttachments, myRequests, myProgramacao]);
@@ -260,22 +185,83 @@ function PersonalCards({ myReports, myActivities, myAttachments, myRequests, myP
     <section className="mb-8 space-y-4">
       <div>
         <h2 className="text-xl font-semibold text-foreground">Resumo pessoal</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Relatórios, atividades, evidências, solicitações e programação vinculados ao usuário logado{userMuseu ? ` · Museu vinculado: ${userMuseu}` : ''}.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">Relatórios, atividades, evidências, solicitações e programação vinculados ao usuário logado{userMuseu ? ` · Museu vinculado: ${userMuseu}` : ''}.</p>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard title="Meus Relatórios" value={fmtInt(cards.reports.total)} helper={`${cards.reports.returned} devolvidos`} icon={FileText} />
         <StatCard title="Minhas Atividades" value={fmtInt(cards.activities.total)} helper={`${cards.activities.withPublic} com público · ${fmtInt(cards.activities.publicActivities)} participantes`} icon={Activity} />
-        <StatCard title="Minhas Evidências" value={fmtInt(cards.evidence.attachments)} helper={`${cards.evidence.photos} fotos · ${cards.evidence.docs} documentos · ${cards.evidence.exported} exportados`} icon={Image} />
+        <StatCard title="Minhas Evidências" value={fmtInt(cards.evidence.attachments)} helper={`${cards.evidence.photos} fotos · ${cards.evidence.docs} documentos`} icon={Image} />
         <StatCard title="Solicitações/Pagamentos" value={fmtInt(cards.requests.total)} helper={`${cards.requests.approved} aprovadas · ${cards.requests.paid} pagas · ${cards.requests.pending} pendentes`} icon={Wallet} />
         <StatCard title="Minha Programação" value={fmtInt(cards.programacao.total)} helper={cards.programacao.total > 0 ? 'programações vinculadas' : 'sem programação vinculada'} icon={CalendarDays} />
       </div>
-      {cards.activities.publicGeneral > 0 && (
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-500">
-          Público geral declarado nos relatórios: <span className="font-semibold text-black">{fmtInt(cards.activities.publicGeneral)}</span>. Esse número é exibido separadamente do público em atividades.
-        </div>
-      )}
+      {cards.activities.publicGeneral > 0 && <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-500">Público geral declarado nos relatórios: <span className="font-semibold text-black">{fmtInt(cards.activities.publicGeneral)}</span>.</div>}
     </section>
   );
+}
+
+function ProfessionalDataSection({ myReports, myActivities, isLoadingActivities }) {
+  const atividades = Array.isArray(myActivities) ? myActivities : [];
+  return (
+    <div className="space-y-6">
+      <div className="border-t border-border pt-6">
+        <div className="mb-4">
+          <h2 className="text-2xl font-semibold text-foreground">Meus Dados e Atividades</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Visualize suas atividades, relatórios e documentos.</p>
+        </div>
+        {!isLoadingActivities && atividades.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold text-foreground">Atividades Registradas</h3>
+            <div className="grid max-h-96 gap-3 overflow-y-auto">
+              {atividades.slice(0, 10).map((activity, index) => {
+                const report = myReports.find((r) => r.id === activity.report_id);
+                return <div key={activity.id || `${activity.titulo}-${index}`} className="rounded-lg border border-border bg-card/50 p-3 transition-colors hover:bg-card"><div className="text-sm font-medium text-foreground">{activity.titulo || activity.nome || activity.nome_atividade || 'Atividade sem título'}</div><div className="mt-1 text-xs text-muted-foreground">{getReportMuseu(report) || 'Geral'} • {report?.mes_referencia || ''} {report?.ano || ''}</div></div>;
+              })}
+            </div>
+          </div>
+        )}
+        {!isLoadingActivities && atividades.length === 0 && <div className="rounded-lg border border-dashed border-border p-8 text-center"><p className="text-muted-foreground">Nenhuma atividade encontrada.</p></div>}
+      </div>
+    </div>
+  );
+}
+
+function DashboardProfissionalInner() {
+  const { user: currentUser } = useCurrentUser();
+  const userMuseu = getUserMuseu(currentUser);
+
+  const { data: myReports = [], isLoading } = useQuery({ queryKey: ['my-reports-prof', currentUser?.email], queryFn: () => base44.entities.Report.filter({ created_by: currentUser?.email }, '-created_date', 100), enabled: !!currentUser?.email });
+  const { data: myActivities = [], isLoading: isLoadingActivities } = useQuery({ queryKey: ['my-activities-prof', currentUser?.email, myReports], queryFn: async () => getReportsActivities(myReports), enabled: !!currentUser?.email && myReports.length > 0 });
+  const { data: myAttachments = [] } = useQuery({ queryKey: ['my-attachments-prof', myReports], queryFn: async () => { const attachments = []; for (const report of myReports) { try { attachments.push(...await base44.entities.Attachment.filter({ report_id: report.id }, '-created_date')); } catch {} } return attachments; }, enabled: myReports.length > 0 });
+  const { data: myRequests = [] } = useQuery({ queryKey: ['my-purchase-requests-prof', currentUser?.email], queryFn: async () => { try { const list = await base44.entities.PurchaseRequest.list('-created_date', 300); return (Array.isArray(list) ? list : []).filter((item) => isMine(item, currentUser?.email)); } catch { return []; } }, enabled: !!currentUser?.email });
+  const { data: myProgramacao = [] } = useQuery({ queryKey: ['my-programacao-prof', currentUser?.email], queryFn: async () => { try { const list = await base44.entities.Programacao.list('-data_realizacao', 200); return (Array.isArray(list) ? list : []).filter((item) => isMine(item, currentUser?.email)); } catch { return []; } }, enabled: !!currentUser?.email });
+  const { data: allReports = [], isLoading: isLoadingAllReports } = useQuery({ queryKey: ['all-reports-prof-general'], queryFn: () => base44.entities.Report.list('-created_date', 500), enabled: !!currentUser?.email });
+  const { data: allProgramacao = [], isLoading: isLoadingAllProgramacao } = useQuery({ queryKey: ['all-programacao-prof-general'], queryFn: () => base44.entities.Programacao.list('-data_realizacao', 500), enabled: !!currentUser?.email });
+  const { data: rubricas = [] } = useQuery({ queryKey: ['dashboard-profissional-rubricas'], queryFn: async () => { try { const data = await base44.entities.Rubrica.list('rubrica', 1000); return Array.isArray(data) ? data.filter((r) => r.ativo !== false) : []; } catch { return []; } }, enabled: !!currentUser?.email });
+
+  const approvedMetrics = useMemo(() => getApprovedMetrics(allReports), [allReports]);
+  const museuAtualPublico = userMuseu ? toNumber(approvedMetrics.byMuseum?.[userMuseu]?.publicoTotal) : myActivities.reduce((sum, a) => sum + getActivityPublic(a), 0);
+  const recentReports = myReports.slice(0, 5);
+  const stats = { publico: museuAtualPublico, publicoTodosMuseus: approvedMetrics.publicoTotal, atividadesTresMuseus: approvedMetrics.approvedActivities.length };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto px-4 py-6 md:px-8 md:py-10">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div><h1 className="text-3xl font-semibold text-foreground">Painel</h1><p className="mt-1 text-sm text-muted-foreground">Bem-vindo, {currentUser?.full_name || ''}! Sua atuação nas instituições{userMuseu ? ` · ${userMuseu}` : ''}</p></div>
+          <Link to="/ReportEditor"><Button className="gap-2"><Plus className="h-4 w-4" />Novo Relatório</Button></Link>
+        </div>
+        <div className="mb-6 space-y-6"><GaleriaTickerCarousel /><NewsCarousel /><DiariamenteNosMuseus /><MetasAditivoSection rubricas={rubricas} /></div>
+        {!isLoadingAllReports && !isLoadingAllProgramacao && <ProfessionalGeneralCharts reports={allReports} programacao={allProgramacao} />}
+        {!isLoading && <PersonalCards myReports={myReports} myActivities={myActivities} myAttachments={myAttachments} myRequests={myRequests} myProgramacao={myProgramacao} userMuseu={userMuseu} />}
+        {!isLoading && <div className="mb-8"><h2 className="mb-4 text-xl font-semibold text-foreground">Dados</h2><ProfessionalStats stats={stats} /></div>}
+        {recentReports.length > 0 && <div className="mb-8"><h2 className="mb-4 text-xl font-semibold text-foreground">Relatórios Recentes</h2><RecentReportsCard reports={recentReports} /></div>}
+        <ProfessionalDataSection myReports={myReports} myActivities={myActivities} isLoadingActivities={isLoadingActivities} />
+        {!isLoading && myReports.length === 0 && <div className="mt-8 rounded-2xl border border-dashed border-border p-12 text-center"><p className="font-medium text-foreground">Você ainda não tem relatórios</p><p className="mt-2 text-sm text-muted-foreground">Comece criando um novo relatório mensal para registrar suas atividades e atuação.</p><Link to="/ReportEditor"><Button className="mt-6 gap-2"><Plus className="h-4 w-4" />Criar Primeiro Relatório</Button></Link></div>}
+      </div>
+    </div>
+  );
+}
+
+export default function DashboardProfissional() {
+  return <RequireAuth><DashboardProfissionalInner /></RequireAuth>;
 }
