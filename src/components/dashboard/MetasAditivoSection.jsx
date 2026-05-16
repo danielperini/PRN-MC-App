@@ -56,8 +56,8 @@ const BASE_METAS_ADITIVO = [
     numero: 'META 05',
     titulo: '30 atividades culturais ou educativas',
     percentual: 0,
-    detalhe: 'Atividades únicas confirmadas por programação, relatórios, custeio e notas fiscais',
-    indicador: '0/30 atividades validadas',
+    detalhe: 'Atividades únicas da Programação/Agenda, filtradas mensalmente desde março/2026',
+    indicador: '0/30 atividades da programação validadas',
     status: 'EM EXECUÇÃO',
   },
   {
@@ -263,6 +263,36 @@ function getProgramacaoDate(item = {}) {
   return item?.data_inicio || item?.data_realizacao || item?.data || item?.inicio || '';
 }
 
+function parseProgramacaoDate(item = {}) {
+  const raw = getProgramacaoDate(item);
+  if (!raw) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(raw))) {
+    const date = new Date(raw);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const br = String(raw).match(/(\d{1,2})\/(\d{1,2})\/(20\d{2})/);
+  if (br) {
+    const date = new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isMeta05Period(item = {}) {
+  const date = parseProgramacaoDate(item);
+  if (!date) return false;
+
+  const start = new Date(2026, 2, 1); // março/2026
+  const now = new Date();
+  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  return date >= start && date <= currentMonthEnd;
+}
+
 function getActivityKey(title = '', date = '', museu = '') {
   return normalizeText([title, date, museu].filter(Boolean).join('|'));
 }
@@ -276,7 +306,6 @@ function isRoutineActivity(text = '') {
     text.includes('reuniao') ||
     text.includes('plantao') ||
     text.includes('rotina') ||
-    text.includes('mediação ao publico espontaneo') ||
     text.includes('mediacao ao publico espontaneo')
   );
 }
@@ -335,9 +364,10 @@ function calculateMeta05(programacao = [], reports = [], purchaseRequests = []) 
   const reportActivities = flattenReportActivities(reports);
   const reportTitles = reportActivities.map((item) => item?.titulo || item?.nome || item?.nome_atividade || item?.atividade || item?.acao || '').filter(Boolean);
   const nfTexts = (Array.isArray(purchaseRequests) ? purchaseRequests : []).map(getAnyText);
-  const validated = new Map();
+  const candidates = new Map();
 
   (Array.isArray(programacao) ? programacao : []).forEach((item) => {
+    if (!isMeta05Period(item)) return;
     if (!isCulturalEducationalActivity(item)) return;
 
     const title = getProgramacaoTitle(item);
@@ -355,16 +385,18 @@ function calculateMeta05(programacao = [], reports = [], purchaseRequests = []) 
       return sameActivity || (isCulturalNF && sameMuseum) || isCulturalNF;
     });
 
-    if (hasReport || hasNF) {
-      validated.set(key, { title, date, museu, hasReport, hasNF });
-    }
+    candidates.set(key, { title, date, museu, hasReport, hasNF });
   });
 
-  const count = validated.size;
+  const atividades = Array.from(candidates.values());
+  const count = atividades.length;
+  const withNF = atividades.filter((item) => item.hasNF).length;
+  const withReport = atividades.filter((item) => item.hasReport).length;
+
   return {
     count,
-    withNF: Array.from(validated.values()).filter((item) => item.hasNF).length,
-    withReport: Array.from(validated.values()).filter((item) => item.hasReport).length,
+    withNF,
+    withReport,
     percentual: clampPercent((count / 30) * 100),
   };
 }
@@ -412,8 +444,8 @@ function buildMetas({ rubricas = [], reports = [], programacao = [], purchaseReq
       return {
         ...meta,
         percentual: meta05.percentual,
-        indicador: `${meta05.count}/30 atividades validadas · ${meta05.withNF} com NF · ${meta05.withReport} com relatório`,
-        detalhe: 'Programação + relatório da equipe + custeio/nota fiscal vinculada à atividade cultural ou educativa',
+        indicador: `${meta05.count}/30 atividades da Programação/Agenda · ${meta05.withNF} com NF · ${meta05.withReport} com relatório`,
+        detalhe: 'Fonte inicial: Programação/Agenda · recorte automático de março/2026 até o mês atual',
         status: meta05.percentual >= 100 ? 'CONCLUÍDA' : 'EM EXECUÇÃO',
       };
     }
