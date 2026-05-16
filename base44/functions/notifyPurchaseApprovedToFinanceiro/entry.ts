@@ -1,6 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-const EMAIL_FINANCEIRO = 'notasfiscais@viadutodasartes.org.br';
+const EMAILS_FINANCEIRO_AUTORIZADOS = [
+  'danielperini.mc@viadutodasartes.org.br',
+  'notasfiscais@viadutodasartes.org.br',
+];
 
 function formatCurrency(value) {
   const n = parseFloat(value) || 0;
@@ -12,6 +15,23 @@ function formatDate(dateStr) {
   try {
     return new Date(dateStr).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   } catch { return dateStr; }
+}
+
+function getPurchaseMonthFolderLabel(purchase) {
+  const rawDate = purchase.nf_data_emissao || purchase.data_emissao || purchase.created_date || purchase.created_at || new Date().toISOString();
+  const d = new Date(rawDate);
+  if (Number.isNaN(d.getTime())) return 'Pasta do mês no Drive';
+  const ano = d.getFullYear();
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  return `Pasta do mês no Drive — ${mes}/${ano}`;
+}
+
+function getDriveMonthUrl(purchase, arquivosUnicos = []) {
+  const direct = purchase.drive_month_folder_url || purchase.pasta_drive_mes_url || purchase.backup_month_folder_url || purchase.drive_folder_url;
+  if (direct) return direct;
+
+  const fileWithFolder = arquivosUnicos.find((arq) => arq.drive_folder_url || arq.pasta_drive_url || arq.folder_url);
+  return fileWithFolder?.drive_folder_url || fileWithFolder?.pasta_drive_url || fileWithFolder?.folder_url || '';
 }
 
 Deno.serve(async (req) => {
@@ -28,7 +48,6 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Compra não encontrada.' }, { status: 404 });
     }
 
-    // Buscar anexos vinculados
     const attachments = await base44.asServiceRole.entities.Attachment.filter({ report_id: purchaseId }).catch(() => []);
     const purchaseDocs = await base44.asServiceRole.entities.PurchaseDocument?.filter({ purchase_id: purchaseId }).catch(() => []);
 
@@ -37,11 +56,10 @@ Deno.serve(async (req) => {
       ...(purchaseDocs || []),
     ];
 
-    // Montar lista de arquivos sem duplicata por URL
     const arquivosUnicos = [];
     const urlsVistas = new Set();
     for (const arq of todosArquivos) {
-      const url = arq.file_url || arq.url;
+      const url = arq.file_url || arq.url || arq.drive_url;
       if (url && !urlsVistas.has(url)) {
         urlsVistas.add(url);
         arquivosUnicos.push(arq);
@@ -52,14 +70,21 @@ Deno.serve(async (req) => {
       purchase.valor_pago || purchase.valor_aprovado_admin || purchase.valor_aprovado || purchase.valor_solicitado
     );
 
-    // Montar corpo do e-mail em HTML
+    const processamento = purchase.numero_processamento || purchase.numero_solicitacao || purchase.codigo_processamento || purchase.id;
+    const driveMonthUrl = getDriveMonthUrl(purchase, arquivosUnicos);
+    const driveMonthLabel = getPurchaseMonthFolderLabel(purchase);
+
     const linhasArquivos = arquivosUnicos.length > 0
       ? arquivosUnicos.map(arq => {
-          const nome = arq.nf_nome_renomeado || arq.file_name || 'Arquivo';
-          const url = arq.file_url || arq.url || '';
+          const nome = arq.nf_nome_renomeado || arq.file_name || arq.filename || arq.nome || 'Arquivo';
+          const url = arq.file_url || arq.url || arq.drive_url || '';
           return `<li><a href="${url}" target="_blank">${nome}</a></li>`;
         }).join('\n')
       : '<li>Nenhum arquivo anexado</li>';
+
+    const linhaPastaMes = driveMonthUrl
+      ? `<li><strong>${driveMonthLabel}:</strong> <a href="${driveMonthUrl}" target="_blank">abrir pasta do mês</a></li>`
+      : `<li><strong>${driveMonthLabel}:</strong> link ainda não localizado no registro</li>`;
 
     const linhasCompra = purchase.orcamento_url
       ? `<li><a href="${purchase.orcamento_url}" target="_blank">Orçamento / Proposta</a></li>`
@@ -77,7 +102,11 @@ Deno.serve(async (req) => {
 
   <table style="width:100%; border-collapse: collapse; font-size: 14px;">
     <tr>
-      <td style="padding: 8px 12px; background: #f0f0f0; font-weight: bold; width: 40%;">ID / Identificação</td>
+      <td style="padding: 8px 12px; background: #f0f0f0; font-weight: bold; width: 40%;">Nº de Processamento</td>
+      <td style="padding: 8px 12px; border: 1px solid #e0e0e0;">${processamento}</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px 12px; background: #f0f0f0; font-weight: bold;">ID interno</td>
       <td style="padding: 8px 12px; border: 1px solid #e0e0e0;">${purchase.id}</td>
     </tr>
     <tr>
@@ -114,15 +143,20 @@ Deno.serve(async (req) => {
     </tr>
   </table>
 
-  ${arquivosUnicos.length > 0 ? `
   <div style="margin-top: 24px;">
-    <h3 style="font-size: 15px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">📎 Arquivos Vinculados</h3>
+    <h3 style="font-size: 15px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">📁 Pasta mensal para pagamento</h3>
+    <ul style="font-size: 14px; line-height: 1.8;">
+      ${linhaPastaMes}
+    </ul>
+  </div>
+
+  <div style="margin-top: 24px;">
+    <h3 style="font-size: 15px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">📎 Arquivos vinculados</h3>
     <ul style="font-size: 14px; line-height: 1.8;">
       ${linhasArquivos}
       ${linhasCompra}
     </ul>
   </div>
-  ` : ''}
 
   <div style="margin-top: 32px; padding: 12px 16px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; color: #555;">
     <strong>Sistema:</strong> Museus Centro — Versão 1.0 Estável<br>
@@ -132,31 +166,26 @@ Deno.serve(async (req) => {
 </body>
 </html>`;
 
-    let emailEnviado = false;
-    let emailErro = null;
+    const resultadosEmail = [];
 
-    // BLOQUEIO: enviar apenas para o endereço autorizado
-    const ALLOWED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
-    if (EMAIL_FINANCEIRO !== ALLOWED_EMAIL) {
-      console.log('Email bloqueado (financeiro):', EMAIL_FINANCEIRO);
-      return Response.json({ success: true, skipped: true, reason: 'Email bloqueado por política de envio' });
+    for (const destinatario of EMAILS_FINANCEIRO_AUTORIZADOS) {
+      try {
+        await base44.asServiceRole.integrations.Core.SendEmail({
+          to: destinatario,
+          subject: `[Compra Aprovada] ${purchase.descricao_item || 'Solicitação'} — ${valor} — Museus Centro`,
+          body: htmlBody,
+          from_name: 'Museus Centro — Sistema',
+        });
+        resultadosEmail.push({ destinatario, enviado: true });
+      } catch (emailErr) {
+        resultadosEmail.push({ destinatario, enviado: false, erro: emailErr?.message || 'Erro ao enviar e-mail' });
+        console.warn('E-mail financeiro não enviado:', destinatario, emailErr?.message || emailErr);
+      }
     }
 
-    // Tentar enviar e-mail
-    try {
-      await base44.asServiceRole.integrations.Core.SendEmail({
-        to: EMAIL_FINANCEIRO,
-        subject: `[Compra Aprovada] ${purchase.descricao_item || 'Solicitação'} — ${valor} — Museus Centro`,
-        body: htmlBody,
-        from_name: 'Museus Centro — Sistema',
-      });
-      emailEnviado = true;
-    } catch (emailErr) {
-      emailErro = emailErr?.message || 'Erro ao enviar e-mail';
-      console.warn('E-mail financeiro não enviado:', emailErro);
-    }
+    const enviados = resultadosEmail.filter((r) => r.enviado).map((r) => r.destinatario);
+    const erros = resultadosEmail.filter((r) => !r.enviado);
 
-    // Registrar em log (independente do e-mail)
     await base44.asServiceRole.entities.AuditLog.create({
       action: 'APPROVE',
       entity_type: 'PURCHASE',
@@ -164,17 +193,17 @@ Deno.serve(async (req) => {
       actor_email: aprovadorEmail || 'sistema',
       actor_name: aprovadorNome || 'Sistema',
       new_status: 'APROVADO',
-      details: emailEnviado
-        ? `E-mail enviado para ${EMAIL_FINANCEIRO} com ${arquivosUnicos.length} arquivo(s).`
-        : `Compra aprovada. E-mail NÃO enviado: ${emailErro}. Arquivos: ${arquivosUnicos.length}.`,
+      details: enviados.length > 0
+        ? `E-mail financeiro enviado para ${enviados.join(', ')} com ${arquivosUnicos.length} arquivo(s).`
+        : `Compra aprovada. E-mail financeiro NÃO enviado. Erros: ${JSON.stringify(erros)}. Arquivos: ${arquivosUnicos.length}.`,
     }).catch(() => null);
 
     return Response.json({
       success: true,
-      email_enviado: emailEnviado,
-      email_enviado_para: EMAIL_FINANCEIRO,
-      email_erro: emailErro,
+      emails_enviados_para: enviados,
+      emails_erros: erros,
       arquivos_incluidos: arquivosUnicos.length,
+      pasta_mes_drive: driveMonthUrl || null,
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
