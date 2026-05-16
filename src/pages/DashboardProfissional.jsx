@@ -70,6 +70,77 @@ function StatCard({ title, value, helper, icon: Icon }) {
   );
 }
 
+function DadosGeraisCards({ allReports, allProgramacao }) {
+  const cards = useMemo(() => {
+    const reports = Array.isArray(allReports) ? allReports : [];
+    const programacao = Array.isArray(allProgramacao) ? allProgramacao : [];
+    const activities = reports.flatMap((report) => {
+      if (!Array.isArray(report?.atividades)) return [];
+      return report.atividades.map((activity) => ({ ...activity, report_id: report.id }));
+    });
+
+    const approvedReports = reports.filter((r) => APPROVED.has(normalize(r.status))).length;
+    const draftReports = reports.filter((r) => DRAFT.has(normalize(r.status))).length;
+    const submittedReports = reports.filter((r) => SUBMITTED.has(normalize(r.status))).length;
+    const activitiesWithPublic = activities.filter((a) => getActivityPublic(a) > 0).length;
+    const publicActivities = activities.reduce((sum, a) => sum + getActivityPublic(a), 0);
+    const publicGeneral = reports.reduce((sum, r) => sum + toNumber(r.publico_geral_declarado || r.publico_geral || 0), 0);
+
+    return {
+      reports: {
+        total: reports.length,
+        approved: approvedReports,
+        drafts: draftReports,
+        submitted: submittedReports,
+      },
+      activities: {
+        total: activities.length,
+        withPublic: activitiesWithPublic,
+      },
+      publicTotal: publicActivities + publicGeneral,
+      programacao: {
+        total: programacao.length,
+      },
+    };
+  }, [allReports, allProgramacao]);
+
+  return (
+    <section className="mb-8 space-y-4">
+      <div>
+        <h2 className="text-xl font-semibold text-foreground">Dados Gerais</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Indicadores consolidados do sistema, sem restringir ao usuário logado.</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          title="Total de Relatórios"
+          value={fmtInt(cards.reports.total)}
+          helper={`${cards.reports.approved} aprovados · ${cards.reports.drafts} rascunhos · ${cards.reports.submitted} enviados`}
+          icon={FileText}
+        />
+        <StatCard
+          title="Total de Atividades"
+          value={fmtInt(cards.activities.total)}
+          helper={`${cards.activities.withPublic} com público informado`}
+          icon={Activity}
+        />
+        <StatCard
+          title="Público Total"
+          value={fmtInt(cards.publicTotal)}
+          helper="soma do público das atividades e público geral declarado"
+          icon={Activity}
+        />
+        <StatCard
+          title="Total de Programações"
+          value={fmtInt(cards.programacao.total)}
+          helper={cards.programacao.total > 0 ? 'programações cadastradas' : 'sem programação cadastrada'}
+          icon={CalendarDays}
+        />
+      </div>
+    </section>
+  );
+}
+
 function PersonalCards({ myReports, myActivities, myAttachments, myRequests, myProgramacao }) {
   const cards = useMemo(() => {
     const reports = Array.isArray(myReports) ? myReports : [];
@@ -350,6 +421,18 @@ function DashboardProfissionalInner() {
     enabled: !!currentUser?.email,
   });
 
+  const { data: allReports = [], isLoading: isLoadingAllReports } = useQuery({
+    queryKey: ['all-reports-prof-general'],
+    queryFn: () => base44.entities.Report.list('-created_date', 500),
+    enabled: !!currentUser?.email,
+  });
+
+  const { data: allProgramacao = [], isLoading: isLoadingAllProgramacao } = useQuery({
+    queryKey: ['all-programacao-prof-general'],
+    queryFn: () => base44.entities.Programacao.list('-data_realizacao', 500),
+    enabled: !!currentUser?.email,
+  });
+
   const stats = {
     total: myReports.length,
     rascunhos: myReports.filter((r) => DRAFT.has(normalize(r.status))).length,
@@ -381,6 +464,13 @@ function DashboardProfissionalInner() {
           <DiariamenteNosMuseus />
           <DashboardPatrocinador />
         </div>
+
+        {!isLoadingAllReports && !isLoadingAllProgramacao && (
+          <DadosGeraisCards
+            allReports={allReports}
+            allProgramacao={allProgramacao}
+          />
+        )}
 
         {!isLoading && (
           <PersonalCards
