@@ -95,6 +95,8 @@ export const PAGES = {
   ViadutoMap,
 };
 
-export default {
-  layout: __Layout,
+export const pagesConfig = {
+  mainPage: 'Dashboard',
+  Pages: PAGES,
+  Layout: __Layout,
 };
