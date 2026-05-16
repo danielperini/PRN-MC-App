@@ -1,6 +1,16 @@
 import React from 'react';
 import { CheckCircle2, AlertCircle, Target } from 'lucide-react';
 
+const COMMUNICATION_CURVE = [
+  { mes: 'Mai/26', esperado: 20 },
+  { mes: 'Jun/26', esperado: 32 },
+  { mes: 'Jul/26', esperado: 44 },
+  { mes: 'Ago/26', esperado: 58 },
+  { mes: 'Set/26', esperado: 72 },
+  { mes: 'Out/26', esperado: 86 },
+  { mes: 'Nov/26', esperado: 100 },
+];
+
 const METAS_ADITIVO = [
   {
     numero: 'META 01',
@@ -13,10 +23,16 @@ const METAS_ADITIVO = [
   {
     numero: 'META 02',
     titulo: 'Plano de comunicação',
-    percentual: 0,
-    detalhe: 'Quantidade de peças produzidas',
-    indicador: 'Aguardando consolidação de peças',
-    status: 'A MONITORAR',
+    percentual: 20,
+    detalhe: 'Indicador composto: releases 70%, posts 20% e fotos válidas 10%',
+    indicador: '20% concluído · média operacional dos últimos 3 meses',
+    status: 'EM EXECUÇÃO',
+    curva: COMMUNICATION_CURVE,
+    subindicadores: [
+      { label: 'Releases', peso: '70%' },
+      { label: 'Posts', peso: '20%' },
+      { label: 'Fotos válidas', peso: '10%' },
+    ],
   },
   {
     numero: 'META 03',
@@ -171,6 +187,34 @@ function ResumoCard({ label, value, helper }) {
   );
 }
 
+function CommunicationCurve({ curva }) {
+  if (!Array.isArray(curva) || curva.length === 0) return null;
+
+  return (
+    <div className="mt-4 rounded-2xl border border-neutral-100 bg-neutral-50 p-3">
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+        Curva esperada até novembro/2026
+      </p>
+      <div className="grid grid-cols-7 gap-2">
+        {curva.map((item) => (
+          <div key={item.mes} className="space-y-2 text-center">
+            <div className="mx-auto flex h-20 w-full max-w-8 items-end rounded-full bg-neutral-200 overflow-hidden">
+              <div
+                className="w-full rounded-full bg-black"
+                style={{ height: `${clampPercent(item.esperado)}%` }}
+              />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold text-neutral-700">{item.esperado}%</p>
+              <p className="text-[10px] text-neutral-400">{item.mes}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MetaCard({ meta }) {
   const percentual = clampPercent(meta.percentual);
 
@@ -202,6 +246,19 @@ function MetaCard({ meta }) {
           style={{ width: `${percentual}%` }}
         />
       </div>
+
+      {Array.isArray(meta.subindicadores) && meta.subindicadores.length > 0 && (
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {meta.subindicadores.map((item) => (
+            <div key={item.label} className="rounded-xl border border-neutral-100 bg-neutral-50 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{item.label}</p>
+              <p className="mt-1 text-sm font-bold text-black">{item.peso}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <CommunicationCurve curva={meta.curva} />
     </div>
   );
 }
