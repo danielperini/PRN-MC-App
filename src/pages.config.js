@@ -41,7 +41,7 @@ import PrestacaoDeContas from './pages/PrestacaoDeContas';
 import RelatorioMeta from './pages/RelatorioMeta';
 import RelatorioPreview from './pages/RelatorioPreview';
 import Relatorios from './pages/Relatorios';
-import ReportEditor from './pages/ReportEditor';
+import ReportEditor from './pages/ReportEditorGuard';
 import Rubricas from './pages/Rubricas';
 import RubricasPorMuseu from './pages/RubricasPorMuseu';
 import UserManagement from './pages/UserManagement';
@@ -95,8 +95,6 @@ export const PAGES = {
   ViadutoMap,
 };
 
-export const pagesConfig = {
-  mainPage: 'Dashboard',
-  Pages: PAGES,
-  Layout: __Layout,
+export default {
+  layout: __Layout,
 };
