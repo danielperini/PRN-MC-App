@@ -76,7 +76,6 @@ export const OBSERVADOR_PAGES = new Set([
   'ComunicacaoVisibilidade',
   'ProgramacaoEspelho',
   'RubricasPorMuseu',
-  'RelatorioMeta',
   'Aparencia',
   'MeusDados',
   'Perfil',
@@ -121,6 +120,7 @@ export const COORDENADOR_ONLY_PAGES = new Set([
   'GestaoPagamentos',
   'ConsolidacaoFinanceira',
   'MonitoringPanel',
+  'RelatorioMeta',
   'GestorArquivos',
 ]);
 
@@ -139,7 +139,6 @@ export const SIDEBAR_OBSERVADOR = new Set([
   'ComunicacaoVisibilidade',
   'ProgramacaoEspelho',
   'RubricasPorMuseu',
-  'RelatorioMeta',
   'Aparencia',
   'MeusDados',
 ]);
@@ -155,7 +154,6 @@ export const SIDEBAR_PROFISSIONAL = new Set([
   'DashboardFinanceiro',
   'PrestacaoDeContas',
   'RubricasPorMuseu',
-  'RelatorioMeta',
   'LeitorNoticias',
   'ProgramacaoEspelho',
   'AssistentePlanejamento',

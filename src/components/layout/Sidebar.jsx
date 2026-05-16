@@ -92,12 +92,6 @@ const NAV_GROUPS = [
         icon: Image,
         roles: ['all'],
       },
-      {
-        path: 'RelatorioMeta',
-        label: 'Metas do 3º Aditivo',
-        icon: FileText,
-        roles: ['all'],
-      },
     ],
   },
   {
@@ -265,7 +259,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
 
       // Observador: mostrar apenas items permitidos
       if (obs) {
-        return SIDEBAR_OBSERVADOR.has(item.path);
+        return SIDEBAR_OBSERVADOR.includes(item.path);
       }
       // Patrocinador: redireciona no App.jsx, mas se chegou aqui mostrar painel
       return true;
