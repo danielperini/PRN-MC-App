@@ -27,6 +27,15 @@ function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
 function toNumber(value) {
   const n = Number(value || 0);
   return Number.isFinite(n) ? n : 0;
@@ -34,6 +43,10 @@ function toNumber(value) {
 
 function fmtInt(value) {
   return Math.round(toNumber(value)).toLocaleString('pt-BR');
+}
+
+function isApprovedReport(report) {
+  return APPROVED.has(normalize(report?.status));
 }
 
 function isMine(item, email) {
@@ -50,27 +63,100 @@ function isMine(item, email) {
 }
 
 function getActivityPublic(activity) {
-  const publicoTotal = toNumber(activity?.publico_total);
-  if (publicoTotal > 0) return publicoTotal;
-  const publicoEstimado = toNumber(activity?.publico_estimado);
-  const repeticoes = Math.max(toNumber(activity?.quantas_repeticoes || activity?.quantas_vezes_ocorreu || 1), 1);
-  return publicoEstimado > 0 ? publicoEstimado * repeticoes : 0;
+  const direct = toNumber(activity?.publico_total ?? activity?.publico_estimado ?? activity?.publico ?? 0);
+  if (direct > 0) return Math.round(direct);
+
+  const publicoMedio = toNumber(
+    activity?.publico_medio_por_sessao ??
+      activity?.publico_medio_sessao ??
+      activity?.publico_medio ??
+      activity?.publico_por_sessao ??
+      0
+  );
+
+  const ocorrencias = toNumber(
+    activity?.quantas_vezes_ocorreu ??
+      activity?.qtd_ocorrencias ??
+      activity?.ocorrencias ??
+      activity?.quantidade_ocorrencias ??
+      1
+  );
+
+  return Math.round(publicoMedio) * Math.max(Math.round(ocorrencias), 1);
+}
+
+function getActivityAuditKey(activity, report, index = 0) {
+  const explicitProgramacaoId =
+    activity?.programacao_id ||
+    activity?.programacaoId ||
+    activity?.id_programacao ||
+    activity?.agenda_id;
+
+  if (explicitProgramacaoId) return `programacao:${explicitProgramacaoId}`;
+
+  const nome = normalizeText(
+    activity?.nome_atividade ||
+      activity?.nome ||
+      activity?.titulo ||
+      activity?.acao ||
+      activity?.atividade ||
+      ''
+  );
+
+  const data = activity?.data_realizacao || activity?.data_inicio || activity?.data || activity?.inicio || '';
+  const museu = normalizeText(activity?.museu || activity?.centro_custo || report?.museu || report?.museu_secundario || '');
+  const periodo = data || `${report?.ano || ''}-${report?.mes_referencia || report?.mes || ''}`;
+
+  return [nome || `atividade-${index}`, periodo, museu].filter(Boolean).join('|');
+}
+
+function getReportActivities(report) {
+  const atividades = Array.isArray(report?.atividades) ? report.atividades : [];
+
+  return atividades.map((activity, index) => ({
+    ...activity,
+    report_id: report?.id,
+    _activityIndex: index,
+    _publico: getActivityPublic(activity),
+    _auditKey: getActivityAuditKey(activity, report, index),
+  }));
+}
+
+function deduplicateActivities(activities) {
+  const unique = new Map();
+
+  (activities || []).forEach((activity) => {
+    const key = activity?._auditKey;
+    if (!key) return;
+
+    if (!unique.has(key)) {
+      unique.set(key, activity);
+      return;
+    }
+
+    const current = unique.get(key);
+    if (toNumber(activity?._publico) > toNumber(current?._publico)) {
+      unique.set(key, activity);
+    }
+  });
+
+  return Array.from(unique.values());
 }
 
 function getReportsActivities(reports) {
-  return (Array.isArray(reports) ? reports : []).flatMap((report) => (
-    Array.isArray(report?.atividades)
-      ? report.atividades.map((activity) => ({ ...activity, report_id: report.id }))
-      : []
-  ));
+  return (Array.isArray(reports) ? reports : []).flatMap(getReportActivities);
 }
 
-function getReportsPublic(reports) {
-  const list = Array.isArray(reports) ? reports : [];
-  const activities = getReportsActivities(list);
-  const publicActivities = activities.reduce((sum, activity) => sum + getActivityPublic(activity), 0);
-  const publicGeneral = list.reduce((sum, report) => sum + toNumber(report?.publico_geral_declarado || report?.publico_geral || 0), 0);
-  return publicActivities + publicGeneral;
+function getApprovedMetrics(reports) {
+  const approvedReports = (Array.isArray(reports) ? reports : []).filter(isApprovedReport);
+  const approvedActivities = deduplicateActivities(approvedReports.flatMap(getReportActivities));
+  const publicoTotal = approvedActivities.reduce((sum, activity) => sum + toNumber(activity?._publico), 0);
+
+  return {
+    approvedReports,
+    approvedActivities,
+    publicoTotal,
+  };
 }
 
 function StatCard({ title, value, helper, icon: Icon }) {
@@ -110,7 +196,6 @@ function PersonalCards({ myReports, myActivities, myAttachments, myRequests, myP
     const approvedRequests = requests.filter((r) => APPROVED.has(normalize(r.status)));
     const paidRequests = requests.filter((r) => PAID.has(normalize(r.status)) || r.pago === true);
     const pendingRequests = requests.filter((r) => SUBMITTED.has(normalize(r.status)) || ['PENDENTE', 'EM_ANALISE'].includes(normalize(r.status)));
-    const returnedRequests = requests.filter((r) => RETURNED.has(normalize(r.status)));
 
     return {
       reports: {
@@ -134,7 +219,6 @@ function PersonalCards({ myReports, myActivities, myAttachments, myRequests, myP
         approved: approvedRequests.length,
         paid: paidRequests.length,
         pending: pendingRequests.length,
-        returned: returnedRequests.length,
       },
       programacao: {
         total: programacao.length,
@@ -150,36 +234,11 @@ function PersonalCards({ myReports, myActivities, myAttachments, myRequests, myP
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard
-          title="Meus Relatórios"
-          value={fmtInt(cards.reports.total)}
-          helper={`${cards.reports.returned} devolvidos`}
-          icon={FileText}
-        />
-        <StatCard
-          title="Minhas Atividades"
-          value={fmtInt(cards.activities.total)}
-          helper={`${cards.activities.withPublic} com público · ${fmtInt(cards.activities.publicActivities)} participantes`}
-          icon={Activity}
-        />
-        <StatCard
-          title="Minhas Evidências"
-          value={fmtInt(cards.evidence.attachments)}
-          helper={`${cards.evidence.photos} fotos · ${cards.evidence.docs} documentos · ${cards.evidence.exported} exportados`}
-          icon={Image}
-        />
-        <StatCard
-          title="Solicitações/Pagamentos"
-          value={fmtInt(cards.requests.total)}
-          helper={`${cards.requests.approved} aprovadas · ${cards.requests.paid} pagas · ${cards.requests.pending} pendentes`}
-          icon={Wallet}
-        />
-        <StatCard
-          title="Minha Programação"
-          value={fmtInt(cards.programacao.total)}
-          helper={cards.programacao.total > 0 ? 'programações vinculadas' : 'sem programação vinculada'}
-          icon={CalendarDays}
-        />
+        <StatCard title="Meus Relatórios" value={fmtInt(cards.reports.total)} helper={`${cards.reports.returned} devolvidos`} icon={FileText} />
+        <StatCard title="Minhas Atividades" value={fmtInt(cards.activities.total)} helper={`${cards.activities.withPublic} com público · ${fmtInt(cards.activities.publicActivities)} participantes`} icon={Activity} />
+        <StatCard title="Minhas Evidências" value={fmtInt(cards.evidence.attachments)} helper={`${cards.evidence.photos} fotos · ${cards.evidence.docs} documentos · ${cards.evidence.exported} exportados`} icon={Image} />
+        <StatCard title="Solicitações/Pagamentos" value={fmtInt(cards.requests.total)} helper={`${cards.requests.approved} aprovadas · ${cards.requests.paid} pagas · ${cards.requests.pending} pendentes`} icon={Wallet} />
+        <StatCard title="Minha Programação" value={fmtInt(cards.programacao.total)} helper={cards.programacao.total > 0 ? 'programações vinculadas' : 'sem programação vinculada'} icon={CalendarDays} />
       </div>
 
       {cards.activities.publicGeneral > 0 && (
@@ -229,12 +288,7 @@ function ProfessionalDataSection({ myReports, myActivities, isLoadingActivities 
             <h2 className="text-2xl font-semibold text-foreground">Meus Dados e Atividades</h2>
             <p className="mt-1 text-sm text-muted-foreground">Visualize suas atividades, relatórios e documentos.</p>
           </div>
-          <Button
-            variant={showFilters ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setShowFilters(!showFilters)}
-            className="gap-2"
-          >
+          <Button variant={showFilters ? 'default' : 'outline'} size="sm" onClick={() => setShowFilters(!showFilters)} className="gap-2">
             <Filter className="h-4 w-4" />
             {showFilters ? 'Ocultar' : 'Filtros'}
           </Button>
@@ -366,12 +420,12 @@ function DashboardProfissionalInner() {
     enabled: !!currentUser?.email,
   });
 
-  const allActivities = useMemo(() => getReportsActivities(allReports), [allReports]);
+  const approvedMetrics = useMemo(() => getApprovedMetrics(allReports), [allReports]);
 
   const stats = {
     publico: myActivities.reduce((sum, a) => sum + getActivityPublic(a), 0),
-    publicoTodosMuseus: getReportsPublic(allReports),
-    atividadesTresMuseus: allActivities.length,
+    publicoTodosMuseus: approvedMetrics.publicoTotal,
+    atividadesTresMuseus: approvedMetrics.approvedActivities.length,
   };
 
   const recentReports = myReports.slice(0, 5);
@@ -403,13 +457,7 @@ function DashboardProfissionalInner() {
         )}
 
         {!isLoading && (
-          <PersonalCards
-            myReports={myReports}
-            myActivities={myActivities}
-            myAttachments={myAttachments}
-            myRequests={myRequests}
-            myProgramacao={myProgramacao}
-          />
+          <PersonalCards myReports={myReports} myActivities={myActivities} myAttachments={myAttachments} myRequests={myRequests} myProgramacao={myProgramacao} />
         )}
 
         {!isLoading && (
@@ -426,11 +474,7 @@ function DashboardProfissionalInner() {
           </div>
         )}
 
-        <ProfessionalDataSection
-          myReports={myReports}
-          myActivities={myActivities}
-          isLoadingActivities={isLoadingActivities}
-        />
+        <ProfessionalDataSection myReports={myReports} myActivities={myActivities} isLoadingActivities={isLoadingActivities} />
 
         {!isLoading && myReports.length === 0 && (
           <div className="mt-8 rounded-2xl border border-dashed border-border p-12 text-center">
