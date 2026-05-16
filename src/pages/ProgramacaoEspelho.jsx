@@ -234,6 +234,18 @@ function sortProgramacoes(a, b) {
   return getProgramacaoTitle(a).localeCompare(getProgramacaoTitle(b), 'pt-BR');
 }
 
+async function syncProgramacaoFromFonte() {
+  try {
+    await base44.functions.invoke('syncBaseConhecimento', {
+      mode: 'programacao-page',
+      origem: 'ProgramacaoEspelho',
+      force_programacao_sync: true,
+    });
+  } catch (error) {
+    console.warn('Sincronização da programação indisponível. Carregando dados locais.', error);
+  }
+}
+
 export default function ProgramacaoEspelho() {
   const nextMonthSelection = getNextMonthSelection();
   const [allProgramacoes, setAllProgramacoes] = useState([]);
@@ -258,6 +270,8 @@ export default function ProgramacaoEspelho() {
   async function carregarProgramacoes() {
     setLoading(true);
     try {
+      await syncProgramacaoFromFonte();
+
       const data = await base44.entities.Programacao.list('-data_inicio', 5000);
       const normalized = (Array.isArray(data) ? data : []).map(normalizeDateBySheetContext);
       setAllProgramacoes(normalized);
@@ -388,7 +402,7 @@ export default function ProgramacaoEspelho() {
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <RefreshCw className="w-6 h-6 animate-spin text-slate-400" />
-          <span className="ml-2 text-slate-500">Carregando programação...</span>
+          <span className="ml-2 text-slate-500">Sincronizando e carregando programação...</span>
         </div>
       ) : totalGeral === 0 ? (
         <div className="text-center py-16 text-slate-400">
