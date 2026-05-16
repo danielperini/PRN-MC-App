@@ -19,6 +19,17 @@ function fmtInt(value) {
   return toInt(value).toLocaleString('pt-BR');
 }
 
+function formatKpiValue(value) {
+  if (typeof value === 'number') {
+    return value.toLocaleString('pt-BR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+  }
+
+  return value;
+}
+
 function startOfDay(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -128,9 +139,9 @@ function KpiCard({ label, value, icon: Icon, highlight = false, helper }) {
           {label}
         </span>
       </div>
-      <p className={`text-xl font-bold leading-tight ${highlight ? 'text-primary-foreground' : 'text-foreground'}`}>
-        {value}
-      </p>
+      <div className={`text-lg md:text-xl xl:text-[1.15rem] leading-tight font-bold break-words tabular-nums ${highlight ? 'text-primary-foreground' : 'text-foreground'}`}>
+        {formatKpiValue(value)}
+      </div>
       {helper && (
         <p className={`text-xs mt-1 truncate ${highlight ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
           {helper}
