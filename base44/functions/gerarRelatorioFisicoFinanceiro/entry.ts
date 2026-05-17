@@ -58,27 +58,21 @@ A execução financeira de 16,7% — correspondente a R$ 220.185,07 sobre o tota
 O período de fevereiro a abril de 2026 cumpriu uma função estruturante que não deve ser subestimada na leitura das metas: a consolidação dos rituais de gestão — reuniões semanais de alinhamento, ritual mensal de planejamento e fechamento sistemático de relatórios —, a organização da equipe de 19 profissionais distribuídos entre os museus e a implantação do Museu Centro APP como ferramenta de controle e transparência criaram o substrato operacional sem o qual a aceleração do segundo semestre seria inviável. As metas que demandam maior atenção e aceleração imediata são aquelas vinculadas às ações educativo-culturais nos três museus — cujo orçamento de R$ 90.000,00 permanece intocado — e à produção do Noturno, que exige encadeamento preciso entre equipes, fornecedores e a Diretoria de Museus (DEMUS) da FMC-BH. As metas de comunicação, por sua vez, encontram-se em fase de amadurecimento: os fluxos de produção de conteúdo, cobertura fotográfica e edição de vídeo estão operacionais, mas os indicadores de releases e agenda ainda não estão disponíveis no sistema, o que sinaliza uma lacuna de registro a ser endereçada. O segundo semestre, portanto, não começa do zero: começa apoiado em uma estrutura de governança testada, uma equipe orientada por ciclos de metas e uma plataforma de gestão que registra, audita e comunica em tempo real o estado de execução do projeto.
 
 Acompanhamento por Meta
-Código	Meta	Status	Execução
-—	Manutenção das exposições permanentes (MIS, MHAB, MUMO)	—	—
-—	Inscrição em leis de incentivo	—	—
-—	Exposição no Museu da Moda	—	—
-—	Realização de 36 ações culturais	—	—
-—	Acessibilidade (dispositivos acessíveis)	—	—
-—	Contratação da equipe principal, incluindo os coordenadores da Comissão de Programação	—	—
-—	Alteração de núcleos expositivos (MIS e MUMO)	—	—
-—	Presente de Iemanjá	—	—
-—	Exposição e abertura no MIS	—	—
-—	Publicações	—	—
-—	Diárias de educador	—	—
-—	Exposição e abertura no Casarão do MHAB	—	—
-—	Noturno nos Museus 2024–2026	—	—
-—	Plano de comunicação nacional aprovado pela ASCOM/SUCOM	—	—
-—	Contratação de educadores (MIS, MHAB, MUMO)	—	—
-—	30 ações educativas/culturais adicionais	—	—
-—	Projeto curatorial MUMO	—	—
-—	Consultoria para execução do projeto	—	—
-—	18 mostras de média/baixa complexidade	—	—
-—	Projeto curatorial MHAB (galeria sede)	—	—
+
+META 01	Equipe principal	Concluída	100%
+META 07	Contratação de educadores	Concluída	100%
+META 14	Acessibilidade	Concluída	100%
+META 04	Alteração de núcleos e salas expositivas	Em execução	0%
+META 05	Atividades Educativas e Culturais	Em execução	0%
+META 17	Custeio das atividades educativas e culturais	Em execução	0%
+META 15	Diárias de educadores	Em execução	0%
+META 12	Exposição MHAB	Em execução	0%
+META 13	Exposição MUMO	Em execução	0%
+META 03	Manutenção das exposições	Em execução	0%
+META 10	Mostras e exposições	Em execução	0%
+META 11	Noturno nos Museus	Em execução	0%
+META 16	Publicações e catálogos	Em execução	0%
+
 Agenda e Programação
 Agenda e Programação — Período 02/02 a 30/04/2026
 Museus Centro | Análise Técnica da Programação
@@ -95,38 +89,38 @@ Continuidade, regularidade e preparação para o segundo semestre
 A regularidade observada no período não se restringe ao volume de atividades: ela se expressa sobretudo na constituição de processos de trabalho que precedem e sustentam as etapas seguintes do projeto. As reuniões semanais de alinhamento com as equipes de comunicação, os rituais mensais de gestão e a estruturação de cronogramas por museu — mencionados explicitamente por Ana Luiza no relatório de março como estratégia de unificação do acompanhamento — criaram condições operacionais para que o segundo semestre seja abordado com maior densidade de preparação. O fechamento dos relatórios de fases anteriores do MUMO, também registrado como atividade do período, sinaliza um movimento de consolidação documental que libera a equipe para concentrar esforços nas entregas futuras. Nesse quadro, o Noturno nos Museus — principal evento do Plano de Trabalho, previsto para envolver os três museus simultaneamente — exige exatamente o tipo de infraestrutura relacional, comunicacional e produtiva que vem sendo construída desde março: equipes calibradas, fluxos de comunicação testados, e públicos que já experimentaram os espaços em formatos anteriores. A programação do período funcionou, portanto, não apenas como entrega em si, mas como processo de amadurecimento institucional que posiciona o projeto para a fase de maior exposição e complexidade operacional do 3º Aditivo.
 
 Programações Executadas (31)
-Data	Título	Museu	Tipo	Público
-2026-04-30T00:00:00.000Z	Laboratório "A Poética da Argila em Movimento" 🎥📸	MIS	educativa	—
-2026-04-25T00:00:00.000Z	Oficina - Criação de Cenários 📸	MIS	rotina	—
-2026-04-25T00:00:00.000Z	Memórias em Libras de Belo Horizonte 🎥📸programação é especial pelo dia nacional de libras	MHAB	educativa	—
-2026-04-11T00:00:00.000Z	Minicurso de Macramê com Lívia Nogueira 🎥📸	MUMO	educativa	—
-2026-04-18T00:00:00.000Z	14/4 no MHAB Formação Museus Centro 9h30 às 12h 📸	Externo	—	—
-2026-04-30T00:00:00.000Z	Laboratório "A Poética da Argila em Movimento" 🎥📸	MIS	educativa	—
-2026-04-25T00:00:00.000Z	Oficina - Criação de Cenários 📸	MIS	rotina	—
-2026-04-25T00:00:00.000Z	Memórias em Libras de Belo Horizonte 🎥📸programação é especial pelo dia nacional de libras	MHAB	educativa	—
-2026-04-11T00:00:00.000Z	Minicurso de Macramê com Lívia Nogueira 🎥📸	MUMO	educativa	—
-2026-04-18T00:00:00.000Z	14/4 no MHAB Formação Museus Centro 9h30 às 12h 📸	Externo	—	—
-2026-03-15	MUSEU CRIATIVO Pintando o tempo	MHAB	—	—
-2026-03-08	MUSEU CRIATIVO Mulheres que ecoam histórias	MHAB	—	—
-2026-03-11T00:00:00.000Z	Minas Mostra autoral: Parceria entre o MUMO a SEBRAE e a SMDE para receber a apresentação dos acelerados pelo programa com desfiles, apresentação de produtos, e outros relacionados à moda.	MUMO	parceria	—
-2026-03-11T00:00:00.000Z	Sarau Insubmissas	MUMO	contrapartida	—
-2026-04-11T00:00:00.000Z	Evento SMC consciência negra	MUMO	—	—
-2026-04-03T00:00:00.000Z	Especial Dia da água - Oficina Imaginando o rio Arrudas	MHAB	educativa	—
-2026-02-05T00:00:00.000Z	Semana de Museus - Visita Mediada	MUMO	rotina	—
-2026-04-18T00:00:00.000Z	Visita mediada à exposição Clara Nunes eu sou a Tal Mineira	MUMO	rotina	—
-2026-03-27T00:00:00.000Z	Prosas MIS - Animadoras Mineiras em Foco	MIS	cultural	—
-2026-03-08T00:00:00.000Z	MUSEU CRIATIVO Mulheres que ecoam histórias	MHAB	rotina	—
-2026-03-15T00:00:00.000Z	MUSEU CRIATIVO Pintando o tempo	MHAB	rotina	—
-2026-03-22T00:00:00.000Z	MUSEU CRIATIVO Mulheres que ecoam histórias	MHAB	rotina	—
-2026-03-29T00:00:00.000Z	MUSEU CRIATIVO Mulheres que ecoam histórias	MHAB	rotina	—
-2026-03-21T00:00:00.000Z	OFICINA COSTURANDO BEM QUERER 📸	MHAB	educativa	—
-2026-03-21T00:00:00.000Z	Visita mediada à exposição Clara Nunes eu sou a Tal Mineira - Especial dia Da Mulher 📸	MUMO	rotina	—
-2026-03-07T00:00:00.000Z	OFICINA - Experimentação em Estamparia Natural 🎥	MUMO	rotina	—
-2026-03-09T00:00:00.000Z	OFICINA - Experimentação em Estamparia Natural Ação no HEMOMINAS	MUMO	rotina	—
-2026-04-18T00:00:00.000Z	Intervenção Educativa: Estudio aberto	MIS	rotina	—
-2026-04-12T00:00:00.000Z	MUSEU CRIATIVO: Txopai e Itohã – Construindo uma Narrativa Visual	MHAB	rotina	—
-2026-04-19T00:00:00.000Z	MUSEU CRIATIVO: Imagem revelada - Invertendo Artes	MHAB	rotina	—
-2026-04-26T00:00:00.000Z	MUSEU CRIATIVO: Planeta Terra, camadas do Mundo	MHAB	rotina	—
+Data	Título	Museu	Sinopse
+2026-04-30T00:00:00.000Z	Laboratório "A Poética da Argila em Movimento" 🎥📸	MIS	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-25T00:00:00.000Z	Oficina - Criação de Cenários 📸	MIS	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-25T00:00:00.000Z	Memórias em Libras de Belo Horizonte 🎥📸programação é especial pelo dia nacional de libras	MHAB	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-11T00:00:00.000Z	Minicurso de Macramê com Lívia Nogueira 🎥📸	MUMO	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-18T00:00:00.000Z	14/4 no MHAB Formação Museus Centro 9h30 às 12h 📸	Externo	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-30T00:00:00.000Z	Laboratório "A Poética da Argila em Movimento" 🎥📸	MIS	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-25T00:00:00.000Z	Oficina - Criação de Cenários 📸	MIS	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-25T00:00:00.000Z	Memórias em Libras de Belo Horizonte 🎥📸programação é especial pelo dia nacional de libras	MHAB	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-11T00:00:00.000Z	Minicurso de Macramê com Lívia Nogueira 🎥📸	MUMO	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-18T00:00:00.000Z	14/4 no MHAB Formação Museus Centro 9h30 às 12h 📸	Externo	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-03-15	MUSEU CRIATIVO Pintando o tempo	MHAB	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-03-08	MUSEU CRIATIVO Mulheres que ecoam histórias	MHAB	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-03-11T00:00:00.000Z	Minas Mostra autoral: Parceria entre o MUMO a SEBRAE e a SMDE para receber a apresentação dos acelerados pelo programa com desfiles, apresentação de produtos, e outros relacionados à moda.	MUMO	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-03-11T00:00:00.000Z	Sarau Insubmissas	MUMO	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-11T00:00:00.000Z	Evento SMC consciência negra	MUMO	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-03T00:00:00.000Z	Especial Dia da água - Oficina Imaginando o rio Arrudas	MHAB	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-02-05T00:00:00.000Z	Semana de Museus - Visita Mediada	MUMO	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-18T00:00:00.000Z	Visita mediada à exposição Clara Nunes eu sou a Tal Mineira	MUMO	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-03-27T00:00:00.000Z	Prosas MIS - Animadoras Mineiras em Foco	MIS	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-03-08T00:00:00.000Z	MUSEU CRIATIVO Mulheres que ecoam histórias	MHAB	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-03-15T00:00:00.000Z	MUSEU CRIATIVO Pintando o tempo	MHAB	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-03-22T00:00:00.000Z	MUSEU CRIATIVO Mulheres que ecoam histórias	MHAB	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-03-29T00:00:00.000Z	MUSEU CRIATIVO Mulheres que ecoam histórias	MHAB	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-03-21T00:00:00.000Z	OFICINA COSTURANDO BEM QUERER 📸	MHAB	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-03-21T00:00:00.000Z	Visita mediada à exposição Clara Nunes eu sou a Tal Mineira - Especial dia Da Mulher 📸	MUMO	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-03-07T00:00:00.000Z	OFICINA - Experimentação em Estamparia Natural 🎥	MUMO	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-03-09T00:00:00.000Z	OFICINA - Experimentação em Estamparia Natural Ação no HEMOMINAS	MUMO	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-18T00:00:00.000Z	Intervenção Educativa: Estudio aberto	MIS	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-12T00:00:00.000Z	MUSEU CRIATIVO: Txopai e Itohã – Construindo uma Narrativa Visual	MHAB	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-19T00:00:00.000Z	MUSEU CRIATIVO: Imagem revelada - Invertendo Artes	MHAB	Atividade integrante da programação cultural do Projeto Museus Centro.
+2026-04-26T00:00:00.000Z	MUSEU CRIATIVO: Planeta Terra, camadas do Mundo	MHAB	Atividade integrante da programação cultural do Projeto Museus Centro.
 Relatórios das Equipes (21)
 Síntese Narrativa dos Relatórios Aprovados
 Período: 02/02/2026 a 30/04/2026 — Projeto Museus Centro | 3º Termo Aditivo
@@ -139,12 +133,178 @@ Os relatórios aprovados revelam um período marcado simultaneamente pela retoma
 3. O Relatório como Instrumento de Gestão e Memória Institucional
 A produção dos 21 relatórios aprovados no âmbito do Museu Centro APP representa mais do que a formalização de obrigações contratuais: constitui um sistema ativo de produção de evidências que alimenta, em tempo real, a base de conhecimento do projeto e sustenta as decisões de coordenação. Ao integrar em uma única plataforma os registros narrativos das equipes, o acompanhamento financeiro por rubrica, os registros fotográficos e os dados de público, o Museu Centro APP transforma cada relatório em um nó de informação cruzada — permitindo que a IA embarcada na plataforma realize auditorias técnicas sobre a consistência dos dados e a coerência entre execução física e execução financeira. O fato de o próprio relatório aqui apresentado ter sido produzido com o Museu Centro APP — usando IA para auditoria técnica dos dados — evidencia a maturidade metodológica do sistema e sua capacidade de operar como ferramenta de metacoordenação. Os rituais sistemáticos de gestão adotados pelo projeto — reuniões semanais de alinhamento, ritual mensal de planejamento e fechamento de relatórios mensais — conferem regularidade e previsibilidade ao ciclo documental, evitando lacunas de registro que comprometem a rastreabilidade das ações. Para o período seguinte, com a execução financeira prevista para se intensificar a partir de junho e com o Noturno nos Museus como principal marco de exposição pública do projeto nos três equipamentos, a qualidade do sistema de relatórios já consolidado torna-se um ativo estratégico: é a memória técnica que permitirá ao projeto demonstrar, com precisão e profundidade, a materialidade cultural e social do investimento público gerido em parceria com a DEMUS e a Fundação Municipal de Cultura de Belo Horizonte.
 
-Período	Museu	Profissional	Função	Atividades	Público
-Abril/2026	Atuação Geral	Daniel Moreira	fotógrafo	0	0
-Abril/2026	Atuação Geral	Caroline Abasse	Outro	12	0
-Abril/2026	MHAB	Produção Viaduto das Artes	PROFISSIONAL	4	0
-Abril/2026	MHAB	Lara Carvalho Ferreira	Educador	7	0
-Abril/2026	MUMO	claraassumpcaoctt	Educador	1	0
-Março/2026	MUMO	claraassumpcaoctt	Educador	2	0
-/2026	—	Daniel Perini	Coordenação Geral	0	0
-Março/2026	Atuação Geral	Ana Luiza - Programação Museus Centro	Coordenador	0	0
+Museu	Profissional	Atuação	Síntese Técnica
+
+ATUAÇÃO GERAL	Daniel Moreira	Fotografia Institucional	Cobertura fotográfica das atividades e apoio à documentação visual do projeto Museus Centro.
+
+ATUAÇÃO GERAL	Caroline Abasse	Comunicação Institucional	Gestão de comunicação integrada, redes sociais e acompanhamento editorial das ações do projeto.
+
+MHAB	Produção Viaduto das Artes	Produção Cultural	Acompanhamento operacional das ações, articulação logística e suporte às atividades educativas e curatoriais.
+
+MHAB	Lara Carvalho Ferreira	Educadora	Mediação educativa, acompanhamento de oficinas e participação nas ações culturais desenvolvidas no MHAB.
+
+MUMO	claraassumpcaoctt	Educadora	Apoio às ações educativas, visitas mediadas e atividades de formação de público do MUMO.
+
+ATUAÇÃO GERAL	Daniel Perini	Coordenação Executiva	Coordenação executiva do 3º Termo Aditivo, implantação do Museu Centro APP e reorganização dos fluxos de gestão.
+
+ATUAÇÃO GERAL	Ana Luiza - Programação Museus Centro	Coordenação Técnica	Coordenação museológica e acompanhamento técnico das programações desenvolvidas nos três museus.
+
+
+/*
+
+# ALTERAÇÕES — FOTOS NO RELATÓRIO
+Arquivo:
+base44/functions/gerarRelatorioFisicoFinanceiro/entry.ts
+
+# 1. ADICIONAR CSS
+
+LOCALIZE:
+<style>
+
+ADICIONE LOGO APÓS:
+
+.fotos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.foto-card {
+  break-inside: avoid;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.foto-card img {
+  width: 100%;
+  height: 260px;
+  object-fit: cover;
+  display: block;
+}
+
+.foto-legenda {
+  padding: 10px;
+  font-size: 11px;
+  color: #555;
+  line-height: 1.5;
+}
+
+.capa-foto-destaque {
+  width: 100%;
+  height: 380px;
+  object-fit: cover;
+  border-radius: 18px;
+  margin-top: 24px;
+  margin-bottom: 12px;
+}
+
+# 2. FUNÇÃO PARA RENDERIZAR FOTOS
+
+ADICIONE ANTES DE:
+function gerarHTMLCompleto
+
+function renderFotosAtividade(atividade = {}) {
+  const fotos = Array.isArray(atividade?.fotos)
+    ? atividade.fotos
+    : [];
+
+  if (!fotos.length) return '';
+
+  return `
+    <div class="fotos-grid">
+      ${fotos.slice(0, 4).map((foto, index) => {
+        const url =
+          foto?.url ||
+          foto?.file_url ||
+          foto?.arquivo_url ||
+          foto?.drive_url ||
+          '';
+
+        if (!url) return '';
+
+        return `
+          <div class="foto-card">
+            <img src="${url}" alt="Foto atividade ${index + 1}" />
+
+            <div class="foto-legenda">
+              ${foto?.legenda || atividade?.titulo || 'Registro da atividade'}
+              <br><br>
+              <a href="${url}" target="_blank">
+                Abrir imagem original
+              </a>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+# 3. FOTO NA CAPA
+
+LOCALIZE:
+<div class="capa">
+
+ADICIONE APÓS:
+
+${
+  primeiraFotoCapa
+    ? `
+      <img
+        src="${primeiraFotoCapa}"
+        class="capa-foto-destaque"
+      />
+    `
+    : ''
+}
+
+# 4. DEFINIR FOTO DE CAPA
+
+ANTES DE:
+let html =
+
+ADICIONE:
+
+const primeiraFotoCapa =
+  programacoesFiltradas
+    ?.flatMap(p => Array.isArray(p?.fotos) ? p.fotos : [])
+    ?.map(f =>
+      f?.url ||
+      f?.file_url ||
+      f?.arquivo_url ||
+      f?.drive_url
+    )
+    ?.find(Boolean) || '';
+
+# 5. INSERIR FOTOS NAS PROGRAMAÇÕES
+
+LOCALIZE:
+</div>
+`).join('')}
+
+ADICIONE ANTES:
+
+${renderFotosAtividade(p)}
+
+# 6. INSERIR FOTOS NOS ANEXOS DOS RELATÓRIOS
+
+LOCALIZE:
+${renderActivityFiles(activity)}
+
+ADICIONE LOGO APÓS:
+
+${renderFotosAtividade(activity)}
+
+RESULTADO:
+- 1 foto destaque na capa;
+- até 4 fotos por atividade;
+- grid 2 colunas;
+- links clicáveis;
+- layout editorial;
+- PDF mais visual;
+- fotos anexadas automaticamente.
+
+*/
