@@ -25,7 +25,7 @@ Responda APENAS com o texto de ajuda, sem explicações adicionais.`,
 
     return response || null;
   } catch (error) {
-    console.error('Erro ao chamar Claude:', error);
+    console.error('Erro ao chamar IA:', error);
     return null;
   }
 }
@@ -41,11 +41,14 @@ export function HelpContextProvider({ children }) {
 
   const getFromCache = useCallback((componentKey) => {
     if (!isClient) return null;
+
     if (cacheRef.current[componentKey]) {
       return cacheRef.current[componentKey];
     }
+
     try {
       const cached = localStorage.getItem(`help_${componentKey}`);
+
       if (cached) {
         cacheRef.current[componentKey] = JSON.parse(cached);
         return cacheRef.current[componentKey];
@@ -53,12 +56,15 @@ export function HelpContextProvider({ children }) {
     } catch {
       return null;
     }
+
     return null;
   }, [isClient]);
 
   const saveToCache = useCallback((componentKey, text) => {
     if (!isClient) return;
+
     cacheRef.current[componentKey] = text;
+
     try {
       localStorage.setItem(`help_${componentKey}`, JSON.stringify(text));
     } catch {
@@ -68,7 +74,7 @@ export function HelpContextProvider({ children }) {
 
   const getHelpText = useCallback(async (componentKey, label, componentType, contextDescription) => {
     if (!isClient) return null;
-    
+
     const cached = getFromCache(componentKey);
     if (cached) return cached;
 
@@ -78,30 +84,30 @@ export function HelpContextProvider({ children }) {
         active: true,
       });
 
-      if (existing.length > 0 && existing[0].help_text_ptbr) {
+      if (Array.isArray(existing) && existing.length > 0 && existing[0]?.help_text_ptbr) {
         const text = existing[0].help_text_ptbr;
         saveToCache(componentKey, text);
         return text;
       }
 
       const generated = await generateWithClaude(label, componentType, contextDescription);
-      
+
       if (generated) {
         try {
-          await base44.asServiceRole.entities.HelpText.create({
+          await base44.entities.HelpText.create({
             component_key: componentKey,
             page_route: typeof window !== 'undefined' ? window.location.pathname : '',
             component_type: componentType,
             label,
             context_description: contextDescription,
             help_text_ptbr: generated,
-            generated_by_model: 'claude-3-5-sonnet',
+            generated_by_model: 'gpt_5_mini',
             last_generated_at: new Date().toISOString(),
             active: true,
             manually_edited: false,
           });
-        } catch {
-          // Falha ao salvar não deve impedir retorno
+        } catch (saveError) {
+          console.warn('Falha ao salvar HelpText:', saveError);
         }
 
         saveToCache(componentKey, generated);
@@ -110,6 +116,7 @@ export function HelpContextProvider({ children }) {
     } catch (error) {
       console.error('Erro ao gerar ajuda:', error);
     }
+
     return null;
   }, [getFromCache, saveToCache, isClient]);
 
@@ -126,13 +133,14 @@ export function HelpContextProvider({ children }) {
 
 export function useHelp() {
   const context = useContext(HelpContext);
+
   if (!context) {
-    // Fallback seguro: retorna funções vazias se usado fora do provider
     return {
       getHelpText: async () => null,
       isHelpEnabled: false,
       setIsHelpEnabled: () => {},
     };
   }
+
   return context;
 }
