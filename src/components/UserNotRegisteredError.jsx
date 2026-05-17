@@ -30,10 +30,12 @@ const UserNotRegisteredError = () => {
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
   const [form, setForm] = useState({ full_name: '', email: '', museu: '', funcao: '' });
+  const [approvedRegistration, setApprovedRegistration] = useState(null);
+
 
   // Tentar pré-preencher com dados do usuário Google logado
   useEffect(() => {
-    base44.auth.me().then(u => {
+    base44.auth.me().then(async (u) => {
       if (u?.email) {
         setUserEmail(u.email);
         setUserName(u.full_name || '');
@@ -42,6 +44,24 @@ const UserNotRegisteredError = () => {
           email: u.email || '',
           full_name: u.full_name || '',
         }));
+
+        try {
+          const registrations = await base44.entities.UserRegistration.filter({
+            email: u.email.toLowerCase(),
+          });
+
+          const approved = registrations.find(r => r.status === 'APROVADO');
+
+          if (approved) {
+            setApprovedRegistration(approved);
+
+            setTimeout(() => {
+              window.location.reload();
+            }, 2500);
+          }
+        } catch (e) {
+          console.warn('Falha ao verificar aprovação:', e);
+        }
       }
     }).catch(() => {});
   }, []);
@@ -79,6 +99,34 @@ const UserNotRegisteredError = () => {
     base44.auth.redirectToLogin(window.location.href);
   };
 
+
+  if (approvedRegistration) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center">
+        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-5">
+          <CheckCircle className="w-8 h-8 text-green-600" />
+        </div>
+
+        <h1 className="text-2xl font-semibold text-slate-900 mb-2">
+          Acesso liberado!
+        </h1>
+
+        <p className="text-slate-500 max-w-md text-sm">
+          Seu cadastro foi aprovado pela coordenação.
+          O sistema está finalizando seu acesso automaticamente.
+        </p>
+
+        <Button
+          onClick={() => window.location.reload()}
+          className="mt-6 bg-black hover:bg-neutral-800"
+        >
+          Entrar no sistema
+        </Button>
+      </div>
+    );
+  }
+
+
   // ── Tela de sucesso ───────────────────────────────────────────────
   if (step === 'done') {
     return (
@@ -88,7 +136,7 @@ const UserNotRegisteredError = () => {
         </div>
         <h1 className="text-2xl font-semibold text-slate-900 mb-2">Solicitação enviada!</h1>
         <p className="text-slate-500 max-w-sm text-sm">
-          Sua solicitação foi registrada. Um coordenador irá analisá-la e você receberá um e-mail quando for aprovada.
+          Sua solicitação foi registrada. Após aprovação da coordenação, seu acesso via Google será liberado automaticamente.
         </p>
         <button
           onClick={handleLoginOther}
