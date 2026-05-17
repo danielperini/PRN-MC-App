@@ -374,18 +374,18 @@ function buildPromptIntroducao(ctxEditorial, metricas, periodoStr, museuStr) {
 
 TAREFA: Redigir a Introdução Institucional do Relatório Físico-Financeiro do Projeto Museus Centro.
 
-ESTRUTURA OBRIGATÓRIA (4 parágrafos mínimos):
+Diretrizes editoriais (4 parágrafos mínimos):
 
-PARÁGRAFO 1 — CONTEXTO INSTITUCIONAL E TRANSIÇÃO DE GESTÃO:
+Contextualize institucionalmente o período analisado.
 Apresentar o período (${periodoStr}), o projeto Museus Centro, a parceria com a DEMUS/FMC-BH, e a importante transição de coordenação que marcou o início do período: Andréia Matos e a chegada de Daniel Perini à coordenação executiva, com Ana Luiza como referência técnica. Mencionar a pausa de fevereiro como momento de reorganização e a retomada plena em março.
 
-PARÁGRAFO 2 — ESCOPO E CONSOLIDAÇÃO:
+Analise o escopo consolidado das atividades e relatórios.
 Descrever que o relatório consolida ${metricas.totalRels} relatórios aprovados das equipes do MIS, MHAB e MUMO, comunicação, produção executiva e coordenação financeira. Contextualizar a amplitude das ${metricas.totalAtiv} atividades realizadas, com público de ${fmtInt(metricas.publicoTotal)} pessoas nas ações abertas.
 
-PARÁGRAFO 3 — MUSEU CENTRO APP E INTELIGÊNCIA ARTIFICIAL:
+Descreva o papel do Museu Centro APP na gestão e auditoria técnica.
 Apresentar o Museu Centro APP como instrumento de gestão cultural desenvolvido especificamente para o projeto — integra relatórios, programação, fotos, compras, rubricas e prestação de contas. Destacar que este relatório foi produzido com o uso do aplicativo e que inteligência artificial foi utilizada como camada de auditoria técnica dos dados, sem substituir a análise da coordenação.
 
-PARÁGRAFO 4 — RITUAIS DE GESTÃO E PLANEJAMENTO:
+Analise os rituais de gestão, planejamento e monitoramento.
 Descrever a implementação de rituais sistemáticos de gestão (reuniões semanais, planejamento mensal, fechamento de relatórios), o trabalho de estruturação operacional do período, e o horizonte do Noturno nos Museus como evento central da segunda metade de 2026.
 
 Tom: institucional, editorial, denso, técnico-cultural. Sem linguagem de marketing.
@@ -397,7 +397,7 @@ function buildPromptConclusao(ctxEditorial, metricas, periodoStr) {
 
 TAREFA: Redigir a Conclusão Institucional do Relatório Físico-Financeiro.
 
-ESTRUTURA OBRIGATÓRIA (3 parágrafos):
+Diretrizes editoriais (3 parágrafos):
 
 PARÁGRAFO 1 — ANÁLISE INSTITUCIONAL E CONSOLIDAÇÃO:
 Analisar o período ${periodoStr} como etapa de consolidação estrutural do Projeto Museus Centro. Com ${metricas.totalRels} relatórios aprovados, ${metricas.totalAtiv} atividades realizadas e ${fmtInt(metricas.publicoTotal)} pessoas alcançadas, o período marcou a transição de gestão, a implantação de rituais operacionais e o amadurecimento dos processos internos. Relacionar com a missão do projeto: memória, cultura, território e transformação social no centro de BH.
@@ -688,6 +688,80 @@ Período de referência: ${periodoStr}`;
   return textos;
 }
 
+
+function gerarAnexosRelatoriosIndividuais(relsFiltrados = []) {
+  if (!Array.isArray(relsFiltrados) || relsFiltrados.length === 0) {
+    return '';
+  }
+
+  return `
+    <div class="secao">
+      <h2>Anexos — Relatórios Individuais</h2>
+
+      ${relsFiltrados.map((r, index) => {
+        const atividades = Array.isArray(r.atividades)
+          ? r.atividades
+          : [];
+
+        return `
+          <div class="anexo-relatorio" style="page-break-before:always;margin-top:40px;">
+            <h3>
+              ${String(index + 1).padStart(2, '0')} —
+              ${r.author_name || 'Profissional'}
+            </h3>
+
+            <p>
+              <strong>Museu:</strong> ${r.museu || '—'}<br>
+              <strong>Função:</strong> ${r.funcao || '—'}<br>
+              <strong>Período:</strong> ${r.mes_referencia || '—'}/${r.ano || '—'}
+            </p>
+
+            ${r.resumo_executivo ? `
+              <div class="destaque-box">
+                <p>${r.resumo_executivo}</p>
+              </div>
+            ` : ''}
+
+            ${atividades.map(a => `
+              <div style="margin:18px 0;padding:14px;border:1px solid #e5e5e5;border-radius:8px;">
+                <h4 style="margin:0 0 8px;">
+                  ${a.titulo || a.nome || 'Atividade'}
+                </h4>
+
+                <p>
+                  ${a.descricao_executado || a.descricao || ''}
+                </p>
+
+                ${a.resultados_impactos ? `
+                  <p>
+                    <strong>Impactos:</strong>
+                    ${a.resultados_impactos}
+                  </p>
+                ` : ''}
+
+                ${a.problemas ? `
+                  <p>
+                    <strong>Problemas:</strong>
+                    ${a.problemas}
+                  </p>
+                ` : ''}
+
+                ${a.solucoes ? `
+                  <p>
+                    <strong>Soluções:</strong>
+                    ${a.solucoes}
+                  </p>
+                ` : ''}
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+
 // ── geração de HTML completo ───────────────────────────────────────────────────
 
 async function gerarHTMLCompleto(dados, metricas, secoes, dateFrom, dateTo, museuFiltro, opcoes, fotosAnalisadas = []) {
@@ -849,6 +923,18 @@ async function gerarHTMLCompleto(dados, metricas, secoes, dateFrom, dateTo, muse
       color: #555;
       line-height: 1.5;
     }
+
+    
+    .anexo-relatorio {
+      break-inside: avoid;
+    }
+
+    .anexo-relatorio h3 {
+      font-size: 18px;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 8px;
+    }
+
 
     @media print {
       .secao { page-break-before: always; }
@@ -1275,6 +1361,8 @@ async function gerarHTMLCompleto(dados, metricas, secoes, dateFrom, dateTo, muse
       ${textos.conclusao ? paragrafoHTML(textos.conclusao) : '<p>Período analisado com consistência documental e física verificada.</p>'}
     </div>`;
   }
+
+  html += gerarAnexosRelatoriosIndividuais(relsFiltrados);
 
   html += `<div class="rodape">
     Relatório Institucional — Projeto Museus Centro — Gerado com Museu Centro APP em ${new Date().toLocaleString('pt-BR')}<br>
