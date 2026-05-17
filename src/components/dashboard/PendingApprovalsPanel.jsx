@@ -46,10 +46,37 @@ export default function PendingApprovalsPanel() {
     mutationFn: async (userId) => {
       const user = pendingUsers.find((item) => item.id === userId);
 
+      if (!user?.email) {
+        throw new Error('Usuário sem e-mail válido.');
+      }
+
       await base44.entities.UserRegistration.update(userId, {
         status: 'APROVADO',
         aprovado_em: new Date().toISOString(),
+        acesso_liberado: true,
       });
+
+      const permissions = await base44.entities.UserPermission.filter({
+        user_email: user.email.toLowerCase(),
+      });
+
+      if (!permissions?.length) {
+        await base44.entities.UserPermission.create({
+          user_email: user.email.toLowerCase(),
+          user_name: user.full_name || '',
+          base_role: 'PROFISSIONAL',
+          can_view_all_reports: false,
+          can_review_reports: false,
+          can_manage_users: false,
+          can_manage_files: false,
+          can_manage_platform: false,
+          can_view_audit_log: false,
+          can_manage_museus: false,
+          can_manage_equipes: false,
+          must_submit_monthly_reports: true,
+          gestao_compras: false,
+        });
+      }
 
       try {
         await base44.entities.AuditLog.create({
@@ -58,7 +85,7 @@ export default function PendingApprovalsPanel() {
           entity_id: userId,
           actor_email: 'system',
           actor_name: 'Coordenador',
-          details: `Usuário aprovado via painel de aprovações${user?.email ? `: ${user.email}` : ''}`,
+          details: `Usuário aprovado e liberado para login Google: ${user.email}`,
         });
       } catch (error) {
         console.warn('Auditoria de aprovação de usuário não registrada:', error);
@@ -66,7 +93,7 @@ export default function PendingApprovalsPanel() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-users'] });
-      toast.success('Usuário aprovado com sucesso');
+      toast.success('Usuário aprovado e liberado para login Google');
     },
     onError: (err) => toast.error('Erro ao aprovar: ' + (err?.message || 'erro desconhecido')),
   });
