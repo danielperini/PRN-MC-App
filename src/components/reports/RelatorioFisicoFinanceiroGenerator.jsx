@@ -309,38 +309,51 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
     const totalNotas =
       documentos.filter((d) => {
-        const tipo = norm(d?.tipo_detectado || d?.tipo || '');
+        const tipo = norm(
+          [
+            d?.tipo_detectado,
+            d?.tipo,
+            d?.categoria,
+            d?.nome_arquivo,
+            d?.arquivo_nome,
+          ]
+            .filter(Boolean)
+            .join(' ')
+        );
 
         return (
           tipo.includes('nota') ||
           tipo.includes('xml') ||
-          tipo.includes('fiscal')
+          tipo.includes('fiscal') ||
+          tipo.includes('nf')
         );
-      }).length ||
-      compras.filter(
-        (c) =>
-          c?.numero_nf ||
-          c?.nf_numero ||
-          c?.nota_fiscal_url ||
-          c?.xml_url
-      ).length;
+      }).length;
 
-    const totalReleases = (comunicacaoRaw || []).filter((r) => {
-      const texto = norm(
-        [
-          r?.tipo,
-          r?.categoria,
-          r?.titulo,
-          r?.descricao,
-        ].join(' ')
-      );
+    const totalReleases = (comunicacaoRaw || []).filter(
+      (r) => {
+        const texto = norm(
+          [
+            r?.tipo,
+            r?.categoria,
+            r?.titulo,
+            r?.descricao,
+            r?.tipo_conteudo,
+            r?.editoria,
+          ]
+            .filter(Boolean)
+            .join(' ')
+        );
 
-      return (
-        texto.includes('release') ||
-        texto.includes('imprensa') ||
-        texto.includes('comunicacao')
-      );
-    }).length;
+        return (
+          texto.includes('release') ||
+          texto.includes('imprensa') ||
+          texto.includes('clipagem') ||
+          texto.includes('comunicacao') ||
+          texto.includes('comunicação') ||
+          texto.includes('assessoria')
+        );
+      }
+    ).length;
 
     const html = htmlRelatorio({
       dateFrom,
