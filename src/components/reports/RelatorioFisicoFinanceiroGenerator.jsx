@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Loader2, FileText, Download, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, FileText, Download, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
@@ -13,6 +13,35 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState(null);
   const [erro, setErro] = useState(null);
+
+  const openPreview = (html) => {
+    const blob = new Blob([html], {
+      type: 'text/html;charset=utf-8',
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    window.open(url, '_blank');
+
+    return url;
+  };
+
+  const downloadHtml = (html) => {
+    const blob = new Blob([html], {
+      type: 'text/html;charset=utf-8',
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+
+    a.href = url;
+    a.download = `relatorio-museus-centro-${new Date().getTime()}.html`;
+
+    a.click();
+
+    URL.revokeObjectURL(url);
+  };
 
   const handleGerar = async () => {
     setLoading(true);
@@ -24,16 +53,84 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         museu: museu === 'Todos' ? null : museu,
       });
 
-      setResultado(response.data);
+      const data = response.data;
+
+      setResultado(data);
+
+      if (data?.html) {
+        openPreview(data.html);
+      }
+
       toast.success('Relatório gerado com sucesso!');
     } catch (err) {
       console.error(err);
 
-      const fallbackHtml = '<html><body><h1>Relatório Museus Centro</h1><div>Compras: 21</div><div>Notas Fiscais: 21</div><div>Programações: 31</div><div>Releases: 8</div></body></html>';
+      const fallbackHtml = `
+      <html>
+        <head>
+          <title>Relatório Museus Centro</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              padding: 40px;
+            }
+
+            .cards {
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 16px;
+              margin-top: 24px;
+            }
+
+            .card {
+              border: 1px solid #ddd;
+              border-radius: 12px;
+              padding: 20px;
+            }
+
+            .card strong {
+              display: block;
+              margin-top: 10px;
+              font-size: 28px;
+            }
+          </style>
+        </head>
+
+        <body>
+          <h1>Relatório Museus Centro</h1>
+
+          <div class="cards">
+            <div class="card">
+              Compras
+              <strong>21</strong>
+            </div>
+
+            <div class="card">
+              Notas Fiscais
+              <strong>21</strong>
+            </div>
+
+            <div class="card">
+              Programações
+              <strong>31</strong>
+            </div>
+
+            <div class="card">
+              Releases
+              <strong>8</strong>
+            </div>
+          </div>
+        </body>
+      </html>
+      `;
 
       setResultado({ html: fallbackHtml });
+
+      openPreview(fallbackHtml);
+
       setErro(err.message || 'Erro');
-      toast.error('Modo local ativado');
+
+      toast.error('Backend indisponível — modo local ativado');
     } finally {
       setLoading(false);
     }
@@ -41,13 +138,14 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
   const handleDownloadHTML = () => {
     if (!resultado?.html) return;
-    const blob = new Blob([resultado.html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'relatorio.html';
-    a.click();
-    URL.revokeObjectURL(url);
+
+    downloadHtml(resultado.html);
+  };
+
+  const handleOpenPreview = () => {
+    if (!resultado?.html) return;
+
+    openPreview(resultado.html);
   };
 
   return (
@@ -58,7 +156,9 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         </div>
 
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Gerar Relatório</h2>
+          <h2 className="text-lg font-bold text-slate-900">
+            Gerar Relatório
+          </h2>
         </div>
       </div>
 
@@ -72,23 +172,40 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
           <SelectContent>
             {MUSEUS.map((m) => (
-              <SelectItem key={m} value={m}>{m}</SelectItem>
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      <Button onClick={handleGerar} disabled={loading} className="w-full">
-        {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+      <Button
+        onClick={handleGerar}
+        disabled={loading}
+        className="w-full"
+      >
+        {loading ? (
+          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+        ) : (
+          <FileText className="w-4 h-4 mr-2" />
+        )}
+
         Gerar Relatório
       </Button>
 
       {erro && (
         <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+
           <div>
-            <p className="text-sm font-medium text-red-800">Backend indisponível</p>
-            <p className="text-xs text-red-600 mt-1">{erro}</p>
+            <p className="text-sm font-medium text-red-800">
+              Backend indisponível
+            </p>
+
+            <p className="text-xs text-red-600 mt-1">
+              {erro}
+            </p>
           </div>
         </div>
       )}
@@ -97,15 +214,33 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4">
           <div className="flex items-start gap-3 mb-3">
             <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+
             <div>
-              <p className="text-sm font-medium text-green-800">Relatório gerado!</p>
+              <p className="text-sm font-medium text-green-800">
+                Relatório gerado com sucesso!
+              </p>
             </div>
           </div>
 
-          <Button variant="outline" size="sm" onClick={handleDownloadHTML}>
-            <Download className="w-4 h-4 mr-2" />
-            Baixar HTML
-          </Button>
+          <div className="flex gap-3 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenPreview}
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Abrir Relatório
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadHTML}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Baixar HTML
+            </Button>
+          </div>
         </div>
       )}
     </div>
