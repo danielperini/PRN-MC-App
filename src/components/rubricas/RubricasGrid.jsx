@@ -19,6 +19,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { calculateRubricaBalance, classifyRubricaBucket, isArchivedRubrica, isCreditRubrica } from '@/utils/finance/exceptionalRubricas';
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -77,6 +78,24 @@ function getPurchaseValue(p) {
 
 const STATUS_UTILIZADOS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 
+async function logRubricaAudit(payload) {
+  try {
+    if (base44.entities.RubricaAuditLog?.create) {
+      await base44.entities.RubricaAuditLog.create(payload);
+      return;
+    }
+    await base44.entities.AuditLog?.create?.({
+      action: payload.acao,
+      entity_type: 'Rubrica',
+      entity_id: payload.rubrica_id,
+      details: payload.justificativa || payload.acao,
+      metadata: payload,
+    });
+  } catch (error) {
+    console.warn('Auditoria de rubrica não registrada:', error);
+  }
+}
+
 export default function RubricasGrid({
   rubricas = [],
   purchases = [],
@@ -87,6 +106,7 @@ export default function RubricasGrid({
 }) {
   const [searchTerm,   setSearchTerm]   = useState('');
   const [groupFilter,  setGroupFilter]  = useState('all');
+  const [typeFilter,   setTypeFilter]   = useState('ativas');
   const [editingId,    setEditingId]    = useState(null);
   const [savingId,     setSavingId]     = useState(null);
   const [deletingId,   setDeletingId]   = useState(null);
@@ -115,10 +135,10 @@ export default function RubricasGrid({
     return (rubricas || [])
       .filter(Boolean)
       .map((r, index) => {
-        const valorRubrica   = toNumber(r?.valor_rubrica);
-        const valorUtilizado = toNumber(utilizadoPorRubrica[r?.id] || 0);
-        const saldo          = valorRubrica - valorUtilizado;
-        const percentual     = valorRubrica > 0 ? (valorUtilizado / valorRubrica) * 100 : 0;
+        const purchaseUtilizado = toNumber(utilizadoPorRubrica[r?.id] || 0);
+        const valorRubrica = toNumber(r?.valor_rubrica ?? r?.valor_total);
+        const valorUtilizado = Math.max(purchaseUtilizado, toNumber(r?.valor_utilizado));
+        const balance = calculateRubricaBalance({ ...r, valor_rubrica: valorRubrica, valor_total: valorRubrica, valor_utilizado: valorUtilizado });
         return {
           id:              r?.id || `rubrica-${index}`,
           grupo:           normalizarGrupo(r?.grupo || 'Sem grupo'),
@@ -127,9 +147,12 @@ export default function RubricasGrid({
           numero_parcelas: r?.numero_parcelas || r?.parcelas || '',
           valor_rubrica:   valorRubrica,
           valor_utilizado: valorUtilizado,
-          saldo,
-          percentual,
-          ativo:           r?.ativo !== false,
+          saldo:           balance.saldo,
+          percentual:      balance.percentual,
+          ativo:           r?.ativo !== false && !isArchivedRubrica(r),
+          bucket:          classifyRubricaBucket(r),
+          isCredit:        isCreditRubrica(r),
+          semMeta:         !r?.meta && !r?.meta_id && !r?.meta_nome,
           raw:             r,
         };
       });
@@ -143,20 +166,30 @@ export default function RubricasGrid({
   const filtradas = useMemo(() => {
     return rubricasNormalizadas.filter((r) => {
       const matchGrupo = groupFilter === 'all' || r.grupo === groupFilter;
+      const matchTipo =
+        typeFilter === 'all' ||
+        (typeFilter === 'ativas' && r.ativo) ||
+        (typeFilter === 'arquivadas' && !r.ativo) ||
+        (typeFilter === 'extraordinarias' && r.bucket === 'Rubricas Extraordinárias') ||
+        (typeFilter === 'creditos' && r.bucket === 'Créditos do Projeto') ||
+        (typeFilter === 'reposicoes' && r.bucket === 'Reposições Financeiras') ||
+        (typeFilter === 'sem_meta' && r.semMeta);
       const busca = normalizarTexto(searchTerm);
       const texto = normalizarTexto(`${r.grupo} ${r.rubrica} ${r.numero_parcelas}`);
-      return matchGrupo && (!busca || texto.includes(busca));
+      return matchGrupo && matchTipo && (!busca || texto.includes(busca));
     });
-  }, [rubricasNormalizadas, groupFilter, searchTerm]);
+  }, [rubricasNormalizadas, groupFilter, typeFilter, searchTerm]);
 
   const resumo = useMemo(() => {
     const ativas        = rubricasNormalizadas.filter((r) => r.ativo);
     const somaUtilizado = ativas.reduce((s, r) => s + r.valor_utilizado, 0);
+    const creditos      = ativas.filter((r) => r.isCredit).reduce((s, r) => s + toNumber(r.raw?.valor_creditado || r.raw?.valor_reposto || r.valor_rubrica), 0);
     return {
       totalRubricas:   ativas.length,
       totalPrevisto:   totalPrevisto,
       totalUtilizado:  somaUtilizado,
-      saldoTotal:      totalPrevisto - somaUtilizado,
+      creditos,
+      saldoTotal:      totalPrevisto + creditos - somaUtilizado,
       percentualGeral: totalPrevisto > 0 ? (somaUtilizado / totalPrevisto) * 100 : 0,
     };
   }, [rubricasNormalizadas, totalPrevisto]);
@@ -186,7 +219,16 @@ export default function RubricasGrid({
         rubrica:         editForm.rubrica,
         numero_parcelas: editForm.numero_parcelas,
         valor_rubrica:   toNumber(editForm.valor_rubrica),
+        valor_total:     toNumber(editForm.valor_rubrica),
         ativo:           editForm.ativo,
+        data_ultima_alteracao: new Date().toISOString(),
+      });
+      await logRubricaAudit({
+        rubrica_id: id,
+        acao: 'RUBRICA_EDITADA_INLINE',
+        data: new Date().toISOString(),
+        valor_total: toNumber(editForm.valor_rubrica),
+        justificativa: 'Edição rápida na grade de rubricas',
       });
       toast.success('Rubrica atualizada com sucesso');
       cancelarEdicao();
@@ -199,12 +241,28 @@ export default function RubricasGrid({
   }
 
   async function excluirRubrica(id, nome) {
-    const ok = window.confirm(`Deseja excluir a rubrica "${nome}"?\n\nEssa ação não pode ser desfeita.`);
+    const ok = window.confirm(`Deseja arquivar a rubrica "${nome}"?\n\nRubricas com histórico serão preservadas para auditoria.`);
     if (!ok) return;
     setDeletingId(id);
     try {
-      await base44.entities.Rubrica.delete(id);
-      toast.success('Rubrica excluída com sucesso');
+      const temMovimento = purchases.some((p) => (p.rubrica_id || p.budgetline_id) === id) || toNumber(rubricas.find((r) => r.id === id)?.valor_utilizado) > 0;
+      if (temMovimento) {
+        await base44.entities.Rubrica.update(id, {
+          ativo: false,
+          status_rubrica: 'ARQUIVADA',
+          arquivada_em: new Date().toISOString(),
+        });
+        await logRubricaAudit({ rubrica_id: id, acao: 'RUBRICA_ARQUIVADA', data: new Date().toISOString(), justificativa: 'Arquivamento lógico com movimentação preservada' });
+        toast.success('Rubrica arquivada para preservar histórico');
+      } else {
+        await base44.entities.Rubrica.update(id, {
+          ativo: false,
+          status_rubrica: 'INATIVA',
+          arquivada_em: new Date().toISOString(),
+        });
+        await logRubricaAudit({ rubrica_id: id, acao: 'RUBRICA_INATIVADA', data: new Date().toISOString(), justificativa: 'Exclusão lógica sem apagar histórico' });
+        toast.success('Rubrica desativada');
+      }
       await onRefresh?.();
     } catch (error) {
       toast.error(`Erro ao excluir: ${error.message}`);
@@ -267,6 +325,7 @@ export default function RubricasGrid({
           <p className={`text-xl font-bold mt-1 ${resumo.saldoTotal < 0 ? 'text-red-700' : 'text-green-700'}`}>
             R$ {moeda(resumo.saldoTotal)}
           </p>
+          {resumo.creditos > 0 && <p className="text-xs text-green-700 mt-0.5">Inclui créditos: R$ {moeda(resumo.creditos)}</p>}
         </div>
         <div className="rounded-2xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500">% Utilizado</p>
@@ -301,6 +360,20 @@ export default function RubricasGrid({
               {grupos.map((grupo) => (
                 <SelectItem key={grupo} value={grupo}>{grupo}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-full md:w-56">
+              <SelectValue placeholder="Filtrar por tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ativas">Ativas</SelectItem>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="extraordinarias">Extraordinárias</SelectItem>
+              <SelectItem value="creditos">Créditos</SelectItem>
+              <SelectItem value="reposicoes">Reposições</SelectItem>
+              <SelectItem value="sem_meta">Sem meta</SelectItem>
+              <SelectItem value="arquivadas">Arquivadas/Inativas</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -361,7 +434,10 @@ export default function RubricasGrid({
                         {emEdicao ? (
                           <Input value={editForm.rubrica} onChange={(e) => setEditForm((f) => ({ ...f, rubrica: e.target.value }))} />
                         ) : (
-                          <span className="font-medium text-black">{rubrica.rubrica}</span>
+                          <div>
+                            <span className="font-medium text-black">{rubrica.rubrica}</span>
+                            <p className="text-[11px] text-gray-500 mt-0.5">{rubrica.bucket}{rubrica.semMeta ? ' · sem meta' : ''}</p>
+                          </div>
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-center">

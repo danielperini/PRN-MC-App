@@ -1,18 +1,23 @@
 import React, { useState, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { DollarSign, TrendingUp, AlertCircle, Filter } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertCircle, Filter, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toastMessages } from '@/lib/toastMessages';
+import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
+import { canManageRubricas } from '@/components/auth/permissions';
 
 function DashboardFinanceiroInner() {
   const { user: currentUser, isCoordenador } = useCurrentUser();
+  const queryClient = useQueryClient();
   const [filterMuseu, setFilterMuseu] = useState('');
   const [filterEquipe, setFilterEquipe] = useState('');
+  const [showNovaRubrica, setShowNovaRubrica] = useState(false);
+  const canManage = canManageRubricas(currentUser);
 
   // Carregar dados financeiros
   const { data: termos = [] } = useQuery({
@@ -152,11 +157,22 @@ function DashboardFinanceiroInner() {
     <div className="min-h-screen bg-white">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-black tracking-tight mb-2">
-            Dashboard Financeiro
-          </h1>
-          <p className="text-gray-500">Consolidação de gastos, fornecedores e orçamentos</p>
+        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold text-black tracking-tight mb-2">
+              Dashboard Financeiro
+            </h1>
+            <p className="text-gray-500">Consolidação de gastos, fornecedores e orçamentos</p>
+          </div>
+          {canManage && (
+            <Button
+              onClick={() => setShowNovaRubrica(true)}
+              className="bg-black hover:bg-gray-800 text-white"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Rubrica
+            </Button>
+          )}
         </div>
 
         {/* KPI Cards */}
@@ -317,6 +333,16 @@ function DashboardFinanceiroInner() {
           )}
         </div>
       </div>
+      <NovaRubricaDialog
+        open={showNovaRubrica}
+        currentUser={currentUser}
+        onClose={() => {
+          setShowNovaRubrica(false);
+          queryClient.invalidateQueries({
+            predicate: (query) => String(query.queryKey?.[0] || '').toLowerCase().includes('rubrica'),
+          });
+        }}
+      />
     </div>
   );
 }

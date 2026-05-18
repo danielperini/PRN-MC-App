@@ -23,14 +23,18 @@ import RequireAuth from '@/components/auth/RequireAuth';
 import RubricasGrid from '@/components/rubricas/RubricasGrid';
 import RubricaDetail from '@/components/rubricas/RubricaDetail';
 import RubricaExporter from '@/components/rubricas/RubricaExporter';
-import EditRubricaDialog from '@/components/rubricas/EditRubricaDialog';
+import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import MapeamentoRubricasEditor from '@/components/rubricas/MapeamentoRubricasEditor';
+import { useCurrentUser } from '@/components/auth/useCurrentUser';
+import { canManageRubricas } from '@/components/auth/permissions';
 
 export default function RubricasPage() {
   const [selectedRubrica, setSelectedRubrica] = useState(null);
   const [showNewRubrica, setShowNewRubrica] = useState(false);
   const [showMapeamento, setShowMapeamento] = useState(false);
   const queryClient = useQueryClient();
+  const { user: currentUser } = useCurrentUser();
+  const canManage = canManageRubricas(currentUser);
 
   const [initializing, setInitializing] = useState(false);
 
@@ -109,13 +113,15 @@ export default function RubricasPage() {
 
           {/* Botões de ação */}
           <div className="flex gap-2 flex-wrap mb-6">
-            <Button
-              className="bg-black hover:bg-gray-800 text-white gap-2"
-              onClick={() => setShowNewRubrica(true)}
-            >
-              <Plus className="w-4 h-4" />
-              Nova Rubrica
-            </Button>
+            {canManage && (
+              <Button
+                className="bg-black hover:bg-gray-800 text-white gap-2"
+                onClick={() => setShowNewRubrica(true)}
+              >
+                <Plus className="w-4 h-4" />
+                Nova Rubrica
+              </Button>
+            )}
             {rubricas.length === 0 && !loadingRubricas && (
               <Button
                 variant="outline"
@@ -141,13 +147,16 @@ export default function RubricasPage() {
           <RubricasGrid
             rubricas={rubricas}
             onSelectRubrica={setSelectedRubrica}
+            isCoordenador={canManage}
+            onRefresh={() => queryClient.invalidateQueries({ queryKey: ['rubricas'] })}
           />
         </div>
 
         {/* Diálogos */}
         {showNewRubrica && (
-          <EditRubricaDialog
-            isOpen={showNewRubrica}
+          <NovaRubricaDialog
+            open={showNewRubrica}
+            currentUser={currentUser}
             onClose={() => {
               setShowNewRubrica(false);
               queryClient.invalidateQueries({ queryKey: ['rubricas'] });

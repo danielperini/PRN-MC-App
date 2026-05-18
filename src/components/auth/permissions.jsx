@@ -5,6 +5,10 @@
  */
 
 export const COORD_GERAL_EMAIL = 'daniel@periniprojetos.com.br';
+export const COORD_FINANCEIRO_EMAILS = [
+  COORD_GERAL_EMAIL,
+  'josiane@periniprojetos.com.br',
+];
 
 export const AUTO_APPROVED_DOMAINS = [
   '@viadutodasartes.org.br',
@@ -292,6 +296,16 @@ export function canManageFinanceiro(user, userPermission) {
   if (isObservador(user, userPermission)) return false;
   if (isPatrocinador(user)) return false;
   return true;
+}
+
+export function canManageRubricas(user, userPermission) {
+  if (!user) return false;
+  const email = String(user.email || '').toLowerCase();
+  if (COORD_FINANCEIRO_EMAILS.includes(email)) return true;
+  if (isObservador(user, userPermission)) return false;
+  if (isPatrocinador(user)) return false;
+  const role = String(user.role || user.base_role || userPermission?.base_role || '').toUpperCase();
+  return role === 'ADMIN' || role === 'COORDENADOR' || isCoordenador(user);
 }
 
 export function canEditReport(currentUser, reportAuthorEmail) {

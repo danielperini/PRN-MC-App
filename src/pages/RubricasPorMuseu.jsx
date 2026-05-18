@@ -4,12 +4,14 @@ import { base44 } from '@/api/base44Client';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { TrendingUp, RefreshCw, LayoutGrid } from 'lucide-react';
+import { TrendingUp, RefreshCw, LayoutGrid, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
 import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
 import CardRubricaEditor from '@/components/rubricas/CardRubricaEditor';
+import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import { recalculateAllRubricasFromPurchases } from '@/components/compras/AutoRubricasSync';
+import { canManageRubricas } from '@/components/auth/permissions';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 const ABAS = ['MHAB', 'MIS', 'MUMO', 'NOTURNO'];
@@ -285,6 +287,7 @@ export default function RubricasPorMuseu() {
   const [museuAtivo, setMuseuAtivo] = useState('MHAB');
   const [showGerenciar, setShowGerenciar] = useState(false);
   const [showCardEditor, setShowCardEditor] = useState(false);
+  const [showNovaRubrica, setShowNovaRubrica] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [userPermission, setUserPermission] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -305,7 +308,7 @@ export default function RubricasPorMuseu() {
   const userRole = String(userPermission?.base_role || currentUser?.role || '').toUpperCase();
   const isSponsor = userRole === 'PATROCINADOR' || userRole === 'OBSERVADOR';
   const isCoordenador = currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
-  const canEdit = !isSponsor && (isCoordenador || userPermission?.pode_gerenciar_rubricas || userPermission?.gestao_compras);
+  const canEdit = !isSponsor && (isCoordenador || userPermission?.pode_gerenciar_rubricas || userPermission?.gestao_compras || canManageRubricas(currentUser, userPermission));
 
   const { data: consolidado, refetch: refetchConsolidado } = useQuery({
     queryKey: ['rubricas-consolidadas', refreshNonce],
@@ -383,6 +386,7 @@ export default function RubricasPorMuseu() {
           </div>
           {canEdit && (
             <div className="flex gap-2 flex-wrap">
+              <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={() => setShowNovaRubrica(true)}><Plus className="w-4 h-4" />Nova Rubrica</Button>
               <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={handleRefresh} disabled={isRefreshing}><RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />Recalcular</Button>
               {isCoordenador && <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={() => setShowCardEditor(true)}><LayoutGrid className="w-4 h-4" />Editor de Cards</Button>}
             </div>
@@ -418,6 +422,14 @@ export default function RubricasPorMuseu() {
 
         <GerenciarRubricasMuseuDialog open={showGerenciar} onClose={() => setShowGerenciar(false)} />
         <CardRubricaEditor open={showCardEditor} onClose={() => setShowCardEditor(false)} />
+        <NovaRubricaDialog
+          open={showNovaRubrica}
+          currentUser={currentUser}
+          onClose={async () => {
+            setShowNovaRubrica(false);
+            await refreshAllRubricaData();
+          }}
+        />
       </div>
     </div>
   );

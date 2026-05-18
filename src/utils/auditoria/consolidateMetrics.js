@@ -9,6 +9,7 @@ import { validateProgramacao } from './validateProgramacao';
 import { validateMetas } from './validateMetas';
 import { validateRubricas } from './validateRubricas';
 import { validateDashboardMetrics } from './validateDashboardMetrics';
+import { validateExceptionalRubricas } from '@/utils/finance/validateExceptionalRubricas';
 
 function withReportAuditFields(reports = []) {
   return (Array.isArray(reports) ? reports : []).map((report) => {
@@ -66,6 +67,7 @@ export function consolidateMetrics(datasets = {}, options = {}) {
   const programacaoValidation = validateProgramacao(programacao);
   const metaValidation = validateMetas({ activities: activities.activities, metas });
   const rubricaValidation = validateRubricas(rubricas);
+  const exceptionalRubricaValidation = validateExceptionalRubricas(rubricas);
 
   const preliminary = {
     period: filter,
@@ -96,6 +98,7 @@ export function consolidateMetrics(datasets = {}, options = {}) {
     ...programacaoValidation.issues,
     ...metaValidation.issues,
     ...rubricaValidation.issues,
+    ...exceptionalRubricaValidation.issues,
     ...financeiro.inconsistencies,
     ...dashboardValidation.issues,
     ...activities.duplicateActivities.map((item) => ({

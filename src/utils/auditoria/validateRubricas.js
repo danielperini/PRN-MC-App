@@ -1,11 +1,12 @@
 import { getRubricaBudget, getRubricaUsed } from './reconcileFinancialTotals';
+import { isArchivedRubrica, isCreditRubrica } from '@/utils/finance/exceptionalRubricas';
 
 export function validateRubricas(rubricas = []) {
   const issues = [];
   const keys = new Set();
 
   (Array.isArray(rubricas) ? rubricas : []).forEach((rubrica) => {
-    if (rubrica?.ativo === false) return;
+    if (rubrica?.ativo === false || isArchivedRubrica(rubrica)) return;
     const key = String(rubrica.id || rubrica.codigo || rubrica.nome || rubrica.rubrica || '').toLowerCase();
     if (key) {
       if (keys.has(key)) {
@@ -21,7 +22,7 @@ export function validateRubricas(rubricas = []) {
 
     const previsto = getRubricaBudget(rubrica);
     const utilizado = getRubricaUsed(rubrica);
-    if (previsto <= 0) {
+    if (previsto <= 0 && !isCreditRubrica(rubrica)) {
       issues.push({
         type: 'RUBRICA_WITHOUT_BUDGET',
         severity: 'info',

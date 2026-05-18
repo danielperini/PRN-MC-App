@@ -1,4 +1,5 @@
 import { toAuditNumber } from './deduplicateAudience';
+import { getRubricaCredit, isArchivedRubrica, isCreditRubrica } from '@/utils/finance/exceptionalRubricas';
 
 export const OFFICIAL_ADITIVO_TOTAL = 1320000;
 
@@ -19,7 +20,7 @@ export function getRubricaUsed(rubrica = {}) {
 
 export function reconcileFinancialTotals(rubricas = [], options = {}) {
   const officialTotal = toAuditNumber(options.officialTotal || OFFICIAL_ADITIVO_TOTAL);
-  const active = (Array.isArray(rubricas) ? rubricas : []).filter((rubrica) => rubrica?.ativo !== false);
+  const active = (Array.isArray(rubricas) ? rubricas : []).filter((rubrica) => rubrica?.ativo !== false && !isArchivedRubrica(rubrica));
   const byId = new Map();
 
   active.forEach((rubrica) => {
@@ -29,16 +30,19 @@ export function reconcileFinancialTotals(rubricas = [], options = {}) {
   });
 
   const uniqueRubricas = Array.from(byId.values());
-  const totalPrevistoRubricas = uniqueRubricas.reduce((sum, rubrica) => sum + getRubricaBudget(rubrica), 0);
+  const budgetRubricas = uniqueRubricas.filter((rubrica) => !isCreditRubrica(rubrica));
+  const creditRubricas = uniqueRubricas.filter(isCreditRubrica);
+  const totalPrevistoRubricas = budgetRubricas.reduce((sum, rubrica) => sum + getRubricaBudget(rubrica), 0);
+  const totalCreditosProjeto = creditRubricas.reduce((sum, rubrica) => sum + getRubricaCredit(rubrica), 0);
   const totalUtilizado = uniqueRubricas.reduce((sum, rubrica) => sum + getRubricaUsed(rubrica), 0);
-  const saldo = officialTotal - totalUtilizado;
+  const saldo = officialTotal + totalCreditosProjeto - totalUtilizado;
   const percentualExecucao = officialTotal > 0 ? Number(((totalUtilizado / officialTotal) * 100).toFixed(2)) : 0;
 
   const byGroupMap = {};
   uniqueRubricas.forEach((rubrica) => {
     const grupo = rubrica.grupo || rubrica.categoria || rubrica.eixo || 'Sem grupo';
     if (!byGroupMap[grupo]) byGroupMap[grupo] = { grupo, previsto: 0, utilizado: 0, saldo: 0, rubricas: 0 };
-    byGroupMap[grupo].previsto += getRubricaBudget(rubrica);
+    byGroupMap[grupo].previsto += isCreditRubrica(rubrica) ? getRubricaCredit(rubrica) : getRubricaBudget(rubrica);
     byGroupMap[grupo].utilizado += getRubricaUsed(rubrica);
     byGroupMap[grupo].rubricas += 1;
   });
@@ -77,6 +81,8 @@ export function reconcileFinancialTotals(rubricas = [], options = {}) {
   return {
     officialTotal,
     totalPrevistoRubricas,
+    totalCreditosProjeto,
+    totalDisponivelComCreditos: officialTotal + totalCreditosProjeto,
     totalUtilizado,
     saldo,
     percentualExecucao,
