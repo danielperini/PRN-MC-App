@@ -819,16 +819,18 @@ function MonthlyAgendaSection({ contexto }) {
                 <h3>{sanitizeReportText(item.titulo)}</h3>
               </div>
               {!item.isCommunicationCard ? (
+                {(item.publicoRegistrado > 0 || item.publicoEstimado > 0) ? (
                 <div className="premium-public-highlight">
-                  <strong>{item.publicoRegistrado > 0 ? fmtInt(item.publicoRegistrado) : item.publicoEstimado > 0 ? fmtInt(item.publicoEstimado) : 'N/A'}</strong>
+                  <strong>{item.publicoRegistrado > 0 ? fmtInt(item.publicoRegistrado) : item.publicoEstimado > 0 ? fmtInt(item.publicoEstimado) : ''}</strong>
                   <span>{item.publicoTipo === 'estimado' ? 'público estimado' : 'participantes'}</span>
                 </div>
+              ) : null}
               ) : null}
             </header>
             {buildPublicContext(item) ? <p className="premium-public-context">{buildPublicContext(item)}</p> : null}
             <div className="premium-card-facts">
               <span><strong>Datas</strong>{(item.datasConsolidadas || []).join(', ') || item.data || item.mes || 'período'}</span>
-              <span><strong>Meta vinculada</strong>{item.metaEditorial || getActivityMeta(item) || 'não informada'}{item.metaInferida ? ' (inferida)' : ''}</span>
+              <span><strong>Meta vinculada</strong>{item.metaEditorial || getActivityMeta(item) || ''}{item.metaInferida ? ' (inferida)' : ''}</span>
               {!item.isCommunicationCard ? <span><strong>Público</strong>{item.publicoTipo === 'estimado' ? 'estimado a partir da programação' : 'registrado nos relatórios e atividades'}</span> : null}
               {item.participantes > 0 ? <span><strong>Participantes</strong>{fmtInt(item.participantes)} pessoas identificadas</span> : null}
               {item.relatoriosVinculados?.length ? <span><strong>Relatórios vinculados</strong>{item.relatoriosVinculados.join(', ')}</span> : null}
@@ -895,8 +897,8 @@ function PhotoEvidenceDenseSection({ contexto }) {
             <span>{sanitizeReportText(photo.atividade || 'Atividade vinculada ao app')}</span>
             <small>{photo.museu || 'Museus Centro'}</small>
             <small>{cleanFileName(photo.fileName || photo.link)}</small>
-            <small>GPS: {photo.localizacao?.label || 'não informado'}</small>
-            <small>Crédito: {photo.credito || 'não informado'}</small>
+            <small>GPS: {photo.localizacao?.label || ''}</small>
+            <small>Crédito: {photo.credito || 'registro institucional'}</small>
             {photo.link ? <a href={photo.link} target="_blank" rel="noreferrer">Abrir arquivo</a> : null}
           </article>
         ))}
