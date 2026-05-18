@@ -89,6 +89,19 @@ const CATALOG_CSS = `
   .premium-photo-index-thumb { display: block; width: 100%; height: 32mm; overflow: hidden; margin-bottom: 8px; border-radius: 10px; }
   .premium-photo-index-thumb img { width: 100%; height: 100%; object-fit: cover; }
   .premium-photo-index-item strong, .premium-photo-index-item span, .premium-photo-index-item small, .premium-photo-index-item a { display: block; margin-bottom: 3px; color: inherit; }
+  .premium-photo-month { margin-top: 22px; break-inside: avoid; }
+  .premium-photo-month-title { margin: 0 0 14px; padding-bottom: 8px; border-bottom: 2px solid #171717; font-family: Georgia, "Times New Roman", serif; font-size: 30px; font-weight: 500; line-height: 1; }
+  .premium-photo-museum { margin-top: 18px; }
+  .premium-photo-museum-title { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: #5b554d; }
+  .premium-photo-activity { margin-top: 12px; padding: 14px; border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.44); break-inside: avoid; }
+  .premium-photo-activity-head { display: flex; justify-content: space-between; gap: 14px; align-items: flex-end; margin-bottom: 12px; }
+  .premium-photo-activity-head h3 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 19px; line-height: 1.15; font-weight: 500; }
+  .premium-photo-activity-head span { flex: 0 0 auto; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: #6f675e; }
+  .premium-photo-activity-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+  .premium-photo-activity-card { min-width: 0; break-inside: avoid; }
+  .premium-photo-caption { display: block; margin-top: 7px; font-size: 11.5px; line-height: 1.38; color: #2f2f2f; }
+  .premium-photo-meta { display: block; margin-top: 4px; font-size: 10.5px; line-height: 1.35; color: #6b635b; }
+  .premium-photo-meta a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
   .premium-museum-heading { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid rgba(23,23,23,.18); }
   .premium-museum-kpis { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   .premium-museum-kpis span, .premium-activity-tags span { border: 1px solid rgba(23,23,23,.16); padding: 7px 9px; font-size: 12px; background: rgba(255,255,255,.4); }
@@ -927,6 +940,112 @@ function ReportsArchiveSection({ contexto }) {
   );
 }
 
+const MONTH_ORDER = {
+  janeiro: 1,
+  fevereiro: 2,
+  marco: 3,
+  março: 3,
+  abril: 4,
+  maio: 5,
+  junho: 6,
+  julho: 7,
+  agosto: 8,
+  setembro: 9,
+  outubro: 10,
+  novembro: 11,
+  dezembro: 12,
+};
+
+function monthSortValue(value = '') {
+  const key = normalizeText(value);
+  return MONTH_ORDER[key] || 99;
+}
+
+function photoActivityLabel(photo = {}) {
+  const explicit = sanitizeReportText(photo.atividade || photo.atividade_nome || photo.titulo_atividade || '');
+  if (explicit && normalizeText(explicit) !== 'atividade vinculada ao app') return explicit;
+
+  const caption = sanitizeReportText(photo.legenda || photo.caption || '');
+  const normalizedCaption = normalizeText(caption);
+  if (caption && !normalizedCaption.includes('whatsapp image') && !normalizedCaption.includes('registro fotografico')) {
+    return caption.replace(/^Registro da atividade\s+/i, '').replace(/\.$/, '');
+  }
+
+  return '';
+}
+
+function photoCaptionForActivity(photo = {}, activityTitle = '') {
+  const title = sanitizeReportText(activityTitle);
+  const museu = sanitizeReportText(photo.museu || 'Museus Centro');
+  const mes = sanitizeReportText(photo.mes || '');
+  const location = photo.localizacao?.label || resolveMuseumLocation(photo);
+  const parts = [title, museu, mes].filter(Boolean).join(' · ');
+  return sanitizeReportText(`Registro da atividade ${parts}. Localização: ${location}.`);
+}
+
+function groupPhotosByMonthMuseumActivity(contexto) {
+  const photos = extractPhotos(contexto, 240)
+    .filter((photo) => photo?.link || photo?.url)
+    .map((photo) => ({
+      ...photo,
+      activityTitle: photoActivityLabel(photo),
+      monthTitle: sanitizeReportText(photo.mes || 'Período'),
+      museumTitle: sanitizeReportText(photo.museu || 'Museus Centro'),
+    }))
+    .filter((photo) => photo.activityTitle);
+
+  const grouped = new Map();
+  photos.forEach((photo) => {
+    const key = [
+      normalizeText(photo.monthTitle),
+      normalizeText(photo.museumTitle),
+      normalizeText(photo.activityTitle),
+    ].join('|');
+
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        mes: photo.monthTitle,
+        museu: photo.museumTitle,
+        atividade: photo.activityTitle,
+        photos: [],
+        seen: new Set(),
+      });
+    }
+
+    const group = grouped.get(key);
+    const photoKey = photo.link || photo.url || photo.fileName;
+    if (photoKey && !group.seen.has(photoKey) && group.photos.length < 4) {
+      group.seen.add(photoKey);
+      group.photos.push(photo);
+    }
+  });
+
+  const activityGroups = Array.from(grouped.values())
+    .filter((group) => group.photos.length > 0)
+    .map(({ seen, ...group }) => group)
+    .sort((a, b) => (
+      monthSortValue(a.mes) - monthSortValue(b.mes) ||
+      a.museu.localeCompare(b.museu, 'pt-BR') ||
+      a.atividade.localeCompare(b.atividade, 'pt-BR')
+    ));
+
+  const months = new Map();
+  activityGroups.forEach((group) => {
+    if (!months.has(group.mes)) months.set(group.mes, new Map());
+    const museums = months.get(group.mes);
+    if (!museums.has(group.museu)) museums.set(group.museu, []);
+    museums.get(group.museu).push(group);
+  });
+
+  return Array.from(months.entries()).map(([mes, museums]) => ({
+    mes,
+    museums: Array.from(museums.entries()).map(([museu, activities]) => ({
+      museu,
+      activities,
+    })),
+  }));
+}
+
 function PhotoEvidenceDenseSection({ contexto }) {
   const photos = extractPhotos(contexto, 120);
   if (photos.length === 0) return null;
@@ -934,7 +1053,7 @@ function PhotoEvidenceDenseSection({ contexto }) {
   return (
     <PremiumSection
       breakBefore
-      eyebrow="Listagem de fotos"
+      eyebrow="Galeria e evidências"
       title="Fotos, crÃ©ditos e localizaÃ§Ã£o"
       subtitle="Lista em trÃªs colunas para conferÃªncia de atividade, museu, mÃªs, arquivo, crÃ©dito, link e GPS quando disponÃ­vel."
       text="A listagem amplia a densidade documental do relatÃ³rio e evita que a fotografia apareÃ§a apenas como ilustraÃ§Ã£o. Cada item preserva o vÃ­nculo com a atividade ou arquivo de origem disponÃ­vel no app."
@@ -957,6 +1076,63 @@ function PhotoEvidenceDenseSection({ contexto }) {
           </article>
         ))}
       </div>
+    </PremiumSection>
+  );
+}
+
+function PhotoEvidenceGroupedSection({ contexto }) {
+  const months = groupPhotosByMonthMuseumActivity(contexto);
+  if (months.length === 0) return null;
+
+  return (
+    <PremiumSection
+      breakBefore
+      eyebrow="Galeria e evidências"
+      title="Fotos por mês, museu e atividade"
+      subtitle="Registros visuais consolidados por atividade, com 1 a 4 fotos, legenda editorial, crédito e localização quando disponível na galeria."
+      text="A galeria foi reorganizada para preservar o vínculo entre imagem, atividade, museu e período. Quando há mais de uma foto da mesma ação, os registros aparecem agregados em um único bloco, evitando repetição visual e mantendo a rastreabilidade das evidências."
+    >
+      {months.map((month) => (
+        <section className="premium-photo-month" key={month.mes}>
+          <h2 className="premium-photo-month-title">{sanitizeReportText(month.mes)}</h2>
+          {month.museums.map((museum) => (
+            <div className="premium-photo-museum" key={`${month.mes}-${museum.museu}`}>
+              <h3 className="premium-photo-museum-title">{sanitizeReportText(museum.museu)}</h3>
+              {museum.activities.map((activity) => (
+                <article className="premium-photo-activity" key={`${month.mes}-${museum.museu}-${activity.atividade}`}>
+                  <header className="premium-photo-activity-head">
+                    <h3>{sanitizeReportText(activity.atividade)}</h3>
+                    <span>{fmtInt(activity.photos.length)} foto{activity.photos.length > 1 ? 's' : ''}</span>
+                  </header>
+                  <div className="premium-photo-activity-grid">
+                    {activity.photos.map((photo, index) => {
+                      const link = photo.link || photo.url;
+                      const location = photo.localizacao?.label || resolveMuseumLocation(photo);
+                      return (
+                        <figure className="premium-photo-activity-card" key={`${link || photo.fileName}-${index}`}>
+                          <a href={link} target="_blank" rel="noreferrer" className="premium-photo-index-thumb">
+                            <img src={link} alt={photoCaptionForActivity(photo, activity.atividade)} loading="lazy" />
+                          </a>
+                          <figcaption>
+                            <span className="premium-photo-caption">{photoCaptionForActivity(photo, activity.atividade)}</span>
+                            <span className="premium-photo-meta">Crédito: {sanitizeReportText(photo.credito || resolveMuseumCredit(photo))}</span>
+                            <span className="premium-photo-meta">
+                              Localização: {photo.localizacao?.mapUrl ? (
+                                <a href={photo.localizacao.mapUrl} target="_blank" rel="noreferrer">{sanitizeReportText(location)}</a>
+                              ) : sanitizeReportText(location)}
+                            </span>
+                            {link ? <span className="premium-photo-meta"><a href={link} target="_blank" rel="noreferrer">Abrir evidência</a></span> : null}
+                          </figcaption>
+                        </figure>
+                      );
+                    })}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ))}
+        </section>
+      ))}
     </PremiumSection>
   );
 }
@@ -1460,7 +1636,7 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
 
       {hasSection(secoesSelecionadas, 'comunicacao', 'comunicacao_premium') && <PremiumCommunicationSection contexto={contexto} textos={textos} />}
 
-      {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && hasRealPhotos(contexto) && <PhotoEvidenceDenseSection contexto={contexto} />}
+      {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && hasRealPhotos(contexto) && <PhotoEvidenceGroupedSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'relatorios_completos') && <ReportsArchiveSection contexto={contexto} />}
 
